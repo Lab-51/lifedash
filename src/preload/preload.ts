@@ -77,4 +77,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('labels:attach', cardId, labelId),
   detachLabel: (cardId: string, labelId: string) =>
     ipcRenderer.invoke('labels:detach', cardId, labelId),
+
+  // Settings
+  getSetting: (key: string) => ipcRenderer.invoke('settings:get', key),
+  setSetting: (key: string, value: string) =>
+    ipcRenderer.invoke('settings:set', key, value),
+  getAllSettings: () => ipcRenderer.invoke('settings:get-all'),
+  deleteSetting: (key: string) => ipcRenderer.invoke('settings:delete', key),
+
+  // AI Providers
+  getAIProviders: () => ipcRenderer.invoke('ai:list-providers'),
+  createAIProvider: (data: any) =>
+    ipcRenderer.invoke('ai:create-provider', data),
+  updateAIProvider: (id: string, data: any) =>
+    ipcRenderer.invoke('ai:update-provider', id, data),
+  deleteAIProvider: (id: string) =>
+    ipcRenderer.invoke('ai:delete-provider', id),
+  testAIConnection: (id: string) =>
+    ipcRenderer.invoke('ai:test-connection', id),
+  isEncryptionAvailable: () => ipcRenderer.invoke('ai:encryption-available'),
+
+  // AI Usage
+  getAIUsage: () => ipcRenderer.invoke('ai:get-usage'),
+  getAIUsageSummary: () => ipcRenderer.invoke('ai:get-usage-summary'),
 });

@@ -1,58 +1,63 @@
-# Plan 2.3 Execution Summary — Rich Text + Polish
+# Plan 3.1 Summary — AI Provider Backend & Settings Foundation
 
 ## Date: 2026-02-12
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Implemented card detail modal with TipTap rich text editor, labels management, and search/filter for the Kanban board.
+Installed AI SDK dependencies, created database schema for settings/providers/usage, built service layer with secure storage and provider management, and wired everything through IPC handlers and preload bridge.
 
-### Task 1: Card detail modal with TipTap rich text editor
+### Task 1: Install AI SDK dependencies and create database schema
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created `CardDetailModal.tsx` — centered overlay with editable title, priority selector, TipTap editor, timestamps
-- TipTap editor uses StarterKit + Placeholder extension, auto-saves description on blur
-- Fixed boardStore `updateCard`/`moveCard` to use spread merge (preserves labels)
-- Added TipTap styles to globals.css (ProseMirror: headings, lists, blockquote, code, placeholder)
-- Added onClick prop to KanbanCard with stopPropagation on interactive elements
-- Wired modal into BoardPage with selectedCardId state
+- Installed 4 packages: `ai` v6.0.84, `@ai-sdk/openai` v3.0.28, `@ai-sdk/anthropic` v3.0.43, `ollama-ai-provider` v1.2.0
+- Created `settings` table — generic key-value store (varchar PK, text value, updated_at)
+- Created `ai_providers` table — provider configs with encrypted API key storage
+- Created `ai_usage` table — append-only token usage log
+- Migration generated (0001_even_true_believers.sql) and applied to PostgreSQL
 
-### Task 2: Labels management in card detail + board store
+### Task 2: Create shared types and main process services
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Added labels state + 5 label actions to boardStore (loadLabels, createLabel, deleteLabel, attachLabel, detachLabel)
-- Labels loaded alongside board data in loadBoard
-- Added labels section to CardDetailModal: attached label pills with remove, dropdown with unattached labels, create new label form (name + 6 preset colors)
-- deleteLabel cleans up labels from all cards in local state
+- Added 9 AI types to shared/types.ts (AIProviderName, AITaskType, AIProvider, CreateAIProviderInput, UpdateAIProviderInput, AIConnectionTestResult, AIUsageEntry, AIUsageSummary, TaskModelConfig)
+- Extended ElectronAPI interface with 12 new methods (4 settings + 6 AI provider + 2 AI usage)
+- Created secure-storage.ts — Electron safeStorage wrapper (encrypt/decrypt API keys to/from base64)
+- Created ai-provider.ts — Provider manager with factory caching, connection testing, and text generation with automatic usage logging
 
-### Task 3: Search and filter cards on the board
+### Task 3: Create IPC handlers and extend preload bridge
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Added search input (searches title + description, case-insensitive)
-- Added priority filter dropdown (multi-select with colored dots + checkmarks)
-- Added label filter dropdown (multi-select from project labels)
-- Active filter indicator: "Showing X of Y cards" + "Clear filters" button
-- Drag-and-drop correctly uses unfiltered cards for position calculation
+- Created settings.ts — 4 IPC handlers (get, set/upsert, get-all, delete)
+- Created ai-providers.ts — 8 IPC handlers (provider CRUD, connection test, encryption check, usage queries)
+- Updated ipc/index.ts — registered both new handler files
+- Extended preload.ts — 12 new bridge methods matching ElectronAPI interface
 
-## Files Created (1)
-- `src/renderer/components/CardDetailModal.tsx` — Card detail modal (~280 lines with labels)
+## Files Created (6)
+- `src/main/db/schema/settings.ts` — Settings table schema
+- `src/main/db/schema/ai-providers.ts` — AI providers + usage tables schema
+- `src/main/services/secure-storage.ts` — Electron safeStorage encryption wrapper
+- `src/main/services/ai-provider.ts` — AI provider manager (cache, test, generate)
+- `src/main/ipc/settings.ts` — 4 settings IPC handlers
+- `src/main/ipc/ai-providers.ts` — 8 AI provider/usage IPC handlers
 
 ## Files Modified (4)
-- `src/renderer/stores/boardStore.ts` — Labels state + actions, spread merge fix (~210 lines)
-- `src/renderer/styles/globals.css` — TipTap editor styles
-- `src/renderer/components/KanbanCard.tsx` — onClick prop + stopPropagation
-- `src/renderer/pages/BoardPage.tsx` — Modal, search, filters (~590 lines)
+- `package.json` — 4 new dependencies (ai, @ai-sdk/openai, @ai-sdk/anthropic, ollama-ai-provider)
+- `src/main/db/schema/index.ts` — Added barrel exports for settings + ai-providers
+- `src/shared/types.ts` — 9 new types + 12 new ElectronAPI methods
+- `src/main/ipc/index.ts` — Registered settings and AI provider handlers
+- `src/preload/preload.ts` — 12 new bridge methods
+
+## Deviations from Plan
+1. **AI SDK v6 API**: `maxTokens` → `maxOutputTokens`, token usage uses `inputTokens`/`outputTokens` (not `promptTokens`/`completionTokens`)
+2. **Type safety**: `toAIProvider` uses Drizzle `$inferSelect` type instead of `any`
+3. **LanguageModel cast**: ollama-ai-provider v1.2.0 returns LanguageModelV1, requires `as LanguageModel` cast
 
 ## Verification
-- `npx tsc --noEmit`: PASS (zero errors, verified after each task)
+- `npx tsc --noEmit`: PASS (zero errors)
+- Migration: PASS (generated and applied)
+- All 12 ElectronAPI methods fully wired (type → handler → bridge)
 - Runtime test: PENDING
 
-## Phase 2 Summary
-- Plan 2.1: COMPLETE (data layer — types, IPC, stores, project list)
-- Plan 2.2: COMPLETE (kanban board — columns, cards, drag-and-drop)
-- Plan 2.3: COMPLETE (rich text + polish — modal, labels, search/filter)
-- **R3: Project Dashboard — 100% COMPLETE**
-
 ## What's Next
-1. Runtime test (`npm start`)
-2. `/nexus:git` to commit Plan 2.3
-3. Phase 2 complete → proceed to Phase 3
+1. `/nexus:git` to commit Plan 3.1 changes
+2. `/nexus:plan 3.2` for Settings UI
+3. After Plan 3.2: Plan 3.3 (Theme + polish)

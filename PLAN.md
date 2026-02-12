@@ -1,718 +1,868 @@
-# Phase 2 — Plan 3 of 3: Rich Text + Polish
+# Phase 3 — Plan 1 of 3: AI Provider Backend & Settings Foundation
 
 ## Coverage
-- **R3: Project Dashboard** (final ~25% — card detail modal, TipTap editor, labels, search/filter)
+- **R7: AI Provider System** (backend portion — schema, services, IPC)
+- **R9: Settings & Configuration** (backend portion — settings schema, IPC)
 
 ## Plan Overview
-Phase 2 delivers the full project dashboard (R3). It requires 3 plans:
+Phase 3 delivers the AI Provider System (R7) and Settings & Configuration (R9). It requires 3 plans:
 
-- **Plan 2.1** (done): Data layer — types, IPC CRUD, preload bridge, Zustand store, project list UI.
-- **Plan 2.2** (done): Kanban board — board store, column layout, card rendering, drag-and-drop.
-- **Plan 2.3** (this plan): Rich text + polish — card detail modal with TipTap editor,
-  labels management, board search and filter.
+- **Plan 3.1** (this plan): Backend foundation — deps, DB schema, services, IPC handlers.
+- **Plan 3.2** (next): Settings UI — store, settings page, provider management, model config.
+- **Plan 3.3** (next): Theme toggle, token usage display, and general app settings.
+
+## Scope Notes
+
+Some R9 deliverables are deferred to later phases where they naturally belong:
+- **Whisper model selection/download** → Phase 4 (depends on whisper-node installation)
+- **Audio device/source preferences** → Phase 4 (depends on audio capture setup)
+- **Data export/import** → Phase 7 / R15 (v2 feature)
 
 ## Design Decisions for This Plan
 
-1. **Card detail modal** — centered overlay (max-w-2xl) that opens on card click.
-   Contains title editing, TipTap rich text editor for description, priority selector,
-   labels, and timestamps. Overlay click or Escape to close.
-2. **TipTap editor** — uses `useEditor` + `EditorContent` pattern from @tiptap/react v3.19.
-   StarterKit for basic formatting (bold, italic, headings, lists, code, blockquote).
-   Placeholder extension for empty state. Auto-save description on editor blur.
-3. **Labels** — project-level labels (shared across all cards in a project). IPC handlers
-   already exist. Add label state + actions to boardStore. Label management in card detail modal
-   (attach/detach + create new inline).
-4. **Search/filter** — client-side filtering of the cards array in BoardPage. Search by title,
-   filter by priority and labels. Applied before grouping cards into columns.
-5. **boardStore fix** — `updateCard` and `moveCard` currently replace the entire card object
-   with the IPC response, which doesn't include labels. Fix to spread-merge so labels are preserved.
+1. **Settings table** — generic key-value store (varchar key PK, text value).
+   Used for theme preference, task model assignments (as JSON), and misc app config.
+   Simple and extensible without schema changes for each new setting.
+
+2. **ai_providers table** — dedicated table for configured AI providers.
+   Each row = one provider instance (e.g., OpenAI, Anthropic, Ollama).
+   API keys stored encrypted via Electron safeStorage (base64 of encrypted buffer).
+   Provider name is an enum-like varchar: 'openai' | 'anthropic' | 'ollama'.
+
+3. **ai_usage table** — append-only log of AI API calls.
+   Tracks tokens (prompt, completion, total) and estimated cost per call.
+   No foreign key to ai_providers — keeps history even if provider is deleted.
+
+4. **Secure storage** — Electron safeStorage API encrypts API keys at rest.
+   Keys are encrypted to Buffer, then stored as base64 strings in PostgreSQL.
+   Never send decrypted keys to the renderer process — only `hasApiKey: boolean`.
+
+5. **AI provider service** — thin wrapper around Vercel AI SDK providers.
+   Creates provider instances via createOpenAI/createAnthropic/createOllama.
+   Caches instances by provider DB id. Provides testConnection and generate methods.
+   Token usage logged automatically after each generation.
+
+6. **Task model assignments** — stored as JSON in the settings table
+   (key: `ai.taskModels`, value: JSON of TaskModelConfig per task type).
+   No separate table needed for v1 — simpler, fewer joins.
+
+7. **Ollama provider** — using `ollama-ai-provider` package (listed on Vercel AI SDK
+   community providers page). UNCERTAINTY: Multiple community packages exist
+   (`ollama-ai-provider`, `ai-sdk-ollama`). Executor should verify at install time.
 
 ---
 
-<phase n="2.3" name="Rich Text + Polish">
+<phase n="3.1" name="AI Provider Backend & Settings Foundation">
   <context>
-    Plan 2.2 is complete. The app now has:
-    - boardStore (Zustand) managing board, columns, cards via IPC
-    - BoardPage with horizontal column layout, drag-and-drop
-    - BoardColumn component with drop target behavior
-    - KanbanCard with priority border/badge, label dots, inline editing, drag support
-    - All label IPC handlers (list, create, update, delete, attach, detach)
-    - TipTap packages installed: @tiptap/react, @tiptap/starter-kit, @tiptap/extension-placeholder (v3.19.0)
+    Phase 2 is complete. The app has:
+    - Electron 40 with frameless window, system tray, IPC bridge
+    - PostgreSQL 16 via Docker Compose, Drizzle ORM with migrations
+    - React 19 + TypeScript + Tailwind CSS 4 renderer
+    - Zustand stores (projectStore, boardStore), Kanban board with drag-and-drop
+    - Sidebar navigation, lazy-loaded routes, settings page placeholder
 
-    Bug to fix: boardStore.updateCard and boardStore.moveCard replace the entire card with
-    the IPC response. The IPC response is the raw DB card which does NOT include the `labels`
-    field (labels is a relation fetched separately in cards:list-by-board). So after any
-    updateCard or moveCard call, the card's labels array is lost from state. Fix: use
-    `{ ...existingCard, ...updatedFields }` to preserve labels.
+    Established patterns to follow:
+    - Schema: pgTable with UUID PKs, timestamps with timezone, in src/main/db/schema/
+    - IPC: registerXHandlers function per file, ipcMain.handle(), called from index.ts
+    - Preload: thin bridge methods via contextBridge, ipcRenderer.invoke()
+    - Types: shared types in src/shared/types.ts with ElectronAPI interface
+    - File naming: kebab-case for main process files, PascalCase for components
+    - Data params in preload use `any`, type safety via ElectronAPI interface
 
-    IPC methods available for labels:
-    - getLabels(projectId) → Label[]
-    - createLabel({ projectId, name, color }) → Label
-    - updateLabel(id, { name?, color? }) → Label
-    - deleteLabel(id) → void
-    - attachLabel(cardId, labelId) → void
-    - detachLabel(cardId, labelId) → void
+    Verified AI SDK info (Feb 2026):
+    - Core: `ai` package v6.x, exports generateText, streamText
+    - OpenAI: `@ai-sdk/openai` — import { createOpenAI } from '@ai-sdk/openai'
+    - Anthropic: `@ai-sdk/anthropic` — import { createAnthropic } from '@ai-sdk/anthropic'
+    - Ollama: `ollama-ai-provider` — import { createOllama } from 'ollama-ai-provider'
+    - Pattern: createXXX({ apiKey }) returns factory fn, factory('model-name') returns LanguageModel
+    - Token usage: result.usage.promptTokens, .completionTokens, .totalTokens
+    - Electron safeStorage: encryptString(str) → Buffer, decryptString(buf) → string
+      Available after app ready event. Uses DPAPI on Windows, Keychain on macOS.
 
-    TipTap API (v3.19.0, verified from installed types):
-    - import { useEditor, EditorContent } from '@tiptap/react';
-    - import StarterKit from '@tiptap/starter-kit';
-    - import Placeholder from '@tiptap/extension-placeholder';
-    - useEditor({ extensions: [...], content: string, onUpdate?, onBlur?, immediatelyRender? })
-    - EditorContent component with `editor` prop and optional `className`
-    - editor.getHTML() returns HTML string
-    - editor.commands.setContent(html) to set content programmatically
-
-    Existing design patterns:
-    - bg-surface-900 main bg, bg-surface-800 card bg, border-surface-700
-    - text-surface-100 headings, text-surface-400 body, text-surface-500 muted
-    - bg-primary-600 buttons, hover:bg-primary-500
-    - Input: bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm
-    - Modal overlay: fixed inset-0 bg-black/50 z-50
-    - lucide-react for icons
-
-    @src/renderer/stores/boardStore.ts
-    @src/renderer/pages/BoardPage.tsx
-    @src/renderer/components/KanbanCard.tsx
-    @src/renderer/components/BoardColumn (inline in BoardPage.tsx)
-    @src/renderer/styles/globals.css
-    @src/shared/types.ts
-    @src/main/ipc/cards.ts
+    @src/main/db/schema/index.ts
+    @src/main/db/schema/projects.ts (pattern reference)
+    @src/main/db/connection.ts
+    @src/main/ipc/index.ts
+    @src/main/ipc/projects.ts (pattern reference)
     @src/preload/preload.ts
+    @src/shared/types.ts
   </context>
 
   <task type="auto" n="1">
-    <n>Card detail modal with TipTap rich text editor</n>
+    <n>Install AI SDK dependencies and create database schema</n>
     <files>
-      src/renderer/components/CardDetailModal.tsx (create — modal component)
-      src/renderer/styles/globals.css (modify — add TipTap editor styles)
-      src/renderer/stores/boardStore.ts (modify — fix updateCard/moveCard label preservation)
-      src/renderer/components/KanbanCard.tsx (modify — add onClick prop)
-      src/renderer/pages/BoardPage.tsx (modify — add selectedCardId state, render modal, pass onClick through BoardColumn)
+      package.json (modify — add AI SDK deps via npm install)
+      src/main/db/schema/settings.ts (create — settings key-value table)
+      src/main/db/schema/ai-providers.ts (create — ai_providers + ai_usage tables)
+      src/main/db/schema/index.ts (modify — export new tables)
     </files>
     <action>
-      Create a card detail modal and wire it into the board UI. Fix a bug where labels are
-      lost on card update.
+      Install the Vercel AI SDK and provider packages, then create database tables
+      for settings, AI providers, and usage tracking.
 
-      WHY: Users need to view and edit full card details including rich text descriptions.
-      The card on the board is compact — the modal provides the full editing experience.
-      The TipTap editor enables structured content (headings, lists, bold/italic, code).
+      WHY: The AI provider system needs persistent storage for provider configs
+      (API keys, enabled state), app settings (theme, task model assignments),
+      and usage logs (token counts, costs). All deps installed upfront so
+      subsequent tasks can import immediately.
 
       Steps:
 
-      1. Fix boardStore.ts — preserve labels on updateCard and moveCard:
+      1. Install dependencies:
+         ```
+         npm install ai @ai-sdk/openai @ai-sdk/anthropic ollama-ai-provider
+         ```
 
-         Current (BROKEN):
+         If `ollama-ai-provider` fails to install, try `ai-sdk-ollama` instead.
+         These are regular dependencies (not dev) — they run in Electron main process.
+
+      2. Create src/main/db/schema/settings.ts:
+
+         A generic key-value settings table for app configuration.
+
          ```typescript
-         updateCard: async (id, data) => {
-           const updated = await window.electronAPI.updateCard(id, data);
-           set({ cards: get().cards.map(c => (c.id === id ? updated : c)) });
-         },
-         moveCard: async (id, columnId, position) => {
-           const updated = await window.electronAPI.moveCard(id, columnId, position);
-           set({ cards: get().cards.map(c => (c.id === id ? updated : c)) });
-         },
+         // === FILE PURPOSE ===
+         // Schema for the settings table — generic key-value store for app configuration.
+         // Used for theme preference, task model assignments (JSON), and other settings.
+
+         import { pgTable, varchar, text, timestamp } from 'drizzle-orm/pg-core';
+
+         export const settings = pgTable('settings', {
+           key: varchar('key', { length: 255 }).primaryKey(),
+           value: text('value').notNull(),
+           updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+         });
          ```
 
-         Fixed (PRESERVES LABELS):
+         Using varchar PK (not UUID) because settings are looked up by key name.
+         Value is text type to support JSON strings for complex settings.
+
+      3. Create src/main/db/schema/ai-providers.ts:
+
+         Two tables: ai_providers (provider configurations) and ai_usage (token tracking).
+
          ```typescript
-         updateCard: async (id, data) => {
-           const updated = await window.electronAPI.updateCard(id, data);
-           set({ cards: get().cards.map(c => (c.id === id ? { ...c, ...updated } : c)) });
-         },
-         moveCard: async (id, columnId, position) => {
-           const updated = await window.electronAPI.moveCard(id, columnId, position);
-           set({ cards: get().cards.map(c => (c.id === id ? { ...c, ...updated } : c)) });
-         },
+         // === FILE PURPOSE ===
+         // Schema for AI provider configuration and usage tracking tables.
+         // ai_providers stores configured LLM providers with encrypted API keys.
+         // ai_usage is an append-only log of AI API calls for cost tracking.
+
+         import {
+           pgTable, uuid, varchar, text, boolean, integer, real, timestamp,
+         } from 'drizzle-orm/pg-core';
+
+         export const aiProviders = pgTable('ai_providers', {
+           id: uuid('id').defaultRandom().primaryKey(),
+           name: varchar('name', { length: 100 }).notNull(),       // 'openai' | 'anthropic' | 'ollama'
+           displayName: varchar('display_name', { length: 255 }),   // User-facing name
+           enabled: boolean('enabled').default(true).notNull(),
+           apiKeyEncrypted: text('api_key_encrypted'),              // base64(safeStorage.encryptString())
+           baseUrl: varchar('base_url', { length: 500 }),           // For Ollama or custom endpoints
+           createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+           updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+         });
+
+         export const aiUsage = pgTable('ai_usage', {
+           id: uuid('id').defaultRandom().primaryKey(),
+           providerId: uuid('provider_id'),                         // Nullable — keeps history if provider deleted
+           model: varchar('model', { length: 255 }).notNull(),
+           taskType: varchar('task_type', { length: 100 }).notNull(),
+           promptTokens: integer('prompt_tokens').notNull(),
+           completionTokens: integer('completion_tokens').notNull(),
+           totalTokens: integer('total_tokens').notNull(),
+           estimatedCost: real('estimated_cost'),                   // USD cents
+           createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+         });
          ```
 
-         WHY: The IPC response contains only the cards table columns (no labels).
-         Spreading `updated` over `c` updates DB fields while keeping the `labels` array
-         intact because `updated` does not have a `labels` property.
+         Schema notes:
+         - name: enforced in app logic as AIProviderName union, not DB constraint
+         - apiKeyEncrypted: null for Ollama (no API key needed)
+         - baseUrl: primarily for Ollama (http://localhost:11434), also custom endpoints
+         - No FK from ai_usage.providerId to ai_providers.id — preserves history on delete
+         - estimatedCost uses real (4-byte float), sufficient precision for cents
 
-      2. Add TipTap editor styles to globals.css:
-
-         Add at the end of globals.css:
-         ```css
-         /* TipTap rich text editor styles */
-         .tiptap-editor .ProseMirror {
-           outline: none;
-           min-height: 120px;
-           padding: 0.75rem;
-           color: var(--color-surface-100);
-           font-size: 0.875rem;
-           line-height: 1.625;
-         }
-         .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
-           content: attr(data-placeholder);
-           color: var(--color-surface-500);
-           float: left;
-           height: 0;
-           pointer-events: none;
-         }
-         .tiptap-editor .ProseMirror h1 { font-size: 1.25rem; font-weight: 700; margin: 0.75rem 0 0.5rem; }
-         .tiptap-editor .ProseMirror h2 { font-size: 1.125rem; font-weight: 600; margin: 0.75rem 0 0.5rem; }
-         .tiptap-editor .ProseMirror h3 { font-size: 1rem; font-weight: 600; margin: 0.5rem 0 0.25rem; }
-         .tiptap-editor .ProseMirror ul { list-style: disc; padding-left: 1.5rem; margin: 0.5rem 0; }
-         .tiptap-editor .ProseMirror ol { list-style: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
-         .tiptap-editor .ProseMirror li { margin: 0.125rem 0; }
-         .tiptap-editor .ProseMirror blockquote {
-           border-left: 3px solid var(--color-surface-600);
-           padding-left: 1rem;
-           color: var(--color-surface-400);
-           margin: 0.5rem 0;
-         }
-         .tiptap-editor .ProseMirror code {
-           background: var(--color-surface-800);
-           border-radius: 0.25rem;
-           padding: 0.125rem 0.375rem;
-           font-size: 0.8125rem;
-           font-family: ui-monospace, monospace;
-         }
-         .tiptap-editor .ProseMirror pre {
-           background: var(--color-surface-800);
-           border-radius: 0.5rem;
-           padding: 0.75rem;
-           margin: 0.5rem 0;
-           overflow-x: auto;
-         }
-         .tiptap-editor .ProseMirror pre code {
-           background: none;
-           padding: 0;
-         }
-         ```
-
-      3. Create src/renderer/components/CardDetailModal.tsx:
-
-         A modal overlay component for viewing and editing full card details.
-
-         Props:
+      4. Update src/main/db/schema/index.ts — add at end:
          ```typescript
-         interface CardDetailModalProps {
-           card: Card;
-           onUpdate: (id: string, data: UpdateCardInput) => Promise&lt;void&gt;;
-           onClose: () => void;
-         }
+         export * from './settings';
+         export * from './ai-providers';
          ```
 
-         Layout (centered overlay):
+      5. Generate and apply migration:
          ```
-         ┌─────────────────────────────────────────────────┐
-         │ [Title - click to edit]                    [X]  │
-         │                                                 │
-         │  Priority: [LOW] [MED] [HIGH] [URG]             │
-         │                                                 │
-         │  Description                                    │
-         │  ┌───────────────────────────────────────────┐  │
-         │  │ TipTap editor...                          │  │
-         │  │ (rich text with formatting)               │  │
-         │  │                                           │  │
-         │  └───────────────────────────────────────────┘  │
-         │                                                 │
-         │  Labels (Task 2 adds this section)              │
-         │                                                 │
-         │  Created: Jan 15, 2026 · Updated: Jan 16, 2026 │
-         └─────────────────────────────────────────────────┘
+         npm run db:generate
+         npm run db:migrate
          ```
-
-         Structure:
-         - Overlay: `fixed inset-0 z-50 flex items-center justify-center bg-black/50`
-           Click overlay (not modal content) to close.
-         - Modal: `bg-surface-900 rounded-xl border border-surface-700 w-full max-w-2xl
-           max-h-[80vh] overflow-y-auto mx-4 p-6`
-         - Close on Escape (useEffect with keydown listener)
-         - Close button: X icon in top-right
-
-         Title section:
-         - Click title text to enter edit mode
-         - Input: same styling as board forms
-         - Enter to save (call onUpdate with { title }), Escape to cancel
-         - Text display: `text-xl font-bold text-surface-100`
-
-         Priority section:
-         - 4 buttons in a row: LOW / MED / HIGH / URG
-         - Use the same PRIORITY_CONFIG color scheme from KanbanCard
-         - Active button has filled background, others have outline
-         - Click to change priority (call onUpdate with { priority })
-
-         Description section:
-         - Label: "Description" in text-sm text-surface-400
-         - TipTap editor setup:
-           ```typescript
-           import { useEditor, EditorContent } from '@tiptap/react';
-           import StarterKit from '@tiptap/starter-kit';
-           import Placeholder from '@tiptap/extension-placeholder';
-
-           const editor = useEditor({
-             extensions: [
-               StarterKit,
-               Placeholder.configure({ placeholder: 'Add a description...' }),
-             ],
-             content: card.description || '',
-             immediatelyRender: true,
-             onBlur: ({ editor }) => {
-               const html = editor.getHTML();
-               // Only save if content changed (compare with card.description)
-               const isEmpty = html === '&lt;p&gt;&lt;/p&gt;' || html === '';
-               const newDesc = isEmpty ? null : html;
-               if (newDesc !== card.description) {
-                 onUpdate(card.id, { description: newDesc });
-               }
-             },
-           });
-           ```
-         - Editor container: `bg-surface-800/50 rounded-lg border border-surface-700`
-         - Wrap EditorContent in a div with className `tiptap-editor` (targets our CSS styles)
-
-         Timestamps:
-         - Footer showing "Created: [date] · Updated: [date]"
-         - Use same formatDate helper as ProjectsPage
-         - `text-xs text-surface-500`
-
-         IMPORTANT:
-         - Do NOT add labels section yet — that's Task 2
-         - Do NOT add delete button — deletion is already on KanbanCard
-         - Keep the component under 200 lines
-         - Use lucide-react icons: X for close button
-
-      4. Modify KanbanCard.tsx — add onClick prop:
-
-         Add to KanbanCardProps:
-         ```typescript
-         onClick?: () => void;
-         ```
-
-         Add click handler on the card root div:
-         ```typescript
-         onClick={onClick}
-         ```
-
-         The click handler should NOT fire during inline editing or when clicking action buttons.
-         Use `e.stopPropagation()` on the edit input, edit/delete buttons to prevent bubbling.
-         Add stopPropagation to: the edit input's onClick, the Pencil button's onClick,
-         the Trash2 button's onClick, and the "Delete?" button's onClick.
-
-      5. Modify BoardPage.tsx — add modal state and render:
-
-         In BoardPage:
-         - Add state: `const [selectedCardId, setSelectedCardId] = useState&lt;string | null&gt;(null);`
-         - Derive selectedCard: `const selectedCard = selectedCardId ? cards.find(c =&gt; c.id === selectedCardId) ?? null : null;`
-         - Render modal at end of return (after column container):
-           ```tsx
-           {selectedCard &amp;&amp; (
-             &lt;CardDetailModal
-               card={selectedCard}
-               onUpdate={updateCard}
-               onClose={() =&gt; setSelectedCardId(null)}
-             /&gt;
-           )}
-           ```
-         - Import CardDetailModal
-         - Pass `onCardClick` prop through BoardColumn to KanbanCard
-
-         In BoardColumnProps, add:
-         ```typescript
-         onCardClick: (cardId: string) =&gt; void;
-         ```
-
-         In BoardColumn's KanbanCard rendering:
-         ```tsx
-         &lt;KanbanCard
-           key={card.id}
-           card={card}
-           onUpdate={updateCard}
-           onDelete={deleteCard}
-           onClick={() =&gt; onCardClick(card.id)}
-         /&gt;
-         ```
-
-         In BoardPage's column rendering, pass the new prop:
-         ```tsx
-         onCardClick={(cardId) =&gt; setSelectedCardId(cardId)}
-         ```
+         Requires Docker PostgreSQL running (`npm run db:up` if not already).
     </action>
     <verify>
-      1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify CardDetailModal.tsx exists with:
-         - TipTap editor setup (useEditor, EditorContent, StarterKit, Placeholder)
-         - Title editing on click
-         - Priority button group with 4 options
-         - Auto-save description on blur
-         - Overlay click and Escape to close
-         - Timestamps display
-      3. Verify globals.css has .tiptap-editor .ProseMirror styles
-      4. Verify KanbanCard.tsx has onClick prop with stopPropagation on interactive elements
-      5. Verify BoardPage.tsx has selectedCardId state and renders CardDetailModal
-      6. Verify boardStore.ts updateCard and moveCard use spread merge pattern
+      1. Check node_modules/ai, node_modules/@ai-sdk/openai, node_modules/@ai-sdk/anthropic,
+         node_modules/ollama-ai-provider exist
+      2. Run `npx tsc --noEmit` — no TypeScript errors
+      3. Run `npm run db:generate` — migration file created in drizzle/ directory
+      4. Run `npm run db:migrate` — migration applied successfully
+      5. Inspect generated SQL: should contain CREATE TABLE settings, ai_providers, ai_usage
     </verify>
     <done>
-      Card detail modal opens on card click. Shows editable title, priority selector,
-      TipTap rich text description editor with auto-save on blur, and timestamps.
-      Labels preserved across card updates (boardStore fix). Editor styled for dark theme.
+      AI SDK packages (ai, @ai-sdk/openai, @ai-sdk/anthropic, ollama-ai-provider) installed.
+      Three new DB tables (settings, ai_providers, ai_usage) created via Drizzle schema.
+      Migration generated and applied to PostgreSQL.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - TipTap v3.19.0 useEditor + EditorContent API is stable and works in Electron renderer
-      - immediatelyRender: true is correct for client-side rendering in Electron
-      - onBlur fires reliably when clicking outside the editor
-      - Card click and drag do not conflict (pragmatic-dnd does not fire click after drag)
-      - e.stopPropagation() on action buttons prevents card onClick from firing
+      - ollama-ai-provider installs without errors on npm
+      - Drizzle pg-core exports `real` and `integer` types
+      - Docker PostgreSQL container is running for migration
+      - drizzle-kit generate detects new schema files via barrel export in index.ts
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Labels management in card detail + board store</n>
+    <n>Create shared types and main process services</n>
     <files>
-      src/renderer/stores/boardStore.ts (modify — add labels state and label actions)
-      src/renderer/components/CardDetailModal.tsx (modify — add labels section)
+      src/shared/types.ts (modify — add AI provider, settings, and usage types + ElectronAPI extensions)
+      src/main/services/secure-storage.ts (create — Electron safeStorage wrapper)
+      src/main/services/ai-provider.ts (create — AI SDK provider manager with caching and usage logging)
     </files>
     <preconditions>
-      - Task 1 completed (CardDetailModal exists, boardStore has label-preserving updateCard)
+      - Task 1 completed (AI SDK packages installed, DB schema created)
     </preconditions>
     <action>
-      Add label management to the board store and card detail modal. Labels are project-level
-      (shared across all cards in a project). Users can create labels, then attach/detach them
-      from individual cards.
+      Create the service layer for AI providers and secure storage, plus shared types
+      for cross-process communication.
 
-      WHY: Labels provide visual categorization at a glance (the colored dots on KanbanCard
-      already render them). Users need a way to create labels and assign them to cards.
+      WHY: The main process needs services to manage AI provider instances (create,
+      cache, test, generate) and securely handle API keys. These services are consumed
+      by IPC handlers (Task 3). Types are shared so renderer gets full type safety.
 
       Steps:
 
-      1. Modify boardStore.ts — add label state and actions:
+      1. Add AI/settings types to src/shared/types.ts (after existing label types):
 
-         Add to BoardStore interface:
          ```typescript
-         labels: Label[];
-         loadLabels: () => Promise&lt;void&gt;;
-         createLabel: (name: string, color: string) => Promise&lt;Label&gt;;
-         deleteLabel: (id: string) => Promise&lt;void&gt;;
-         attachLabel: (cardId: string, labelId: string) => Promise&lt;void&gt;;
-         detachLabel: (cardId: string, labelId: string) => Promise&lt;void&gt;;
+         // === AI PROVIDER TYPES ===
+
+         export type AIProviderName = 'openai' | 'anthropic' | 'ollama';
+         export type AITaskType = 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis';
+
+         /** AI provider as seen by renderer (no decrypted keys — only hasApiKey boolean) */
+         export interface AIProvider {
+           id: string;
+           name: AIProviderName;
+           displayName: string | null;
+           enabled: boolean;
+           hasApiKey: boolean;
+           baseUrl: string | null;
+           createdAt: string;
+           updatedAt: string;
+         }
+
+         export interface CreateAIProviderInput {
+           name: AIProviderName;
+           displayName?: string;
+           apiKey?: string;       // Plain text — encrypted before storage in main process
+           baseUrl?: string;
+         }
+
+         export interface UpdateAIProviderInput {
+           displayName?: string;
+           apiKey?: string;       // Plain text — encrypted before storage
+           baseUrl?: string;
+           enabled?: boolean;
+         }
+
+         export interface AIConnectionTestResult {
+           success: boolean;
+           error?: string;
+           latencyMs?: number;
+         }
+
+         export interface AIUsageEntry {
+           id: string;
+           providerId: string | null;
+           model: string;
+           taskType: string;
+           promptTokens: number;
+           completionTokens: number;
+           totalTokens: number;
+           estimatedCost: number | null;
+           createdAt: string;
+         }
+
+         export interface AIUsageSummary {
+           totalTokens: number;
+           totalCost: number;
+           byProvider: Record<string, { tokens: number; cost: number }>;
+           byTaskType: Record<string, { tokens: number; cost: number }>;
+         }
+
+         /** Per-task model configuration (stored as JSON in settings table) */
+         export interface TaskModelConfig {
+           providerId: string;
+           model: string;
+           temperature?: number;
+           maxTokens?: number;
+         }
          ```
 
-         Add imports: `Label, CreateLabelInput` from shared types.
+         Extend ElectronAPI interface — add after existing Labels methods:
 
-         Add to store initial state: `labels: []`
-
-         In loadBoard action, after loading columns and cards, also load labels:
          ```typescript
-         const labels = await window.electronAPI.getLabels(projectId);
-         set({ project, board, columns, cards, labels, loading: false });
+         // Settings
+         getSetting: (key: string) => Promise<string | null>;
+         setSetting: (key: string, value: string) => Promise<void>;
+         getAllSettings: () => Promise<Record<string, string>>;
+         deleteSetting: (key: string) => Promise<void>;
+
+         // AI Providers
+         getAIProviders: () => Promise<AIProvider[]>;
+         createAIProvider: (data: CreateAIProviderInput) => Promise<AIProvider>;
+         updateAIProvider: (id: string, data: UpdateAIProviderInput) => Promise<AIProvider>;
+         deleteAIProvider: (id: string) => Promise<void>;
+         testAIConnection: (id: string) => Promise<AIConnectionTestResult>;
+         isEncryptionAvailable: () => Promise<boolean>;
+
+         // AI Usage
+         getAIUsage: () => Promise<AIUsageEntry[]>;
+         getAIUsageSummary: () => Promise<AIUsageSummary>;
          ```
 
-         Implement actions:
+      2. Create src/main/services/secure-storage.ts:
 
-         loadLabels:
+         Thin wrapper around Electron's safeStorage API. Converts encrypted Buffers
+         to/from base64 strings for database storage.
+
          ```typescript
-         loadLabels: async () => {
-           const { project } = get();
-           if (!project) return;
-           const labels = await window.electronAPI.getLabels(project.id);
-           set({ labels });
-         },
+         // === FILE PURPOSE ===
+         // Wraps Electron safeStorage API for secure API key encryption/decryption.
+         // Encrypts strings to base64 for DB storage, decrypts on demand.
+         // Uses OS-level encryption: DPAPI (Windows), Keychain (macOS), libsecret (Linux).
+         //
+         // === LIMITATIONS ===
+         // - Only usable in main process (not preload or renderer)
+         // - Must be called after app 'ready' event
+         // - On Windows, protects from other users but not other apps on same account
+
+         import { safeStorage } from 'electron';
+
+         export function isEncryptionAvailable(): boolean {
+           return safeStorage.isEncryptionAvailable();
+         }
+
+         export function encryptString(plaintext: string): string {
+           if (!safeStorage.isEncryptionAvailable()) {
+             throw new Error('Encryption is not available on this system');
+           }
+           const encrypted = safeStorage.encryptString(plaintext);
+           return encrypted.toString('base64');
+         }
+
+         export function decryptString(encryptedBase64: string): string {
+           if (!safeStorage.isEncryptionAvailable()) {
+             throw new Error('Encryption is not available on this system');
+           }
+           const buffer = Buffer.from(encryptedBase64, 'base64');
+           return safeStorage.decryptString(buffer);
+         }
          ```
 
-         createLabel:
+      3. Create src/main/services/ai-provider.ts:
+
+         Manages AI SDK provider instances with caching, connection testing,
+         and text generation with automatic usage logging.
+
          ```typescript
-         createLabel: async (name, color) => {
-           const { project, labels } = get();
-           if (!project) throw new Error('No project loaded');
-           const label = await window.electronAPI.createLabel({
-             projectId: project.id, name, color,
+         // === FILE PURPOSE ===
+         // AI provider manager — creates/caches provider instances, tests connections,
+         // and wraps generateText with automatic usage logging to ai_usage table.
+         //
+         // === DEPENDENCIES ===
+         // ai (generateText), @ai-sdk/openai, @ai-sdk/anthropic, ollama-ai-provider
+         //
+         // === VERIFICATION STATUS ===
+         // - createOpenAI/createAnthropic API: verified from AI SDK docs
+         // - createOllama API: UNVERIFIED — ollama-ai-provider import may differ
+         // - Token usage availability: verified (result.usage.promptTokens etc.)
+
+         import { generateText } from 'ai';
+         import { createOpenAI } from '@ai-sdk/openai';
+         import { createAnthropic } from '@ai-sdk/anthropic';
+         // TODO: Verify this import at runtime — package API may differ
+         import { createOllama } from 'ollama-ai-provider';
+         import { getDb } from '../db/connection';
+         import { aiUsage } from '../db/schema';
+         import { decryptString } from './secure-storage';
+         import type { AIProviderName } from '../../shared/types';
+
+         // Default models for connection testing (cheapest per provider)
+         const TEST_MODELS: Record<AIProviderName, string> = {
+           openai: 'gpt-4o-mini',
+           anthropic: 'claude-haiku-4-5-20251001',
+           ollama: 'llama3.2',
+         };
+
+         // Cache provider factories by DB id (invalidated on config change)
+         const providerCache = new Map<string, any>();
+
+         function createFactory(
+           name: AIProviderName,
+           apiKey?: string,
+           baseUrl?: string,
+         ): any {
+           switch (name) {
+             case 'openai':
+               return createOpenAI({ apiKey: apiKey || '' });
+             case 'anthropic':
+               return createAnthropic({ apiKey: apiKey || '' });
+             case 'ollama':
+               return createOllama({ baseURL: baseUrl || 'http://localhost:11434/api' });
+             default:
+               throw new Error(`Unknown AI provider: ${name}`);
+           }
+         }
+
+         /**
+          * Get or create a cached provider factory for the given DB provider row.
+          * Call clearProviderCache(id) when provider config changes.
+          */
+         export function getProvider(
+           id: string,
+           name: AIProviderName,
+           apiKeyEncrypted: string | null,
+           baseUrl: string | null,
+         ) {
+           if (providerCache.has(id)) return providerCache.get(id);
+           const apiKey = apiKeyEncrypted ? decryptString(apiKeyEncrypted) : undefined;
+           const factory = createFactory(name, apiKey, baseUrl ?? undefined);
+           providerCache.set(id, factory);
+           return factory;
+         }
+
+         /** Clear cached provider instance(s). Call when config changes. */
+         export function clearProviderCache(id?: string): void {
+           if (id) {
+             providerCache.delete(id);
+           } else {
+             providerCache.clear();
+           }
+         }
+
+         /**
+          * Test provider connectivity by generating a minimal completion.
+          * Uses the cheapest model per provider to minimize cost.
+          */
+         export async function testConnection(
+           name: AIProviderName,
+           apiKeyEncrypted: string | null,
+           baseUrl: string | null,
+         ): Promise<{ success: boolean; error?: string; latencyMs?: number }> {
+           const start = Date.now();
+           try {
+             const apiKey = apiKeyEncrypted ? decryptString(apiKeyEncrypted) : undefined;
+             const factory = createFactory(name, apiKey, baseUrl ?? undefined);
+             const model = factory(TEST_MODELS[name]);
+
+             await generateText({
+               model,
+               prompt: 'Say "ok".',
+               maxTokens: 5,
+             });
+
+             return { success: true, latencyMs: Date.now() - start };
+           } catch (error: any) {
+             return {
+               success: false,
+               error: error.message || 'Connection failed',
+               latencyMs: Date.now() - start,
+             };
+           }
+         }
+
+         /**
+          * Generate text using a configured provider + model.
+          * Automatically logs token usage to the ai_usage table.
+          */
+         export async function generate(options: {
+           providerId: string;
+           providerName: AIProviderName;
+           apiKeyEncrypted: string | null;
+           baseUrl: string | null;
+           model: string;
+           taskType: string;
+           prompt: string;
+           system?: string;
+           temperature?: number;
+           maxTokens?: number;
+         }) {
+           const factory = getProvider(
+             options.providerId,
+             options.providerName,
+             options.apiKeyEncrypted,
+             options.baseUrl,
+           );
+
+           const result = await generateText({
+             model: factory(options.model),
+             prompt: options.prompt,
+             system: options.system,
+             temperature: options.temperature,
+             maxTokens: options.maxTokens,
            });
-           set({ labels: [...labels, label] });
-           return label;
-         },
+
+           // Log usage (fire-and-forget — don't fail generation if logging fails)
+           try {
+             const db = getDb();
+             await db.insert(aiUsage).values({
+               providerId: options.providerId,
+               model: options.model,
+               taskType: options.taskType,
+               promptTokens: result.usage?.promptTokens ?? 0,
+               completionTokens: result.usage?.completionTokens ?? 0,
+               totalTokens: result.usage?.totalTokens ?? 0,
+               // Cost estimation added in Plan 3.3 (requires pricing table)
+             });
+           } catch (logError) {
+             console.error('[AI] Failed to log usage:', logError);
+           }
+
+           return {
+             text: result.text,
+             usage: result.usage,
+           };
+         }
          ```
 
-         deleteLabel:
-         ```typescript
-         deleteLabel: async (id) => {
-           await window.electronAPI.deleteLabel(id);
-           set({
-             labels: get().labels.filter(l => l.id !== id),
-             // Also remove from all cards' labels arrays
-             cards: get().cards.map(c => ({
-               ...c,
-               labels: c.labels?.filter(l => l.id !== id),
-             })),
-           });
-         },
-         ```
-
-         attachLabel:
-         ```typescript
-         attachLabel: async (cardId, labelId) => {
-           await window.electronAPI.attachLabel(cardId, labelId);
-           const label = get().labels.find(l => l.id === labelId);
-           if (!label) return;
-           set({
-             cards: get().cards.map(c => {
-               if (c.id !== cardId) return c;
-               const existing = c.labels ?? [];
-               if (existing.some(l => l.id === labelId)) return c;
-               return { ...c, labels: [...existing, label] };
-             }),
-           });
-         },
-         ```
-
-         detachLabel:
-         ```typescript
-         detachLabel: async (cardId, labelId) => {
-           await window.electronAPI.detachLabel(cardId, labelId);
-           set({
-             cards: get().cards.map(c => {
-               if (c.id !== cardId) return c;
-               return { ...c, labels: c.labels?.filter(l => l.id !== labelId) };
-             }),
-           });
-         },
-         ```
-
-      2. Modify CardDetailModal.tsx — add labels section:
-
-         Add a labels section between the description editor and the timestamps.
-
-         The labels section:
-         ```
-         Labels
-         [label1 ×] [label2 ×]  [+ Add]
-
-         When "+ Add" is clicked, show a dropdown:
-         ┌────────────────────────┐
-         │ Search labels...       │
-         │ ● Bug (red)        [+] │
-         │ ● Feature (green)  [+] │
-         │ ● Docs (blue)      [+] │
-         │ ─────────────────────  │
-         │ Create new label       │
-         │ [name] [color] [Add]   │
-         └────────────────────────┘
-         ```
-
-         Implementation:
-         - Import `useBoardStore` to get labels, createLabel, attachLabel, detachLabel
-         - Add to component props (or just use the store directly):
-           Not needed in props — get labels + actions from useBoardStore
-         - Local state: `showLabelDropdown` (boolean), `newLabelName` (string),
-           `newLabelColor` (string, from PRESET_COLORS)
-
-         Attached labels display:
-         - Row of label pills: colored dot + label name + X button to detach
-         - Pill: `inline-flex items-center gap-1.5 bg-surface-800 rounded-full px-2.5 py-1 text-xs`
-         - Colored dot: `w-2 h-2 rounded-full` with label.color
-         - X button: click calls detachLabel(card.id, label.id)
-
-         Label dropdown:
-         - Position: below the "+ Add" button or inline
-         - List all project labels not yet attached to this card
-         - Each row: colored dot + label name + "+" button to attach
-         - Click "+" calls attachLabel(card.id, label.id) and removes from dropdown
-         - Create new label section at bottom:
-           - Text input for name + color picker (preset colors as small circles)
-           - "Add" button calls createLabel then attachLabel
-
-         PRESET_COLORS for labels (same 6 from ProjectsPage):
-         ```typescript
-         const LABEL_COLORS = [
-           '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899',
-         ];
-         ```
-
-         IMPORTANT:
-         - The card prop will reflect updated labels because boardStore updates
-           the cards array in attachLabel/detachLabel.
-         - Close the dropdown when clicking outside (useEffect with click listener
-           on document, check if click target is outside dropdown ref)
+         IMPORTANT notes for the executor:
+         - The `any` type for providerCache values is intentional — different provider
+           factories have different return types but all work as factory(modelName).
+         - If `ollama-ai-provider` doesn't export `createOllama`, check the package
+           README for the correct import. Alternative: `import { ollama } from 'ollama-ai-provider'`.
+         - The generate function is not used by IPC handlers in this plan — it will be
+           used starting in Phase 5 (meeting briefs) and Phase 6 (brainstorming).
+           Plan 3.1 exposes it for future use; the connection test validates it works.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify boardStore.ts has labels state, loadLabels, createLabel, deleteLabel,
-         attachLabel, detachLabel actions
-      3. Verify labels are loaded in loadBoard action
-      4. Verify CardDetailModal.tsx has:
-         - Attached labels display with remove (×) buttons
-         - "+ Add" button opening a label dropdown
-         - Dropdown lists unattached project labels with attach button
-         - Create new label form (name + color)
-      5. Verify detachLabel updates both cardLabels DB and local card state
-      6. Verify deleteLabel cleans up labels from all cards in local state
+      2. Verify src/shared/types.ts has: AIProviderName, AITaskType, AIProvider,
+         CreateAIProviderInput, UpdateAIProviderInput, AIConnectionTestResult,
+         AIUsageEntry, AIUsageSummary, TaskModelConfig types
+      3. Verify ElectronAPI interface has 12 new methods (4 settings + 8 AI provider)
+      4. Verify src/main/services/secure-storage.ts exports: isEncryptionAvailable,
+         encryptString, decryptString
+      5. Verify src/main/services/ai-provider.ts exports: getProvider, clearProviderCache,
+         testConnection, generate
+      6. Verify imports in ai-provider.ts: ai, @ai-sdk/openai, @ai-sdk/anthropic,
+         ollama-ai-provider
     </verify>
     <done>
-      Labels can be created for a project (with name + color). Labels can be attached to
-      and detached from cards in the card detail modal. Attached labels show as pills with
-      remove buttons. Unattached labels available in dropdown. Label dots on KanbanCard
-      reflect changes immediately via Zustand state.
+      Shared types defined for AI providers, settings, and usage tracking.
+      ElectronAPI interface extended with 12 new methods.
+      Secure storage service wraps Electron safeStorage for API key encryption.
+      AI provider service manages provider instances with caching, connection testing,
+      and text generation with automatic usage logging.
     </done>
-    <confidence>HIGH</confidence>
+    <confidence>MEDIUM</confidence>
     <assumptions>
-      - attachLabel IPC handler uses onConflictDoNothing (verified in cards.ts:183)
-      - detachLabel IPC handler deletes the specific cardLabels row (verified in cards.ts:189)
-      - Labels loaded at board level are sufficient (no per-card label fetching needed after initial load)
-      - useBoardStore can be called in CardDetailModal without issues (Zustand works anywhere in React tree)
+      - ollama-ai-provider exports createOllama with { baseURL } config object
+      - createOpenAI/createAnthropic return callable factory functions (factory(modelName) → LanguageModel)
+      - safeStorage.encryptString/decryptString work correctly after Electron app ready event
+      - generateText returns { text, usage: { promptTokens, completionTokens, totalTokens } }
+      - result.usage is available for all three providers (OpenAI, Anthropic, Ollama)
+      - Buffer.from(base64, 'base64') correctly reverses Buffer.toString('base64')
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Search and filter cards on the board</n>
+    <n>Create IPC handlers and extend preload bridge</n>
     <files>
-      src/renderer/pages/BoardPage.tsx (modify — add search input, filter dropdowns, filtering logic)
+      src/main/ipc/settings.ts (create — 4 settings CRUD handlers)
+      src/main/ipc/ai-providers.ts (create — 8 AI provider/usage handlers)
+      src/main/ipc/index.ts (modify — register new handlers)
+      src/preload/preload.ts (modify — add 12 new bridge methods)
     </files>
     <preconditions>
-      - Task 1 completed (BoardPage has card detail modal)
-      - Task 2 completed (boardStore has labels state)
+      - Task 1 completed (DB schema and migration applied)
+      - Task 2 completed (shared types and services created)
     </preconditions>
     <action>
-      Add search and filter functionality to the board header. Filtering is client-side
-      since all cards are already loaded in the board store.
+      Create IPC handlers for settings and AI provider management, then extend
+      the preload bridge so the renderer can access these services.
 
-      WHY: As boards accumulate cards, users need to quickly find specific cards by title
-      or narrow down the view by priority or label. Client-side filtering is instant since
-      we already have all card data in memory.
+      WHY: The renderer process cannot access the database or Electron safeStorage
+      directly. IPC handlers in the main process handle all data operations,
+      and the preload bridge provides a typed interface for the renderer.
 
       Steps:
 
-      1. Add filter state to BoardPage:
+      1. Create src/main/ipc/settings.ts:
+
+         CRUD handlers for the generic key-value settings table.
 
          ```typescript
-         const [searchQuery, setSearchQuery] = useState('');
-         const [priorityFilter, setPriorityFilter] = useState&lt;CardPriority[]&gt;([]);
-         const [labelFilter, setLabelFilter] = useState&lt;string[]&gt;([]);
+         // === FILE PURPOSE ===
+         // IPC handlers for app settings (key-value store).
+         // Supports get, set (upsert), get-all, and delete operations.
+
+         import { ipcMain } from 'electron';
+         import { eq } from 'drizzle-orm';
+         import { getDb } from '../db/connection';
+         import { settings } from '../db/schema';
+
+         export function registerSettingsHandlers(): void {
+           ipcMain.handle('settings:get', async (_event, key: string) => {
+             const db = getDb();
+             const rows = await db.select().from(settings).where(eq(settings.key, key));
+             return rows.length > 0 ? rows[0].value : null;
+           });
+
+           ipcMain.handle('settings:set', async (_event, key: string, value: string) => {
+             const db = getDb();
+             await db.insert(settings)
+               .values({ key, value })
+               .onConflictDoUpdate({
+                 target: settings.key,
+                 set: { value, updatedAt: new Date() },
+               });
+           });
+
+           ipcMain.handle('settings:get-all', async () => {
+             const db = getDb();
+             const rows = await db.select().from(settings);
+             return Object.fromEntries(rows.map(r => [r.key, r.value]));
+           });
+
+           ipcMain.handle('settings:delete', async (_event, key: string) => {
+             const db = getDb();
+             await db.delete(settings).where(eq(settings.key, key));
+           });
+         }
          ```
 
-         Import `CardPriority` from shared types.
-         Get `labels` from useBoardStore (add to destructured values).
+         Notes:
+         - settings:set uses onConflictDoUpdate (upsert) since key is the PK
+         - settings:get-all returns Record<string, string> for easy consumption
+         - Follows existing handler pattern (ipcMain.handle, getDb, return data)
 
-      2. Add filtering logic:
+      2. Create src/main/ipc/ai-providers.ts:
+
+         Handlers for AI provider CRUD, connection testing, encryption check,
+         and usage queries.
 
          ```typescript
-         const filteredCards = cards.filter(card => {
-           // Search: check title (case-insensitive)
-           if (searchQuery) {
-             const query = searchQuery.toLowerCase();
-             const matchesTitle = card.title.toLowerCase().includes(query);
-             const matchesDesc = card.description?.toLowerCase().includes(query) ?? false;
-             if (!matchesTitle &amp;&amp; !matchesDesc) return false;
-           }
-           // Priority filter (if any selected, card must match one)
-           if (priorityFilter.length > 0 &amp;&amp; !priorityFilter.includes(card.priority)) {
-             return false;
-           }
-           // Label filter (if any selected, card must have at least one matching label)
-           if (labelFilter.length > 0) {
-             const cardLabelIds = card.labels?.map(l => l.id) ?? [];
-             if (!labelFilter.some(id => cardLabelIds.includes(id))) return false;
-           }
-           return true;
-         });
+         // === FILE PURPOSE ===
+         // IPC handlers for AI provider management and usage tracking.
+         // Handles provider CRUD with encrypted API key storage,
+         // connection testing, and usage history queries.
+
+         import { ipcMain } from 'electron';
+         import { eq, desc } from 'drizzle-orm';
+         import { getDb } from '../db/connection';
+         import { aiProviders, aiUsage } from '../db/schema';
+         import {
+           encryptString,
+           isEncryptionAvailable,
+         } from '../services/secure-storage';
+         import { testConnection, clearProviderCache } from '../services/ai-provider';
+         import type { AIProviderName } from '../../shared/types';
+
+         /** Convert DB row to renderer-safe AIProvider (no raw API key) */
+         function toAIProvider(row: any) {
+           return {
+             id: row.id,
+             name: row.name,
+             displayName: row.displayName,
+             enabled: row.enabled,
+             hasApiKey: !!row.apiKeyEncrypted,
+             baseUrl: row.baseUrl,
+             createdAt: row.createdAt.toISOString(),
+             updatedAt: row.updatedAt.toISOString(),
+           };
+         }
+
+         export function registerAIProviderHandlers(): void {
+           // List all configured providers
+           ipcMain.handle('ai:list-providers', async () => {
+             const db = getDb();
+             const rows = await db.select().from(aiProviders);
+             return rows.map(toAIProvider);
+           });
+
+           // Create a new provider (encrypts API key if provided)
+           ipcMain.handle('ai:create-provider', async (_event, data: any) => {
+             const db = getDb();
+             const values: any = {
+               name: data.name,
+               displayName: data.displayName || null,
+               baseUrl: data.baseUrl || null,
+             };
+             if (data.apiKey) {
+               values.apiKeyEncrypted = encryptString(data.apiKey);
+             }
+             const [row] = await db.insert(aiProviders).values(values).returning();
+             return toAIProvider(row);
+           });
+
+           // Update a provider (re-encrypts API key if changed)
+           ipcMain.handle('ai:update-provider', async (_event, id: string, data: any) => {
+             const db = getDb();
+             const updates: any = { updatedAt: new Date() };
+             if (data.displayName !== undefined) updates.displayName = data.displayName;
+             if (data.baseUrl !== undefined) updates.baseUrl = data.baseUrl;
+             if (data.enabled !== undefined) updates.enabled = data.enabled;
+             if (data.apiKey !== undefined) {
+               updates.apiKeyEncrypted = data.apiKey ? encryptString(data.apiKey) : null;
+             }
+             const [row] = await db.update(aiProviders)
+               .set(updates)
+               .where(eq(aiProviders.id, id))
+               .returning();
+             clearProviderCache(id);
+             return toAIProvider(row);
+           });
+
+           // Delete a provider
+           ipcMain.handle('ai:delete-provider', async (_event, id: string) => {
+             const db = getDb();
+             await db.delete(aiProviders).where(eq(aiProviders.id, id));
+             clearProviderCache(id);
+           });
+
+           // Test provider connection (generates minimal completion)
+           ipcMain.handle('ai:test-connection', async (_event, id: string) => {
+             const db = getDb();
+             const [row] = await db.select().from(aiProviders)
+               .where(eq(aiProviders.id, id));
+             if (!row) throw new Error('Provider not found');
+             return testConnection(
+               row.name as AIProviderName,
+               row.apiKeyEncrypted,
+               row.baseUrl,
+             );
+           });
+
+           // Check if OS-level encryption is available
+           ipcMain.handle('ai:encryption-available', async () => {
+             return isEncryptionAvailable();
+           });
+
+           // Get recent usage entries (newest first, limit 100)
+           ipcMain.handle('ai:get-usage', async () => {
+             const db = getDb();
+             const rows = await db.select().from(aiUsage)
+               .orderBy(desc(aiUsage.createdAt))
+               .limit(100);
+             return rows.map(r => ({
+               ...r,
+               createdAt: r.createdAt.toISOString(),
+             }));
+           });
+
+           // Get aggregated usage summary
+           ipcMain.handle('ai:get-usage-summary', async () => {
+             const db = getDb();
+             const rows = await db.select().from(aiUsage);
+             const summary = {
+               totalTokens: 0,
+               totalCost: 0,
+               byProvider: {} as Record<string, { tokens: number; cost: number }>,
+               byTaskType: {} as Record<string, { tokens: number; cost: number }>,
+             };
+             for (const row of rows) {
+               summary.totalTokens += row.totalTokens;
+               summary.totalCost += row.estimatedCost ?? 0;
+
+               const pid = row.providerId ?? 'unknown';
+               if (!summary.byProvider[pid]) {
+                 summary.byProvider[pid] = { tokens: 0, cost: 0 };
+               }
+               summary.byProvider[pid].tokens += row.totalTokens;
+               summary.byProvider[pid].cost += row.estimatedCost ?? 0;
+
+               if (!summary.byTaskType[row.taskType]) {
+                 summary.byTaskType[row.taskType] = { tokens: 0, cost: 0 };
+               }
+               summary.byTaskType[row.taskType].tokens += row.totalTokens;
+               summary.byTaskType[row.taskType].cost += row.estimatedCost ?? 0;
+             }
+             return summary;
+           });
+         }
          ```
 
-         Pass `filteredCards` instead of `cards` to column rendering:
-         ```tsx
-         columnCards={getCardsByColumn(filteredCards, column.id)}
+         Notes:
+         - toAIProvider maps DB rows to renderer-safe objects (hasApiKey boolean only)
+         - API keys encrypted before storage, NEVER sent to renderer process
+         - clearProviderCache called on update/delete to invalidate stale instances
+         - Usage summary computed in Node.js (acceptable for v1 single-user app)
+         - ai:get-usage limits to 100 entries (pagination can be added later)
+         - ai:get-usage converts timestamps to ISO strings for renderer
+
+      3. Modify src/main/ipc/index.ts:
+
+         Import and register the two new handler files:
+         ```typescript
+         import { registerSettingsHandlers } from './settings';
+         import { registerAIProviderHandlers } from './ai-providers';
+
+         // Add to registerIpcHandlers() body:
+         registerSettingsHandlers();
+         registerAIProviderHandlers();
          ```
 
-         Also use `filteredCards` for the drag monitor's position calculation.
+      4. Modify src/preload/preload.ts:
 
-      3. Add search/filter UI to the board header:
+         Add bridge methods for settings and AI providers after the Labels section.
+         Follow existing pattern (thin wrappers around ipcRenderer.invoke).
 
-         Expand the header area. Current header:
+         ```typescript
+         // Settings
+         getSetting: (key: string) => ipcRenderer.invoke('settings:get', key),
+         setSetting: (key: string, value: string) =>
+           ipcRenderer.invoke('settings:set', key, value),
+         getAllSettings: () => ipcRenderer.invoke('settings:get-all'),
+         deleteSetting: (key: string) => ipcRenderer.invoke('settings:delete', key),
+
+         // AI Providers
+         getAIProviders: () => ipcRenderer.invoke('ai:list-providers'),
+         createAIProvider: (data: any) => ipcRenderer.invoke('ai:create-provider', data),
+         updateAIProvider: (id: string, data: any) =>
+           ipcRenderer.invoke('ai:update-provider', id, data),
+         deleteAIProvider: (id: string) =>
+           ipcRenderer.invoke('ai:delete-provider', id),
+         testAIConnection: (id: string) =>
+           ipcRenderer.invoke('ai:test-connection', id),
+         isEncryptionAvailable: () => ipcRenderer.invoke('ai:encryption-available'),
+         getAIUsage: () => ipcRenderer.invoke('ai:get-usage'),
+         getAIUsageSummary: () => ipcRenderer.invoke('ai:get-usage-summary'),
          ```
-         [←] Project Name
-         ```
 
-         New header layout:
-         ```
-         [←] Project Name                    [Search...] [Priority ▾] [Labels ▾]
-         ```
-
-         Or if filters are active, show below the header line:
-         ```
-         [←] Project Name
-         [Search...] [Priority ▾] [Labels ▾]  [Clear filters]  (X results)
-         ```
-
-         Recommended approach: Add a second row to the header when filters exist
-         or always show the search bar. Keep it simple.
-
-         Search input:
-         - Right side of header: `flex-1 max-w-xs` input
-         - Icon: Search from lucide-react as left adornment
-         - `bg-surface-800 border border-surface-700 rounded-lg pl-8 pr-3 py-1.5 text-sm`
-         - Debounce NOT needed — filtering is client-side and instant
-         - Clear button (X) inside input when query is non-empty
-
-         Priority filter dropdown:
-         - Button: "Priority" + chevron icon (ChevronDown)
-         - Dropdown: 4 checkboxes (Low, Medium, High, Urgent) with colored dots
-         - Toggle individual priorities on/off
-         - Multi-select: clicking a priority adds/removes it from priorityFilter array
-         - Badge on button showing count of active filters
-
-         Label filter dropdown:
-         - Button: "Labels" + chevron icon
-         - Dropdown: list all project labels with checkboxes
-         - Toggle individual labels on/off
-         - Multi-select: clicking a label adds/removes it from labelFilter array
-         - Badge on button showing count of active filters
-         - If no labels exist, show "No labels" text
-
-         Clear filters button:
-         - Only visible when any filter is active
-         - Resets searchQuery, priorityFilter, and labelFilter to defaults
-
-         Active filter indicator:
-         - When filters are active, show "Showing X of Y cards" text
-         - `text-xs text-surface-500`
-
-         Dropdown implementation:
-         - Use local state: `showPriorityDropdown`, `showLabelDropdown`
-         - Position: absolute below the trigger button
-         - Close on click outside (same pattern as label dropdown in Task 2)
-         - Dropdown: `absolute top-full mt-1 bg-surface-800 border border-surface-700
-           rounded-lg shadow-lg p-2 min-w-[180px] z-40`
-
-         Icons: Search, ChevronDown, X from lucide-react
-
-      IMPORTANT:
-      - Filtering must not break drag-and-drop. The monitor's onDrop should still use
-        the full `cards` array for position calculation, not filteredCards.
-        Wait — actually, the position should be relative to the target column's cards.
-        But if we're filtering, the visible cards are a subset. When dropping a card,
-        we want to append it to the END of the target column (all cards, not just filtered).
-        So the drag monitor should use the unfiltered `cards` from the store, not filteredCards.
-        The current monitor already references `cards` from the store destructuring,
-        so this should work correctly — just make sure not to change it to filteredCards.
-      - Keep the board layout responsive — don't let the header grow too tall
-      - Filter state resets when navigating away (component unmounts)
+         Same `any` pattern for data params as existing bridge methods.
+         Type safety enforced by ElectronAPI interface in shared/types.ts.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify BoardPage.tsx has:
-         - searchQuery, priorityFilter, labelFilter state
-         - filteredCards computed from cards with all 3 filters applied
-         - filteredCards passed to getCardsByColumn in column rendering
-         - Search input in header with clear button
-         - Priority filter dropdown with 4 priority options
-         - Label filter dropdown showing project labels
-         - "Clear filters" button visible when filters active
-         - Active filter indicator (X of Y cards)
-      3. Verify drag-and-drop still uses unfiltered cards for position calculation
-      4. Verify dropdowns close on outside click
+      2. Verify settings.ts has 4 handlers: settings:get, settings:set,
+         settings:get-all, settings:delete
+      3. Verify ai-providers.ts has 8 handlers: ai:list-providers, ai:create-provider,
+         ai:update-provider, ai:delete-provider, ai:test-connection,
+         ai:encryption-available, ai:get-usage, ai:get-usage-summary
+      4. Verify index.ts imports and calls registerSettingsHandlers and registerAIProviderHandlers
+      5. Verify preload.ts has 12 new methods (4 settings + 8 AI)
+      6. Cross-check: every ElectronAPI method in types.ts has a matching
+         preload bridge method AND a matching IPC handler
     </verify>
     <done>
-      Board header has search input and filter dropdowns (priority + labels).
-      Cards are filtered client-side in real-time. Active filters show indicator
-      and "Clear filters" button. Drag-and-drop works correctly with filtered views.
+      Settings IPC handlers (4) provide key-value CRUD with upsert support.
+      AI provider IPC handlers (8) support provider CRUD with encrypted key storage,
+      connection testing, encryption availability check, and usage queries.
+      Preload bridge extended with 12 new methods matching ElectronAPI interface.
+      All handlers registered in index.ts.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Client-side filtering is fast enough for v1 (single-user, typical board has &lt;100 cards)
-      - Search checks title and description (HTML content — searches raw HTML strings, which
-        is imperfect but acceptable for v1. A future improvement could strip HTML tags.)
-      - Filtering doesn't affect drag-and-drop because the monitor uses unfiltered store cards
-      - Dropdowns don't need complex positioning — simple absolute below trigger works
+      - Drizzle onConflictDoUpdate works with varchar PK (settings table)
+      - desc() from drizzle-orm works for ordering ai_usage by createdAt
+      - encryptString/decryptString are callable from IPC handlers (after app ready)
+      - ipcMain.handle IPC channel names don't conflict with existing handlers
     </assumptions>
   </task>
 </phase>

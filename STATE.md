@@ -2,14 +2,13 @@
 
 ## Session Info
 Last updated: 2026-02-12
-Session focus: Phase 2 Execution — Plan 2.3 Rich Text + Polish
+Session focus: Phase 3 Execution — Plan 3.1 Complete
 
 ## Position
-Milestone: Phase 2 — Project Dashboard
-Phase: 2 of 7
-Plan: 3 of 3 (COMPLETE)
-Task: 3 of 3 (COMPLETE)
-**Phase 2: ALL PLANS COMPLETE**
+Milestone: Phase 3 — AI Provider System
+Phase: 3 of 7
+Plan: 1 of 3 (COMPLETE)
+Task: 3 of 3 (all complete)
 
 ## Phase 1 — COMPLETE
 All 3 plans (8 tasks) delivered and pushed to GitHub.
@@ -20,89 +19,67 @@ All 3 plans (8 tasks) delivered and pushed to GitHub.
 
 ## Phase 2 — COMPLETE
 Phase 2 covers R3: Project Dashboard (8 points, 9 tasks across 3 plans).
+- Plan 2.1: Data Layer & Project Management — DONE
+- Plan 2.2: Kanban Board — DONE
+- Plan 2.3: Rich Text + Polish — DONE
+- Plans 2.2 + 2.3 not yet committed (awaiting runtime test + git commit)
 
-### Plan 2.1: Data Layer & Project Management (3 tasks) — COMPLETE
-1. Install Phase 2 deps + domain types — DONE
-2. IPC CRUD handlers + preload bridge (24 handlers) — DONE
-3. Zustand store + project list UI + board route shell — DONE
+## Phase 3 — IN PROGRESS
+Phase 3 covers R7: AI Provider System (5 pts) + R9: Settings & Configuration (3 pts).
+Total: 8 points, 9 tasks across 3 plans.
 
-### Plan 2.2: Kanban Board (3 tasks) — COMPLETE
-1. Board store + BoardPage layout with columns — DONE
-2. KanbanCard component with priority, labels, and card actions — DONE
-3. Drag-and-drop cards between columns with pragmatic-drag-and-drop — DONE
+### Plan 3.1: AI Provider Backend & Settings Foundation (3 tasks) — COMPLETE
+1. Install AI SDK deps + create DB schema — DONE
+2. Create shared types + services — DONE
+3. Create IPC handlers + extend preload bridge — DONE
 
-### Plan 2.3: Rich Text + Polish (3 tasks) — COMPLETE
-1. Card detail modal with TipTap rich text editor (+ boardStore label fix) — DONE
-2. Labels management in card detail + board store — DONE
-3. Search and filter cards on the board — DONE
+### Plan 3.2: Settings UI — Provider Management (3 tasks) — NOT YET PLANNED
+- Settings store (Zustand) + settings page layout with sections
+- AI provider cards (add, configure, test, enable/disable)
+- Per-task model configuration UI
 
-## Results This Session (Plan 2.3)
-- Task 1: Created CardDetailModal.tsx (~177 lines) with TipTap editor, priority selector, title editing, timestamps. Fixed boardStore spread merge. Added TipTap CSS styles. Wired into BoardPage.
-- Task 2: Added labels state + 5 label actions to boardStore. Added labels section to CardDetailModal (pills, dropdown, create form).
-- Task 3: Added search + priority filter + label filter to BoardPage header (~590 lines). Active filter indicator + clear button.
-- TypeScript: PASS (all 3 tasks verified with tsc --noEmit)
+### Plan 3.3: Theme, Usage & App Settings (3 tasks) — NOT YET PLANNED
+- Light/dark theme toggle
+- Token usage tracking display
+- DB connection settings + general settings
+
+### Scope Deferrals
+- Whisper model download → Phase 4 (depends on whisper-node)
+- Audio device preferences → Phase 4 (depends on audio capture)
+- Data export/import → Phase 7 / R15 (v2 feature)
+
+## Plan 3.1 Execution Results
+- **Task 1**: AI SDK deps installed (ai v6.0.84, @ai-sdk/openai v3.0.28, @ai-sdk/anthropic v3.0.43, ollama-ai-provider v1.2.0). DB schema created for settings, ai_providers, ai_usage. Migration generated and applied.
+- **Task 2**: 9 AI types added to shared/types.ts. ElectronAPI extended with 12 new methods. secure-storage.ts and ai-provider.ts services created.
+- **Task 3**: 4 settings IPC handlers + 8 AI provider IPC handlers created. Preload bridge extended with 12 matching methods. All handlers registered in index.ts.
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors.
+
+## AI SDK v6 Findings (Discovered During Execution)
+- `maxTokens` renamed to `maxOutputTokens` in generateText options
+- Token usage fields: `result.usage.inputTokens` / `.outputTokens` / `.totalTokens` (not promptTokens/completionTokens)
+- ollama-ai-provider v1.2.0 returns LanguageModelV1 (not V3) — needs `as LanguageModel` cast for generateText
+- createOllama export confirmed: `import { createOllama } from 'ollama-ai-provider'` works correctly
 
 ## Confidence Levels
 Overall approach: HIGH
-Plan 2.1 execution: HIGH — committed
-Plan 2.2 execution: HIGH — not yet committed
-Plan 2.3 execution: HIGH — not yet committed
-Preload typing: Resolved — used `any` for data params in preload, type safety via ElectronAPI interface
+Plan 3.1 execution: HIGH (all tasks verified, TypeScript clean)
+AI SDK integration: HIGH (imports and types verified at runtime)
+Electron safeStorage: HIGH (verified for Electron 40.x)
 
-## Decisions Made (Phase 2)
-- Install all Phase 2 deps upfront (zustand, pragmatic-dnd, tiptap, framer-motion)
-- boards:create auto-creates default columns (To Do, In Progress, Done)
-- Zustand stores per domain (projectStore done, boardStore done)
-- Board route: /projects/:projectId (lazy-loaded BoardPage)
-- Sidebar Projects icon active on both / and /projects/* via useLocation
-- Preload uses `any` for data params — type safety enforced by ElectronAPI interface
-- cards:list-by-board uses N+1 queries for labels (acceptable for v1 single-user desktop)
-- cards:update converts string dueDate to Date for Drizzle compatibility
-- One board per project for v1 — auto-create on first visit, no multi-board UI
-- pragmatic-dnd: import from `/element/adapter` (not root), headless useRef+useEffect pattern
-- KanbanCard as separate component for reusability and drag-and-drop integration
-- Board-level monitorForElements + per-column dropTargetForElements pattern
-- Extracted BoardColumn component — each column manages its own add-card/delete state
-- Same-column drop skipped (no unnecessary moveCard calls)
-- getIsSticky: true on drop targets prevents flicker when dragging over nested cards
-- TipTap: useEditor + EditorContent + StarterKit + Placeholder, immediatelyRender: true
-- Description auto-save on editor blur (only if changed)
-- Labels: project-level, managed in boardStore, loaded with board data
-- Card detail modal: overlay pattern, Escape + overlay click to close
-- Search/filter: client-side, unfiltered cards used for drag-and-drop position calc
-
-## Pending Verifications (Runtime)
-- [ ] `npm start` — Electron window opens with sidebar layout
-- [ ] Projects page loads (empty state shown)
-- [ ] Create project form works (creates project in DB)
-- [ ] Project cards render in grid layout
-- [ ] Clicking project card navigates to /projects/:projectId
-- [ ] Board loads with 3 default columns (To Do, In Progress, Done)
-- [ ] Add card form works in each column
-- [ ] Card renders with priority border, badge, and label dots
-- [ ] Double-click card title to edit inline
-- [ ] Delete card with confirmation (hover → trash → "Delete?" → confirm)
-- [ ] Add column form works
-- [ ] Delete column with hover → X → "Delete?" confirmation
-- [ ] Drag card from one column to another (visual feedback + persistence)
-- [ ] Sidebar Projects icon stays active on board routes
-- [ ] Click card opens detail modal with title, priority, description, timestamps
-- [ ] TipTap editor renders with placeholder, supports bold/italic/headings/lists/code
-- [ ] Description auto-saves on editor blur
-- [ ] Priority selector changes card priority
-- [ ] Labels section shows attached labels with remove buttons
-- [ ] Add label dropdown shows unattached labels + create new form
-- [ ] Creating a label adds it to the project and attaches to card
-- [ ] Search input filters cards by title/description
-- [ ] Priority filter dropdown with multi-select
-- [ ] Label filter dropdown with multi-select
-- [ ] "Clear filters" resets all filters
-- [ ] Drag-and-drop works correctly when filters are active
+## Decisions Made (Phase 3)
+- Settings table: generic key-value (varchar PK, text value) — extensible without schema changes
+- AI providers: dedicated table with encrypted API key storage (safeStorage + base64)
+- AI usage: append-only log, no FK to providers (preserve history on delete)
+- Task model assignments: stored as JSON in settings table (not separate table)
+- API keys never sent to renderer — only `hasApiKey: boolean`
+- Provider cache in main process, invalidated on config changes
+- Connection test: minimal generateText call with cheapest model per provider
+- toAIProvider uses Drizzle `$inferSelect` type (not `any`) for type safety
 
 ## Blockers
 - None
 
 ## Next Steps
-1. Runtime test (`npm start`)
-2. `/nexus:git` to commit Plans 2.2 + 2.3
-3. Phase 2 complete → proceed to Phase 3 planning
+1. `/nexus:git` to commit Plan 3.1 changes
+2. `/nexus:plan 3.2` to plan Settings UI
+3. After Plan 3.2: Plan 3.3 (Theme + polish)

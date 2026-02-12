@@ -8,3 +8,5 @@ export * from './labels';
 export * from './cards';
 export * from './meetings';
 export * from './ideas';
+export * from './settings';
+export * from './ai-providers';

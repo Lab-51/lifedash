@@ -7,6 +7,8 @@ import { registerWindowControlHandlers } from './window-controls';
 import { registerDatabaseHandlers } from './database';
 import { registerProjectHandlers } from './projects';
 import { registerCardHandlers } from './cards';
+import { registerSettingsHandlers } from './settings';
+import { registerAIProviderHandlers } from './ai-providers';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -17,4 +19,6 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerDatabaseHandlers();
   registerProjectHandlers();
   registerCardHandlers();
+  registerSettingsHandlers();
+  registerAIProviderHandlers();
 }
