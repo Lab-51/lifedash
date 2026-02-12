@@ -1,584 +1,718 @@
-# Phase 2 — Plan 2 of 3: Kanban Board
+# Phase 2 — Plan 3 of 3: Rich Text + Polish
 
 ## Coverage
-- **R3: Project Dashboard** (next ~45% — board layout, columns, card rendering, card CRUD, drag-and-drop)
+- **R3: Project Dashboard** (final ~25% — card detail modal, TipTap editor, labels, search/filter)
 
 ## Plan Overview
 Phase 2 delivers the full project dashboard (R3). It requires 3 plans:
 
 - **Plan 2.1** (done): Data layer — types, IPC CRUD, preload bridge, Zustand store, project list UI.
-- **Plan 2.2** (this plan): Kanban board — board store, column layout, card rendering,
-  card CRUD inline forms, and drag-and-drop card movement via pragmatic-drag-and-drop.
-- **Plan 2.3** (next): Rich text + polish — TipTap card description editor, labels UI,
-  search/filter, board sidebar.
+- **Plan 2.2** (done): Kanban board — board store, column layout, card rendering, drag-and-drop.
+- **Plan 2.3** (this plan): Rich text + polish — card detail modal with TipTap editor,
+  labels management, board search and filter.
 
 ## Design Decisions for This Plan
 
-1. **One board per project for v1.** When navigating to a project with no boards,
-   auto-create a default board (the IPC handler already creates 3 default columns).
-   Multiple boards can be added in a future version.
-2. **Board store** — new Zustand store (boardStore) manages the active board, its columns,
-   and all cards. Separate from projectStore to keep concerns isolated.
-3. **Component structure:**
-   ```
-   BoardPage (page — owns store, loads data)
-   ├── BoardHeader (project name, back link, "+ Add Column" button)
-   ├── ColumnList (horizontal flex container)
-   │   └── KanbanColumn (single column — header, card list, add card form)
-   │       └── KanbanCard (single card — title, priority badge, label dots)
-   ```
-4. **pragmatic-drag-and-drop integration** — headless library, uses useRef + useEffect.
-   Import from `@atlaskit/pragmatic-drag-and-drop/element/adapter` (NOT the root package).
-   Verified API: `draggable()`, `dropTargetForElements()`, `monitorForElements()`,
-   `combine()` from `/combine`, `reorder()` from `/reorder`.
+1. **Card detail modal** — centered overlay (max-w-2xl) that opens on card click.
+   Contains title editing, TipTap rich text editor for description, priority selector,
+   labels, and timestamps. Overlay click or Escape to close.
+2. **TipTap editor** — uses `useEditor` + `EditorContent` pattern from @tiptap/react v3.19.
+   StarterKit for basic formatting (bold, italic, headings, lists, code, blockquote).
+   Placeholder extension for empty state. Auto-save description on editor blur.
+3. **Labels** — project-level labels (shared across all cards in a project). IPC handlers
+   already exist. Add label state + actions to boardStore. Label management in card detail modal
+   (attach/detach + create new inline).
+4. **Search/filter** — client-side filtering of the cards array in BoardPage. Search by title,
+   filter by priority and labels. Applied before grouping cards into columns.
+5. **boardStore fix** — `updateCard` and `moveCard` currently replace the entire card object
+   with the IPC response, which doesn't include labels. Fix to spread-merge so labels are preserved.
 
 ---
 
-<phase n="2.2" name="Kanban Board">
+<phase n="2.3" name="Rich Text + Polish">
   <context>
-    Plan 2.1 is complete. The app now has:
-    - 24 IPC handlers (projects, boards, columns, cards, labels CRUD)
-    - Preload bridge exposing all methods to renderer
-    - Zustand projectStore for project list
-    - Interactive ProjectsPage with create form and project grid
-    - BoardPage placeholder at /projects/:projectId
-    - All Phase 2 deps installed (zustand, pragmatic-dnd, tiptap, framer-motion)
+    Plan 2.2 is complete. The app now has:
+    - boardStore (Zustand) managing board, columns, cards via IPC
+    - BoardPage with horizontal column layout, drag-and-drop
+    - BoardColumn component with drop target behavior
+    - KanbanCard with priority border/badge, label dots, inline editing, drag support
+    - All label IPC handlers (list, create, update, delete, attach, detach)
+    - TipTap packages installed: @tiptap/react, @tiptap/starter-kit, @tiptap/extension-placeholder (v3.19.0)
 
-    IPC methods available for boards/columns/cards:
-    - getBoards(projectId) → Board[]
-    - createBoard({ projectId, name }) → Board (auto-creates 3 default columns)
-    - getColumns(boardId) → Column[]
-    - createColumn({ boardId, name }) → Column
-    - updateColumn(id, { name?, position? }) → Column
-    - deleteColumn(id) → void
-    - reorderColumns(boardId, columnIds[]) → void
-    - getCardsByBoard(boardId) → Card[] (with labels)
-    - createCard({ columnId, title, description?, priority? }) → Card
-    - updateCard(id, { title?, description?, priority?, columnId?, position? }) → Card
-    - deleteCard(id) → void
-    - moveCard(id, columnId, position) → Card
+    Bug to fix: boardStore.updateCard and boardStore.moveCard replace the entire card with
+    the IPC response. The IPC response is the raw DB card which does NOT include the `labels`
+    field (labels is a relation fetched separately in cards:list-by-board). So after any
+    updateCard or moveCard call, the card's labels array is lost from state. Fix: use
+    `{ ...existingCard, ...updatedFields }` to preserve labels.
 
-    Types available in shared/types.ts:
-    - Board, Column, Card, Label, CardPriority
-    - CreateBoardInput, CreateColumnInput, CreateCardInput
-    - UpdateColumnInput, UpdateCardInput
+    IPC methods available for labels:
+    - getLabels(projectId) → Label[]
+    - createLabel({ projectId, name, color }) → Label
+    - updateLabel(id, { name?, color? }) → Label
+    - deleteLabel(id) → void
+    - attachLabel(cardId, labelId) → void
+    - detachLabel(cardId, labelId) → void
 
-    pragmatic-drag-and-drop API (v1.7.7, verified from installed types):
-    - Import: `@atlaskit/pragmatic-drag-and-drop/element/adapter`
-      → draggable({ element, getInitialData, onDragStart, onDrop })
-      → dropTargetForElements({ element, getData, canDrop, getIsSticky, onDragEnter, onDragLeave, onDrop })
-      → monitorForElements({ canMonitor, onDrop })
-    - Import: `@atlaskit/pragmatic-drag-and-drop/combine` → combine(...cleanupFns)
-    - Import: `@atlaskit/pragmatic-drag-and-drop/reorder` → reorder({ list, startIndex, finishIndex })
-    - All functions return CleanupFn (call in useEffect return)
-    - Headless: uses useRef + useEffect, no React wrappers/hooks
+    TipTap API (v3.19.0, verified from installed types):
+    - import { useEditor, EditorContent } from '@tiptap/react';
+    - import StarterKit from '@tiptap/starter-kit';
+    - import Placeholder from '@tiptap/extension-placeholder';
+    - useEditor({ extensions: [...], content: string, onUpdate?, onBlur?, immediatelyRender? })
+    - EditorContent component with `editor` prop and optional `className`
+    - editor.getHTML() returns HTML string
+    - editor.commands.setContent(html) to set content programmatically
 
     Existing design patterns:
     - bg-surface-900 main bg, bg-surface-800 card bg, border-surface-700
     - text-surface-100 headings, text-surface-400 body, text-surface-500 muted
     - bg-primary-600 buttons, hover:bg-primary-500
+    - Input: bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm
+    - Modal overlay: fixed inset-0 bg-black/50 z-50
     - lucide-react for icons
 
-    @src/shared/types.ts
+    @src/renderer/stores/boardStore.ts
     @src/renderer/pages/BoardPage.tsx
-    @src/renderer/stores/projectStore.ts
-    @src/main/ipc/projects.ts
+    @src/renderer/components/KanbanCard.tsx
+    @src/renderer/components/BoardColumn (inline in BoardPage.tsx)
+    @src/renderer/styles/globals.css
+    @src/shared/types.ts
     @src/main/ipc/cards.ts
     @src/preload/preload.ts
-    @src/renderer/App.tsx
-    @src/renderer/components/Sidebar.tsx
-    @src/renderer/components/LoadingSpinner.tsx
-    @package.json
   </context>
 
   <task type="auto" n="1">
-    <n>Board store + BoardPage layout with columns</n>
+    <n>Card detail modal with TipTap rich text editor</n>
     <files>
-      src/renderer/stores/boardStore.ts (create — Zustand store for board state)
-      src/renderer/pages/BoardPage.tsx (modify — replace placeholder with full board layout)
+      src/renderer/components/CardDetailModal.tsx (create — modal component)
+      src/renderer/styles/globals.css (modify — add TipTap editor styles)
+      src/renderer/stores/boardStore.ts (modify — fix updateCard/moveCard label preservation)
+      src/renderer/components/KanbanCard.tsx (modify — add onClick prop)
+      src/renderer/pages/BoardPage.tsx (modify — add selectedCardId state, render modal, pass onClick through BoardColumn)
     </files>
     <action>
-      Create the Zustand board store and replace the BoardPage placeholder with a functional
-      board layout showing columns.
+      Create a card detail modal and wire it into the board UI. Fix a bug where labels are
+      lost on card update.
 
-      WHY: The board store is the data backbone for the entire Kanban view. It manages the
-      active board, columns, and cards in one place, providing reactive state that all
-      board components consume. The column layout must be in place before cards can be added.
+      WHY: Users need to view and edit full card details including rich text descriptions.
+      The card on the board is compact — the modal provides the full editing experience.
+      The TipTap editor enables structured content (headings, lists, bold/italic, code).
 
       Steps:
 
-      1. Create src/renderer/stores/boardStore.ts:
+      1. Fix boardStore.ts — preserve labels on updateCard and moveCard:
 
-         The store manages:
-         - project: Project | null (the current project)
-         - board: Board | null (the active board — first board of the project)
-         - columns: Column[] (ordered by position)
-         - cards: Card[] (all cards for the board, grouped by columnId in selectors)
-         - loading / error states
-
-         Actions:
-         - loadBoard(projectId: string): Loads the project, its first board (or auto-creates
-           one via createBoard), then loads columns and cards for that board.
-           Flow:
-           1. getProjects() → find project by ID
-           2. getBoards(projectId) → if empty, createBoard({ projectId, name: 'Board' })
-           3. getColumns(boardId) → store in columns
-           4. getCardsByBoard(boardId) → store in cards
-         - addColumn(name: string): Creates a column via IPC, appends to columns state
-         - updateColumn(id, data): Updates column via IPC, updates columns state
-         - deleteColumn(id): Deletes column via IPC, removes from columns state
-         - reorderColumns(columnIds: string[]): Reorders via IPC, updates local state
-         - addCard(columnId, title, priority?): Creates card via IPC, appends to cards
-         - updateCard(id, data): Updates card via IPC, updates cards state
-         - deleteCard(id): Deletes card via IPC, removes from cards state
-         - moveCard(id, columnId, position): Moves card via IPC, updates cards state
-
-         Helper selector (not in store, exported separately):
+         Current (BROKEN):
          ```typescript
-         /** Group cards by columnId for rendering */
-         export function getCardsByColumn(cards: Card[], columnId: string): Card[] {
-           return cards
-             .filter(c => c.columnId === columnId)
-             .sort((a, b) => a.position - b.position);
+         updateCard: async (id, data) => {
+           const updated = await window.electronAPI.updateCard(id, data);
+           set({ cards: get().cards.map(c => (c.id === id ? updated : c)) });
+         },
+         moveCard: async (id, columnId, position) => {
+           const updated = await window.electronAPI.moveCard(id, columnId, position);
+           set({ cards: get().cards.map(c => (c.id === id ? updated : c)) });
+         },
+         ```
+
+         Fixed (PRESERVES LABELS):
+         ```typescript
+         updateCard: async (id, data) => {
+           const updated = await window.electronAPI.updateCard(id, data);
+           set({ cards: get().cards.map(c => (c.id === id ? { ...c, ...updated } : c)) });
+         },
+         moveCard: async (id, columnId, position) => {
+           const updated = await window.electronAPI.moveCard(id, columnId, position);
+           set({ cards: get().cards.map(c => (c.id === id ? { ...c, ...updated } : c)) });
+         },
+         ```
+
+         WHY: The IPC response contains only the cards table columns (no labels).
+         Spreading `updated` over `c` updates DB fields while keeping the `labels` array
+         intact because `updated` does not have a `labels` property.
+
+      2. Add TipTap editor styles to globals.css:
+
+         Add at the end of globals.css:
+         ```css
+         /* TipTap rich text editor styles */
+         .tiptap-editor .ProseMirror {
+           outline: none;
+           min-height: 120px;
+           padding: 0.75rem;
+           color: var(--color-surface-100);
+           font-size: 0.875rem;
+           line-height: 1.625;
+         }
+         .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+           content: attr(data-placeholder);
+           color: var(--color-surface-500);
+           float: left;
+           height: 0;
+           pointer-events: none;
+         }
+         .tiptap-editor .ProseMirror h1 { font-size: 1.25rem; font-weight: 700; margin: 0.75rem 0 0.5rem; }
+         .tiptap-editor .ProseMirror h2 { font-size: 1.125rem; font-weight: 600; margin: 0.75rem 0 0.5rem; }
+         .tiptap-editor .ProseMirror h3 { font-size: 1rem; font-weight: 600; margin: 0.5rem 0 0.25rem; }
+         .tiptap-editor .ProseMirror ul { list-style: disc; padding-left: 1.5rem; margin: 0.5rem 0; }
+         .tiptap-editor .ProseMirror ol { list-style: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
+         .tiptap-editor .ProseMirror li { margin: 0.125rem 0; }
+         .tiptap-editor .ProseMirror blockquote {
+           border-left: 3px solid var(--color-surface-600);
+           padding-left: 1rem;
+           color: var(--color-surface-400);
+           margin: 0.5rem 0;
+         }
+         .tiptap-editor .ProseMirror code {
+           background: var(--color-surface-800);
+           border-radius: 0.25rem;
+           padding: 0.125rem 0.375rem;
+           font-size: 0.8125rem;
+           font-family: ui-monospace, monospace;
+         }
+         .tiptap-editor .ProseMirror pre {
+           background: var(--color-surface-800);
+           border-radius: 0.5rem;
+           padding: 0.75rem;
+           margin: 0.5rem 0;
+           overflow-x: auto;
+         }
+         .tiptap-editor .ProseMirror pre code {
+           background: none;
+           padding: 0;
          }
          ```
 
-         Pattern to follow (from projectStore.ts):
+      3. Create src/renderer/components/CardDetailModal.tsx:
+
+         A modal overlay component for viewing and editing full card details.
+
+         Props:
          ```typescript
-         import { create } from 'zustand';
-         import type { ... } from '../../shared/types';
-
-         interface BoardStore {
-           // State
-           project: Project | null;
-           board: Board | null;
-           columns: Column[];
-           cards: Card[];
-           loading: boolean;
-           error: string | null;
-           // Actions
-           loadBoard: (projectId: string) => Promise&lt;void&gt;;
-           addColumn: (name: string) => Promise&lt;void&gt;;
-           updateColumn: (id: string, data: UpdateColumnInput) => Promise&lt;void&gt;;
-           deleteColumn: (id: string) => Promise&lt;void&gt;;
-           reorderColumns: (columnIds: string[]) => Promise&lt;void&gt;;
-           addCard: (columnId: string, title: string, priority?: CardPriority) => Promise&lt;void&gt;;
-           updateCard: (id: string, data: UpdateCardInput) => Promise&lt;void&gt;;
-           deleteCard: (id: string) => Promise&lt;void&gt;;
-           moveCard: (id: string, columnId: string, position: number) => Promise&lt;void&gt;;
+         interface CardDetailModalProps {
+           card: Card;
+           onUpdate: (id: string, data: UpdateCardInput) => Promise&lt;void&gt;;
+           onClose: () => void;
          }
-
-         export const useBoardStore = create&lt;BoardStore&gt;((set, get) => ({ ... }));
          ```
 
-         IMPORTANT implementation detail for loadBoard:
-         - If getBoards returns empty array, call createBoard({ projectId, name: 'Board' })
-           to auto-create a default board with 3 columns.
-         - Then reload boards to get the created board's ID.
-         - Use the first board (boards[0]) as the active board.
-
-      2. Replace src/renderer/pages/BoardPage.tsx:
-
-         Replace the entire placeholder with the full board layout:
-
-         Component structure:
+         Layout (centered overlay):
          ```
-         BoardPage
-         ├── Header bar (back arrow + project name + "+ Add Column" button)
-         └── Column container (flex horizontal, overflow-x-auto, gap-4)
-             └── For each column:
-                 ├── Column header (name + card count + delete button)
-                 ├── Card list area (flex-col, gap-2, min-h-[200px])
-                 │   └── (empty for now — cards added in Task 2)
-                 └── Add card form (inline, toggle with "+" button)
+         ┌─────────────────────────────────────────────────┐
+         │ [Title - click to edit]                    [X]  │
+         │                                                 │
+         │  Priority: [LOW] [MED] [HIGH] [URG]             │
+         │                                                 │
+         │  Description                                    │
+         │  ┌───────────────────────────────────────────┐  │
+         │  │ TipTap editor...                          │  │
+         │  │ (rich text with formatting)               │  │
+         │  │                                           │  │
+         │  └───────────────────────────────────────────┘  │
+         │                                                 │
+         │  Labels (Task 2 adds this section)              │
+         │                                                 │
+         │  Created: Jan 15, 2026 · Updated: Jan 16, 2026 │
+         └─────────────────────────────────────────────────┘
          ```
 
-         Layout details:
-         - The board fills the available space: `flex-1 flex flex-col`
-         - Header: `flex items-center gap-3 px-6 pt-6 pb-4 shrink-0`
-         - Column container: `flex-1 flex gap-4 overflow-x-auto px-6 pb-6`
-         - Each column: `w-72 shrink-0 flex flex-col bg-surface-800/50 rounded-lg`
-         - Column header: `px-3 py-3 flex items-center justify-between`
-         - Column name: `font-semibold text-sm text-surface-200`
-         - Card count badge: `text-xs text-surface-500 bg-surface-700 px-1.5 py-0.5 rounded`
-         - Column body: `flex-1 px-2 pb-2 overflow-y-auto` (scrollable if many cards)
-         - Column delete: X icon, only shown on hover of column header, with confirmation
+         Structure:
+         - Overlay: `fixed inset-0 z-50 flex items-center justify-center bg-black/50`
+           Click overlay (not modal content) to close.
+         - Modal: `bg-surface-900 rounded-xl border border-surface-700 w-full max-w-2xl
+           max-h-[80vh] overflow-y-auto mx-4 p-6`
+         - Close on Escape (useEffect with keydown listener)
+         - Close button: X icon in top-right
 
-         Add Column form:
-         - Last item in the column container (after all columns)
-         - A dashed-border card `w-72 shrink-0 border-2 border-dashed border-surface-700`
-         - Click to show inline input for column name
-         - Enter to create, Escape to cancel
+         Title section:
+         - Click title text to enter edit mode
+         - Input: same styling as board forms
+         - Enter to save (call onUpdate with { title }), Escape to cancel
+         - Text display: `text-xl font-bold text-surface-100`
 
-         Add Card form (bottom of each column):
-         - Toggle with "+ Add card" button at bottom of card list area
-         - When visible: text input for card title + Enter to create, Escape to cancel
-         - New cards get default priority 'medium'
-         - After creation, clear input and keep form open for rapid entry
+         Priority section:
+         - 4 buttons in a row: LOW / MED / HIGH / URG
+         - Use the same PRIORITY_CONFIG color scheme from KanbanCard
+         - Active button has filled background, others have outline
+         - Click to change priority (call onUpdate with { priority })
 
-         Loading state: Show LoadingSpinner centered while loadBoard runs
-         Error state: Show error message with retry button
+         Description section:
+         - Label: "Description" in text-sm text-surface-400
+         - TipTap editor setup:
+           ```typescript
+           import { useEditor, EditorContent } from '@tiptap/react';
+           import StarterKit from '@tiptap/starter-kit';
+           import Placeholder from '@tiptap/extension-placeholder';
 
-         Icons (lucide-react): ArrowLeft, Plus, X, GripVertical (for future drag handles)
+           const editor = useEditor({
+             extensions: [
+               StarterKit,
+               Placeholder.configure({ placeholder: 'Add a description...' }),
+             ],
+             content: card.description || '',
+             immediatelyRender: true,
+             onBlur: ({ editor }) => {
+               const html = editor.getHTML();
+               // Only save if content changed (compare with card.description)
+               const isEmpty = html === '&lt;p&gt;&lt;/p&gt;' || html === '';
+               const newDesc = isEmpty ? null : html;
+               if (newDesc !== card.description) {
+                 onUpdate(card.id, { description: newDesc });
+               }
+             },
+           });
+           ```
+         - Editor container: `bg-surface-800/50 rounded-lg border border-surface-700`
+         - Wrap EditorContent in a div with className `tiptap-editor` (targets our CSS styles)
+
+         Timestamps:
+         - Footer showing "Created: [date] · Updated: [date]"
+         - Use same formatDate helper as ProjectsPage
+         - `text-xs text-surface-500`
 
          IMPORTANT:
-         - Do NOT add drag-and-drop yet — that's Task 3
-         - Do NOT render cards inside columns yet — that's Task 2
-         - This task establishes the layout, store, column management, and add-card input
-         - Actually, we SHOULD add basic card creation here since the form is part of the
-           column component. But card RENDERING (the KanbanCard component) is Task 2.
-         - So: the add-card form calls addCard, but the card list area just shows a count
-           or placeholder text until Task 2 adds the card components.
+         - Do NOT add labels section yet — that's Task 2
+         - Do NOT add delete button — deletion is already on KanbanCard
+         - Keep the component under 200 lines
+         - Use lucide-react icons: X for close button
 
-         Wait — actually, for a cleaner split: Task 1 creates the store with ALL actions
-         (including card CRUD) and the board layout with columns. But the card list area
-         in each column should show a simple unformatted list (just title text) as a
-         temporary placeholder. Task 2 replaces that with proper KanbanCard components.
+      4. Modify KanbanCard.tsx — add onClick prop:
 
-         Revised approach: Task 1 does EVERYTHING FUNCTIONAL:
-         - Board store with all actions
-         - BoardPage with columns rendered
-         - Add column form
-         - Add card form (bottom of each column)
-         - Simple card rendering: just card titles in a list within each column
-         - Delete column (with confirmation)
+         Add to KanbanCardProps:
+         ```typescript
+         onClick?: () => void;
+         ```
 
-         Then Task 2 upgrades card rendering to proper KanbanCard components with
-         priority badges, label dots, edit/delete, and creates them as reusable components.
-         Task 3 adds drag-and-drop on top.
+         Add click handler on the card root div:
+         ```typescript
+         onClick={onClick}
+         ```
+
+         The click handler should NOT fire during inline editing or when clicking action buttons.
+         Use `e.stopPropagation()` on the edit input, edit/delete buttons to prevent bubbling.
+         Add stopPropagation to: the edit input's onClick, the Pencil button's onClick,
+         the Trash2 button's onClick, and the "Delete?" button's onClick.
+
+      5. Modify BoardPage.tsx — add modal state and render:
+
+         In BoardPage:
+         - Add state: `const [selectedCardId, setSelectedCardId] = useState&lt;string | null&gt;(null);`
+         - Derive selectedCard: `const selectedCard = selectedCardId ? cards.find(c =&gt; c.id === selectedCardId) ?? null : null;`
+         - Render modal at end of return (after column container):
+           ```tsx
+           {selectedCard &amp;&amp; (
+             &lt;CardDetailModal
+               card={selectedCard}
+               onUpdate={updateCard}
+               onClose={() =&gt; setSelectedCardId(null)}
+             /&gt;
+           )}
+           ```
+         - Import CardDetailModal
+         - Pass `onCardClick` prop through BoardColumn to KanbanCard
+
+         In BoardColumnProps, add:
+         ```typescript
+         onCardClick: (cardId: string) =&gt; void;
+         ```
+
+         In BoardColumn's KanbanCard rendering:
+         ```tsx
+         &lt;KanbanCard
+           key={card.id}
+           card={card}
+           onUpdate={updateCard}
+           onDelete={deleteCard}
+           onClick={() =&gt; onCardClick(card.id)}
+         /&gt;
+         ```
+
+         In BoardPage's column rendering, pass the new prop:
+         ```tsx
+         onCardClick={(cardId) =&gt; setSelectedCardId(cardId)}
+         ```
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify src/renderer/stores/boardStore.ts exports useBoardStore and getCardsByColumn
-      3. Verify BoardPage.tsx:
-         - Imports useBoardStore
-         - Calls loadBoard(projectId) on mount
-         - Renders horizontal column layout
-         - Has "Add Column" form
-         - Has "Add Card" form per column
-         - Shows card titles in each column
-         - Shows loading/error states
-      4. Read files to verify column delete and add-card functionality exist
+      2. Verify CardDetailModal.tsx exists with:
+         - TipTap editor setup (useEditor, EditorContent, StarterKit, Placeholder)
+         - Title editing on click
+         - Priority button group with 4 options
+         - Auto-save description on blur
+         - Overlay click and Escape to close
+         - Timestamps display
+      3. Verify globals.css has .tiptap-editor .ProseMirror styles
+      4. Verify KanbanCard.tsx has onClick prop with stopPropagation on interactive elements
+      5. Verify BoardPage.tsx has selectedCardId state and renders CardDetailModal
+      6. Verify boardStore.ts updateCard and moveCard use spread merge pattern
     </verify>
     <done>
-      Zustand boardStore manages board, columns, and cards via IPC.
-      BoardPage shows horizontal column layout with column headers, card titles,
-      add-column form, add-card form, and column delete. Auto-creates a board
-      for projects that don't have one yet.
+      Card detail modal opens on card click. Shows editable title, priority selector,
+      TipTap rich text description editor with auto-save on blur, and timestamps.
+      Labels preserved across card updates (boardStore fix). Editor styled for dark theme.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Zustand create() works without provider (confirmed from projectStore)
-      - window.electronAPI methods work as typed (confirmed from Plan 2.1)
-      - overflow-x-auto with flex children creates a horizontal scrollable area
-      - Tailwind CSS 4 supports all used utilities (w-72, shrink-0, line-clamp, etc.)
+      - TipTap v3.19.0 useEditor + EditorContent API is stable and works in Electron renderer
+      - immediatelyRender: true is correct for client-side rendering in Electron
+      - onBlur fires reliably when clicking outside the editor
+      - Card click and drag do not conflict (pragmatic-dnd does not fire click after drag)
+      - e.stopPropagation() on action buttons prevents card onClick from firing
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>KanbanCard component with priority, labels, and card actions</n>
+    <n>Labels management in card detail + board store</n>
     <files>
-      src/renderer/components/KanbanCard.tsx (create — card component)
-      src/renderer/pages/BoardPage.tsx (modify — use KanbanCard in columns)
+      src/renderer/stores/boardStore.ts (modify — add labels state and label actions)
+      src/renderer/components/CardDetailModal.tsx (modify — add labels section)
     </files>
     <preconditions>
-      - Task 1 completed (boardStore exists, BoardPage renders columns)
+      - Task 1 completed (CardDetailModal exists, boardStore has label-preserving updateCard)
     </preconditions>
     <action>
-      Create a polished KanbanCard component and integrate it into the board columns,
-      replacing the simple title list from Task 1.
+      Add label management to the board store and card detail modal. Labels are project-level
+      (shared across all cards in a project). Users can create labels, then attach/detach them
+      from individual cards.
 
-      WHY: Cards are the primary interactive element in the Kanban board. Users need to
-      see card priority at a glance, view label indicators, and edit/delete cards.
-      Extracting KanbanCard as a separate component keeps BoardPage manageable and
-      makes the card reusable for the drag-and-drop layer (Task 3).
+      WHY: Labels provide visual categorization at a glance (the colored dots on KanbanCard
+      already render them). Users need a way to create labels and assign them to cards.
 
       Steps:
 
-      1. Create src/renderer/components/KanbanCard.tsx:
+      1. Modify boardStore.ts — add label state and actions:
 
-         A compact card component displaying:
-         - Priority indicator: left border color based on priority
-           - low: border-l-emerald-500
-           - medium: border-l-blue-500
-           - high: border-l-amber-500
-           - urgent: border-l-red-500
-         - Card title: text-sm text-surface-100, truncate to 2 lines (line-clamp-2)
-         - Label dots: row of small colored circles (w-2 h-2 rounded-full) if card has labels
-         - Action buttons (visible on hover):
-           - Edit (Pencil icon) — inline title editing
-           - Delete (Trash2 icon) — delete with confirmation
-         - Priority badge: small text badge in top-right corner
-           - "LOW" "MED" "HIGH" "URG"
-           - bg-emerald-500/20 text-emerald-400, bg-blue-500/20 text-blue-400, etc.
-
-         Props:
+         Add to BoardStore interface:
          ```typescript
-         interface KanbanCardProps {
-           card: Card;
-           onUpdate: (id: string, data: UpdateCardInput) => Promise&lt;void&gt;;
-           onDelete: (id: string) => Promise&lt;void&gt;;
-         }
+         labels: Label[];
+         loadLabels: () => Promise&lt;void&gt;;
+         createLabel: (name: string, color: string) => Promise&lt;Label&gt;;
+         deleteLabel: (id: string) => Promise&lt;void&gt;;
+         attachLabel: (cardId: string, labelId: string) => Promise&lt;void&gt;;
+         detachLabel: (cardId: string, labelId: string) => Promise&lt;void&gt;;
          ```
 
-         Card styling:
-         - bg-surface-800 rounded-md p-3 border-l-2 cursor-pointer
-         - hover:bg-surface-750 (use hover:bg-surface-700/50 if 750 doesn't exist)
-         - group class for hover-reveal of action buttons
-         - Transition for smooth hover effects
+         Add imports: `Label, CreateLabelInput` from shared types.
 
-         Inline title editing:
-         - Double-click on title to enter edit mode
-         - Show input with current title, Enter to save, Escape to cancel
-         - Call onUpdate with new title
-         - Use local state for edit mode (isEditing, editTitle)
+         Add to store initial state: `labels: []`
 
-         Delete confirmation:
-         - Click delete icon → show "Delete?" text replacing the icon for 2 seconds
-         - Click "Delete?" text to confirm, or it auto-dismisses
-         - This is simpler than a modal for card deletion
-
-      2. Update BoardPage.tsx:
-
-         In the column card list area, replace the simple title list with KanbanCard:
-
-         ```tsx
-         {getCardsByColumn(cards, column.id).map(card => (
-           &lt;KanbanCard
-             key={card.id}
-             card={card}
-             onUpdate={updateCard}
-             onDelete={deleteCard}
-           /&gt;
-         ))}
+         In loadBoard action, after loading columns and cards, also load labels:
+         ```typescript
+         const labels = await window.electronAPI.getLabels(projectId);
+         set({ project, board, columns, cards, labels, loading: false });
          ```
 
-         Import KanbanCard and pass the store's updateCard and deleteCard actions.
+         Implement actions:
 
-      IMPORTANT:
-      - Do NOT add drag-related props or refs to KanbanCard — that's Task 3
-      - The card component should be a self-contained presentational + interactive component
-      - Keep it under 150 lines — it's a focused component
-      - Use lucide-react icons: Pencil, Trash2
+         loadLabels:
+         ```typescript
+         loadLabels: async () => {
+           const { project } = get();
+           if (!project) return;
+           const labels = await window.electronAPI.getLabels(project.id);
+           set({ labels });
+         },
+         ```
+
+         createLabel:
+         ```typescript
+         createLabel: async (name, color) => {
+           const { project, labels } = get();
+           if (!project) throw new Error('No project loaded');
+           const label = await window.electronAPI.createLabel({
+             projectId: project.id, name, color,
+           });
+           set({ labels: [...labels, label] });
+           return label;
+         },
+         ```
+
+         deleteLabel:
+         ```typescript
+         deleteLabel: async (id) => {
+           await window.electronAPI.deleteLabel(id);
+           set({
+             labels: get().labels.filter(l => l.id !== id),
+             // Also remove from all cards' labels arrays
+             cards: get().cards.map(c => ({
+               ...c,
+               labels: c.labels?.filter(l => l.id !== id),
+             })),
+           });
+         },
+         ```
+
+         attachLabel:
+         ```typescript
+         attachLabel: async (cardId, labelId) => {
+           await window.electronAPI.attachLabel(cardId, labelId);
+           const label = get().labels.find(l => l.id === labelId);
+           if (!label) return;
+           set({
+             cards: get().cards.map(c => {
+               if (c.id !== cardId) return c;
+               const existing = c.labels ?? [];
+               if (existing.some(l => l.id === labelId)) return c;
+               return { ...c, labels: [...existing, label] };
+             }),
+           });
+         },
+         ```
+
+         detachLabel:
+         ```typescript
+         detachLabel: async (cardId, labelId) => {
+           await window.electronAPI.detachLabel(cardId, labelId);
+           set({
+             cards: get().cards.map(c => {
+               if (c.id !== cardId) return c;
+               return { ...c, labels: c.labels?.filter(l => l.id !== labelId) };
+             }),
+           });
+         },
+         ```
+
+      2. Modify CardDetailModal.tsx — add labels section:
+
+         Add a labels section between the description editor and the timestamps.
+
+         The labels section:
+         ```
+         Labels
+         [label1 ×] [label2 ×]  [+ Add]
+
+         When "+ Add" is clicked, show a dropdown:
+         ┌────────────────────────┐
+         │ Search labels...       │
+         │ ● Bug (red)        [+] │
+         │ ● Feature (green)  [+] │
+         │ ● Docs (blue)      [+] │
+         │ ─────────────────────  │
+         │ Create new label       │
+         │ [name] [color] [Add]   │
+         └────────────────────────┘
+         ```
+
+         Implementation:
+         - Import `useBoardStore` to get labels, createLabel, attachLabel, detachLabel
+         - Add to component props (or just use the store directly):
+           Not needed in props — get labels + actions from useBoardStore
+         - Local state: `showLabelDropdown` (boolean), `newLabelName` (string),
+           `newLabelColor` (string, from PRESET_COLORS)
+
+         Attached labels display:
+         - Row of label pills: colored dot + label name + X button to detach
+         - Pill: `inline-flex items-center gap-1.5 bg-surface-800 rounded-full px-2.5 py-1 text-xs`
+         - Colored dot: `w-2 h-2 rounded-full` with label.color
+         - X button: click calls detachLabel(card.id, label.id)
+
+         Label dropdown:
+         - Position: below the "+ Add" button or inline
+         - List all project labels not yet attached to this card
+         - Each row: colored dot + label name + "+" button to attach
+         - Click "+" calls attachLabel(card.id, label.id) and removes from dropdown
+         - Create new label section at bottom:
+           - Text input for name + color picker (preset colors as small circles)
+           - "Add" button calls createLabel then attachLabel
+
+         PRESET_COLORS for labels (same 6 from ProjectsPage):
+         ```typescript
+         const LABEL_COLORS = [
+           '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899',
+         ];
+         ```
+
+         IMPORTANT:
+         - The card prop will reflect updated labels because boardStore updates
+           the cards array in attachLabel/detachLabel.
+         - Close the dropdown when clicking outside (useEffect with click listener
+           on document, check if click target is outside dropdown ref)
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify src/renderer/components/KanbanCard.tsx exists with:
-         - KanbanCardProps interface
-         - Priority-based left border colors
-         - Priority badge
-         - Label dots rendering
-         - Inline title editing on double-click
-         - Delete with confirmation
-         - Hover-reveal action buttons
-      3. Verify BoardPage.tsx imports and renders KanbanCard in each column
-      4. Verify cards are rendered via getCardsByColumn helper
+      2. Verify boardStore.ts has labels state, loadLabels, createLabel, deleteLabel,
+         attachLabel, detachLabel actions
+      3. Verify labels are loaded in loadBoard action
+      4. Verify CardDetailModal.tsx has:
+         - Attached labels display with remove (×) buttons
+         - "+ Add" button opening a label dropdown
+         - Dropdown lists unattached project labels with attach button
+         - Create new label form (name + color)
+      5. Verify detachLabel updates both cardLabels DB and local card state
+      6. Verify deleteLabel cleans up labels from all cards in local state
     </verify>
     <done>
-      KanbanCard component renders cards with priority border, priority badge,
-      label dots, hover actions (edit/delete), and inline title editing.
-      Cards are displayed in the correct column based on columnId.
+      Labels can be created for a project (with name + color). Labels can be attached to
+      and detached from cards in the card detail modal. Attached labels show as pills with
+      remove buttons. Unattached labels available in dropdown. Label dots on KanbanCard
+      reflect changes immediately via Zustand state.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - line-clamp-2 works in Tailwind CSS 4 (built-in, confirmed from Plan 2.1)
-      - Double-click handler works reliably on card titles in React 19
-      - The card component will receive a ref in Task 3 — design it to accept forwardRef
-        OR Task 3 wraps it in a div with ref. Either approach works.
+      - attachLabel IPC handler uses onConflictDoNothing (verified in cards.ts:183)
+      - detachLabel IPC handler deletes the specific cardLabels row (verified in cards.ts:189)
+      - Labels loaded at board level are sufficient (no per-card label fetching needed after initial load)
+      - useBoardStore can be called in CardDetailModal without issues (Zustand works anywhere in React tree)
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Drag-and-drop cards between columns with pragmatic-drag-and-drop</n>
+    <n>Search and filter cards on the board</n>
     <files>
-      src/renderer/components/KanbanCard.tsx (modify — add draggable behavior)
-      src/renderer/pages/BoardPage.tsx (modify — add drop targets and monitor)
+      src/renderer/pages/BoardPage.tsx (modify — add search input, filter dropdowns, filtering logic)
     </files>
     <preconditions>
-      - Task 1 completed (boardStore with moveCard action)
-      - Task 2 completed (KanbanCard component rendered in columns)
+      - Task 1 completed (BoardPage has card detail modal)
+      - Task 2 completed (boardStore has labels state)
     </preconditions>
     <action>
-      Integrate @atlaskit/pragmatic-drag-and-drop to enable card dragging between columns
-      and reordering within columns.
+      Add search and filter functionality to the board header. Filtering is client-side
+      since all cards are already loaded in the board store.
 
-      WHY: Drag-and-drop is the core UX of a Kanban board. Users expect to drag cards
-      between columns to update status. pragmatic-drag-and-drop is headless and lightweight,
-      giving us full control over the visual feedback.
-
-      VERIFIED API (from installed package v1.7.7 type definitions):
-      ```typescript
-      // Core functions — import from element/adapter (NOT root package)
-      import {
-        draggable,
-        dropTargetForElements,
-        monitorForElements,
-      } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
-      import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
-      ```
+      WHY: As boards accumulate cards, users need to quickly find specific cards by title
+      or narrow down the view by priority or label. Client-side filtering is instant since
+      we already have all card data in memory.
 
       Steps:
 
-      1. Update src/renderer/components/KanbanCard.tsx — make cards draggable:
-
-         Add a ref to the card's root div and set up `draggable()` in a useEffect:
+      1. Add filter state to BoardPage:
 
          ```typescript
-         import { useEffect, useRef, useState } from 'react';
-         import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
-
-         function KanbanCard({ card, onUpdate, onDelete }: KanbanCardProps) {
-           const cardRef = useRef&lt;HTMLDivElement&gt;(null);
-           const [isDragging, setIsDragging] = useState(false);
-
-           useEffect(() => {
-             const el = cardRef.current;
-             if (!el) return;
-
-             return draggable({
-               element: el,
-               getInitialData: () => ({
-                 type: 'card',
-                 cardId: card.id,
-                 sourceColumnId: card.columnId,
-                 sourcePosition: card.position,
-               }),
-               onDragStart: () => setIsDragging(true),
-               onDrop: () => setIsDragging(false),
-             });
-           }, [card.id, card.columnId, card.position]);
-
-           return (
-             &lt;div
-               ref={cardRef}
-               className={`... ${isDragging ? 'opacity-40' : ''}`}
-             &gt;
-               {/* existing card content */}
-             &lt;/div&gt;
-           );
-         }
+         const [searchQuery, setSearchQuery] = useState('');
+         const [priorityFilter, setPriorityFilter] = useState&lt;CardPriority[]&gt;([]);
+         const [labelFilter, setLabelFilter] = useState&lt;string[]&gt;([]);
          ```
 
-         The isDragging state reduces opacity to give visual feedback that the card
-         is being dragged.
+         Import `CardPriority` from shared types.
+         Get `labels` from useBoardStore (add to destructured values).
 
-      2. Update BoardPage.tsx — make columns drop targets and add a board-level monitor:
-
-         For each column, wrap or modify the column card-list container to be a drop target:
+      2. Add filtering logic:
 
          ```typescript
-         import { useEffect, useRef, useState } from 'react';
-         import {
-           dropTargetForElements,
-           monitorForElements,
-         } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
-         import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
-         ```
-
-         Each column needs:
-         - A ref on the card list container (the droppable area)
-         - dropTargetForElements with:
-           - canDrop: only accept items with type === 'card'
-           - getData: return { columnId: column.id }
-           - getIsSticky: () => true (prevents flicker when dragging over cards)
-           - onDragEnter/onDragLeave: set/clear highlight state
-
-         Visual feedback for columns during drag:
-         - Track which column is being dragged over: `dragOverColumnId` state
-         - When a column is a drag target, add a subtle highlight:
-           `border-2 border-dashed border-primary-500/50` (or similar)
-         - Reset on drag leave and drop
-
-         Board-level monitor:
-         - Use monitorForElements to handle the actual drop logic centrally
-         - On drop, read source.data (cardId, sourceColumnId) and
-           location.current.dropTargets[0].data (target columnId)
-         - Calculate new position (append to end of target column for simplicity)
-         - Call boardStore.moveCard(cardId, targetColumnId, newPosition)
-
-         Drop handling logic:
-         ```typescript
-         monitorForElements({
-           canMonitor: ({ source }) => source.data.type === 'card',
-           onDrop: ({ source, location }) => {
-             const dropTargets = location.current.dropTargets;
-             if (dropTargets.length === 0) return; // Dropped outside any column
-
-             const targetColumnId = dropTargets[0].data.columnId as string;
-             const cardId = source.data.cardId as string;
-             const sourceColumnId = source.data.sourceColumnId as string;
-
-             if (!targetColumnId || !cardId) return;
-
-             // Calculate position: append to end of target column
-             const targetCards = getCardsByColumn(cards, targetColumnId);
-             const newPosition = sourceColumnId === targetColumnId
-               ? targetCards.length - 1  // Same column: move to end
-               : targetCards.length;      // Different column: append
-
-             moveCard(cardId, targetColumnId, newPosition);
-             setDragOverColumnId(null);
-           },
+         const filteredCards = cards.filter(card => {
+           // Search: check title (case-insensitive)
+           if (searchQuery) {
+             const query = searchQuery.toLowerCase();
+             const matchesTitle = card.title.toLowerCase().includes(query);
+             const matchesDesc = card.description?.toLowerCase().includes(query) ?? false;
+             if (!matchesTitle &amp;&amp; !matchesDesc) return false;
+           }
+           // Priority filter (if any selected, card must match one)
+           if (priorityFilter.length > 0 &amp;&amp; !priorityFilter.includes(card.priority)) {
+             return false;
+           }
+           // Label filter (if any selected, card must have at least one matching label)
+           if (labelFilter.length > 0) {
+             const cardLabelIds = card.labels?.map(l => l.id) ?? [];
+             if (!labelFilter.some(id => cardLabelIds.includes(id))) return false;
+           }
+           return true;
          });
          ```
 
-         IMPORTANT: The monitor must be set up once at the board level (not per column).
-         Use a useEffect with combine() to clean up both the monitor and all drop targets.
+         Pass `filteredCards` instead of `cards` to column rendering:
+         ```tsx
+         columnCards={getCardsByColumn(filteredCards, column.id)}
+         ```
 
-         Since column components are rendered in a map, the simplest approach is to
-         extract a ColumnDropTarget wrapper or use inline useEffect per column.
+         Also use `filteredCards` for the drag monitor's position calculation.
 
-         Recommended approach: Extract a `BoardColumn` component from the column rendering
-         in BoardPage. This component:
-         - Receives column, cards, store actions as props
-         - Sets up dropTargetForElements in its own useEffect
-         - Manages its own dragOver state
-         - Renders KanbanCard components
+      3. Add search/filter UI to the board header:
 
-         The monitor stays in BoardPage (parent level).
+         Expand the header area. Current header:
+         ```
+         [←] Project Name
+         ```
 
-      3. Test the complete drag flow:
-         - Drag card from Column A → hover over Column B (highlight) → drop
-         - Card should appear in Column B, disappear from Column A
-         - Position should be updated in the database via moveCard IPC
+         New header layout:
+         ```
+         [←] Project Name                    [Search...] [Priority ▾] [Labels ▾]
+         ```
 
-      IMPORTANT NOTES:
-      - Import from '@atlaskit/pragmatic-drag-and-drop/element/adapter' NOT the root
-      - Import combine from '@atlaskit/pragmatic-drag-and-drop/combine'
-      - All setup functions return cleanup functions — return them from useEffect
-      - getIsSticky: () => true is important for nested drop targets (cards inside columns)
-      - The monitor's onDrop fires AFTER individual drop target handlers
-      - Cards within the same column can be reordered too (same logic, different position calc)
+         Or if filters are active, show below the header line:
+         ```
+         [←] Project Name
+         [Search...] [Priority ▾] [Labels ▾]  [Clear filters]  (X results)
+         ```
+
+         Recommended approach: Add a second row to the header when filters exist
+         or always show the search bar. Keep it simple.
+
+         Search input:
+         - Right side of header: `flex-1 max-w-xs` input
+         - Icon: Search from lucide-react as left adornment
+         - `bg-surface-800 border border-surface-700 rounded-lg pl-8 pr-3 py-1.5 text-sm`
+         - Debounce NOT needed — filtering is client-side and instant
+         - Clear button (X) inside input when query is non-empty
+
+         Priority filter dropdown:
+         - Button: "Priority" + chevron icon (ChevronDown)
+         - Dropdown: 4 checkboxes (Low, Medium, High, Urgent) with colored dots
+         - Toggle individual priorities on/off
+         - Multi-select: clicking a priority adds/removes it from priorityFilter array
+         - Badge on button showing count of active filters
+
+         Label filter dropdown:
+         - Button: "Labels" + chevron icon
+         - Dropdown: list all project labels with checkboxes
+         - Toggle individual labels on/off
+         - Multi-select: clicking a label adds/removes it from labelFilter array
+         - Badge on button showing count of active filters
+         - If no labels exist, show "No labels" text
+
+         Clear filters button:
+         - Only visible when any filter is active
+         - Resets searchQuery, priorityFilter, and labelFilter to defaults
+
+         Active filter indicator:
+         - When filters are active, show "Showing X of Y cards" text
+         - `text-xs text-surface-500`
+
+         Dropdown implementation:
+         - Use local state: `showPriorityDropdown`, `showLabelDropdown`
+         - Position: absolute below the trigger button
+         - Close on click outside (same pattern as label dropdown in Task 2)
+         - Dropdown: `absolute top-full mt-1 bg-surface-800 border border-surface-700
+           rounded-lg shadow-lg p-2 min-w-[180px] z-40`
+
+         Icons: Search, ChevronDown, X from lucide-react
+
+      IMPORTANT:
+      - Filtering must not break drag-and-drop. The monitor's onDrop should still use
+        the full `cards` array for position calculation, not filteredCards.
+        Wait — actually, the position should be relative to the target column's cards.
+        But if we're filtering, the visible cards are a subset. When dropping a card,
+        we want to append it to the END of the target column (all cards, not just filtered).
+        So the drag monitor should use the unfiltered `cards` from the store, not filteredCards.
+        The current monitor already references `cards` from the store destructuring,
+        so this should work correctly — just make sure not to change it to filteredCards.
+      - Keep the board layout responsive — don't let the header grow too tall
+      - Filter state resets when navigating away (component unmounts)
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify KanbanCard.tsx:
-         - Has useRef and draggable() setup in useEffect
-         - getInitialData attaches card type, cardId, sourceColumnId
-         - isDragging state reduces opacity during drag
-      3. Verify BoardPage.tsx:
-         - Has monitorForElements setup with canMonitor and onDrop
-         - Each column has dropTargetForElements with canDrop, getData, getIsSticky
-         - dragOverColumnId state provides visual feedback
-         - Drop handler calls moveCard with correct parameters
-         - All useEffect cleanups return the cleanup functions from combine/draggable/dropTarget
-      4. Verify the import paths use '/element/adapter' and '/combine' (not root)
+      2. Verify BoardPage.tsx has:
+         - searchQuery, priorityFilter, labelFilter state
+         - filteredCards computed from cards with all 3 filters applied
+         - filteredCards passed to getCardsByColumn in column rendering
+         - Search input in header with clear button
+         - Priority filter dropdown with 4 priority options
+         - Label filter dropdown showing project labels
+         - "Clear filters" button visible when filters active
+         - Active filter indicator (X of Y cards)
+      3. Verify drag-and-drop still uses unfiltered cards for position calculation
+      4. Verify dropdowns close on outside click
     </verify>
     <done>
-      Cards are draggable between columns via pragmatic-drag-and-drop.
-      Columns highlight when a card is dragged over them.
-      Dropping a card moves it to the target column and persists via moveCard IPC.
-      Cards within the same column can be reordered.
-      All drag state is managed with React state + useRef (no external state library needed).
+      Board header has search input and filter dropdowns (priority + labels).
+      Cards are filtered client-side in real-time. Active filters show indicator
+      and "Clear filters" button. Drag-and-drop works correctly with filtered views.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - @atlaskit/pragmatic-drag-and-drop v1.7.7 API matches the verified type definitions
-      - draggable() works with React 19 refs and useEffect cleanup
-      - getIsSticky prevents drop target flickering when dragging over child elements
-      - monitorForElements onDrop fires after drop target onDrop handlers
-      - Native browser drag events work correctly in Electron's Chromium renderer
-      - combine() correctly merges multiple cleanup functions
+      - Client-side filtering is fast enough for v1 (single-user, typical board has &lt;100 cards)
+      - Search checks title and description (HTML content — searches raw HTML strings, which
+        is imperfect but acceptable for v1. A future improvement could strip HTML tags.)
+      - Filtering doesn't affect drag-and-drop because the monitor uses unfiltered store cards
+      - Dropdowns don't need complex positioning — simple absolute below trigger works
     </assumptions>
   </task>
 </phase>

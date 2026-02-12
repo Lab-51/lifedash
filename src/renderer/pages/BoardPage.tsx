@@ -10,7 +10,7 @@
 
 import { useParams, Link } from 'react-router-dom';
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { ArrowLeft, Plus, X } from 'lucide-react';
+import { ArrowLeft, Plus, X, Search, ChevronDown } from 'lucide-react';
 import {
   dropTargetForElements,
   monitorForElements,
@@ -18,7 +18,8 @@ import {
 import { useBoardStore, getCardsByColumn } from '../stores/boardStore';
 import LoadingSpinner from '../components/LoadingSpinner';
 import KanbanCard from '../components/KanbanCard';
-import type { Card, Column, UpdateCardInput } from '../../shared/types';
+import CardDetailModal from '../components/CardDetailModal';
+import type { Card, Column, UpdateCardInput, CardPriority } from '../../shared/types';
 
 // === BoardColumn — renders a single column with drop target behavior ===
 
@@ -31,6 +32,7 @@ interface BoardColumnProps {
   updateCard: (id: string, data: UpdateCardInput) => Promise<void>;
   deleteCard: (id: string) => Promise<void>;
   deleteColumn: (id: string) => Promise<void>;
+  onCardClick: (cardId: string) => void;
 }
 
 function BoardColumn({
@@ -42,6 +44,7 @@ function BoardColumn({
   updateCard,
   deleteCard,
   deleteColumn,
+  onCardClick,
 }: BoardColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
   const cardInputRef = useRef<HTMLInputElement>(null);
@@ -148,6 +151,7 @@ function BoardColumn({
             card={card}
             onUpdate={updateCard}
             onDelete={deleteCard}
+            onClick={() => onCardClick(card.id)}
           />
         ))}
       </div>
@@ -202,7 +206,7 @@ function BoardColumn({
 function BoardPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const {
-    project, columns, cards, loading, error,
+    project, columns, cards, labels, loading, error,
     loadBoard, addColumn, deleteColumn, addCard, updateCard, deleteCard, moveCard,
   } = useBoardStore();
 
@@ -212,6 +216,57 @@ function BoardPage() {
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
 
   const columnInputRef = useRef<HTMLInputElement>(null);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const selectedCard = selectedCardId
+    ? cards.find(c => c.id === selectedCardId) ?? null
+    : null;
+
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState<CardPriority[]>([]);
+  const [labelFilter, setLabelFilter] = useState<string[]>([]);
+  const [showPriorityDropdown, setShowPriorityDropdown] = useState(false);
+  const [showLabelDropdown, setShowLabelDropdown] = useState(false);
+  const priorityDropdownRef = useRef<HTMLDivElement>(null);
+  const labelDropdownRef = useRef<HTMLDivElement>(null);
+
+  const hasActiveFilters = searchQuery !== '' || priorityFilter.length > 0 || labelFilter.length > 0;
+
+  // Compute filtered cards
+  const filteredCards = cards.filter(card => {
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesTitle = card.title.toLowerCase().includes(query);
+      const matchesDesc = card.description?.toLowerCase().includes(query) ?? false;
+      if (!matchesTitle && !matchesDesc) return false;
+    }
+    if (priorityFilter.length > 0 && !priorityFilter.includes(card.priority)) {
+      return false;
+    }
+    if (labelFilter.length > 0) {
+      const cardLabelIds = card.labels?.map(l => l.id) ?? [];
+      if (!labelFilter.some(id => cardLabelIds.includes(id))) return false;
+    }
+    return true;
+  });
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setPriorityFilter([]);
+    setLabelFilter([]);
+  };
+
+  const togglePriorityFilter = (p: CardPriority) => {
+    setPriorityFilter(prev =>
+      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
+    );
+  };
+
+  const toggleLabelFilter = (id: string) => {
+    setLabelFilter(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
 
   // Load board data on mount
   useEffect(() => {
@@ -226,6 +281,20 @@ function BoardPage() {
       columnInputRef.current.focus();
     }
   }, [addingColumn]);
+
+  // Close filter dropdowns on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (priorityDropdownRef.current && !priorityDropdownRef.current.contains(e.target as Node)) {
+        setShowPriorityDropdown(false);
+      }
+      if (labelDropdownRef.current && !labelDropdownRef.current.contains(e.target as Node)) {
+        setShowLabelDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   // Board-level drag monitor — handles card moves on drop
   useEffect(() => {
@@ -309,16 +378,141 @@ function BoardPage() {
   return (
     <div className="flex-1 flex flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 px-6 pt-6 pb-4 shrink-0">
-        <Link
-          to="/"
-          className="text-surface-400 hover:text-surface-200 transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <h1 className="text-2xl font-bold text-surface-100">
-          {project?.name ?? 'Board'}
-        </h1>
+      <div className="px-6 pt-6 pb-4 shrink-0 space-y-3">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/"
+            className="text-surface-400 hover:text-surface-200 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </Link>
+          <h1 className="text-2xl font-bold text-surface-100 flex-1">
+            {project?.name ?? 'Board'}
+          </h1>
+
+          {/* Search input */}
+          <div className="relative flex-shrink-0">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search cards..."
+              className="bg-surface-800 border border-surface-700 rounded-lg pl-8 pr-8 py-1.5 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 w-48"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Priority filter */}
+          <div className="relative" ref={priorityDropdownRef}>
+            <button
+              onClick={() => { setShowPriorityDropdown(!showPriorityDropdown); setShowLabelDropdown(false); }}
+              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                priorityFilter.length > 0
+                  ? 'border-primary-500/50 text-primary-400 bg-primary-500/10'
+                  : 'border-surface-700 text-surface-400 hover:text-surface-200 bg-surface-800'
+              }`}
+            >
+              Priority
+              {priorityFilter.length > 0 && (
+                <span className="bg-primary-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+                  {priorityFilter.length}
+                </span>
+              )}
+              <ChevronDown size={12} />
+            </button>
+
+            {showPriorityDropdown && (
+              <div className="absolute top-full right-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg p-2 min-w-[160px] z-40">
+                {([
+                  { value: 'low' as CardPriority, label: 'Low', dot: 'bg-emerald-500' },
+                  { value: 'medium' as CardPriority, label: 'Medium', dot: 'bg-blue-500' },
+                  { value: 'high' as CardPriority, label: 'High', dot: 'bg-amber-500' },
+                  { value: 'urgent' as CardPriority, label: 'Urgent', dot: 'bg-red-500' },
+                ]).map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => togglePriorityFilter(opt.value)}
+                    className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs text-surface-200 hover:bg-surface-700 transition-colors"
+                  >
+                    <span className={`w-2 h-2 rounded-full ${opt.dot}`} />
+                    <span className="flex-1 text-left">{opt.label}</span>
+                    {priorityFilter.includes(opt.value) && (
+                      <span className="text-primary-400 text-[10px] font-bold">&#x2713;</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Label filter */}
+          <div className="relative" ref={labelDropdownRef}>
+            <button
+              onClick={() => { setShowLabelDropdown(!showLabelDropdown); setShowPriorityDropdown(false); }}
+              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                labelFilter.length > 0
+                  ? 'border-primary-500/50 text-primary-400 bg-primary-500/10'
+                  : 'border-surface-700 text-surface-400 hover:text-surface-200 bg-surface-800'
+              }`}
+            >
+              Labels
+              {labelFilter.length > 0 && (
+                <span className="bg-primary-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
+                  {labelFilter.length}
+                </span>
+              )}
+              <ChevronDown size={12} />
+            </button>
+
+            {showLabelDropdown && (
+              <div className="absolute top-full right-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg p-2 min-w-[160px] z-40">
+                {labels.length === 0 ? (
+                  <p className="text-xs text-surface-500 px-2 py-1">No labels</p>
+                ) : (
+                  labels.map(label => (
+                    <button
+                      key={label.id}
+                      onClick={() => toggleLabelFilter(label.id)}
+                      className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs text-surface-200 hover:bg-surface-700 transition-colors"
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: label.color }}
+                      />
+                      <span className="flex-1 text-left">{label.name}</span>
+                      {labelFilter.includes(label.id) && (
+                        <span className="text-primary-400 text-[10px] font-bold">&#x2713;</span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Active filter indicator */}
+        {hasActiveFilters && (
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-surface-500">
+              Showing {filteredCards.length} of {cards.length} cards
+            </span>
+            <button
+              onClick={clearFilters}
+              className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Column container */}
@@ -328,13 +522,14 @@ function BoardPage() {
           <BoardColumn
             key={column.id}
             column={column}
-            columnCards={getCardsByColumn(cards, column.id)}
+            columnCards={getCardsByColumn(filteredCards, column.id)}
             isDragOver={dragOverColumnId === column.id}
             onDragOverChange={(isOver) => handleDragOverChange(column.id, isOver)}
             addCard={addCard}
             updateCard={updateCard}
             deleteCard={deleteCard}
             deleteColumn={deleteColumn}
+            onCardClick={(cardId) => setSelectedCardId(cardId)}
           />
         ))}
 
@@ -378,6 +573,15 @@ function BoardPage() {
           </button>
         )}
       </div>
+
+      {/* Card detail modal */}
+      {selectedCard && (
+        <CardDetailModal
+          card={selectedCard}
+          onUpdate={updateCard}
+          onClose={() => setSelectedCardId(null)}
+        />
+      )}
     </div>
   );
 }

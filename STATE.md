@@ -2,13 +2,14 @@
 
 ## Session Info
 Last updated: 2026-02-12
-Session focus: Phase 2 Execution — Plan 2.2 Kanban Board COMPLETE
+Session focus: Phase 2 Execution — Plan 2.3 Rich Text + Polish
 
 ## Position
 Milestone: Phase 2 — Project Dashboard
 Phase: 2 of 7
-Plan: 2 of 3 (COMPLETE)
-Task: 3 of 3 (all complete)
+Plan: 3 of 3 (COMPLETE)
+Task: 3 of 3 (COMPLETE)
+**Phase 2: ALL PLANS COMPLETE**
 
 ## Phase 1 — COMPLETE
 All 3 plans (8 tasks) delivered and pushed to GitHub.
@@ -17,8 +18,8 @@ All 3 plans (8 tasks) delivered and pushed to GitHub.
 - R8: Navigation & Layout — 100%
 - Commit: 5a286cc on origin/main
 
-## Phase 2 — Plan Overview
-Phase 2 covers R3: Project Dashboard (8 points, estimated 8 tasks across 3 plans).
+## Phase 2 — COMPLETE
+Phase 2 covers R3: Project Dashboard (8 points, 9 tasks across 3 plans).
 
 ### Plan 2.1: Data Layer & Project Management (3 tasks) — COMPLETE
 1. Install Phase 2 deps + domain types — DONE
@@ -30,20 +31,22 @@ Phase 2 covers R3: Project Dashboard (8 points, estimated 8 tasks across 3 plans
 2. KanbanCard component with priority, labels, and card actions — DONE
 3. Drag-and-drop cards between columns with pragmatic-drag-and-drop — DONE
 
-### Plan 2.3: Rich Text + Polish (2 tasks — planned, not written)
-1. TipTap editor in card detail + labels management
-2. Search and filter cards
+### Plan 2.3: Rich Text + Polish (3 tasks) — COMPLETE
+1. Card detail modal with TipTap rich text editor (+ boardStore label fix) — DONE
+2. Labels management in card detail + board store — DONE
+3. Search and filter cards on the board — DONE
 
-## Results This Session (Plan 2.2)
-- Task 1: Created boardStore.ts (157 lines) + replaced BoardPage placeholder with full column layout (291 lines)
-- Task 2: Created KanbanCard.tsx (167 lines) with priority borders, badges, label dots, inline editing, delete confirmation
-- Task 3: Added pragmatic-drag-and-drop — cards draggable, columns are drop targets with visual feedback, board-level monitor handles moves. Extracted BoardColumn component (clean separation). Final BoardPage: 386 lines.
+## Results This Session (Plan 2.3)
+- Task 1: Created CardDetailModal.tsx (~177 lines) with TipTap editor, priority selector, title editing, timestamps. Fixed boardStore spread merge. Added TipTap CSS styles. Wired into BoardPage.
+- Task 2: Added labels state + 5 label actions to boardStore. Added labels section to CardDetailModal (pills, dropdown, create form).
+- Task 3: Added search + priority filter + label filter to BoardPage header (~590 lines). Active filter indicator + clear button.
 - TypeScript: PASS (all 3 tasks verified with tsc --noEmit)
 
 ## Confidence Levels
 Overall approach: HIGH
-Plan 2.1 execution: HIGH — all tasks completed, tsc passes, committed
-Plan 2.2 execution: HIGH — all tasks completed, tsc passes, not yet committed
+Plan 2.1 execution: HIGH — committed
+Plan 2.2 execution: HIGH — not yet committed
+Plan 2.3 execution: HIGH — not yet committed
 Preload typing: Resolved — used `any` for data params in preload, type safety via ElectronAPI interface
 
 ## Decisions Made (Phase 2)
@@ -62,6 +65,11 @@ Preload typing: Resolved — used `any` for data params in preload, type safety 
 - Extracted BoardColumn component — each column manages its own add-card/delete state
 - Same-column drop skipped (no unnecessary moveCard calls)
 - getIsSticky: true on drop targets prevents flicker when dragging over nested cards
+- TipTap: useEditor + EditorContent + StarterKit + Placeholder, immediatelyRender: true
+- Description auto-save on editor blur (only if changed)
+- Labels: project-level, managed in boardStore, loaded with board data
+- Card detail modal: overlay pattern, Escape + overlay click to close
+- Search/filter: client-side, unfiltered cards used for drag-and-drop position calc
 
 ## Pending Verifications (Runtime)
 - [ ] `npm start` — Electron window opens with sidebar layout
@@ -78,11 +86,23 @@ Preload typing: Resolved — used `any` for data params in preload, type safety 
 - [ ] Delete column with hover → X → "Delete?" confirmation
 - [ ] Drag card from one column to another (visual feedback + persistence)
 - [ ] Sidebar Projects icon stays active on board routes
+- [ ] Click card opens detail modal with title, priority, description, timestamps
+- [ ] TipTap editor renders with placeholder, supports bold/italic/headings/lists/code
+- [ ] Description auto-saves on editor blur
+- [ ] Priority selector changes card priority
+- [ ] Labels section shows attached labels with remove buttons
+- [ ] Add label dropdown shows unattached labels + create new form
+- [ ] Creating a label adds it to the project and attaches to card
+- [ ] Search input filters cards by title/description
+- [ ] Priority filter dropdown with multi-select
+- [ ] Label filter dropdown with multi-select
+- [ ] "Clear filters" resets all filters
+- [ ] Drag-and-drop works correctly when filters are active
 
 ## Blockers
 - None
 
 ## Next Steps
-1. `/nexus:git` to commit Plan 2.2
-2. Runtime test after commit
-3. `/nexus:plan 2.3` for Rich Text + Polish
+1. Runtime test (`npm start`)
+2. `/nexus:git` to commit Plans 2.2 + 2.3
+3. Phase 2 complete → proceed to Phase 3 planning

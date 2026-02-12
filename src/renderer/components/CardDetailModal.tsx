@@ -1,0 +1,321 @@
+// === FILE PURPOSE ===
+// Card detail modal — overlay for viewing and editing full card details.
+// Contains title editing, priority selector, TipTap rich text description editor,
+// and timestamps. Labels section will be added by Task 2.
+
+// === DEPENDENCIES ===
+// react, lucide-react (X), @tiptap/react, @tiptap/starter-kit,
+// @tiptap/extension-placeholder, shared types
+
+import { useState, useEffect, useRef } from 'react';
+import { X, Plus } from 'lucide-react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Placeholder from '@tiptap/extension-placeholder';
+import type { Card, UpdateCardInput, CardPriority } from '../../shared/types';
+import { useBoardStore } from '../stores/boardStore';
+
+interface CardDetailModalProps {
+  card: Card;
+  onUpdate: (id: string, data: UpdateCardInput) => Promise<void>;
+  onClose: () => void;
+}
+
+const PRIORITY_OPTIONS: { value: CardPriority; label: string; activeClass: string; inactiveClass: string }[] = [
+  { value: 'low', label: 'LOW', activeClass: 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40', inactiveClass: 'text-surface-400 hover:text-emerald-400' },
+  { value: 'medium', label: 'MED', activeClass: 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/40', inactiveClass: 'text-surface-400 hover:text-blue-400' },
+  { value: 'high', label: 'HIGH', activeClass: 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40', inactiveClass: 'text-surface-400 hover:text-amber-400' },
+  { value: 'urgent', label: 'URG', activeClass: 'bg-red-500/20 text-red-400 ring-1 ring-red-500/40', inactiveClass: 'text-surface-400 hover:text-red-400' },
+];
+
+const LABEL_COLORS = [
+  '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899',
+];
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState(card.title);
+  const [showLabelDropdown, setShowLabelDropdown] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
+  const labelDropdownRef = useRef<HTMLDivElement>(null);
+
+  const { labels, createLabel, attachLabel, detachLabel } = useBoardStore();
+
+  // TipTap editor setup
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Placeholder.configure({ placeholder: 'Add a description...' }),
+    ],
+    content: card.description || '',
+    immediatelyRender: true,
+    onBlur: ({ editor }) => {
+      const html = editor.getHTML();
+      const isEmpty = html === '<p></p>' || html === '';
+      const newDesc = isEmpty ? null : html;
+      if (newDesc !== card.description) {
+        onUpdate(card.id, { description: newDesc });
+      }
+    },
+  });
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  // Close label dropdown on outside click
+  useEffect(() => {
+    if (!showLabelDropdown) return;
+    const handleClick = (e: MouseEvent) => {
+      if (labelDropdownRef.current && !labelDropdownRef.current.contains(e.target as Node)) {
+        setShowLabelDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showLabelDropdown]);
+
+  // Title editing handlers
+  const startEditingTitle = () => {
+    setEditTitle(card.title);
+    setIsEditingTitle(true);
+  };
+
+  const saveTitleEdit = async () => {
+    const trimmed = editTitle.trim();
+    if (trimmed && trimmed !== card.title) {
+      await onUpdate(card.id, { title: trimmed });
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveTitleEdit();
+    } else if (e.key === 'Escape') {
+      setEditTitle(card.title);
+      setIsEditingTitle(false);
+    }
+  };
+
+  // Priority change handler
+  const handlePriorityChange = (priority: CardPriority) => {
+    if (priority !== card.priority) {
+      onUpdate(card.id, { priority });
+    }
+  };
+
+  // Label handlers
+  const unattachedLabels = labels.filter(
+    l => !card.labels?.some(cl => cl.id === l.id)
+  );
+
+  const handleAttachLabel = async (labelId: string) => {
+    await attachLabel(card.id, labelId);
+  };
+
+  const handleDetachLabel = async (labelId: string) => {
+    await detachLabel(card.id, labelId);
+  };
+
+  const handleCreateAndAttach = async () => {
+    const name = newLabelName.trim();
+    if (!name) return;
+    const label = await createLabel(name, newLabelColor);
+    await attachLabel(card.id, label.id);
+    setNewLabelName('');
+    setNewLabelColor(LABEL_COLORS[0]);
+  };
+
+  // Click overlay (not modal) to close
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={handleOverlayClick}
+    >
+      <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-2xl max-h-[80vh] overflow-y-auto mx-4 p-6">
+        {/* Header: Title + Close button */}
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex-1 min-w-0">
+            {isEditingTitle ? (
+              <input
+                type="text"
+                value={editTitle}
+                onChange={e => setEditTitle(e.target.value)}
+                onKeyDown={handleTitleKeyDown}
+                onBlur={saveTitleEdit}
+                autoFocus
+                className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-xl font-bold text-surface-100 focus:outline-none focus:border-primary-500 w-full"
+              />
+            ) : (
+              <h2
+                className="text-xl font-bold text-surface-100 cursor-pointer hover:text-surface-200"
+                onClick={startEditingTitle}
+              >
+                {card.title}
+              </h2>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="text-surface-500 hover:text-surface-300 p-1 transition-colors shrink-0"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Priority selector */}
+        <div className="mb-5">
+          <span className="text-sm text-surface-400 block mb-2">Priority</span>
+          <div className="flex items-center gap-2">
+            {PRIORITY_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => handlePriorityChange(opt.value)}
+                className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${
+                  card.priority === opt.value ? opt.activeClass : opt.inactiveClass
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Description — TipTap editor */}
+        <div className="mb-5">
+          <span className="text-sm text-surface-400 block mb-2">Description</span>
+          <div className="tiptap-editor bg-surface-800/50 rounded-lg border border-surface-700">
+            <EditorContent editor={editor} />
+          </div>
+        </div>
+
+        {/* Labels */}
+        <div className="mb-5">
+          <span className="text-sm text-surface-400 block mb-2">Labels</span>
+          <div className="flex flex-wrap items-center gap-2">
+            {card.labels?.map(label => (
+              <span
+                key={label.id}
+                className="inline-flex items-center gap-1.5 bg-surface-800 rounded-full px-2.5 py-1 text-xs text-surface-200"
+              >
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: label.color }}
+                />
+                {label.name}
+                <button
+                  onClick={() => handleDetachLabel(label.id)}
+                  className="text-surface-500 hover:text-surface-300 transition-colors ml-0.5"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+
+            {/* Add label button + dropdown */}
+            <div className="relative" ref={labelDropdownRef}>
+              <button
+                onClick={() => setShowLabelDropdown(!showLabelDropdown)}
+                className="inline-flex items-center gap-1 text-xs text-surface-400 hover:text-surface-200 bg-surface-800 rounded-full px-2.5 py-1 transition-colors"
+              >
+                <Plus size={12} />
+                Add
+              </button>
+
+              {showLabelDropdown && (
+                <div className="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg p-2 min-w-[220px] z-40">
+                  {/* Existing unattached labels */}
+                  {unattachedLabels.length > 0 && (
+                    <div className="mb-2">
+                      {unattachedLabels.map(label => (
+                        <button
+                          key={label.id}
+                          onClick={() => handleAttachLabel(label.id)}
+                          className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs text-surface-200 hover:bg-surface-700 transition-colors"
+                        >
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: label.color }}
+                          />
+                          {label.name}
+                          <Plus size={12} className="ml-auto text-surface-500" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Divider */}
+                  {unattachedLabels.length > 0 && (
+                    <div className="border-t border-surface-700 my-2" />
+                  )}
+
+                  {/* Create new label */}
+                  <div className="space-y-2">
+                    <span className="text-[10px] uppercase tracking-wider text-surface-500 font-medium">
+                      Create new
+                    </span>
+                    <input
+                      type="text"
+                      value={newLabelName}
+                      onChange={e => setNewLabelName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleCreateAndAttach(); }}
+                      placeholder="Label name..."
+                      className="bg-surface-900 border border-surface-700 rounded px-2 py-1 text-xs text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 w-full"
+                    />
+                    <div className="flex items-center gap-1.5">
+                      {LABEL_COLORS.map(color => (
+                        <button
+                          key={color}
+                          onClick={() => setNewLabelColor(color)}
+                          className={`w-5 h-5 rounded-full transition-all ${
+                            newLabelColor === color ? 'ring-2 ring-white/50 scale-110' : 'hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      onClick={handleCreateAndAttach}
+                      disabled={!newLabelName.trim()}
+                      className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs px-3 py-1 rounded transition-colors w-full"
+                    >
+                      Add Label
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Timestamps */}
+        <div className="text-xs text-surface-500 flex items-center gap-1">
+          <span>Created: {formatDate(card.createdAt)}</span>
+          <span>·</span>
+          <span>Updated: {formatDate(card.updatedAt)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default CardDetailModal;

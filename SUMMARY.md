@@ -1,60 +1,58 @@
-# Plan 2.2 Execution Summary — Kanban Board
+# Plan 2.3 Execution Summary — Rich Text + Polish
 
 ## Date: 2026-02-12
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Implemented the full Kanban board for the project dashboard, including board store, column layout, card components, and drag-and-drop.
+Implemented card detail modal with TipTap rich text editor, labels management, and search/filter for the Kanban board.
 
-### Task 1: Board store + BoardPage layout with columns
+### Task 1: Card detail modal with TipTap rich text editor
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created `boardStore.ts` with `useBoardStore` and `getCardsByColumn` helper
-- Store manages: project, board, columns, cards, loading, error
-- Actions: loadBoard, addColumn/updateColumn/deleteColumn/reorderColumns, addCard/updateCard/deleteCard/moveCard
-- `loadBoard` auto-creates a default board if none exists for the project
-- Replaced BoardPage placeholder with horizontal column layout
-- Add-column form (dashed border, inline input)
-- Add-card form per column (toggle, inline input, rapid entry)
-- Column delete with 2-second "Delete?" confirmation
+- Created `CardDetailModal.tsx` — centered overlay with editable title, priority selector, TipTap editor, timestamps
+- TipTap editor uses StarterKit + Placeholder extension, auto-saves description on blur
+- Fixed boardStore `updateCard`/`moveCard` to use spread merge (preserves labels)
+- Added TipTap styles to globals.css (ProseMirror: headings, lists, blockquote, code, placeholder)
+- Added onClick prop to KanbanCard with stopPropagation on interactive elements
+- Wired modal into BoardPage with selectedCardId state
 
-### Task 2: KanbanCard component
+### Task 2: Labels management in card detail + board store
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Priority-colored left border (emerald/blue/amber/red for low/med/high/urgent)
-- Priority badge (text label with colored background)
-- Label dots (colored circles from card labels)
-- Inline title editing (double-click → input → Enter/Escape/blur)
-- Delete with confirmation (trash icon → "Delete?" text → confirm)
-- Hover-reveal action buttons (Pencil, Trash2)
+- Added labels state + 5 label actions to boardStore (loadLabels, createLabel, deleteLabel, attachLabel, detachLabel)
+- Labels loaded alongside board data in loadBoard
+- Added labels section to CardDetailModal: attached label pills with remove, dropdown with unattached labels, create new label form (name + 6 preset colors)
+- deleteLabel cleans up labels from all cards in local state
 
-### Task 3: Drag-and-drop
+### Task 3: Search and filter cards on the board
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Cards draggable via `@atlaskit/pragmatic-drag-and-drop` (headless, useRef+useEffect)
-- Extracted `BoardColumn` component (each column manages own state + drop target)
-- Column highlight with `ring-2 ring-primary-500/50` during drag-over
-- Board-level `monitorForElements` handles the actual move (calls `moveCard` IPC)
-- Same-column drops skipped (no unnecessary API calls)
-- `getIsSticky: true` prevents flicker when dragging over nested card elements
+- Added search input (searches title + description, case-insensitive)
+- Added priority filter dropdown (multi-select with colored dots + checkmarks)
+- Added label filter dropdown (multi-select from project labels)
+- Active filter indicator: "Showing X of Y cards" + "Clear filters" button
+- Drag-and-drop correctly uses unfiltered cards for position calculation
 
-## Files Created (2)
-- `src/renderer/stores/boardStore.ts` — Zustand store for board state (157 lines)
-- `src/renderer/components/KanbanCard.tsx` — Card component with priority, editing, drag (191 lines)
+## Files Created (1)
+- `src/renderer/components/CardDetailModal.tsx` — Card detail modal (~280 lines with labels)
 
-## Files Modified (1)
-- `src/renderer/pages/BoardPage.tsx` — Full board layout with columns, drag-and-drop (386 lines)
+## Files Modified (4)
+- `src/renderer/stores/boardStore.ts` — Labels state + actions, spread merge fix (~210 lines)
+- `src/renderer/styles/globals.css` — TipTap editor styles
+- `src/renderer/components/KanbanCard.tsx` — onClick prop + stopPropagation
+- `src/renderer/pages/BoardPage.tsx` — Modal, search, filters (~590 lines)
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors, verified after each task)
 - Runtime test: PENDING
 
-## Architecture Notes
-- `BoardColumn` component (in BoardPage.tsx) encapsulates per-column state and drop target behavior
-- Board-level monitor pattern separates drop logic from individual drop targets
-- All data flows: UI → boardStore → window.electronAPI → IPC → Drizzle → PostgreSQL
+## Phase 2 Summary
+- Plan 2.1: COMPLETE (data layer — types, IPC, stores, project list)
+- Plan 2.2: COMPLETE (kanban board — columns, cards, drag-and-drop)
+- Plan 2.3: COMPLETE (rich text + polish — modal, labels, search/filter)
+- **R3: Project Dashboard — 100% COMPLETE**
 
 ## What's Next
-1. `/nexus:git` to commit Plan 2.2
-2. Runtime test (`npm start`)
-3. `/nexus:plan 2.3` — Rich Text + Polish
+1. Runtime test (`npm start`)
+2. `/nexus:git` to commit Plan 2.3
+3. Phase 2 complete → proceed to Phase 3

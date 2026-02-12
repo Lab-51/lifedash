@@ -12,6 +12,7 @@ import type {
   Board,
   Column,
   Card,
+  Label,
   CreateColumnInput,
   UpdateColumnInput,
   CreateCardInput,
@@ -24,6 +25,7 @@ interface BoardStore {
   board: Board | null;
   columns: Column[];
   cards: Card[];
+  labels: Label[];
   loading: boolean;
   error: string | null;
 
@@ -37,6 +39,11 @@ interface BoardStore {
   updateCard: (id: string, data: UpdateCardInput) => Promise<void>;
   deleteCard: (id: string) => Promise<void>;
   moveCard: (id: string, columnId: string, position: number) => Promise<void>;
+  loadLabels: () => Promise<void>;
+  createLabel: (name: string, color: string) => Promise<Label>;
+  deleteLabel: (id: string) => Promise<void>;
+  attachLabel: (cardId: string, labelId: string) => Promise<void>;
+  detachLabel: (cardId: string, labelId: string) => Promise<void>;
 }
 
 export const useBoardStore = create<BoardStore>((set, get) => ({
@@ -44,6 +51,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   board: null,
   columns: [],
   cards: [],
+  labels: [],
   loading: false,
   error: null,
 
@@ -67,11 +75,12 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         board = boards[0];
       }
 
-      // Load columns and cards
+      // Load columns, cards, and labels
       const columns = await window.electronAPI.getColumns(board.id);
       const cards = await window.electronAPI.getCardsByBoard(board.id);
+      const labels = await window.electronAPI.getLabels(projectId);
 
-      set({ project, board, columns, cards, loading: false });
+      set({ project, board, columns, cards, labels, loading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to load board',
@@ -130,7 +139,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   updateCard: async (id: string, data: UpdateCardInput) => {
     const updated = await window.electronAPI.updateCard(id, data);
     set({
-      cards: get().cards.map(c => (c.id === id ? updated : c)),
+      cards: get().cards.map(c => (c.id === id ? { ...c, ...updated } : c)),
     });
   },
 
@@ -144,7 +153,59 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   moveCard: async (id: string, columnId: string, position: number) => {
     const updated = await window.electronAPI.moveCard(id, columnId, position);
     set({
-      cards: get().cards.map(c => (c.id === id ? updated : c)),
+      cards: get().cards.map(c => (c.id === id ? { ...c, ...updated } : c)),
+    });
+  },
+
+  loadLabels: async () => {
+    const { project } = get();
+    if (!project) return;
+    const labels = await window.electronAPI.getLabels(project.id);
+    set({ labels });
+  },
+
+  createLabel: async (name: string, color: string) => {
+    const { project, labels } = get();
+    if (!project) throw new Error('No project loaded');
+    const label = await window.electronAPI.createLabel({
+      projectId: project.id, name, color,
+    });
+    set({ labels: [...labels, label] });
+    return label;
+  },
+
+  deleteLabel: async (id: string) => {
+    await window.electronAPI.deleteLabel(id);
+    set({
+      labels: get().labels.filter(l => l.id !== id),
+      cards: get().cards.map(c => ({
+        ...c,
+        labels: c.labels?.filter(l => l.id !== id),
+      })),
+    });
+  },
+
+  attachLabel: async (cardId: string, labelId: string) => {
+    await window.electronAPI.attachLabel(cardId, labelId);
+    const label = get().labels.find(l => l.id === labelId);
+    if (!label) return;
+    set({
+      cards: get().cards.map(c => {
+        if (c.id !== cardId) return c;
+        const existing = c.labels ?? [];
+        if (existing.some(l => l.id === labelId)) return c;
+        return { ...c, labels: [...existing, label] };
+      }),
+    });
+  },
+
+  detachLabel: async (cardId: string, labelId: string) => {
+    await window.electronAPI.detachLabel(cardId, labelId);
+    set({
+      cards: get().cards.map(c => {
+        if (c.id !== cardId) return c;
+        return { ...c, labels: c.labels?.filter(l => l.id !== labelId) };
+      }),
     });
   },
 }));

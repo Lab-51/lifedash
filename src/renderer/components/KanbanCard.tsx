@@ -16,6 +16,7 @@ interface KanbanCardProps {
   card: Card;
   onUpdate: (id: string, data: UpdateCardInput) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onClick?: () => void;
 }
 
 const PRIORITY_CONFIG = {
@@ -25,7 +26,7 @@ const PRIORITY_CONFIG = {
   urgent: { border: 'border-l-red-500',     badge: 'bg-red-500/20 text-red-400',         label: 'URG' },
 } as const;
 
-function KanbanCard({ card, onUpdate, onDelete }: KanbanCardProps) {
+function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -105,6 +106,7 @@ function KanbanCard({ card, onUpdate, onDelete }: KanbanCardProps) {
   return (
     <div
       ref={cardRef}
+      onClick={onClick}
       className={`group bg-surface-800 rounded-md p-3 border-l-2 cursor-pointer hover:bg-surface-700/50 transition-colors ${priority.border} ${isDragging ? 'opacity-40' : ''}`}
     >
       {/* Top row: title area + priority badge */}
@@ -119,6 +121,7 @@ function KanbanCard({ card, onUpdate, onDelete }: KanbanCardProps) {
               onChange={e => setEditTitle(e.target.value)}
               onKeyDown={handleEditKeyDown}
               onBlur={saveEdit}
+              onClick={e => e.stopPropagation()}
               className="bg-surface-900 border border-surface-700 rounded px-2 py-1 text-sm text-surface-100 focus:outline-none focus:border-primary-500 w-full"
             />
           ) : (
@@ -157,7 +160,7 @@ function KanbanCard({ card, onUpdate, onDelete }: KanbanCardProps) {
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {!isEditing && (
             <button
-              onClick={startEditing}
+              onClick={e => { e.stopPropagation(); startEditing(); }}
               className="text-surface-500 hover:text-surface-300 p-0.5 transition-colors"
               title="Edit title"
             >
@@ -167,14 +170,14 @@ function KanbanCard({ card, onUpdate, onDelete }: KanbanCardProps) {
 
           {confirmingDelete ? (
             <button
-              onClick={handleDeleteClick}
+              onClick={e => { e.stopPropagation(); handleDeleteClick(); }}
               className="text-red-400 hover:text-red-300 text-[10px] font-medium transition-colors"
             >
               Delete?
             </button>
           ) : (
             <button
-              onClick={handleDeleteClick}
+              onClick={e => { e.stopPropagation(); handleDeleteClick(); }}
               className="text-surface-500 hover:text-red-400 p-0.5 transition-colors"
               title="Delete card"
             >
