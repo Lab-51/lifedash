@@ -23,6 +23,7 @@ const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
 const IdeasPage = lazy(() => import('./pages/IdeasPage'));
 const BrainstormPage = lazy(() => import('./pages/BrainstormPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const BoardPage = lazy(() => import('./pages/BoardPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 /** Wrapper that lives inside HashRouter to enable useNavigate for shortcuts */
@@ -45,6 +46,7 @@ function App() {
               <Route path="/ideas" element={<IdeasPage />} />
               <Route path="/brainstorm" element={<BrainstormPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/projects/:projectId" element={<BoardPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>

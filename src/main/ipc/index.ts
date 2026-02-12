@@ -5,6 +5,8 @@
 import { BrowserWindow } from 'electron';
 import { registerWindowControlHandlers } from './window-controls';
 import { registerDatabaseHandlers } from './database';
+import { registerProjectHandlers } from './projects';
+import { registerCardHandlers } from './cards';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -13,4 +15,6 @@ import { registerDatabaseHandlers } from './database';
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerWindowControlHandlers(mainWindow);
   registerDatabaseHandlers();
+  registerProjectHandlers();
+  registerCardHandlers();
 }

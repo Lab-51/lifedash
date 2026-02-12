@@ -6,7 +6,7 @@
 // === DEPENDENCIES ===
 // react-router-dom (NavLink), lucide-react icons
 
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   FolderKanban,
   Mic,
@@ -31,26 +31,37 @@ const navItems: NavItem[] = [
 ];
 
 function Sidebar() {
+  const location = useLocation();
+
   return (
     <nav className="w-16 bg-surface-900 border-r border-surface-800 flex flex-col shrink-0">
-      {navItems.map(({ path, label, icon: Icon }) => (
-        <NavLink
-          key={path}
-          to={path}
-          end={path === '/'}
-          title={label}
-          className={({ isActive }) =>
-            [
-              'w-full h-12 flex items-center justify-center transition-colors',
-              isActive
-                ? 'bg-primary-600/15 text-primary-400 border-l-2 border-primary-500'
-                : 'text-surface-400 hover:bg-surface-800 hover:text-surface-200 border-l-2 border-transparent',
-            ].join(' ')
-          }
-        >
-          <Icon size={20} />
-        </NavLink>
-      ))}
+      {navItems.map(({ path, label, icon: Icon }) => {
+        // Projects item should also be active on /projects/:id routes
+        const isProjectsItem = path === '/';
+        const isProjectsActive = isProjectsItem
+          ? location.pathname === '/' || location.pathname.startsWith('/projects/')
+          : false;
+
+        return (
+          <NavLink
+            key={path}
+            to={path}
+            end={isProjectsItem}
+            title={label}
+            className={({ isActive: navActive }) => {
+              const active = isProjectsItem ? isProjectsActive : navActive;
+              return [
+                'w-full h-12 flex items-center justify-center transition-colors',
+                active
+                  ? 'bg-primary-600/15 text-primary-400 border-l-2 border-primary-500'
+                  : 'text-surface-400 hover:bg-surface-800 hover:text-surface-200 border-l-2 border-transparent',
+              ].join(' ');
+            }}
+          >
+            <Icon size={20} />
+          </NavLink>
+        );
+      })}
     </nav>
   );
 }

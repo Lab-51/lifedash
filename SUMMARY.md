@@ -1,80 +1,60 @@
-# Plan 1.3 Execution Summary — Design System & Polish
+# Plan 2.1 Execution Summary — Data Layer & Project Management
 
 ## Date: 2026-02-12
+## Status: COMPLETE (3/3 tasks)
 
-## Plan Executed
-Plan 3 of 3, all 2 tasks completed successfully. Phase 1 is now complete.
+## What Changed
 
-## Task Results
+### Task 1: Install Phase 2 dependencies + expand domain types
+**Status:** COMPLETE | **Confidence:** HIGH
 
-### Task 1: Inter font bundling + design system globals
-**Status:** COMPLETE
-**Confidence:** HIGH (TypeScript verified)
+- Installed 6 npm packages: zustand, @atlaskit/pragmatic-drag-and-drop, @tiptap/react, @tiptap/starter-kit, @tiptap/extension-placeholder, framer-motion
+- Added 13 domain/input type interfaces to shared/types.ts
+- Expanded ElectronAPI interface with 24 new methods
 
-Changes:
-- Installed `@fontsource-variable/inter` (^5.2.8) for local font bundling
-- Updated `src/renderer/styles/globals.css`:
-  - Added `@import "@fontsource-variable/inter"` before Tailwind import
-  - Custom dark-themed scrollbar (`::-webkit-scrollbar` with surface-700/600)
-  - Keyboard focus rings (`:focus-visible` with primary-500, 2px outline)
-  - Text selection styling (`::selection` with primary-600)
-  - Base html/body styles (overflow hidden, surface-950 bg, surface-100 text)
+### Task 2: IPC CRUD handlers + preload bridge for all entities
+**Status:** COMPLETE | **Confidence:** HIGH
 
-### Task 2: 404 catch-all route + NotFound page
-**Status:** COMPLETE
-**Confidence:** HIGH (TypeScript verified)
+- Created 13 handlers in projects.ts (projects: 4, boards: 4, columns: 5)
+- Created 11 handlers in cards.ts (cards: 5, labels: 6)
+- Registered both handler modules in IPC index
+- Exposed all 24 methods in preload bridge
+- boards:create auto-creates default columns (To Do, In Progress, Done)
 
-Changes:
-- Created `src/renderer/pages/NotFoundPage.tsx`:
-  - Centered 404 layout with heading, message, and "Go to Projects" link
-  - Renders inside AppLayout so sidebar navigation stays available
-- Updated `src/renderer/App.tsx`:
-  - Added lazy import for NotFoundPage
-  - Added `<Route path="*" element={<NotFoundPage />} />` as last child route
+### Task 3: Zustand project store + project list UI + board route shell
+**Status:** COMPLETE | **Confidence:** HIGH
 
-## Verification Summary
+- Created Zustand store with project CRUD via IPC
+- Replaced ProjectsPage placeholder with interactive project list
+- Created BoardPage shell (placeholder for Plan 2.2)
+- Added /projects/:projectId route with lazy loading
+- Updated Sidebar active state for /projects/* paths
 
-| Check | Task 1 | Task 2 |
-|-------|--------|--------|
-| Files exist | PASS | PASS |
-| TypeScript compiles | PASS | PASS |
-| Runtime test | PENDING | PENDING |
+## Files Created (4)
+- `src/main/ipc/projects.ts` — 13 IPC handlers for projects/boards/columns
+- `src/main/ipc/cards.ts` — 11 IPC handlers for cards/labels
+- `src/renderer/stores/projectStore.ts` — Zustand store for project state
+- `src/renderer/pages/BoardPage.tsx` — Board view placeholder
 
-## Files Modified (3)
-- `package.json` — added @fontsource-variable/inter dependency
-- `src/renderer/styles/globals.css` — font import + design system globals
-- `src/renderer/App.tsx` — NotFoundPage lazy import + catch-all route
+## Files Modified (5)
+- `package.json` — 6 new dependencies
+- `src/shared/types.ts` — domain types, input types, ElectronAPI expansion
+- `src/main/ipc/index.ts` — registered project + card handler modules
+- `src/preload/preload.ts` — 24 new IPC method wrappers
+- `src/renderer/pages/ProjectsPage.tsx` — full interactive project list
+- `src/renderer/App.tsx` — BoardPage lazy import + route
+- `src/renderer/components/Sidebar.tsx` — active state for /projects/*
 
-## Files Created (1)
-- `src/renderer/pages/NotFoundPage.tsx`
+## Verification
+- `npx tsc --noEmit`: PASS (zero errors)
+- Runtime test: PENDING
 
-## Phase 1 Complete — Final File Structure
+## Data Pipeline (established)
 ```
-src/renderer/
-├── App.tsx
-├── main.tsx
-├── index.html
-├── styles/globals.css
-├── components/
-│   ├── TitleBar.tsx
-│   ├── Sidebar.tsx
-│   ├── AppLayout.tsx
-│   ├── StatusBar.tsx
-│   ├── ErrorBoundary.tsx
-│   ├── LoadingSpinner.tsx
-│   └── PageSkeleton.tsx
-├── hooks/
-│   ├── useDatabaseStatus.ts
-│   └── useKeyboardShortcuts.ts
-└── pages/
-    ├── ProjectsPage.tsx
-    ├── MeetingsPage.tsx
-    ├── IdeasPage.tsx
-    ├── BrainstormPage.tsx
-    ├── SettingsPage.tsx
-    └── NotFoundPage.tsx
+UI (React) → Zustand Store → window.electronAPI (preload) → IPC → Drizzle ORM → PostgreSQL
 ```
 
 ## What's Next
-- **Runtime verification**: `npm run db:up && npm start`
-- **Phase 2 planning**: `/nexus:plan 2`
+1. Runtime test (`npm start`)
+2. Git commit for Plan 2.1
+3. `/nexus:plan 2.2` — Kanban Board UI

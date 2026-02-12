@@ -15,15 +15,21 @@
     "db:down": "docker compose down"
   },
   "dependencies": {
+    "@atlaskit/pragmatic-drag-and-drop": "^1.7.7",
     "@fontsource-variable/inter": "^5.2.8",
+    "@tiptap/extension-placeholder": "^3.19.0",
+    "@tiptap/react": "^3.19.0",
+    "@tiptap/starter-kit": "^3.19.0",
     "drizzle-orm": "^0.45.1",
     "electron-squirrel-startup": "^1.0.1",
     "electron-window-state": "^5.0.3",
+    "framer-motion": "^12.34.0",
     "lucide-react": "^0.563.0",
     "postgres": "^3.4.8",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.0"
+    "react-router-dom": "^7.13.0",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.1",
