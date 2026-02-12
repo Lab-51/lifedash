@@ -1,60 +1,60 @@
-# Plan 2.1 Execution Summary — Data Layer & Project Management
+# Plan 2.2 Execution Summary — Kanban Board
 
 ## Date: 2026-02-12
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
+Implemented the full Kanban board for the project dashboard, including board store, column layout, card components, and drag-and-drop.
 
-### Task 1: Install Phase 2 dependencies + expand domain types
+### Task 1: Board store + BoardPage layout with columns
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Installed 6 npm packages: zustand, @atlaskit/pragmatic-drag-and-drop, @tiptap/react, @tiptap/starter-kit, @tiptap/extension-placeholder, framer-motion
-- Added 13 domain/input type interfaces to shared/types.ts
-- Expanded ElectronAPI interface with 24 new methods
+- Created `boardStore.ts` with `useBoardStore` and `getCardsByColumn` helper
+- Store manages: project, board, columns, cards, loading, error
+- Actions: loadBoard, addColumn/updateColumn/deleteColumn/reorderColumns, addCard/updateCard/deleteCard/moveCard
+- `loadBoard` auto-creates a default board if none exists for the project
+- Replaced BoardPage placeholder with horizontal column layout
+- Add-column form (dashed border, inline input)
+- Add-card form per column (toggle, inline input, rapid entry)
+- Column delete with 2-second "Delete?" confirmation
 
-### Task 2: IPC CRUD handlers + preload bridge for all entities
+### Task 2: KanbanCard component
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created 13 handlers in projects.ts (projects: 4, boards: 4, columns: 5)
-- Created 11 handlers in cards.ts (cards: 5, labels: 6)
-- Registered both handler modules in IPC index
-- Exposed all 24 methods in preload bridge
-- boards:create auto-creates default columns (To Do, In Progress, Done)
+- Priority-colored left border (emerald/blue/amber/red for low/med/high/urgent)
+- Priority badge (text label with colored background)
+- Label dots (colored circles from card labels)
+- Inline title editing (double-click → input → Enter/Escape/blur)
+- Delete with confirmation (trash icon → "Delete?" text → confirm)
+- Hover-reveal action buttons (Pencil, Trash2)
 
-### Task 3: Zustand project store + project list UI + board route shell
+### Task 3: Drag-and-drop
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created Zustand store with project CRUD via IPC
-- Replaced ProjectsPage placeholder with interactive project list
-- Created BoardPage shell (placeholder for Plan 2.2)
-- Added /projects/:projectId route with lazy loading
-- Updated Sidebar active state for /projects/* paths
+- Cards draggable via `@atlaskit/pragmatic-drag-and-drop` (headless, useRef+useEffect)
+- Extracted `BoardColumn` component (each column manages own state + drop target)
+- Column highlight with `ring-2 ring-primary-500/50` during drag-over
+- Board-level `monitorForElements` handles the actual move (calls `moveCard` IPC)
+- Same-column drops skipped (no unnecessary API calls)
+- `getIsSticky: true` prevents flicker when dragging over nested card elements
 
-## Files Created (4)
-- `src/main/ipc/projects.ts` — 13 IPC handlers for projects/boards/columns
-- `src/main/ipc/cards.ts` — 11 IPC handlers for cards/labels
-- `src/renderer/stores/projectStore.ts` — Zustand store for project state
-- `src/renderer/pages/BoardPage.tsx` — Board view placeholder
+## Files Created (2)
+- `src/renderer/stores/boardStore.ts` — Zustand store for board state (157 lines)
+- `src/renderer/components/KanbanCard.tsx` — Card component with priority, editing, drag (191 lines)
 
-## Files Modified (5)
-- `package.json` — 6 new dependencies
-- `src/shared/types.ts` — domain types, input types, ElectronAPI expansion
-- `src/main/ipc/index.ts` — registered project + card handler modules
-- `src/preload/preload.ts` — 24 new IPC method wrappers
-- `src/renderer/pages/ProjectsPage.tsx` — full interactive project list
-- `src/renderer/App.tsx` — BoardPage lazy import + route
-- `src/renderer/components/Sidebar.tsx` — active state for /projects/*
+## Files Modified (1)
+- `src/renderer/pages/BoardPage.tsx` — Full board layout with columns, drag-and-drop (386 lines)
 
 ## Verification
-- `npx tsc --noEmit`: PASS (zero errors)
+- `npx tsc --noEmit`: PASS (zero errors, verified after each task)
 - Runtime test: PENDING
 
-## Data Pipeline (established)
-```
-UI (React) → Zustand Store → window.electronAPI (preload) → IPC → Drizzle ORM → PostgreSQL
-```
+## Architecture Notes
+- `BoardColumn` component (in BoardPage.tsx) encapsulates per-column state and drop target behavior
+- Board-level monitor pattern separates drop logic from individual drop targets
+- All data flows: UI → boardStore → window.electronAPI → IPC → Drizzle → PostgreSQL
 
 ## What's Next
-1. Runtime test (`npm start`)
-2. Git commit for Plan 2.1
-3. `/nexus:plan 2.2` — Kanban Board UI
+1. `/nexus:git` to commit Plan 2.2
+2. Runtime test (`npm start`)
+3. `/nexus:plan 2.3` — Rich Text + Polish

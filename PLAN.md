@@ -1,1035 +1,584 @@
-# Phase 2 — Plan 1 of 3: Data Layer & Project Management
+# Phase 2 — Plan 2 of 3: Kanban Board
 
 ## Coverage
-- **R3: Project Dashboard** (first ~35% — types, IPC CRUD, state management, project list UI)
+- **R3: Project Dashboard** (next ~45% — board layout, columns, card rendering, card CRUD, drag-and-drop)
 
 ## Plan Overview
 Phase 2 delivers the full project dashboard (R3). It requires 3 plans:
 
-- **Plan 2.1** (this plan): Data layer foundation — domain types, IPC CRUD handlers for all
-  entities (projects, boards, columns, cards, labels), preload bridge, Zustand store, and
-  the interactive project list UI. This establishes the full data pipeline from DB → IPC →
-  preload → renderer.
-- **Plan 2.2** (next): Kanban board UI — board view with columns, card list rendering,
-  card CRUD forms, drag-and-drop with pragmatic-drag-and-drop.
-- **Plan 2.3** (final): Rich text + polish — TipTap card description editor, labels UI,
+- **Plan 2.1** (done): Data layer — types, IPC CRUD, preload bridge, Zustand store, project list UI.
+- **Plan 2.2** (this plan): Kanban board — board store, column layout, card rendering,
+  card CRUD inline forms, and drag-and-drop card movement via pragmatic-drag-and-drop.
+- **Plan 2.3** (next): Rich text + polish — TipTap card description editor, labels UI,
   search/filter, board sidebar.
 
-## Dependencies to Install (all Phase 2)
-- `zustand` — state management (needed this plan)
-- `@atlaskit/pragmatic-drag-and-drop` — drag-and-drop (Plan 2.2)
-- `@tiptap/react` + `@tiptap/starter-kit` + `@tiptap/extension-placeholder` — rich text (Plan 2.3)
-- `framer-motion` — card/column animations (Plan 2.2+)
+## Design Decisions for This Plan
+
+1. **One board per project for v1.** When navigating to a project with no boards,
+   auto-create a default board (the IPC handler already creates 3 default columns).
+   Multiple boards can be added in a future version.
+2. **Board store** — new Zustand store (boardStore) manages the active board, its columns,
+   and all cards. Separate from projectStore to keep concerns isolated.
+3. **Component structure:**
+   ```
+   BoardPage (page — owns store, loads data)
+   ├── BoardHeader (project name, back link, "+ Add Column" button)
+   ├── ColumnList (horizontal flex container)
+   │   └── KanbanColumn (single column — header, card list, add card form)
+   │       └── KanbanCard (single card — title, priority badge, label dots)
+   ```
+4. **pragmatic-drag-and-drop integration** — headless library, uses useRef + useEffect.
+   Import from `@atlaskit/pragmatic-drag-and-drop/element/adapter` (NOT the root package).
+   Verified API: `draggable()`, `dropTargetForElements()`, `monitorForElements()`,
+   `combine()` from `/combine`, `reorder()` from `/reorder`.
 
 ---
 
-<phase n="2.1" name="Data Layer &amp; Project Management">
+<phase n="2.2" name="Kanban Board">
   <context>
-    Phase 1 is complete. The app has:
-    - Electron Forge + Vite + React 19 + TypeScript + Tailwind CSS 4
-    - Custom frameless window, system tray, IPC bridge
-    - PostgreSQL via Docker + Drizzle ORM with 12-table schema
-    - HashRouter, Sidebar (icon-only, w-16), AppLayout, ErrorBoundary, Suspense
-    - StatusBar, keyboard shortcuts, Inter font, design system globals
-    - 6 pages: Projects, Meetings, Ideas, Brainstorm, Settings, NotFound
+    Plan 2.1 is complete. The app now has:
+    - 24 IPC handlers (projects, boards, columns, cards, labels CRUD)
+    - Preload bridge exposing all methods to renderer
+    - Zustand projectStore for project list
+    - Interactive ProjectsPage with create form and project grid
+    - BoardPage placeholder at /projects/:projectId
+    - All Phase 2 deps installed (zustand, pragmatic-dnd, tiptap, framer-motion)
 
-    Database schema already exists for all Phase 2 entities:
-    - projects: id, name, description, color, archived, createdAt, updatedAt
-    - boards: id, projectId, name, position, createdAt
-    - columns: id, boardId, name, position, createdAt
-    - cards: id, columnId, title, description, position, priority (enum), dueDate, archived, createdAt, updatedAt
-    - labels: id, projectId, name, color, createdAt
-    - card_labels: cardId, labelId (junction table, composite PK)
+    IPC methods available for boards/columns/cards:
+    - getBoards(projectId) → Board[]
+    - createBoard({ projectId, name }) → Board (auto-creates 3 default columns)
+    - getColumns(boardId) → Column[]
+    - createColumn({ boardId, name }) → Column
+    - updateColumn(id, { name?, position? }) → Column
+    - deleteColumn(id) → void
+    - reorderColumns(boardId, columnIds[]) → void
+    - getCardsByBoard(boardId) → Card[] (with labels)
+    - createCard({ columnId, title, description?, priority? }) → Card
+    - updateCard(id, { title?, description?, priority?, columnId?, position? }) → Card
+    - deleteCard(id) → void
+    - moveCard(id, columnId, position) → Card
 
-    IPC pattern (from existing code):
-    - Handler modules: src/main/ipc/{domain}.ts exporting registerXHandlers()
-    - Central registration: src/main/ipc/index.ts calls all register functions
-    - Preload bridge: src/preload/preload.ts wraps ipcRenderer.invoke() calls
-    - Types: src/shared/types.ts defines ElectronAPI interface
+    Types available in shared/types.ts:
+    - Board, Column, Card, Label, CardPriority
+    - CreateBoardInput, CreateColumnInput, CreateCardInput
+    - UpdateColumnInput, UpdateCardInput
 
-    DB access pattern (from connection.ts):
-    - getDb() returns the Drizzle instance with schema
-    - All queries use Drizzle's type-safe query builder
-    - Schema imported as `import * as schema from './schema'`
+    pragmatic-drag-and-drop API (v1.7.7, verified from installed types):
+    - Import: `@atlaskit/pragmatic-drag-and-drop/element/adapter`
+      → draggable({ element, getInitialData, onDragStart, onDrop })
+      → dropTargetForElements({ element, getData, canDrop, getIsSticky, onDragEnter, onDragLeave, onDrop })
+      → monitorForElements({ canMonitor, onDrop })
+    - Import: `@atlaskit/pragmatic-drag-and-drop/combine` → combine(...cleanupFns)
+    - Import: `@atlaskit/pragmatic-drag-and-drop/reorder` → reorder({ list, startIndex, finishIndex })
+    - All functions return CleanupFn (call in useEffect return)
+    - Headless: uses useRef + useEffect, no React wrappers/hooks
 
-    Current renderer file structure:
-    ```
-    src/renderer/
-    ├── App.tsx
-    ├── main.tsx
-    ├── index.html
-    ├── styles/globals.css
-    ├── components/ (TitleBar, Sidebar, AppLayout, StatusBar, ErrorBoundary, LoadingSpinner, PageSkeleton)
-    ├── hooks/ (useDatabaseStatus, useKeyboardShortcuts)
-    └── pages/ (ProjectsPage, MeetingsPage, IdeasPage, BrainstormPage, SettingsPage, NotFoundPage)
-    ```
+    Existing design patterns:
+    - bg-surface-900 main bg, bg-surface-800 card bg, border-surface-700
+    - text-surface-100 headings, text-surface-400 body, text-surface-500 muted
+    - bg-primary-600 buttons, hover:bg-primary-500
+    - lucide-react for icons
 
     @src/shared/types.ts
-    @src/main/db/schema/index.ts
-    @src/main/db/schema/projects.ts
-    @src/main/db/schema/boards.ts
-    @src/main/db/schema/cards.ts
-    @src/main/db/schema/labels.ts
-    @src/main/db/connection.ts
-    @src/main/ipc/index.ts
-    @src/main/ipc/database.ts
+    @src/renderer/pages/BoardPage.tsx
+    @src/renderer/stores/projectStore.ts
+    @src/main/ipc/projects.ts
+    @src/main/ipc/cards.ts
     @src/preload/preload.ts
     @src/renderer/App.tsx
     @src/renderer/components/Sidebar.tsx
-    @src/renderer/pages/ProjectsPage.tsx
+    @src/renderer/components/LoadingSpinner.tsx
     @package.json
   </context>
 
   <task type="auto" n="1">
-    <n>Install Phase 2 dependencies + expand domain types</n>
+    <n>Board store + BoardPage layout with columns</n>
     <files>
-      package.json (modify — add zustand, @atlaskit/pragmatic-drag-and-drop, @tiptap/react, @tiptap/starter-kit, @tiptap/extension-placeholder, framer-motion)
-      src/shared/types.ts (modify — add domain types + input types + expand ElectronAPI)
+      src/renderer/stores/boardStore.ts (create — Zustand store for board state)
+      src/renderer/pages/BoardPage.tsx (modify — replace placeholder with full board layout)
     </files>
     <action>
-      Install all Phase 2 dependencies upfront and create comprehensive TypeScript types
-      for the entire project dashboard domain.
+      Create the Zustand board store and replace the BoardPage placeholder with a functional
+      board layout showing columns.
 
-      WHY: Installing all deps now avoids multiple npm install steps across plans.
-      Comprehensive types enable type-safe IPC from the start — both the handler
-      implementations (Task 2) and the Zustand store (Task 3) depend on these types.
+      WHY: The board store is the data backbone for the entire Kanban view. It manages the
+      active board, columns, and cards in one place, providing reactive state that all
+      board components consume. The column layout must be in place before cards can be added.
 
       Steps:
 
-      1. Install Phase 2 dependencies:
-         ```
-         npm install zustand @atlaskit/pragmatic-drag-and-drop @tiptap/react @tiptap/starter-kit @tiptap/extension-placeholder framer-motion
-         ```
+      1. Create src/renderer/stores/boardStore.ts:
 
-      2. Expand src/shared/types.ts — add domain types AFTER the existing DatabaseStatus
-         interface but BEFORE the ElectronAPI interface. Keep all existing code intact.
+         The store manages:
+         - project: Project | null (the current project)
+         - board: Board | null (the active board — first board of the project)
+         - columns: Column[] (ordered by position)
+         - cards: Card[] (all cards for the board, grouped by columnId in selectors)
+         - loading / error states
 
-         Add these domain types (matching Drizzle schema columns but using frontend-friendly
-         types — string dates instead of Date objects, since they cross the IPC boundary as JSON):
+         Actions:
+         - loadBoard(projectId: string): Loads the project, its first board (or auto-creates
+           one via createBoard), then loads columns and cards for that board.
+           Flow:
+           1. getProjects() → find project by ID
+           2. getBoards(projectId) → if empty, createBoard({ projectId, name: 'Board' })
+           3. getColumns(boardId) → store in columns
+           4. getCardsByBoard(boardId) → store in cards
+         - addColumn(name: string): Creates a column via IPC, appends to columns state
+         - updateColumn(id, data): Updates column via IPC, updates columns state
+         - deleteColumn(id): Deletes column via IPC, removes from columns state
+         - reorderColumns(columnIds: string[]): Reorders via IPC, updates local state
+         - addCard(columnId, title, priority?): Creates card via IPC, appends to cards
+         - updateCard(id, data): Updates card via IPC, updates cards state
+         - deleteCard(id): Deletes card via IPC, removes from cards state
+         - moveCard(id, columnId, position): Moves card via IPC, updates cards state
 
+         Helper selector (not in store, exported separately):
          ```typescript
-         // === DOMAIN TYPES (match DB schema, serialized for IPC) ===
-
-         export type CardPriority = 'low' | 'medium' | 'high' | 'urgent';
-
-         export interface Project {
-           id: string;
-           name: string;
-           description: string | null;
-           color: string | null;
-           archived: boolean;
-           createdAt: string;
-           updatedAt: string;
-         }
-
-         export interface Board {
-           id: string;
-           projectId: string;
-           name: string;
-           position: number;
-           createdAt: string;
-         }
-
-         export interface Column {
-           id: string;
-           boardId: string;
-           name: string;
-           position: number;
-           createdAt: string;
-         }
-
-         export interface Card {
-           id: string;
-           columnId: string;
-           title: string;
-           description: string | null;
-           position: number;
-           priority: CardPriority;
-           dueDate: string | null;
-           archived: boolean;
-           createdAt: string;
-           updatedAt: string;
-           labels?: Label[];
-         }
-
-         export interface Label {
-           id: string;
-           projectId: string;
-           name: string;
-           color: string;
-           createdAt: string;
+         /** Group cards by columnId for rendering */
+         export function getCardsByColumn(cards: Card[], columnId: string): Card[] {
+           return cards
+             .filter(c => c.columnId === columnId)
+             .sort((a, b) => a.position - b.position);
          }
          ```
 
-         Add input types for create/update operations (used by IPC and UI forms):
-
+         Pattern to follow (from projectStore.ts):
          ```typescript
-         // === INPUT TYPES (for create/update operations) ===
+         import { create } from 'zustand';
+         import type { ... } from '../../shared/types';
 
-         export interface CreateProjectInput {
-           name: string;
-           description?: string;
-           color?: string;
+         interface BoardStore {
+           // State
+           project: Project | null;
+           board: Board | null;
+           columns: Column[];
+           cards: Card[];
+           loading: boolean;
+           error: string | null;
+           // Actions
+           loadBoard: (projectId: string) => Promise&lt;void&gt;;
+           addColumn: (name: string) => Promise&lt;void&gt;;
+           updateColumn: (id: string, data: UpdateColumnInput) => Promise&lt;void&gt;;
+           deleteColumn: (id: string) => Promise&lt;void&gt;;
+           reorderColumns: (columnIds: string[]) => Promise&lt;void&gt;;
+           addCard: (columnId: string, title: string, priority?: CardPriority) => Promise&lt;void&gt;;
+           updateCard: (id: string, data: UpdateCardInput) => Promise&lt;void&gt;;
+           deleteCard: (id: string) => Promise&lt;void&gt;;
+           moveCard: (id: string, columnId: string, position: number) => Promise&lt;void&gt;;
          }
 
-         export interface UpdateProjectInput {
-           name?: string;
-           description?: string | null;
-           color?: string | null;
-           archived?: boolean;
-         }
-
-         export interface CreateBoardInput {
-           projectId: string;
-           name: string;
-         }
-
-         export interface UpdateBoardInput {
-           name?: string;
-           position?: number;
-         }
-
-         export interface CreateColumnInput {
-           boardId: string;
-           name: string;
-         }
-
-         export interface UpdateColumnInput {
-           name?: string;
-           position?: number;
-         }
-
-         export interface CreateCardInput {
-           columnId: string;
-           title: string;
-           description?: string;
-           priority?: CardPriority;
-         }
-
-         export interface UpdateCardInput {
-           title?: string;
-           description?: string | null;
-           priority?: CardPriority;
-           dueDate?: string | null;
-           archived?: boolean;
-           columnId?: string;
-           position?: number;
-         }
-
-         export interface CreateLabelInput {
-           projectId: string;
-           name: string;
-           color: string;
-         }
-
-         export interface UpdateLabelInput {
-           name?: string;
-           color?: string;
-         }
+         export const useBoardStore = create&lt;BoardStore&gt;((set, get) => ({ ... }));
          ```
 
-      3. Expand the ElectronAPI interface — add methods for all CRUD operations.
-         Add these INSIDE the existing ElectronAPI interface, after the `getDatabaseStatus` line:
+         IMPORTANT implementation detail for loadBoard:
+         - If getBoards returns empty array, call createBoard({ projectId, name: 'Board' })
+           to auto-create a default board with 3 columns.
+         - Then reload boards to get the created board's ID.
+         - Use the first board (boards[0]) as the active board.
 
-         ```typescript
-         // Projects
-         getProjects: () => Promise&lt;Project[]&gt;;
-         createProject: (data: CreateProjectInput) => Promise&lt;Project&gt;;
-         updateProject: (id: string, data: UpdateProjectInput) => Promise&lt;Project&gt;;
-         deleteProject: (id: string) => Promise&lt;void&gt;;
+      2. Replace src/renderer/pages/BoardPage.tsx:
 
-         // Boards
-         getBoards: (projectId: string) => Promise&lt;Board[]&gt;;
-         createBoard: (data: CreateBoardInput) => Promise&lt;Board&gt;;
-         updateBoard: (id: string, data: UpdateBoardInput) => Promise&lt;Board&gt;;
-         deleteBoard: (id: string) => Promise&lt;void&gt;;
+         Replace the entire placeholder with the full board layout:
 
-         // Columns
-         getColumns: (boardId: string) => Promise&lt;Column[]&gt;;
-         createColumn: (data: CreateColumnInput) => Promise&lt;Column&gt;;
-         updateColumn: (id: string, data: UpdateColumnInput) => Promise&lt;Column&gt;;
-         deleteColumn: (id: string) => Promise&lt;void&gt;;
-         reorderColumns: (boardId: string, columnIds: string[]) => Promise&lt;void&gt;;
-
-         // Cards
-         getCardsByBoard: (boardId: string) => Promise&lt;Card[]&gt;;
-         createCard: (data: CreateCardInput) => Promise&lt;Card&gt;;
-         updateCard: (id: string, data: UpdateCardInput) => Promise&lt;Card&gt;;
-         deleteCard: (id: string) => Promise&lt;void&gt;;
-         moveCard: (id: string, columnId: string, position: number) => Promise&lt;Card&gt;;
-
-         // Labels
-         getLabels: (projectId: string) => Promise&lt;Label[]&gt;;
-         createLabel: (data: CreateLabelInput) => Promise&lt;Label&gt;;
-         updateLabel: (id: string, data: UpdateLabelInput) => Promise&lt;Label&gt;;
-         deleteLabel: (id: string) => Promise&lt;void&gt;;
-         attachLabel: (cardId: string, labelId: string) => Promise&lt;void&gt;;
-         detachLabel: (cardId: string, labelId: string) => Promise&lt;void&gt;;
+         Component structure:
+         ```
+         BoardPage
+         ├── Header bar (back arrow + project name + "+ Add Column" button)
+         └── Column container (flex horizontal, overflow-x-auto, gap-4)
+             └── For each column:
+                 ├── Column header (name + card count + delete button)
+                 ├── Card list area (flex-col, gap-2, min-h-[200px])
+                 │   └── (empty for now — cards added in Task 2)
+                 └── Add card form (inline, toggle with "+" button)
          ```
 
-      IMPORTANT:
-      - Keep ALL existing types and interfaces untouched
-      - Domain types go BETWEEN DatabaseStatus and ElectronAPI
-      - ElectronAPI additions go AFTER existing methods
-      - Use HTML entities for angle brackets in XML: &amp;lt; and &amp;gt;
-        (but write actual angle brackets in the TypeScript code, of course)
+         Layout details:
+         - The board fills the available space: `flex-1 flex flex-col`
+         - Header: `flex items-center gap-3 px-6 pt-6 pb-4 shrink-0`
+         - Column container: `flex-1 flex gap-4 overflow-x-auto px-6 pb-6`
+         - Each column: `w-72 shrink-0 flex flex-col bg-surface-800/50 rounded-lg`
+         - Column header: `px-3 py-3 flex items-center justify-between`
+         - Column name: `font-semibold text-sm text-surface-200`
+         - Card count badge: `text-xs text-surface-500 bg-surface-700 px-1.5 py-0.5 rounded`
+         - Column body: `flex-1 px-2 pb-2 overflow-y-auto` (scrollable if many cards)
+         - Column delete: X icon, only shown on hover of column header, with confirmation
+
+         Add Column form:
+         - Last item in the column container (after all columns)
+         - A dashed-border card `w-72 shrink-0 border-2 border-dashed border-surface-700`
+         - Click to show inline input for column name
+         - Enter to create, Escape to cancel
+
+         Add Card form (bottom of each column):
+         - Toggle with "+ Add card" button at bottom of card list area
+         - When visible: text input for card title + Enter to create, Escape to cancel
+         - New cards get default priority 'medium'
+         - After creation, clear input and keep form open for rapid entry
+
+         Loading state: Show LoadingSpinner centered while loadBoard runs
+         Error state: Show error message with retry button
+
+         Icons (lucide-react): ArrowLeft, Plus, X, GripVertical (for future drag handles)
+
+         IMPORTANT:
+         - Do NOT add drag-and-drop yet — that's Task 3
+         - Do NOT render cards inside columns yet — that's Task 2
+         - This task establishes the layout, store, column management, and add-card input
+         - Actually, we SHOULD add basic card creation here since the form is part of the
+           column component. But card RENDERING (the KanbanCard component) is Task 2.
+         - So: the add-card form calls addCard, but the card list area just shows a count
+           or placeholder text until Task 2 adds the card components.
+
+         Wait — actually, for a cleaner split: Task 1 creates the store with ALL actions
+         (including card CRUD) and the board layout with columns. But the card list area
+         in each column should show a simple unformatted list (just title text) as a
+         temporary placeholder. Task 2 replaces that with proper KanbanCard components.
+
+         Revised approach: Task 1 does EVERYTHING FUNCTIONAL:
+         - Board store with all actions
+         - BoardPage with columns rendered
+         - Add column form
+         - Add card form (bottom of each column)
+         - Simple card rendering: just card titles in a list within each column
+         - Delete column (with confirmation)
+
+         Then Task 2 upgrades card rendering to proper KanbanCard components with
+         priority badges, label dots, edit/delete, and creates them as reusable components.
+         Task 3 adds drag-and-drop on top.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Check package.json has all 6 new dependencies: zustand, @atlaskit/pragmatic-drag-and-drop, @tiptap/react, @tiptap/starter-kit, @tiptap/extension-placeholder, framer-motion
-      3. Read src/shared/types.ts and verify:
-         - Project, Board, Column, Card, Label interfaces exist
-         - All Create*Input and Update*Input types exist
-         - CardPriority type exists
-         - ElectronAPI has ~25 new methods (getProjects through detachLabel)
-         - Existing types (DatabaseStatus, window controls) are unchanged
+      2. Verify src/renderer/stores/boardStore.ts exports useBoardStore and getCardsByColumn
+      3. Verify BoardPage.tsx:
+         - Imports useBoardStore
+         - Calls loadBoard(projectId) on mount
+         - Renders horizontal column layout
+         - Has "Add Column" form
+         - Has "Add Card" form per column
+         - Shows card titles in each column
+         - Shows loading/error states
+      4. Read files to verify column delete and add-card functionality exist
     </verify>
     <done>
-      All Phase 2 npm dependencies installed.
-      Complete domain type system in shared/types.ts — domain entities, input types, and
-      ElectronAPI expansion. Both main process and renderer can import these types.
+      Zustand boardStore manages board, columns, and cards via IPC.
+      BoardPage shows horizontal column layout with column headers, card titles,
+      add-column form, add-card form, and column delete. Auto-creates a board
+      for projects that don't have one yet.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - @atlaskit/pragmatic-drag-and-drop is the correct npm package name for Atlassian's drag-and-drop library
-      - @tiptap/react, @tiptap/starter-kit, @tiptap/extension-placeholder are the correct TipTap v2 packages
-      - zustand works in Electron renderer without special configuration
-      - framer-motion works with React 19
+      - Zustand create() works without provider (confirmed from projectStore)
+      - window.electronAPI methods work as typed (confirmed from Plan 2.1)
+      - overflow-x-auto with flex children creates a horizontal scrollable area
+      - Tailwind CSS 4 supports all used utilities (w-72, shrink-0, line-clamp, etc.)
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>IPC CRUD handlers + preload bridge for all entities</n>
+    <n>KanbanCard component with priority, labels, and card actions</n>
     <files>
-      src/main/ipc/projects.ts (create — project + board + column handlers)
-      src/main/ipc/cards.ts (create — card + label handlers)
-      src/main/ipc/index.ts (modify — register new handlers)
-      src/preload/preload.ts (modify — expose new IPC methods)
+      src/renderer/components/KanbanCard.tsx (create — card component)
+      src/renderer/pages/BoardPage.tsx (modify — use KanbanCard in columns)
     </files>
     <preconditions>
-      - Task 1 completed (types exist in shared/types.ts, dependencies installed)
+      - Task 1 completed (boardStore exists, BoardPage renders columns)
     </preconditions>
     <action>
-      Create IPC handlers for all CRUD operations and wire them through the preload bridge.
-      This establishes the complete data pipeline from renderer → preload → main → DB.
+      Create a polished KanbanCard component and integrate it into the board columns,
+      replacing the simple title list from Task 1.
 
-      WHY: The renderer process cannot access the database directly (contextIsolation).
-      All data operations must go through IPC. This task creates the entire backend API
-      that the UI (Task 3 and Plans 2.2/2.3) will consume.
-
-      PATTERN TO FOLLOW (from existing database.ts):
-      ```typescript
-      import { ipcMain } from 'electron';
-      import { getDb } from '../db/connection';
-      // Import types from shared/types.ts
-      // Export a register function called from index.ts
-      ```
+      WHY: Cards are the primary interactive element in the Kanban board. Users need to
+      see card priority at a glance, view label indicators, and edit/delete cards.
+      Extracting KanbanCard as a separate component keeps BoardPage manageable and
+      makes the card reusable for the drag-and-drop layer (Task 3).
 
       Steps:
 
-      1. Create src/main/ipc/projects.ts:
+      1. Create src/renderer/components/KanbanCard.tsx:
 
+         A compact card component displaying:
+         - Priority indicator: left border color based on priority
+           - low: border-l-emerald-500
+           - medium: border-l-blue-500
+           - high: border-l-amber-500
+           - urgent: border-l-red-500
+         - Card title: text-sm text-surface-100, truncate to 2 lines (line-clamp-2)
+         - Label dots: row of small colored circles (w-2 h-2 rounded-full) if card has labels
+         - Action buttons (visible on hover):
+           - Edit (Pencil icon) — inline title editing
+           - Delete (Trash2 icon) — delete with confirmation
+         - Priority badge: small text badge in top-right corner
+           - "LOW" "MED" "HIGH" "URG"
+           - bg-emerald-500/20 text-emerald-400, bg-blue-500/20 text-blue-400, etc.
+
+         Props:
          ```typescript
-         // === FILE PURPOSE ===
-         // IPC handlers for projects, boards, and columns CRUD operations.
-         // Groups related entities that form the board structure.
-
-         import { ipcMain } from 'electron';
-         import { eq, asc } from 'drizzle-orm';
-         import { getDb } from '../db/connection';
-         import { projects, boards, columns } from '../db/schema';
-         import type {
-           CreateProjectInput, UpdateProjectInput,
-           CreateBoardInput, UpdateBoardInput,
-           CreateColumnInput, UpdateColumnInput,
-         } from '../../shared/types';
-
-         export function registerProjectHandlers(): void {
-           // --- Projects ---
-           ipcMain.handle('projects:list', async () => {
-             const db = getDb();
-             return db.select().from(projects).orderBy(asc(projects.createdAt));
-           });
-
-           ipcMain.handle('projects:create', async (_event, data: CreateProjectInput) => {
-             const db = getDb();
-             const [project] = await db.insert(projects).values({
-               name: data.name,
-               description: data.description ?? null,
-               color: data.color ?? null,
-             }).returning();
-             return project;
-           });
-
-           ipcMain.handle('projects:update', async (_event, id: string, data: UpdateProjectInput) => {
-             const db = getDb();
-             const [project] = await db.update(projects)
-               .set({ ...data, updatedAt: new Date() })
-               .where(eq(projects.id, id))
-               .returning();
-             return project;
-           });
-
-           ipcMain.handle('projects:delete', async (_event, id: string) => {
-             const db = getDb();
-             await db.delete(projects).where(eq(projects.id, id));
-           });
-
-           // --- Boards ---
-           ipcMain.handle('boards:list', async (_event, projectId: string) => {
-             const db = getDb();
-             return db.select().from(boards)
-               .where(eq(boards.projectId, projectId))
-               .orderBy(asc(boards.position));
-           });
-
-           ipcMain.handle('boards:create', async (_event, data: CreateBoardInput) => {
-             const db = getDb();
-             // Get next position
-             const existing = await db.select().from(boards)
-               .where(eq(boards.projectId, data.projectId));
-             const [board] = await db.insert(boards).values({
-               projectId: data.projectId,
-               name: data.name,
-               position: existing.length,
-             }).returning();
-
-             // Auto-create default columns for new boards
-             const defaultColumns = ['To Do', 'In Progress', 'Done'];
-             for (let i = 0; i &lt; defaultColumns.length; i++) {
-               await db.insert(columns).values({
-                 boardId: board.id,
-                 name: defaultColumns[i],
-                 position: i,
-               });
-             }
-
-             return board;
-           });
-
-           ipcMain.handle('boards:update', async (_event, id: string, data: UpdateBoardInput) => {
-             const db = getDb();
-             const [board] = await db.update(boards)
-               .set(data)
-               .where(eq(boards.id, id))
-               .returning();
-             return board;
-           });
-
-           ipcMain.handle('boards:delete', async (_event, id: string) => {
-             const db = getDb();
-             await db.delete(boards).where(eq(boards.id, id));
-           });
-
-           // --- Columns ---
-           ipcMain.handle('columns:list', async (_event, boardId: string) => {
-             const db = getDb();
-             return db.select().from(columns)
-               .where(eq(columns.boardId, boardId))
-               .orderBy(asc(columns.position));
-           });
-
-           ipcMain.handle('columns:create', async (_event, data: CreateColumnInput) => {
-             const db = getDb();
-             const existing = await db.select().from(columns)
-               .where(eq(columns.boardId, data.boardId));
-             const [column] = await db.insert(columns).values({
-               boardId: data.boardId,
-               name: data.name,
-               position: existing.length,
-             }).returning();
-             return column;
-           });
-
-           ipcMain.handle('columns:update', async (_event, id: string, data: UpdateColumnInput) => {
-             const db = getDb();
-             const [column] = await db.update(columns)
-               .set(data)
-               .where(eq(columns.id, id))
-               .returning();
-             return column;
-           });
-
-           ipcMain.handle('columns:delete', async (_event, id: string) => {
-             const db = getDb();
-             await db.delete(columns).where(eq(columns.id, id));
-           });
-
-           ipcMain.handle('columns:reorder', async (_event, boardId: string, columnIds: string[]) => {
-             const db = getDb();
-             for (let i = 0; i &lt; columnIds.length; i++) {
-               await db.update(columns)
-                 .set({ position: i })
-                 .where(eq(columns.id, columnIds[i]));
-             }
-           });
+         interface KanbanCardProps {
+           card: Card;
+           onUpdate: (id: string, data: UpdateCardInput) => Promise&lt;void&gt;;
+           onDelete: (id: string) => Promise&lt;void&gt;;
          }
          ```
 
-         KEY DESIGN DECISIONS:
-         - boards:create auto-creates 3 default columns ("To Do", "In Progress", "Done")
-           WHY: Every new board needs columns. Creating them automatically provides a
-           useful starting point without extra user steps.
-         - Position fields use array index (0-based) for ordering
-         - columns:reorder accepts an ordered array of IDs and updates positions
-           WHY: Simpler and more reliable than calculating position swaps
+         Card styling:
+         - bg-surface-800 rounded-md p-3 border-l-2 cursor-pointer
+         - hover:bg-surface-750 (use hover:bg-surface-700/50 if 750 doesn't exist)
+         - group class for hover-reveal of action buttons
+         - Transition for smooth hover effects
 
-      2. Create src/main/ipc/cards.ts:
+         Inline title editing:
+         - Double-click on title to enter edit mode
+         - Show input with current title, Enter to save, Escape to cancel
+         - Call onUpdate with new title
+         - Use local state for edit mode (isEditing, editTitle)
 
-         ```typescript
-         // === FILE PURPOSE ===
-         // IPC handlers for cards and labels CRUD operations.
-         // Includes card movement between columns and label attachment.
+         Delete confirmation:
+         - Click delete icon → show "Delete?" text replacing the icon for 2 seconds
+         - Click "Delete?" text to confirm, or it auto-dismisses
+         - This is simpler than a modal for card deletion
 
-         import { ipcMain } from 'electron';
-         import { eq, and, asc } from 'drizzle-orm';
-         import { getDb } from '../db/connection';
-         import { cards, cardLabels } from '../db/schema/cards';
-         import { labels } from '../db/schema/labels';
-         import { columns } from '../db/schema/boards';
-         import type {
-           CreateCardInput, UpdateCardInput,
-           CreateLabelInput, UpdateLabelInput,
-           Card, Label,
-         } from '../../shared/types';
+      2. Update BoardPage.tsx:
 
-         export function registerCardHandlers(): void {
-           // --- Cards ---
-           ipcMain.handle('cards:list-by-board', async (_event, boardId: string) => {
-             const db = getDb();
-             // Get all columns for this board, then all cards in those columns
-             const boardColumns = await db.select().from(columns)
-               .where(eq(columns.boardId, boardId));
-             const columnIds = boardColumns.map(c => c.id);
+         In the column card list area, replace the simple title list with KanbanCard:
 
-             if (columnIds.length === 0) return [];
-
-             // Get cards for all columns in the board
-             const allCards: (Card & { labels: Label[] })[] = [];
-             for (const colId of columnIds) {
-               const colCards = await db.select().from(cards)
-                 .where(and(eq(cards.columnId, colId), eq(cards.archived, false)))
-                 .orderBy(asc(cards.position));
-
-               for (const card of colCards) {
-                 // Get labels for each card
-                 const cardLabelRows = await db.select().from(cardLabels)
-                   .where(eq(cardLabels.cardId, card.id));
-                 const cardLabelList: Label[] = [];
-                 for (const cl of cardLabelRows) {
-                   const [label] = await db.select().from(labels)
-                     .where(eq(labels.id, cl.labelId));
-                   if (label) cardLabelList.push(label as unknown as Label);
-                 }
-                 allCards.push({ ...(card as unknown as Card), labels: cardLabelList });
-               }
-             }
-             return allCards;
-           });
-
-           ipcMain.handle('cards:create', async (_event, data: CreateCardInput) => {
-             const db = getDb();
-             // Get next position in the column
-             const existing = await db.select().from(cards)
-               .where(eq(cards.columnId, data.columnId));
-             const [card] = await db.insert(cards).values({
-               columnId: data.columnId,
-               title: data.title,
-               description: data.description ?? null,
-               priority: data.priority ?? 'medium',
-               position: existing.length,
-             }).returning();
-             return card;
-           });
-
-           ipcMain.handle('cards:update', async (_event, id: string, data: UpdateCardInput) => {
-             const db = getDb();
-             const [card] = await db.update(cards)
-               .set({ ...data, updatedAt: new Date() })
-               .where(eq(cards.id, id))
-               .returning();
-             return card;
-           });
-
-           ipcMain.handle('cards:delete', async (_event, id: string) => {
-             const db = getDb();
-             await db.delete(cards).where(eq(cards.id, id));
-           });
-
-           ipcMain.handle('cards:move', async (_event, id: string, columnId: string, position: number) => {
-             const db = getDb();
-             const [card] = await db.update(cards)
-               .set({ columnId, position, updatedAt: new Date() })
-               .where(eq(cards.id, id))
-               .returning();
-             return card;
-           });
-
-           // --- Labels ---
-           ipcMain.handle('labels:list', async (_event, projectId: string) => {
-             const db = getDb();
-             return db.select().from(labels)
-               .where(eq(labels.projectId, projectId))
-               .orderBy(asc(labels.name));
-           });
-
-           ipcMain.handle('labels:create', async (_event, data: CreateLabelInput) => {
-             const db = getDb();
-             const [label] = await db.insert(labels).values({
-               projectId: data.projectId,
-               name: data.name,
-               color: data.color,
-             }).returning();
-             return label;
-           });
-
-           ipcMain.handle('labels:update', async (_event, id: string, data: UpdateLabelInput) => {
-             const db = getDb();
-             const [label] = await db.update(labels)
-               .set(data)
-               .where(eq(labels.id, id))
-               .returning();
-             return label;
-           });
-
-           ipcMain.handle('labels:delete', async (_event, id: string) => {
-             const db = getDb();
-             await db.delete(labels).where(eq(labels.id, id));
-           });
-
-           ipcMain.handle('labels:attach', async (_event, cardId: string, labelId: string) => {
-             const db = getDb();
-             await db.insert(cardLabels).values({ cardId, labelId })
-               .onConflictDoNothing();
-           });
-
-           ipcMain.handle('labels:detach', async (_event, cardId: string, labelId: string) => {
-             const db = getDb();
-             await db.delete(cardLabels)
-               .where(and(eq(cardLabels.cardId, cardId), eq(cardLabels.labelId, labelId)));
-           });
-         }
+         ```tsx
+         {getCardsByColumn(cards, column.id).map(card => (
+           &lt;KanbanCard
+             key={card.id}
+             card={card}
+             onUpdate={updateCard}
+             onDelete={deleteCard}
+           /&gt;
+         ))}
          ```
 
-         KEY DESIGN DECISIONS:
-         - cards:list-by-board fetches all cards for a board (across columns) with labels
-           WHY: The Kanban UI needs all cards at once to render the board. Fetching per-column
-           would require N+1 requests.
-         - labels:attach uses onConflictDoNothing to prevent duplicate attachments
-         - cards:move updates both columnId and position in one operation
+         Import KanbanCard and pass the store's updateCard and deleteCard actions.
 
-         NOTE: The cards:list-by-board implementation iterates per-column and per-card for
-         label joins. This is simple but not optimal for large boards. For v1 with single-user
-         desktop use, this is acceptable. Can be optimized with joins later if needed.
-
-      3. Update src/main/ipc/index.ts — add imports and registration calls:
-
-         Add these imports at the top (after existing imports):
-         ```typescript
-         import { registerProjectHandlers } from './projects';
-         import { registerCardHandlers } from './cards';
-         ```
-
-         Add these calls inside registerIpcHandlers() (after existing calls):
-         ```typescript
-         registerProjectHandlers();
-         registerCardHandlers();
-         ```
-
-      4. Update src/preload/preload.ts — expose all new IPC methods.
-
-         Add these inside the contextBridge.exposeInMainWorld('electronAPI', { ... }) object,
-         after the existing getDatabaseStatus line:
-
-         ```typescript
-         // Projects
-         getProjects: () => ipcRenderer.invoke('projects:list'),
-         createProject: (data: import('../../shared/types').CreateProjectInput) =>
-           ipcRenderer.invoke('projects:create', data),
-         updateProject: (id: string, data: import('../../shared/types').UpdateProjectInput) =>
-           ipcRenderer.invoke('projects:update', id, data),
-         deleteProject: (id: string) => ipcRenderer.invoke('projects:delete', id),
-
-         // Boards
-         getBoards: (projectId: string) => ipcRenderer.invoke('boards:list', projectId),
-         createBoard: (data: import('../../shared/types').CreateBoardInput) =>
-           ipcRenderer.invoke('boards:create', data),
-         updateBoard: (id: string, data: import('../../shared/types').UpdateBoardInput) =>
-           ipcRenderer.invoke('boards:update', id, data),
-         deleteBoard: (id: string) => ipcRenderer.invoke('boards:delete', id),
-
-         // Columns
-         getColumns: (boardId: string) => ipcRenderer.invoke('columns:list', boardId),
-         createColumn: (data: import('../../shared/types').CreateColumnInput) =>
-           ipcRenderer.invoke('columns:create', data),
-         updateColumn: (id: string, data: import('../../shared/types').UpdateColumnInput) =>
-           ipcRenderer.invoke('columns:update', id, data),
-         deleteColumn: (id: string) => ipcRenderer.invoke('columns:delete', id),
-         reorderColumns: (boardId: string, columnIds: string[]) =>
-           ipcRenderer.invoke('columns:reorder', boardId, columnIds),
-
-         // Cards
-         getCardsByBoard: (boardId: string) => ipcRenderer.invoke('cards:list-by-board', boardId),
-         createCard: (data: import('../../shared/types').CreateCardInput) =>
-           ipcRenderer.invoke('cards:create', data),
-         updateCard: (id: string, data: import('../../shared/types').UpdateCardInput) =>
-           ipcRenderer.invoke('cards:update', id, data),
-         deleteCard: (id: string) => ipcRenderer.invoke('cards:delete', id),
-         moveCard: (id: string, columnId: string, position: number) =>
-           ipcRenderer.invoke('cards:move', id, columnId, position),
-
-         // Labels
-         getLabels: (projectId: string) => ipcRenderer.invoke('labels:list', projectId),
-         createLabel: (data: import('../../shared/types').CreateLabelInput) =>
-           ipcRenderer.invoke('labels:create', data),
-         updateLabel: (id: string, data: import('../../shared/types').UpdateLabelInput) =>
-           ipcRenderer.invoke('labels:update', id, data),
-         deleteLabel: (id: string) => ipcRenderer.invoke('labels:delete', id),
-         attachLabel: (cardId: string, labelId: string) =>
-           ipcRenderer.invoke('labels:attach', cardId, labelId),
-         detachLabel: (cardId: string, labelId: string) =>
-           ipcRenderer.invoke('labels:detach', cardId, labelId),
-         ```
-
-         NOTE on preload typing: The preload script runs in a special context where
-         standard imports may not resolve at runtime. Use inline `import('...')` type
-         annotations for the parameter types. The actual type checking happens via the
-         ElectronAPI interface in shared/types.ts.
-
-         ALTERNATIVE if inline imports cause issues: Use plain parameter types
-         (e.g., `data: { name: string; description?: string; color?: string }`) and
-         rely on the ElectronAPI interface for the renderer-side type safety. The
-         executing agent should check if `npx tsc --noEmit` passes with the inline
-         import approach first; if not, fall back to explicit object types.
+      IMPORTANT:
+      - Do NOT add drag-related props or refs to KanbanCard — that's Task 3
+      - The card component should be a self-contained presentational + interactive component
+      - Keep it under 150 lines — it's a focused component
+      - Use lucide-react icons: Pencil, Trash2
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify src/main/ipc/projects.ts exists with handlers for:
-         projects:list, projects:create, projects:update, projects:delete,
-         boards:list, boards:create, boards:update, boards:delete,
-         columns:list, columns:create, columns:update, columns:delete, columns:reorder
-      3. Verify src/main/ipc/cards.ts exists with handlers for:
-         cards:list-by-board, cards:create, cards:update, cards:delete, cards:move,
-         labels:list, labels:create, labels:update, labels:delete, labels:attach, labels:detach
-      4. Verify src/main/ipc/index.ts imports and registers both new handler modules
-      5. Verify src/preload/preload.ts exposes all new methods
-      6. Spot-check: preload method names match ElectronAPI interface method names
+      2. Verify src/renderer/components/KanbanCard.tsx exists with:
+         - KanbanCardProps interface
+         - Priority-based left border colors
+         - Priority badge
+         - Label dots rendering
+         - Inline title editing on double-click
+         - Delete with confirmation
+         - Hover-reveal action buttons
+      3. Verify BoardPage.tsx imports and renders KanbanCard in each column
+      4. Verify cards are rendered via getCardsByColumn helper
     </verify>
     <done>
-      Complete IPC CRUD layer for all Phase 2 entities.
-      24 IPC handlers registered (13 project/board/column + 11 card/label).
-      Preload bridge exposes all 24 methods to the renderer.
-      boards:create auto-creates default columns (To Do, In Progress, Done).
-      All methods are type-safe via shared/types.ts.
+      KanbanCard component renders cards with priority border, priority badge,
+      label dots, hover actions (edit/delete), and inline title editing.
+      Cards are displayed in the correct column based on columnId.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Drizzle ORM's eq, and, asc from drizzle-orm work with the postgres-js driver
-      - ipcMain.handle supports multiple positional arguments (id, data)
-      - Preload inline import() type annotations compile in Electron's preload context
-      - onConflictDoNothing() is available in Drizzle for the card_labels insert
+      - line-clamp-2 works in Tailwind CSS 4 (built-in, confirmed from Plan 2.1)
+      - Double-click handler works reliably on card titles in React 19
+      - The card component will receive a ref in Task 3 — design it to accept forwardRef
+        OR Task 3 wraps it in a div with ref. Either approach works.
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Zustand project store + project list UI + board route shell</n>
+    <n>Drag-and-drop cards between columns with pragmatic-drag-and-drop</n>
     <files>
-      src/renderer/stores/projectStore.ts (create — Zustand store for projects)
-      src/renderer/pages/ProjectsPage.tsx (modify — replace placeholder with project list)
-      src/renderer/pages/BoardPage.tsx (create — minimal board view shell)
-      src/renderer/App.tsx (modify — add /projects/:projectId route)
-      src/renderer/components/Sidebar.tsx (modify — active state for /projects/* paths)
+      src/renderer/components/KanbanCard.tsx (modify — add draggable behavior)
+      src/renderer/pages/BoardPage.tsx (modify — add drop targets and monitor)
     </files>
     <preconditions>
-      - Task 1 completed (types and dependencies installed)
-      - Task 2 completed (IPC handlers and preload bridge in place)
+      - Task 1 completed (boardStore with moveCard action)
+      - Task 2 completed (KanbanCard component rendered in columns)
     </preconditions>
     <action>
-      Create the Zustand store for project state, replace the ProjectsPage placeholder with
-      an interactive project list, add a board route, and update the sidebar.
+      Integrate @atlaskit/pragmatic-drag-and-drop to enable card dragging between columns
+      and reordering within columns.
 
-      WHY: This is the first real interactive feature. Users need to create and manage projects
-      before they can use boards/cards (Plans 2.2/2.3). The Zustand store provides reactive
-      state management that Electron + React needs (no server — state must be managed client-side
-      with IPC calls to the main process).
+      WHY: Drag-and-drop is the core UX of a Kanban board. Users expect to drag cards
+      between columns to update status. pragmatic-drag-and-drop is headless and lightweight,
+      giving us full control over the visual feedback.
+
+      VERIFIED API (from installed package v1.7.7 type definitions):
+      ```typescript
+      // Core functions — import from element/adapter (NOT root package)
+      import {
+        draggable,
+        dropTargetForElements,
+        monitorForElements,
+      } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+      import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
+      ```
 
       Steps:
 
-      1. Create src/renderer/stores/projectStore.ts:
+      1. Update src/renderer/components/KanbanCard.tsx — make cards draggable:
+
+         Add a ref to the card's root div and set up `draggable()` in a useEffect:
 
          ```typescript
-         // === FILE PURPOSE ===
-         // Zustand store for project-level state management.
-         // Manages the project list, selection, and CRUD operations.
-         // All data fetching goes through window.electronAPI (IPC bridge).
+         import { useEffect, useRef, useState } from 'react';
+         import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 
-         import { create } from 'zustand';
-         import type { Project, CreateProjectInput, UpdateProjectInput } from '../../shared/types';
-
-         interface ProjectStore {
-           // State
-           projects: Project[];
-           loading: boolean;
-           error: string | null;
-
-           // Actions
-           loadProjects: () => Promise&lt;void&gt;;
-           createProject: (data: CreateProjectInput) => Promise&lt;Project&gt;;
-           updateProject: (id: string, data: UpdateProjectInput) => Promise&lt;void&gt;;
-           deleteProject: (id: string) => Promise&lt;void&gt;;
-         }
-
-         export const useProjectStore = create&lt;ProjectStore&gt;((set, get) => ({
-           projects: [],
-           loading: false,
-           error: null,
-
-           loadProjects: async () => {
-             set({ loading: true, error: null });
-             try {
-               const projects = await window.electronAPI.getProjects();
-               set({ projects, loading: false });
-             } catch (error) {
-               set({
-                 error: error instanceof Error ? error.message : 'Failed to load projects',
-                 loading: false,
-               });
-             }
-           },
-
-           createProject: async (data) => {
-             const project = await window.electronAPI.createProject(data);
-             set({ projects: [...get().projects, project] });
-             return project;
-           },
-
-           updateProject: async (id, data) => {
-             const updated = await window.electronAPI.updateProject(id, data);
-             set({
-               projects: get().projects.map(p => p.id === id ? updated : p),
-             });
-           },
-
-           deleteProject: async (id) => {
-             await window.electronAPI.deleteProject(id);
-             set({
-               projects: get().projects.filter(p => p.id !== id),
-             });
-           },
-         }));
-         ```
-
-      2. Replace src/renderer/pages/ProjectsPage.tsx with an interactive project list:
-
-         The page should:
-         - Load projects on mount via useProjectStore.loadProjects()
-         - Show a header with "Projects" title and a "+ New Project" button
-         - Display projects as a grid of cards (grid-cols-1 sm:grid-cols-2 lg:grid-cols-3)
-         - Each project card shows:
-           - Color dot (w-3 h-3 rounded-full, using project.color or default primary-500)
-           - Project name (font-semibold text-surface-100)
-           - Description truncated to 2 lines (text-surface-400 line-clamp-2)
-           - "Created [relative date]" text (text-xs text-surface-500)
-           - Archive button (Archive icon from lucide-react, click calls updateProject with archived: true)
-         - Clicking a project card navigates to /projects/:projectId (use useNavigate)
-         - Filter: show only non-archived projects (filter on projects.archived === false)
-         - Empty state: show FolderKanban icon + "No projects yet" + "Create your first project" text
-         - Loading state: show LoadingSpinner while loading === true
-         - Error state: show error message in red text
-
-         For the "New Project" form:
-         - Toggle visibility with a boolean state (showCreateForm)
-         - When visible, show an inline form above the project grid:
-           - Name input (required, text-sm, bg-surface-800, border border-surface-700)
-           - Description textarea (optional, same styling, 2 rows)
-           - Color picker: 6 preset color circles the user can click to select
-             Colors: #3b82f6 (blue), #22c55e (green), #f59e0b (amber), #ef4444 (red),
-                     #8b5cf6 (purple), #ec4899 (pink)
-           - "Create" button (bg-primary-600 hover:bg-primary-500) + "Cancel" button
-         - On submit: call createProject, reset form, hide form, navigate to new project
-         - Use basic form state with useState — no form library needed
-
-         Component structure:
-         ```
-         ProjectsPage
-         ├── Header (h1 + "New Project" button)
-         ├── CreateProjectForm (inline, conditionally rendered)
-         └── Project grid OR empty state OR loading state
-         ```
-
-         Keep it as ONE file (ProjectsPage.tsx). It's a page component, not a reusable widget.
-         The create form can be a local component defined in the same file.
-
-      3. Create src/renderer/pages/BoardPage.tsx — minimal board view shell:
-
-         This is a PLACEHOLDER that will be fully built in Plan 2.2.
-         For now, just show:
-         - The project name as a heading (fetch via getProjects and find by ID, or
-           better: read projectId from URL params and show a simple header)
-         - "Board view coming soon" message
-         - A "Back to Projects" link
-
-         ```typescript
-         // === FILE PURPOSE ===
-         // Board view page — displays the Kanban board for a project.
-         // Currently a shell/placeholder. Full implementation in Plan 2.2.
-
-         import { useParams, Link } from 'react-router-dom';
-         import { useEffect, useState } from 'react';
-         import { ArrowLeft, Columns3 } from 'lucide-react';
-         import type { Project } from '../../shared/types';
-
-         function BoardPage() {
-           const { projectId } = useParams&lt;{ projectId: string }&gt;();
-           const [project, setProject] = useState&lt;Project | null&gt;(null);
+         function KanbanCard({ card, onUpdate, onDelete }: KanbanCardProps) {
+           const cardRef = useRef&lt;HTMLDivElement&gt;(null);
+           const [isDragging, setIsDragging] = useState(false);
 
            useEffect(() => {
-             if (!projectId) return;
-             window.electronAPI.getProjects().then(projects => {
-               const found = projects.find(p => p.id === projectId);
-               if (found) setProject(found);
+             const el = cardRef.current;
+             if (!el) return;
+
+             return draggable({
+               element: el,
+               getInitialData: () => ({
+                 type: 'card',
+                 cardId: card.id,
+                 sourceColumnId: card.columnId,
+                 sourcePosition: card.position,
+               }),
+               onDragStart: () => setIsDragging(true),
+               onDrop: () => setIsDragging(false),
              });
-           }, [projectId]);
+           }, [card.id, card.columnId, card.position]);
 
            return (
-             &lt;div className="flex-1 flex flex-col p-6"&gt;
-               &lt;div className="flex items-center gap-3 mb-6"&gt;
-                 &lt;Link to="/" className="text-surface-400 hover:text-surface-200"&gt;
-                   &lt;ArrowLeft size={20} /&gt;
-                 &lt;/Link&gt;
-                 &lt;h1 className="text-2xl font-bold text-surface-100"&gt;
-                   {project?.name ?? 'Loading...'}
-                 &lt;/h1&gt;
-               &lt;/div&gt;
-
-               &lt;div className="flex-1 flex flex-col items-center justify-center text-surface-500"&gt;
-                 &lt;Columns3 size={48} className="mb-4 text-surface-600" /&gt;
-                 &lt;p className="text-lg"&gt;Board view coming in Plan 2.2&lt;/p&gt;
-               &lt;/div&gt;
+             &lt;div
+               ref={cardRef}
+               className={`... ${isDragging ? 'opacity-40' : ''}`}
+             &gt;
+               {/* existing card content */}
              &lt;/div&gt;
            );
          }
-
-         export default BoardPage;
          ```
 
-         WHY a placeholder: The routing must be set up now so project cards can navigate
-         to /projects/:projectId. The full board UI is Plan 2.2.
+         The isDragging state reduces opacity to give visual feedback that the card
+         is being dragged.
 
-      4. Update src/renderer/App.tsx — add the board route:
+      2. Update BoardPage.tsx — make columns drop targets and add a board-level monitor:
 
-         Add lazy import:
+         For each column, wrap or modify the column card-list container to be a drop target:
+
          ```typescript
-         const BoardPage = lazy(() => import('./pages/BoardPage'));
+         import { useEffect, useRef, useState } from 'react';
+         import {
+           dropTargetForElements,
+           monitorForElements,
+         } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+         import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
          ```
 
-         Add route inside the AppLayout Route, BEFORE the catch-all:
-         ```tsx
-         &lt;Route path="/projects/:projectId" element={&lt;BoardPage /&gt;} /&gt;
+         Each column needs:
+         - A ref on the card list container (the droppable area)
+         - dropTargetForElements with:
+           - canDrop: only accept items with type === 'card'
+           - getData: return { columnId: column.id }
+           - getIsSticky: () => true (prevents flicker when dragging over cards)
+           - onDragEnter/onDragLeave: set/clear highlight state
+
+         Visual feedback for columns during drag:
+         - Track which column is being dragged over: `dragOverColumnId` state
+         - When a column is a drag target, add a subtle highlight:
+           `border-2 border-dashed border-primary-500/50` (or similar)
+         - Reset on drag leave and drop
+
+         Board-level monitor:
+         - Use monitorForElements to handle the actual drop logic centrally
+         - On drop, read source.data (cardId, sourceColumnId) and
+           location.current.dropTargets[0].data (target columnId)
+         - Calculate new position (append to end of target column for simplicity)
+         - Call boardStore.moveCard(cardId, targetColumnId, newPosition)
+
+         Drop handling logic:
+         ```typescript
+         monitorForElements({
+           canMonitor: ({ source }) => source.data.type === 'card',
+           onDrop: ({ source, location }) => {
+             const dropTargets = location.current.dropTargets;
+             if (dropTargets.length === 0) return; // Dropped outside any column
+
+             const targetColumnId = dropTargets[0].data.columnId as string;
+             const cardId = source.data.cardId as string;
+             const sourceColumnId = source.data.sourceColumnId as string;
+
+             if (!targetColumnId || !cardId) return;
+
+             // Calculate position: append to end of target column
+             const targetCards = getCardsByColumn(cards, targetColumnId);
+             const newPosition = sourceColumnId === targetColumnId
+               ? targetCards.length - 1  // Same column: move to end
+               : targetCards.length;      // Different column: append
+
+             moveCard(cardId, targetColumnId, newPosition);
+             setDragOverColumnId(null);
+           },
+         });
          ```
 
-         The final route order inside AppLayout should be:
-         - index (ProjectsPage)
-         - /meetings
-         - /ideas
-         - /brainstorm
-         - /settings
-         - /projects/:projectId (NEW)
-         - * (NotFoundPage — must remain LAST)
+         IMPORTANT: The monitor must be set up once at the board level (not per column).
+         Use a useEffect with combine() to clean up both the monitor and all drop targets.
 
-      5. Update src/renderer/components/Sidebar.tsx — make Projects icon active on board routes:
+         Since column components are rendered in a map, the simplest approach is to
+         extract a ColumnDropTarget wrapper or use inline useEffect per column.
 
-         Currently uses NavLink with `end={path === '/'}` which means the Projects icon
-         is ONLY active on exactly `/`. When on `/projects/some-uuid`, it would be inactive.
+         Recommended approach: Extract a `BoardColumn` component from the column rendering
+         in BoardPage. This component:
+         - Receives column, cards, store actions as props
+         - Sets up dropTargetForElements in its own useEffect
+         - Manages its own dragOver state
+         - Renders KanbanCard components
 
-         Fix: Replace the current NavLink rendering for the Projects item to use
-         `useLocation()` to check if the current path is `/` OR starts with `/projects/`.
+         The monitor stays in BoardPage (parent level).
 
-         Approach:
-         - Import `useLocation` from react-router-dom
-         - For the Projects NavItem specifically (path === '/'), compute isActive manually:
-           `location.pathname === '/' || location.pathname.startsWith('/projects/')`
-         - For all other nav items, keep using NavLink's built-in isActive
+      3. Test the complete drag flow:
+         - Drag card from Column A → hover over Column B (highlight) → drop
+         - Card should appear in Column B, disappear from Column A
+         - Position should be updated in the database via moveCard IPC
 
-         The simplest implementation: keep NavLink for all items, but for the '/' item,
-         remove the `end` prop and instead use a custom `className` function that checks
-         the location. Example:
-
-         ```tsx
-         import { NavLink, useLocation } from 'react-router-dom';
-         // ...
-
-         function Sidebar() {
-           const location = useLocation();
-
-           return (
-             &lt;nav className="..."&gt;
-               {navItems.map(({ path, label, icon: Icon }) => {
-                 // Projects icon should be active for both / and /projects/*
-                 const isProjectsItem = path === '/';
-                 const isActive = isProjectsItem
-                   ? location.pathname === '/' || location.pathname.startsWith('/projects/')
-                   : false; // Let NavLink handle other items
-
-                 return (
-                   &lt;NavLink
-                     key={path}
-                     to={path}
-                     end={isProjectsItem}
-                     title={label}
-                     className={({ isActive: navActive }) => {
-                       const active = isProjectsItem ? isActive : navActive;
-                       return [
-                         'w-full h-12 flex items-center justify-center transition-colors',
-                         active
-                           ? 'bg-primary-600/15 text-primary-400 border-l-2 border-primary-500'
-                           : 'text-surface-400 hover:bg-surface-800 hover:text-surface-200 border-l-2 border-transparent',
-                       ].join(' ');
-                     }}
-                   &gt;
-                     &lt;Icon size={20} /&gt;
-                   &lt;/NavLink&gt;
-                 );
-               })}
-             &lt;/nav&gt;
-           );
-         }
-         ```
-
-      IMPORTANT IMPLEMENTATION NOTES:
-      - Do NOT install any additional packages — everything was installed in Task 1
-      - The project list must actually call window.electronAPI methods (not mock data)
-      - The Zustand store is the single source of truth for project state
-      - Use lucide-react icons only (already installed): FolderKanban, Plus, Archive, ArrowLeft, Columns3
-      - Follow existing code patterns: file purpose comments, default export
+      IMPORTANT NOTES:
+      - Import from '@atlaskit/pragmatic-drag-and-drop/element/adapter' NOT the root
+      - Import combine from '@atlaskit/pragmatic-drag-and-drop/combine'
+      - All setup functions return cleanup functions — return them from useEffect
+      - getIsSticky: () => true is important for nested drop targets (cards inside columns)
+      - The monitor's onDrop fires AFTER individual drop target handlers
+      - Cards within the same column can be reordered too (same logic, different position calc)
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify src/renderer/stores/projectStore.ts exists with useProjectStore hook
-      3. Verify ProjectsPage.tsx has:
-         - useProjectStore() for state
-         - useEffect to loadProjects on mount
-         - Project grid with clickable cards
-         - Inline create project form
-         - Empty state when no projects exist
-      4. Verify BoardPage.tsx exists with useParams for projectId
-      5. Verify App.tsx has Route for /projects/:projectId with lazy-loaded BoardPage
-      6. Verify Sidebar.tsx highlights Projects icon on both / and /projects/* paths
+      2. Verify KanbanCard.tsx:
+         - Has useRef and draggable() setup in useEffect
+         - getInitialData attaches card type, cardId, sourceColumnId
+         - isDragging state reduces opacity during drag
+      3. Verify BoardPage.tsx:
+         - Has monitorForElements setup with canMonitor and onDrop
+         - Each column has dropTargetForElements with canDrop, getData, getIsSticky
+         - dragOverColumnId state provides visual feedback
+         - Drop handler calls moveCard with correct parameters
+         - All useEffect cleanups return the cleanup functions from combine/draggable/dropTarget
+      4. Verify the import paths use '/element/adapter' and '/combine' (not root)
     </verify>
     <done>
-      Zustand project store manages project CRUD via IPC.
-      ProjectsPage shows interactive project list with create form and project cards.
-      Clicking a project navigates to /projects/:projectId (board shell page).
-      Sidebar Projects icon stays active on board routes.
-      Complete data pipeline verified: UI → Zustand → IPC → DB.
+      Cards are draggable between columns via pragmatic-drag-and-drop.
+      Columns highlight when a card is dragged over them.
+      Dropping a card moves it to the target column and persists via moveCard IPC.
+      Cards within the same column can be reordered.
+      All drag state is managed with React state + useRef (no external state library needed).
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Zustand's create() works without provider (standard Zustand pattern)
-      - window.electronAPI is available when Zustand actions execute (preload has run)
-      - useNavigate works inside event handlers in React 19
-      - React Router v7 useParams returns typed params correctly
-      - line-clamp-2 utility works in Tailwind CSS 4 (built-in, no plugin needed)
+      - @atlaskit/pragmatic-drag-and-drop v1.7.7 API matches the verified type definitions
+      - draggable() works with React 19 refs and useEffect cleanup
+      - getIsSticky prevents drop target flickering when dragging over child elements
+      - monitorForElements onDrop fires after drop target onDrop handlers
+      - Native browser drag events work correctly in Electron's Chromium renderer
+      - combine() correctly merges multiple cleanup functions
     </assumptions>
   </task>
 </phase>
