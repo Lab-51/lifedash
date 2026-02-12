@@ -1,0 +1,50 @@
+// === FILE PURPOSE ===
+// Schema definitions for meetings, transcripts, meeting briefs, and action items.
+// Meetings can optionally belong to a project.
+// Transcripts store time-indexed text segments from recordings.
+// Meeting briefs store AI-generated summaries.
+// Action items can be converted to cards on a board.
+
+import { pgTable, uuid, varchar, text, integer, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { projects } from './projects';
+import { cards } from './cards';
+
+export const meetingStatusEnum = pgEnum('meeting_status', ['recording', 'processing', 'completed']);
+
+export const meetings = pgTable('meetings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  title: varchar('title', { length: 500 }).notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+  audioPath: text('audio_path'),
+  status: meetingStatusEnum('status').default('recording').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const transcripts = pgTable('transcripts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  meetingId: uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  startTime: integer('start_time').notNull(), // milliseconds from recording start
+  endTime: integer('end_time').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const meetingBriefs = pgTable('meeting_briefs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  meetingId: uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
+  summary: text('summary').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const actionItemStatusEnum = pgEnum('action_item_status', ['pending', 'approved', 'dismissed', 'converted']);
+
+export const actionItems = pgTable('action_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  meetingId: uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
+  cardId: uuid('card_id').references(() => cards.id, { onDelete: 'set null' }),
+  description: text('description').notNull(),
+  status: actionItemStatusEnum('status').default('pending').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
