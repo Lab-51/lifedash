@@ -2,13 +2,13 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 7 — Plan 7.5 COMPLETE
+Session focus: Phase 7 — Plan 7.6 PLANNED
 
 ## Position
 Milestone: Phase 7 — v2 Features (Advanced)
 Phase: 7 of 7 (IN PROGRESS)
-Plan: 5 of 8 (COMPLETE — 3/3 tasks done)
-Task: 3 of 3
+Plan: 6 of 8 (PLANNED — 0/3 tasks done)
+Task: 0 of 3
 
 ## Phase 1 — COMPLETE
 All 3 plans (8 tasks) delivered and pushed to GitHub.
@@ -323,6 +323,28 @@ Planned as 8 sequential plans.
 - Notifications capped at 5 per check cycle to avoid spam
 - Daily digest tracked by lastDigestDate to avoid duplicate sends
 
+### Plan 7.6: API Transcription Providers (3 tasks) — COMPLETE
+1. Transcription provider infrastructure — types, config service, IPC, preload — DONE
+2. Deepgram + AssemblyAI transcribers, transcriptionService refactor, and fallback — DONE
+3. Transcription provider settings UI — DONE
+- Not yet committed
+
+## Plan 7.6 Execution Results
+- **Task 1**: Added TranscriptionProviderType, TranscriptionProviderConfig, TranscriptionProviderStatus, TranscriberResult types. Updated AITaskType with 'transcription'. Extended ElectronAPI (4 methods). Created transcriptionProviderService.ts (getConfig/getStatus/setProviderType/setApiKey/getDecryptedKey with encrypted key storage). Created transcription-provider.ts IPC handlers (4 channels). Extended preload.ts (4 bridge methods).
+- **Task 2**: Created deepgramTranscriber.ts (~100 lines, REST /v1/listen, nova-2, audio/raw, Token auth, word timing seconds→ms). Created assemblyaiTranscriber.ts (~195 lines, PCM→WAV via wavefile, 3-step upload→submit→poll, raw key auth, ms timestamps). Refactored transcriptionService.ts (215→343 lines, provider-aware routing, API dispatch, fallback to local Whisper, usage logging). Wired test handlers in IPC.
+- **Task 3**: Created TranscriptionProviderSection.tsx (~343 lines, 3 radio options, API key inputs with save/clear/show-hide, test connection with latency display, status indicators). Added to SettingsPage between Appearance and AI Providers.
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
+- **Key fixes**: net.fetch() with Uint8Array body (Electron BodyInit requirement), direct DB insert for usage logging (null providerId avoids UUID issues), Deepgram Content-Type audio/raw (not audio/l16), AssemblyAI needs WAV headers (not raw PCM).
+
+## Decisions Made (Plan 7.6)
+- Deepgram REST API (not WebSocket): fits existing 10-sec segment pipeline
+- AssemblyAI PCM→WAV conversion via wavefile (AssemblyAI needs container format)
+- Electron net.fetch() instead of Node.js native fetch (proxy support)
+- Deepgram auth: Token prefix; AssemblyAI auth: raw key (no prefix)
+- AI usage logging: direct DB insert with null providerId (not through logUsage helper)
+- Fallback: API failure → local Whisper if worker exists (no warm fallback spawn for MVP)
+- TranscriptionProviderSection placed before AI Providers in settings (more user-visible)
+
 ## Next Steps
-1. `/nexus:git` — Commit Plan 7.5 changes
-2. `/nexus:plan 7.6` — API transcription providers (Deepgram, AssemblyAI)
+1. `/nexus:git` — Commit Plan 7.6 changes
+2. `/nexus:plan 7.7` — Meeting analytics and speaker diarization

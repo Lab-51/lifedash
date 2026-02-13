@@ -250,4 +250,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notificationUpdatePreferences: (prefs: any) =>
     ipcRenderer.invoke('notifications:update-preferences', prefs),
   notificationSendTest: () => ipcRenderer.invoke('notifications:test'),
+
+  // Transcription Provider
+  transcriptionGetConfig: () => ipcRenderer.invoke('transcription:get-config'),
+  transcriptionSetProvider: (type: string) =>
+    ipcRenderer.invoke('transcription:set-provider', type),
+  transcriptionSetApiKey: (provider: string, apiKey: string) =>
+    ipcRenderer.invoke('transcription:set-api-key', provider, apiKey),
+  transcriptionTestProvider: (type: string) =>
+    ipcRenderer.invoke('transcription:test-provider', type),
 });

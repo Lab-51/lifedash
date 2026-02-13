@@ -16,6 +16,7 @@ import UsageSummary from '../components/UsageSummary';
 import BackupSection from '../components/settings/BackupSection';
 import ExportSection from '../components/settings/ExportSection';
 import NotificationSection from '../components/settings/NotificationSection';
+import TranscriptionProviderSection from '../components/settings/TranscriptionProviderSection';
 
 function SettingsPage() {
   const { providers, loading, error, encryptionAvailable, loadProviders, loadSettings, checkEncryption } =
@@ -71,6 +72,9 @@ function SettingsPage() {
         </div>
         <ThemeSelector />
       </section>
+
+      {/* === Section: Transcription Provider === */}
+      <TranscriptionProviderSection />
 
       {/* === Section: AI Providers === */}
       <section className="mb-10">

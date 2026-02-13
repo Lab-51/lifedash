@@ -172,7 +172,7 @@ export interface UpdateLabelInput {
 // === AI PROVIDER TYPES ===
 
 export type AIProviderName = 'openai' | 'anthropic' | 'ollama';
-export type AITaskType = 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis' | 'task_structuring';
+export type AITaskType = 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis' | 'task_structuring' | 'transcription';
 
 /** AI provider as seen by renderer (no decrypted keys — only hasApiKey boolean) */
 export interface AIProvider {
@@ -592,6 +592,29 @@ export interface DailyDigestData {
   recentMeetings: Array<{ title: string; date: string }>;
 }
 
+// === TRANSCRIPTION PROVIDER TYPES ===
+
+export type TranscriptionProviderType = 'local' | 'deepgram' | 'assemblyai';
+
+export interface TranscriptionProviderConfig {
+  type: TranscriptionProviderType;
+  deepgramKeyEncrypted?: string;    // Encrypted via safeStorage
+  assemblyaiKeyEncrypted?: string;  // Encrypted via safeStorage
+}
+
+export interface TranscriptionProviderStatus {
+  type: TranscriptionProviderType;
+  hasDeepgramKey: boolean;
+  hasAssemblyaiKey: boolean;
+  localModelAvailable: boolean;
+}
+
+/** Result from a cloud transcription provider (Deepgram or AssemblyAI) */
+export interface TranscriberResult {
+  text: string;
+  segments: Array<{ text: string; startMs: number; endMs: number }>;
+}
+
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
   platform: NodeJS.Platform;
@@ -742,6 +765,12 @@ export interface ElectronAPI {
   notificationGetPreferences: () => Promise<NotificationPreferences>;
   notificationUpdatePreferences: (prefs: Partial<NotificationPreferences>) => Promise<void>;
   notificationSendTest: () => Promise<void>;
+
+  // Transcription Provider
+  transcriptionGetConfig: () => Promise<TranscriptionProviderStatus>;
+  transcriptionSetProvider: (type: TranscriptionProviderType) => Promise<void>;
+  transcriptionSetApiKey: (provider: 'deepgram' | 'assemblyai', apiKey: string) => Promise<void>;
+  transcriptionTestProvider: (type: TranscriptionProviderType) => Promise<{ success: boolean; error?: string; latencyMs?: number }>;
 }
 
 declare global {
