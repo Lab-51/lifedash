@@ -233,6 +233,10 @@ function ProjectsPage() {
           projectId={planningProjectId}
           projectName={projects.find(p => p.id === planningProjectId)?.name || ''}
           onClose={() => setPlanningProjectId(null)}
+          onApplied={(pid) => {
+            setPlanningProjectId(null);
+            navigate(`/projects/${pid}`);
+          }}
         />
       )}
     </div>
