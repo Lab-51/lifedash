@@ -254,6 +254,23 @@ export interface RecordingState {
   lastTranscript: string;    // most recent transcript text
 }
 
+// === WHISPER MODEL TYPES ===
+
+export interface WhisperModel {
+  name: string;           // e.g., 'base.en'
+  fileName: string;       // e.g., 'ggml-base.en.bin'
+  size: string;           // Human-readable: '74 MB'
+  description: string;
+  available: boolean;     // true if downloaded locally
+}
+
+export interface WhisperDownloadProgress {
+  fileName: string;
+  downloaded: number;     // bytes
+  total: number;          // bytes
+  percent: number;        // 0-100
+}
+
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
   platform: NodeJS.Platform;
@@ -337,6 +354,12 @@ export interface ElectronAPI {
   disableLoopbackAudio: () => Promise<void>;
   onRecordingState: (callback: (state: RecordingState) => void) => () => void;
   onTranscriptSegment: (callback: (segment: TranscriptSegment) => void) => () => void;
+
+  // Whisper Models
+  getWhisperModels: () => Promise<WhisperModel[]>;
+  downloadWhisperModel: (fileName: string) => Promise<string>;
+  hasWhisperModel: () => Promise<boolean>;
+  onWhisperDownloadProgress: (callback: (progress: WhisperDownloadProgress) => void) => () => void;
 }
 
 declare global {

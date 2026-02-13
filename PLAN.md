@@ -1,975 +1,905 @@
-# Phase 4 — Plan 2 of 4: Audio Capture Pipeline
+# Phase 4 — Plan 3 of 4: Whisper Transcription Pipeline
 
 ## Coverage
-- **R4: Meeting Intelligence — Audio Capture** (core implementation)
+- **R5: Meeting Intelligence — Transcription** (core implementation)
 
 ## Plan Overview
 Phase 4 delivers Meeting Intelligence: Audio Capture (R4) and Transcription (R5). It requires 4 plans:
 
 - **Plan 4.1** (DONE): Foundation — deps, shared types, meeting service, IPC handlers.
-- **Plan 4.2** (this plan): Audio capture pipeline — capture bridge, audio processing in main, recording UI.
-- **Plan 4.3**: Whisper transcription — worker thread, chunked transcription, real-time pipeline.
+- **Plan 4.2** (DONE): Audio capture pipeline — capture bridge, audio processing in main, recording UI.
+- **Plan 4.3** (this plan): Whisper transcription — worker thread, chunked transcription, real-time pipeline.
 - **Plan 4.4**: Meetings UI — meetings page, transcript display, meeting ↔ project linking.
 
-## Architecture Decisions for Plan 4.2
+## Architecture Decisions for Plan 4.3
 
-1. **Audio capture flow** — Renderer enables loopback via IPC → calls `getDisplayMedia()` (patched
-   by electron-audio-loopback) → extracts PCM via ScriptProcessorNode → converts Float32 to Int16
-   → sends Int16 chunks to main via IPC. Main accumulates chunks and saves WAV.
+1. **Worker thread for transcription** — Whisper is CPU-intensive and would block Electron's
+   main process event loop. We use Node.js `worker_threads` to run transcription in a
+   separate thread. The worker stays alive for the duration of a recording session (model
+   stays loaded in memory). This avoids the 2-5 second model loading penalty per chunk.
 
-2. **electron-audio-loopback Manual Mode** — Since we use `contextIsolation: true` and
-   `nodeIntegration: false`, we use the "Manual Mode" from the library's README:
-   - Preload exposes `enableLoopbackAudio()` / `disableLoopbackAudio()` via contextBridge
-   - These invoke auto-registered IPC handlers `enable-loopback-audio` / `disable-loopback-audio`
-   - Renderer calls `getDisplayMedia({ video: true, audio: true })` (video required by API)
-   - Video tracks are immediately stopped and removed
-   - This shows a system picker dialog — acceptable UX for starting a recording session
+2. **Chunk accumulation in main process** — Audio chunks arrive from the renderer at ~256ms
+   intervals (4096 Int16 samples per chunk). The transcription service accumulates these into
+   ~10-second PCM segments (160,000 samples = 320KB). When a segment is full, it's dispatched
+   to the worker for transcription. This produces near-real-time results with 10-12 second
+   latency (10s accumulation + 2-5s transcription).
 
-3. **ScriptProcessorNode for MVP** — Deprecated but simpler than AudioWorklet. No separate
-   worker file needed, no CSP issues in Electron. Can migrate to AudioWorklet in v2.
+3. **Worker thread bundling** — Electron Forge + Vite requires the worker file to be a
+   separate compiled JS file. We add a second build entry in forge.config.ts for the worker.
+   The main process references it via `path.join(__dirname, 'transcriptionWorker.js')`.
 
-4. **Resampling via AudioContext** — Create `new AudioContext({ sampleRate: 16000 })`.
-   The browser automatically resamples the 48kHz system audio to 16kHz. ScriptProcessorNode
-   with 1 input channel handles stereo→mono downmix.
+4. **Model lazy download** — Whisper models are too large to bundle (244MB+ for small.en).
+   The model manager downloads from HuggingFace on first use. Downloads go to
+   `{userData}/whisper-models/`. Default: `ggml-base.en.bin` (74MB, fast, English-only).
 
-5. **IPC audio streaming** — `ipcRenderer.send('audio:chunk', buffer)` one-way (fire-and-forget).
-   Int16 at 16kHz mono = ~32KB/s, negligible overhead. Main receives as Buffer.
+5. **Transcription results flow** — Worker produces segments with timestamps → transcription
+   service saves each segment to DB via `meetingService.addTranscriptSegment()` → pushes
+   segment to renderer via `recording:transcript-segment` IPC → updates `lastTranscript`
+   in recording state for the sidebar indicator.
 
-6. **Recording state push** — Main process sends `recording:state-update` events to renderer
-   via `mainWindow.webContents.send()`. Follows the same pattern as `window:maximize-change`.
+6. **ArrayBuffer transfer** — When sending PCM data to the worker, we use transferable objects
+   (`worker.postMessage(msg, [msg.audioData])`) to avoid copying the 320KB buffer.
 
-7. **WAV storage** — Files saved to `{app.getPath('userData')}/recordings/{meetingId}.wav`
-   using the `wavefile` package's `fromScratch()` API.
+## Verified API: @fugood/whisper.node v1.0.16
+
+```typescript
+import { initWhisper } from '@fugood/whisper.node';
+
+// Initialize (loads model into memory — takes 2-5s)
+const context = await initWhisper({ filePath: '/path/to/ggml-base.en.bin' });
+
+// Transcribe raw PCM buffer (16kHz, 16-bit, mono)
+const { promise, stop } = context.transcribeData(arrayBuffer, {
+  language: 'en',
+  onNewSegments: (result) => {
+    // result.segments: Array<{ text: string, t0: number, t1: number }>
+  },
+});
+const result = await promise;
+// result: { result: string, segments: [...], isAborted: boolean }
+
+await context.release(); // MUST call to free memory
+```
+
+- `transcribeData` accepts ArrayBuffer (16kHz, 16-bit, mono PCM)
+- Returns `{ stop: () => Promise<void>, promise: Promise<TranscribeResult> }`
+- Segments have `text`, `t0` (ms), `t1` (ms) — relative to chunk start
+- `onNewSegments` callback fires as segments are recognized (for progress)
+- Context must be released when done
+
+## Audio Math
+
+- Sample rate: 16,000 Hz, mono, Int16 (2 bytes/sample)
+- Renderer sends: 4096 samples per chunk ≈ 256ms ≈ 8,192 bytes
+- 10-second segment: 16,000 × 10 = 160,000 samples = 320,000 bytes
+- Chunks per segment: 160,000 / 4,096 ≈ 39 chunks
+- IPC overhead: ~32 KB/s (negligible)
 
 ---
 
-<phase n="4.2" name="Audio Capture Pipeline">
+<phase n="4.3" name="Whisper Transcription Pipeline">
   <context>
-    Plan 4.1 is complete. The app has meeting CRUD (service + IPC + preload), 3 Phase 4
-    packages installed (electron-audio-loopback, @fugood/whisper.node, wavefile), and
-    initMain() configured in main.ts.
+    Plans 4.1 and 4.2 are complete. The app has:
+    - audioProcessor.ts: accumulates PCM chunks, saves WAV, pushes RecordingState
+    - recording.ts IPC: recording:start, recording:stop, audio:chunk handlers
+    - audioCaptureService.ts (renderer): loopback → getDisplayMedia → ScriptProcessorNode → Int16 → IPC
+    - recordingStore.ts: Zustand store with startRecording/stopRecording/initListener
+    - meetingService.ts: CRUD + addTranscriptSegment() + getTranscripts()
+    - preload.ts: onTranscriptSegment() callback already wired (from Plan 4.2)
+    - shared/types.ts: TranscriptSegment { id, meetingId, content, startTime, endTime, createdAt }
+    - RecordingState { isRecording, meetingId, elapsed, lastTranscript }
 
-    Existing meeting infrastructure (from Plan 4.1):
-    - meetingService: getMeetings, getMeeting, createMeeting, updateMeeting, deleteMeeting,
-      addTranscriptSegment, getTranscripts
-    - IPC channels: meetings:list, meetings:get, meetings:create, meetings:update, meetings:delete
-    - Preload: getMeetings, getMeeting, createMeeting, updateMeeting, deleteMeeting
-    - Types: Meeting, MeetingWithTranscript, TranscriptSegment, RecordingState,
-      CreateMeetingInput, UpdateMeetingInput (all in shared/types.ts)
-    - ElectronAPI: has 5 meeting CRUD methods active + 4 recording methods COMMENTED OUT
+    @fugood/whisper.node v1.0.16 installed (Plan 4.1), API verified:
+    - initWhisper({ filePath }) → WhisperContext
+    - context.transcribeData(arrayBuffer, options) → { promise, stop }
+    - TranscribeResult: { result, segments: Array<{ text, t0, t1 }>, isAborted }
+    - context.release() — MUST call to free resources
 
-    electron-audio-loopback verified behavior (from README):
-    - initMain() auto-registers IPC handlers: 'enable-loopback-audio', 'disable-loopback-audio'
-    - Manual Mode (our pattern): preload exposes enable/disable → renderer calls getDisplayMedia
-    - getDisplayMedia({ video: true, audio: true }) — video is REQUIRED by the API
-    - Must remove video tracks after getting the stream
-    - Stream contains system audio loopback track(s)
-
-    wavefile v11.0.0 API:
-    - new WaveFile() → wav.fromScratch(channels, sampleRate, bitDepth, samples) → wav.toBuffer()
-    - For 16kHz mono Int16: wav.fromScratch(1, 16000, '16', int16Array)
+    Electron Forge config: forge.config.ts with VitePlugin.
+    Worker files need separate build entry: { entry: '...worker.ts', config: 'vite.main.config.ts' }
 
     Key files to reference:
-    @src/shared/types.ts
+    @src/main/services/audioProcessor.ts
     @src/main/services/meetingService.ts
+    @src/main/ipc/recording.ts
     @src/main/ipc/index.ts
-    @src/main/main.ts
+    @src/shared/types.ts
     @src/preload/preload.ts
-    @src/renderer/stores/settingsStore.ts (pattern reference for Zustand stores)
-    @src/renderer/components/Sidebar.tsx
+    @forge.config.ts
   </context>
 
   <task type="auto" n="1">
-    <n>Create audio processor service in main + recording IPC handlers + extend preload and types</n>
+    <n>Create whisper model manager and transcription worker thread</n>
     <files>
-      src/main/services/audioProcessor.ts (create — accumulate PCM, save WAV, manage state)
-      src/main/ipc/recording.ts (create — IPC handlers for recording control + audio streaming)
-      src/main/ipc/index.ts (modify — register recording handlers)
-      src/shared/types.ts (modify — uncomment recording methods, add sendAudioChunk + loopback)
-      src/preload/preload.ts (modify — add recording + loopback methods to bridge)
+      src/main/services/whisperModelManager.ts (create — model download, path resolution, availability check)
+      src/main/workers/transcriptionWorker.ts (create — worker thread that loads whisper and transcribes PCM)
+      forge.config.ts (modify — add worker as second main-process build entry)
     </files>
     <preconditions>
-      - Plan 4.1 complete (meeting CRUD, packages installed)
-      - electron-audio-loopback initMain() called in main.ts
-      - wavefile v11.0.0 installed
+      - Plan 4.2 complete (audioProcessor, recording IPC)
+      - @fugood/whisper.node v1.0.16 installed
     </preconditions>
     <action>
-      Create the main-process audio processing pipeline and wire it through IPC to the renderer.
+      Create the model management service and the transcription worker thread.
 
-      WHY: The main process needs to receive raw PCM audio chunks from the renderer, accumulate
-      them into a complete recording buffer, and save the result as a WAV file when recording
-      stops. It also needs to push recording state updates (elapsed time, isRecording) to the
-      renderer. This is the backend for the audio capture pipeline.
+      WHY: Whisper models aren't bundled (74-244MB). We need a model manager to download them
+      on first use. The worker thread is needed because Whisper is CPU-intensive — running it
+      on the main thread would freeze the Electron UI. The worker stays alive for a recording
+      session to avoid reloading the model for each chunk.
 
-      ## Step 1: Update shared/types.ts
+      ## Step 1: Create whisperModelManager.ts
 
-      Uncomment the recording methods in the ElectronAPI interface and add new methods.
-      Find the commented-out recording methods block and replace with active methods:
-
-      ```typescript
-      // Recording
-      startRecording: (meetingId: string) => Promise<void>;
-      stopRecording: () => Promise<void>;
-      sendAudioChunk: (buffer: ArrayBuffer) => void;
-      enableLoopbackAudio: () => Promise<void>;
-      disableLoopbackAudio: () => Promise<void>;
-      onRecordingState: (callback: (state: RecordingState) => void) => () => void;
-      onTranscriptSegment: (callback: (segment: TranscriptSegment) => void) => () => void;
-      ```
-
-      Note: `sendAudioChunk` returns void (not Promise) — it's a fire-and-forget one-way message.
-
-      ## Step 2: Create audioProcessor.ts
-
-      Create `src/main/services/audioProcessor.ts`:
+      Create `src/main/services/whisperModelManager.ts`:
 
       ```typescript
       // === FILE PURPOSE ===
-      // Audio processing service — accumulates PCM chunks from renderer,
-      // saves WAV files, manages recording state, and pushes updates.
+      // Whisper model management — download, locate, and check availability of GGML models.
       //
       // === DEPENDENCIES ===
-      // electron (app, BrowserWindow), wavefile, node:fs, node:path
+      // electron (app, BrowserWindow), node:fs, node:path, node:https
       //
       // === LIMITATIONS ===
-      // - No transcription (Plan 4.3)
-      // - No audio level metering
-      // - Single recording at a time
+      // - Downloads from HuggingFace only (no mirror support yet)
+      // - No checksum verification (future enhancement)
+      // - Single download at a time
 
       import { app, BrowserWindow } from 'electron';
-      import { WaveFile } from 'wavefile';
       import fs from 'node:fs';
       import path from 'node:path';
-      import type { RecordingState } from '../../shared/types';
+      import https from 'node:https';
 
-      let chunks: Buffer[] = [];
-      let currentMeetingId: string | null = null;
-      let startTime = 0;
-      let stateTimer: ReturnType<typeof setInterval> | null = null;
-      let mainWindow: BrowserWindow | null = null;
+      const HF_BASE_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main';
 
-      function getRecordingsDir(): string {
-        return path.join(app.getPath('userData'), 'recordings');
+      export interface WhisperModelInfo {
+        name: string;         // e.g., 'base.en'
+        fileName: string;     // e.g., 'ggml-base.en.bin'
+        size: string;         // Human-readable size
+        description: string;
       }
+
+      /** Available models for download */
+      export const AVAILABLE_MODELS: WhisperModelInfo[] = [
+        { name: 'tiny.en', fileName: 'ggml-tiny.en.bin', size: '39 MB', description: 'Fastest, English-only' },
+        { name: 'base.en', fileName: 'ggml-base.en.bin', size: '74 MB', description: 'Fast, English-only (default)' },
+        { name: 'small.en', fileName: 'ggml-small.en.bin', size: '244 MB', description: 'Balanced, English-only' },
+        { name: 'tiny', fileName: 'ggml-tiny.bin', size: '39 MB', description: 'Fastest, multilingual' },
+        { name: 'base', fileName: 'ggml-base.bin', size: '74 MB', description: 'Fast, multilingual' },
+        { name: 'small', fileName: 'ggml-small.bin', size: '244 MB', description: 'Balanced, multilingual' },
+      ];
+
+      export function getModelsDir(): string {
+        return path.join(app.getPath('userData'), 'whisper-models');
+      }
+
+      export function getModelPath(fileName: string): string {
+        return path.join(getModelsDir(), fileName);
+      }
+
+      export function isModelAvailable(fileName: string): boolean {
+        return fs.existsSync(getModelPath(fileName));
+      }
+
+      /** Get list of locally available models */
+      export function getLocalModels(): WhisperModelInfo[] {
+        return AVAILABLE_MODELS.filter((m) => isModelAvailable(m.fileName));
+      }
+
+      /** Get the default model. Returns path if available, null if needs download. */
+      export function getDefaultModelPath(): string | null {
+        // Prefer base.en → tiny.en → any available model
+        const preferred = ['ggml-base.en.bin', 'ggml-tiny.en.bin'];
+        for (const fileName of preferred) {
+          if (isModelAvailable(fileName)) return getModelPath(fileName);
+        }
+        const local = getLocalModels();
+        if (local.length > 0) return getModelPath(local[0].fileName);
+        return null;
+      }
+
+      /** Download a model from HuggingFace with progress callback */
+      export function downloadModel(
+        fileName: string,
+        onProgress?: (downloaded: number, total: number) => void,
+      ): { promise: Promise<string>; abort: () => void } {
+        const url = `${HF_BASE_URL}/${fileName}`;
+        const destPath = getModelPath(fileName);
+        let aborted = false;
+        let req: ReturnType<typeof https.get> | null = null;
+
+        const promise = new Promise<string>((resolve, reject) => {
+          fs.mkdirSync(getModelsDir(), { recursive: true });
+          const tempPath = `${destPath}.downloading`;
+
+          const file = fs.createWriteStream(tempPath);
+          const makeRequest = (requestUrl: string) => {
+            req = https.get(requestUrl, (response) => {
+              // Handle redirects (HuggingFace uses 302)
+              if (response.statusCode === 301 || response.statusCode === 302) {
+                const redirectUrl = response.headers.location;
+                if (redirectUrl) {
+                  makeRequest(redirectUrl);
+                  return;
+                }
+              }
+
+              if (response.statusCode !== 200) {
+                file.close();
+                fs.unlinkSync(tempPath);
+                reject(new Error(`Download failed: HTTP ${response.statusCode}`));
+                return;
+              }
+
+              const total = parseInt(response.headers['content-length'] || '0', 10);
+              let downloaded = 0;
+
+              response.on('data', (chunk: Buffer) => {
+                if (aborted) return;
+                downloaded += chunk.length;
+                onProgress?.(downloaded, total);
+              });
+
+              response.pipe(file);
+
+              file.on('finish', () => {
+                file.close(() => {
+                  if (aborted) {
+                    fs.unlinkSync(tempPath);
+                    reject(new Error('Download aborted'));
+                    return;
+                  }
+                  // Rename temp → final (atomic on same filesystem)
+                  fs.renameSync(tempPath, destPath);
+                  resolve(destPath);
+                });
+              });
+            });
+
+            req.on('error', (err) => {
+              file.close();
+              if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+              reject(err);
+            });
+          };
+
+          makeRequest(url);
+        });
+
+        const abort = () => {
+          aborted = true;
+          req?.destroy();
+        };
+
+        return { promise, abort };
+      }
+      ```
+
+      ## Step 2: Create transcriptionWorker.ts
+
+      Create `src/main/workers/transcriptionWorker.ts`:
+
+      ```typescript
+      // === FILE PURPOSE ===
+      // Worker thread for Whisper transcription. Runs in a separate thread
+      // to avoid blocking Electron's main process event loop.
+      //
+      // Protocol:
+      //   Main → Worker: { type: 'init', modelPath: string }
+      //   Main → Worker: { type: 'transcribe', audioData: ArrayBuffer, segmentIndex: number, startTimeMs: number }
+      //   Main → Worker: { type: 'stop' }
+      //   Worker → Main: { type: 'ready' }
+      //   Worker → Main: { type: 'result', text: string, segments: Array<{text,t0,t1}>, segmentIndex: number, startTimeMs: number }
+      //   Worker → Main: { type: 'error', message: string }
+      //
+      // === DEPENDENCIES ===
+      // @fugood/whisper.node (initWhisper)
+      //
+      // === LIMITATIONS ===
+      // - Sequential transcription only (one segment at a time)
+      // - Must init before transcribe
+
+      import { parentPort } from 'worker_threads';
+      import { initWhisper } from '@fugood/whisper.node';
+
+      // Types for the WhisperContext returned by initWhisper
+      // (using the actual return type from the library)
+      type WhisperContext = Awaited<ReturnType<typeof initWhisper>>;
+
+      let context: WhisperContext | null = null;
+
+      parentPort?.on('message', async (msg: any) => {
+        try {
+          switch (msg.type) {
+            case 'init': {
+              if (context) {
+                await context.release();
+              }
+              context = await initWhisper({ filePath: msg.modelPath });
+              parentPort?.postMessage({ type: 'ready' });
+              break;
+            }
+
+            case 'transcribe': {
+              if (!context) {
+                parentPort?.postMessage({
+                  type: 'error',
+                  message: 'Worker not initialized. Send init message first.',
+                });
+                return;
+              }
+
+              const { promise } = context.transcribeData(msg.audioData, {
+                language: 'en',
+              });
+
+              const result = await promise;
+
+              parentPort?.postMessage({
+                type: 'result',
+                text: result.result,
+                segments: result.segments,
+                segmentIndex: msg.segmentIndex,
+                startTimeMs: msg.startTimeMs,
+              });
+              break;
+            }
+
+            case 'stop': {
+              if (context) {
+                await context.release();
+                context = null;
+              }
+              parentPort?.postMessage({ type: 'stopped' });
+              break;
+            }
+          }
+        } catch (error) {
+          parentPort?.postMessage({
+            type: 'error',
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      });
+      ```
+
+      ## Step 3: Add worker as build entry in forge.config.ts
+
+      In `forge.config.ts`, add the worker as a second build entry alongside main.ts:
+
+      ```typescript
+      build: [
+        {
+          entry: 'src/main/main.ts',
+          config: 'vite.main.config.ts',
+          target: 'main',
+        },
+        {
+          entry: 'src/main/workers/transcriptionWorker.ts',
+          config: 'vite.main.config.ts',
+        },
+        {
+          entry: 'src/preload/preload.ts',
+          config: 'vite.preload.config.ts',
+          target: 'preload',
+        },
+      ],
+      ```
+
+      IMPORTANT: The worker entry does NOT have a `target` property — it's just an additional
+      build that produces a JS file in the same output directory as main.js. This way,
+      `path.join(__dirname, 'transcriptionWorker.js')` from the main process resolves correctly.
+
+      VERIFY: After making this change, check that `npm run build` (or `npx electron-forge build`)
+      produces both `main.js` and `transcriptionWorker.js` in the `.vite/build/` directory.
+      If the plugin doesn't support entries without a target, we may need an alternative approach
+      (see assumptions below).
+
+      IMPORTANT: Check the `@fugood/whisper.node` native addon. Since it's a native Node.js addon
+      (.node file), it may need to be externalized from the Vite bundle. In `vite.main.config.ts`,
+      add:
+      ```typescript
+      export default defineConfig({
+        build: {
+          rollupOptions: {
+            external: ['@fugood/whisper.node'],
+          },
+        },
+      });
+      ```
+      This tells Vite not to bundle the native addon — it will be resolved at runtime from
+      node_modules. Also check if `wavefile` or other packages need the same treatment. If the
+      current build works without externals for wavefile, it's fine — wavefile is pure JS.
+
+      Actually, check the current vite.main.config.ts first. If it already has externals configured
+      by the Forge plugin, we may just need to add to the list. If not, configure it.
+    </action>
+    <verify>
+      1. Run `npx tsc --noEmit` — no TypeScript errors
+      2. Verify whisperModelManager.ts exports: getModelsDir, getModelPath, isModelAvailable, getLocalModels, getDefaultModelPath, downloadModel, AVAILABLE_MODELS
+      3. Verify transcriptionWorker.ts handles 3 message types: init, transcribe, stop
+      4. Verify forge.config.ts has 3 build entries (main, worker, preload)
+      5. Run `npx electron-forge build` or check that `npm run make` doesn't break (if too slow, at minimum verify the forge config is valid JSON/TS)
+      6. Verify vite.main.config.ts externalizes @fugood/whisper.node (native addon)
+    </verify>
+    <done>
+      Whisper model manager can download models from HuggingFace with progress tracking.
+      Transcription worker thread handles init (load model) → transcribe (PCM → text) → stop
+      (release). Forge config updated to build worker as separate JS file. Native addon
+      externalized in Vite config. TypeScript compiles clean.
+    </done>
+    <confidence>MEDIUM</confidence>
+    <assumptions>
+      - Electron Forge VitePlugin supports build entries without `target` property (need to verify)
+      - @fugood/whisper.node works inside a worker_threads Worker (native addons generally do)
+      - HuggingFace model URLs follow pattern: /ggerganov/whisper.cpp/resolve/main/{fileName}
+      - initWhisper can be called inside a worker thread (not just main thread)
+      - path.join(__dirname, 'transcriptionWorker.js') resolves correctly in the Vite build output
+      - @fugood/whisper.node needs to be externalized from Vite bundle (native .node addon)
+    </assumptions>
+  </task>
+
+  <task type="auto" n="2">
+    <n>Create transcription service and integrate with audio pipeline</n>
+    <files>
+      src/main/services/transcriptionService.ts (create — chunk accumulation, worker dispatch, result handling)
+      src/main/services/audioProcessor.ts (modify — forward chunks to transcription, update lastTranscript)
+      src/main/ipc/recording.ts (modify — initialize transcription, push transcript segments to renderer)
+    </files>
+    <preconditions>
+      - Task 1 completed (whisperModelManager + transcriptionWorker + forge config)
+      - meetingService.addTranscriptSegment() exists (Plan 4.1)
+      - audioProcessor.addChunk() receives PCM from renderer (Plan 4.2)
+    </preconditions>
+    <action>
+      Create the transcription service that orchestrates the chunked transcription pipeline,
+      and integrate it with the existing audio processor and recording IPC.
+
+      WHY: The audio processor currently only accumulates chunks for WAV saving. We need to also
+      feed those chunks into the transcription pipeline for near-real-time transcription. The
+      transcription service is the "brain" that accumulates 10-second segments, dispatches them
+      to the worker, saves results to DB, and pushes them to the renderer.
+
+      ## Step 1: Create transcriptionService.ts
+
+      Create `src/main/services/transcriptionService.ts`:
+
+      ```typescript
+      // === FILE PURPOSE ===
+      // Transcription service — accumulates PCM chunks into 10-second segments,
+      // dispatches them to the whisper worker thread, saves results to DB,
+      // and pushes segments to the renderer.
+      //
+      // === DEPENDENCIES ===
+      // worker_threads (Worker), whisperModelManager, meetingService, electron (BrowserWindow)
+      //
+      // === LIMITATIONS ===
+      // - Sequential transcription (one segment at a time in the worker)
+      // - Fixed 10-second segments (no VAD-based splitting)
+      // - English-only for v1 (language is hardcoded in worker)
+
+      import { Worker } from 'worker_threads';
+      import { BrowserWindow } from 'electron';
+      import path from 'node:path';
+      import * as meetingService from './meetingService';
+      import * as whisperModelManager from './whisperModelManager';
+
+      const SAMPLE_RATE = 16000;
+      const SEGMENT_DURATION_SEC = 10;
+      const SAMPLES_PER_SEGMENT = SAMPLE_RATE * SEGMENT_DURATION_SEC; // 160,000
+      const BYTES_PER_SEGMENT = SAMPLES_PER_SEGMENT * 2; // 320,000 (Int16 = 2 bytes)
+
+      let worker: Worker | null = null;
+      let mainWindow: BrowserWindow | null = null;
+      let currentMeetingId: string | null = null;
+      let accumulatorBuffer: Buffer = Buffer.alloc(0);
+      let segmentIndex = 0;
+      let lastTranscriptText = '';
+      let pendingSegments: Buffer[] = []; // Queue of segments waiting to be transcribed
+      let transcribing = false;
 
       export function setMainWindow(win: BrowserWindow): void {
         mainWindow = win;
       }
 
-      export function isRecording(): boolean {
-        return currentMeetingId !== null;
+      export function getLastTranscript(): string {
+        return lastTranscriptText;
       }
 
-      export function startRecording(meetingId: string): void {
-        if (currentMeetingId) {
-          throw new Error('Already recording. Stop current recording first.');
+      /**
+       * Start the transcription pipeline for a recording session.
+       * Spawns a worker, loads the whisper model, and prepares for chunk ingestion.
+       */
+      export async function start(meetingId: string): Promise<void> {
+        const modelPath = whisperModelManager.getDefaultModelPath();
+        if (!modelPath) {
+          console.log('[Transcription] No whisper model available. Skipping transcription.');
+          return;
         }
+
         currentMeetingId = meetingId;
-        chunks = [];
-        startTime = Date.now();
+        accumulatorBuffer = Buffer.alloc(0);
+        segmentIndex = 0;
+        lastTranscriptText = '';
+        pendingSegments = [];
+        transcribing = false;
 
-        // Push state updates to renderer every second
-        stateTimer = setInterval(() => {
-          pushState();
-        }, 1000);
+        // Spawn worker
+        const workerPath = path.join(__dirname, 'transcriptionWorker.js');
+        worker = new Worker(workerPath);
 
-        // Push initial state immediately
-        pushState();
+        // Handle messages from worker
+        worker.on('message', handleWorkerMessage);
+        worker.on('error', (err) => {
+          console.error('[Transcription] Worker error:', err);
+        });
+
+        // Initialize whisper in the worker
+        await new Promise<void>((resolve, reject) => {
+          const onMessage = (msg: any) => {
+            if (msg.type === 'ready') {
+              worker?.off('message', onMessage);
+              resolve();
+            } else if (msg.type === 'error') {
+              worker?.off('message', onMessage);
+              reject(new Error(msg.message));
+            }
+          };
+          worker!.on('message', onMessage);
+          worker!.postMessage({ type: 'init', modelPath });
+        });
+
+        // Re-attach the main message handler (was temporarily replaced during init)
+        worker.on('message', handleWorkerMessage);
+        console.log(`[Transcription] Started with model: ${path.basename(modelPath)}`);
       }
 
+      /**
+       * Feed a PCM chunk into the transcription pipeline.
+       * Accumulates chunks and dispatches 10-second segments to the worker.
+       */
       export function addChunk(chunk: Buffer): void {
-        if (!currentMeetingId) return; // Ignore chunks when not recording
-        chunks.push(chunk);
+        if (!worker || !currentMeetingId) return;
+
+        accumulatorBuffer = Buffer.concat([accumulatorBuffer, chunk]);
+
+        // When we have enough for a full segment, queue it
+        while (accumulatorBuffer.byteLength >= BYTES_PER_SEGMENT) {
+          const segment = accumulatorBuffer.subarray(0, BYTES_PER_SEGMENT);
+          pendingSegments.push(Buffer.from(segment)); // Copy to avoid reference issues
+          accumulatorBuffer = accumulatorBuffer.subarray(BYTES_PER_SEGMENT);
+          dispatchNext();
+        }
       }
 
-      export async function stopRecording(): Promise<string> {
-        if (!currentMeetingId) {
-          throw new Error('Not currently recording.');
+      /**
+       * Stop the transcription pipeline. Transcribes any remaining audio, then terminates.
+       */
+      export async function stop(): Promise<void> {
+        if (!worker) return;
+
+        // Transcribe remaining accumulated audio (partial segment)
+        if (accumulatorBuffer.byteLength > 0 && currentMeetingId) {
+          pendingSegments.push(Buffer.from(accumulatorBuffer));
+          accumulatorBuffer = Buffer.alloc(0);
+          dispatchNext();
         }
 
-        // Stop timer
-        if (stateTimer) {
-          clearInterval(stateTimer);
-          stateTimer = null;
-        }
+        // Wait for pending transcriptions to finish
+        await waitForPending();
 
-        const meetingId = currentMeetingId;
+        // Terminate worker
+        worker.postMessage({ type: 'stop' });
+        await worker.terminate();
+        worker = null;
         currentMeetingId = null;
-
-        // Combine all chunks into a single buffer
-        const combined = Buffer.concat(chunks);
-        chunks = []; // Free memory
-
-        // Save WAV file
-        const audioPath = await saveWav(meetingId, combined);
-
-        // Push stopped state
-        pushState();
-
-        return audioPath;
+        console.log('[Transcription] Stopped');
       }
 
-      async function saveWav(meetingId: string, pcmBuffer: Buffer): Promise<string> {
-        const dir = getRecordingsDir();
-        fs.mkdirSync(dir, { recursive: true });
+      /** Dispatch the next pending segment to the worker if not already transcribing */
+      function dispatchNext(): void {
+        if (transcribing || pendingSegments.length === 0 || !worker) return;
 
-        const filePath = path.join(dir, `${meetingId}.wav`);
+        transcribing = true;
+        const segment = pendingSegments.shift()!;
+        const startTimeMs = segmentIndex * SEGMENT_DURATION_SEC * 1000;
 
-        // Convert Buffer to Int16Array
-        const int16 = new Int16Array(
-          pcmBuffer.buffer,
-          pcmBuffer.byteOffset,
-          pcmBuffer.byteLength / 2,
+        // Convert Buffer to ArrayBuffer for transfer
+        const arrayBuffer = segment.buffer.slice(
+          segment.byteOffset,
+          segment.byteOffset + segment.byteLength,
         );
 
-        // Create WAV: 1 channel (mono), 16kHz, 16-bit PCM
-        const wav = new WaveFile();
-        wav.fromScratch(1, 16000, '16', int16);
-
-        fs.writeFileSync(filePath, wav.toBuffer());
-        console.log(`[Audio] Saved WAV: ${filePath} (${(pcmBuffer.byteLength / 1024).toFixed(0)} KB)`);
-
-        return filePath;
+        worker.postMessage(
+          {
+            type: 'transcribe',
+            audioData: arrayBuffer,
+            segmentIndex,
+            startTimeMs,
+          },
+          [arrayBuffer], // Transfer ownership (zero-copy)
+        );
+        segmentIndex++;
       }
 
-      function pushState(): void {
-        if (!mainWindow || mainWindow.isDestroyed()) return;
+      /** Handle messages from the transcription worker */
+      async function handleWorkerMessage(msg: any): Promise<void> {
+        if (msg.type === 'result') {
+          transcribing = false;
 
-        const state: RecordingState = {
-          isRecording: currentMeetingId !== null,
-          meetingId: currentMeetingId,
-          elapsed: currentMeetingId ? Math.floor((Date.now() - startTime) / 1000) : 0,
-          lastTranscript: '', // Plan 4.3 will populate this
-        };
+          if (msg.text && msg.text.trim() && currentMeetingId) {
+            const text = msg.text.trim();
+            lastTranscriptText = text;
 
-        mainWindow.webContents.send('recording:state-update', state);
+            // Save each segment to the database
+            for (const seg of msg.segments) {
+              if (!seg.text.trim()) continue;
+              const segStartMs = msg.startTimeMs + seg.t0;
+              const segEndMs = msg.startTimeMs + seg.t1;
+
+              try {
+                const saved = await meetingService.addTranscriptSegment(
+                  currentMeetingId,
+                  seg.text.trim(),
+                  segStartMs,
+                  segEndMs,
+                );
+
+                // Push segment to renderer
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                  mainWindow.webContents.send('recording:transcript-segment', saved);
+                }
+              } catch (err) {
+                console.error('[Transcription] Failed to save segment:', err);
+              }
+            }
+          }
+
+          // Process next pending segment
+          dispatchNext();
+        } else if (msg.type === 'error') {
+          console.error('[Transcription] Worker error:', msg.message);
+          transcribing = false;
+          dispatchNext(); // Try next segment
+        }
+      }
+
+      /** Wait for all pending transcriptions to complete */
+      function waitForPending(): Promise<void> {
+        return new Promise((resolve) => {
+          const check = () => {
+            if (!transcribing && pendingSegments.length === 0) {
+              resolve();
+            } else {
+              setTimeout(check, 200);
+            }
+          };
+          check();
+        });
       }
       ```
 
-      IMPORTANT: Check if `wavefile` exports `WaveFile` as a named export or default export.
-      The npm package typically uses: `import { WaveFile } from 'wavefile';` but verify by
-      checking `node_modules/wavefile/index.js` or type declarations. If it's a default export,
-      use `import WaveFile from 'wavefile';` instead.
+      ## Step 2: Modify audioProcessor.ts
 
-      ## Step 3: Create recording IPC handlers
+      In `src/main/services/audioProcessor.ts`:
 
-      Create `src/main/ipc/recording.ts`:
+      1. Import the transcription service:
+         ```typescript
+         import * as transcriptionService from './transcriptionService';
+         ```
 
-      ```typescript
-      // === FILE PURPOSE ===
-      // IPC handlers for audio recording control and streaming.
-      // Coordinates between audioProcessor (raw audio) and meetingService (DB).
+      2. In `setMainWindow()`, also set the window on transcription service:
+         ```typescript
+         export function setMainWindow(win: BrowserWindow): void {
+           mainWindow = win;
+           transcriptionService.setMainWindow(win);
+         }
+         ```
 
-      import { ipcMain, BrowserWindow } from 'electron';
-      import * as audioProcessor from '../services/audioProcessor';
-      import * as meetingService from '../services/meetingService';
+      3. In `startRecording()`, after resetting state, start transcription:
+         ```typescript
+         // After: pushState();
+         // Start transcription pipeline (non-blocking, may skip if no model)
+         transcriptionService.start(meetingId).catch((err) => {
+           console.error('[Audio] Transcription start failed:', err);
+         });
+         ```
 
-      export function registerRecordingHandlers(mainWindow: BrowserWindow): void {
-        // Pass the window reference to audioProcessor for state push events
-        audioProcessor.setMainWindow(mainWindow);
+      4. In `addChunk()`, also forward to transcription service:
+         ```typescript
+         export function addChunk(chunk: Buffer): void {
+           if (!currentMeetingId) return;
+           chunks.push(chunk);
+           transcriptionService.addChunk(chunk);
+         }
+         ```
 
-        ipcMain.handle('recording:start', async (_event, meetingId: string) => {
-          audioProcessor.startRecording(meetingId);
-        });
+      5. In `stopRecording()`, stop transcription before concatenating chunks:
+         ```typescript
+         // After clearing the stateTimer, before concatenating chunks:
+         await transcriptionService.stop();
+         ```
 
-        ipcMain.handle('recording:stop', async () => {
-          const audioPath = await audioProcessor.stopRecording();
-          // audioPath is returned but the renderer will update the meeting
-          // via meetingService.updateMeeting separately if needed
-          return audioPath;
-        });
+      6. In `pushState()`, update lastTranscript from transcription service:
+         ```typescript
+         lastTranscript: transcriptionService.getLastTranscript(),
+         ```
 
-        // One-way audio chunk streaming (no response needed)
-        ipcMain.on('audio:chunk', (_event, chunk: Buffer) => {
-          audioProcessor.addChunk(chunk);
-        });
-      }
-      ```
+      ## Step 3: Modify recording.ts IPC
 
-      Note: `registerRecordingHandlers` takes `mainWindow: BrowserWindow` — same pattern as
-      `registerWindowControlHandlers`.
+      The recording IPC handlers don't need structural changes — the transcription integration
+      happens inside audioProcessor → transcriptionService. But verify that transcript segments
+      are being pushed via `recording:transcript-segment` (which is already handled by
+      transcriptionService directly using the mainWindow reference).
 
-      ## Step 4: Register in IPC index
-
-      In `src/main/ipc/index.ts`:
-      - Add import: `import { registerRecordingHandlers } from './recording';`
-      - Add call: `registerRecordingHandlers(mainWindow);` (passing mainWindow, same as
-        registerWindowControlHandlers)
-
-      ## Step 5: Extend preload bridge
-
-      In `src/preload/preload.ts`, add after the Meetings section:
-
-      ```typescript
-      // Recording
-      startRecording: (meetingId: string) =>
-        ipcRenderer.invoke('recording:start', meetingId),
-      stopRecording: () => ipcRenderer.invoke('recording:stop'),
-      sendAudioChunk: (buffer: ArrayBuffer) =>
-        ipcRenderer.send('audio:chunk', Buffer.from(buffer)),
-      enableLoopbackAudio: () => ipcRenderer.invoke('enable-loopback-audio'),
-      disableLoopbackAudio: () => ipcRenderer.invoke('disable-loopback-audio'),
-      onRecordingState: (callback: (state: any) => void) => {
-        const handler = (_event: Electron.IpcRendererEvent, state: any) => {
-          callback(state);
-        };
-        ipcRenderer.on('recording:state-update', handler);
-        return () => {
-          ipcRenderer.removeListener('recording:state-update', handler);
-        };
-      },
-      onTranscriptSegment: (callback: (segment: any) => void) => {
-        const handler = (_event: Electron.IpcRendererEvent, segment: any) => {
-          callback(segment);
-        };
-        ipcRenderer.on('recording:transcript-segment', handler);
-        return () => {
-          ipcRenderer.removeListener('recording:transcript-segment', handler);
-        };
-      },
-      ```
-
-      Note: `enableLoopbackAudio` and `disableLoopbackAudio` invoke IPC handlers that are
-      auto-registered by electron-audio-loopback's `initMain()` — we do NOT need to create
-      these handlers ourselves.
-
-      Note: `sendAudioChunk` uses `ipcRenderer.send` (one-way), not `invoke` (request-response).
-      The `Buffer.from(buffer)` wraps the ArrayBuffer for IPC transport.
-
-      IMPORTANT: Verify that `Buffer` is available in the preload context. It should be
-      (preload has Node.js access), but if not, send the ArrayBuffer directly — Electron
-      can serialize it.
-
-      ## Step 6: Update stopRecording return type
-
-      The `stopRecording` IPC handler returns the audioPath string. Update the ElectronAPI
-      type if needed: `stopRecording: () => Promise<string>;`
-
-      Wait — the plan's type definition says `Promise<void>`. Let me keep it as `Promise<void>`
-      for simplicity since the renderer will update the meeting via meetingService separately.
-      If we need the path, we can change it later. The IPC handler can still return it — the
-      type just won't expose it.
-
-      Actually, let's return the path. Change the type to:
-      `stopRecording: () => Promise<string>;`
-      This is useful for the renderer to know where the WAV was saved.
+      No changes needed to recording.ts — the transcription service handles its own IPC push.
+      But verify the flow works end-to-end.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify audioProcessor.ts exports: setMainWindow, isRecording, startRecording, addChunk, stopRecording
-      3. Verify recording.ts registers 3 handlers: 'recording:start' (handle), 'recording:stop' (handle), 'audio:chunk' (on)
-      4. Verify ipc/index.ts imports and calls registerRecordingHandlers(mainWindow)
-      5. Verify preload.ts has: startRecording, stopRecording, sendAudioChunk, enableLoopbackAudio, disableLoopbackAudio, onRecordingState, onTranscriptSegment
-      6. Verify ElectronAPI interface has all 7 recording methods (uncommented)
-      7. Verify 'enable-loopback-audio' and 'disable-loopback-audio' are NOT manually registered (they're auto-registered by electron-audio-loopback)
+      2. Verify transcriptionService.ts exports: setMainWindow, getLastTranscript, start, addChunk, stop
+      3. Verify audioProcessor.ts imports and calls transcriptionService methods:
+         - setMainWindow passes window to transcriptionService
+         - startRecording calls transcriptionService.start()
+         - addChunk forwards to transcriptionService.addChunk()
+         - stopRecording calls transcriptionService.stop()
+         - pushState uses transcriptionService.getLastTranscript()
+      4. Verify transcription service accumulates chunks into ~10-second segments (BYTES_PER_SEGMENT = 320000)
+      5. Verify results flow: worker result → meetingService.addTranscriptSegment() → mainWindow.webContents.send('recording:transcript-segment', saved)
+      6. Verify worker uses transferable objects for ArrayBuffer (zero-copy)
     </verify>
     <done>
-      Audio processing service in main (accumulate, save WAV). Recording IPC handlers
-      (start, stop, chunk). Preload bridge extended with 7 recording methods including
-      loopback control. ElectronAPI interface fully typed. TypeScript compiles clean.
+      Transcription service orchestrates full pipeline: accumulate PCM → 10s segments →
+      worker dispatch → save to DB → push to renderer. Audio processor forwards chunks
+      to transcription service. LastTranscript updates in recording state. TypeScript
+      compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - electron-audio-loopback auto-registers 'enable-loopback-audio' and 'disable-loopback-audio' IPC handlers (confirmed in README)
-      - wavefile WaveFile constructor accepts Int16Array in fromScratch (verify import style)
-      - Buffer.from(arrayBuffer) works in preload context for IPC transport
-      - ipcMain.on (not handle) is correct for one-way audio:chunk streaming
-      - app.getPath('userData') returns writable directory on all platforms
-    </assumptions>
-  </task>
-
-  <task type="auto" n="2">
-    <n>Create audio capture bridge service in renderer</n>
-    <files>
-      src/renderer/services/audioCaptureService.ts (create — loopback + PCM extraction + IPC streaming)
-    </files>
-    <preconditions>
-      - Task 1 completed (recording IPC and preload methods available)
-      - electron-audio-loopback initialized in main process
-    </preconditions>
-    <action>
-      Create the renderer-side audio capture service that handles the entire flow from system
-      audio to PCM chunks sent to main.
-
-      WHY: The renderer is the only process with access to Web Audio API (AudioContext,
-      MediaStream, ScriptProcessorNode). It captures system audio via the patched getDisplayMedia,
-      extracts raw PCM, converts to Int16, and streams chunks to the main process. The renderer
-      is intentionally thin — just a bridge between Web Audio and IPC.
-
-      ## Create src/renderer/services/audioCaptureService.ts
-
-      ```typescript
-      // === FILE PURPOSE ===
-      // Audio capture bridge — thin layer that captures system audio via
-      // electron-audio-loopback, extracts PCM via ScriptProcessorNode,
-      // and streams Int16 chunks to the main process via IPC.
-      //
-      // === DEPENDENCIES ===
-      // Web Audio API (AudioContext, ScriptProcessorNode), window.electronAPI
-      //
-      // === LIMITATIONS ===
-      // - Uses deprecated ScriptProcessorNode (migrate to AudioWorklet in v2)
-      // - Single recording at a time
-      // - getDisplayMedia shows system picker dialog (user must select screen)
-      // - No audio level metering (future enhancement)
-
-      const SAMPLE_RATE = 16000;     // 16kHz for Whisper
-      const BUFFER_SIZE = 4096;      // ScriptProcessorNode buffer size (samples per callback)
-      const INPUT_CHANNELS = 1;      // Mono (browser handles stereo→mono downmix)
-      const OUTPUT_CHANNELS = 1;     // Mono output
-
-      let audioContext: AudioContext | null = null;
-      let mediaStream: MediaStream | null = null;
-      let sourceNode: MediaStreamAudioSourceNode | null = null;
-      let processorNode: ScriptProcessorNode | null = null;
-
-      /**
-       * Convert Float32 audio samples to Int16 PCM.
-       * Clamps values to [-1, 1] range before scaling.
-       */
-      function float32ToInt16(float32: Float32Array): Int16Array {
-        const int16 = new Int16Array(float32.length);
-        for (let i = 0; i < float32.length; i++) {
-          const s = Math.max(-1, Math.min(1, float32[i]));
-          int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-        }
-        return int16;
-      }
-
-      /**
-       * Start capturing system audio.
-       *
-       * Flow:
-       * 1. Enable loopback audio (patches getDisplayMedia)
-       * 2. Call getDisplayMedia (shows system picker — user selects screen)
-       * 3. Remove video tracks (we only need audio)
-       * 4. Disable loopback (restore normal getDisplayMedia)
-       * 5. Create AudioContext at 16kHz (browser resamples automatically)
-       * 6. Connect: MediaStreamSource → ScriptProcessorNode
-       * 7. On each audio buffer: convert Float32→Int16, send to main via IPC
-       *
-       * @throws If user cancels the picker dialog or audio capture fails
-       */
-      export async function startCapture(): Promise<void> {
-        if (audioContext) {
-          throw new Error('Already capturing. Call stopCapture() first.');
-        }
-
-        // Step 1: Enable loopback (patches getDisplayMedia to include system audio)
-        await window.electronAPI.enableLoopbackAudio();
-
-        try {
-          // Step 2: Get system audio via patched getDisplayMedia
-          // IMPORTANT: video: true is REQUIRED by the API even though we don't want video
-          mediaStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: true,
-          });
-        } catch (error) {
-          // User cancelled the picker dialog or permission denied
-          await window.electronAPI.disableLoopbackAudio();
-          throw error;
-        }
-
-        // Step 3: Remove video tracks (we only need audio)
-        mediaStream.getVideoTracks().forEach((track) => {
-          track.stop();
-          mediaStream!.removeTrack(track);
-        });
-
-        // Step 4: Disable loopback (restores normal getDisplayMedia behavior)
-        await window.electronAPI.disableLoopbackAudio();
-
-        // Verify we have audio tracks
-        const audioTracks = mediaStream.getAudioTracks();
-        if (audioTracks.length === 0) {
-          cleanup();
-          throw new Error('No audio tracks in captured stream.');
-        }
-
-        // Step 5: Create AudioContext at 16kHz — browser handles resampling from 48kHz
-        audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
-
-        // Step 6: Connect audio pipeline
-        sourceNode = audioContext.createMediaStreamSource(mediaStream);
-        processorNode = audioContext.createScriptProcessor(
-          BUFFER_SIZE,
-          INPUT_CHANNELS,
-          OUTPUT_CHANNELS,
-        );
-
-        // Step 7: Extract PCM and send to main
-        processorNode.onaudioprocess = (event: AudioProcessingEvent) => {
-          const float32Data = event.inputBuffer.getChannelData(0);
-          const int16Data = float32ToInt16(float32Data);
-          // Send raw Int16 PCM bytes to main process (one-way, fire-and-forget)
-          window.electronAPI.sendAudioChunk(int16Data.buffer);
-        };
-
-        sourceNode.connect(processorNode);
-        // Connect to destination to keep the processor running
-        // (ScriptProcessorNode requires being connected to output)
-        processorNode.connect(audioContext.destination);
-
-        console.log('[AudioCapture] Started — 16kHz mono Int16 PCM');
-      }
-
-      /**
-       * Stop capturing audio and clean up all resources.
-       */
-      export async function stopCapture(): Promise<void> {
-        cleanup();
-        console.log('[AudioCapture] Stopped');
-      }
-
-      /**
-       * Check if currently capturing.
-       */
-      export function isCapturing(): boolean {
-        return audioContext !== null;
-      }
-
-      /**
-       * Internal cleanup — disconnect nodes, stop tracks, close context.
-       */
-      function cleanup(): void {
-        if (processorNode) {
-          processorNode.disconnect();
-          processorNode.onaudioprocess = null;
-          processorNode = null;
-        }
-        if (sourceNode) {
-          sourceNode.disconnect();
-          sourceNode = null;
-        }
-        if (mediaStream) {
-          mediaStream.getTracks().forEach((track) => track.stop());
-          mediaStream = null;
-        }
-        if (audioContext) {
-          audioContext.close().catch(() => {});
-          audioContext = null;
-        }
-      }
-      ```
-
-      ## Key implementation notes:
-
-      - **AudioContext({ sampleRate: 16000 })**: This tells the browser to run the audio graph
-        at 16kHz. The MediaStreamSource input at 48kHz is automatically resampled to 16kHz by
-        the browser's audio engine. This means every chunk we get from the ScriptProcessorNode
-        is already at 16kHz — no manual resampling needed.
-
-      - **ScriptProcessorNode(4096, 1, 1)**: Buffer of 4096 samples at 16kHz = ~256ms per chunk.
-        Each callback fires every 256ms, sending ~8KB of Int16 data (4096 * 2 bytes). This is
-        ~32KB/s total, which is negligible IPC overhead.
-
-      - **float32ToInt16**: Clamps to [-1, 1] to prevent distortion, then scales to Int16 range
-        (-32768 to +32767). This is the standard conversion formula.
-
-      - **cleanup()**: Comprehensive — disconnects nodes, stops all tracks, closes AudioContext.
-        Called on both normal stop and error paths.
-
-      - **Error handling**: If the user cancels the picker dialog, `getDisplayMedia` throws
-        (NotAllowedError). We catch this, disable loopback, and re-throw so the caller
-        (recording store/UI) can show an appropriate message.
-
-      ## IMPORTANT VERIFICATION:
-      - Check that `new AudioContext({ sampleRate: 16000 })` is accepted in Electron 40.x
-        (Chromium supports arbitrary sample rates since ~v74). If it throws, fallback:
-        create AudioContext without sampleRate option and do manual resampling.
-      - Check that `processorNode.connect(audioContext.destination)` doesn't play the audio
-        through speakers (it shouldn't — we're connecting to a virtual destination, and the
-        ScriptProcessorNode doesn't modify the audio). If audio plays back, create a
-        GainNode with gain=0 as the destination instead.
-    </action>
-    <verify>
-      1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify audioCaptureService.ts exports: startCapture, stopCapture, isCapturing
-      3. Verify the service uses window.electronAPI methods (enableLoopbackAudio, disableLoopbackAudio, sendAudioChunk)
-      4. Verify cleanup handles all resources (audioContext, mediaStream, sourceNode, processorNode)
-      5. Verify float32ToInt16 conversion clamps values correctly
-      6. Verify SAMPLE_RATE is 16000 (matches main process's WAV creation)
-    </verify>
-    <done>
-      Audio capture bridge in renderer. Handles full flow: loopback enable → getDisplayMedia
-      → PCM extraction at 16kHz mono → Int16 conversion → IPC streaming to main.
-      Proper cleanup on stop. TypeScript compiles clean.
-    </done>
-    <confidence>MEDIUM</confidence>
-    <assumptions>
-      - AudioContext({ sampleRate: 16000 }) works in Electron 40.x Chromium (should — Chromium 74+)
-      - ScriptProcessorNode still works in Electron 40.x (deprecated but not removed)
-      - getDisplayMedia({ video: true, audio: true }) with loopback returns system audio track
-      - Connecting ScriptProcessorNode to destination doesn't play audio through speakers
-      - Float32 channel data from ScriptProcessorNode is in [-1, 1] range (standard)
-      - Browser handles 48kHz→16kHz resampling when AudioContext sampleRate is set
+      - transcriptionService.start() is non-blocking (awaited in background, recording continues even if model unavailable)
+      - Worker path resolves correctly: path.join(__dirname, 'transcriptionWorker.js')
+      - meetingService.addTranscriptSegment() works during active recording (DB writes don't block)
+      - Buffer.concat for accumulation is efficient enough at these sizes (320KB segments)
+      - Transferable ArrayBuffer works with worker_threads postMessage
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Create recording Zustand store and recording UI components</n>
+    <n>Add whisper model management types, IPC handlers, and preload bridge</n>
     <files>
-      src/renderer/stores/recordingStore.ts (create — Zustand store for recording state)
-      src/renderer/components/RecordingControls.tsx (create — start/stop/timer UI)
-      src/renderer/components/RecordingIndicator.tsx (create — sidebar recording badge)
-      src/renderer/components/Sidebar.tsx (modify — add RecordingIndicator)
+      src/shared/types.ts (modify — add WhisperModel types + model management methods to ElectronAPI)
+      src/main/ipc/whisper.ts (create — IPC handlers for model management)
+      src/main/ipc/index.ts (modify — register whisper handlers)
+      src/preload/preload.ts (modify — add model management bridge methods)
     </files>
     <preconditions>
-      - Task 1 completed (preload bridge has recording methods)
-      - Task 2 completed (audioCaptureService available)
-      - Meeting types available in shared/types.ts
+      - Task 1 completed (whisperModelManager exists)
+      - Task 2 completed (transcription pipeline works)
     </preconditions>
     <action>
-      Create the recording state management and UI components.
+      Add the IPC layer for whisper model management so the renderer can check model
+      availability, trigger downloads, and track download progress.
 
-      WHY: Users need a way to start/stop recordings and see recording status. The Zustand
-      store coordinates between the audio capture service (renderer) and the recording
-      backend (main process). The RecordingIndicator in the sidebar provides always-visible
-      status so users know a recording is active regardless of which page they're on.
+      WHY: The renderer needs to know if a whisper model is available before starting a
+      recording with transcription. If no model is installed, it should show a download
+      prompt. The model download progress needs to be pushed to the renderer for UI feedback.
 
-      ## Step 1: Create recordingStore.ts
+      ## Step 1: Update shared/types.ts
 
-      Create `src/renderer/stores/recordingStore.ts`:
+      Add whisper model types after the existing meeting types section:
+
+      ```typescript
+      // === WHISPER MODEL TYPES ===
+
+      export interface WhisperModel {
+        name: string;           // e.g., 'base.en'
+        fileName: string;       // e.g., 'ggml-base.en.bin'
+        size: string;           // Human-readable: '74 MB'
+        description: string;
+        available: boolean;     // true if downloaded locally
+      }
+
+      export interface WhisperDownloadProgress {
+        fileName: string;
+        downloaded: number;     // bytes
+        total: number;          // bytes
+        percent: number;        // 0-100
+      }
+      ```
+
+      Add to the ElectronAPI interface (after the meeting recording methods):
+
+      ```typescript
+      // Whisper Models
+      getWhisperModels: () => Promise<WhisperModel[]>;
+      downloadWhisperModel: (fileName: string) => Promise<string>;
+      hasWhisperModel: () => Promise<boolean>;
+      onWhisperDownloadProgress: (callback: (progress: WhisperDownloadProgress) => void) => () => void;
+      ```
+
+      ## Step 2: Create whisper.ts IPC handlers
+
+      Create `src/main/ipc/whisper.ts`:
 
       ```typescript
       // === FILE PURPOSE ===
-      // Zustand store for recording state management.
-      // Coordinates audio capture (renderer) with recording backend (main).
+      // IPC handlers for whisper model management — list, download, check availability.
 
-      import { create } from 'zustand';
-      import * as audioCaptureService from '../services/audioCaptureService';
-      import type { RecordingState } from '../../shared/types';
+      import { ipcMain, BrowserWindow } from 'electron';
+      import * as whisperModelManager from '../services/whisperModelManager';
 
-      interface RecordingStore {
-        // State
-        isRecording: boolean;
-        meetingId: string | null;
-        elapsed: number;
-        lastTranscript: string;
-        error: string | null;
-        starting: boolean;   // True while start flow is in progress
+      export function registerWhisperHandlers(mainWindow: BrowserWindow): void {
+        ipcMain.handle('whisper:list-models', async () => {
+          return whisperModelManager.AVAILABLE_MODELS.map((m) => ({
+            ...m,
+            available: whisperModelManager.isModelAvailable(m.fileName),
+          }));
+        });
 
-        // Actions
-        startRecording: (title: string, projectId?: string) => Promise<void>;
-        stopRecording: () => Promise<void>;
-        initListener: () => () => void;  // Returns cleanup function
-      }
-
-      export const useRecordingStore = create<RecordingStore>((set, get) => ({
-        isRecording: false,
-        meetingId: null,
-        elapsed: 0,
-        lastTranscript: '',
-        error: null,
-        starting: false,
-
-        startRecording: async (title: string, projectId?: string) => {
-          set({ starting: true, error: null });
-          try {
-            // Step 1: Create meeting in DB
-            const meeting = await window.electronAPI.createMeeting({
-              title,
-              projectId,
-            });
-
-            // Step 2: Tell main process to start recording
-            await window.electronAPI.startRecording(meeting.id);
-
-            // Step 3: Start audio capture in renderer
-            await audioCaptureService.startCapture();
-
-            set({
-              isRecording: true,
-              meetingId: meeting.id,
-              elapsed: 0,
-              starting: false,
-            });
-          } catch (error) {
-            // Clean up if anything failed
-            const meetingId = get().meetingId;
-            if (meetingId) {
-              // If meeting was created but capture failed, delete it
-              try {
-                await window.electronAPI.stopRecording();
-              } catch { /* ignore */ }
-              try {
-                await window.electronAPI.deleteMeeting(meetingId);
-              } catch { /* ignore */ }
-            }
-            set({
-              isRecording: false,
-              meetingId: null,
-              starting: false,
-              error: error instanceof Error ? error.message : 'Failed to start recording',
-            });
-          }
-        },
-
-        stopRecording: async () => {
-          try {
-            // Step 1: Stop audio capture in renderer
-            await audioCaptureService.stopCapture();
-
-            // Step 2: Tell main process to stop recording (saves WAV)
-            const audioPath = await window.electronAPI.stopRecording();
-
-            // Step 3: Update meeting with audioPath and completion
-            const meetingId = get().meetingId;
-            if (meetingId) {
-              await window.electronAPI.updateMeeting(meetingId, {
-                endedAt: new Date().toISOString(),
-                audioPath,
-                status: 'completed',  // 'processing' when transcription is added in Plan 4.3
+        ipcMain.handle('whisper:download-model', async (_event, fileName: string) => {
+          const { promise } = whisperModelManager.downloadModel(fileName, (downloaded, total) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('whisper:download-progress', {
+                fileName,
+                downloaded,
+                total,
+                percent: total > 0 ? Math.round((downloaded / total) * 100) : 0,
               });
             }
-
-            set({
-              isRecording: false,
-              meetingId: null,
-              elapsed: 0,
-              lastTranscript: '',
-            });
-          } catch (error) {
-            set({
-              error: error instanceof Error ? error.message : 'Failed to stop recording',
-            });
-          }
-        },
-
-        initListener: () => {
-          // Listen for recording state updates from main process
-          const cleanup = window.electronAPI.onRecordingState((state: RecordingState) => {
-            set({
-              isRecording: state.isRecording,
-              meetingId: state.meetingId,
-              elapsed: state.elapsed,
-              lastTranscript: state.lastTranscript,
-            });
           });
-          return cleanup;
-        },
-      }));
+          return promise;
+        });
+
+        ipcMain.handle('whisper:has-model', async () => {
+          return whisperModelManager.getDefaultModelPath() !== null;
+        });
+      }
       ```
 
-      ## Step 2: Create RecordingControls.tsx
+      ## Step 3: Register in ipc/index.ts
 
-      Create `src/renderer/components/RecordingControls.tsx`:
+      Add import: `import { registerWhisperHandlers } from './whisper';`
+      Add call: `registerWhisperHandlers(mainWindow);` inside registerIpcHandlers().
 
-      A floating panel component for starting/stopping recordings. Includes:
-      - Meeting title input (required)
-      - Optional project selector (dropdown of existing projects)
-      - Start/Stop button
-      - Elapsed time display (MM:SS format)
-      - Error message display
+      ## Step 4: Extend preload bridge
+
+      In `src/preload/preload.ts`, add after the Recording section:
 
       ```typescript
-      // === FILE PURPOSE ===
-      // Recording control panel — start/stop recording with meeting title input.
-
-      import { useState, useEffect } from 'react';
-      import { Mic, Square, Loader2 } from 'lucide-react';
-      import { useRecordingStore } from '../stores/recordingStore';
-
-      function formatElapsed(seconds: number): string {
-        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-        const s = (seconds % 60).toString().padStart(2, '0');
-        return `${m}:${s}`;
-      }
-
-      export default function RecordingControls() {
-        const {
-          isRecording, elapsed, error, starting,
-          startRecording, stopRecording, initListener,
-        } = useRecordingStore();
-        const [title, setTitle] = useState('');
-
-        // Initialize recording state listener
-        useEffect(() => {
-          const cleanup = initListener();
-          return cleanup;
-        }, [initListener]);
-
-        const handleStart = async () => {
-          if (!title.trim()) return;
-          await startRecording(title.trim());
-          setTitle(''); // Reset for next recording
+      // Whisper Models
+      getWhisperModels: () => ipcRenderer.invoke('whisper:list-models'),
+      downloadWhisperModel: (fileName: string) =>
+        ipcRenderer.invoke('whisper:download-model', fileName),
+      hasWhisperModel: () => ipcRenderer.invoke('whisper:has-model'),
+      onWhisperDownloadProgress: (callback: (progress: any) => void) => {
+        const handler = (_event: Electron.IpcRendererEvent, progress: any) => {
+          callback(progress);
         };
-
-        const handleStop = async () => {
-          await stopRecording();
+        ipcRenderer.on('whisper:download-progress', handler);
+        return () => {
+          ipcRenderer.removeListener('whisper:download-progress', handler);
         };
-
-        return (
-          <div className="bg-surface-800 rounded-xl border border-surface-700 p-4">
-            {!isRecording ? (
-              // Start recording form
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-surface-200">
-                  <Mic size={18} />
-                  <span className="text-sm font-medium">New Recording</span>
-                </div>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Meeting title..."
-                  className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2
-                             text-sm text-surface-100 placeholder:text-surface-500
-                             focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  onKeyDown={(e) => e.key === 'Enter' && handleStart()}
-                  disabled={starting}
-                />
-                <button
-                  onClick={handleStart}
-                  disabled={!title.trim() || starting}
-                  className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500
-                             disabled:bg-surface-700 disabled:text-surface-500
-                             text-white rounded-lg px-3 py-2 text-sm font-medium
-                             transition-colors"
-                >
-                  {starting ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Starting...
-                    </>
-                  ) : (
-                    <>
-                      <Mic size={16} />
-                      Start Recording
-                    </>
-                  )}
-                </button>
-              </div>
-            ) : (
-              // Recording in progress
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-sm font-medium text-red-400">Recording</span>
-                  </div>
-                  <span className="text-lg font-mono text-surface-200">
-                    {formatElapsed(elapsed)}
-                  </span>
-                </div>
-                <button
-                  onClick={handleStop}
-                  className="w-full flex items-center justify-center gap-2 bg-surface-700
-                             hover:bg-surface-600 text-surface-200 rounded-lg px-3 py-2
-                             text-sm font-medium transition-colors"
-                >
-                  <Square size={14} />
-                  Stop Recording
-                </button>
-              </div>
-            )}
-            {error && (
-              <p className="mt-2 text-xs text-red-400">{error}</p>
-            )}
-          </div>
-        );
-      }
+      },
       ```
-
-      ## Step 3: Create RecordingIndicator.tsx
-
-      Create `src/renderer/components/RecordingIndicator.tsx`:
-
-      A small badge for the sidebar that shows recording status.
-
-      ```typescript
-      // === FILE PURPOSE ===
-      // Compact recording indicator for sidebar — pulsing dot + elapsed time.
-
-      import { useRecordingStore } from '../stores/recordingStore';
-
-      function formatElapsed(seconds: number): string {
-        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-        const s = (seconds % 60).toString().padStart(2, '0');
-        return `${m}:${s}`;
-      }
-
-      export default function RecordingIndicator() {
-        const { isRecording, elapsed } = useRecordingStore();
-
-        if (!isRecording) return null;
-
-        return (
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-500/20
-                          border border-red-500/30">
-            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-xs font-mono text-red-400">
-              {formatElapsed(elapsed)}
-            </span>
-          </div>
-        );
-      }
-      ```
-
-      ## Step 4: Add RecordingIndicator to Sidebar
-
-      In `src/renderer/components/Sidebar.tsx`, add the RecordingIndicator above the
-      theme toggle button (at the bottom of the sidebar). Import it:
-
-      ```typescript
-      import RecordingIndicator from './RecordingIndicator';
-      ```
-
-      Place `<RecordingIndicator />` in the bottom section of the sidebar (above the
-      theme cycle button), so it's always visible when recording is active.
-
-      Also wire up the `initListener` in the Sidebar or App.tsx — actually, the
-      RecordingControls component already calls `initListener()` in its useEffect. The
-      store state is shared, so the RecordingIndicator will automatically update.
-
-      IMPORTANT: Make sure `initListener()` is only called once. If RecordingControls
-      might unmount (e.g., when navigating away from the meetings page), consider calling
-      `initListener()` in App.tsx instead so the listener is always active.
-
-      The best approach: call `initListener()` in App.tsx (or the AppShell component).
-      This ensures recording state is always received regardless of which page is active.
-      The RecordingControls component just reads from the store.
-
-      ## Step 5: Initialize recording listener in App.tsx
-
-      In `src/renderer/App.tsx`, inside the AppShell component:
-
-      ```typescript
-      import { useRecordingStore } from './stores/recordingStore';
-
-      // Inside AppShell:
-      useEffect(() => {
-        const cleanup = useRecordingStore.getState().initListener();
-        return cleanup;
-      }, []);
-      ```
-
-      This ensures the main→renderer recording state updates are always received.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify recordingStore.ts exports useRecordingStore with: isRecording, meetingId, elapsed, startRecording, stopRecording, initListener
-      3. Verify RecordingControls.tsx renders start form (title input + button) when not recording
-      4. Verify RecordingControls.tsx renders stop button + elapsed timer when recording
-      5. Verify RecordingIndicator.tsx shows pulsing dot + time only when isRecording
-      6. Verify Sidebar.tsx imports and renders RecordingIndicator
-      7. Verify App.tsx (or AppShell) calls initListener() in useEffect
-      8. Verify recording state flows: main pushState → IPC → onRecordingState → store → UI
+      2. Verify shared/types.ts has WhisperModel and WhisperDownloadProgress types
+      3. Verify ElectronAPI has 4 whisper methods: getWhisperModels, downloadWhisperModel, hasWhisperModel, onWhisperDownloadProgress
+      4. Verify whisper.ts IPC handles 3 channels: whisper:list-models, whisper:download-model, whisper:has-model
+      5. Verify whisper:download-progress is pushed to renderer during download
+      6. Verify ipc/index.ts imports and calls registerWhisperHandlers(mainWindow)
+      7. Verify preload.ts has 4 whisper bridge methods matching ElectronAPI interface
     </verify>
     <done>
-      Recording Zustand store managing full recording lifecycle (create meeting → start
-      capture → stream audio → stop → save). RecordingControls component with title input,
-      start/stop, and timer. RecordingIndicator in sidebar with pulsing dot. Listener
-      initialized at app root for always-on recording state. TypeScript compiles clean.
+      Whisper model types in shared/types.ts. IPC handlers for model list, download with
+      progress, and availability check. Preload bridge wired. Renderer can now check for
+      models, trigger downloads, and receive progress updates. TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Zustand store follows the same pattern as settingsStore.ts (confirmed)
-      - Tailwind classes match existing design system (surface-* colors, primary-500)
-      - lucide-react icons available (Mic, Square, Loader2 — verify they exist)
-      - App.tsx has an AppShell component where useEffect can run (check actual structure)
-      - The recording state listener (onRecordingState) works the same as onWindowMaximizeChange
+      - HuggingFace download URLs are stable and follow the expected pattern
+      - https.get follows 302 redirects for HuggingFace CDN
+      - Content-Length header is provided by HuggingFace (for progress calculation)
+      - Download progress push via mainWindow.webContents.send works during download
     </assumptions>
   </task>
 </phase>

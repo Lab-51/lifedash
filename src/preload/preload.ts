@@ -135,4 +135,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('recording:transcript-segment', handler);
     };
   },
+
+  // Whisper Models
+  getWhisperModels: () => ipcRenderer.invoke('whisper:list-models'),
+  downloadWhisperModel: (fileName: string) =>
+    ipcRenderer.invoke('whisper:download-model', fileName),
+  hasWhisperModel: () => ipcRenderer.invoke('whisper:has-model'),
+  onWhisperDownloadProgress: (callback: (progress: any) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: any) => {
+      callback(progress);
+    };
+    ipcRenderer.on('whisper:download-progress', handler);
+    return () => {
+      ipcRenderer.removeListener('whisper:download-progress', handler);
+    };
+  },
 });

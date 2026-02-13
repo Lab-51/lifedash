@@ -6,7 +6,6 @@
 // electron (app, BrowserWindow), wavefile, node:fs, node:path
 //
 // === LIMITATIONS ===
-// - No transcription (Plan 4.3)
 // - No audio level metering
 // - Single recording at a time
 //
@@ -20,6 +19,7 @@ import { WaveFile } from 'wavefile';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { RecordingState } from '../../shared/types';
+import * as transcriptionService from './transcriptionService';
 
 let chunks: Buffer[] = [];
 let currentMeetingId: string | null = null;
@@ -33,6 +33,7 @@ function getRecordingsDir(): string {
 
 export function setMainWindow(win: BrowserWindow): void {
   mainWindow = win;
+  transcriptionService.setMainWindow(win);
 }
 
 export function isRecording(): boolean {
@@ -54,11 +55,17 @@ export function startRecording(meetingId: string): void {
 
   // Push initial state immediately
   pushState();
+
+  // Start transcription pipeline (non-blocking, may skip if no model)
+  transcriptionService.start(meetingId).catch((err) => {
+    console.error('[Audio] Transcription start failed:', err);
+  });
 }
 
 export function addChunk(chunk: Buffer): void {
   if (!currentMeetingId) return; // Ignore chunks when not recording
   chunks.push(chunk);
+  transcriptionService.addChunk(chunk);
 }
 
 export async function stopRecording(): Promise<string> {
@@ -71,6 +78,9 @@ export async function stopRecording(): Promise<string> {
     clearInterval(stateTimer);
     stateTimer = null;
   }
+
+  // Stop transcription pipeline (flushes remaining audio)
+  await transcriptionService.stop();
 
   const meetingId = currentMeetingId;
   currentMeetingId = null;
@@ -122,7 +132,7 @@ function pushState(): void {
     elapsed: currentMeetingId
       ? Math.floor((Date.now() - startTime) / 1000)
       : 0,
-    lastTranscript: '', // Plan 4.3 will populate this
+    lastTranscript: transcriptionService.getLastTranscript(),
   };
 
   mainWindow.webContents.send('recording:state-update', state);

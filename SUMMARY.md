@@ -1,73 +1,72 @@
-# Plan 4.2 Summary — Audio Capture Pipeline
+# Plan 4.3 Summary — Whisper Transcription Pipeline
 
 ## Date: 2026-02-13
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Implemented the complete audio capture pipeline: from system audio loopback to WAV file storage, with recording state management and UI components.
+Implemented the full Whisper transcription pipeline: model management, worker thread, transcription service, audio pipeline integration, and IPC/preload bridge for renderer access.
 
-### Task 1: Audio processor service + recording IPC + preload + types
+### Task 1: Whisper model manager and transcription worker thread
+**Status:** COMPLETE | **Confidence:** MEDIUM (worker bundling assumption)
+
+- Created whisperModelManager.ts: downloads GGML models from HuggingFace with redirect handling, progress callbacks, abort support. 6 models (tiny/base/small × English/multilingual).
+- Created transcriptionWorker.ts: worker thread running Whisper off the main event loop. Protocol: init → ready, transcribe → result, stop → stopped.
+- Updated forge.config.ts: added worker as second build entry (no `target`, alongside main.js).
+- Updated vite.main.config.ts: externalized `@fugood/whisper.node` (native addon).
+
+### Task 2: Transcription service and audio pipeline integration
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created audioProcessor.ts: accumulates PCM chunks, saves WAV via wavefile, pushes recording state to renderer every 1s
-- Created recording.ts IPC handlers: recording:start (handle), recording:stop (handle), audio:chunk (on — one-way)
-- Extended preload.ts with 7 recording methods (start, stop, chunk, loopback enable/disable, 2 event listeners)
-- Uncommented + expanded ElectronAPI recording methods (7 total)
-- Registered recording handlers in ipc/index.ts
+- Created transcriptionService.ts: orchestrates full pipeline — accumulates PCM chunks into 10-second segments (320KB), dispatches to worker via queue, saves results to DB, pushes to renderer.
+- Modified audioProcessor.ts: integrated transcription at all points (setMainWindow, startRecording, addChunk, stopRecording, pushState).
 
-### Task 2: Audio capture bridge service in renderer
-**Status:** COMPLETE | **Confidence:** MEDIUM (ScriptProcessorNode deprecated but functional)
-
-- Created audioCaptureService.ts: loopback enable → getDisplayMedia → strip video → disable loopback → AudioContext at 16kHz → ScriptProcessorNode → Float32→Int16 → IPC stream
-- Comprehensive cleanup on stop and error paths (4 resources: audioContext, mediaStream, sourceNode, processorNode)
-- Error recovery: disables loopback if user cancels picker dialog
-
-### Task 3: Recording Zustand store and UI components
+### Task 3: Whisper model types, IPC handlers, and preload bridge
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created recordingStore.ts: coordinates meeting CRUD + capture service + recording IPC
-- Created RecordingControls.tsx: title input + start/stop button + elapsed timer + error display
-- Created RecordingIndicator.tsx: sidebar pulsing dot + MM:SS time
-- Added RecordingIndicator to Sidebar.tsx (above theme toggle)
-- Added initListener in App.tsx AppShell (always-on recording state listener)
+- Created whisper.ts IPC handlers: 3 channels (list-models, download-model with progress push, has-model).
+- Extended shared/types.ts: WhisperModel, WhisperDownloadProgress types + 4 ElectronAPI methods.
+- Updated ipc/index.ts: registered whisper handlers.
+- Updated preload.ts: 4 whisper bridge methods.
 
-## Files Created (5)
-- `src/main/services/audioProcessor.ts` (~130 lines)
-- `src/main/ipc/recording.ts` (~41 lines)
-- `src/renderer/services/audioCaptureService.ts` (~155 lines)
-- `src/renderer/stores/recordingStore.ts` (~95 lines)
-- `src/renderer/components/RecordingControls.tsx` (~90 lines)
-- `src/renderer/components/RecordingIndicator.tsx` (~25 lines)
+## Files Created (4)
+- `src/main/services/whisperModelManager.ts` (~120 lines)
+- `src/main/services/transcriptionService.ts` (~215 lines)
+- `src/main/workers/transcriptionWorker.ts` (~65 lines)
+- `src/main/ipc/whisper.ts` (~40 lines)
 
-## Files Modified (4)
-- `src/shared/types.ts` — 7 recording methods in ElectronAPI (uncommented + expanded)
-- `src/main/ipc/index.ts` — registerRecordingHandlers import + call
-- `src/preload/preload.ts` — 7 recording bridge methods
-- `src/renderer/components/Sidebar.tsx` — RecordingIndicator
-- `src/renderer/App.tsx` — recording state listener init in AppShell
+## Files Modified (5)
+- `forge.config.ts` — worker build entry
+- `vite.main.config.ts` — native addon externalization
+- `src/main/services/audioProcessor.ts` — transcription service integration
+- `src/shared/types.ts` — WhisperModel types + ElectronAPI whisper methods
+- `src/main/ipc/index.ts` — registerWhisperHandlers
+- `src/preload/preload.ts` — 4 whisper bridge methods
 
-## Audio Pipeline Architecture
+## Transcription Pipeline Architecture
 ```
-Renderer                              Main Process
-┌──────────────────────┐       ┌──────────────────────┐
-│ RecordingControls    │       │                      │
-│ ↓ startRecording()   │       │                      │
-│ recordingStore       │──IPC──│ recording.ts handlers │
-│ ↓ startCapture()     │       │ ↓                    │
-│ audioCaptureService  │       │ audioProcessor.ts    │
-│ ↓ getDisplayMedia    │       │ ↓ accumulate chunks  │
-│ ScriptProcessorNode  │──IPC──│ ↓ save WAV           │
-│ Float32→Int16 chunks │ audio │ wavefile.fromScratch │
-│                      │       │ ↓ pushState()        │
-│ RecordingIndicator ←─│──IPC──│ state-update event   │
-└──────────────────────┘       └──────────────────────┘
+Renderer (audio chunks) → IPC → audioProcessor.addChunk()
+                                    ↓
+                          transcriptionService.addChunk()
+                                    ↓
+                          Accumulate 10s segments (320KB)
+                                    ↓
+                          Worker thread (Whisper transcription)
+                                    ↓
+                          meetingService.addTranscriptSegment() → DB
+                                    ↓
+                          mainWindow.webContents.send → Renderer
 ```
 
 ## Verification
-- `npx tsc --noEmit`: PASS (zero errors across all 3 tasks)
+- `npx tsc --noEmit`: PASS (zero errors after each task and final)
 - Sequential execution: Task 2 depends on Task 1, Task 3 depends on both
 
+## Assumptions to Verify at Runtime
+- Electron Forge VitePlugin supports build entries without `target` property
+- @fugood/whisper.node works inside worker_threads
+- path.join(__dirname, 'transcriptionWorker.js') resolves correctly in Vite build output
+- HuggingFace model URLs follow expected pattern and handle 302 redirects
+
 ## What's Next
-1. `/nexus:git` to commit Plan 4.2 changes
-2. `/nexus:plan 4.3` — Whisper transcription pipeline
-3. Plan 4.4 — Meetings UI page
+1. `/nexus:git` to commit Plan 4.3 changes
+2. `/nexus:plan 4.4` — Meetings UI page, transcript display, meeting ↔ project linking
