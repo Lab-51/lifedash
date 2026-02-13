@@ -77,17 +77,28 @@ export function registerBrainstormHandlers(): void {
     });
 
     let fullText = '';
-    for await (const chunk of result.textStream) {
-      fullText += chunk;
-      event.sender.send('brainstorm:stream-chunk', { sessionId: validSessionId, chunk });
+    try {
+      for await (const chunk of result.textStream) {
+        fullText += chunk;
+        event.sender.send('brainstorm:stream-chunk', { sessionId: validSessionId, chunk });
+      }
+    } catch (streamErr) {
+      // Some providers don't send proper finish signals, causing NoOutputGeneratedError
+      // If we already received text, treat the stream as successful
+      if (!fullText) throw streamErr;
+      log.warn('Stream ended with error but text was received:', streamErr instanceof Error ? streamErr.message : streamErr);
     }
 
-    // 5. Log usage (fire-and-forget)
+    if (!fullText.trim()) {
+      throw new Error('AI provider returned an empty response. Try again or check your provider settings.');
+    }
+
+    // 5. Log usage (fire-and-forget — some providers omit usage in streams)
     try {
       const usage = await result.usage;
       await logUsage(provider.providerId, provider.model, 'brainstorming', usage);
-    } catch (err) {
-      log.error('Failed to log usage:', err);
+    } catch {
+      log.debug('Usage data unavailable for this stream (provider may not support it)');
     }
 
     // 6. Save and return assistant message
