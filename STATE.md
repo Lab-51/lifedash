@@ -427,7 +427,7 @@ Plan 8.1 execution: HIGH (all 3 tasks verified, TypeScript clean, 12 tests passi
 1. Create README.md with project overview and developer quick start — DONE
 2. Implement within-column card reordering via drag-and-drop (pragmatic-drag-and-drop-hitbox) — DONE
 3. UI polish batch — BrainstormPage padding, getDueDateBadge extraction, restore confirmation — DONE
-- Not yet committed
+- Commit: b6e9841 on origin/main
 
 ## Plan 8.2 Execution Results
 - **Task 1**: Created README.md (122 lines) — project title, features list, prerequisites, quick start, 12 verified scripts table, tech stack with versions from package.json, project structure tree (verified against actual dirs), env vars from .env.example, configuration notes, honest license statement. All content verified against actual project files.
