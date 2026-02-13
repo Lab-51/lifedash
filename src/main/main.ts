@@ -84,7 +84,7 @@ const createWindow = async () => {
     ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434"
     : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434";
   const scriptSrc = isDev
-    ? "script-src 'self' 'unsafe-eval'"       // Vite HMR needs eval in dev
+    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"  // Vite HMR needs eval + React preamble needs inline in dev
     : "script-src 'self'";
 
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
