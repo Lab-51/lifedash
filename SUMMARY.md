@@ -1,50 +1,60 @@
-# Plan 6.1 Summary — Idea Repository: Service, Store & UI
+# Plan 6.2 Summary — Brainstorming: Schema, Service & Chat UI
 
 ## Date: 2026-02-13
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Built the complete Idea Repository feature (R12) — backend service, IPC bridge, Zustand store, full page UI with quick-add/filters/search, and detail modal with edit/tags/convert capabilities.
+Built the complete AI Brainstorming feature (R10) — backend with streaming AI, session management, conversational chat UI with markdown rendering, and export-to-ideas. This is the first feature to use streaming AI responses (`streamText` from AI SDK v6).
 
-### Task 1: Backend data layer (types, service, IPC, preload)
+### Task 1: Backend (schema, service, IPC, preload)
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Added 9 idea types to shared/types.ts: Idea, CreateIdeaInput, UpdateIdeaInput, IdeaStatus, EffortLevel, ImpactLevel, ConvertIdeaToCardInput, ConvertIdeaToProjectResult, ConvertIdeaToCardResult
-- Extended ElectronAPI with 7 idea methods
-- Created ideaService.ts: 7 exported functions (getIdeas, getIdea, createIdea, updateIdea, deleteIdea, convertIdeaToProject, convertIdeaToCard) + toIdea row mapper, loadTagsForIdeas bulk loader, replaceTags junction table manager
-- Created ideas.ts IPC handlers (7 channels), registered in index.ts
-- Extended preload.ts with 7 bridge methods
+- Created brainstorming.ts schema: 2 tables (brainstorm_sessions + brainstorm_messages), 2 enums
+- Added 6 brainstorm types + 8 ElectronAPI methods to shared/types.ts
+- Extracted resolveTaskModel + ResolvedProvider + DEFAULT_MODELS from meetingIntelligenceService.ts to ai-provider.ts
+- Added streamGenerate (streamText wrapper) + logUsage to ai-provider.ts
+- Created brainstormService.ts: 9 exports (getSessions, getSession, createSession, updateSession, deleteSession, addMessage, getMessages, buildContext, exportToIdea)
+- Created brainstorm.ts IPC handlers (7 channels) with streaming send-message via event.sender.send()
+- Registered handlers in ipc/index.ts, extended preload.ts with 8 bridge methods
+- Generated and applied Drizzle migration (0002_futuristic_christian_walker.sql)
 
-### Task 2: Store and page UI
+### Task 2: Store and chat UI
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created ideaStore.ts (100 lines): Zustand store with 8 actions (loadIdeas, loadIdea, createIdea, updateIdea, deleteIdea, clearSelectedIdea, convertToProject, convertToCard)
-- Replaced IdeasPage.tsx stub (269 lines): quick-add form, 5 filter tabs (All/New/Exploring/Active/Archived), search input with clear button, responsive 3-column grid, idea cards with status badges, tag pills, effort/impact indicators, loading/error/empty states
+- Created brainstormStore.ts (169 lines): Zustand with 8 actions, streaming chunk accumulator, optimistic user message display
+- Replaced BrainstormPage.tsx stub (376 lines): split-panel with session sidebar (create/list/delete/project link) + chat area (message bubbles, streaming display with animated cursor, textarea input with Enter-to-send)
 
-### Task 3: Detail modal with edit, tags, and conversion
+### Task 3: ChatMessage component and session polish
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created IdeaDetailModal.tsx (672 lines): editable title input, description textarea, status/effort/impact dropdowns, tag editor (add/remove pills with Enter key), convert to project (one-click with confirmation), convert to card (3-step wizard: project → board → column), delete with confirmation, save button, escape/overlay close
-- Uncommented IdeaDetailModal import and render in IdeasPage.tsx
+- Created ChatMessage.tsx (210 lines): regex-based markdown renderer (headings, bullets, numbered lists, code blocks, inline code/bold/italic), role-based styling, export-to-idea with 2s "Saved!" feedback
+- Updated BrainstormPage.tsx (415 lines): ChatMessage component, context indicator in chat header, session rename via double-click, archive toggle per session, show-archived filter
 
-## Files Created (4)
-- `src/main/services/ideaService.ts` (~190 lines)
-- `src/main/ipc/ideas.ts` (~35 lines)
-- `src/renderer/stores/ideaStore.ts` (100 lines)
-- `src/renderer/components/IdeaDetailModal.tsx` (672 lines)
+## Files Created (5)
+- `src/main/db/schema/brainstorming.ts` (~25 lines)
+- `src/main/services/brainstormService.ts` (~250 lines)
+- `src/main/ipc/brainstorm.ts` (~75 lines)
+- `src/renderer/stores/brainstormStore.ts` (169 lines)
+- `src/renderer/components/ChatMessage.tsx` (210 lines)
 
-## Files Modified (4)
-- `src/shared/types.ts` (+50 lines — idea types + ElectronAPI)
-- `src/main/ipc/index.ts` (+2 lines — register idea handlers)
-- `src/preload/preload.ts` (+8 lines — idea bridge methods)
-- `src/renderer/pages/IdeasPage.tsx` (27→269 lines — full replacement)
+## Files Modified (7)
+- `src/main/db/schema/index.ts` (+1 line — brainstorming export)
+- `src/shared/types.ts` (+40 lines — brainstorm types + ElectronAPI)
+- `src/main/services/ai-provider.ts` (+120 lines — streamGenerate, resolveTaskModel, logUsage)
+- `src/main/services/meetingIntelligenceService.ts` (-110 lines — removed local resolveTaskModel, now imports from ai-provider)
+- `src/main/ipc/index.ts` (+2 lines — register brainstorm handlers)
+- `src/preload/preload.ts` (+12 lines — brainstorm bridge methods)
+- `src/renderer/pages/BrainstormPage.tsx` (27→415 lines — full replacement)
+
+## Migration
+- `drizzle/0002_futuristic_christian_walker.sql` — Creates brainstorm_session_status + brainstorm_message_role enums, brainstorm_sessions + brainstorm_messages tables
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors after all tasks)
-- Code review: 0 critical, 0 high, 2 medium (file size, wizard loading state). Approved.
+- Migration: Applied successfully
 - Sequential execution: Task 2 depends on Task 1, Task 3 depends on Task 2
 
 ## What's Next
-1. `/nexus:git` to commit Plan 6.1 changes
-2. `/nexus:plan 6` for Plan 6.2 (brainstorming schema, service, chat UI)
-3. Plan 6.3 (AI features — idea analysis, brainstorm context injection)
+1. `/nexus:git` to commit Plan 6.2 changes
+2. `/nexus:plan 6` for Plan 6.3 (AI features + cross-feature integration)
+3. Execute Plan 6.3 to complete Phase 6

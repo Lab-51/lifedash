@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 6 — Plan 6.1 EXECUTED (all 3 tasks complete)
+Session focus: Phase 6 — Plan 6.2 COMPLETE
 
 ## Position
 Milestone: Phase 6 — Brainstorming & Ideas
 Phase: 6 of 7 (IN PROGRESS)
-Plan: 1 of 3 (COMPLETE)
+Plan: 2 of 3 (COMPLETE — all 3 tasks executed)
 Task: 3 of 3 (all complete)
 
 ## Phase 1 — COMPLETE
@@ -167,12 +167,21 @@ Total: 13 points, ~9 tasks across 3 plans.
 - **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
 - **Code Review**: 0 critical, 0 high, 2 medium (file size 672 lines — could extract wizard; missing loading spinner in wizard). Approved.
 
-### Plan 6.2: Brainstorming — Schema, Service & Chat UI (3 tasks) — NOT YET PLANNED
+### Plan 6.2: Brainstorming — Schema, Service & Chat UI (3 tasks) — COMPLETE
+1. Schema + types + streamGenerate + brainstormService + IPC + preload — DONE
+2. brainstormStore (Zustand) + BrainstormPage (session sidebar + chat + streaming) — DONE
+3. ChatMessage component (markdown) + context display + session rename/archive — DONE
+- Architecture: first streaming feature (streamText from AI SDK v6)
+- Key refactoring: extracting resolveTaskModel from meetingIntelligenceService to ai-provider
+- Migration: 0002_futuristic_christian_walker.sql (brainstorm tables + enums)
+- Not yet committed
+
 ### Plan 6.3: AI Features & Cross-Feature Integration (3 tasks) — NOT YET PLANNED
 
 ## Confidence Levels
 Overall approach: HIGH
 Plan 6.1 execution: HIGH (all tasks verified, TypeScript clean)
+Plan 6.2 execution: HIGH (all 3 tasks verified, TypeScript clean, migration applied)
 
 ## Decisions Made (Phase 6)
 - Ideas schema already exists — no migrations needed for Plan 6.1
@@ -181,11 +190,22 @@ Plan 6.1 execution: HIGH (all tasks verified, TypeScript clean)
 - Convert to card: reuses ConvertActionModal wizard pattern (project → board → column)
 - AI idea analysis deferred to Plan 6.3 (not in 6.1)
 - IdeaDetailModal at 672 lines (above 500 guideline) — accepted for now, wizard extraction deferred
+- Brainstorming uses streamText (not generateText) — first streaming AI feature
+- resolveTaskModel extracted to ai-provider.ts for shared use
+- Context injection: project name + boards + meeting titles in system prompt
+- Lightweight regex markdown rendering (no external library)
+- Export to idea: creates idea from assistant message content
 
 ## Blockers
 - None
 
+## Plan 6.2 Execution Results
+- **Task 1**: Created brainstorming.ts schema (2 tables: brainstorm_sessions + brainstorm_messages, 2 enums). Added 6 brainstorm types + 8 ElectronAPI methods to types.ts. Extracted resolveTaskModel + ResolvedProvider + DEFAULT_MODELS from meetingIntelligenceService.ts to ai-provider.ts. Added streamGenerate (streamText wrapper) + logUsage to ai-provider.ts. Created brainstormService.ts (9 exports: CRUD + messages + context + export). Created brainstorm.ts IPC handlers (7 channels with streaming send-message). Registered handlers + extended preload (8 bridge methods including onBrainstormChunk with cleanup). Migration generated + applied.
+- **Task 2**: Created brainstormStore.ts (169 lines, Zustand — 8 actions with streaming chunk accumulation and optimistic user message). Replaced BrainstormPage.tsx stub (376 lines — split-panel: session sidebar with create/delete/project link + chat area with message bubbles + streaming display + textarea input).
+- **Task 3**: Created ChatMessage.tsx (210 lines — regex markdown renderer: headings, bullets, numbered lists, code blocks, inline code/bold/italic). Updated BrainstormPage.tsx (415 lines — ChatMessage component, context indicator, session rename via double-click, archive toggle, show-archived filter).
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
+
 ## Next Steps
-1. `/nexus:git` — Commit Plan 6.1 changes
-2. `/nexus:plan 6` — Plan 6.2 (brainstorming)
-3. After 6.2: plan and execute 6.3 (AI features)
+1. `/nexus:git` — Commit Plan 6.2 changes
+2. `/nexus:plan` — Plan 6.3 (AI features + cross-feature integration)
+3. After 6.3: execute Plan 6.3

@@ -348,6 +348,37 @@ export interface ConvertIdeaToCardResult {
   cardId: string;
 }
 
+// === BRAINSTORM TYPES ===
+
+export type BrainstormSessionStatus = 'active' | 'archived';
+export type BrainstormMessageRole = 'user' | 'assistant';
+
+export interface BrainstormSession {
+  id: string;
+  projectId: string | null;
+  title: string;
+  status: BrainstormSessionStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BrainstormMessage {
+  id: string;
+  sessionId: string;
+  role: BrainstormMessageRole;
+  content: string;
+  createdAt: string;
+}
+
+export interface BrainstormSessionWithMessages extends BrainstormSession {
+  messages: BrainstormMessage[];
+}
+
+export interface CreateBrainstormSessionInput {
+  title: string;
+  projectId?: string;
+}
+
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
   platform: NodeJS.Platform;
@@ -454,6 +485,16 @@ export interface ElectronAPI {
   deleteIdea: (id: string) => Promise<void>;
   convertIdeaToProject: (id: string) => Promise<ConvertIdeaToProjectResult>;
   convertIdeaToCard: (ideaId: string, columnId: string) => Promise<ConvertIdeaToCardResult>;
+
+  // Brainstorm
+  getBrainstormSessions: () => Promise<BrainstormSession[]>;
+  getBrainstormSession: (id: string) => Promise<BrainstormSessionWithMessages | null>;
+  createBrainstormSession: (data: CreateBrainstormSessionInput) => Promise<BrainstormSession>;
+  updateBrainstormSession: (id: string, data: { title?: string; status?: BrainstormSessionStatus }) => Promise<BrainstormSession>;
+  deleteBrainstormSession: (id: string) => Promise<void>;
+  sendBrainstormMessage: (sessionId: string, content: string) => Promise<BrainstormMessage>;
+  onBrainstormChunk: (callback: (data: { sessionId: string; chunk: string }) => void) => () => void;
+  exportBrainstormToIdea: (sessionId: string, messageId: string) => Promise<Idea>;
 }
 
 declare global {

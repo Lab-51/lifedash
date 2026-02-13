@@ -14,6 +14,7 @@ import { registerRecordingHandlers } from './recording';
 import { registerWhisperHandlers } from './whisper';
 import { registerMeetingIntelligenceHandlers } from './meeting-intelligence';
 import { registerIdeaHandlers } from './ideas';
+import { registerBrainstormHandlers } from './brainstorm';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -31,4 +32,5 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerWhisperHandlers(mainWindow);
   registerMeetingIntelligenceHandlers();
   registerIdeaHandlers();
+  registerBrainstormHandlers();
 }

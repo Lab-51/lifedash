@@ -16,15 +16,13 @@
 
 import { eq, desc, asc, count } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { meetingBriefs, actionItems, aiProviders, cards, settings } from '../db/schema';
-import { generate } from './ai-provider';
+import { meetingBriefs, actionItems, cards } from '../db/schema';
+import { generate, resolveTaskModel } from './ai-provider';
 import { getMeeting } from './meetingService';
 import type {
   MeetingBrief,
   ActionItem,
   ActionItemStatus,
-  AIProviderName,
-  TaskModelConfig,
 } from '../../shared/types';
 
 // ---------------------------------------------------------------------------
@@ -62,30 +60,6 @@ Rules:
 - Maximum 10 action items`;
 
 // ---------------------------------------------------------------------------
-// Internal Types
-// ---------------------------------------------------------------------------
-
-interface ResolvedProvider {
-  providerId: string;
-  providerName: AIProviderName;
-  apiKeyEncrypted: string | null;
-  baseUrl: string | null;
-  model: string;
-  temperature?: number;
-  maxTokens?: number;
-}
-
-// ---------------------------------------------------------------------------
-// Default Models (per provider)
-// ---------------------------------------------------------------------------
-
-const DEFAULT_MODELS: Record<AIProviderName, string> = {
-  openai: 'gpt-4o-mini',
-  anthropic: 'claude-haiku-4-5-20251001',
-  ollama: 'llama3.2',
-};
-
-// ---------------------------------------------------------------------------
 // Row Mappers
 // ---------------------------------------------------------------------------
 
@@ -112,70 +86,6 @@ function toActionItem(row: typeof actionItems.$inferSelect): ActionItem {
 // ---------------------------------------------------------------------------
 // Exported Functions
 // ---------------------------------------------------------------------------
-
-/**
- * Resolve which AI provider + model to use for a given task type.
- *
- * 1. Check the `task_models` setting (JSON map of taskType -> TaskModelConfig).
- * 2. If a config exists for the taskType, look up the provider row.
- * 3. If no config (or the provider is gone / disabled), fall back to the first
- *    enabled provider with a default model.
- * 4. Returns null if no provider is available at all.
- */
-export async function resolveTaskModel(taskType: string): Promise<ResolvedProvider | null> {
-  const db = getDb();
-
-  // 1. Try task_models setting
-  const [settingRow] = await db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, 'task_models'));
-
-  if (settingRow) {
-    try {
-      const taskModels: Record<string, TaskModelConfig> = JSON.parse(settingRow.value);
-      const config = taskModels[taskType];
-
-      if (config) {
-        const [provider] = await db
-          .select()
-          .from(aiProviders)
-          .where(eq(aiProviders.id, config.providerId));
-
-        if (provider && provider.enabled) {
-          return {
-            providerId: provider.id,
-            providerName: provider.name as AIProviderName,
-            apiKeyEncrypted: provider.apiKeyEncrypted,
-            baseUrl: provider.baseUrl,
-            model: config.model,
-            temperature: config.temperature,
-            maxTokens: config.maxTokens,
-          };
-        }
-      }
-    } catch {
-      // Malformed JSON — fall through to default
-    }
-  }
-
-  // 2. Fallback: first enabled provider
-  const [fallbackProvider] = await db
-    .select()
-    .from(aiProviders)
-    .where(eq(aiProviders.enabled, true))
-    .limit(1);
-
-  if (!fallbackProvider) return null;
-
-  return {
-    providerId: fallbackProvider.id,
-    providerName: fallbackProvider.name as AIProviderName,
-    apiKeyEncrypted: fallbackProvider.apiKeyEncrypted,
-    baseUrl: fallbackProvider.baseUrl,
-    model: DEFAULT_MODELS[fallbackProvider.name as AIProviderName] ?? 'gpt-4o-mini',
-  };
-}
 
 /**
  * Generate an AI-powered meeting brief (structured summary) from the transcript.

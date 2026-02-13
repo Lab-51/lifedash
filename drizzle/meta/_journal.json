@@ -15,6 +15,13 @@
       "when": 1770927593920,
       "tag": "0001_even_true_believers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770987994798,
+      "tag": "0002_futuristic_christian_walker",
+      "breakpoints": true
     }
   ]
 }

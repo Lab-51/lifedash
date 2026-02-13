@@ -174,4 +174,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   convertIdeaToProject: (id: string) => ipcRenderer.invoke('ideas:convert-to-project', id),
   convertIdeaToCard: (ideaId: string, columnId: string) =>
     ipcRenderer.invoke('ideas:convert-to-card', ideaId, columnId),
+
+  // Brainstorm
+  getBrainstormSessions: () => ipcRenderer.invoke('brainstorm:list-sessions'),
+  getBrainstormSession: (id: string) => ipcRenderer.invoke('brainstorm:get-session', id),
+  createBrainstormSession: (data: any) => ipcRenderer.invoke('brainstorm:create-session', data),
+  updateBrainstormSession: (id: string, data: any) =>
+    ipcRenderer.invoke('brainstorm:update-session', id, data),
+  deleteBrainstormSession: (id: string) => ipcRenderer.invoke('brainstorm:delete-session', id),
+  sendBrainstormMessage: (sessionId: string, content: string) =>
+    ipcRenderer.invoke('brainstorm:send-message', sessionId, content),
+  onBrainstormChunk: (callback: (data: { sessionId: string; chunk: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; chunk: string }) => callback(data);
+    ipcRenderer.on('brainstorm:stream-chunk', handler);
+    return () => { ipcRenderer.removeListener('brainstorm:stream-chunk', handler); };
+  },
+  exportBrainstormToIdea: (sessionId: string, messageId: string) =>
+    ipcRenderer.invoke('brainstorm:export-to-idea', sessionId, messageId),
 });
