@@ -13,6 +13,8 @@ import { useProjectStore } from '../stores/projectStore';
 import BriefSection from './BriefSection';
 import ActionItemList from './ActionItemList';
 import ConvertActionModal from './ConvertActionModal';
+import MeetingAnalyticsSection from './MeetingAnalyticsSection';
+import { getSpeakerColor } from './MeetingAnalyticsSection';
 import type { ActionItem } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 
@@ -61,6 +63,7 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
     generateBrief, generateActionItems,
     generatingBrief, generatingActions,
     updateActionItemStatus, convertActionToCard,
+    loadAnalytics, clearAnalytics,
   } = useMeetingStore();
   const { projects, loadProjects } = useProjectStore();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -83,6 +86,13 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
+
+  // Load analytics for completed meetings
+  useEffect(() => {
+    if (selectedMeeting?.id && selectedMeeting.status === 'completed') {
+      loadAnalytics(selectedMeeting.id);
+    }
+  }, [selectedMeeting?.id, selectedMeeting?.status, loadAnalytics]);
 
   // Auto-scroll to bottom when new segments arrive during recording
   useEffect(() => {
@@ -129,6 +139,7 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
 
   // Close handler that also clears selected meeting
   const handleClose = () => {
+    clearAnalytics();
     clearSelectedMeeting();
     onClose();
   };
@@ -224,6 +235,14 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
           </select>
         </div>
 
+        {/* Meeting Analytics */}
+        <div className="mb-5">
+          <MeetingAnalyticsSection
+            meetingId={meeting.id}
+            isCompleted={meeting.status === 'completed'}
+          />
+        </div>
+
         {/* AI Brief */}
         <div className="mb-5">
           <BriefSection
@@ -269,14 +288,24 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
             </div>
           ) : (
             <div className="max-h-64 overflow-y-auto rounded-lg bg-surface-800/50 border border-surface-700 p-3 space-y-2">
-              {meeting.segments.map(segment => (
-                <div key={segment.id} className="flex gap-3 text-sm">
-                  <span className="font-mono text-xs text-surface-500 pt-0.5 shrink-0 w-12 text-right">
-                    {formatTimestamp(segment.startTime)}
-                  </span>
-                  <p className="text-surface-200 flex-1">{segment.content}</p>
-                </div>
-              ))}
+              {meeting.segments.map(segment => {
+                const speakerColor = segment.speaker ? getSpeakerColor(segment.speaker) : null;
+                return (
+                  <div key={segment.id} className="flex gap-3 text-sm">
+                    <span className="font-mono text-xs text-surface-500 pt-0.5 shrink-0 w-12 text-right">
+                      {formatTimestamp(segment.startTime)}
+                    </span>
+                    <p className="text-surface-200 flex-1">
+                      {segment.speaker && speakerColor && (
+                        <span className={`${speakerColor.text} font-medium text-xs mr-1.5`}>
+                          [{segment.speaker}]
+                        </span>
+                      )}
+                      {segment.content}
+                    </p>
+                  </div>
+                );
+              })}
               <div ref={transcriptEndRef} />
             </div>
           )}

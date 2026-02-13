@@ -317,6 +317,7 @@ export interface TranscriptSegment {
   content: string;
   startTime: number;    // milliseconds from recording start
   endTime: number;
+  speaker: string | null;  // null = not diarized
   createdAt: string;
 }
 
@@ -615,6 +616,48 @@ export interface TranscriberResult {
   segments: Array<{ text: string; startMs: number; endMs: number }>;
 }
 
+// === DIARIZATION TYPES ===
+
+export interface DiarizationWord {
+  text: string;
+  startMs: number;
+  endMs: number;
+  speaker: string;  // Normalized: "Speaker 1", "Speaker 2", etc.
+}
+
+export interface DiarizationResult {
+  words: DiarizationWord[];
+  speakers: string[];        // Unique speaker labels found
+  durationMs: number;        // Total audio duration
+}
+
+// === MEETING ANALYTICS TYPES ===
+
+export interface SpeakerStats {
+  speaker: string;           // "Speaker 1", "Speaker 2", or "Unknown"
+  segmentCount: number;      // Number of transcript segments
+  wordCount: number;         // Total words spoken
+  talkTimeMs: number;        // Total talk time in milliseconds
+  talkTimePercent: number;   // Percentage of total talk time (0-100)
+}
+
+export interface MeetingAnalytics {
+  meetingId: string;
+  durationMs: number;              // Total meeting duration (endedAt - startedAt)
+  totalSegments: number;           // Number of transcript segments
+  totalWords: number;              // Total word count across all segments
+  hasDiarization: boolean;         // Whether speaker labels are available
+  speakers: SpeakerStats[];        // Per-speaker breakdown (empty if no diarization)
+  actionItemCounts: {
+    total: number;
+    pending: number;
+    approved: number;
+    dismissed: number;
+    converted: number;
+  };
+  wordsPerMinute: number;          // Average speaking pace
+}
+
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
   platform: NodeJS.Platform;
@@ -771,6 +814,12 @@ export interface ElectronAPI {
   transcriptionSetProvider: (type: TranscriptionProviderType) => Promise<void>;
   transcriptionSetApiKey: (provider: 'deepgram' | 'assemblyai', apiKey: string) => Promise<void>;
   transcriptionTestProvider: (type: TranscriptionProviderType) => Promise<{ success: boolean; error?: string; latencyMs?: number }>;
+
+  // Diarization
+  diarizeMeeting: (meetingId: string) => Promise<{ success: boolean; speakers: string[]; error?: string }>;
+
+  // Meeting Analytics
+  getMeetingAnalytics: (meetingId: string) => Promise<MeetingAnalytics>;
 }
 
 declare global {

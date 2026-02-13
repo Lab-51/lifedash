@@ -1,0 +1,1 @@
+ALTER TABLE "transcripts" ADD COLUMN "speaker" varchar(50);

@@ -45,6 +45,7 @@ function toTranscriptSegment(row: typeof transcripts.$inferSelect): TranscriptSe
     content: row.content,
     startTime: row.startTime,
     endTime: row.endTime,
+    speaker: row.speaker ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -166,4 +167,22 @@ export async function getTranscripts(meetingId: string): Promise<TranscriptSegme
     .where(eq(transcripts.meetingId, meetingId))
     .orderBy(asc(transcripts.startTime));
   return rows.map(toTranscriptSegment);
+}
+
+/**
+ * Update speaker labels for transcript segments of a meeting.
+ * @param meetingId The meeting to update
+ * @param speakerMap Map of segment ID -> speaker label
+ */
+export async function updateSegmentSpeakers(
+  meetingId: string,
+  speakerMap: Map<string, string>,
+): Promise<void> {
+  const db = getDb();
+  for (const [segmentId, speaker] of speakerMap) {
+    await db
+      .update(transcripts)
+      .set({ speaker })
+      .where(eq(transcripts.id, segmentId));
+  }
 }

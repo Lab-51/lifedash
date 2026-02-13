@@ -8,11 +8,11 @@
 // === LIMITATIONS ===
 // - REST API (not WebSocket streaming) — transcribes 10-sec segments after recording
 // - English-only for now (language parameter hardcoded)
-// - No speaker diarization in this implementation (deferred to Plan 7.7)
+// - Speaker diarization via transcribeFileWithDiarization (full-file, post-recording)
 
 import { net } from 'electron';
 import * as transcriptionProviderService from './transcriptionProviderService';
-import type { TranscriberResult } from '../../shared/types';
+import type { TranscriberResult, DiarizationResult, DiarizationWord } from '../../shared/types';
 
 const DEEPGRAM_API_URL = 'https://api.deepgram.com/v1/listen';
 
@@ -97,4 +97,57 @@ export async function testConnection(): Promise<{
     const message = error instanceof Error ? error.message : 'Deepgram connection failed';
     return { success: false, error: message, latencyMs: Date.now() - start };
   }
+}
+
+/**
+ * Transcribe a full WAV file with speaker diarization using Deepgram.
+ * Returns words with speaker labels for post-recording speaker identification.
+ * @param wavBuffer Complete WAV file buffer
+ */
+export async function transcribeFileWithDiarization(
+  wavBuffer: Buffer,
+): Promise<DiarizationResult> {
+  const apiKey = await transcriptionProviderService.getDecryptedKey('deepgram');
+  if (!apiKey) throw new Error('Deepgram API key not configured');
+
+  const url = `${DEEPGRAM_API_URL}?model=nova-2&language=en&punctuate=true&diarize=true&encoding=linear16&sample_rate=16000`;
+
+  const response = await net.fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Token ${apiKey}`,
+      'Content-Type': 'audio/wav',
+    },
+    body: new Uint8Array(wavBuffer),
+  });
+
+  if (!response.ok) {
+    const bodyText = await response.text();
+    throw new Error(`Deepgram diarization error ${response.status}: ${bodyText}`);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await response.json();
+  const words = data.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
+
+  // Deepgram speakers are integers (0, 1, 2...) — normalize to "Speaker 1", "Speaker 2"
+  const speakerSet = new Set<string>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const diarizationWords: DiarizationWord[] = words.map((w: any) => {
+    const speaker = `Speaker ${(w.speaker ?? 0) + 1}`;
+    speakerSet.add(speaker);
+    return {
+      text: w.word,
+      startMs: Math.round((w.start ?? 0) * 1000),
+      endMs: Math.round((w.end ?? 0) * 1000),
+      speaker,
+    };
+  });
+
+  const duration = data.metadata?.duration ?? 0;
+  return {
+    words: diarizationWords,
+    speakers: Array.from(speakerSet).sort(),
+    durationMs: Math.round(duration * 1000),
+  };
 }

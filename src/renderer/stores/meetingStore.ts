@@ -12,6 +12,7 @@ import type {
   TranscriptSegment,
   UpdateMeetingInput,
   ActionItemStatus,
+  MeetingAnalytics,
 } from '../../shared/types';
 
 interface MeetingStore {
@@ -24,6 +25,13 @@ interface MeetingStore {
   // Intelligence generation state
   generatingBrief: boolean;
   generatingActions: boolean;
+
+  // Diarization state
+  diarizing: boolean;
+  diarizationError: string | null;
+  // Analytics state
+  analytics: MeetingAnalytics | null;
+  analyticsLoading: boolean;
 
   // Actions
   loadMeetings: () => Promise<void>;
@@ -38,6 +46,11 @@ interface MeetingStore {
   generateActionItems: (meetingId: string) => Promise<void>;
   updateActionItemStatus: (id: string, status: ActionItemStatus) => Promise<void>;
   convertActionToCard: (actionItemId: string, columnId: string) => Promise<string>;
+
+  // Diarization + Analytics actions
+  diarizeMeeting: (meetingId: string) => Promise<void>;
+  loadAnalytics: (meetingId: string) => Promise<void>;
+  clearAnalytics: () => void;
 }
 
 export const useMeetingStore = create<MeetingStore>((set, get) => ({
@@ -47,6 +60,10 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   error: null,
   generatingBrief: false,
   generatingActions: false,
+  diarizing: false,
+  diarizationError: null,
+  analytics: null,
+  analyticsLoading: false,
 
   loadMeetings: async () => {
     set({ loading: true, error: null });
@@ -90,7 +107,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
     });
   },
 
-  clearSelectedMeeting: () => set({ selectedMeeting: null }),
+  clearSelectedMeeting: () => set({ selectedMeeting: null, analytics: null, analyticsLoading: false, diarizing: false, diarizationError: null }),
 
   // Append a transcript segment to the selected meeting (for real-time updates)
   addTranscriptSegment: (segment: TranscriptSegment) => {
@@ -176,4 +193,37 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       throw error;
     }
   },
+
+  // Trigger speaker diarization
+  diarizeMeeting: async (meetingId) => {
+    set({ diarizing: true, diarizationError: null });
+    try {
+      const result = await window.electronAPI.diarizeMeeting(meetingId);
+      if (result.success) {
+        // Reload the meeting to get updated segments with speaker labels
+        const meeting = await window.electronAPI.getMeeting(meetingId);
+        set({ selectedMeeting: meeting, diarizing: false });
+        // Also refresh analytics
+        get().loadAnalytics(meetingId);
+      } else {
+        set({ diarizing: false, diarizationError: result.error ?? 'Diarization failed' });
+      }
+    } catch (err) {
+      set({ diarizing: false, diarizationError: err instanceof Error ? err.message : 'Diarization failed' });
+    }
+  },
+
+  // Load analytics for a meeting
+  loadAnalytics: async (meetingId) => {
+    set({ analyticsLoading: true });
+    try {
+      const analytics = await window.electronAPI.getMeetingAnalytics(meetingId);
+      set({ analytics, analyticsLoading: false });
+    } catch {
+      set({ analyticsLoading: false });
+    }
+  },
+
+  // Clear analytics + diarization state
+  clearAnalytics: () => set({ analytics: null, analyticsLoading: false, diarizing: false, diarizationError: null }),
 }));

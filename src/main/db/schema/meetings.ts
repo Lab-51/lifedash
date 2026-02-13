@@ -33,6 +33,7 @@ export const transcripts = pgTable('transcripts', {
   content: text('content').notNull(),
   startTime: integer('start_time').notNull(), // milliseconds from recording start
   endTime: integer('end_time').notNull(),
+  speaker: varchar('speaker', { length: 50 }),  // nullable — null means not diarized
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

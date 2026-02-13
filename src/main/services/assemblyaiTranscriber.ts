@@ -7,13 +7,13 @@
 //
 // === LIMITATIONS ===
 // - Polling-based (adds 3-10 seconds of latency per segment)
-// - No speaker diarization in this implementation (deferred to Plan 7.7)
+// - Speaker diarization via transcribeFileWithDiarization (full-file, post-recording)
 // - English-only for now
 
 import { net } from 'electron';
 import { WaveFile } from 'wavefile';
 import * as transcriptionProviderService from './transcriptionProviderService';
-import type { TranscriberResult } from '../../shared/types';
+import type { TranscriberResult, DiarizationResult, DiarizationWord } from '../../shared/types';
 
 const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2';
 const POLL_INTERVAL_MS = 1000;
@@ -194,4 +194,112 @@ export async function testConnection(): Promise<{
     const message = error instanceof Error ? error.message : 'AssemblyAI connection failed';
     return { success: false, error: message, latencyMs: Date.now() - start };
   }
+}
+
+/**
+ * Transcribe a full WAV file with speaker diarization using AssemblyAI.
+ * Returns words with speaker labels for post-recording speaker identification.
+ * @param wavBuffer Complete WAV file buffer (already in WAV format)
+ */
+export async function transcribeFileWithDiarization(
+  wavBuffer: Buffer,
+): Promise<DiarizationResult> {
+  const apiKey = await transcriptionProviderService.getDecryptedKey('assemblyai');
+  if (!apiKey) throw new Error('AssemblyAI API key not configured');
+
+  // Step 1: Upload WAV file
+  const uploadResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/upload`, {
+    method: 'POST',
+    headers: {
+      'Authorization': apiKey,
+      'Content-Type': 'application/octet-stream',
+    },
+    body: new Uint8Array(wavBuffer),
+  });
+
+  if (!uploadResponse.ok) {
+    const bodyText = await uploadResponse.text();
+    throw new Error(`AssemblyAI upload error ${uploadResponse.status}: ${bodyText}`);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const uploadData: any = await uploadResponse.json();
+  const uploadUrl: string = uploadData.upload_url;
+  if (!uploadUrl) throw new Error('AssemblyAI upload did not return upload_url');
+
+  // Step 2: Submit transcription with speaker_labels enabled
+  const transcriptResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/transcript`, {
+    method: 'POST',
+    headers: {
+      'Authorization': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      audio_url: uploadUrl,
+      language_code: 'en',
+      speaker_labels: true,
+    }),
+  });
+
+  if (!transcriptResponse.ok) {
+    const bodyText = await transcriptResponse.text();
+    throw new Error(`AssemblyAI transcript error ${transcriptResponse.status}: ${bodyText}`);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const transcriptData: any = await transcriptResponse.json();
+  const transcriptId: string = transcriptData.id;
+  if (!transcriptId) throw new Error('AssemblyAI transcript did not return id');
+
+  // Step 3: Poll for result (longer timeout for full files)
+  const maxAttempts = 120;
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+
+    const pollResponse = await net.fetch(
+      `${ASSEMBLYAI_API_URL}/transcript/${transcriptId}`,
+      { headers: { 'Authorization': apiKey } },
+    );
+
+    if (!pollResponse.ok) {
+      const bodyText = await pollResponse.text();
+      throw new Error(`AssemblyAI poll error ${pollResponse.status}: ${bodyText}`);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result: any = await pollResponse.json();
+
+    if (result.status === 'completed') {
+      // AssemblyAI speakers are letters ("A", "B"...) — normalize to "Speaker 1", etc.
+      const speakerMap = new Map<string, string>();
+      let speakerCount = 0;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const diarizationWords: DiarizationWord[] = (result.words ?? []).map((w: any) => {
+        const rawSpeaker = w.speaker ?? 'A';
+        if (!speakerMap.has(rawSpeaker)) {
+          speakerCount++;
+          speakerMap.set(rawSpeaker, `Speaker ${speakerCount}`);
+        }
+        return {
+          text: w.text,
+          startMs: w.start ?? 0,
+          endMs: w.end ?? 0,
+          speaker: speakerMap.get(rawSpeaker)!,
+        };
+      });
+
+      return {
+        words: diarizationWords,
+        speakers: Array.from(speakerMap.values()).sort(),
+        durationMs: result.audio_duration ? Math.round(result.audio_duration * 1000) : 0,
+      };
+    }
+
+    if (result.status === 'error') {
+      throw new Error(`AssemblyAI diarization error: ${result.error}`);
+    }
+  }
+
+  throw new Error('AssemblyAI diarization timed out after polling');
 }

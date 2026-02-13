@@ -259,4 +259,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('transcription:set-api-key', provider, apiKey),
   transcriptionTestProvider: (type: string) =>
     ipcRenderer.invoke('transcription:test-provider', type),
+
+  // Diarization
+  diarizeMeeting: (meetingId: string) => ipcRenderer.invoke('meeting:diarize', meetingId),
+
+  // Meeting Analytics
+  getMeetingAnalytics: (meetingId: string) => ipcRenderer.invoke('meeting:analytics', meetingId),
 });
