@@ -77,20 +77,23 @@ export default function RecordingControls() {
               ))}
             </div>
           )}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={includeMic}
-              onChange={(e) => setIncludeMic(e.target.checked)}
-              disabled={starting}
-              className="h-3.5 w-3.5 rounded accent-primary-500 bg-surface-700 border-surface-600
-                         disabled:opacity-50"
-            />
-            {includeMic ? <Mic size={14} className="text-surface-300" /> : <MicOff size={14} className="text-surface-500" />}
-            <span className="text-xs text-surface-400">
+          <button
+            type="button"
+            onClick={() => setIncludeMic(!includeMic)}
+            disabled={starting}
+            className={`flex items-center gap-2 w-full rounded-lg px-3 py-2 text-sm
+                        border transition-colors
+                        ${includeMic
+                          ? 'bg-surface-800 border-primary-600 text-surface-200'
+                          : 'bg-surface-900 border-surface-600 text-surface-500'}
+                        disabled:opacity-50 disabled:cursor-not-allowed
+                        hover:border-primary-500`}
+          >
+            {includeMic ? <Mic size={16} /> : <MicOff size={16} />}
+            <span className="text-xs">
               {includeMic ? 'Microphone on' : 'Microphone off'}
             </span>
-          </label>
+          </button>
           <button
             onClick={handleStart}
             disabled={!title.trim() || starting}
