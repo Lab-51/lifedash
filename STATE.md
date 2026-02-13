@@ -2,13 +2,13 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 7 — Plan 7.5 PLANNED
+Session focus: Phase 7 — Plan 7.5 COMPLETE
 
 ## Position
 Milestone: Phase 7 — v2 Features (Advanced)
 Phase: 7 of 7 (IN PROGRESS)
-Plan: 5 of 8 (PLANNED — 0/3 tasks done)
-Task: 0 of 3
+Plan: 5 of 8 (COMPLETE — 3/3 tasks done)
+Task: 3 of 3
 
 ## Phase 1 — COMPLETE
 All 3 plans (8 tasks) delivered and pushed to GitHub.
@@ -301,16 +301,28 @@ Planned as 8 sequential plans.
 - Modal uses window.electronAPI directly for board/column/card creation (not boardStore, which is scoped to loaded board)
 - TaskBreakdownSection creates cards in same column as parent card
 
-### Plan 7.5: Meeting Templates & Desktop Notifications (3 tasks) — PLANNED
-1. Meeting templates — schema, types, service, and template-aware AI prompts
-2. Meeting templates — UI integration (RecordingControls, MeetingsPage, MeetingDetailModal)
-3. Desktop notifications — service, scheduler, IPC, and settings UI
+### Plan 7.5: Meeting Templates & Desktop Notifications (3 tasks) — COMPLETE
+1. Meeting templates — schema, types, service, and template-aware AI prompts — DONE
+2. Meeting templates — UI integration (RecordingControls, MeetingsPage, MeetingDetailModal) — DONE
+3. Desktop notifications — service, scheduler, IPC, and settings UI — DONE
+- Not yet committed
 
-## Plan 7.5 Confidence
-- Task 1 (schema + templates + AI prompts): HIGH — standard Drizzle migration + constant data + prompt modification
-- Task 2 (template UI): HIGH — select dropdown + badge display, follows existing patterns
-- Task 3 (notifications): HIGH — Electron Notification API + autoBackupScheduler pattern
+## Plan 7.5 Execution Results
+- **Task 1**: Added meetingTemplateEnum (6 types) to schema. Migration 0004_sour_paper_doll.sql generated. Added MeetingTemplateType, MeetingTemplate, MEETING_TEMPLATES constant (6 presets) to types.ts. Updated Meeting + CreateMeetingInput. Updated meetingService (toMeeting + createMeeting). Made meetingIntelligenceService prompts template-aware (getSummarizationPrompt + getActionExtractionPrompt functions).
+- **Task 2**: Added template selector dropdown to RecordingControls (6 options, agenda hint). Updated recordingStore (template parameter). Added template badge to MeetingCard. Added template info section to MeetingDetailModal.
+- **Task 3**: Created notificationService.ts (Electron Notification API, settings persistence). Created notificationScheduler.ts (hourly checks, due-card reminders, daily digest). Created notifications.ts IPC handlers (3 channels). Extended preload (3 methods). Wired scheduler into main.ts (init/stop lifecycle). Created NotificationSection.tsx (master toggle, 3 feature toggles, hour selector, test button). Added to SettingsPage.
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
+
+## Decisions Made (Plan 7.5)
+- Meeting templates as enum + constant presets (not separate DB table)
+- Template-aware prompts: base prompt + template hint appended
+- Default template 'none' — backward compatible with existing meetings
+- Notification preferences stored as JSON in settings table
+- Scheduler: 30s startup delay, 1h interval (follows autoBackupScheduler pattern)
+- Due-card query uses eq(cards.archived, false) for boolean column check
+- Notifications capped at 5 per check cycle to avoid spam
+- Daily digest tracked by lastDigestDate to avoid duplicate sends
 
 ## Next Steps
-1. `/nexus:git` — Commit Plans 7.1 + 7.2 + 7.3 + 7.4 changes
-2. `/nexus:execute` — Execute Plan 7.5
+1. `/nexus:git` — Commit Plan 7.5 changes
+2. `/nexus:plan 7.6` — API transcription providers (Deepgram, AssemblyAI)

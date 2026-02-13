@@ -18,6 +18,7 @@ import { connectDatabase, disconnectDatabase } from './db/connection';
 import { runMigrations } from './db/migrate';
 import { initMain } from 'electron-audio-loopback';
 import { initAutoBackup, stopAutoBackup } from './services/autoBackupScheduler';
+import { initNotificationScheduler, stopNotificationScheduler } from './services/notificationScheduler';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -99,6 +100,9 @@ const createWindow = async () => {
 
     // Start auto-backup scheduler (after DB is ready)
     initAutoBackup(mainWindow);
+
+    // Start notification scheduler (after DB is ready)
+    initNotificationScheduler();
   } catch (error) {
     console.error('[DB] Connection failed:', error);
   }
@@ -134,6 +138,7 @@ const createWindow = async () => {
 app.on('before-quit', async () => {
   (app as unknown as { isQuitting: boolean }).isQuitting = true;
   stopAutoBackup();
+  stopNotificationScheduler();
   await disconnectDatabase();
 });
 

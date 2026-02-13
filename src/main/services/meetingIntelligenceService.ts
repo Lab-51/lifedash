@@ -23,13 +23,15 @@ import type {
   MeetingBrief,
   ActionItem,
   ActionItemStatus,
+  MeetingTemplateType,
 } from '../../shared/types';
+import { MEETING_TEMPLATES } from '../../shared/types';
 
 // ---------------------------------------------------------------------------
 // Prompt Templates
 // ---------------------------------------------------------------------------
 
-const SUMMARIZATION_SYSTEM_PROMPT = `You are a meeting summarization assistant. Given a meeting transcript, produce a structured summary.
+const BASE_SUMMARIZATION_PROMPT = `You are a meeting summarization assistant. Given a meeting transcript, produce a structured summary.
 
 Format your response as:
 
@@ -44,7 +46,15 @@ Format your response as:
 
 Be concise. Focus on substance, not filler. If the transcript is short or unclear, summarize what's available.`;
 
-const ACTION_EXTRACTION_SYSTEM_PROMPT = `You are a meeting action item extractor. Given a meeting transcript, identify concrete action items — tasks, assignments, and follow-ups that someone needs to do.
+function getSummarizationPrompt(template: MeetingTemplateType): string {
+  const templateInfo = MEETING_TEMPLATES.find(t => t.type === template);
+  if (!templateInfo || !templateInfo.aiPromptHint) {
+    return BASE_SUMMARIZATION_PROMPT;
+  }
+  return `${BASE_SUMMARIZATION_PROMPT}\n\nIMPORTANT CONTEXT: ${templateInfo.aiPromptHint}`;
+}
+
+const BASE_ACTION_EXTRACTION_PROMPT = `You are a meeting action item extractor. Given a meeting transcript, identify concrete action items — tasks, assignments, and follow-ups that someone needs to do.
 
 Respond ONLY with a JSON array of objects, each with a 'description' field:
 [
@@ -58,6 +68,19 @@ Rules:
 - If no clear action items exist, return an empty array: []
 - Do NOT include general observations or discussion summaries
 - Maximum 10 action items`;
+
+function getActionExtractionPrompt(template: MeetingTemplateType): string {
+  if (template === 'standup') {
+    return `${BASE_ACTION_EXTRACTION_PROMPT}\n\nThis is a standup — prioritize extracting blocker-resolution tasks and follow-up items.`;
+  }
+  if (template === 'retro') {
+    return `${BASE_ACTION_EXTRACTION_PROMPT}\n\nThis is a retrospective — focus on improvement action items the team agreed to pursue.`;
+  }
+  if (template === 'planning') {
+    return `${BASE_ACTION_EXTRACTION_PROMPT}\n\nThis is a planning meeting — extract task assignments and commitments with owners when mentioned.`;
+  }
+  return BASE_ACTION_EXTRACTION_PROMPT;
+}
 
 // ---------------------------------------------------------------------------
 // Row Mappers
@@ -113,7 +136,7 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
   const provider = await resolveTaskModel('summarization');
   if (!provider) throw new Error('No AI provider available for summarization');
 
-  // Generate summary
+  // Generate summary (template-aware prompt)
   const result = await generate({
     providerId: provider.providerId,
     providerName: provider.providerName,
@@ -122,7 +145,7 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
     model: provider.model,
     taskType: 'summarization',
     prompt: `Meeting: ${meeting.title}\n\nTranscript:\n${transcript}`,
-    system: SUMMARIZATION_SYSTEM_PROMPT,
+    system: getSummarizationPrompt(meeting.template),
     temperature: provider.temperature,
     maxTokens: provider.maxTokens,
   });
@@ -167,7 +190,7 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
   const provider = await resolveTaskModel('summarization');
   if (!provider) throw new Error('No AI provider available for action extraction');
 
-  // Generate action items
+  // Generate action items (template-aware prompt)
   const result = await generate({
     providerId: provider.providerId,
     providerName: provider.providerName,
@@ -176,7 +199,7 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
     model: provider.model,
     taskType: 'summarization',
     prompt: `Meeting: ${meeting.title}\n\nTranscript:\n${transcript}`,
-    system: ACTION_EXTRACTION_SYSTEM_PROMPT,
+    system: getActionExtractionPrompt(meeting.template),
     temperature: provider.temperature,
     maxTokens: provider.maxTokens,
   });

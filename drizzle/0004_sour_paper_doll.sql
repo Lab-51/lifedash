@@ -1,0 +1,2 @@
+CREATE TYPE "public"."meeting_template" AS ENUM('none', 'standup', 'retro', 'planning', 'brainstorm', 'one_on_one');--> statement-breakpoint
+ALTER TABLE "meetings" ADD COLUMN "template" "meeting_template" DEFAULT 'none' NOT NULL;

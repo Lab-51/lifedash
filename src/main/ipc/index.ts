@@ -17,6 +17,7 @@ import { registerIdeaHandlers } from './ideas';
 import { registerBrainstormHandlers } from './brainstorm';
 import { registerBackupHandlers } from './backup';
 import { registerTaskStructuringHandlers } from './task-structuring';
+import { registerNotificationHandlers } from './notifications';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -37,4 +38,5 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerBrainstormHandlers();
   registerBackupHandlers(mainWindow);
   registerTaskStructuringHandlers();
+  registerNotificationHandlers();
 }

@@ -15,6 +15,7 @@ import ThemeSelector from '../components/ThemeSelector';
 import UsageSummary from '../components/UsageSummary';
 import BackupSection from '../components/settings/BackupSection';
 import ExportSection from '../components/settings/ExportSection';
+import NotificationSection from '../components/settings/NotificationSection';
 
 function SettingsPage() {
   const { providers, loading, error, encryptionAvailable, loadProviders, loadSettings, checkEncryption } =
@@ -136,6 +137,9 @@ function SettingsPage() {
 
       {/* === Section: Database Backups === */}
       <BackupSection />
+
+      {/* === Section: Notifications === */}
+      <NotificationSection />
 
       {/* === Section: Export Data === */}
       <ExportSection />

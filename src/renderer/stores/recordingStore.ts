@@ -11,7 +11,7 @@
 
 import { create } from 'zustand';
 import * as audioCaptureService from '../services/audioCaptureService';
-import type { RecordingState } from '../../shared/types';
+import type { RecordingState, MeetingTemplateType } from '../../shared/types';
 
 interface RecordingStore {
   // State
@@ -23,7 +23,7 @@ interface RecordingStore {
   starting: boolean;
 
   // Actions
-  startRecording: (title: string, projectId?: string) => Promise<void>;
+  startRecording: (title: string, projectId?: string, template?: MeetingTemplateType) => Promise<void>;
   stopRecording: () => Promise<void>;
   initListener: () => () => void;
 }
@@ -36,13 +36,14 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   error: null,
   starting: false,
 
-  startRecording: async (title: string, projectId?: string) => {
+  startRecording: async (title: string, projectId?: string, template?: MeetingTemplateType) => {
     set({ starting: true, error: null });
     try {
       // Step 1: Create meeting in DB
       const meeting = await window.electronAPI.createMeeting({
         title,
         projectId,
+        template: template ?? 'none',
       });
 
       // Step 2: Tell main process to start recording

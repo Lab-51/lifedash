@@ -4,6 +4,7 @@
 
 import { Mic, Clock, CheckCircle2, Loader2 } from 'lucide-react';
 import type { Meeting } from '../../shared/types';
+import { MEETING_TEMPLATES } from '../../shared/types';
 
 interface MeetingCardProps {
   meeting: Meeting;
@@ -80,11 +81,18 @@ export default function MeetingCard({ meeting, projectName, onClick }: MeetingCa
         </span>
       </div>
 
-      {projectName && (
-        <div className="mt-2">
-          <span className="text-xs bg-primary-600/10 text-primary-400 px-2 py-0.5 rounded-full">
-            {projectName}
-          </span>
+      {(projectName || (meeting.template && meeting.template !== 'none')) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {projectName && (
+            <span className="text-xs bg-primary-600/10 text-primary-400 px-2 py-0.5 rounded-full">
+              {projectName}
+            </span>
+          )}
+          {meeting.template && meeting.template !== 'none' && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-surface-700 text-surface-300">
+              {MEETING_TEMPLATES.find(t => t.type === meeting.template)?.name ?? meeting.template}
+            </span>
+          )}
         </div>
       )}
     </button>

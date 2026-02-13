@@ -14,6 +14,7 @@ import BriefSection from './BriefSection';
 import ActionItemList from './ActionItemList';
 import ConvertActionModal from './ConvertActionModal';
 import type { ActionItem } from '../../shared/types';
+import { MEETING_TEMPLATES } from '../../shared/types';
 
 interface MeetingDetailModalProps {
   onClose: () => void;
@@ -187,6 +188,23 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
             {formatDate(meeting.startedAt)} at {formatTime(meeting.startedAt)}
           </span>
         </div>
+
+        {/* Template info */}
+        {meeting.template && meeting.template !== 'none' && (() => {
+          const tmpl = MEETING_TEMPLATES.find(t => t.type === meeting.template);
+          return tmpl ? (
+            <div className="flex items-start gap-2 text-sm text-surface-300 mb-5">
+              <span className="px-1.5 py-0.5 rounded bg-surface-700 text-xs font-medium">{tmpl.name}</span>
+              {tmpl.agenda.length > 0 && (
+                <div className="text-xs text-surface-400">
+                  {tmpl.agenda.map((item, i) => (
+                    <div key={i}>{'\u2022'} {item}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null;
+        })()}
 
         {/* Project linking */}
         <div className="flex items-center gap-3 mb-5">

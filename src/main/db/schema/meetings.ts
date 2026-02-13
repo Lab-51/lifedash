@@ -11,10 +11,15 @@ import { cards } from './cards';
 
 export const meetingStatusEnum = pgEnum('meeting_status', ['recording', 'processing', 'completed']);
 
+export const meetingTemplateEnum = pgEnum('meeting_template', [
+  'none', 'standup', 'retro', 'planning', 'brainstorm', 'one_on_one',
+]);
+
 export const meetings = pgTable('meetings', {
   id: uuid('id').defaultRandom().primaryKey(),
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
   title: varchar('title', { length: 500 }).notNull(),
+  template: meetingTemplateEnum('template').default('none').notNull(),
   startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
   endedAt: timestamp('ended_at', { withTimezone: true }),
   audioPath: text('audio_path'),

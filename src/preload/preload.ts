@@ -244,4 +244,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('task-structuring:breakdown', cardId),
   taskStructuringQuickPlan: (name: string, description: string) =>
     ipcRenderer.invoke('task-structuring:quick-plan', name, description),
+
+  // Notifications
+  notificationGetPreferences: () => ipcRenderer.invoke('notifications:get-preferences'),
+  notificationUpdatePreferences: (prefs: any) =>
+    ipcRenderer.invoke('notifications:update-preferences', prefs),
+  notificationSendTest: () => ipcRenderer.invoke('notifications:test'),
 });

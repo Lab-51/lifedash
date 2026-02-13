@@ -9,6 +9,8 @@
 import { useState } from 'react';
 import { Mic, Square, Loader2 } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
+import { MEETING_TEMPLATES } from '../../shared/types';
+import type { MeetingTemplateType } from '../../shared/types';
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -22,11 +24,13 @@ export default function RecordingControls() {
     startRecording, stopRecording,
   } = useRecordingStore();
   const [title, setTitle] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<MeetingTemplateType>('none');
 
   const handleStart = async () => {
     if (!title.trim()) return;
-    await startRecording(title.trim());
+    await startRecording(title.trim(), undefined, selectedTemplate);
     setTitle('');
+    setSelectedTemplate('none');
   };
 
   const handleStop = async () => {
@@ -52,6 +56,27 @@ export default function RecordingControls() {
             onKeyDown={(e) => e.key === 'Enter' && handleStart()}
             disabled={starting}
           />
+          <select
+            value={selectedTemplate}
+            onChange={(e) => setSelectedTemplate(e.target.value as MeetingTemplateType)}
+            className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2
+                       text-sm text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            disabled={starting}
+          >
+            {MEETING_TEMPLATES.map((t) => (
+              <option key={t.type} value={t.type}>
+                {t.name} — {t.description}
+              </option>
+            ))}
+          </select>
+          {selectedTemplate !== 'none' && (
+            <div className="text-xs text-surface-400 space-y-0.5">
+              <span className="font-medium">Suggested agenda:</span>
+              {MEETING_TEMPLATES.find(t => t.type === selectedTemplate)?.agenda.map((item, i) => (
+                <div key={i}>{'\u2022'} {item}</div>
+              ))}
+            </div>
+          )}
           <button
             onClick={handleStart}
             disabled={!title.trim() || starting}

@@ -28,6 +28,7 @@ function toMeeting(row: typeof meetings.$inferSelect): Meeting {
     id: row.id,
     projectId: row.projectId,
     title: row.title,
+    template: row.template,
     startedAt: row.startedAt.toISOString(),
     endedAt: row.endedAt?.toISOString() ?? null,
     audioPath: row.audioPath,
@@ -113,6 +114,7 @@ export async function createMeeting(data: CreateMeetingInput): Promise<Meeting> 
     .values({
       title: data.title,
       projectId: data.projectId ?? null,
+      template: data.template ?? 'none',
       startedAt: new Date(),
       status: 'recording',
     })
