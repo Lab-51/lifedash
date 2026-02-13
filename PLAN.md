@@ -1,8 +1,8 @@
-# Plan 7.6 — API Transcription Providers
+# Plan 7.7 — Speaker Diarization & Meeting Analytics
 
-**Requirements:** R14 (API-Based Transcription Providers — 5 pts)
-**Scope:** Deepgram + AssemblyAI REST transcription, provider selection in settings, automatic fallback
-**Approach:** Transcriber interface abstraction, HTTP-based API calls (no SDK deps), settings-based provider config with encrypted keys, refactor transcriptionService for provider routing
+**Requirements:** R13 (Advanced Meeting Features — 8 pts, partial)
+**Scope:** Post-recording speaker diarization (Deepgram + AssemblyAI), meeting analytics (speaker stats, talk time, action item tracking), analytics UI
+**Approach:** Post-recording diarization on full audio file (not per-segment), analytics computed from transcript + action item data, speaker-labeled transcript display
 
 ## Phase 7 Overview
 
@@ -16,802 +16,827 @@ Planned as 8 sequential plans:
 | 7.3 | R15 | Database backup/restore (pg_dump), JSON/CSV export, backup UI |
 | 7.4 | R11 | AI task structuring — service, IPC, store, project planning modal, card breakdown |
 | 7.5 | R13+R17 | Meeting templates, desktop notifications, daily digest |
-| **7.6** | **R14** | **API transcription providers (Deepgram, AssemblyAI), fallback** |
-| 7.7 | R13 | Meeting analytics, speaker diarization, advanced features |
+| 7.6 | R14 | API transcription providers (Deepgram, AssemblyAI), fallback |
+| **7.7** | **R13** | **Speaker diarization, meeting analytics, analytics UI** |
 | 7.8 | R16 (rest) | Card attachments, due dates UI, reminders |
 
 ## Architecture Decisions
 
-1. **Transcriber interface pattern:** Define a `Transcriber` interface (`transcribeSegment(audio: Buffer, startTimeMs: number) → Promise<TranscriberResult>`) that both local Whisper and API providers implement. The transcriptionService dispatches to whichever is active — same result format, different backend.
+1. **Post-recording diarization (not per-segment):** 10-second segments are too short for reliable cross-segment speaker consistency. Both Deepgram and AssemblyAI recommend longer audio for diarization (30+ seconds per speaker). Instead, after a recording completes, the user can trigger "Identify Speakers" which sends the full WAV file to the API. The API returns words with speaker labels, which we map back to existing transcript segments by timestamp. This preserves existing transcript text while adding accurate speaker attribution.
 
-2. **REST API (not WebSocket):** Use Deepgram's REST `/v1/listen` and AssemblyAI's REST `/v2/upload` + `/v2/transcript` endpoints. REST fits the existing 10-second segment pipeline cleanly. WebSocket streaming would require a fundamentally different audio pipeline and is deferred to a future plan.
+2. **Speaker column on transcripts table:** Add a nullable `speaker` varchar column to the transcripts table. Null means "not diarized" (backward-compatible with all existing data). For Deepgram, speakers are integers (0, 1, 2...) stored as strings. For AssemblyAI, speakers are letters ("A", "B"...) stored as-is. We normalize to "Speaker 1", "Speaker 2" etc. in the service layer for consistent display.
 
-3. **No new npm dependencies:** Both APIs are simple enough for native `fetch` (available in Electron's Node.js 20+). Avoids SDK version churn and keeps the dependency tree light.
+3. **Diarization as full-file transcription + speaker mapping:** Send full WAV to Deepgram (`?diarize=true`) or AssemblyAI (`speaker_labels: true`). The API returns words with speaker labels. For each existing transcript segment, find words that overlap its time range and assign the majority speaker. This avoids re-transcribing (keeps existing text) while adding speaker data.
 
-4. **Settings-based provider config:** Store transcription provider choice and encrypted API keys in the settings key-value table under `transcription_provider` key as JSON. Follows the notification preferences pattern but with safeStorage encryption for API keys.
+4. **Analytics as computed values (not stored):** Meeting analytics (duration, word count, speaker breakdown, action item stats) are computed on-demand from transcript segments and action items. No new analytics table needed — these are derived from existing data. This avoids data staleness issues.
 
-5. **Fallback strategy:** If the active API provider fails (network error, auth error, quota), automatically fall back to local Whisper if a model is available. If neither works, log the error and skip the segment (existing behavior when no Whisper model).
-
-6. **Usage logging:** Add `'transcription'` to `AITaskType` and log API transcription calls to the `ai_usage` table for cost tracking. For API calls, log estimated token equivalents based on audio duration (since transcription APIs charge per second/minute, not tokens).
+5. **Deferred items:** Calendar integration and automatic meeting detection (VAD) are complex features requiring OS-level integrations. These are deferred to ISSUES.md rather than cramming into this plan.
 
 ---
 
-<phase n="7.6" name="API Transcription Providers">
+<phase n="7.7" name="Speaker Diarization & Meeting Analytics">
   <context>
-    Phase 7, Plan 6 of 8. Implements:
-    - R14: API-Based Transcription Providers (Deepgram, AssemblyAI, selection, fallback)
+    Phase 7, Plan 7 of 8. Implements remaining R13 items:
+    - Speaker diarization (who said what) — via Deepgram/AssemblyAI post-recording
+    - Meeting analytics (talk time, speaker stats, action item tracking)
+
+    Already complete (not in scope):
+    - Meeting templates (Plan 7.5)
+    - API transcription providers (Plan 7.6)
+
+    Deferred to ISSUES.md:
+    - Meeting calendar integration (needs OS-level calendar access)
+    - Automatic meeting detection (needs VAD library)
 
     Current transcription infrastructure:
-    - transcriptionService.ts: accumulates PCM chunks into 10-sec segments, dispatches to Whisper worker, saves results to DB, pushes to renderer
-    - transcriptionWorker.ts: worker_threads, runs whisper.cpp via @fugood/whisper.node
-    - whisperModelManager.ts: downloads GGML models, getDefaultModelPath() — returns null if no model
-    - audioProcessor.ts: orchestrates recording (PCM accumulation + WAV save + transcription start/stop)
-    - transcriptionService.start() currently skips transcription entirely if no Whisper model available
+    - transcripts table: id, meetingId, content, startTime, endTime, createdAt (NO speaker column)
+    - meetings table: has audioPath (full WAV file path after recording)
+    - deepgramTranscriber.ts: transcribeSegment() for 10-sec PCM, testConnection()
+    - assemblyaiTranscriber.ts: transcribeSegment() for 10-sec PCM (with WAV conversion), testConnection()
+    - transcriptionService.ts: 10-sec segment pipeline, provider routing (local/deepgram/assemblyai)
+    - transcriptionProviderService.ts: getConfig, getDecryptedKey, provider settings
+    - meetingService.ts: addTranscriptSegment(meetingId, content, startTime, endTime)
+    - MeetingDetailModal.tsx: transcript timeline with MM:SS timestamps, brief + actions sections
 
-    Audio format: PCM Int16, 16kHz mono, 10-second segments (320,000 bytes each)
-
-    Current provider system:
-    - ai-provider.ts: provider factory, generate/streamGenerate, resolveTaskModel, logUsage
-    - secure-storage.ts: encryptString/decryptString (Electron safeStorage → base64)
-    - Settings stored in key-value settings table
-    - AITaskType: 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis' | 'task_structuring'
+    API diarization parameters (verified):
+    - Deepgram: `diarize=true` query param → words get `speaker` (integer 0-based) + `speaker_confidence`
+    - AssemblyAI: `speaker_labels: true` in request body → `utterances` array with `speaker` (letter "A", "B"), words also get `speaker`
 
     Key files for context:
-    @src/main/services/transcriptionService.ts (refactor — add provider routing)
-    @src/main/services/whisperModelManager.ts (check for local model availability)
-    @src/main/services/ai-provider.ts (logUsage pattern, secure-storage import)
-    @src/main/services/secure-storage.ts (encryptString/decryptString)
-    @src/main/services/audioProcessor.ts (no changes needed — calls transcriptionService)
-    @src/shared/types.ts (add types, update AITaskType, update ElectronAPI)
+    @src/main/db/schema/meetings.ts (add speaker column to transcripts)
+    @src/main/services/deepgramTranscriber.ts (add transcribeFileWithDiarization)
+    @src/main/services/assemblyaiTranscriber.ts (add transcribeFileWithDiarization)
+    @src/main/services/meetingService.ts (add updateSegmentSpeakers)
+    @src/main/services/transcriptionProviderService.ts (getConfig, getDecryptedKey)
+    @src/shared/types.ts (add speaker to TranscriptSegment, add diarization types, add analytics types)
     @src/main/ipc/index.ts (register new handlers)
     @src/preload/preload.ts (add bridge methods)
-    @src/renderer/pages/SettingsPage.tsx (add TranscriptionProviderSection)
-    @src/main/db/schema/settings.ts (settings table reference)
+    @src/renderer/components/MeetingDetailModal.tsx (speaker labels, analytics, diarize button)
   </context>
 
   <task type="auto" n="1">
-    <n>Transcription provider infrastructure — types, config service, IPC, preload</n>
+    <n>Schema extension + diarization service + transcriber functions + IPC</n>
     <files>
-      src/shared/types.ts (MODIFY — add transcription provider types, update AITaskType + ElectronAPI)
-      src/main/services/transcriptionProviderService.ts (NEW ~100 lines)
-      src/main/ipc/transcription-provider.ts (NEW ~60 lines)
-      src/main/ipc/index.ts (MODIFY — register transcription provider handlers)
-      src/preload/preload.ts (MODIFY — add 4 transcription provider bridge methods)
+      src/main/db/schema/meetings.ts (MODIFY — add speaker column to transcripts)
+      src/shared/types.ts (MODIFY — add speaker to TranscriptSegment, add DiarizationWord/DiarizationResult types, add ElectronAPI methods)
+      src/main/services/deepgramTranscriber.ts (MODIFY — add transcribeFileWithDiarization function)
+      src/main/services/assemblyaiTranscriber.ts (MODIFY — add transcribeFileWithDiarization function)
+      src/main/services/meetingService.ts (MODIFY — add updateSegmentSpeakers, add speaker to addTranscriptSegment)
+      src/main/services/speakerDiarizationService.ts (NEW ~180 lines)
+      src/main/ipc/diarization.ts (NEW ~30 lines)
+      src/main/ipc/index.ts (MODIFY — register diarization handlers)
+      src/preload/preload.ts (MODIFY — add diarization bridge methods)
+      drizzle migration (auto-generated for speaker column)
     </files>
     <action>
       ## WHY
-      Before implementing the actual API transcibers, we need the infrastructure: types, config
-      management (with encrypted API keys), IPC channel plumbing, and preload bridge. This
-      establishes the provider abstraction that Tasks 2 and 3 build on.
+      Speaker diarization ("who said what") requires: schema support for speaker labels,
+      full-file transcription functions with diarization enabled on both API providers,
+      a service to orchestrate the diarization process (send full audio, map speakers to
+      existing segments), and IPC plumbing for the renderer to trigger diarization.
 
       ## WHAT
 
-      ### 1a. Types — modify src/shared/types.ts
+      ### 1a. Schema — modify src/main/db/schema/meetings.ts
 
-      Add transcription provider types (place near notification types):
-
+      Add `speaker` column to the transcripts table:
       ```typescript
-      // === TRANSCRIPTION PROVIDER TYPES ===
+      speaker: varchar('speaker', { length: 50 }),  // nullable — null means not diarized
+      ```
+      Place it after `endTime` and before `createdAt`.
 
-      export type TranscriptionProviderType = 'local' | 'deepgram' | 'assemblyai';
+      Generate migration: `npx drizzle-kit generate`
+      Apply migration: standard Drizzle migrate on app startup (already wired).
 
-      export interface TranscriptionProviderConfig {
-        type: TranscriptionProviderType;
-        deepgramKeyEncrypted?: string;    // Encrypted via safeStorage
-        assemblyaiKeyEncrypted?: string;  // Encrypted via safeStorage
-      }
+      ### 1b. Types — modify src/shared/types.ts
 
-      export interface TranscriptionProviderStatus {
-        type: TranscriptionProviderType;
-        hasDeepgramKey: boolean;
-        hasAssemblyaiKey: boolean;
-        localModelAvailable: boolean;
+      Add `speaker` field to TranscriptSegment interface:
+      ```typescript
+      export interface TranscriptSegment {
+        id: string;
+        meetingId: string;
+        content: string;
+        startTime: number;
+        endTime: number;
+        speaker: string | null;  // NEW — null = not diarized
+        createdAt: string;
       }
       ```
 
-      Update AITaskType to include transcription:
+      Add diarization types (place near transcription types):
       ```typescript
-      export type AITaskType = 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis' | 'task_structuring' | 'transcription';
+      // === DIARIZATION TYPES ===
+
+      export interface DiarizationWord {
+        text: string;
+        startMs: number;
+        endMs: number;
+        speaker: string;  // Normalized: "Speaker 1", "Speaker 2", etc.
+      }
+
+      export interface DiarizationResult {
+        words: DiarizationWord[];
+        speakers: string[];        // Unique speaker labels found
+        durationMs: number;        // Total audio duration
+      }
       ```
 
       Add to ElectronAPI interface:
       ```typescript
-      // Transcription Provider
-      transcriptionGetConfig: () => Promise<TranscriptionProviderStatus>;
-      transcriptionSetProvider: (type: TranscriptionProviderType) => Promise<void>;
-      transcriptionSetApiKey: (provider: 'deepgram' | 'assemblyai', apiKey: string) => Promise<void>;
-      transcriptionTestProvider: (type: TranscriptionProviderType) => Promise<{ success: boolean; error?: string; latencyMs?: number }>;
+      // Diarization
+      diarizeMeeting: (meetingId: string) => Promise<{ success: boolean; speakers: string[]; error?: string }>;
       ```
 
-      Note: `transcriptionGetConfig` returns `TranscriptionProviderStatus` (not the raw config with
-      encrypted keys — never send encrypted key strings to renderer, only hasXxxKey booleans).
+      ### 1c. Modify deepgramTranscriber.ts — add transcribeFileWithDiarization
 
-      ### 1b. Create src/main/services/transcriptionProviderService.ts
+      Add a new export function that sends a full WAV file with diarization:
+
+      ```typescript
+      /**
+       * Transcribe a full WAV file with speaker diarization using Deepgram.
+       * Returns words with speaker labels for post-recording speaker identification.
+       * @param wavBuffer Complete WAV file buffer
+       */
+      export async function transcribeFileWithDiarization(
+        wavBuffer: Buffer,
+      ): Promise<DiarizationResult> {
+        const apiKey = await transcriptionProviderService.getDecryptedKey('deepgram');
+        if (!apiKey) throw new Error('Deepgram API key not configured');
+
+        // Add diarize=true to enable speaker identification
+        const url = `${DEEPGRAM_API_URL}?model=nova-2&language=en&punctuate=true&diarize=true&encoding=linear16&sample_rate=16000`;
+
+        const response = await net.fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${apiKey}`,
+            'Content-Type': 'audio/wav',  // Full WAV file, not raw PCM
+          },
+          body: new Uint8Array(wavBuffer),
+        });
+
+        if (!response.ok) {
+          const bodyText = await response.text();
+          throw new Error(`Deepgram diarization error ${response.status}: ${bodyText}`);
+        }
+
+        const data: any = await response.json();
+        const words = data.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
+
+        // Deepgram speakers are integers (0, 1, 2...) — normalize to "Speaker 1", "Speaker 2"
+        const speakerSet = new Set<string>();
+        const diarizationWords: DiarizationWord[] = words.map((w: any) => {
+          const speaker = `Speaker ${(w.speaker ?? 0) + 1}`;
+          speakerSet.add(speaker);
+          return {
+            text: w.word,
+            startMs: Math.round((w.start ?? 0) * 1000),
+            endMs: Math.round((w.end ?? 0) * 1000),
+            speaker,
+          };
+        });
+
+        const duration = data.metadata?.duration ?? 0;
+        return {
+          words: diarizationWords,
+          speakers: Array.from(speakerSet).sort(),
+          durationMs: Math.round(duration * 1000),
+        };
+      }
+      ```
+
+      Import DiarizationResult and DiarizationWord from shared/types.ts.
+      Update the LIMITATIONS header comment to note that diarization IS now implemented.
+
+      ### 1d. Modify assemblyaiTranscriber.ts — add transcribeFileWithDiarization
+
+      ```typescript
+      /**
+       * Transcribe a full WAV file with speaker diarization using AssemblyAI.
+       * Returns words with speaker labels for post-recording speaker identification.
+       * @param wavBuffer Complete WAV file buffer (already in WAV format)
+       */
+      export async function transcribeFileWithDiarization(
+        wavBuffer: Buffer,
+      ): Promise<DiarizationResult> {
+        const apiKey = await transcriptionProviderService.getDecryptedKey('assemblyai');
+        if (!apiKey) throw new Error('AssemblyAI API key not configured');
+
+        // Step 1: Upload WAV file
+        const uploadResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/upload`, {
+          method: 'POST',
+          headers: {
+            'Authorization': apiKey,
+            'Content-Type': 'application/octet-stream',
+          },
+          body: new Uint8Array(wavBuffer),
+        });
+
+        if (!uploadResponse.ok) {
+          const bodyText = await uploadResponse.text();
+          throw new Error(`AssemblyAI upload error ${uploadResponse.status}: ${bodyText}`);
+        }
+
+        const uploadData: any = await uploadResponse.json();
+        const uploadUrl: string = uploadData.upload_url;
+        if (!uploadUrl) throw new Error('AssemblyAI upload did not return upload_url');
+
+        // Step 2: Submit transcription with speaker_labels enabled
+        const transcriptResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/transcript`, {
+          method: 'POST',
+          headers: {
+            'Authorization': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            audio_url: uploadUrl,
+            language_code: 'en',
+            speaker_labels: true,  // Enable diarization
+          }),
+        });
+
+        if (!transcriptResponse.ok) {
+          const bodyText = await transcriptResponse.text();
+          throw new Error(`AssemblyAI transcript error ${transcriptResponse.status}: ${bodyText}`);
+        }
+
+        const transcriptData: any = await transcriptResponse.json();
+        const transcriptId: string = transcriptData.id;
+        if (!transcriptId) throw new Error('AssemblyAI transcript did not return id');
+
+        // Step 3: Poll for result (longer timeout for full files)
+        const maxAttempts = 120;  // 2 minutes for full-file diarization
+        for (let i = 0; i < maxAttempts; i++) {
+          await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+
+          const pollResponse = await net.fetch(
+            `${ASSEMBLYAI_API_URL}/transcript/${transcriptId}`,
+            { headers: { 'Authorization': apiKey } },
+          );
+
+          if (!pollResponse.ok) {
+            const bodyText = await pollResponse.text();
+            throw new Error(`AssemblyAI poll error ${pollResponse.status}: ${bodyText}`);
+          }
+
+          const result: any = await pollResponse.json();
+
+          if (result.status === 'completed') {
+            // AssemblyAI speakers are letters ("A", "B"...) — normalize to "Speaker 1", etc.
+            const speakerMap = new Map<string, string>();
+            let speakerCount = 0;
+
+            const words: DiarizationWord[] = (result.words ?? []).map((w: any) => {
+              const rawSpeaker = w.speaker ?? 'A';
+              if (!speakerMap.has(rawSpeaker)) {
+                speakerCount++;
+                speakerMap.set(rawSpeaker, `Speaker ${speakerCount}`);
+              }
+              return {
+                text: w.text,
+                startMs: w.start ?? 0,  // AssemblyAI words are already in ms
+                endMs: w.end ?? 0,
+                speaker: speakerMap.get(rawSpeaker)!,
+              };
+            });
+
+            return {
+              words,
+              speakers: Array.from(speakerMap.values()).sort(),
+              durationMs: result.audio_duration ? Math.round(result.audio_duration * 1000) : 0,
+            };
+          }
+
+          if (result.status === 'error') {
+            throw new Error(`AssemblyAI diarization error: ${result.error}`);
+          }
+        }
+
+        throw new Error('AssemblyAI diarization timed out after polling');
+      }
+      ```
+
+      NOTE: The existing `pcmToWav()` helper is only needed when sending raw PCM segments.
+      For diarization, the input is already a WAV file (read from disk via audioPath), so
+      no conversion is needed. If the audioPath file happens to be raw PCM, we'd need conversion,
+      but audioProcessor.ts saves as WAV format, so this should be safe.
+
+      Update the LIMITATIONS header to note diarization is now implemented.
+
+      ### 1e. Modify meetingService.ts — add updateSegmentSpeakers + speaker support
+
+      Add a new function to batch-update speaker labels on existing transcript segments:
+
+      ```typescript
+      /**
+       * Update speaker labels for transcript segments of a meeting.
+       * @param meetingId The meeting to update
+       * @param speakerMap Map of segment ID → speaker label
+       */
+      export async function updateSegmentSpeakers(
+        meetingId: string,
+        speakerMap: Map<string, string>,
+      ): Promise<void> {
+        const db = getDb();
+        // Update each segment's speaker label
+        for (const [segmentId, speaker] of speakerMap) {
+          await db
+            .update(transcripts)
+            .set({ speaker })
+            .where(eq(transcripts.id, segmentId));
+        }
+      }
+      ```
+
+      Also update `toTranscriptSegment()` mapper to include the speaker field:
+      ```typescript
+      function toTranscriptSegment(row: ...): TranscriptSegment {
+        return {
+          ...existing fields...,
+          speaker: row.speaker ?? null,
+        };
+      }
+      ```
+
+      ### 1f. Create src/main/services/speakerDiarizationService.ts (~180 lines)
 
       File header:
       ```
       // === FILE PURPOSE ===
-      // Manages transcription provider configuration — which provider (local/deepgram/assemblyai)
-      // is active and stores encrypted API keys for cloud providers.
+      // Orchestrates post-recording speaker diarization. Reads the full WAV file,
+      // sends it to the configured API provider with diarization enabled, then maps
+      // speaker labels back to existing transcript segments by timestamp overlap.
       //
       // === DEPENDENCIES ===
-      // secure-storage (encryptString/decryptString), settings table, whisperModelManager
+      // fs (read WAV file), meetingService, deepgramTranscriber, assemblyaiTranscriber,
+      // transcriptionProviderService
       //
       // === LIMITATIONS ===
-      // - API keys are encrypted at rest but decrypted in memory for API calls
-      // - Only one active provider at a time (no round-robin or load balancing)
+      // - Requires a cloud API provider (Deepgram or AssemblyAI) — local Whisper has no diarization
+      // - Requires audioPath to be set on the meeting (WAV file must exist on disk)
+      // - Speaker labels are best-effort — short meetings or quick speaker switches may be inaccurate
+      ```
+
+      Imports:
+      ```typescript
+      import fs from 'node:fs';
+      import * as meetingService from './meetingService';
+      import * as deepgramTranscriber from './deepgramTranscriber';
+      import * as assemblyaiTranscriber from './assemblyaiTranscriber';
+      import * as transcriptionProviderService from './transcriptionProviderService';
+      import type { DiarizationWord, TranscriptSegment } from '../../shared/types';
+      ```
+
+      Single export:
+
+      **`async function diarizeMeeting(meetingId: string): Promise<{ success: boolean; speakers: string[]; error?: string }>`**
+
+      Steps:
+      1. Load meeting with transcript: `meetingService.getMeeting(meetingId)`
+      2. Validate: meeting exists, status === 'completed', audioPath exists and file is readable
+      3. Resolve provider: `transcriptionProviderService.getConfig()` — must be 'deepgram' or 'assemblyai' (not 'local')
+         - If 'local', check if either API has a key configured and use that instead
+         - If no API provider available, return error "Speaker diarization requires a cloud transcription provider (Deepgram or AssemblyAI)"
+      4. Read WAV file: `fs.readFileSync(meeting.audioPath)`
+      5. Call provider:
+         - If deepgram: `deepgramTranscriber.transcribeFileWithDiarization(wavBuffer)`
+         - If assemblyai: `assemblyaiTranscriber.transcribeFileWithDiarization(wavBuffer)`
+      6. Map speakers to segments:
+         - For each existing transcript segment, find all diarization words that overlap its time range
+         - A word overlaps a segment if: `word.startMs < segment.endTime && word.endMs > segment.startTime`
+         - Count speaker occurrences among overlapping words
+         - Assign the majority speaker to the segment
+         - Build a Map<segmentId, speakerLabel>
+      7. Update DB: `meetingService.updateSegmentSpeakers(meetingId, speakerMap)`
+      8. Return `{ success: true, speakers: result.speakers }`
+
+      Error handling:
+      - Wrap entire operation in try/catch
+      - Return `{ success: false, speakers: [], error: message }` on failure
+      - Log errors to console
+
+      ### 1g. Create src/main/ipc/diarization.ts (~30 lines)
+
+      ```typescript
+      import { ipcMain } from 'electron';
+      import * as speakerDiarizationService from '../services/speakerDiarizationService';
+
+      export function registerDiarizationHandlers(): void {
+        ipcMain.handle('meeting:diarize', async (_event, meetingId: string) => {
+          return speakerDiarizationService.diarizeMeeting(meetingId);
+        });
+      }
+      ```
+
+      ### 1h. Register in src/main/ipc/index.ts
+
+      Import and call `registerDiarizationHandlers()`.
+
+      ### 1i. Extend src/preload/preload.ts
+
+      Add to electronAPI:
+      ```typescript
+      // Diarization
+      diarizeMeeting: (meetingId: string) => ipcRenderer.invoke('meeting:diarize', meetingId),
+      ```
+
+      ### 1j. Generate and apply migration
+
+      Run `npx drizzle-kit generate` to create migration for the new speaker column.
+      The migration should be a simple `ALTER TABLE transcripts ADD COLUMN speaker varchar(50);`
+    </action>
+    <verify>
+      1. `npx tsc --noEmit` — zero TypeScript errors
+      2. transcripts table has new `speaker` column (nullable varchar(50))
+      3. TranscriptSegment type includes `speaker: string | null`
+      4. DiarizationWord and DiarizationResult types exist
+      5. deepgramTranscriber exports: transcribeSegment (existing) + transcribeFileWithDiarization (new)
+      6. assemblyaiTranscriber exports: transcribeSegment (existing) + transcribeFileWithDiarization (new)
+      7. Deepgram diarization uses `diarize=true` query param, Content-Type `audio/wav`
+      8. AssemblyAI diarization uses `speaker_labels: true` in request body
+      9. Speaker labels normalized to "Speaker 1", "Speaker 2" etc. (consistent across providers)
+      10. speakerDiarizationService.diarizeMeeting reads WAV, calls API, maps speakers to segments, updates DB
+      11. meetingService.updateSegmentSpeakers batch-updates speaker column
+      12. toTranscriptSegment mapper includes speaker field
+      13. IPC handler registered for 'meeting:diarize' channel
+      14. preload.ts has diarizeMeeting bridge method
+      15. Migration generated and applies cleanly
+    </verify>
+    <done>Schema with speaker column, diarization functions on both API transcribers (Deepgram diarize=true, AssemblyAI speaker_labels=true), speaker diarization service (orchestrator: read WAV → API → map speakers → update DB), IPC + preload wired. Migration applied. TypeScript compiles cleanly.</done>
+    <confidence>HIGH</confidence>
+    <assumptions>
+      - audioProcessor.ts saves recordings as WAV format (verified — uses wavefile library)
+      - Deepgram accepts WAV files with Content-Type: audio/wav (standard format)
+      - AssemblyAI accepts WAV files via /v2/upload (same as existing segment upload path)
+      - Deepgram word response includes `speaker` integer field when diarize=true
+      - AssemblyAI word response includes `speaker` letter field when speaker_labels=true
+      - Meeting audioPath is an absolute filesystem path readable by fs.readFileSync
+      - Existing transcript segments have accurate startTime/endTime for timestamp matching
+    </assumptions>
+  </task>
+
+  <task type="auto" n="2">
+    <n>Meeting analytics service + types + IPC + preload</n>
+    <files>
+      src/shared/types.ts (MODIFY — add MeetingAnalytics type + ElectronAPI method)
+      src/main/services/meetingAnalyticsService.ts (NEW ~120 lines)
+      src/main/ipc/diarization.ts (MODIFY — add analytics handler)
+      src/preload/preload.ts (MODIFY — add analytics bridge method)
+    </files>
+    <action>
+      ## WHY
+      Meeting analytics give users insight into their meetings: who talked the most,
+      how long the meeting was, word counts, and action item outcomes. These are computed
+      from existing transcript segments and action items — no new data collection needed.
+
+      ## WHAT
+
+      ### 2a. Types — modify src/shared/types.ts
+
+      Add MeetingAnalytics type (place near diarization types):
+      ```typescript
+      // === MEETING ANALYTICS TYPES ===
+
+      export interface SpeakerStats {
+        speaker: string;           // "Speaker 1", "Speaker 2", or "Unknown"
+        segmentCount: number;      // Number of transcript segments
+        wordCount: number;         // Total words spoken
+        talkTimeMs: number;        // Total talk time in milliseconds
+        talkTimePercent: number;   // Percentage of total talk time (0-100)
+      }
+
+      export interface MeetingAnalytics {
+        meetingId: string;
+        durationMs: number;              // Total meeting duration (endedAt - startedAt)
+        totalSegments: number;           // Number of transcript segments
+        totalWords: number;              // Total word count across all segments
+        hasDiarization: boolean;         // Whether speaker labels are available
+        speakers: SpeakerStats[];        // Per-speaker breakdown (empty if no diarization)
+        actionItemCounts: {
+          total: number;
+          pending: number;
+          approved: number;
+          dismissed: number;
+          converted: number;
+        };
+        wordsPerMinute: number;          // Average speaking pace
+      }
+      ```
+
+      Add to ElectronAPI:
+      ```typescript
+      // Meeting Analytics
+      getMeetingAnalytics: (meetingId: string) => Promise<MeetingAnalytics>;
+      ```
+
+      ### 2b. Create src/main/services/meetingAnalyticsService.ts (~120 lines)
+
+      File header:
+      ```
+      // === FILE PURPOSE ===
+      // Computes meeting analytics from transcript segments and action items.
+      // All values are derived on-demand (not stored) — always fresh.
+      //
+      // === DEPENDENCIES ===
+      // meetingService, drizzle (for action item counts)
+      //
+      // === LIMITATIONS ===
+      // - Speaker breakdown only available if meeting has been diarized
+      // - Words per minute is an approximation (based on total words / duration)
       ```
 
       Imports:
       ```typescript
       import { getDb } from '../db/connection';
-      import { settings } from '../db/schema';
-      import { eq } from 'drizzle-orm';
-      import { encryptString, decryptString } from './secure-storage';
-      import * as whisperModelManager from './whisperModelManager';
-      import type { TranscriptionProviderConfig, TranscriptionProviderStatus, TranscriptionProviderType } from '../../shared/types';
+      import { meetings, transcripts, actionItems } from '../db/schema';
+      import { eq, sql, and } from 'drizzle-orm';
+      import type { MeetingAnalytics, SpeakerStats } from '../../shared/types';
       ```
 
-      Constants:
+      Single export:
+
+      **`async function calculateAnalytics(meetingId: string): Promise<MeetingAnalytics>`**
+
+      Steps:
+      1. Load meeting record (for startedAt, endedAt, duration calculation)
+      2. Load all transcript segments for this meeting
+      3. Query action item counts by status (single aggregation query)
+      4. Calculate derived values:
+
+      Duration:
       ```typescript
-      const SETTINGS_KEY = 'transcription_provider';
-      const DEFAULT_CONFIG: TranscriptionProviderConfig = { type: 'local' };
+      const durationMs = meeting.endedAt
+        ? new Date(meeting.endedAt).getTime() - new Date(meeting.startedAt).getTime()
+        : 0;
       ```
 
-      Exports:
-
-      **`getConfig(): Promise<TranscriptionProviderConfig>`**
-      - Query settings table for SETTINGS_KEY
-      - If not found, return DEFAULT_CONFIG
-      - Parse stored JSON, merge with defaults for forward-compatibility
-
-      **`getStatus(): Promise<TranscriptionProviderStatus>`**
-      - Load config via getConfig()
-      - Return { type, hasDeepgramKey: !!config.deepgramKeyEncrypted, hasAssemblyaiKey: !!config.assemblyaiKeyEncrypted, localModelAvailable: !!whisperModelManager.getDefaultModelPath() }
-      - This is the renderer-safe version (no encrypted keys)
-
-      **`setProviderType(type: TranscriptionProviderType): Promise<void>`**
-      - Load current config
-      - Update type field
-      - Upsert to settings table
-
-      **`setApiKey(provider: 'deepgram' | 'assemblyai', apiKey: string): Promise<void>`**
-      - Load current config
-      - Encrypt the key: `encryptString(apiKey)` → base64 string
-      - Set `config.deepgramKeyEncrypted` or `config.assemblyaiKeyEncrypted`
-      - Upsert to settings table
-
-      **`getDecryptedKey(provider: 'deepgram' | 'assemblyai'): Promise<string | null>`**
-      - Load config, return decryptString(encryptedKey) or null
-      - Used internally by transcriber services (never exposed via IPC)
-
-      Helper: `saveConfig(config: TranscriptionProviderConfig): Promise<void>`
-      - Upsert pattern: check if key exists → update or insert
-
-      ### 1c. Create src/main/ipc/transcription-provider.ts
-
+      Total words:
       ```typescript
-      import { ipcMain } from 'electron';
-      import * as transcriptionProviderService from '../services/transcriptionProviderService';
-      import type { TranscriptionProviderType } from '../../shared/types';
+      const totalWords = segments.reduce(
+        (sum, seg) => sum + seg.content.split(/\s+/).filter(Boolean).length,
+        0,
+      );
+      ```
 
-      export function registerTranscriptionProviderHandlers(): void {
-        ipcMain.handle('transcription:get-config', async () => {
-          return transcriptionProviderService.getStatus();
-        });
+      Speaker breakdown (if diarized):
+      ```typescript
+      const hasDiarization = segments.some(s => s.speaker !== null);
 
-        ipcMain.handle('transcription:set-provider', async (_event, type: TranscriptionProviderType) => {
-          await transcriptionProviderService.setProviderType(type);
-        });
+      if (hasDiarization) {
+        // Group segments by speaker
+        const bySpkr = new Map<string, { segments: typeof segments }>();
+        for (const seg of segments) {
+          const spkr = seg.speaker ?? 'Unknown';
+          if (!bySpkr.has(spkr)) bySpkr.set(spkr, { segments: [] });
+          bySpkr.get(spkr)!.segments.push(seg);
+        }
 
-        ipcMain.handle('transcription:set-api-key', async (_event, provider: 'deepgram' | 'assemblyai', apiKey: string) => {
-          await transcriptionProviderService.setApiKey(provider, apiKey);
-        });
+        // Calculate per-speaker stats
+        const totalTalkTime = segments.reduce((sum, s) => sum + (s.endTime - s.startTime), 0);
 
-        ipcMain.handle('transcription:test-provider', async (_event, type: TranscriptionProviderType) => {
-          // Test implementation depends on provider:
-          // 'local' → check if whisperModelManager.getDefaultModelPath() returns non-null
-          // 'deepgram' → send tiny audio sample to Deepgram API
-          // 'assemblyai' → send tiny audio sample to AssemblyAI API
-          // Import test functions from deepgramTranscriber/assemblyaiTranscriber (created in Task 2)
-          // For now, implement local test only; API tests wired in Task 2
-          if (type === 'local') {
-            const { getDefaultModelPath } = await import('../services/whisperModelManager');
-            const modelPath = getDefaultModelPath();
-            return { success: !!modelPath, error: modelPath ? undefined : 'No Whisper model downloaded' };
-          }
-          return { success: false, error: 'API provider test not yet implemented' };
-        });
+        speakers = Array.from(bySpkr.entries()).map(([speaker, data]) => {
+          const talkTimeMs = data.segments.reduce((sum, s) => sum + (s.endTime - s.startTime), 0);
+          const wordCount = data.segments.reduce(
+            (sum, s) => sum + s.content.split(/\s+/).filter(Boolean).length, 0);
+          return {
+            speaker,
+            segmentCount: data.segments.length,
+            wordCount,
+            talkTimeMs,
+            talkTimePercent: totalTalkTime > 0 ? Math.round((talkTimeMs / totalTalkTime) * 100) : 0,
+          };
+        }).sort((a, b) => b.talkTimeMs - a.talkTimeMs);  // Most talkative first
       }
       ```
 
-      NOTE: The test for API providers will be updated in Task 2 when the actual transciber
-      services are created. For now, just local testing works.
-
-      ### 1d. Register in src/main/ipc/index.ts
-
-      Add import and call registerTranscriptionProviderHandlers() in registerIpcHandlers.
-
-      ### 1e. Extend src/preload/preload.ts
-
-      Add to electronAPI:
+      Action item counts:
       ```typescript
-      // Transcription Provider
-      transcriptionGetConfig: () => ipcRenderer.invoke('transcription:get-config'),
-      transcriptionSetProvider: (type: string) => ipcRenderer.invoke('transcription:set-provider', type),
-      transcriptionSetApiKey: (provider: string, apiKey: string) => ipcRenderer.invoke('transcription:set-api-key', provider, apiKey),
-      transcriptionTestProvider: (type: string) => ipcRenderer.invoke('transcription:test-provider', type),
+      const actionRows = await db
+        .select({
+          status: actionItems.status,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(actionItems)
+        .where(eq(actionItems.meetingId, meetingId))
+        .groupBy(actionItems.status);
+
+      const actionItemCounts = {
+        total: 0, pending: 0, approved: 0, dismissed: 0, converted: 0,
+      };
+      for (const row of actionRows) {
+        actionItemCounts[row.status as keyof typeof actionItemCounts] = row.count;
+        actionItemCounts.total += row.count;
+      }
+      ```
+
+      Words per minute:
+      ```typescript
+      const durationMin = durationMs / 60000;
+      const wordsPerMinute = durationMin > 0 ? Math.round(totalWords / durationMin) : 0;
+      ```
+
+      Return the assembled MeetingAnalytics object.
+
+      ### 2c. Add IPC handler in src/main/ipc/diarization.ts
+
+      Rename file consideration: since this file now handles both diarization and analytics,
+      rename the file to `meeting-advanced.ts` or keep as `diarization.ts` and just add the
+      analytics handler. Keep as `diarization.ts` for simplicity — analytics is closely related.
+
+      Add:
+      ```typescript
+      import * as meetingAnalyticsService from '../services/meetingAnalyticsService';
+
+      // Inside registerDiarizationHandlers():
+      ipcMain.handle('meeting:analytics', async (_event, meetingId: string) => {
+        return meetingAnalyticsService.calculateAnalytics(meetingId);
+      });
+      ```
+
+      ### 2d. Extend src/preload/preload.ts
+
+      Add:
+      ```typescript
+      getMeetingAnalytics: (meetingId: string) => ipcRenderer.invoke('meeting:analytics', meetingId),
       ```
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. TranscriptionProviderType has 3 values: 'local', 'deepgram', 'assemblyai'
-      3. TranscriptionProviderConfig has type + optional encrypted keys
-      4. TranscriptionProviderStatus has type + 3 booleans (no encrypted keys exposed)
-      5. AITaskType includes 'transcription'
-      6. transcriptionProviderService exports: getConfig, getStatus, setProviderType, setApiKey, getDecryptedKey
-      7. IPC handlers registered for 4 channels: transcription:get-config, transcription:set-provider, transcription:set-api-key, transcription:test-provider
-      8. preload.ts has 4 transcription provider bridge methods
-      9. Default config is type: 'local' (backward compatible)
+      2. SpeakerStats type has: speaker, segmentCount, wordCount, talkTimeMs, talkTimePercent
+      3. MeetingAnalytics type has: meetingId, durationMs, totalSegments, totalWords, hasDiarization, speakers, actionItemCounts, wordsPerMinute
+      4. meetingAnalyticsService.calculateAnalytics returns correct analytics structure
+      5. Speaker breakdown only populated when hasDiarization is true (segments have speaker labels)
+      6. Action item counts aggregated by status from DB
+      7. wordsPerMinute calculated from total words / duration in minutes
+      8. IPC handler registered for 'meeting:analytics'
+      9. preload.ts has getMeetingAnalytics bridge method
+      10. Analytics are computed on-demand (no stored/stale data)
     </verify>
-    <done>Transcription provider infrastructure: types, config service with encrypted key storage, 4 IPC channels, preload bridge. Default provider is 'local' (backward compatible). TypeScript compiles cleanly.</done>
+    <done>MeetingAnalytics type with speaker breakdown and action item counts. meetingAnalyticsService computes all values from existing transcript + action item data. IPC + preload wired. TypeScript compiles cleanly.</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Settings key-value table supports JSON storage (verified — used by notification preferences)
-      - encryptString/decryptString from secure-storage.ts work for API keys (same pattern as AI providers)
-      - whisperModelManager.getDefaultModelPath() is synchronous (verified — reads from filesystem)
-    </assumptions>
-  </task>
-
-  <task type="auto" n="2">
-    <n>Deepgram + AssemblyAI transcribers, transcriptionService refactor, and fallback</n>
-    <files>
-      src/main/services/deepgramTranscriber.ts (NEW ~120 lines)
-      src/main/services/assemblyaiTranscriber.ts (NEW ~140 lines)
-      src/main/services/transcriptionService.ts (MODIFY — add provider routing + fallback)
-      src/main/ipc/transcription-provider.ts (MODIFY — wire API test functions)
-    </files>
-    <action>
-      ## WHY
-      This is the core of R14 — actual API transcription implementations that can replace or
-      supplement local Whisper. Both providers receive 10-second PCM segments and return
-      transcript text in a uniform format. The transcriptionService is refactored to route
-      segments based on the active provider, with automatic fallback.
-
-      ## WHAT
-
-      ### 2a. Define the Transcriber interface (in transcriptionService.ts or separate file)
-
-      Either at the top of transcriptionService.ts or as a shared type:
-      ```typescript
-      interface TranscriberResult {
-        text: string;
-        segments: Array<{ text: string; startMs: number; endMs: number }>;
-      }
-      ```
-
-      This is the uniform result format that both API transcribers and the existing worker produce.
-
-      ### 2b. Create src/main/services/deepgramTranscriber.ts
-
-      File header:
-      ```
-      // === FILE PURPOSE ===
-      // Deepgram REST API transcriber — sends PCM audio segments and receives
-      // transcribed text. Uses the /v1/listen endpoint with pre-recorded audio.
-      //
-      // === DEPENDENCIES ===
-      // Node.js fetch (built-in), transcriptionProviderService (for API key)
-      //
-      // === LIMITATIONS ===
-      // - REST API (not WebSocket streaming) — transcribes 10-sec segments after recording
-      // - English-only for now (language parameter hardcoded)
-      // - No speaker diarization in this implementation (deferred to Plan 7.7)
-      ```
-
-      Imports:
-      ```typescript
-      import * as transcriptionProviderService from './transcriptionProviderService';
-      ```
-
-      Constants:
-      ```typescript
-      const DEEPGRAM_API_URL = 'https://api.deepgram.com/v1/listen';
-      ```
-
-      Exports:
-
-      **`async transcribeSegment(pcmBuffer: Buffer, startTimeMs: number): Promise<TranscriberResult>`**
-
-      Steps:
-      1. Get API key: `const apiKey = await transcriptionProviderService.getDecryptedKey('deepgram');`
-      2. If no key, throw error: `'Deepgram API key not configured'`
-      3. Build query params: `?model=nova-2&language=en&punctuate=true&smart_format=true`
-      4. Make HTTP request:
-         ```typescript
-         const response = await fetch(`${DEEPGRAM_API_URL}?model=nova-2&language=en&punctuate=true&smart_format=true`, {
-           method: 'POST',
-           headers: {
-             'Authorization': `Token ${apiKey}`,
-             'Content-Type': 'audio/l16;rate=16000;channels=1',
-           },
-           body: pcmBuffer,
-         });
-         ```
-      5. Check response.ok — if not, throw with status + body text
-      6. Parse JSON response:
-         ```typescript
-         const data = await response.json();
-         const channel = data.results?.channels?.[0];
-         const alternative = channel?.alternatives?.[0];
-         const transcript = alternative?.transcript ?? '';
-         ```
-      7. Build segments from Deepgram's word-level timestamps (if available) or treat as single segment:
-         ```typescript
-         // Deepgram returns words with start/end in seconds
-         const words = alternative?.words ?? [];
-         if (words.length === 0) {
-           return { text: transcript, segments: [{ text: transcript, startMs: startTimeMs, endMs: startTimeMs + 10000 }] };
-         }
-         // Group words into the full segment (for now, treat as single segment like local Whisper)
-         return {
-           text: transcript,
-           segments: [{
-             text: transcript,
-             startMs: startTimeMs + Math.round((words[0]?.start ?? 0) * 1000),
-             endMs: startTimeMs + Math.round((words[words.length - 1]?.end ?? 10) * 1000),
-           }],
-         };
-         ```
-
-      **`async testConnection(): Promise<{ success: boolean; error?: string; latencyMs?: number }>`**
-      - Generate 1 second of silence (16000 Int16 samples = 32000 bytes of zeros)
-      - Send to Deepgram API
-      - If 200 OK → success (even with empty transcript, it means auth works)
-      - Measure latency
-      - Return result
-
-      IMPORTANT: I'm not 100% certain about the exact Deepgram REST API response format. The
-      agent MUST verify by checking the Deepgram documentation before implementing. The format
-      described above is based on known patterns but should be confirmed. Key things to verify:
-      - Content-Type header for raw PCM: is `audio/l16;rate=16000;channels=1` correct?
-      - Response JSON path: is it `results.channels[0].alternatives[0].transcript`?
-      - Query parameters: `model=nova-2`, `punctuate=true`, `smart_format=true`
-
-      ### 2c. Create src/main/services/assemblyaiTranscriber.ts
-
-      File header:
-      ```
-      // === FILE PURPOSE ===
-      // AssemblyAI REST API transcriber — uploads PCM audio and polls for
-      // transcription results. Uses upload + transcript + polling workflow.
-      //
-      // === DEPENDENCIES ===
-      // Node.js fetch (built-in), transcriptionProviderService (for API key)
-      //
-      // === LIMITATIONS ===
-      // - Polling-based (adds 3-10 seconds of latency per segment)
-      // - No speaker diarization in this implementation (deferred to Plan 7.7)
-      // - English-only for now
-      ```
-
-      Constants:
-      ```typescript
-      const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2';
-      const POLL_INTERVAL_MS = 1000;
-      const MAX_POLL_ATTEMPTS = 30; // 30 seconds max wait
-      ```
-
-      Exports:
-
-      **`async transcribeSegment(pcmBuffer: Buffer, startTimeMs: number): Promise<TranscriberResult>`**
-
-      Steps:
-      1. Get API key from transcriptionProviderService
-      2. Upload audio:
-         ```typescript
-         const uploadResponse = await fetch(`${ASSEMBLYAI_API_URL}/upload`, {
-           method: 'POST',
-           headers: {
-             'Authorization': apiKey,
-             'Content-Type': 'application/octet-stream',
-           },
-           body: pcmBuffer,
-         });
-         const { upload_url } = await uploadResponse.json();
-         ```
-      3. Submit transcription request:
-         ```typescript
-         const transcriptResponse = await fetch(`${ASSEMBLYAI_API_URL}/transcript`, {
-           method: 'POST',
-           headers: {
-             'Authorization': apiKey,
-             'Content-Type': 'application/json',
-           },
-           body: JSON.stringify({
-             audio_url: upload_url,
-             language_code: 'en',
-           }),
-         });
-         const { id } = await transcriptResponse.json();
-         ```
-      4. Poll for result:
-         ```typescript
-         for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
-           await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
-           const pollResponse = await fetch(`${ASSEMBLYAI_API_URL}/transcript/${id}`, {
-             headers: { 'Authorization': apiKey },
-           });
-           const result = await pollResponse.json();
-           if (result.status === 'completed') {
-             return {
-               text: result.text || '',
-               segments: [{
-                 text: result.text || '',
-                 startMs: startTimeMs,
-                 endMs: startTimeMs + 10000,
-               }],
-             };
-           }
-           if (result.status === 'error') {
-             throw new Error(`AssemblyAI error: ${result.error}`);
-           }
-         }
-         throw new Error('AssemblyAI transcription timed out');
-         ```
-
-      **`async testConnection(): Promise<{ success: boolean; error?: string; latencyMs?: number }>`**
-      - Upload 1 second of silence
-      - If upload succeeds (200 OK with upload_url) → connection works
-      - Don't need to wait for full transcription — upload success proves auth works
-      - Return result
-
-      IMPORTANT: Same as Deepgram — verify exact API format:
-      - Does AssemblyAI accept raw PCM via /v2/upload? Or does it need WAV headers?
-        If it needs WAV, use the wavefile library (already installed) to wrap PCM in WAV format.
-      - Response format for upload: `{ upload_url: string }`?
-      - Response format for transcript: `{ id: string, status: string, text: string }`?
-
-      ### 2d. Refactor src/main/services/transcriptionService.ts
-
-      This is the most important change. The transcription service needs to route segments
-      based on the active provider while keeping the existing worker-based local path intact.
-
-      Import additions:
-      ```typescript
-      import * as transcriptionProviderService from './transcriptionProviderService';
-      import * as deepgramTranscriber from './deepgramTranscriber';
-      import * as assemblyaiTranscriber from './assemblyaiTranscriber';
-      import { logUsage } from './ai-provider';
-      import type { TranscriptionProviderType } from '../../shared/types';
-      ```
-
-      Add module-level state:
-      ```typescript
-      let activeProvider: TranscriptionProviderType = 'local';
-      ```
-
-      Modify `start()`:
-      ```typescript
-      export async function start(meetingId: string): Promise<void> {
-        // Resolve which provider to use
-        const config = await transcriptionProviderService.getConfig();
-        activeProvider = config.type;
-
-        // Common reset
-        currentMeetingId = meetingId;
-        accumulatorBuffer = Buffer.alloc(0);
-        segmentIndex = 0;
-        lastTranscriptText = '';
-        pendingSegments = [];
-        transcribing = false;
-
-        if (activeProvider === 'local') {
-          // Existing local Whisper path
-          const modelPath = whisperModelManager.getDefaultModelPath();
-          if (!modelPath) {
-            console.log('[Transcription] No whisper model available. Skipping transcription.');
-            return;
-          }
-          // ... existing worker spawn code (unchanged) ...
-        } else {
-          // API provider — verify key is configured
-          const hasKey = activeProvider === 'deepgram'
-            ? !!(await transcriptionProviderService.getDecryptedKey('deepgram'))
-            : !!(await transcriptionProviderService.getDecryptedKey('assemblyai'));
-
-          if (!hasKey) {
-            console.log(`[Transcription] No API key for ${activeProvider}. Skipping transcription.`);
-            return;
-          }
-          console.log(`[Transcription] Using API provider: ${activeProvider}`);
-          // No worker needed — API calls happen in dispatchNext
-        }
-      }
-      ```
-
-      Modify `addChunk()`:
-      - The chunk accumulation logic stays the same — 10-second segments regardless of provider
-      - Need to handle the case where no worker is spawned (API mode): still queue segments
-
-      Modify `dispatchNext()` — the key routing point:
-      ```typescript
-      function dispatchNext(): void {
-        if (transcribing || pendingSegments.length === 0) return;
-        if (activeProvider === 'local' && !worker) return;
-
-        transcribing = true;
-        const segment = pendingSegments.shift()!;
-        const startTimeMs = segmentIndex * SEGMENT_DURATION_SEC * 1000;
-        segmentIndex++;
-
-        if (activeProvider === 'local') {
-          // Existing worker dispatch (unchanged)
-          const arrayBuffer = segment.buffer.slice(segment.byteOffset, segment.byteOffset + segment.byteLength) as ArrayBuffer;
-          worker!.postMessage({ type: 'transcribe', audioData: arrayBuffer, segmentIndex: segmentIndex - 1, startTimeMs }, [arrayBuffer]);
-        } else {
-          // API provider dispatch
-          dispatchToApi(segment, startTimeMs);
-        }
-      }
-      ```
-
-      Add new async function for API dispatch:
-      ```typescript
-      async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void> {
-        try {
-          let result;
-          if (activeProvider === 'deepgram') {
-            result = await deepgramTranscriber.transcribeSegment(segment, startTimeMs);
-          } else {
-            result = await assemblyaiTranscriber.transcribeSegment(segment, startTimeMs);
-          }
-
-          // Process result same as worker result
-          if (result.text && result.text.trim() && currentMeetingId) {
-            lastTranscriptText = result.text.trim();
-
-            for (const seg of result.segments) {
-              if (!seg.text.trim()) continue;
-              try {
-                const saved = await meetingService.addTranscriptSegment(
-                  currentMeetingId,
-                  seg.text.trim(),
-                  seg.startMs,
-                  seg.endMs,
-                );
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                  mainWindow.webContents.send('recording:transcript-segment', saved);
-                }
-              } catch (err) {
-                console.error('[Transcription] Failed to save segment:', err);
-              }
-            }
-
-            // Log API usage (fire-and-forget) — use segment duration as proxy metric
-            try {
-              const durationSec = segment.byteLength / (SAMPLE_RATE * 2); // PCM Int16 = 2 bytes/sample
-              // Log with estimated "tokens" based on audio duration (1 sec ≈ 1 "token" for tracking)
-              await logUsage('api-transcription', activeProvider, 'transcription', {
-                inputTokens: Math.round(durationSec),
-                outputTokens: 0,
-                totalTokens: Math.round(durationSec),
-              });
-            } catch { /* non-fatal */ }
-          }
-        } catch (err) {
-          console.error(`[Transcription] API (${activeProvider}) failed:`, err);
-
-          // FALLBACK: try local Whisper if available
-          if (worker) {
-            console.log('[Transcription] Falling back to local Whisper');
-            const arrayBuffer = segment.buffer.slice(segment.byteOffset, segment.byteOffset + segment.byteLength) as ArrayBuffer;
-            worker.postMessage({ type: 'transcribe', audioData: arrayBuffer, segmentIndex: segmentIndex - 1, startTimeMs }, [arrayBuffer]);
-            return; // Worker message handler will set transcribing = false
-          }
-
-          console.error('[Transcription] No fallback available. Skipping segment.');
-        }
-
-        transcribing = false;
-        dispatchNext();
-      }
-      ```
-
-      Modify `stop()`:
-      - If activeProvider !== 'local', skip worker termination (no worker exists)
-      - Still wait for pending segments to complete
-      ```typescript
-      export async function stop(): Promise<void> {
-        // Flush remaining audio
-        if (accumulatorBuffer.byteLength > 0 && currentMeetingId) {
-          pendingSegments.push(Buffer.from(accumulatorBuffer));
-          accumulatorBuffer = Buffer.alloc(0);
-          dispatchNext();
-        }
-
-        await waitForPending();
-
-        if (worker) {
-          worker.postMessage({ type: 'stop' });
-          await worker.terminate();
-          worker = null;
-        }
-
-        currentMeetingId = null;
-        activeProvider = 'local';
-        console.log('[Transcription] Stopped');
-      }
-      ```
-
-      **Fallback enhancement**: For a more robust fallback, modify `start()` to spawn
-      the Whisper worker in the background even when an API provider is active, IF a local
-      model is available. This gives us a warm fallback. However, this adds complexity.
-      For MVP, only fall back if the worker was already spawned (i.e., don't spawn it
-      just for fallback). Document this limitation.
-
-      ### 2e. Wire API test functions in transcription-provider.ts
-
-      Update the 'transcription:test-provider' handler:
-      ```typescript
-      if (type === 'deepgram') {
-        const { testConnection } = await import('../services/deepgramTranscriber');
-        return testConnection();
-      }
-      if (type === 'assemblyai') {
-        const { testConnection } = await import('../services/assemblyaiTranscriber');
-        return testConnection();
-      }
-      ```
-    </action>
-    <verify>
-      1. `npx tsc --noEmit` — zero TypeScript errors
-      2. deepgramTranscriber.ts exports: transcribeSegment, testConnection
-      3. assemblyaiTranscriber.ts exports: transcribeSegment, testConnection
-      4. transcriptionService.ts resolves provider from config on start()
-      5. dispatchNext() routes to worker (local) or API (deepgram/assemblyai)
-      6. API dispatch saves segments to DB and pushes to renderer (same as worker path)
-      7. API failures log error and attempt fallback to local Whisper if worker exists
-      8. API transcription calls logged to ai_usage table with taskType 'transcription'
-      9. transcription:test-provider IPC handler works for all 3 provider types
-      10. stop() handles both local (worker cleanup) and API (no worker) modes
-    </verify>
-    <done>Deepgram and AssemblyAI REST transcribers with uniform TranscriberResult format. transcriptionService refactored for provider routing (local/deepgram/assemblyai) with automatic fallback. API test functions wired into IPC. Usage logging for API calls. TypeScript compiles cleanly.</done>
-    <confidence>MEDIUM</confidence>
-    <assumptions>
-      - Deepgram REST API at /v1/listen accepts raw PCM with Content-Type: audio/l16;rate=16000;channels=1
-        VERIFY: Check Deepgram docs for exact content-type header format and response JSON structure
-      - AssemblyAI /v2/upload accepts raw binary audio data
-        VERIFY: Check if AssemblyAI needs WAV headers or if raw PCM works. If WAV needed, use wavefile library.
-      - Node.js native fetch is available in Electron's Node.js runtime (Node 20+)
-        VERIFY: If not, use node-fetch or Electron's net module
-      - Deepgram model 'nova-2' is the current recommended model
-      - AssemblyAI polling is fast enough for 10-sec segments (typically 3-10 sec)
-      - logUsage works with synthetic providerId 'api-transcription' (no FK constraint on providerId)
-        VERIFY: Check if ai_usage.providerId has a foreign key to ai_providers table. If yes, need a different approach for logging.
+      - Transcript segments have accurate startTime/endTime in milliseconds
+      - Action items have status field matching one of: pending, approved, dismissed, converted
+      - Meeting has startedAt and endedAt timestamps (endedAt null for incomplete meetings)
+      - Drizzle sql template supports count(*) with ::int cast for type safety
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Transcription provider settings UI</n>
+    <n>Speaker labels in transcript + meeting analytics UI + diarization trigger</n>
     <files>
-      src/renderer/components/settings/TranscriptionProviderSection.tsx (NEW ~200 lines)
-      src/renderer/pages/SettingsPage.tsx (MODIFY — add TranscriptionProviderSection)
+      src/renderer/stores/meetingStore.ts (MODIFY — add diarization + analytics state/actions)
+      src/renderer/components/MeetingAnalyticsSection.tsx (NEW ~200 lines)
+      src/renderer/components/MeetingDetailModal.tsx (MODIFY — speaker labels, analytics section, diarize button)
     </files>
     <action>
       ## WHY
-      Users need a UI to select their transcription provider (Local Whisper, Deepgram, or
-      AssemblyAI), configure API keys, and test connectivity. This completes R14's
-      "provider selection in settings" requirement.
+      Users need to see speaker labels in the transcript ("Speaker 1: Hello everyone"),
+      trigger diarization after recording, and view meeting analytics (duration, speaker
+      breakdown, word counts, action item summary). This completes the user-facing R13 features.
 
       ## WHAT
 
-      ### 3a. Create src/renderer/components/settings/TranscriptionProviderSection.tsx
+      ### 3a. Modify meetingStore.ts — add diarization + analytics state
 
-      Read BackupSection.tsx and NotificationSection.tsx first to follow the same patterns.
+      Add state:
+      ```typescript
+      diarizing: boolean;
+      diarizationError: string | null;
+      analytics: MeetingAnalytics | null;
+      analyticsLoading: boolean;
+      ```
+
+      Add actions:
+      ```typescript
+      diarizeMeeting: async (meetingId: string) => {
+        set({ diarizing: true, diarizationError: null });
+        try {
+          const result = await window.electronAPI.diarizeMeeting(meetingId);
+          if (result.success) {
+            // Reload the meeting to get updated segments with speaker labels
+            const meeting = await window.electronAPI.getMeeting(meetingId);
+            set({ selectedMeeting: meeting, diarizing: false });
+          } else {
+            set({ diarizing: false, diarizationError: result.error ?? 'Diarization failed' });
+          }
+        } catch (err) {
+          set({ diarizing: false, diarizationError: err instanceof Error ? err.message : 'Diarization failed' });
+        }
+      },
+
+      loadAnalytics: async (meetingId: string) => {
+        set({ analyticsLoading: true });
+        try {
+          const analytics = await window.electronAPI.getMeetingAnalytics(meetingId);
+          set({ analytics, analyticsLoading: false });
+        } catch {
+          set({ analyticsLoading: false });
+        }
+      },
+
+      clearAnalytics: () => set({ analytics: null, analyticsLoading: false, diarizing: false, diarizationError: null }),
+      ```
+
+      In clearSelectedMeeting (or equivalent clear action), also reset analytics + diarization state.
+
+      ### 3b. Create src/renderer/components/MeetingAnalyticsSection.tsx (~200 lines)
+
+      Read BriefSection.tsx and ActionItemList.tsx first for component patterns.
+
+      Props:
+      ```typescript
+      interface MeetingAnalyticsSectionProps {
+        meetingId: string;
+      }
+      ```
 
       Layout:
       ```
-      ── Transcription Provider ──────────────────────
+      ── Meeting Analytics ──────────────────────────
 
-      Select how meeting audio is transcribed:
+      Duration: 45m 23s    Segments: 47    Words: 3,421    WPM: 75
 
-      ○ Local (Whisper)
-        Uses locally downloaded Whisper model. Free, private, works offline.
-        Status: Model available ✓  (or: No model downloaded)
+      [If hasDiarization:]
+      ── Speaker Breakdown ──
+      Speaker 1  ████████████████░░░░  62% (2,121 words, 28m 07s)
+      Speaker 2  ████████░░░░░░░░░░░░  31% (1,060 words, 14m 03s)
+      Speaker 3  ██░░░░░░░░░░░░░░░░░░   7% (240 words, 3m 13s)
 
-      ○ Deepgram
-        Cloud-based transcription with high accuracy and speed.
-        API Key: [••••••••••••] [Show/Hide] [Clear]
-        Status: Connected ✓  (or: Not configured)
+      [If !hasDiarization:]
+      Speaker data not available. [Identify Speakers] button
 
-      ○ AssemblyAI
-        Cloud-based transcription with advanced features.
-        API Key: [••••••••••••] [Show/Hide] [Clear]
-        Status: Connected ✓  (or: Not configured)
-
-      [Test Connection]
-      ─────────────────────────────────────────────────
+      ── Action Items ──
+      Total: 5  |  Pending: 2  |  Approved: 1  |  Converted: 2
+      ─────────────────────────────────────────────
       ```
 
-      State:
-      ```typescript
-      const [config, setConfig] = useState<TranscriptionProviderStatus | null>(null);
-      const [deepgramKey, setDeepgramKey] = useState('');
-      const [assemblyaiKey, setAssemblyaiKey] = useState('');
-      const [showDeepgramKey, setShowDeepgramKey] = useState(false);
-      const [showAssemblyaiKey, setShowAssemblyaiKey] = useState(false);
-      const [testing, setTesting] = useState(false);
-      const [testResult, setTestResult] = useState<{ success: boolean; error?: string; latencyMs?: number } | null>(null);
-      const [saving, setSaving] = useState(false);
-      ```
+      Component:
+      - Uses meetingStore.analytics (loaded via loadAnalytics on mount)
+      - Shows loading spinner while analyticsLoading
+      - Top stats row: duration (formatted as Xh Ym Zs), segments count, total words, WPM
+      - Speaker breakdown section (only if hasDiarization):
+        - For each speaker: name, horizontal bar (colored), percentage, word count, talk time
+        - Bar colors: use a predefined palette (e.g., blue, green, amber, purple, rose)
+        - Sorted by talk time (most to least)
+      - If no diarization: show message + "Identify Speakers" button
+        - Button calls meetingStore.diarizeMeeting(meetingId)
+        - Show spinner while diarizing
+        - Show error message if diarizationError
+        - After success, analytics auto-refresh (loadAnalytics)
+      - Action item summary: compact row with colored count badges
 
-      On mount: load config via `window.electronAPI.transcriptionGetConfig()`
+      Styling:
+      - Follow existing section patterns (BriefSection border/padding style)
+      - Use Tailwind for bar charts (div with dynamic width% and bg-color)
+      - Lucide icons: BarChart3, Users, Clock, MessageSquare for section headers
 
-      Provider selection:
-      - Radio buttons for 'local', 'deepgram', 'assemblyai'
-      - On change: call `window.electronAPI.transcriptionSetProvider(type)` + refresh config
+      ### 3c. Modify MeetingDetailModal.tsx — speaker labels + analytics integration
 
-      API key inputs (shown when corresponding provider is selected or has a key):
-      - Text input with type="password" (toggleable with Show/Hide button)
-      - On blur or Enter: if key changed, call `window.electronAPI.transcriptionSetApiKey(provider, key)` + refresh config
-      - Clear button: sets key to empty string
+      Speaker labels in transcript timeline:
+      - Currently, transcript segments display as `MM:SS — content`
+      - If segment.speaker is not null, display as `MM:SS — [Speaker 1] content`
+      - Color-code speaker labels using the same palette as analytics bars
+      - Create a small helper: `getSpeakerColor(speaker: string): string` that maps
+        "Speaker 1" → blue, "Speaker 2" → green, etc.
 
-      Test button:
-      - Calls `window.electronAPI.transcriptionTestProvider(config.type)`
-      - Shows spinner while testing
-      - Shows result: success (green check + latency) or error (red X + message)
+      Integration:
+      - Import MeetingAnalyticsSection
+      - Add it between the project selector section and the BriefSection
+      - On modal open (useEffect with selectedMeeting): call loadAnalytics(meetingId)
+      - On modal close (clearSelectedMeeting): also call clearAnalytics()
+      - After successful diarization: call loadAnalytics to refresh (the store's
+        diarizeMeeting already reloads the meeting, so the transcript will update;
+        analytics should also refresh)
 
-      Status indicators per provider:
-      - Local: "Model available" (green) if localModelAvailable, "No model downloaded" (yellow) otherwise
-      - Deepgram: "API key configured" (green) if hasDeepgramKey, "Not configured" (gray) otherwise
-      - AssemblyAI: "API key configured" (green) if hasAssemblyaiKey, "Not configured" (gray) otherwise
-
-      Icon: use Mic or AudioLines from lucide-react for the section header.
-
-      Styling: follow BackupSection/NotificationSection patterns:
-      - Section header with icon + title
-      - Description text
-      - Radio group with labels and descriptions
-      - Input fields with appropriate spacing
-      - Button styling consistent with other settings sections
-
-      ### 3b. Add TranscriptionProviderSection to SettingsPage
-
-      Import TranscriptionProviderSection.
-      Add it BEFORE the "AI Providers" section (since transcription provider is a user-facing
-      choice that's more immediately relevant than AI model configuration).
-
-      Check the current section order in SettingsPage and insert appropriately.
-      The order should be approximately:
-      1. Appearance (theme)
-      2. **Transcription Provider** (NEW)
-      3. AI Providers
-      4. Model Assignments
-      5. AI Usage
-      6. Database Backups
-      7. Notifications
-      8. Export Data
-      9. About
+      Loading/error states:
+      - While diarizing: show spinner on the "Identify Speakers" button
+      - diarizationError: show inline red error text below the button
+      - Provider hint: if no API provider configured, show "Configure Deepgram or AssemblyAI
+        in Settings to enable speaker identification"
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. TranscriptionProviderSection renders 3 radio options (Local, Deepgram, AssemblyAI)
-      3. Selecting a provider calls transcriptionSetProvider IPC
-      4. API key inputs appear for Deepgram and AssemblyAI
-      5. API key save calls transcriptionSetApiKey IPC with the key value
-      6. Test button calls transcriptionTestProvider and shows result
-      7. Status indicators show based on config (localModelAvailable, hasDeepgramKey, hasAssemblyaiKey)
-      8. Section is positioned before AI Providers in SettingsPage
-      9. Styling follows existing settings section patterns (BackupSection, NotificationSection)
+      2. meetingStore has diarizing, diarizationError, analytics, analyticsLoading state
+      3. meetingStore.diarizeMeeting calls IPC, reloads meeting on success
+      4. meetingStore.loadAnalytics calls IPC, stores result
+      5. MeetingAnalyticsSection shows: duration, segments, words, WPM
+      6. MeetingAnalyticsSection shows speaker breakdown bars when hasDiarization is true
+      7. MeetingAnalyticsSection shows "Identify Speakers" button when hasDiarization is false
+      8. "Identify Speakers" button triggers diarization, shows spinner, handles errors
+      9. Transcript segments in MeetingDetailModal show speaker labels with color coding when available
+      10. Speaker colors are consistent between transcript labels and analytics bars
+      11. Analytics loaded on modal open, cleared on modal close
+      12. Provider hint shown when no API key configured
     </verify>
-    <done>TranscriptionProviderSection settings UI with provider selection radio buttons, API key management, test connectivity button, and status indicators. Added to SettingsPage before AI Providers section. TypeScript compiles cleanly.</done>
+    <done>Speaker-labeled transcript display with color-coded speaker names. MeetingAnalyticsSection with duration/words/WPM stats, speaker breakdown bars, action item counts. "Identify Speakers" button triggers post-recording diarization. Full integration in MeetingDetailModal. TypeScript compiles cleanly.</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - TranscriptionProviderStatus type is available from shared/types (created in Task 1)
-      - transcriptionGetConfig, transcriptionSetProvider, transcriptionSetApiKey, transcriptionTestProvider methods available on electronAPI (created in Task 1)
-      - Lucide icons Mic or AudioLines exist (standard lucide-react icons)
-      - Settings page can accommodate a new section without layout issues
+      - meetingStore.selectedMeeting is loaded with segments that include speaker field
+      - MeetingDetailModal already has useEffect for loading meeting data on open
+      - BriefSection and ActionItemList patterns are suitable for MeetingAnalyticsSection
+      - Lucide React has BarChart3, Users, Clock icons (standard lucide-react exports)
+      - 6+ speaker colors are sufficient (most meetings have 2-5 speakers)
     </assumptions>
   </task>
 </phase>

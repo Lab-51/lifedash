@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 7 — Plan 7.6 PLANNED
+Session focus: Phase 7 — Plan 7.7 PLANNED
 
 ## Position
 Milestone: Phase 7 — v2 Features (Advanced)
 Phase: 7 of 7 (IN PROGRESS)
-Plan: 6 of 8 (PLANNED — 0/3 tasks done)
+Plan: 7 of 8 (PLANNED — 0/3 tasks done)
 Task: 0 of 3
 
 ## Phase 1 — COMPLETE
@@ -345,6 +345,21 @@ Planned as 8 sequential plans.
 - Fallback: API failure → local Whisper if worker exists (no warm fallback spawn for MVP)
 - TranscriptionProviderSection placed before AI Providers in settings (more user-visible)
 
+### Plan 7.7: Speaker Diarization & Meeting Analytics (3 tasks) — PLANNED
+1. Schema extension + diarization service + transcriber functions + IPC — PENDING
+2. Meeting analytics service + types + IPC + preload — PENDING
+3. Speaker labels in transcript + meeting analytics UI + diarization trigger — PENDING
+- Not yet executed
+
+## Decisions Made (Plan 7.7)
+- Post-recording diarization (not per-segment): 10-sec segments too short for reliable cross-segment speaker consistency
+- Full WAV file sent to API with diarization enabled, speaker labels mapped back to existing segments by timestamp
+- Speaker column on transcripts: nullable varchar(50), null = not diarized (backward compatible)
+- Speaker labels normalized to "Speaker 1", "Speaker 2" etc. across providers
+- Analytics computed on-demand (not stored) — derived from transcript + action items
+- Calendar integration and auto meeting detection deferred to ISSUES.md
+
 ## Next Steps
-1. `/nexus:git` — Commit Plan 7.6 changes
-2. `/nexus:plan 7.7` — Meeting analytics and speaker diarization
+1. `/nexus:git` — Commit Plan 7.6 changes (if not yet committed)
+2. `/nexus:execute` — Execute Plan 7.7
+3. `/nexus:plan 7.8` — Card attachments, due dates UI, reminders
