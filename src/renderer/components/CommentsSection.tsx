@@ -3,11 +3,11 @@
 // Allows adding, editing, and deleting comments on a card.
 
 // === DEPENDENCIES ===
-// react, lucide-react, boardStore (Zustand)
+// react, lucide-react, cardDetailStore (Zustand)
 
 import { useState } from 'react';
 import { MessageSquare, Pencil, Trash2 } from 'lucide-react';
-import { useBoardStore } from '../stores/boardStore';
+import { useCardDetailStore } from '../stores/cardDetailStore';
 
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -27,7 +27,7 @@ interface CommentsSectionProps {
 
 function CommentsSection({ cardId }: CommentsSectionProps) {
   const { selectedCardComments, addComment, updateComment, deleteComment } =
-    useBoardStore();
+    useCardDetailStore();
 
   const [newComment, setNewComment] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);

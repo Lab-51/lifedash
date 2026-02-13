@@ -3,7 +3,7 @@
 // Files are opened with the OS default application.
 //
 // === DEPENDENCIES ===
-// react, lucide-react, boardStore
+// react, lucide-react, cardDetailStore
 //
 // === LIMITATIONS ===
 // - No drag-and-drop file upload (uses file dialog)
@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import { Paperclip, File, FileText, FileCode, Image as ImageIcon, ExternalLink, Trash2, Plus } from 'lucide-react';
-import { useBoardStore } from '../stores/boardStore';
+import { useCardDetailStore } from '../stores/cardDetailStore';
 
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -45,7 +45,7 @@ interface AttachmentsSectionProps {
 }
 
 function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
-  const { selectedCardAttachments, addAttachment, deleteAttachment, openAttachment } = useBoardStore();
+  const { selectedCardAttachments, addAttachment, deleteAttachment, openAttachment } = useCardDetailStore();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handleAdd = async () => {

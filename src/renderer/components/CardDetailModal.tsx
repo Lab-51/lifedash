@@ -5,7 +5,7 @@
 
 // === DEPENDENCIES ===
 // react, lucide-react (X, Plus, FileText, Calendar), @tiptap/react, @tiptap/starter-kit,
-// @tiptap/extension-placeholder, shared types, boardStore, section components
+// @tiptap/extension-placeholder, shared types, boardStore, cardDetailStore, section components
 
 import { useState, useEffect, useRef } from 'react';
 import { X, Plus, FileText, Calendar } from 'lucide-react';
@@ -14,6 +14,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { Card, UpdateCardInput, CardPriority } from '../../shared/types';
 import { useBoardStore } from '../stores/boardStore';
+import { useCardDetailStore } from '../stores/cardDetailStore';
 import { getDueDateBadge } from '../utils/date-utils';
 import AttachmentsSection from './AttachmentsSection';
 import CommentsSection from './CommentsSection';
@@ -114,7 +115,8 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const templateDropdownRef = useRef<HTMLDivElement>(null);
 
-  const { labels, createLabel, attachLabel, detachLabel, loadCardDetails, clearCardDetails, loadingCardDetails } = useBoardStore();
+  const { labels, createLabel, attachLabel, detachLabel } = useBoardStore();
+  const { loadCardDetails, clearCardDetails, loadingCardDetails } = useCardDetailStore();
   const clearBreakdown = useTaskStructuringStore(s => s.clearBreakdown);
 
   // TipTap editor setup

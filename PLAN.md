@@ -1,372 +1,385 @@
-# Plan 8.5 — Remaining IPC Validation, IdeaDetailModal Decomposition & Console Cleanup
+# Plan 8.6 — Types Module Split, Test Coverage Expansion & BoardStore Decomposition
 
-**Source:** Plan 8.4 completed Zod validation for 6 IPC files (63 handlers, ~56%). This plan validates the remaining 11 files (46 handlers) to reach ~100%, decomposes IdeaDetailModal (815 lines), and cleans up 2 renderer console.log calls.
-**Scope:** 3 tasks — all independent (different files), safe for parallel execution.
-**Approach:** Task 1 validates 6 medium IPC files (29 handlers, schemas mostly exist). Task 2 validates 5 small IPC files (13 handlers, mostly id-only or no-param) + console cleanup. Task 3 extracts components from IdeaDetailModal.
+**Source:** REVIEW.md findings. Plans 8.1-8.5 addressed the top 5 review priorities (N+1 fix, test framework, README, IPC validation, card reordering) plus structured logging, CSP, component decomposition. Remaining high-impact items: monolithic types.ts (847 lines, 55 importers), low test coverage (12 tests), and bloated boardStore (375 lines, 26 methods).
+**Scope:** 3 tasks — all independent (different file domains), safe for parallel execution.
+**Approach:** Task 1 splits types.ts into domain modules with barrel re-export (zero import changes). Task 2 adds 20+ tests for schemas, validators, and utilities. Task 3 extracts card detail state from boardStore into a dedicated cardDetailStore.
 
 ## Scope Rationale
 
-Plan 8.4 brought validation coverage to 63/~112 handlers (~56%). The remaining 46 handlers are spread across 11 smaller files, many with trivial signatures (no params or just an ID). Schemas already exist for brainstorm, backup, settings, notifications, and transcription-provider (created as "bonus" in Plan 8.4 Task 1). Most remaining files just need idParamSchema applied.
+`shared/types.ts` at 847 lines is the largest file exceeding the 500-line guideline and was flagged as a "merge conflict magnet" and scalability concern. Barrel re-export means all 55 importing files need ZERO changes — the module resolution handles it transparently.
 
-IdeaDetailModal at 815 lines exceeds the 500-line guideline. The AI Analysis section (~80 lines) and Convert Wizard (~130 lines) are self-contained concerns that extract cleanly.
+Test coverage at 12 tests (2 files) is still the #1 risk from the review. The Zod validation rollout (Plans 8.3-8.5) created 48 schemas and a validator function — all highly testable pure functions with no Electron dependencies.
+
+boardStore at 375 lines manages 7 entity types (boards, columns, cards, labels, comments, relationships, attachments + activities). The card detail concern (comments, relationships, activities, attachments, breakdown) is cleanly separable.
 
 ---
 
-<phase n="8.5" name="Remaining IPC Validation, IdeaDetailModal Decomposition & Console Cleanup">
+<phase n="8.6" name="Types Module Split, Test Coverage Expansion & BoardStore Decomposition">
   <context>
-    Plan 8.4 validated 6 IPC files. 11 files remain with 46 handlers total.
-
-    Schemas already in schemas.ts (from Plan 8.4 bonus):
-    - brainstorm: createBrainstormSessionInputSchema, updateBrainstormSessionInputSchema, brainstormMessageContentSchema
-    - backup: autoBackupSettingsUpdateSchema, exportOptionsSchema
-    - settings: settingKeySchema, settingValueSchema
-    - notifications: notificationPreferencesUpdateSchema
-    - transcription-provider: transcriptionProviderTypeSchema, transcriptionApiKeyProviderSchema
-
-    Schemas that may need to be CREATED:
-    - task-structuring: handlers take projectId + context string — need to check actual signatures
-    - whisper: download takes fileName string — may need whisperModelNameSchema
-    - recording/diarization/database/window-controls: mostly id-only or no-param
+    Plans 8.1-8.5 completed. Remaining high-impact review items:
+    - shared/types.ts: 847 lines, imported by 55 files (architecture concern #2)
+    - Test coverage: only 12 tests in 2 files (review priority #1)
+    - boardStore.ts: 375 lines, 26+ methods spanning 7 entity types (architecture concern #6)
 
     Key reference files:
-    @src/shared/validation/schemas.ts — all existing schemas
-    @src/shared/validation/ipc-validator.ts — validateInput wrapper
-    @src/main/ipc/projects.ts — reference implementation for validation pattern
-    @src/renderer/components/IdeaDetailModal.tsx — 815 lines, decomposition target
-    @src/renderer/services/audioCaptureService.ts — 2 console.log calls to replace
+    @src/shared/types.ts — 847 lines, monolithic types file to split
+    @src/shared/validation/schemas.ts — 321 lines, 48 schema exports to test
+    @src/shared/validation/ipc-validator.ts — validateInput function to test
+    @src/renderer/utils/date-utils.ts — getDueDateBadge utility to test
+    @src/shared/utils/card-utils.ts — buildCardLabelMap (already tested)
+    @src/renderer/stores/boardStore.ts — 375 lines, store to decompose
+    @src/renderer/components/CardDetailModal.tsx — primary consumer of card detail state
+    @src/renderer/components/CommentsSection.tsx — uses boardStore card detail state
+    @src/renderer/components/RelationshipsSection.tsx — uses boardStore card detail state
+    @src/renderer/components/AttachmentsSection.tsx — uses boardStore card detail state
+    @src/renderer/components/ActivityLog.tsx — uses boardStore card detail state
+    @src/renderer/components/TaskBreakdownSection.tsx — uses boardStore card detail state
   </context>
 
   <task type="auto" n="1">
-    <n>Apply Zod validation to 6 medium IPC files (29 handlers)</n>
+    <n>Split shared/types.ts into domain-specific modules with barrel re-export</n>
     <files>
-      src/main/ipc/brainstorm.ts (MODIFY — 7 handlers)
-      src/main/ipc/backup.ts (MODIFY — 8 handlers)
-      src/main/ipc/settings.ts (MODIFY — 4 handlers)
-      src/main/ipc/notifications.ts (MODIFY — 3 handlers)
-      src/main/ipc/transcription-provider.ts (MODIFY — 4 handlers)
-      src/main/ipc/task-structuring.ts (MODIFY — 3 handlers)
-      src/shared/validation/schemas.ts (MODIFY — add any missing schemas)
+      src/shared/types.ts (DELETE after extraction)
+      src/shared/types/index.ts (CREATE — barrel re-export)
+      src/shared/types/common.ts (CREATE — DatabaseStatus, shared primitives)
+      src/shared/types/projects.ts (CREATE — Project, Board, Column, Card, Label + inputs)
+      src/shared/types/cards.ts (CREATE — CardComment, CardRelationship, CardActivity, CardAttachment, CardTemplate + inputs)
+      src/shared/types/ai.ts (CREATE — AI provider types, AITaskType, generate/stream types)
+      src/shared/types/meetings.ts (CREATE — Meeting, Transcript, Recording, Meeting templates + inputs)
+      src/shared/types/intelligence.ts (CREATE — ActionItem, MeetingWithTranscript, Diarization, Analytics)
+      src/shared/types/ideas.ts (CREATE — Idea, IdeaAnalysis, convert types + inputs)
+      src/shared/types/brainstorm.ts (CREATE — BrainstormSession, BrainstormMessage + inputs)
+      src/shared/types/backup.ts (CREATE — BackupInfo, ExportOptions, AutoBackupSettings)
+      src/shared/types/tasks.ts (CREATE — ProjectPlan, TaskBreakdown, Pillar, Milestone)
+      src/shared/types/notifications.ts (CREATE — NotificationPreferences)
+      src/shared/types/transcription.ts (CREATE — TranscriptionProvider types)
+      src/shared/types/electron-api.ts (CREATE — ElectronAPI interface + Window global)
     </files>
     <action>
       ## WHY
-      These 6 files have 29 handlers combined and existing schemas cover most inputs.
-      After this task, only 5 trivial files remain (Task 2).
+      shared/types.ts at 847 lines is 70% over the 500-line guideline. It's a merge
+      conflict magnet and makes it hard to understand type domains. The review flagged it
+      as architecture concern #2 and a scalability blocker at 2x features.
 
       ## WHAT
 
-      Read each file BEFORE modifying. Apply the same pattern as projects.ts:
-      import validateInput + schemas, change param types to `unknown`, call validateInput.
+      1. READ src/shared/types.ts FULLY. Identify all type sections by the existing
+         `// === DOMAIN TYPES ===` comments.
 
-      ### brainstorm.ts (7 handlers)
+      2. Create directory: src/shared/types/
 
-      | Handler | Params | Validation |
-      |---------|--------|------------|
-      | brainstorm:list-sessions | none | skip |
-      | brainstorm:get-session | id | idParamSchema |
-      | brainstorm:create-session | data (title, projectId?) | createBrainstormSessionInputSchema |
-      | brainstorm:update-session | id, data | idParamSchema + updateBrainstormSessionInputSchema |
-      | brainstorm:delete-session | id | idParamSchema |
-      | brainstorm:send-message | sessionId, content | idParamSchema + brainstormMessageContentSchema |
-      | brainstorm:export-to-idea | sessionId, messageContent | idParamSchema + brainstormMessageContentSchema |
+      3. Create domain files. Each file gets:
+         - A brief header comment explaining domain
+         - The types from that section of the original file
+         - Any cross-domain imports (e.g., electron-api.ts imports from all domains)
 
-      ### backup.ts (8 handlers)
+      Domain mapping (verify against actual file — these are estimates):
 
-      | Handler | Params | Validation |
-      |---------|--------|------------|
-      | backup:create | none | skip |
-      | backup:list | none | skip |
-      | backup:restore | fileName | filePathSchema (or a backupFileNameSchema) |
-      | backup:restore-from-file | none (uses dialog) | skip |
-      | backup:delete | fileName | filePathSchema |
-      | backup:export | options (format, outputDir) | exportOptionsSchema |
-      | backup:auto-settings-get | none | skip |
-      | backup:auto-settings-update | settings | autoBackupSettingsUpdateSchema |
+      | File | Types (approximate) |
+      |------|---------------------|
+      | common.ts | DatabaseStatus |
+      | projects.ts | Project, Board, Column, Card, CardPriority, Label, Create/Update inputs for all |
+      | cards.ts | CardComment, CardRelationship, CardRelationshipType, CardActivity, CardActivityAction, CardAttachment, CardTemplate, CARD_TEMPLATES, Create inputs |
+      | ai.ts | AIProviderName, AIProvider, AITaskType, AIUsageLog, TaskModelConfig, DEFAULT_MODELS, CreateAIProviderInput, UpdateAIProviderInput |
+      | meetings.ts | Meeting, CreateMeetingInput, UpdateMeetingInput, TranscriptSegment, RecordingState, MeetingTemplateType, MeetingTemplate, MEETING_TEMPLATES, MeetingBrief |
+      | intelligence.ts | ActionItem, ActionItemStatus, MeetingWithTranscript, DiarizationWord, DiarizationResult, SpeakerStats, MeetingAnalytics |
+      | ideas.ts | Idea, IdeaStatus, EffortLevel, ImpactLevel, IdeaAnalysis, Create/Update/Convert inputs and results |
+      | brainstorm.ts | BrainstormSession, BrainstormMessage, BrainstormSessionStatus, BrainstormMessageRole, BrainstormSessionWithMessages, CreateBrainstormSessionInput |
+      | backup.ts | BackupInfo, BackupProgress, ExportFormat, ExportOptions, ExportResult, AutoBackupFrequency, AutoBackupSettings |
+      | tasks.ts | ProjectPillar, PillarTask, ProjectMilestone, ProjectPlan, SubtaskSuggestion, TaskBreakdown |
+      | notifications.ts | NotificationPreferences |
+      | transcription.ts | TranscriptionProviderType, TranscriptionProviderConfig, TranscriptionProviderStatus, TranscriberResult |
+      | electron-api.ts | ElectronAPI interface + `declare global { interface Window { electronAPI: ElectronAPI } }` |
 
-      NOTE: Read backup.ts to verify — some handlers use Electron dialog (no user input
-      to validate). For fileName params, check if they're user-provided strings or
-      system-generated. If system-generated from a list, still validate as defense-in-depth.
+      4. Create barrel re-export: src/shared/types/index.ts
+         ```typescript
+         // Barrel re-export — all types available via `from '../../shared/types'`
+         export * from './common';
+         export * from './projects';
+         export * from './cards';
+         export * from './ai';
+         export * from './meetings';
+         export * from './intelligence';
+         export * from './ideas';
+         export * from './brainstorm';
+         export * from './backup';
+         export * from './tasks';
+         export * from './notifications';
+         export * from './transcription';
+         export * from './electron-api';
+         ```
 
-      ### settings.ts (4 handlers)
+      5. DELETE the original src/shared/types.ts file.
 
-      | Handler | Params | Validation |
-      |---------|--------|------------|
-      | settings:get | key | settingKeySchema |
-      | settings:set | key, value | settingKeySchema + settingValueSchema |
-      | settings:get-all | none | skip |
-      | settings:delete | key | settingKeySchema |
-
-      ### notifications.ts (3 handlers)
-
-      | Handler | Params | Validation |
-      |---------|--------|------------|
-      | notifications:get-preferences | none | skip |
-      | notifications:update-preferences | prefs | notificationPreferencesUpdateSchema |
-      | notifications:test | none | skip |
-
-      ### transcription-provider.ts (4 handlers)
-
-      | Handler | Params | Validation |
-      |---------|--------|------------|
-      | transcription:get-config | none | skip |
-      | transcription:set-provider | providerType | transcriptionProviderTypeSchema |
-      | transcription:set-api-key | provider, apiKey | transcriptionApiKeyProviderSchema + z.string() |
-      | transcription:test-provider | providerType | transcriptionProviderTypeSchema |
-
-      NOTE: Read the file to confirm — transcription:set-api-key may take 2 separate
-      string params or an object. Validate accordingly.
-
-      ### task-structuring.ts (3 handlers)
-
-      Read this file carefully. Handlers likely take:
-      - task-structuring:generate-plan — projectId + context string
-      - task-structuring:quick-plan — projectId + context string
-      - task-structuring:breakdown — cardId
-
-      For projectId/cardId: use idParamSchema.
-      For context: validate as z.string().min(1).max(10000) or similar.
-      Create a new schema if needed (e.g., taskStructuringContextSchema).
+      6. Verify all 55 importing files resolve correctly. The import path
+         `from '../../shared/types'` resolves to `types/index.ts` when `types.ts`
+         no longer exists. TypeScript module resolution checks types.ts first,
+         then types/index.ts.
 
       IMPORTANT:
-      - Read each file BEFORE modifying to verify actual signatures
-      - Create any missing schemas in schemas.ts (add at the bottom of the relevant section)
-      - Remove old type imports that are replaced by Zod validation
-      - Keep type imports used for return values or casts
+      - DO NOT change any import paths in consuming files. The barrel re-export
+        ensures backward compatibility.
+      - The electron-api.ts file must import types from sibling domain files
+        (e.g., `import type { Project } from './projects'`) to define ElectronAPI.
+      - MEETING_TEMPLATES and CARD_TEMPLATES are runtime values (const arrays),
+        not just types — they must be in their respective domain files.
+      - Handle cross-references carefully. Some types reference others:
+        ActionItem references Card-like fields, MeetingWithTranscript references
+        Meeting + TranscriptSegment + ActionItem, etc.
+      - The existing test file `src/shared/__tests__/types.test.ts` imports from
+        `../../shared/types` — it should still work without changes.
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. `npm test` — all tests pass
-      3. Grep for `validateInput` in each of the 6 modified files — confirm all param handlers call it
-      4. No handler in these files uses specific types for incoming data (all `unknown`)
+      2. `npm test` — all 12 tests pass (types.test.ts still works)
+      3. src/shared/types.ts no longer exists (deleted)
+      4. src/shared/types/index.ts exists (barrel re-export)
+      5. 12-14 domain type files in src/shared/types/ directory
+      6. No file in the project imports from individual domain files
+         (all imports go through barrel: `from '../../shared/types'`)
     </verify>
     <done>
-      All 29 handlers across 6 files validated. Any missing schemas created in schemas.ts.
-      Combined with Plans 8.3-8.4, total validated: ~92 of ~112 handlers.
+      shared/types.ts (847 lines) split into 12-14 domain modules with barrel
+      re-export. All 55 importing files continue working without changes. Each
+      domain file is under 100 lines. TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Existing bonus schemas from Plan 8.4 match actual handler signatures (agent verifies)
-      - task-structuring handlers take projectId + context (agent reads to confirm)
-      - brainstorm:send-message streams response — validation still applies to input params
-      - backup fileName params are worth validating even if from a controlled list
+      - TypeScript module resolution resolves `shared/types` → `shared/types/index.ts` when types.ts is deleted
+      - Vite/Electron Forge bundler handles the same resolution
+      - Cross-domain type references are limited (most types are self-contained within domains)
+      - MEETING_TEMPLATES and CARD_TEMPLATES can move to domain files without issues
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Apply Zod validation to 5 small IPC files (13 handlers) + renderer console cleanup</n>
+    <n>Expand test coverage — Zod schemas, IPC validator, and utility tests</n>
     <files>
-      src/main/ipc/recording.ts (MODIFY — 3 handlers)
-      src/main/ipc/whisper.ts (MODIFY — 3 handlers)
-      src/main/ipc/diarization.ts (MODIFY — 2 handlers)
-      src/main/ipc/database.ts (MODIFY — 1 handler)
-      src/main/ipc/window-controls.ts (MODIFY — 4 handlers)
-      src/renderer/services/audioCaptureService.ts (MODIFY — replace 2 console.log)
-      src/shared/validation/schemas.ts (MODIFY — add any missing schemas)
+      src/shared/validation/__tests__/schemas.test.ts (CREATE — ~200 lines)
+      src/shared/validation/__tests__/ipc-validator.test.ts (CREATE — ~80 lines)
+      src/renderer/utils/__tests__/date-utils.test.ts (CREATE — ~60 lines)
     </files>
     <action>
       ## WHY
-      These 5 files have 13 handlers — mostly trivial (no-param or id-only). After this
-      task, 100% of IPC handlers will have Zod validation. Also cleans up the last 2
-      console.log calls in the renderer process.
+      Test coverage at 12 tests (2 files) is still the #1 review risk. Plans 8.3-8.5
+      added 48 Zod schemas and a validation wrapper — all pure functions that are
+      highly testable without Electron mocking. Adding schema tests ensures the
+      validation we rolled out actually rejects bad input correctly.
 
-      ## WHAT — IPC Validation
+      ## WHAT
 
-      Read each file BEFORE modifying. Same pattern as before.
+      ### 1. Schema validation tests (schemas.test.ts, ~200 lines)
 
-      ### recording.ts (3 handlers)
+      Test each important schema for both valid and invalid inputs:
 
-      | Handler | Params | Validation |
-      |---------|--------|------------|
-      | recording:start | meetingId | idParamSchema |
-      | recording:stop | none | skip |
-      | audio:chunk | audioData (Buffer/ArrayBuffer) | See note below |
+      **Primitive/common schemas:**
+      - idParamSchema: valid UUID passes, non-UUID rejects, empty string rejects
+      - settingKeySchema: valid passes, empty rejects, 201+ chars rejects
+      - filePathSchema: valid passes, empty rejects
 
-      NOTE: audio:chunk receives binary audio data. Zod cannot meaningfully validate
-      raw binary buffers. Options:
-      a) Skip validation for audio:chunk (binary data, not user-controlled strings)
-      b) Validate that it's a Buffer/ArrayBuffer instance
-      Recommend option (a) — skip, add a comment explaining why.
+      **Enum schemas (sample 3-4):**
+      - cardPrioritySchema: 'low'/'medium'/'high'/'urgent' pass, 'invalid' rejects
+      - ideaStatusSchema: valid values pass, invalid rejects
+      - meetingTemplateTypeSchema: all 6 values pass, invalid rejects
+      - aiProviderNameSchema: 'openai'/'anthropic'/'ollama' pass, 'invalid' rejects
 
-      ### whisper.ts (3 handlers)
+      **Object schemas (sample 5-6 most important):**
+      - createProjectInputSchema: valid passes, missing name rejects, name too long rejects
+      - createCardInputSchema: valid passes, missing columnId rejects, non-UUID columnId rejects
+      - updateCardInputSchema: empty object passes (all optional), invalid priority rejects
+      - createIdeaInputSchema: valid passes, too many tags rejects (>20)
+      - createMeetingInputSchema: valid passes, invalid template rejects
+      - exportOptionsSchema: valid JSON format passes, invalid format rejects
 
-      | Handler | Params | Validation |
-      |---------|--------|------------|
-      | whisper:list-models | none | skip |
-      | whisper:download-model | fileName | z.string().min(1) or a whisperModelNameSchema |
-      | whisper:has-model | fileName | same as above |
+      **New schemas from Plan 8.5:**
+      - taskStructuringNameSchema: valid passes, empty rejects, 501+ chars rejects
+      - taskStructuringDescriptionSchema: valid passes, 10001+ chars rejects
+      - whisperModelNameSchema: valid passes, empty rejects
 
-      For fileName: create a simple `whisperModelNameSchema = z.string().min(1).max(200)`
-      if not already in schemas.ts.
+      ### 2. IPC validator tests (ipc-validator.test.ts, ~80 lines)
 
-      ### diarization.ts (2 handlers)
+      - validateInput with valid data returns parsed result
+      - validateInput with invalid data throws Error
+      - Error message contains field path
+      - Error message contains validation issue description
+      - Nested object validation works (e.g., object with UUID field)
+      - Optional fields work (undefined passes, null fails where not nullable)
 
-      | Handler | Params | Validation |
-      |---------|--------|------------|
-      | meeting:diarize | meetingId | idParamSchema |
-      | meeting:analytics | meetingId | idParamSchema |
+      ### 3. Date utility tests (date-utils.test.ts, ~60 lines)
 
-      ### database.ts (1 handler)
+      - getDueDateBadge with past date returns overdue (red)
+      - getDueDateBadge with today returns "Due today" (yellow)
+      - getDueDateBadge with future date returns "Due in Nd" (blue)
+      - getDueDateBadge with null returns null
+      - getDueDateBadge boundary: yesterday, tomorrow
 
-      | Handler | Params | Validation |
-      |---------|--------|------------|
-      | db:status | none | skip (no params) |
-
-      For db:status: if it takes no params, just add a comment noting validation is
-      not needed. If it turns out to take params, validate them.
-
-      ### window-controls.ts (4 handlers)
-
-      | Handler | Params | Validation |
-      |---------|--------|------------|
-      | window:minimize | none | skip |
-      | window:maximize | none | skip |
-      | window:close | none | skip |
-      | window:is-maximized | none | skip |
-
-      These are all parameterless. Add a file-level comment:
-      `// All handlers are parameterless — no input validation needed`
-
-      ## WHAT — Console Cleanup
-
-      In `src/renderer/services/audioCaptureService.ts`, replace 2 console.log calls:
-      - Line ~114: `console.log('[AudioCapture] Started -- 16kHz mono Int16 PCM');`
-      - Line ~122: `console.log('[AudioCapture] Stopped');`
-
-      Since this is renderer-side code (no access to the main-process logger), the
-      cleanest approach is to simply remove them — they're debug-level messages that
-      aren't useful in production. Or if the project uses any renderer-side logging
-      pattern, follow that. Check if there's a renderer logger first.
-
-      IMPORTANT: Read audioCaptureService.ts before modifying to confirm line numbers.
+      IMPORTANT:
+      - Use Vitest (already configured): `import { describe, it, expect } from 'vitest'`
+      - Import schemas and validateInput directly (pure functions, no Electron deps)
+      - For date-utils, may need to mock Date.now() for deterministic tests
+      - Create __tests__ directories as needed
+      - Target: 25-30 new tests minimum
     </action>
     <verify>
-      1. `npx tsc --noEmit` — zero TypeScript errors
-      2. `npm test` — all tests pass
-      3. Grep for `validateInput` in recording.ts, whisper.ts, diarization.ts — confirm param handlers call it
-      4. Grep for `console.log` in src/renderer/ — should return 0 results
-      5. database.ts and window-controls.ts have appropriate comments about no validation needed
+      1. `npm test` — all tests pass (12 existing + 25-30 new = 37-42 total)
+      2. `npx tsc --noEmit` — zero TypeScript errors
+      3. 3 new test files exist in correct directories
+      4. At least 25 new tests added (verify with test count output)
     </verify>
     <done>
-      All 13 handlers across 5 files addressed (validated or documented as no-param).
-      Console.log calls removed from renderer. Total IPC validation coverage: ~100%.
+      Test count tripled from 12 to 37-42. Schema validation tests ensure the
+      Zod rollout actually catches bad input. Utility tests cover date formatting.
+      IPC validator tests confirm error messaging.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - audio:chunk receives binary data that Zod can't meaningfully validate
-      - window-controls handlers are all parameterless (agent verifies)
-      - database handler is parameterless (agent verifies)
-      - Removing console.log from audioCaptureService doesn't break any functionality
-      - No renderer-side logger exists (messages simply removed)
+      - Vitest is configured and working (verified in Plan 8.1)
+      - Zod schemas are importable without Electron environment
+      - date-utils getDueDateBadge is a pure function (or needs minimal mocking)
+      - Schema tests can use inline test data (no external fixtures needed)
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Decompose IdeaDetailModal into focused sub-components</n>
+    <n>Decompose boardStore — extract cardDetailStore for card sub-entity state</n>
     <files>
-      src/renderer/components/IdeaDetailModal.tsx (MODIFY — 815 → ~575 lines)
-      src/renderer/components/IdeaAnalysisSection.tsx (CREATE — ~100 lines)
-      src/renderer/components/IdeaConvertWizard.tsx (CREATE — ~150 lines)
+      src/renderer/stores/boardStore.ts (MODIFY — 375 → ~220 lines)
+      src/renderer/stores/cardDetailStore.ts (CREATE — ~170 lines)
+      src/renderer/components/CardDetailModal.tsx (MODIFY — update store import)
+      src/renderer/components/CommentsSection.tsx (MODIFY — update store import)
+      src/renderer/components/RelationshipsSection.tsx (MODIFY — update store import)
+      src/renderer/components/AttachmentsSection.tsx (MODIFY — update store import)
+      src/renderer/components/ActivityLog.tsx (MODIFY — update store import)
+      src/renderer/components/TaskBreakdownSection.tsx (MODIFY — update store import)
     </files>
     <action>
       ## WHY
-      IdeaDetailModal.tsx is 815 lines — the largest renderer component, well above the
-      500-line guideline. It has two clearly self-contained sections that can be extracted
-      without changing behavior: the AI Analysis display and the Convert-to-Card wizard.
+      boardStore at 375 lines with 26+ methods manages 7 entity types across 2 concerns:
+      1. Board-level: project, board, columns, cards, labels (core Kanban)
+      2. Card detail: comments, relationships, activities, attachments (selected card)
+
+      The review flagged it as architecture concern #6: "2-6x more complex than other
+      stores." Splitting along this natural boundary makes each store focused and testable.
 
       ## WHAT
 
-      Read IdeaDetailModal.tsx fully before any changes.
+      ### 1. Create cardDetailStore.ts (~170 lines)
 
-      ### Extract 1: IdeaAnalysisSection.tsx (~100 lines)
+      Move from boardStore to cardDetailStore:
 
-      Extract the AI Analysis section into its own component. This section handles:
-      - "Analyze with AI" button
-      - Loading spinner during analysis
-      - Error display with provider configuration hint
-      - Results panel showing effort/impact suggestions with Apply/Dismiss
-      - Feasibility notes and rationale
+      **State fields:**
+      - selectedCardComments: CardComment[]
+      - selectedCardRelationships: CardRelationship[]
+      - selectedCardActivities: CardActivity[]
+      - selectedCardAttachments: CardAttachment[]
+      - loadingCardDetails: boolean
 
-      Props interface (derive from actual code):
+      **Actions (move entirely):**
+      - loadCardDetails(cardId: string) — loads all 4 collections in parallel
+      - clearCardDetails() — resets all to empty/false
+      - addComment(input) — creates comment via IPC, refreshes list
+      - updateComment(id, content) — updates via IPC, refreshes list
+      - deleteComment(id) — deletes via IPC, refreshes list
+      - addRelationship(input) — creates via IPC, refreshes list
+      - deleteRelationship(id) — deletes via IPC, refreshes list
+      - addAttachment(cardId) — adds via IPC (file dialog), refreshes list
+      - deleteAttachment(id) — deletes via IPC, refreshes list
+      - openAttachment(filePath) — opens via IPC
+
+      Store interface:
       ```typescript
-      interface IdeaAnalysisSectionProps {
-        ideaId: string;
-        analysis: IdeaAnalysis | null;
-        analyzing: boolean;
-        analysisError: string | null;
-        effort: EffortLevel | null;
-        impact: ImpactLevel | null;
-        onAnalyze: () => void;
-        onApplyEffort: (effort: EffortLevel) => void;
-        onApplyImpact: (impact: ImpactLevel) => void;
-        onDismiss: () => void;
+      interface CardDetailStore {
+        selectedCardComments: CardComment[];
+        selectedCardRelationships: CardRelationship[];
+        selectedCardActivities: CardActivity[];
+        selectedCardAttachments: CardAttachment[];
+        loadingCardDetails: boolean;
+
+        loadCardDetails: (cardId: string) => Promise<void>;
+        clearCardDetails: () => void;
+        addComment: (input: CreateCardCommentInput) => Promise<void>;
+        updateComment: (id: string, content: string) => Promise<void>;
+        deleteComment: (id: string) => Promise<void>;
+        addRelationship: (input: CreateCardRelationshipInput) => Promise<void>;
+        deleteRelationship: (id: string) => Promise<void>;
+        addAttachment: (cardId: string) => Promise<void>;
+        deleteAttachment: (id: string) => Promise<void>;
+        openAttachment: (filePath: string) => Promise<void>;
       }
+
+      export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
+        // ... move implementations from boardStore
+      }));
       ```
 
-      IMPORTANT: Read the actual code to determine exact props. The interface above
-      is a best guess — verify field names, types, and what state/callbacks the
-      section actually needs from the parent.
+      ### 2. Update boardStore.ts (~220 lines)
 
-      ### Extract 2: IdeaConvertWizard.tsx (~150 lines)
+      Remove all card detail state and actions. boardStore keeps:
+      - project, board, columns, cards, labels, loading, error
+      - loadBoard, addColumn, updateColumn, deleteColumn, reorderColumns
+      - addCard, updateCard, deleteCard, moveCard
+      - loadLabels, createLabel, deleteLabel, attachLabel, detachLabel
 
-      Extract the Convert-to-Card wizard (the multi-step project → board → column flow).
-      This is a self-contained wizard that:
-      - Shows project selection (step 1)
-      - Shows board selection (step 2, auto-skip for single board)
-      - Shows column selection (step 3)
-      - Has back navigation and step indicator dots
-      - Calls ideaStore.convertToCard on completion
+      Remove from interface and implementation:
+      - selectedCardComments, selectedCardRelationships, selectedCardActivities,
+        selectedCardAttachments, loadingCardDetails
+      - loadCardDetails, clearCardDetails
+      - addComment, updateComment, deleteComment
+      - addRelationship, deleteRelationship
+      - addAttachment, deleteAttachment, openAttachment
 
-      Props interface (derive from actual code):
-      ```typescript
-      interface IdeaConvertWizardProps {
-        ideaId: string;
-        onComplete: () => void;
-        onCancel: () => void;
-      }
-      ```
+      ### 3. Update consuming components
 
-      The wizard manages its own internal state (projects list, boards, columns,
-      current step, loading). Move all related useState + useEffect hooks into
-      the new component.
+      READ each component before modifying. Replace `useBoardStore` with
+      `useCardDetailStore` for card detail operations:
 
-      NOTE: The "Convert to Project" button is simpler (just a confirmation) and
-      should STAY in IdeaDetailModal — only extract the multi-step card wizard.
+      - **CardDetailModal.tsx**: Change imports. `useBoardStore` for board-level
+        state (cards, columns, labels, updateCard, deleteCard, attachLabel, etc.).
+        `useCardDetailStore` for loadCardDetails, clearCardDetails, and all
+        card detail sub-entity state.
 
-      ### After extraction
+      - **CommentsSection.tsx**: Change to `useCardDetailStore` for
+        selectedCardComments, addComment, updateComment, deleteComment.
 
-      In IdeaDetailModal.tsx:
-      1. Import IdeaAnalysisSection and IdeaConvertWizard
-      2. Replace the inline sections with component references
-      3. Pass required props
-      4. Remove state variables and handlers that moved entirely to sub-components
-      5. Keep shared state that's used by both the modal and sub-components
+      - **RelationshipsSection.tsx**: Change to `useCardDetailStore` for
+        selectedCardRelationships, addRelationship, deleteRelationship.
 
-      Target: IdeaDetailModal.tsx drops from 815 to ~575 lines (240 lines extracted).
+      - **AttachmentsSection.tsx**: Change to `useCardDetailStore` for
+        selectedCardAttachments, addAttachment, deleteAttachment, openAttachment.
+
+      - **ActivityLog.tsx**: Change to `useCardDetailStore` for
+        selectedCardActivities.
+
+      - **TaskBreakdownSection.tsx**: Check if it uses any card detail state.
+        If so, update. If it only uses boardStore for addCard/board-level ops, leave.
 
       IMPORTANT:
-      - Do NOT change any visible behavior or styling
-      - Preserve all keyboard shortcuts (Escape to close)
-      - Preserve the "Brainstorm This Idea" button (stays in modal)
-      - Test that the modal renders identically after refactoring
+      - DO NOT change any behavior — this is a pure structural refactor
+      - Preserve the exact same IPC calls and state management patterns
+      - The two stores are independent (no cross-store communication needed)
+      - loadCardDetails in the new store should be a standalone implementation
+        (copy from boardStore, don't import from it)
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
       2. `npm test` — all tests pass
-      3. IdeaDetailModal.tsx is under 600 lines
-      4. IdeaAnalysisSection.tsx exists and is under 150 lines
-      5. IdeaConvertWizard.tsx exists and is under 200 lines
-      6. No duplicate code between modal and extracted components
+      3. boardStore.ts is under 250 lines
+      4. cardDetailStore.ts exists and is under 200 lines
+      5. No card detail state remains in boardStore (grep for selectedCard)
+      6. All 6 consumer components import from correct store
     </verify>
     <done>
-      IdeaDetailModal decomposed from 815 to ~575 lines. Two self-contained
-      sections extracted as IdeaAnalysisSection and IdeaConvertWizard. All behavior
-      preserved. TypeScript compiles clean.
+      boardStore decomposed from 375 to ~220 lines. cardDetailStore (~170 lines)
+      manages comments, relationships, activities, and attachments independently.
+      All consumer components updated. TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - AI Analysis section is self-contained (no shared state with other sections beyond props)
-      - Convert wizard state (projects, boards, columns, step) can move entirely to sub-component
-      - "Brainstorm This Idea" button stays in the modal (depends on navigation, not convert wizard)
-      - Extraction reduces IdeaDetailModal by ~240 lines (analysis ~80 + wizard ~130 + removed state/handlers ~30)
+      - Card detail state has no cross-dependencies with board-level state
+      - loadCardDetails implementation can be copied (no shared helper needed)
+      - CommentsSection, RelationshipsSection, AttachmentsSection, ActivityLog use
+        only card detail state from boardStore (no board-level state mixed in)
+      - TaskBreakdownSection may use boardStore for addCard — needs verification
     </assumptions>
   </task>
 </phase>

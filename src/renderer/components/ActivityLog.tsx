@@ -3,7 +3,7 @@
 // Displays a chronological timeline of all card events (create, update, move, etc.).
 
 // === DEPENDENCIES ===
-// react, lucide-react, boardStore (Zustand), shared types (CardActivityAction)
+// react, lucide-react, cardDetailStore (Zustand), shared types (CardActivityAction)
 
 import {
   PlusCircle,
@@ -17,7 +17,7 @@ import {
   Activity,
 } from 'lucide-react';
 import type { CardActivityAction } from '../../shared/types';
-import { useBoardStore } from '../stores/boardStore';
+import { useCardDetailStore } from '../stores/cardDetailStore';
 
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -92,7 +92,7 @@ interface ActivityLogProps {
 }
 
 function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
-  const { selectedCardActivities, loadingCardDetails } = useBoardStore();
+  const { selectedCardActivities, loadingCardDetails } = useCardDetailStore();
 
   return (
     <div>

@@ -2,13 +2,13 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Plan 8.5 — Remaining IPC Validation, IdeaDetailModal Decomposition & Console Cleanup
+Session focus: Plan 8.6 — Types Module Split, Test Coverage Expansion & BoardStore Decomposition
 
 ## Position
 Milestone: Post-Review Improvements
 Phase: 8 (Review Fixes)
-Plan: 8.5 of TBD (COMPLETE — 3/3 tasks done)
-Task: 3 of 3
+Plan: 8.6 of TBD (PLANNED — 0/3 tasks done)
+Task: 0 of 3
 
 ## Phase 1 — COMPLETE
 All 3 plans (8 tasks) delivered and pushed to GitHub.
@@ -525,6 +525,11 @@ Plan 8.4 execution: HIGH (all 3 tasks verified, TypeScript clean, 12/12 tests pa
 Overall approach: HIGH
 Plan 8.5 execution: HIGH (all 3 tasks verified, TypeScript clean, 12/12 tests passing)
 
+### Plan 8.6: Types Module Split, Test Coverage Expansion & BoardStore Decomposition (3 tasks) — PLANNED
+1. Split shared/types.ts (847 lines) into 12-14 domain modules + barrel re-export — zero import changes needed
+2. Expand test coverage — Zod schema tests + IPC validator tests + date-utils tests (25-30 new tests)
+3. Decompose boardStore (375 lines) — extract cardDetailStore for comments/relationships/attachments/activities
+
 ## Next Steps
-1. `/nexus:git` — Commit Plan 8.5 changes
-2. Plan 8.6+: TBD based on review
+1. `/nexus:execute --parallel` — Execute Plan 8.6 (all 3 tasks are independent, safe for parallel)
+2. Plan 8.7+: TBD based on review

@@ -1,0 +1,224 @@
+// === ElectronAPI interface exposed to renderer via contextBridge ===
+
+import type { DatabaseStatus } from './common';
+import type {
+  Project, Board, Column, Card, CardPriority,
+  Label, CreateProjectInput, UpdateProjectInput,
+  CreateBoardInput, UpdateBoardInput,
+  CreateColumnInput, UpdateColumnInput,
+  CreateCardInput, UpdateCardInput,
+} from './projects';
+import type {
+  CardComment, CardRelationship, CardActivity, CardAttachment,
+  CreateCardCommentInput, CreateCardRelationshipInput,
+  CreateLabelInput, UpdateLabelInput,
+} from './cards';
+import type {
+  AIProvider, AIConnectionTestResult,
+  AIUsageEntry, AIUsageSummary,
+  CreateAIProviderInput, UpdateAIProviderInput,
+} from './ai';
+import type {
+  Meeting, TranscriptSegment, MeetingBrief,
+  MeetingTemplateType, RecordingState,
+  CreateMeetingInput, UpdateMeetingInput,
+} from './meetings';
+import type {
+  ActionItem, ActionItemStatus,
+  ConvertActionToCardResult, MeetingWithTranscript,
+} from './intelligence';
+import type { WhisperModel, WhisperDownloadProgress } from './whisper';
+import type {
+  Idea, CreateIdeaInput, UpdateIdeaInput,
+  ConvertIdeaToProjectResult, ConvertIdeaToCardResult, IdeaAnalysis,
+} from './ideas';
+import type {
+  BrainstormSession, BrainstormMessage,
+  BrainstormSessionWithMessages, BrainstormSessionStatus,
+  CreateBrainstormSessionInput,
+} from './brainstorm';
+import type {
+  BackupInfo, BackupProgress,
+  ExportOptions, ExportResult,
+  AutoBackupSettings,
+} from './backup';
+import type { ProjectPlan, TaskBreakdown } from './tasks';
+import type { NotificationPreferences } from './notifications';
+import type { TranscriptionProviderType, TranscriptionProviderStatus } from './transcription';
+import type { MeetingAnalytics } from './analytics';
+
+/** API exposed to the renderer via contextBridge in preload.ts */
+export interface ElectronAPI {
+  platform: NodeJS.Platform;
+
+  // Window controls
+  windowMinimize: () => void;
+  windowMaximize: () => void;
+  windowClose: () => void;
+  windowIsMaximized: () => Promise<boolean>;
+  onWindowMaximizeChange: (
+    callback: (isMaximized: boolean) => void,
+  ) => () => void;
+
+  // Database
+  getDatabaseStatus: () => Promise<DatabaseStatus>;
+
+  // Projects
+  getProjects: () => Promise<Project[]>;
+  createProject: (data: CreateProjectInput) => Promise<Project>;
+  updateProject: (id: string, data: UpdateProjectInput) => Promise<Project>;
+  deleteProject: (id: string) => Promise<void>;
+
+  // Boards
+  getBoards: (projectId: string) => Promise<Board[]>;
+  createBoard: (data: CreateBoardInput) => Promise<Board>;
+  updateBoard: (id: string, data: UpdateBoardInput) => Promise<Board>;
+  deleteBoard: (id: string) => Promise<void>;
+
+  // Columns
+  getColumns: (boardId: string) => Promise<Column[]>;
+  createColumn: (data: CreateColumnInput) => Promise<Column>;
+  updateColumn: (id: string, data: UpdateColumnInput) => Promise<Column>;
+  deleteColumn: (id: string) => Promise<void>;
+  reorderColumns: (boardId: string, columnIds: string[]) => Promise<void>;
+
+  // Cards
+  getCardsByBoard: (boardId: string) => Promise<Card[]>;
+  createCard: (data: CreateCardInput) => Promise<Card>;
+  updateCard: (id: string, data: UpdateCardInput) => Promise<Card>;
+  deleteCard: (id: string) => Promise<void>;
+  moveCard: (id: string, columnId: string, position: number) => Promise<Card>;
+
+  // Card comments
+  getCardComments: (cardId: string) => Promise<CardComment[]>;
+  addCardComment: (input: CreateCardCommentInput) => Promise<CardComment>;
+  updateCardComment: (id: string, content: string) => Promise<CardComment>;
+  deleteCardComment: (id: string) => Promise<void>;
+  // Card relationships
+  getCardRelationships: (cardId: string) => Promise<CardRelationship[]>;
+  addCardRelationship: (input: CreateCardRelationshipInput) => Promise<CardRelationship>;
+  deleteCardRelationship: (id: string) => Promise<void>;
+  // Card activity log
+  getCardActivities: (cardId: string) => Promise<CardActivity[]>;
+
+  // Card Attachments
+  getCardAttachments: (cardId: string) => Promise<CardAttachment[]>;
+  addCardAttachment: (cardId: string) => Promise<CardAttachment | null>;
+  deleteCardAttachment: (id: string) => Promise<void>;
+  openCardAttachment: (filePath: string) => Promise<void>;
+
+  // Labels
+  getLabels: (projectId: string) => Promise<Label[]>;
+  createLabel: (data: CreateLabelInput) => Promise<Label>;
+  updateLabel: (id: string, data: UpdateLabelInput) => Promise<Label>;
+  deleteLabel: (id: string) => Promise<void>;
+  attachLabel: (cardId: string, labelId: string) => Promise<void>;
+  detachLabel: (cardId: string, labelId: string) => Promise<void>;
+
+  // Settings
+  getSetting: (key: string) => Promise<string | null>;
+  setSetting: (key: string, value: string) => Promise<void>;
+  getAllSettings: () => Promise<Record<string, string>>;
+  deleteSetting: (key: string) => Promise<void>;
+
+  // AI Providers
+  getAIProviders: () => Promise<AIProvider[]>;
+  createAIProvider: (data: CreateAIProviderInput) => Promise<AIProvider>;
+  updateAIProvider: (id: string, data: UpdateAIProviderInput) => Promise<AIProvider>;
+  deleteAIProvider: (id: string) => Promise<void>;
+  testAIConnection: (id: string) => Promise<AIConnectionTestResult>;
+  isEncryptionAvailable: () => Promise<boolean>;
+
+  // AI Usage
+  getAIUsage: () => Promise<AIUsageEntry[]>;
+  getAIUsageSummary: () => Promise<AIUsageSummary>;
+
+  // Meetings
+  getMeetings: () => Promise<Meeting[]>;
+  getMeeting: (id: string) => Promise<MeetingWithTranscript | null>;
+  createMeeting: (data: CreateMeetingInput) => Promise<Meeting>;
+  updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<Meeting>;
+  deleteMeeting: (id: string) => Promise<void>;
+
+  // Recording
+  startRecording: (meetingId: string) => Promise<void>;
+  stopRecording: () => Promise<string>;
+  sendAudioChunk: (buffer: ArrayBuffer) => void;
+  enableLoopbackAudio: () => Promise<void>;
+  disableLoopbackAudio: () => Promise<void>;
+  onRecordingState: (callback: (state: RecordingState) => void) => () => void;
+  onTranscriptSegment: (callback: (segment: TranscriptSegment) => void) => () => void;
+
+  // Whisper Models
+  getWhisperModels: () => Promise<WhisperModel[]>;
+  downloadWhisperModel: (fileName: string) => Promise<string>;
+  hasWhisperModel: () => Promise<boolean>;
+  onWhisperDownloadProgress: (callback: (progress: WhisperDownloadProgress) => void) => () => void;
+
+  // Meeting Intelligence
+  generateBrief: (meetingId: string) => Promise<MeetingBrief>;
+  generateActionItems: (meetingId: string) => Promise<ActionItem[]>;
+  getMeetingBrief: (meetingId: string) => Promise<MeetingBrief | null>;
+  getMeetingActionItems: (meetingId: string) => Promise<ActionItem[]>;
+  updateActionItemStatus: (id: string, status: ActionItemStatus) => Promise<ActionItem>;
+  convertActionToCard: (actionItemId: string, columnId: string) => Promise<ConvertActionToCardResult>;
+
+  // Ideas
+  getIdeas: () => Promise<Idea[]>;
+  getIdea: (id: string) => Promise<Idea | null>;
+  createIdea: (data: CreateIdeaInput) => Promise<Idea>;
+  updateIdea: (id: string, data: UpdateIdeaInput) => Promise<Idea>;
+  deleteIdea: (id: string) => Promise<void>;
+  convertIdeaToProject: (id: string) => Promise<ConvertIdeaToProjectResult>;
+  convertIdeaToCard: (ideaId: string, columnId: string) => Promise<ConvertIdeaToCardResult>;
+  analyzeIdea: (id: string) => Promise<IdeaAnalysis>;
+
+  // Brainstorm
+  getBrainstormSessions: () => Promise<BrainstormSession[]>;
+  getBrainstormSession: (id: string) => Promise<BrainstormSessionWithMessages | null>;
+  createBrainstormSession: (data: CreateBrainstormSessionInput) => Promise<BrainstormSession>;
+  updateBrainstormSession: (id: string, data: { title?: string; status?: BrainstormSessionStatus }) => Promise<BrainstormSession>;
+  deleteBrainstormSession: (id: string) => Promise<void>;
+  sendBrainstormMessage: (sessionId: string, content: string) => Promise<BrainstormMessage>;
+  onBrainstormChunk: (callback: (data: { sessionId: string; chunk: string }) => void) => () => void;
+  exportBrainstormToIdea: (sessionId: string, messageId: string) => Promise<Idea>;
+
+  // Backup & Restore
+  backupCreate: () => Promise<BackupInfo>;
+  backupList: () => Promise<BackupInfo[]>;
+  backupRestore: (filePath: string) => Promise<void>;
+  backupRestoreFromFile: () => Promise<void>;
+  backupDelete: (fileName: string) => Promise<void>;
+  backupExport: (options: ExportOptions) => Promise<ExportResult | null>;
+  backupAutoSettingsGet: () => Promise<AutoBackupSettings>;
+  backupAutoSettingsUpdate: (settings: Partial<AutoBackupSettings>) => Promise<void>;
+  onBackupProgress: (callback: (progress: BackupProgress) => void) => () => void;
+
+  // Task Structuring
+  taskStructuringGeneratePlan: (projectId: string, description: string) => Promise<ProjectPlan>;
+  taskStructuringBreakdown: (cardId: string) => Promise<TaskBreakdown>;
+  taskStructuringQuickPlan: (projectName: string, projectDescription: string) => Promise<ProjectPlan>;
+
+  // Notifications
+  notificationGetPreferences: () => Promise<NotificationPreferences>;
+  notificationUpdatePreferences: (prefs: Partial<NotificationPreferences>) => Promise<void>;
+  notificationSendTest: () => Promise<void>;
+
+  // Transcription Provider
+  transcriptionGetConfig: () => Promise<TranscriptionProviderStatus>;
+  transcriptionSetProvider: (type: TranscriptionProviderType) => Promise<void>;
+  transcriptionSetApiKey: (provider: 'deepgram' | 'assemblyai', apiKey: string) => Promise<void>;
+  transcriptionTestProvider: (type: TranscriptionProviderType) => Promise<{ success: boolean; error?: string; latencyMs?: number }>;
+
+  // Diarization
+  diarizeMeeting: (meetingId: string) => Promise<{ success: boolean; speakers: string[]; error?: string }>;
+
+  // Meeting Analytics
+  getMeetingAnalytics: (meetingId: string) => Promise<MeetingAnalytics>;
+}
+
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI;
+  }
+}

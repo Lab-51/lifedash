@@ -1,0 +1,17 @@
+// Barrel re-export — all types available via `from '../../shared/types'`
+export * from './common';
+export * from './projects';
+export * from './cards';
+export * from './ai';
+export * from './meetings';
+export * from './intelligence';
+export * from './whisper';
+export * from './ideas';
+export * from './brainstorm';
+export * from './backup';
+export * from './tasks';
+export * from './notifications';
+export * from './transcription';
+export * from './diarization';
+export * from './analytics';
+export * from './electron-api';

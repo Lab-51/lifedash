@@ -4,11 +4,13 @@
 // Groups relationships by type with inverse labels for incoming relationships.
 
 // === DEPENDENCIES ===
-// react, lucide-react, boardStore (Zustand), shared types (CardRelationshipType)
+// react, lucide-react, boardStore (Zustand) for cards, cardDetailStore (Zustand) for
+// relationship state, shared types (CardRelationshipType)
 
 import { useState } from 'react';
 import { Link2, Plus, X } from 'lucide-react';
 import { useBoardStore } from '../stores/boardStore';
+import { useCardDetailStore } from '../stores/cardDetailStore';
 import type { CardRelationshipType } from '../../shared/types';
 
 /** Display label for each relationship type (outgoing / incoming) */
@@ -38,8 +40,9 @@ interface RelationshipsSectionProps {
 }
 
 function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
-  const { cards, selectedCardRelationships, addRelationship, deleteRelationship } =
-    useBoardStore();
+  const { cards } = useBoardStore();
+  const { selectedCardRelationships, addRelationship, deleteRelationship } =
+    useCardDetailStore();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState('');
