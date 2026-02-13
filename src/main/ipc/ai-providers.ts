@@ -22,11 +22,13 @@ import {
   isEncryptionAvailable,
 } from '../services/secure-storage';
 import { testConnection, clearProviderCache } from '../services/ai-provider';
-import type {
-  AIProviderName,
-  CreateAIProviderInput,
-  UpdateAIProviderInput,
-} from '../../shared/types';
+import type { AIProviderName } from '../../shared/types';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import {
+  idParamSchema,
+  createAIProviderInputSchema,
+  updateAIProviderInputSchema,
+} from '../../shared/validation/schemas';
 
 /** Convert a DB row to a renderer-safe AIProvider (no raw API key). */
 function toAIProvider(row: typeof aiProviders.$inferSelect) {
@@ -55,7 +57,8 @@ export function registerAIProviderHandlers(): void {
   // Create a new provider (encrypts API key if provided)
   ipcMain.handle(
     'ai:create-provider',
-    async (_event, data: CreateAIProviderInput) => {
+    async (_event, data: unknown) => {
+      const input = validateInput(createAIProviderInputSchema, data);
       const db = getDb();
       const values: {
         name: string;
@@ -63,12 +66,12 @@ export function registerAIProviderHandlers(): void {
         baseUrl: string | null;
         apiKeyEncrypted?: string;
       } = {
-        name: data.name,
-        displayName: data.displayName ?? null,
-        baseUrl: data.baseUrl ?? null,
+        name: input.name,
+        displayName: input.displayName ?? null,
+        baseUrl: input.baseUrl ?? null,
       };
-      if (data.apiKey) {
-        values.apiKeyEncrypted = encryptString(data.apiKey);
+      if (input.apiKey) {
+        values.apiKeyEncrypted = encryptString(input.apiKey);
       }
       const [row] = await db
         .insert(aiProviders)
@@ -81,43 +84,47 @@ export function registerAIProviderHandlers(): void {
   // Update a provider (re-encrypts API key if changed)
   ipcMain.handle(
     'ai:update-provider',
-    async (_event, id: string, data: UpdateAIProviderInput) => {
+    async (_event, id: unknown, data: unknown) => {
+      const validId = validateInput(idParamSchema, id);
+      const input = validateInput(updateAIProviderInputSchema, data);
       const db = getDb();
       const updates: Record<string, unknown> = { updatedAt: new Date() };
-      if (data.displayName !== undefined) updates.displayName = data.displayName;
-      if (data.baseUrl !== undefined) updates.baseUrl = data.baseUrl;
-      if (data.enabled !== undefined) updates.enabled = data.enabled;
-      if (data.apiKey !== undefined) {
-        updates.apiKeyEncrypted = data.apiKey
-          ? encryptString(data.apiKey)
+      if (input.displayName !== undefined) updates.displayName = input.displayName;
+      if (input.baseUrl !== undefined) updates.baseUrl = input.baseUrl;
+      if (input.enabled !== undefined) updates.enabled = input.enabled;
+      if (input.apiKey !== undefined) {
+        updates.apiKeyEncrypted = input.apiKey
+          ? encryptString(input.apiKey)
           : null;
       }
       const [row] = await db
         .update(aiProviders)
         .set(updates)
-        .where(eq(aiProviders.id, id))
+        .where(eq(aiProviders.id, validId))
         .returning();
-      clearProviderCache(id);
+      clearProviderCache(validId);
       return toAIProvider(row);
     },
   );
 
   // Delete a provider
-  ipcMain.handle('ai:delete-provider', async (_event, id: string) => {
+  ipcMain.handle('ai:delete-provider', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
     const db = getDb();
-    await db.delete(aiProviders).where(eq(aiProviders.id, id));
-    clearProviderCache(id);
+    await db.delete(aiProviders).where(eq(aiProviders.id, validId));
+    clearProviderCache(validId);
   });
 
   // --- Connection Testing ---
 
   // Test provider connection (generates a minimal completion)
-  ipcMain.handle('ai:test-connection', async (_event, id: string) => {
+  ipcMain.handle('ai:test-connection', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
     const db = getDb();
     const [row] = await db
       .select()
       .from(aiProviders)
-      .where(eq(aiProviders.id, id));
+      .where(eq(aiProviders.id, validId));
     if (!row) throw new Error('Provider not found');
     return testConnection(
       row.name as AIProviderName,

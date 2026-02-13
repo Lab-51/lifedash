@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Plan 8.3 — Structured Logging, Zod IPC Validation, BoardColumn Extraction
+Session focus: Plan 8.4 — Zod IPC Validation Rollout (Schemas + 5 Handler Files)
 
 ## Position
 Milestone: Post-Review Improvements
 Phase: 8 (Review Fixes)
-Plan: 8.3 of TBD (COMPLETE — 3/3 tasks done)
+Plan: 8.4 of TBD (COMPLETE — 3/3 tasks done)
 Task: 3 of 3
 
 ## Phase 1 — COMPLETE
@@ -454,7 +454,7 @@ Plan 8.2 execution: HIGH (all 3 tasks verified, TypeScript clean, tests passing)
 1. Create structured logger + migrate all 50 main-process console calls (12 files) — DONE
 2. Add Zod IPC validation — infrastructure + projects.ts pilot (13 handlers) — DONE
 3. Extract BoardColumn component from BoardPage to its own file (621 → 441 lines) — DONE
-- Not yet committed
+- Commit: 1383ed5 on origin/main
 
 ## Plan 8.3 Execution Results
 - **Task 1**: Created logger.ts (createLogger with levels/timestamps/prefixes). Migrated ~50 console calls across 12 files. Zero raw console calls remain in src/main/ (only inside logger.ts). 12 prefixes: App, Transcription, AutoBackup, Notifications, NotificationScheduler, Diarization, Backup, AI, Audio, TranscriptionProvider, Cards, Brainstorm.
@@ -476,8 +476,30 @@ Plan 8.2 execution: HIGH (all 3 tasks verified, TypeScript clean, tests passing)
 
 ## Confidence Levels
 Overall approach: HIGH
-Plan 8.3 execution: HIGH (all 3 tasks verified, TypeScript clean, tests passing)
+Plan 8.4 execution: HIGH (all 3 tasks verified, TypeScript clean, 12/12 tests passing)
+
+### Plan 8.4: Zod IPC Validation Rollout — Schemas + 5 Handler Files (3 tasks) — COMPLETE
+1. Create all remaining Zod schemas (~21 input types) — extends schemas.ts — DONE
+2. Apply Zod validation to cards.ts (23 handlers — largest IPC file) — DONE
+3. Apply Zod validation to ai-providers.ts (8), ideas.ts (8), meetings.ts (5), meeting-intelligence.ts (6) — 27 handlers — DONE
+- Not yet committed
+
+## Plan 8.4 Execution Results
+- **Task 1**: Extended schemas.ts with 14 enum schemas + 27 object schemas + 4 primitive schemas (45 total exports, up from 8). Covers cards, labels, comments, relationships, attachments, AI providers, ideas, meetings, meeting intelligence, plus bonus schemas for brainstorm, backup, notifications, settings.
+- **Task 2**: Applied validateInput to all 23 handlers in cards.ts (29 validateInput calls). Changed all params to `unknown`. Removed CreateCardInput, UpdateCardInput, CreateLabelInput, UpdateLabelInput type imports. Kept Card/Label imports for return type casts.
+- **Task 3**: Applied validateInput to 27 handlers across 4 files: ai-providers.ts (5 validated, 3 no-param skip), ideas.ts (7 validated, 1 skip), meetings.ts (4 validated, 1 skip), meeting-intelligence.ts (6 validated). Removed old type imports. Total: 78 validateInput calls across 6 IPC files.
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors.
+- **Tests**: 12/12 passing.
+
+## Decisions Made (Plan 8.4)
+- baseUrl allows any string (not URL-validated) — Ollama uses localhost URLs
+- dueDate validated as string (ISO timestamp expected but not enforced at schema level)
+- Tag arrays capped at 20 items per idea, each max 100 chars
+- cards:move uses cardMoveSchema for {columnId, position} as compound object
+- AIProviderName type import kept in ai-providers.ts (used for cast in testConnection)
+- Bonus schemas added for brainstorm, backup, notifications, settings (covers future Plan 8.5 files)
+- Total validated handlers: 63 of ~112 (~56%), up from 13 (~12%)
 
 ## Next Steps
-1. `/nexus:git` to commit Plan 8.3 changes
-2. `/nexus:plan 8.4` for remaining Zod handlers, IdeaDetailModal + CardDetailModal decomposition
+1. `/nexus:git` — Commit Plan 8.4
+2. `/nexus:plan 8.5` — Remaining 11 IPC files (~40 handlers) + IdeaDetailModal decomposition

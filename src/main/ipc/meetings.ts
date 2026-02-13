@@ -7,29 +7,39 @@
 
 import { ipcMain } from 'electron';
 import * as meetingService from '../services/meetingService';
-import type { CreateMeetingInput, UpdateMeetingInput } from '../../shared/types';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import {
+  idParamSchema,
+  createMeetingInputSchema,
+  updateMeetingInputSchema,
+} from '../../shared/validation/schemas';
 
 export function registerMeetingHandlers(): void {
   ipcMain.handle('meetings:list', async () => {
     return meetingService.getMeetings();
   });
 
-  ipcMain.handle('meetings:get', async (_event, id: string) => {
-    return meetingService.getMeeting(id);
+  ipcMain.handle('meetings:get', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    return meetingService.getMeeting(validId);
   });
 
-  ipcMain.handle('meetings:create', async (_event, data: CreateMeetingInput) => {
-    return meetingService.createMeeting(data);
+  ipcMain.handle('meetings:create', async (_event, data: unknown) => {
+    const input = validateInput(createMeetingInputSchema, data);
+    return meetingService.createMeeting(input);
   });
 
   ipcMain.handle(
     'meetings:update',
-    async (_event, id: string, data: UpdateMeetingInput) => {
-      return meetingService.updateMeeting(id, data);
+    async (_event, id: unknown, data: unknown) => {
+      const validId = validateInput(idParamSchema, id);
+      const input = validateInput(updateMeetingInputSchema, data);
+      return meetingService.updateMeeting(validId, input);
     },
   );
 
-  ipcMain.handle('meetings:delete', async (_event, id: string) => {
-    return meetingService.deleteMeeting(id);
+  ipcMain.handle('meetings:delete', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    return meetingService.deleteMeeting(validId);
   });
 }

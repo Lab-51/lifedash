@@ -28,15 +28,21 @@ import {
   cardAttachments,
 } from '../db/schema';
 import * as attachmentService from '../services/attachmentService';
-import type {
-  CreateCardInput,
-  UpdateCardInput,
-  CreateLabelInput,
-  UpdateLabelInput,
-  Card,
-  Label,
-} from '../../shared/types';
+import type { Card, Label } from '../../shared/types';
 import { buildCardLabelMap } from '../../shared/utils/card-utils';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import {
+  idParamSchema,
+  createCardInputSchema,
+  updateCardInputSchema,
+  cardMoveSchema,
+  createLabelInputSchema,
+  updateLabelInputSchema,
+  createCardCommentInputSchema,
+  commentContentSchema,
+  createCardRelationshipInputSchema,
+  filePathSchema,
+} from '../../shared/validation/schemas';
 
 const log = createLogger('Cards');
 
@@ -62,14 +68,15 @@ function logCardActivity(
 export function registerCardHandlers(): void {
   // --- Cards ---
 
-  ipcMain.handle('cards:list-by-board', async (_event, boardId: string) => {
+  ipcMain.handle('cards:list-by-board', async (_event, boardId: unknown) => {
+    const validBoardId = validateInput(idParamSchema, boardId);
     const db = getDb();
 
     // Query 1: Get all columns for this board
     const boardColumns = await db
       .select()
       .from(columns)
-      .where(eq(columns.boardId, boardId));
+      .where(eq(columns.boardId, validBoardId));
     const columnIds = boardColumns.map((c) => c.id);
     if (columnIds.length === 0) return [];
 
@@ -110,67 +117,73 @@ export function registerCardHandlers(): void {
 
   ipcMain.handle(
     'cards:create',
-    async (_event, data: CreateCardInput) => {
+    async (_event, data: unknown) => {
+      const input = validateInput(createCardInputSchema, data);
       const db = getDb();
       // Get next position in the column
       const existing = await db
         .select()
         .from(cards)
-        .where(eq(cards.columnId, data.columnId));
+        .where(eq(cards.columnId, input.columnId));
       const [card] = await db
         .insert(cards)
         .values({
-          columnId: data.columnId,
-          title: data.title,
-          description: data.description ?? null,
-          priority: data.priority ?? 'medium',
+          columnId: input.columnId,
+          title: input.title,
+          description: input.description ?? null,
+          priority: input.priority ?? 'medium',
           position: existing.length,
         })
         .returning();
-      logCardActivity(card.id, 'created', { title: data.title });
+      logCardActivity(card.id, 'created', { title: input.title });
       return card;
     },
   );
 
   ipcMain.handle(
     'cards:update',
-    async (_event, id: string, data: UpdateCardInput) => {
+    async (_event, id: unknown, data: unknown) => {
+      const validId = validateInput(idParamSchema, id);
+      const input = validateInput(updateCardInputSchema, data);
       const db = getDb();
       // Convert dueDate string to Date object for the DB layer
       const setData: Record<string, unknown> = {
-        ...data,
+        ...input,
         updatedAt: new Date(),
       };
-      if (data.dueDate !== undefined) {
-        setData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
+      if (input.dueDate !== undefined) {
+        setData.dueDate = input.dueDate ? new Date(input.dueDate) : null;
       }
       const [card] = await db
         .update(cards)
         .set(setData)
-        .where(eq(cards.id, id))
+        .where(eq(cards.id, validId))
         .returning();
       // Log 'archived' or 'restored' if archived field changed, otherwise 'updated'
-      if (data.archived === true) {
-        logCardActivity(id, 'archived');
-      } else if (data.archived === false) {
-        logCardActivity(id, 'restored');
+      if (input.archived === true) {
+        logCardActivity(validId, 'archived');
+      } else if (input.archived === false) {
+        logCardActivity(validId, 'restored');
       } else {
-        logCardActivity(id, 'updated', {
-          fields: Object.keys(data).filter(k => k !== 'updatedAt'),
+        logCardActivity(validId, 'updated', {
+          fields: Object.keys(input).filter(k => k !== 'updatedAt'),
         });
       }
       return card;
     },
   );
 
-  ipcMain.handle('cards:delete', async (_event, id: string) => {
+  ipcMain.handle('cards:delete', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
     const db = getDb();
-    await db.delete(cards).where(eq(cards.id, id));
+    await db.delete(cards).where(eq(cards.id, validId));
   });
 
   ipcMain.handle(
     'cards:move',
-    async (_event, id: string, columnId: string, position: number) => {
+    async (_event, id: unknown, columnId: unknown, position: unknown) => {
+      const validId = validateInput(idParamSchema, id);
+      const moveData = validateInput(cardMoveSchema, { columnId, position });
       const db = getDb();
 
       // Get all non-archived cards in the target column, sorted by position
@@ -179,31 +192,31 @@ export function registerCardHandlers(): void {
         .from(cards)
         .where(
           and(
-            eq(cards.columnId, columnId),
+            eq(cards.columnId, moveData.columnId),
             eq(cards.archived, false),
           ),
         )
         .orderBy(asc(cards.position));
 
       // Remove the moved card from the list (it may already be in this column for same-column reorder)
-      const filtered = siblingsInTarget.filter(c => c.id !== id);
+      const filtered = siblingsInTarget.filter(c => c.id !== validId);
 
       // Clamp position to valid range
-      const clampedPosition = Math.max(0, Math.min(position, filtered.length));
+      const clampedPosition = Math.max(0, Math.min(moveData.position, filtered.length));
 
       // Insert the moved card at the requested position
       const reordered = [...filtered];
       // Use a minimal placeholder — we only need the id for the update loop
-      reordered.splice(clampedPosition, 0, { id } as typeof cards.$inferSelect);
+      reordered.splice(clampedPosition, 0, { id: validId } as typeof cards.$inferSelect);
 
       // Update all positions in one pass
       for (let i = 0; i < reordered.length; i++) {
-        if (reordered[i].id === id) {
+        if (reordered[i].id === validId) {
           // Update the moved card: set column, position, and timestamp
           await db
             .update(cards)
-            .set({ columnId, position: i, updatedAt: new Date() })
-            .where(eq(cards.id, id));
+            .set({ columnId: moveData.columnId, position: i, updatedAt: new Date() })
+            .where(eq(cards.id, validId));
         } else if (reordered[i].position !== i) {
           // Only update siblings whose position actually changed
           await db
@@ -214,34 +227,36 @@ export function registerCardHandlers(): void {
       }
 
       // Return the updated card
-      const [updated] = await db.select().from(cards).where(eq(cards.id, id));
+      const [updated] = await db.select().from(cards).where(eq(cards.id, validId));
 
-      logCardActivity(id, 'moved', { columnId, position: clampedPosition });
+      logCardActivity(validId, 'moved', { columnId: moveData.columnId, position: clampedPosition });
       return updated;
     },
   );
 
   // --- Labels ---
 
-  ipcMain.handle('labels:list', async (_event, projectId: string) => {
+  ipcMain.handle('labels:list', async (_event, projectId: unknown) => {
+    const validProjectId = validateInput(idParamSchema, projectId);
     const db = getDb();
     return db
       .select()
       .from(labels)
-      .where(eq(labels.projectId, projectId))
+      .where(eq(labels.projectId, validProjectId))
       .orderBy(asc(labels.name));
   });
 
   ipcMain.handle(
     'labels:create',
-    async (_event, data: CreateLabelInput) => {
+    async (_event, data: unknown) => {
+      const input = validateInput(createLabelInputSchema, data);
       const db = getDb();
       const [label] = await db
         .insert(labels)
         .values({
-          projectId: data.projectId,
-          name: data.name,
-          color: data.color,
+          projectId: input.projectId,
+          name: input.name,
+          color: input.color,
         })
         .returning();
       return label;
@@ -250,43 +265,50 @@ export function registerCardHandlers(): void {
 
   ipcMain.handle(
     'labels:update',
-    async (_event, id: string, data: UpdateLabelInput) => {
+    async (_event, id: unknown, data: unknown) => {
+      const validId = validateInput(idParamSchema, id);
+      const input = validateInput(updateLabelInputSchema, data);
       const db = getDb();
       const [label] = await db
         .update(labels)
-        .set(data)
-        .where(eq(labels.id, id))
+        .set(input)
+        .where(eq(labels.id, validId))
         .returning();
       return label;
     },
   );
 
-  ipcMain.handle('labels:delete', async (_event, id: string) => {
+  ipcMain.handle('labels:delete', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
     const db = getDb();
-    await db.delete(labels).where(eq(labels.id, id));
+    await db.delete(labels).where(eq(labels.id, validId));
   });
 
   ipcMain.handle(
     'labels:attach',
-    async (_event, cardId: string, labelId: string) => {
+    async (_event, cardId: unknown, labelId: unknown) => {
+      const validCardId = validateInput(idParamSchema, cardId);
+      const validLabelId = validateInput(idParamSchema, labelId);
       const db = getDb();
       await db
         .insert(cardLabels)
-        .values({ cardId, labelId })
+        .values({ cardId: validCardId, labelId: validLabelId })
         .onConflictDoNothing();
     },
   );
 
   ipcMain.handle(
     'labels:detach',
-    async (_event, cardId: string, labelId: string) => {
+    async (_event, cardId: unknown, labelId: unknown) => {
+      const validCardId = validateInput(idParamSchema, cardId);
+      const validLabelId = validateInput(idParamSchema, labelId);
       const db = getDb();
       await db
         .delete(cardLabels)
         .where(
           and(
-            eq(cardLabels.cardId, cardId),
-            eq(cardLabels.labelId, labelId),
+            eq(cardLabels.cardId, validCardId),
+            eq(cardLabels.labelId, validLabelId),
           ),
         );
     },
@@ -294,62 +316,68 @@ export function registerCardHandlers(): void {
 
   // --- Card Comments ---
 
-  ipcMain.handle('card:getComments', async (_event, cardId: string) => {
+  ipcMain.handle('card:getComments', async (_event, cardId: unknown) => {
+    const validCardId = validateInput(idParamSchema, cardId);
     const db = getDb();
     const rows = await db
       .select()
       .from(cardComments)
-      .where(eq(cardComments.cardId, cardId))
+      .where(eq(cardComments.cardId, validCardId))
       .orderBy(desc(cardComments.createdAt));
     return rows;
   });
 
   ipcMain.handle(
     'card:addComment',
-    async (_event, input: { cardId: string; content: string }) => {
+    async (_event, input: unknown) => {
+      const validInput = validateInput(createCardCommentInputSchema, input);
       const db = getDb();
       const [comment] = await db
         .insert(cardComments)
-        .values({ cardId: input.cardId, content: input.content })
+        .values({ cardId: validInput.cardId, content: validInput.content })
         .returning();
-      logCardActivity(input.cardId, 'commented', { commentId: comment.id });
+      logCardActivity(validInput.cardId, 'commented', { commentId: comment.id });
       return comment;
     },
   );
 
   ipcMain.handle(
     'card:updateComment',
-    async (_event, id: string, content: string) => {
+    async (_event, id: unknown, content: unknown) => {
+      const validId = validateInput(idParamSchema, id);
+      const validContent = validateInput(commentContentSchema, content);
       const db = getDb();
       const [comment] = await db
         .update(cardComments)
-        .set({ content, updatedAt: new Date() })
-        .where(eq(cardComments.id, id))
+        .set({ content: validContent, updatedAt: new Date() })
+        .where(eq(cardComments.id, validId))
         .returning();
       return comment;
     },
   );
 
-  ipcMain.handle('card:deleteComment', async (_event, id: string) => {
+  ipcMain.handle('card:deleteComment', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
     const db = getDb();
-    await db.delete(cardComments).where(eq(cardComments.id, id));
+    await db.delete(cardComments).where(eq(cardComments.id, validId));
   });
 
   // --- Card Relationships ---
 
   ipcMain.handle(
     'card:getRelationships',
-    async (_event, cardId: string) => {
+    async (_event, cardId: unknown) => {
+      const validCardId = validateInput(idParamSchema, cardId);
       const db = getDb();
       // Get relationships where this card is source or target
       const asSource = await db
         .select()
         .from(cardRelationships)
-        .where(eq(cardRelationships.sourceCardId, cardId));
+        .where(eq(cardRelationships.sourceCardId, validCardId));
       const asTarget = await db
         .select()
         .from(cardRelationships)
-        .where(eq(cardRelationships.targetCardId, cardId));
+        .where(eq(cardRelationships.targetCardId, validCardId));
 
       // Enrich with card titles
       const all = [...asSource, ...asTarget];
@@ -375,35 +403,34 @@ export function registerCardHandlers(): void {
 
   ipcMain.handle(
     'card:addRelationship',
-    async (
-      _event,
-      input: { sourceCardId: string; targetCardId: string; type: string },
-    ) => {
+    async (_event, input: unknown) => {
+      const validInput = validateInput(createCardRelationshipInputSchema, input);
       const db = getDb();
       const [rel] = await db
         .insert(cardRelationships)
         .values({
-          sourceCardId: input.sourceCardId,
-          targetCardId: input.targetCardId,
-          type: input.type as (typeof cardRelationshipTypeEnum.enumValues)[number],
+          sourceCardId: validInput.sourceCardId,
+          targetCardId: validInput.targetCardId,
+          type: validInput.type as (typeof cardRelationshipTypeEnum.enumValues)[number],
         })
         .returning();
-      logCardActivity(input.sourceCardId, 'relationship_added', {
-        targetCardId: input.targetCardId,
-        type: input.type,
+      logCardActivity(validInput.sourceCardId, 'relationship_added', {
+        targetCardId: validInput.targetCardId,
+        type: validInput.type,
       });
       return rel;
     },
   );
 
-  ipcMain.handle('card:deleteRelationship', async (_event, id: string) => {
+  ipcMain.handle('card:deleteRelationship', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
     const db = getDb();
     // Get the relationship first for activity logging
     const [rel] = await db
       .select()
       .from(cardRelationships)
-      .where(eq(cardRelationships.id, id));
-    await db.delete(cardRelationships).where(eq(cardRelationships.id, id));
+      .where(eq(cardRelationships.id, validId));
+    await db.delete(cardRelationships).where(eq(cardRelationships.id, validId));
     if (rel) {
       logCardActivity(rel.sourceCardId, 'relationship_removed', {
         targetCardId: rel.targetCardId,
@@ -414,26 +441,29 @@ export function registerCardHandlers(): void {
 
   // --- Card Activities ---
 
-  ipcMain.handle('card:getActivities', async (_event, cardId: string) => {
+  ipcMain.handle('card:getActivities', async (_event, cardId: unknown) => {
+    const validCardId = validateInput(idParamSchema, cardId);
     const db = getDb();
     return db
       .select()
       .from(cardActivities)
-      .where(eq(cardActivities.cardId, cardId))
+      .where(eq(cardActivities.cardId, validCardId))
       .orderBy(desc(cardActivities.createdAt))
       .limit(50);
   });
 
   // --- Card Attachments ---
 
-  ipcMain.handle('card:getAttachments', async (_event, cardId: string) => {
-    return attachmentService.getAttachments(cardId);
+  ipcMain.handle('card:getAttachments', async (_event, cardId: unknown) => {
+    const validCardId = validateInput(idParamSchema, cardId);
+    return attachmentService.getAttachments(validCardId);
   });
 
-  ipcMain.handle('card:addAttachment', async (_event, cardId: string) => {
-    const attachment = await attachmentService.addAttachment(cardId);
+  ipcMain.handle('card:addAttachment', async (_event, cardId: unknown) => {
+    const validCardId = validateInput(idParamSchema, cardId);
+    const attachment = await attachmentService.addAttachment(validCardId);
     if (attachment) {
-      logCardActivity(cardId, 'updated', {
+      logCardActivity(validCardId, 'updated', {
         action: 'attachment_added',
         fileName: attachment.fileName,
       });
@@ -441,10 +471,11 @@ export function registerCardHandlers(): void {
     return attachment;
   });
 
-  ipcMain.handle('card:deleteAttachment', async (_event, id: string) => {
+  ipcMain.handle('card:deleteAttachment', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
     const db = getDb();
-    const [att] = await db.select().from(cardAttachments).where(eq(cardAttachments.id, id));
-    await attachmentService.deleteAttachment(id);
+    const [att] = await db.select().from(cardAttachments).where(eq(cardAttachments.id, validId));
+    await attachmentService.deleteAttachment(validId);
     if (att) {
       logCardActivity(att.cardId, 'updated', {
         action: 'attachment_removed',
@@ -453,7 +484,8 @@ export function registerCardHandlers(): void {
     }
   });
 
-  ipcMain.handle('card:openAttachment', async (_event, filePath: string) => {
-    return attachmentService.openAttachment(filePath);
+  ipcMain.handle('card:openAttachment', async (_event, filePath: unknown) => {
+    const validFilePath = validateInput(filePathSchema, filePath);
+    return attachmentService.openAttachment(validFilePath);
   });
 }
