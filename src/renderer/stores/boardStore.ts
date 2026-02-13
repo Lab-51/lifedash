@@ -183,7 +183,42 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   },
 
   moveCard: async (id: string, columnId: string, position: number) => {
+    // Optimistically reorder local state so the UI updates immediately
+    const currentCards = get().cards;
+    const movedCard = currentCards.find(c => c.id === id);
+    if (!movedCard) return;
+
+    // Get siblings in the target column (excluding the moved card), sorted by position
+    const siblings = currentCards
+      .filter(c => c.columnId === columnId && c.id !== id && !c.archived)
+      .sort((a, b) => a.position - b.position);
+
+    // Clamp position
+    const clampedPos = Math.max(0, Math.min(position, siblings.length));
+
+    // Insert at the requested position
+    const reordered = [...siblings];
+    reordered.splice(clampedPos, 0, movedCard);
+
+    // Build the updated cards array with correct positions
+    const updatedIds = new Map<string, { columnId: string; position: number }>();
+    for (let i = 0; i < reordered.length; i++) {
+      updatedIds.set(reordered[i].id, { columnId, position: i });
+    }
+
+    set({
+      cards: currentCards.map(c => {
+        const update = updatedIds.get(c.id);
+        if (update) {
+          return { ...c, columnId: update.columnId, position: update.position };
+        }
+        return c;
+      }),
+    });
+
+    // Persist to backend
     const updated = await window.electronAPI.moveCard(id, columnId, position);
+    // Reconcile the moved card with the server response
     set({
       cards: get().cards.map(c => (c.id === id ? { ...c, ...updated } : c)),
     });

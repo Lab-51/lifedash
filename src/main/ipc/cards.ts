@@ -169,13 +169,52 @@ export function registerCardHandlers(): void {
     'cards:move',
     async (_event, id: string, columnId: string, position: number) => {
       const db = getDb();
-      const [card] = await db
-        .update(cards)
-        .set({ columnId, position, updatedAt: new Date() })
-        .where(eq(cards.id, id))
-        .returning();
-      logCardActivity(id, 'moved', { columnId, position });
-      return card;
+
+      // Get all non-archived cards in the target column, sorted by position
+      const siblingsInTarget = await db
+        .select()
+        .from(cards)
+        .where(
+          and(
+            eq(cards.columnId, columnId),
+            eq(cards.archived, false),
+          ),
+        )
+        .orderBy(asc(cards.position));
+
+      // Remove the moved card from the list (it may already be in this column for same-column reorder)
+      const filtered = siblingsInTarget.filter(c => c.id !== id);
+
+      // Clamp position to valid range
+      const clampedPosition = Math.max(0, Math.min(position, filtered.length));
+
+      // Insert the moved card at the requested position
+      const reordered = [...filtered];
+      // Use a minimal placeholder — we only need the id for the update loop
+      reordered.splice(clampedPosition, 0, { id } as typeof cards.$inferSelect);
+
+      // Update all positions in one pass
+      for (let i = 0; i < reordered.length; i++) {
+        if (reordered[i].id === id) {
+          // Update the moved card: set column, position, and timestamp
+          await db
+            .update(cards)
+            .set({ columnId, position: i, updatedAt: new Date() })
+            .where(eq(cards.id, id));
+        } else if (reordered[i].position !== i) {
+          // Only update siblings whose position actually changed
+          await db
+            .update(cards)
+            .set({ position: i })
+            .where(eq(cards.id, reordered[i].id));
+        }
+      }
+
+      // Return the updated card
+      const [updated] = await db.select().from(cards).where(eq(cards.id, id));
+
+      logCardActivity(id, 'moved', { columnId, position: clampedPosition });
+      return updated;
     },
   );
 

@@ -21,6 +21,7 @@
     "@ai-sdk/anthropic": "^3.0.43",
     "@ai-sdk/openai": "^3.0.28",
     "@atlaskit/pragmatic-drag-and-drop": "^1.7.7",
+    "@atlaskit/pragmatic-drag-and-drop-hitbox": "^1.1.0",
     "@fontsource-variable/inter": "^5.2.8",
     "@fugood/whisper.node": "^1.0.16",
     "@tiptap/extension-placeholder": "^3.19.0",

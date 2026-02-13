@@ -15,6 +15,7 @@ import {
   dropTargetForElements,
   monitorForElements,
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import { useBoardStore, getCardsByColumn } from '../stores/boardStore';
 import LoadingSpinner from '../components/LoadingSpinner';
 import KanbanCard from '../components/KanbanCard';
@@ -296,7 +297,7 @@ function BoardPage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Board-level drag monitor — handles card moves on drop
+  // Board-level drag monitor — handles card moves (cross-column and within-column reorder)
   useEffect(() => {
     return monitorForElements({
       canMonitor: ({ source }) => source.data.type === 'card',
@@ -304,20 +305,50 @@ function BoardPage() {
         const dropTargets = location.current.dropTargets;
         if (dropTargets.length === 0) return;
 
-        const targetColumnId = dropTargets[0].data.columnId as string;
         const cardId = source.data.cardId as string;
         const sourceColumnId = source.data.sourceColumnId as string;
+        const sourcePosition = source.data.sourcePosition as number;
 
-        if (!targetColumnId || !cardId) return;
+        if (!cardId) return;
 
-        // Don't move if dropped back in the same column
-        if (sourceColumnId === targetColumnId) return;
+        // Check if we dropped on a card target (reorder) or just a column target (append)
+        const cardTarget = dropTargets.find(t => t.data.type === 'card');
+        const columnTarget = dropTargets.find(t => t.data.columnId && t.data.type !== 'card');
 
-        // Calculate position: append to end of target column
-        const targetCards = getCardsByColumn(cards, targetColumnId);
-        const newPosition = targetCards.length;
+        if (cardTarget) {
+          // Dropped on a specific card — insert above or below it
+          const targetColumnId = cardTarget.data.columnId as string;
+          const targetPosition = cardTarget.data.position as number;
+          const edge = extractClosestEdge(cardTarget.data);
 
-        moveCard(cardId, targetColumnId, newPosition);
+          let newPosition: number;
+          if (sourceColumnId === targetColumnId) {
+            // Same-column reorder
+            if (edge === 'top') {
+              newPosition = sourcePosition < targetPosition
+                ? targetPosition - 1
+                : targetPosition;
+            } else {
+              newPosition = sourcePosition < targetPosition
+                ? targetPosition
+                : targetPosition + 1;
+            }
+            // No-op if position did not change
+            if (newPosition === sourcePosition) return;
+          } else {
+            // Cross-column: insert at target position edge
+            newPosition = edge === 'top' ? targetPosition : targetPosition + 1;
+          }
+
+          moveCard(cardId, targetColumnId, newPosition);
+        } else if (columnTarget) {
+          // Dropped on empty area of column — append to end
+          const targetColumnId = columnTarget.data.columnId as string;
+          if (sourceColumnId === targetColumnId) return; // No-op for same column empty area
+          const targetCards = getCardsByColumn(cards, targetColumnId);
+          moveCard(cardId, targetColumnId, targetCards.length);
+        }
+
         setDragOverColumnId(null);
       },
     });

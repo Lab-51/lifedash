@@ -98,7 +98,7 @@ export default function BrainstormPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="p-6 space-y-4">
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-surface-100">Brainstorm</h1>
@@ -106,7 +106,7 @@ export default function BrainstormPage() {
       </div>
 
       {/* Main container */}
-      <div className="flex h-[calc(100vh-10rem)] gap-0 border border-surface-700 rounded-xl overflow-hidden">
+      <div className="flex h-[calc(100vh-13rem)] gap-0 border border-surface-700 rounded-xl overflow-hidden">
         {/* Left sidebar -- Sessions */}
         <div className="w-64 flex-shrink-0 border-r border-surface-700 bg-surface-900 flex flex-col">
           {/* Sidebar header */}

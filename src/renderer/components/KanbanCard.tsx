@@ -5,12 +5,16 @@
 
 // === DEPENDENCIES ===
 // react, lucide-react (Pencil, Trash2, Clock), shared types (Card, UpdateCardInput),
-// @atlaskit/pragmatic-drag-and-drop (draggable)
+// @atlaskit/pragmatic-drag-and-drop (draggable, dropTargetForElements),
+// @atlaskit/pragmatic-drag-and-drop-hitbox (attachClosestEdge, extractClosestEdge)
 
 import { useState, useRef, useEffect } from 'react';
 import { Pencil, Trash2, Clock } from 'lucide-react';
-import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
+import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import type { Card, UpdateCardInput } from '../../shared/types';
+import { getDueDateBadge } from '../utils/date-utils';
 
 interface KanbanCardProps {
   card: Card;
@@ -26,32 +30,10 @@ const PRIORITY_CONFIG = {
   urgent: { border: 'border-l-red-500',     badge: 'bg-red-500/20 text-red-400',         label: 'URG' },
 } as const;
 
-/** Get badge classes and label for a due date */
-function getDueDateBadge(dueDateStr: string): { label: string; classes: string } {
-  const now = new Date();
-  const due = new Date(dueDateStr);
-  const diffMs = due.getTime() - now.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-  if (diffMs < 0) {
-    return { label: 'Overdue', classes: 'bg-red-500/20 text-red-400' };
-  }
-  if (diffDays < 1) {
-    return { label: 'Due today', classes: 'bg-amber-500/20 text-amber-400' };
-  }
-  if (diffDays < 3) {
-    return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-amber-500/10 text-amber-300' };
-  }
-  if (diffDays < 7) {
-    return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-blue-500/10 text-blue-300' };
-  }
-  const formatted = new Date(dueDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return { label: formatted, classes: 'bg-surface-800 text-surface-400' };
-}
-
 function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(card.title);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -89,6 +71,40 @@ function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
       }),
       onDragStart: () => setIsDragging(true),
       onDrop: () => setIsDragging(false),
+    });
+  }, [card.id, card.columnId, card.position]);
+
+  // Set up drop target behavior — allows cards to be dropped on this card
+  // to reorder within the same column or insert at a specific position cross-column
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) =>
+        source.data.type === 'card' && source.data.cardId !== card.id,
+      getData: ({ input, element }) => {
+        const data: Record<string, unknown> = {
+          type: 'card',
+          cardId: card.id,
+          columnId: card.columnId,
+          position: card.position,
+        };
+        return attachClosestEdge(data, {
+          input,
+          element,
+          allowedEdges: ['top', 'bottom'],
+        });
+      },
+      onDragEnter: ({ self }) => {
+        setClosestEdge(extractClosestEdge(self.data));
+      },
+      onDrag: ({ self }) => {
+        setClosestEdge(extractClosestEdge(self.data));
+      },
+      onDragLeave: () => setClosestEdge(null),
+      onDrop: () => setClosestEdge(null),
     });
   }, [card.id, card.columnId, card.position]);
 
@@ -130,8 +146,16 @@ function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
     <div
       ref={cardRef}
       onClick={onClick}
-      className={`group bg-surface-800 rounded-md p-3 border-l-2 cursor-pointer hover:bg-surface-700/50 transition-colors ${priority.border} ${isDragging ? 'opacity-40' : ''}`}
+      className={`group relative bg-surface-800 rounded-md p-3 border-l-2 cursor-pointer hover:bg-surface-700/50 transition-colors ${priority.border} ${isDragging ? 'opacity-40' : ''}`}
     >
+      {/* Drop edge indicators */}
+      {closestEdge === 'top' && (
+        <div className="absolute -top-0.5 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
+      )}
+      {closestEdge === 'bottom' && (
+        <div className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
+      )}
+
       {/* Top row: title area + priority badge */}
       <div className="flex items-start justify-between gap-2">
         {/* Title or edit input */}

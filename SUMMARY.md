@@ -1,59 +1,60 @@
-# Plan 8.1 Summary — Critical Review Fixes: Performance, Testing, Security
+# Plan 8.2 Summary — README, Within-Column Card Reordering, and UI Polish
 
 ## Date: 2026-02-13
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Addressed the top 3 findings from the project review (REVIEW.md, grade B-): fixed the severe N+1 query in Kanban board loading, established Vitest testing framework with 12 initial tests, and added CSP headers + path traversal prevention.
+Addressed review findings #3 (no README) and #5 (missing within-column card reordering), plus three quick UI polish fixes (padding, code dedup, safety confirmation).
 
-### Task 1: Fix N+1 query in cards:list-by-board
+### Task 1: Create README.md with project overview and developer quick start
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Replaced triple-nested loop (300-600+ sequential DB queries) with 4 batch queries using Drizzle `inArray`
-- Query pattern: columns → cards → cardLabels → labels (all batch-fetched)
-- Empty-array guards prevent unnecessary queries
-- Updated LIMITATIONS comment to reflect new approach
+- Created README.md at project root with 9 sections
+- All 12 script names verified against package.json
+- All technology versions verified against package.json dependencies
+- Project structure tree verified against actual directories
+- 100+ IPC channels documented (counted via grep across 17 handler files)
+- .env.example variables documented (DB_PASSWORD, DATABASE_URL)
+- Honest license statement (no LICENSE file exists)
 
-### Task 2: Set up Vitest test framework and write initial unit tests
+### Task 2: Implement within-column card reordering via drag-and-drop
+**Status:** COMPLETE | **Confidence:** MEDIUM
+
+- Installed @atlaskit/pragmatic-drag-and-drop-hitbox for edge detection
+- KanbanCard: registered as both draggable source AND drop target
+- KanbanCard: closestEdge state + blue indicator lines (top/bottom)
+- BoardPage: replaced drag monitor for same-column + cross-column handling
+- BoardPage: removed the `if (sourceColumnId === targetColumnId) return;` blocker
+- cards:move IPC: full reorder (query siblings, splice, update changed positions)
+- boardStore: optimistic UI (instant local position update before IPC response)
+
+### Task 3: UI polish batch
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Installed vitest v4.0.18 + @vitest/ui as devDependencies
-- Created vitest.config.ts (globals: true, node environment)
-- Added 3 test scripts to package.json (test, test:watch, test:ui)
-- Extracted `buildCardLabelMap` to src/shared/utils/card-utils.ts (pure function, no Electron deps)
-- Updated cards.ts to import from shared util
-- 2 test files, 12 tests, all passing:
-  - card-utils.test.ts: 6 tests (empty, mapping, multi-label, shared labels, missing IDs)
-  - types.test.ts: 6 tests (MEETING_TEMPLATES structure, fields, uniqueness, non-general validation)
+- **BrainstormPage padding:** Added `p-6` to wrapper, adjusted height calc (10rem → 13rem)
+- **getDueDateBadge extraction:** Created shared `src/renderer/utils/date-utils.ts`, removed duplicates from KanbanCard.tsx and CardDetailModal.tsx
+- **Restore confirmation:** Added inline confirmation dialog to "Restore from File..." button in BackupSection (amber-themed, matching existing pattern)
 
-### Task 3: Security hardening — CSP headers and path validation
-**Status:** COMPLETE | **Confidence:** HIGH
+## Files Created (2)
+- `README.md` (122 lines)
+- `src/renderer/utils/date-utils.ts` (~20 lines)
 
-- Content-Security-Policy via session.webRequest.onHeadersReceived:
-  - Production: strict self-only for scripts, self+inline for styles, self+data for images
-  - Development: adds ws: + localhost:* for HMR, 'unsafe-eval' for Vite
-  - connect-src: all 4 API providers (OpenAI, Anthropic, Deepgram, AssemblyAI) + Ollama
-- Path traversal prevention in openAttachment:
-  - Validates resolved path starts with userData/attachments/
-  - Checks file existence before shell.openPath()
-  - Clear error messages for both failure cases
+## Files Modified (7)
+- `src/renderer/components/KanbanCard.tsx` (drop target + shared import)
+- `src/renderer/pages/BoardPage.tsx` (drag monitor rewrite)
+- `src/main/ipc/cards.ts` (cards:move reorder handler)
+- `src/renderer/stores/boardStore.ts` (optimistic moveCard)
+- `src/renderer/pages/BrainstormPage.tsx` (p-6 padding)
+- `src/renderer/components/CardDetailModal.tsx` (shared import)
+- `src/renderer/components/settings/BackupSection.tsx` (restore confirmation)
 
-## Files Created (4)
-- `vitest.config.ts`
-- `src/shared/utils/card-utils.ts` (~35 lines)
-- `src/shared/utils/__tests__/card-utils.test.ts` (6 tests)
-- `src/shared/__tests__/types.test.ts` (6 tests)
-
-## Files Modified (4)
-- `src/main/ipc/cards.ts` (N+1 fix + buildCardLabelMap import)
-- `src/main/main.ts` (CSP headers)
-- `src/main/services/attachmentService.ts` (path validation in openAttachment)
-- `package.json` (vitest devDeps + test scripts)
+## Dependencies Added (1)
+- `@atlaskit/pragmatic-drag-and-drop-hitbox`
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors)
-- `npm test`: 2 files, 12 tests, all passed (229ms)
+- `npm test`: 2 files, 12 tests, all passed
 
 ## What's Next
-1. `/nexus:git` to commit Plan 8.1 changes
-2. Consider Plan 8.2 (IPC validation with Zod, structured logging, component refactoring)
+1. `/nexus:git` to commit Plan 8.2 changes
+2. `/nexus:plan 8.3` for IPC validation with Zod, structured logging, component refactoring

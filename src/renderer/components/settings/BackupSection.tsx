@@ -59,6 +59,7 @@ export default function BackupSection() {
   // Inline confirmation state
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirmRestoreFile, setConfirmRestoreFile] = useState(false);
 
   // Timer ref for auto-clearing progress
   const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,14 +115,32 @@ export default function BackupSection() {
           <Database size={16} />
           Create Backup
         </button>
-        <button
-          onClick={restoreFromFile}
-          disabled={isBusy}
-          className="flex items-center gap-2 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 disabled:cursor-not-allowed text-surface-200 px-3 py-1.5 rounded-lg text-sm transition-colors"
-        >
-          <Upload size={16} />
-          Restore from File...
-        </button>
+        {confirmRestoreFile ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-amber-400">Overwrite current database?</span>
+            <button
+              onClick={() => setConfirmRestoreFile(false)}
+              className="text-xs text-surface-400 hover:text-surface-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => { setConfirmRestoreFile(false); restoreFromFile(); }}
+              className="text-xs bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 px-2 py-1 rounded transition-colors"
+            >
+              Confirm
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmRestoreFile(true)}
+            disabled={isBusy}
+            className="flex items-center gap-2 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 disabled:cursor-not-allowed text-surface-200 px-3 py-1.5 rounded-lg text-sm transition-colors"
+          >
+            <Upload size={16} />
+            Restore from File...
+          </button>
+        )}
       </div>
 
       {/* Progress indicator */}

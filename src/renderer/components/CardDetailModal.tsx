@@ -14,6 +14,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { Card, UpdateCardInput, CardPriority } from '../../shared/types';
 import { useBoardStore } from '../stores/boardStore';
+import { getDueDateBadge } from '../utils/date-utils';
 import AttachmentsSection from './AttachmentsSection';
 import CommentsSection from './CommentsSection';
 import RelationshipsSection from './RelationshipsSection';
@@ -101,28 +102,6 @@ function toDateTimeLocalValue(isoStr: string): string {
   const hours = String(d.getHours()).padStart(2, '0');
   const minutes = String(d.getMinutes()).padStart(2, '0');
   return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
-
-/** Get badge classes and label for a due date */
-function getDueDateBadge(dueDateStr: string): { label: string; classes: string } {
-  const now = new Date();
-  const due = new Date(dueDateStr);
-  const diffMs = due.getTime() - now.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-  if (diffMs < 0) {
-    return { label: 'Overdue', classes: 'bg-red-500/20 text-red-400' };
-  }
-  if (diffDays < 1) {
-    return { label: 'Due today', classes: 'bg-amber-500/20 text-amber-400' };
-  }
-  if (diffDays < 3) {
-    return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-amber-500/10 text-amber-300' };
-  }
-  if (diffDays < 7) {
-    return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-blue-500/10 text-blue-300' };
-  }
-  return { label: formatDate(dueDateStr), classes: 'bg-surface-800 text-surface-400' };
 }
 
 function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {

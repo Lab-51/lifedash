@@ -2,13 +2,13 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Plan 8.1 — Critical Review Fixes (Performance, Testing, Security)
+Session focus: Plan 8.2 — README, Within-Column Reordering, UI Polish
 
 ## Position
 Milestone: Post-Review Improvements
 Phase: 8 (Review Fixes)
-Plan: 8.1 of TBD (PLANNED — 0/3 tasks done)
-Task: 0 of 3
+Plan: 8.2 of TBD (COMPLETE — 3/3 tasks done)
+Task: 3 of 3
 
 ## Phase 1 — COMPLETE
 All 3 plans (8 tasks) delivered and pushed to GitHub.
@@ -403,7 +403,7 @@ Focus: Highest-impact fixes from project review.
 1. Fix N+1 query in cards:list-by-board (300+ queries → 4 batch queries with inArray) — DONE
 2. Set up Vitest test framework + write initial unit tests (zero → foundation) — DONE
 3. Security hardening — CSP headers on BrowserWindow + path validation in openAttachment — DONE
-- Not yet committed
+- Commit: 5abc3c8 on origin/main
 
 ## Plan 8.1 Execution Results
 - **Task 1**: Replaced triple-nested N+1 loop in cards:list-by-board with 4 batch queries using `inArray`. Reduced 300-600+ queries to exactly 4 (columns, cards, cardLabels, labels). Updated LIMITATIONS comment.
@@ -423,6 +423,33 @@ Plan 8.1 execution: HIGH (all 3 tasks verified, TypeScript clean, 12 tests passi
 - Path validation uses path.resolve + startsWith (handles ../ and Windows paths)
 - types.test.ts adapted to actual MEETING_TEMPLATES fields (icon, agenda, aiPromptHint)
 
+### Plan 8.2: README, Within-Column Reordering, UI Polish (3 tasks) — COMPLETE
+1. Create README.md with project overview and developer quick start — DONE
+2. Implement within-column card reordering via drag-and-drop (pragmatic-drag-and-drop-hitbox) — DONE
+3. UI polish batch — BrainstormPage padding, getDueDateBadge extraction, restore confirmation — DONE
+- Not yet committed
+
+## Plan 8.2 Execution Results
+- **Task 1**: Created README.md (122 lines) — project title, features list, prerequisites, quick start, 12 verified scripts table, tech stack with versions from package.json, project structure tree (verified against actual dirs), env vars from .env.example, configuration notes, honest license statement. All content verified against actual project files.
+- **Task 2**: Installed @atlaskit/pragmatic-drag-and-drop-hitbox. Made KanbanCard both draggable and drop target with edge detection (closestEdge state + blue indicator lines). Replaced BoardPage drag monitor to handle both same-column reorder and cross-column move (removed blocking early return). Replaced cards:move IPC handler with full reorder implementation (query siblings, splice, update positions). Added optimistic UI in boardStore.
+- **Task 3**: Added p-6 to BrainstormPage wrapper (adjusted height calc from 10rem to 13rem). Extracted getDueDateBadge to src/renderer/utils/date-utils.ts. Updated KanbanCard + CardDetailModal to import from shared util. Added restoreFromFile confirmation dialog in BackupSection (amber-themed, matching existing pattern).
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
+- **Tests**: 12/12 passing.
+
+## Confidence Levels
+Overall approach: HIGH
+Plan 8.2 execution: HIGH (all 3 tasks verified, TypeScript clean, tests passing)
+
+## Decisions Made (Plan 8.2)
+- README: 100+ IPC channels (not 60+ as originally estimated), verified via grep
+- README: .env.example has DB_PASSWORD and DATABASE_URL variables
+- Card reordering: edge detection via pragmatic-drag-and-drop-hitbox attachClosestEdge/extractClosestEdge
+- Card reordering: optimistic UI in boardStore (instant local update before IPC)
+- Card reordering: backend reindexes only cards whose position actually changed
+- BrainstormPage: height calc adjusted from 10rem to 13rem to compensate for p-6 padding
+- getDueDateBadge: shared version omits year (matches KanbanCard compact format)
+- CardDetailModal: formatDate helper kept (used independently for Created/Updated timestamps)
+
 ## Next Steps
-1. `/nexus:git` — Commit Plan 8.1 changes
-2. Consider Plan 8.2 (IPC validation with Zod, structured logging, component refactoring)
+1. `/nexus:git` — Commit Plan 8.2 changes
+2. `/nexus:plan 8.3` — IPC validation with Zod, structured logging, component refactoring

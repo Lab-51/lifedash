@@ -1,427 +1,553 @@
-# Plan 8.1 — Critical Review Fixes: Performance, Testing Foundation, and Security Hardening
+# Plan 8.2 — README, Within-Column Card Reordering, and UI Polish
 
-**Source:** REVIEW.md findings (2026-02-13)
-**Scope:** Fix N+1 board query (#2 priority), set up Vitest test framework (#1 priority), add CSP + path validation (security gaps)
-**Approach:** Three highest-impact fixes from the review, targeting performance, quality infrastructure, and security.
+**Source:** REVIEW.md findings (2026-02-13) — priorities #3 and #5, plus quick wins
+**Scope:** Create README.md (critical documentation gap), implement within-column card reordering (most visibly missing Kanban feature), and batch quick UI fixes (padding, code dedup, confirmation)
+**Approach:** One documentation task, one feature task, one polish batch — all independent, parallelizable.
 
-## Review Triage
+## Review Triage (continued from Plan 8.1)
 
 | Finding | Severity | This Plan? | Rationale |
 |---------|----------|-----------|-----------|
-| Zero test coverage | CRITICAL | Task 2 | Set up framework + initial tests — foundation for all future quality |
-| N+1 query in cards:list-by-board | HIGH | Task 1 | Concrete fix, 300+ queries → 4 queries, most-used feature |
-| Missing CSP + path traversal | HIGH/Missing | Task 3 | Two small targeted security fixes, high impact |
-| Silent error handling | HIGH | Deferred | Scattered across 23 files, needs structured logging plan |
-| Oversized components | HIGH | Deferred | Refactoring needs careful UX review |
-| IPC input validation (Zod) | MEDIUM | Deferred | 60+ channels, needs dedicated plan |
-| 87 `any` type occurrences | MEDIUM | Deferred | Gradual cleanup, not urgent |
+| No README.md | HIGH | Task 1 | #3 review priority, developer cloning repo has zero guidance |
+| Missing within-column card reordering | HIGH | Task 2 | #5 review priority, most visibly missing Kanban feature |
+| BrainstormPage padding inconsistency | LOW | Task 3 | Quick fix, 1 line |
+| getDueDateBadge duplication | LOW | Task 3 | Extract to shared util, remove 2 copies |
+| restoreFromFile lacks confirmation | LOW | Task 3 | Small UX safety improvement |
+| IPC input validation (Zod) | MEDIUM | Plan 8.3 | 60+ channels, needs dedicated plan |
+| Structured logging | MEDIUM | Plan 8.3 | 67 console calls across 23 files |
+| Component refactoring | HIGH | Plan 8.3 | 3 oversized components need careful decomposition |
 
 ---
 
-<phase n="8.1" name="Critical Review Fixes — Performance, Testing Foundation, and Security Hardening">
+<phase n="8.2" name="README, Within-Column Card Reordering, and UI Polish">
   <context>
-    Post-review improvement plan. The project review (REVIEW.md) graded the project B- with
-    "NEEDS ATTENTION" overall. All 17 requirements (99 pts) are delivered across 7 phases, but
-    the codebase lacks test coverage, has a severe N+1 performance issue, and is missing
-    standard security headers.
+    Post-review improvement plan (continued from Plan 8.1). The project review graded B-
+    with missing README (#3 priority), missing within-column card reordering (#5 priority),
+    and several quick UI polish items.
 
     Key files:
-    @src/main/ipc/cards.ts — N+1 query in cards:list-by-board handler (lines 62-100)
-    @src/main/db/schema/cards.ts — cards, cardLabels, labels tables
-    @src/main/services/attachmentService.ts — openAttachment has no path validation
-    @src/main/main.ts — BrowserWindow creation, no CSP headers
-    @package.json — no test framework configured
-    @vite.main.config.ts — Vite config for main process (needed for Vitest compat)
+    @src/renderer/pages/BoardPage.tsx — drag monitor (lines 299-324), column drop targets (lines 56-69)
+    @src/renderer/components/KanbanCard.tsx — draggable setup (lines 77-93), getDueDateBadge (lines 29-50)
+    @src/renderer/components/CardDetailModal.tsx — getDueDateBadge (lines 106-126)
+    @src/renderer/pages/BrainstormPage.tsx — page wrapper (line 100-101, uses `space-y-4` only)
+    @src/renderer/components/settings/BackupSection.tsx — restore handlers (lines 87-89, 118)
+    @src/renderer/stores/boardStore.ts — moveCard (lines 185-190)
+    @package.json — dependencies
 
     Already confirmed:
-    - Drizzle `inArray` is used successfully in ideaService.ts and brainstormService.ts
-    - No vitest, @vitest/ui, or zod in dependencies
-    - No test files exist anywhere in src/
-    - openAttachment passes arbitrary filePath to shell.openPath() without validation
-    - BrowserWindow has no Content-Security-Policy configured
+    - `@atlaskit/pragmatic-drag-and-drop` v1.7.7 installed (core only)
+    - `@atlaskit/pragmatic-drag-and-drop-hitbox` v1.1.0 available on npm (edge detection for reordering)
+    - BoardPage.tsx line 314: `if (sourceColumnId === targetColumnId) return;` explicitly skips same-column drops
+    - All other pages use `p-6` wrapper; BrainstormPage uses only `space-y-4`
+    - getDueDateBadge is nearly identical in KanbanCard.tsx:30-50 and CardDetailModal.tsx:107-126
+    - BackupSection has inline confirmation for listed backups but restoreFromFile (line 118) has none
+    - No README.md exists at project root
   </context>
 
   <task type="auto" n="1">
-    <n>Fix N+1 query in cards:list-by-board</n>
-    <files>src/main/ipc/cards.ts</files>
+    <n>Create README.md with project overview and developer quick start</n>
+    <files>README.md (NEW)</files>
     <action>
       ## WHY
-      The `cards:list-by-board` IPC handler (lines 62-100) uses triple-nested loops that
-      generate 300-600+ sequential DB queries for a medium board. This is the #2 priority
-      finding and affects the most-used feature (Kanban board). The fix reduces it to exactly
-      4 queries regardless of board size.
+      No README.md exists. A developer cloning this repo has zero guidance on prerequisites,
+      setup, or how to run the application. The review estimates onboarding time drops from
+      2-4 hours to 30-60 minutes with a good README. This is #3 review priority.
 
       ## WHAT
 
-      Replace lines 62-100 in src/main/ipc/cards.ts with a batch-query approach:
+      Create README.md at project root. Read PROJECT.md, ROADMAP.md, package.json, and
+      docker-compose.yml to ensure accuracy. The README should include:
 
-      1. Add `inArray` to the existing drizzle-orm import:
-         `import { eq, and, asc, desc, inArray } from 'drizzle-orm';`
+      ### Section 1: Project Title + One-Line Description
+      "Living Dashboard" — AI-powered desktop dashboard for meeting intelligence, project
+      management, brainstorming, and idea tracking.
 
-      2. Replace the handler body:
+      ### Section 2: Features (bullet list)
+      - Meeting recording + real-time transcription (local Whisper + API fallback)
+      - Kanban project management with drag-and-drop
+      - AI-powered meeting briefs and action item extraction
+      - Conversational AI brainstorming
+      - AI task structuring and project planning
+      - Idea repository with tags, analysis, and project conversion
+      - Multi-provider AI support (OpenAI, Anthropic, Ollama, Deepgram, AssemblyAI)
+      - Database backup/restore and data export
+      - Desktop notifications for due dates and daily digest
+      - Dark theme UI with system tray integration
 
-      ```typescript
-      ipcMain.handle('cards:list-by-board', async (_event, boardId: string) => {
-        const db = getDb();
+      ### Section 3: Prerequisites
+      - Node.js 18+ (verify actual minimum from package.json engines or tsconfig target)
+      - Docker Desktop (for PostgreSQL 16)
+      - Git
 
-        // Query 1: Get all columns for this board
-        const boardColumns = await db
-          .select()
-          .from(columns)
-          .where(eq(columns.boardId, boardId));
-        const columnIds = boardColumns.map((c) => c.id);
-        if (columnIds.length === 0) return [];
-
-        // Query 2: Batch-fetch all non-archived cards in these columns
-        const allCardRows = await db
-          .select()
-          .from(cards)
-          .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false)))
-          .orderBy(asc(cards.position));
-        if (allCardRows.length === 0) return [];
-
-        const cardIds = allCardRows.map((c) => c.id);
-
-        // Query 3: Batch-fetch all card-label junction rows for these cards
-        const allCardLabelRows = await db
-          .select()
-          .from(cardLabels)
-          .where(inArray(cardLabels.cardId, cardIds));
-
-        // Query 4: Batch-fetch all labels referenced by these cards
-        const labelIds = [...new Set(allCardLabelRows.map((cl) => cl.labelId))];
-        const allLabels = labelIds.length > 0
-          ? await db.select().from(labels).where(inArray(labels.id, labelIds))
-          : [];
-
-        // Build lookup maps
-        const labelMap = new Map(allLabels.map((l) => [l.id, l as unknown as Label]));
-        const cardLabelMap = new Map<string, Label[]>();
-        for (const cl of allCardLabelRows) {
-          const label = labelMap.get(cl.labelId);
-          if (label) {
-            const existing = cardLabelMap.get(cl.cardId) ?? [];
-            existing.push(label);
-            cardLabelMap.set(cl.cardId, existing);
-          }
-        }
-
-        // Assemble result
-        return allCardRows.map((card) => ({
-          ...(card as unknown as Card),
-          labels: cardLabelMap.get(card.id) ?? [],
-        }));
-      });
+      ### Section 4: Quick Start
+      ```bash
+      git clone [repo-url]
+      cd living-dashboard
+      npm install
+      docker compose up -d     # Start PostgreSQL
+      npm start                # Launch in development mode
       ```
 
-      3. Update the LIMITATIONS header comment (lines 9-10):
-         Remove: "cards:list-by-board fetches labels per card in a loop (N+1 queries)."
-         Replace with: "cards:list-by-board uses 4 batch queries (columns, cards, cardLabels, labels)."
+      ### Section 5: Available Scripts
+      Table format from package.json scripts:
+      | Script | Description |
+      | `npm start` | Start development server |
+      | `npm run package` | Package for distribution |
+      | `npm run make` | Build distributable |
+      | `npm test` | Run tests |
+      | `npm run test:watch` | Run tests in watch mode |
+      | `npm run db:generate` | Generate Drizzle migration |
+      | `npm run db:migrate` | Apply migrations |
+      | `npm run db:studio` | Open Drizzle Studio |
+      | `npm run db:up` | Start PostgreSQL container |
+      | `npm run db:down` | Stop PostgreSQL container |
+
+      ### Section 6: Tech Stack (compact table)
+      | Layer | Technology |
+      | Desktop Shell | Electron 40 |
+      | Frontend | React 19, TypeScript 5.9, Tailwind CSS 4 |
+      | Database | PostgreSQL 16 (Docker), Drizzle ORM |
+      | AI | Vercel AI SDK 6, OpenAI, Anthropic, Ollama |
+      | Transcription | Whisper (local), Deepgram, AssemblyAI |
+      | Drag-and-drop | @atlaskit/pragmatic-drag-and-drop |
+      | Rich text | TipTap |
+      | State | Zustand |
+
+      ### Section 7: Project Structure (abbreviated tree)
+      ```
+      src/
+        main/           # Electron main process
+          db/            # Schema, migrations, connection
+          ipc/           # IPC handlers (60+ channels)
+          services/      # Business logic services
+        preload/         # Electron preload bridge
+        renderer/        # React frontend
+          components/    # Reusable components
+          pages/         # Route pages
+          stores/        # Zustand state management
+        shared/          # Types and utilities shared across processes
+      ```
+
+      ### Section 8: Configuration
+      - Copy `.env.example` to `.env` for custom database settings
+      - AI API keys: configured in Settings page (stored with OS-level encryption)
+      - Whisper model: download from Settings page
+
+      ### Section 9: License
+      "This project is not currently licensed for public distribution."
+      (No LICENSE file exists — state this honestly.)
+
+      IMPORTANT: Keep the README concise and accurate. Do NOT fabricate setup steps you
+      haven't verified. Read the actual files to ensure all script names and descriptions
+      are correct.
     </action>
     <verify>
-      1. `npx tsc --noEmit` — zero TypeScript errors
-      2. No loops containing `await db.` remain in cards:list-by-board handler
-      3. `inArray` import present in drizzle-orm import line
-      4. Handler uses exactly 4 db queries: columns, cards, cardLabels, labels
-      5. Empty-array guard on labelIds prevents empty inArray call
-      6. Return type is unchanged: array of Card with labels
+      1. README.md exists at project root
+      2. All script names match actual package.json scripts
+      3. Tech stack versions match actual package.json dependencies
+      4. Prerequisites listed (Node.js, Docker, Git)
+      5. Quick start includes: clone, npm install, docker compose up -d, npm start
+      6. Project structure tree matches actual directory layout
+      7. No fabricated URLs or links (except placeholder for clone URL)
     </verify>
     <done>
-      cards:list-by-board uses exactly 4 batch queries regardless of board size.
-      No nested DB loops remain. LIMITATIONS comment updated. TypeScript compiles clean.
+      README.md exists with project overview, features, prerequisites, quick start,
+      scripts table, tech stack, project structure, and configuration notes.
+      All content verified against actual project files.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Drizzle inArray works with UUID arrays (confirmed in ideaService.ts, brainstormService.ts)
-      - Drizzle inArray with empty array is safe but we guard anyway for clarity
-      - The `as unknown as Card` / `as unknown as Label` casts match existing pattern
+      - docker-compose.yml exists and uses `docker compose` command (not `docker-compose`)
+      - .env.example exists with database configuration
+      - No specific Node.js engine version is specified in package.json (will use 18+ as safe minimum)
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Set up Vitest test framework and write initial unit tests</n>
+    <n>Implement within-column card reordering via drag-and-drop</n>
     <files>
-      package.json (MODIFY — add devDependencies + scripts)
-      vitest.config.ts (NEW)
-      src/main/ipc/__tests__/cards-query.test.ts (NEW)
-      src/shared/__tests__/types.test.ts (NEW)
+      package.json (MODIFY — add @atlaskit/pragmatic-drag-and-drop-hitbox)
+      src/renderer/components/KanbanCard.tsx (MODIFY — add drop target with edge detection)
+      src/renderer/pages/BoardPage.tsx (MODIFY — update drag monitor for same-column + cross-column)
     </files>
     <action>
       ## WHY
-      Zero test coverage across 112 files is the #1 critical finding. Setting up the framework
-      and writing initial tests establishes the pattern, unblocks all future testing, and
-      validates the N+1 fix logic from Task 1.
+      Within-column card reordering is the #5 review priority and the most visibly missing
+      Kanban feature. BoardPage.tsx line 314 explicitly returns early for same-column drops:
+      `if (sourceColumnId === targetColumnId) return;`. Users can drag cards between columns
+      but cannot reorder cards within a column, which is a fundamental Kanban expectation.
 
       ## WHAT
 
-      ### Step 1: Install Vitest
+      ### Step 1: Install hitbox addon
 
-      Run: `npm install -D vitest @vitest/ui`
+      Run: `npm install @atlaskit/pragmatic-drag-and-drop-hitbox`
 
-      ### Step 2: Create vitest.config.ts at project root
+      This provides `attachClosestEdge` and `extractClosestEdge` for determining whether
+      a drop occurred on the top or bottom edge of a target card.
 
+      ### Step 2: Make KanbanCard a drop target (KanbanCard.tsx)
+
+      Add imports:
       ```typescript
-      import { defineConfig } from 'vitest/config';
-
-      export default defineConfig({
-        test: {
-          globals: true,
-          include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
-          exclude: ['node_modules', '.vite', 'out'],
-          environment: 'node',
-        },
-      });
+      import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+      import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
       ```
 
-      Notes:
-      - `environment: 'node'` for main-process and shared tests (renderer tests will need
-        'jsdom' later, but that requires additional setup)
-      - `globals: true` enables describe/it/expect without imports
-
-      ### Step 3: Add scripts to package.json
-
-      Add to "scripts":
-      ```json
-      "test": "vitest run",
-      "test:watch": "vitest",
-      "test:ui": "vitest --ui"
+      Add a `closestEdge` state:
+      ```typescript
+      const [closestEdge, setClosestEdge] = useState<'top' | 'bottom' | null>(null);
       ```
 
-      ### Step 4: Write src/shared/__tests__/types.test.ts
-
-      Test the MEETING_TEMPLATES constant and other exported constants/enums:
+      Register the card as a drop target (in a new useEffect alongside the draggable one):
       ```typescript
-      import { describe, it, expect } from 'vitest';
+      useEffect(() => {
+        const el = cardRef.current;
+        if (!el) return;
 
-      // Test the MEETING_TEMPLATES constant
-      describe('MEETING_TEMPLATES', () => {
-        // Need to verify what's exported — import the actual constant
-        // Tests: all 6 template types exist, each has type/name/description/agendaHint fields
-      });
+        return dropTargetForElements({
+          element: el,
+          canDrop: ({ source }) => source.data.type === 'card' && source.data.cardId !== card.id,
+          getData: ({ input, element }) => {
+            const data = { type: 'card', cardId: card.id, columnId: card.columnId, position: card.position };
+            return attachClosestEdge(data, { input, element, allowedEdges: ['top', 'bottom'] });
+          },
+          onDragEnter: ({ self }) => {
+            setClosestEdge(extractClosestEdge(self.data));
+          },
+          onDrag: ({ self }) => {
+            setClosestEdge(extractClosestEdge(self.data));
+          },
+          onDragLeave: () => setClosestEdge(null),
+          onDrop: () => setClosestEdge(null),
+        });
+      }, [card.id, card.columnId, card.position]);
       ```
 
-      Tests to write:
-      - MEETING_TEMPLATES has exactly 6 entries
-      - Each template has required fields: type, name, description, agendaHint
-      - Template types are unique
-      - Each template type value is one of the expected enum values
+      Add a visual drop indicator line. In the card's JSX, add a blue line indicator
+      showing where the card will be inserted:
 
-      Note: The executor should read src/shared/types.ts to find exact exports. If
-      MEETING_TEMPLATES is not directly importable (it may be defined in types.ts which
-      imports from Electron types), create a separate test for pure utility logic instead.
+      ```tsx
+      {/* Drop indicator — shows where the card will be placed */}
+      {closestEdge === 'top' && (
+        <div className="absolute -top-0.5 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
+      )}
+      {closestEdge === 'bottom' && (
+        <div className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
+      )}
+      ```
 
-      ### Step 5: Write src/main/ipc/__tests__/cards-query.test.ts
+      Ensure the card's outer div has `relative` in its className for absolute positioning.
 
-      To make the N+1 fix from Task 1 testable, extract the label-assembly logic into a
-      pure function. In cards.ts, add an exported helper:
+      ### Step 3: Update BoardPage drag monitor (BoardPage.tsx)
+
+      Replace the existing drag monitor (lines 299-324) with a version that handles
+      both same-column reordering AND cross-column moves:
 
       ```typescript
-      /**
-       * Build a map of cardId → Label[] from batch-fetched junction and label rows.
-       * Exported for testing.
-       */
-      export function buildCardLabelMap(
-        cardLabelRows: { cardId: string; labelId: string }[],
-        allLabels: Label[],
-      ): Map<string, Label[]> {
-        const labelMap = new Map(allLabels.map((l) => [l.id, l]));
-        const result = new Map<string, Label[]>();
-        for (const cl of cardLabelRows) {
-          const label = labelMap.get(cl.labelId);
-          if (label) {
-            const existing = result.get(cl.cardId) ?? [];
-            existing.push(label);
-            result.set(cl.cardId, existing);
+      // Board-level drag monitor — handles card moves (cross-column and within-column reorder)
+      useEffect(() => {
+        return monitorForElements({
+          canMonitor: ({ source }) => source.data.type === 'card',
+          onDrop: ({ source, location }) => {
+            const dropTargets = location.current.dropTargets;
+            if (dropTargets.length === 0) return;
+
+            const cardId = source.data.cardId as string;
+            const sourceColumnId = source.data.sourceColumnId as string;
+            const sourcePosition = source.data.sourcePosition as number;
+
+            // Check if we dropped on a card (reorder) or just a column (append)
+            const cardTarget = dropTargets.find(t => t.data.type === 'card');
+            const columnTarget = dropTargets.find(t => t.data.columnId && t.data.type !== 'card');
+
+            if (cardTarget) {
+              // Dropped on a specific card — insert above or below it
+              const targetColumnId = cardTarget.data.columnId as string;
+              const targetPosition = cardTarget.data.position as number;
+              const edge = extractClosestEdge(cardTarget.data);
+
+              let newPosition: number;
+              if (sourceColumnId === targetColumnId) {
+                // Same-column reorder
+                if (edge === 'top') {
+                  newPosition = sourcePosition < targetPosition ? targetPosition - 1 : targetPosition;
+                } else {
+                  newPosition = sourcePosition < targetPosition ? targetPosition : targetPosition + 1;
+                }
+                // No-op if position didn't change
+                if (newPosition === sourcePosition) return;
+              } else {
+                // Cross-column: insert at target position
+                newPosition = edge === 'top' ? targetPosition : targetPosition + 1;
+              }
+
+              moveCard(cardId, targetColumnId, newPosition);
+            } else if (columnTarget) {
+              // Dropped on empty area of column — append to end
+              const targetColumnId = columnTarget.data.columnId as string;
+              if (sourceColumnId === targetColumnId) return; // No-op for same column
+              const targetCards = getCardsByColumn(cards, targetColumnId);
+              moveCard(cardId, targetColumnId, targetCards.length);
+            }
+
+            setDragOverColumnId(null);
+          },
+        });
+      }, [cards, moveCard]);
+      ```
+
+      Add the `extractClosestEdge` import at the top of BoardPage.tsx:
+      ```typescript
+      import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
+      ```
+
+      ### Step 4: Update cards:move IPC handler for position reordering
+
+      The current `cards:move` handler (src/main/ipc/cards.ts) just sets the new
+      columnId + position but doesn't shift other cards. For within-column reordering to
+      work properly, we need to reorder positions of sibling cards.
+
+      Modify the `cards:move` handler to:
+      1. If column changed OR position changed, shift sibling card positions
+      2. Use a simple approach: set the moved card's position, then re-index all cards
+         in the target column by their existing order
+
+      ```typescript
+      ipcMain.handle(
+        'cards:move',
+        async (_event, id: string, columnId: string, position: number) => {
+          const db = getDb();
+
+          // Update the card's column and position
+          const [card] = await db
+            .update(cards)
+            .set({ columnId, position, updatedAt: new Date() })
+            .where(eq(cards.id, id))
+            .returning();
+
+          // Re-index all non-archived cards in the target column to close gaps
+          const columnCards = await db
+            .select({ id: cards.id })
+            .from(cards)
+            .where(and(eq(cards.columnId, columnId), eq(cards.archived, false)))
+            .orderBy(asc(cards.position), asc(cards.updatedAt));
+
+          for (let i = 0; i < columnCards.length; i++) {
+            if (i !== columnCards[i].position) {
+              await db.update(cards).set({ position: i }).where(eq(cards.id, columnCards[i].id));
+            }
           }
-        }
-        return result;
-      }
+
+          logCardActivity(id, 'moved', { columnId, position });
+          return card;
+        },
+      );
       ```
 
-      Then use this function in the handler body (replacing the inline Map-building code).
+      Wait — this approach has a problem. The card we just moved already has the new
+      position, but other cards haven't been shifted yet. A cleaner approach:
 
-      Write tests:
       ```typescript
-      import { describe, it, expect } from 'vitest';
-      import { buildCardLabelMap } from '../cards';
+      ipcMain.handle(
+        'cards:move',
+        async (_event, id: string, columnId: string, position: number) => {
+          const db = getDb();
 
-      describe('buildCardLabelMap', () => {
-        it('returns empty map for empty inputs', () => { ... });
-        it('maps labels to correct cards', () => { ... });
-        it('handles cards with no labels', () => { ... });
-        it('handles multiple labels per card', () => { ... });
-        it('handles labels shared across multiple cards', () => { ... });
-        it('skips junction rows with missing label IDs', () => { ... });
-      });
+          // Get all non-archived cards in target column (excluding the moved card)
+          const siblingsInTarget = await db
+            .select()
+            .from(cards)
+            .where(
+              and(
+                eq(cards.columnId, columnId),
+                eq(cards.archived, false),
+              ),
+            )
+            .orderBy(asc(cards.position));
+
+          // Remove the moved card from the list (it may already be in this column)
+          const filtered = siblingsInTarget.filter(c => c.id !== id);
+
+          // Insert at the requested position
+          const reordered = [...filtered];
+          reordered.splice(position, 0, { id } as typeof cards.$inferSelect);
+
+          // Update all positions in one pass
+          for (let i = 0; i < reordered.length; i++) {
+            await db.update(cards).set({ position: i, ...(reordered[i].id === id ? { columnId, updatedAt: new Date() } : {}) }).where(eq(cards.id, reordered[i].id));
+          }
+
+          // Return the updated card
+          const [updated] = await db.select().from(cards).where(eq(cards.id, id));
+
+          logCardActivity(id, 'moved', { columnId, position });
+          return updated;
+        },
+      );
       ```
 
-      IMPORTANT: The import `from '../cards'` will attempt to import the full cards.ts file
-      which imports `ipcMain` from 'electron'. Since Vitest runs in Node (not Electron), this
-      will fail. To solve this, either:
-      a) Extract buildCardLabelMap into a separate util file (e.g., src/main/utils/card-utils.ts)
-         that has no Electron dependencies, OR
-      b) Move the function to src/shared/ since it's pure logic
+      The executor should implement a clean version of this. The key requirements are:
+      1. Get sibling cards in target column (sorted by position)
+      2. Remove the dragged card from the list
+      3. Insert it at the requested position index
+      4. Update all card positions to match their array index
+      5. Return the updated card
 
-      Recommended: Create src/shared/utils/card-utils.ts with the pure function,
-      import it in both cards.ts and the test file.
+      NOTE: This replaces the existing `cards:move` handler (lines 162-174 in cards.ts).
     </action>
     <verify>
-      1. `npm test` runs successfully and all tests pass
-      2. `npx tsc --noEmit` still passes with zero errors
-      3. vitest.config.ts exists at project root
-      4. package.json has "test", "test:watch", and "test:ui" scripts
-      5. At least 2 test files exist with 8+ test cases total
-      6. buildCardLabelMap is in a pure module importable without Electron
-      7. Tests cover: empty inputs, single card, multiple labels, shared labels, missing labels
+      1. `npm install` completes (new dependency added)
+      2. `npx tsc --noEmit` — zero TypeScript errors
+      3. KanbanCard has both `draggable()` and `dropTargetForElements()` registered
+      4. KanbanCard shows a blue drop indicator line on drag hover (top or bottom edge)
+      5. BoardPage drag monitor handles both same-column AND cross-column drops
+      6. The `if (sourceColumnId === targetColumnId) return;` line is REMOVED
+      7. cards:move handler reorders sibling positions in the target column
+      8. Dragging a card within the same column updates its position correctly
+      9. Cross-column drag still works (existing functionality preserved)
     </verify>
     <done>
-      Vitest installed and configured. `npm test` passes with all tests green.
-      Two test files: types.test.ts (constant validation) and cards-query.test.ts
-      (batch label assembly logic). buildCardLabelMap extracted as testable pure function.
-      Foundation ready for additional test suites.
+      Within-column card reordering works via drag-and-drop. Cards show a blue
+      insertion indicator. Both same-column reorder and cross-column move are supported.
+      cards:move handler properly reindexes sibling positions. TypeScript compiles clean.
     </done>
     <confidence>MEDIUM</confidence>
     <assumptions>
-      - Vitest works with Vite 7.3 and TypeScript 5.9 (Vitest tracks Vite versions closely)
-      - Test files in __tests__ directories are found by Vitest's include pattern
-      - Extracting buildCardLabelMap to a shared util avoids Electron import issues
-      - MEETING_TEMPLATES or similar constants are importable from shared/types.ts without
-        Electron dependencies (types.ts defines an ElectronAPI interface but shouldn't require
-        electron at runtime — may need to verify)
+      - @atlaskit/pragmatic-drag-and-drop-hitbox v1.1.0 is compatible with core v1.7.7
+      - extractClosestEdge returns 'top' | 'bottom' | null from the attached edge data
+      - attachClosestEdge adds edge data to the getData response
+      - The position reindexing approach (fetch siblings, splice, update all) is correct
+        for PostgreSQL integer positions
+      - Multiple sequential DB updates for position reindexing is acceptable (small card counts
+        per column, typically 5-20 cards)
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Security hardening — CSP headers and attachment path validation</n>
+    <n>UI polish batch — BrainstormPage padding, getDueDateBadge extraction, restore confirmation</n>
     <files>
-      src/main/main.ts (MODIFY — add CSP via session.webRequest)
-      src/main/services/attachmentService.ts (MODIFY — validate path in openAttachment)
+      src/renderer/pages/BrainstormPage.tsx (MODIFY — add p-6 wrapper)
+      src/renderer/utils/date-utils.ts (NEW — shared getDueDateBadge)
+      src/renderer/components/KanbanCard.tsx (MODIFY — import from shared util)
+      src/renderer/components/CardDetailModal.tsx (MODIFY — import from shared util)
+      src/renderer/components/settings/BackupSection.tsx (MODIFY — add restoreFromFile confirmation)
     </files>
     <action>
       ## WHY
-      The review identified two security gaps:
-      1. No Content-Security-Policy configured on BrowserWindow (Missing severity)
-      2. `openAttachment` accepts any file path from renderer and passes to `shell.openPath()`
-         without validating it's within the attachments directory (path traversal risk)
-
-      Both are small, targeted fixes with high security impact.
+      Three quick wins from the review: inconsistent page padding, duplicated utility function,
+      and a missing safety confirmation. Each is 5-15 lines of change, but together they
+      polish the UI and reduce code duplication.
 
       ## WHAT
 
-      ### A) Add Content Security Policy to BrowserWindow (main.ts)
+      ### Fix A: BrainstormPage padding
 
-      After `mainWindow = new BrowserWindow({...})` (line 76) and before `mainWindow.once('ready-to-show', ...)` (line 79), add:
-
-      ```typescript
-      // Content Security Policy — defense-in-depth against XSS
-      mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-        const cspDirectives = [
-          "default-src 'self'",
-          "script-src 'self'",
-          "style-src 'self' 'unsafe-inline'",    // Tailwind injects inline styles
-          "img-src 'self' data:",                 // data: URIs for icons
-          "font-src 'self'",
-          "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434",
-        ];
-
-        // In development, allow Vite dev server connections
-        if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-          cspDirectives.push("connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434");
-          // Override the connect-src with dev-mode version
-          const idx = cspDirectives.findIndex(d => d.startsWith("connect-src 'self' https://"));
-          if (idx !== -1) cspDirectives.splice(idx, 1);
-        }
-
-        callback({
-          responseHeaders: {
-            ...details.responseHeaders,
-            'Content-Security-Policy': [cspDirectives.join('; ')],
-          },
-        });
-      });
+      In BrainstormPage.tsx, line 101, change:
+      ```tsx
+      <div className="space-y-4">
+      ```
+      to:
+      ```tsx
+      <div className="p-6 space-y-4">
       ```
 
-      Wait — the dev mode logic above has a bug with duplicate connect-src. Simpler approach:
+      This matches every other page: SettingsPage (`p-6`), ProjectsPage (`p-6`),
+      MeetingsPage (`p-6`), IdeasPage (`p-6`), BoardPage (`px-6 pt-6`).
 
+      ### Fix B: Extract getDueDateBadge to shared utility
+
+      Create `src/renderer/utils/date-utils.ts`:
       ```typescript
-      // Content Security Policy — defense-in-depth against XSS
-      const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
-      const connectSrc = isDev
-        ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434"
-        : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434";
-      const scriptSrc = isDev
-        ? "script-src 'self' 'unsafe-eval'"       // Vite HMR needs eval in dev
-        : "script-src 'self'";
+      // === FILE PURPOSE ===
+      // Shared date utility functions used across renderer components.
 
-      mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-        callback({
-          responseHeaders: {
-            ...details.responseHeaders,
-            'Content-Security-Policy': [
-              `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; ${connectSrc}`
-            ],
-          },
-        });
-      });
-      ```
+      /** Get badge classes and label for a due date string */
+      export function getDueDateBadge(dueDateStr: string): { label: string; classes: string } {
+        const now = new Date();
+        const due = new Date(dueDateStr);
+        const diffMs = due.getTime() - now.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
-      Note: `'unsafe-eval'` is needed in dev mode because Vite HMR uses eval for module
-      hot replacement. It is NOT included in production CSP.
-
-      ### B) Validate file paths in openAttachment (attachmentService.ts)
-
-      Replace the `openAttachment` function (line 129-131) with:
-
-      ```typescript
-      export async function openAttachment(filePath: string): Promise<void> {
-        // Validate that the path is within the attachments directory
-        const attachmentsRoot = path.join(app.getPath('userData'), 'attachments');
-        const resolved = path.resolve(filePath);
-        if (!resolved.startsWith(attachmentsRoot)) {
-          throw new Error('Access denied: file path is outside the attachments directory');
+        if (diffMs < 0) {
+          return { label: 'Overdue', classes: 'bg-red-500/20 text-red-400' };
         }
-
-        // Verify the file exists before attempting to open
-        if (!fs.existsSync(resolved)) {
-          throw new Error('File not found: the attachment file no longer exists on disk');
+        if (diffDays < 1) {
+          return { label: 'Due today', classes: 'bg-amber-500/20 text-amber-400' };
         }
-
-        await shell.openPath(resolved);
+        if (diffDays < 3) {
+          return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-amber-500/10 text-amber-300' };
+        }
+        if (diffDays < 7) {
+          return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-blue-500/10 text-blue-300' };
+        }
+        const formatted = new Date(dueDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return { label: formatted, classes: 'bg-surface-800 text-surface-400' };
       }
       ```
 
-      This prevents:
-      1. Path traversal (e.g., `../../etc/passwd` or `C:\Windows\System32\...`)
-      2. Opening deleted files (gives clear error instead of OS-level failure)
+      Then in KanbanCard.tsx:
+      - Delete the local `getDueDateBadge` function (lines 29-50)
+      - Add import: `import { getDueDateBadge } from '../utils/date-utils';`
+      Note: KanbanCard is in `src/renderer/components/`, so the import path is `../utils/date-utils`.
 
-      Update the LIMITATIONS comment at top of attachmentService.ts to note the path validation.
+      In CardDetailModal.tsx:
+      - Delete the local `getDueDateBadge` function (lines 106-126)
+      - Add import: `import { getDueDateBadge } from '../utils/date-utils';`
+      Note: CardDetailModal is in `src/renderer/components/`, same import path.
+
+      Note: CardDetailModal has a `formatDate` helper used in its version of getDueDateBadge.
+      If this `formatDate` is ONLY used by getDueDateBadge, you can remove it too. If it's
+      used elsewhere in the file, keep it. Check before removing.
+
+      ### Fix C: Add restoreFromFile confirmation
+
+      In BackupSection.tsx, line 118 calls `restoreFromFile` directly without confirmation.
+      Add a confirmation state and UI:
+
+      1. Add state: `const [confirmRestoreFile, setConfirmRestoreFile] = useState(false);`
+
+      2. Change the "Restore from File..." button onClick from `restoreFromFile` to
+         `() => setConfirmRestoreFile(true)`
+
+      3. When confirmRestoreFile is true, show inline confirmation buttons (matching
+         the existing pattern used for individual backup restore at lines 201-218):
+         ```tsx
+         {confirmRestoreFile ? (
+           <div className="flex items-center gap-2">
+             <span className="text-sm text-amber-400">Overwrite current database?</span>
+             <button onClick={() => setConfirmRestoreFile(false)} className="...">Cancel</button>
+             <button onClick={() => { setConfirmRestoreFile(false); restoreFromFile(); }} className="...">Confirm</button>
+           </div>
+         ) : (
+           <button onClick={() => setConfirmRestoreFile(true)}>Restore from File...</button>
+         )}
+         ```
+
+      Match the existing button styling patterns in BackupSection.tsx.
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. main.ts has onHeadersReceived with Content-Security-Policy header
-      3. CSP includes: default-src 'self', script-src 'self' (+ 'unsafe-eval' in dev only),
-         style-src 'self' 'unsafe-inline', img-src 'self' data:, connect-src with API domains
-      4. Dev mode CSP includes ws: and localhost:* for Vite HMR
-      5. Production CSP does NOT include 'unsafe-eval'
-      6. openAttachment validates path starts with userData/attachments/
-      7. openAttachment checks file existence before opening
-      8. openAttachment throws clear error messages for invalid/missing paths
-      9. LIMITATIONS comment updated in attachmentService.ts
+      2. BrainstormPage wrapper div has `p-6` class
+      3. date-utils.ts exists in src/renderer/utils/
+      4. KanbanCard.tsx imports getDueDateBadge from utils, no local definition
+      5. CardDetailModal.tsx imports getDueDateBadge from utils, no local definition
+      6. Both components still show correct due date badges (no visual regression)
+      7. BackupSection "Restore from File..." shows confirmation before executing
+      8. Existing individual backup restore confirmation still works
     </verify>
     <done>
-      BrowserWindow has Content Security Policy (production-safe, with dev-mode HMR
-      allowances). openAttachment validates paths are within attachments directory and
-      files exist before opening. Both changes compile cleanly.
+      BrainstormPage has consistent p-6 padding. getDueDateBadge is a single shared
+      utility imported by both KanbanCard and CardDetailModal. restoreFromFile shows
+      confirmation before overwriting the database. TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Tailwind CSS 4 requires 'unsafe-inline' for style-src (standard for utility-first CSS)
-      - Vite 7 HMR requires 'unsafe-eval' in dev mode for script-src
-      - MAIN_WINDOW_VITE_DEV_SERVER_URL global is available (declared by Electron Forge Vite plugin)
-      - session.webRequest.onHeadersReceived works in Electron 40
-      - app.getPath('userData') returns a consistent base path on Windows
-      - path.resolve + startsWith check is sufficient for path traversal prevention on Windows
-        (path.resolve normalizes separators and resolves ../ segments)
+      - Adding p-6 to BrainstormPage won't break its split-panel layout (the inner container
+        has its own height calculation via h-[calc(100vh-10rem)] which may need adjustment)
+      - getDueDateBadge is functionally identical in both files (confirmed via code read)
+      - The src/renderer/utils/ directory may not exist yet (create it)
+      - BackupSection's existing button styling can be matched for the confirmation UI
     </assumptions>
   </task>
 </phase>
