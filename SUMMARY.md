@@ -1,63 +1,59 @@
-# Plan 7.8 Summary — Card Attachments, Due Date UI & KanbanCard Enhancements
+# Plan 8.1 Summary — Critical Review Fixes: Performance, Testing, Security
 
 ## Date: 2026-02-13
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Implemented remaining R16 items — card file attachments (full stack: schema → service → IPC → UI), due date picker in CardDetailModal, and due date/overdue badges on KanbanCard. Files stored in app data directory. Native HTML date input with dark mode support. Color-coded overdue badges on board cards.
+Addressed the top 3 findings from the project review (REVIEW.md, grade B-): fixed the severe N+1 query in Kanban board loading, established Vitest testing framework with 12 initial tests, and added CSP headers + path traversal prevention.
 
-### Task 1: Card Attachments Backend
+### Task 1: Fix N+1 query in cards:list-by-board
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Added `cardAttachments` table (id, cardId, fileName, filePath, fileSize, mimeType, createdAt)
-- Created attachmentService.ts (~120 lines: MIME lookup map, file dialog, copy with collision handling, disk+DB cleanup, shell.openPath)
-- Added CardAttachment type + 4 ElectronAPI methods to types.ts
-- 4 IPC handlers with activity logging (attachment_added/attachment_removed)
-- 4 preload bridge methods
-- Migration 0006 generated
+- Replaced triple-nested loop (300-600+ sequential DB queries) with 4 batch queries using Drizzle `inArray`
+- Query pattern: columns → cards → cardLabels → labels (all batch-fetched)
+- Empty-array guards prevent unnecessary queries
+- Updated LIMITATIONS comment to reflect new approach
 
-### Task 2: Due Date UI
+### Task 2: Set up Vitest test framework and write initial unit tests
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- CardDetailModal: datetime-local input, toDateTimeLocalValue helper, getDueDateBadge helper
-- Status badges: Overdue (red), Due today (amber), Due in Nd (amber/blue), formatted date (neutral)
-- Clear button to remove due date
-- KanbanCard: Clock icon + compact due date badge in footer row
-- `[color-scheme:dark]` for native dark mode date picker
+- Installed vitest v4.0.18 + @vitest/ui as devDependencies
+- Created vitest.config.ts (globals: true, node environment)
+- Added 3 test scripts to package.json (test, test:watch, test:ui)
+- Extracted `buildCardLabelMap` to src/shared/utils/card-utils.ts (pure function, no Electron deps)
+- Updated cards.ts to import from shared util
+- 2 test files, 12 tests, all passing:
+  - card-utils.test.ts: 6 tests (empty, mapping, multi-label, shared labels, missing IDs)
+  - types.test.ts: 6 tests (MEETING_TEMPLATES structure, fields, uniqueness, non-general validation)
 
-### Task 3: Attachments UI
+### Task 3: Security hardening — CSP headers and path validation
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- boardStore: selectedCardAttachments state, parallel fetch in loadCardDetails, clearCardDetails reset
-- 3 store actions: addAttachment (opens dialog, prepends result), deleteAttachment (removes from state + DB), openAttachment (OS default app)
-- Created AttachmentsSection.tsx (~140 lines: MIME-based file icons, size formatting, timeAgo, add/open/delete with inline confirmation)
-- Integrated in CardDetailModal as first section inside loading guard
+- Content-Security-Policy via session.webRequest.onHeadersReceived:
+  - Production: strict self-only for scripts, self+inline for styles, self+data for images
+  - Development: adds ws: + localhost:* for HMR, 'unsafe-eval' for Vite
+  - connect-src: all 4 API providers (OpenAI, Anthropic, Deepgram, AssemblyAI) + Ollama
+- Path traversal prevention in openAttachment:
+  - Validates resolved path starts with userData/attachments/
+  - Checks file existence before shell.openPath()
+  - Clear error messages for both failure cases
 
-## Files Created (2)
-- `src/main/services/attachmentService.ts` (~120 lines)
-- `src/renderer/components/AttachmentsSection.tsx` (~140 lines)
+## Files Created (4)
+- `vitest.config.ts`
+- `src/shared/utils/card-utils.ts` (~35 lines)
+- `src/shared/utils/__tests__/card-utils.test.ts` (6 tests)
+- `src/shared/__tests__/types.test.ts` (6 tests)
 
-## Files Modified (7)
-- `src/main/db/schema/cards.ts` (cardAttachments table)
-- `src/shared/types.ts` (CardAttachment type + 4 API methods)
-- `src/main/ipc/cards.ts` (4 IPC handlers + import)
-- `src/preload/preload.ts` (4 bridge methods)
-- `src/renderer/stores/boardStore.ts` (attachment state + actions)
-- `src/renderer/components/CardDetailModal.tsx` (due date picker + AttachmentsSection)
-- `src/renderer/components/KanbanCard.tsx` (due date badge)
-
-## Migration
-- `drizzle/0006_organic_colleen_wing.sql` — CREATE TABLE card_attachments
+## Files Modified (4)
+- `src/main/ipc/cards.ts` (N+1 fix + buildCardLabelMap import)
+- `src/main/main.ts` (CSP headers)
+- `src/main/services/attachmentService.ts` (path validation in openAttachment)
+- `package.json` (vitest devDeps + test scripts)
 
 ## Verification
-- `npx tsc --noEmit`: PASS (zero errors after all 3 tasks)
-- No new dependencies added
-- Backward compatible: existing cards unaffected
-
-## Phase 7 Complete
-Plan 7.8 is the final plan of Phase 7. All 8 plans (24 tasks) are complete.
-All v2 features (R11, R13, R14, R15, R16, R17) delivered.
+- `npx tsc --noEmit`: PASS (zero errors)
+- `npm test`: 2 files, 12 tests, all passed (229ms)
 
 ## What's Next
-1. `/nexus:git` to commit all uncommitted Plan 7.1-7.8 changes
-2. Phase 7 complete — project ready for final review
+1. `/nexus:git` to commit Plan 8.1 changes
+2. Consider Plan 8.2 (IPC validation with Zod, structured logging, component refactoring)

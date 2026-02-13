@@ -399,15 +399,30 @@ All 8 plans (24 tasks) executed successfully. Phase 7 delivers:
 Source: REVIEW.md (graded B-, "NEEDS ATTENTION")
 Focus: Highest-impact fixes from project review.
 
-### Plan 8.1: Critical Review Fixes — Performance, Testing, Security (3 tasks) — PLANNED
-1. Fix N+1 query in cards:list-by-board (300+ queries → 4 batch queries with inArray)
-2. Set up Vitest test framework + write initial unit tests (zero → foundation)
-3. Security hardening — CSP headers on BrowserWindow + path validation in openAttachment
+### Plan 8.1: Critical Review Fixes — Performance, Testing, Security (3 tasks) — COMPLETE
+1. Fix N+1 query in cards:list-by-board (300+ queries → 4 batch queries with inArray) — DONE
+2. Set up Vitest test framework + write initial unit tests (zero → foundation) — DONE
+3. Security hardening — CSP headers on BrowserWindow + path validation in openAttachment — DONE
+- Not yet committed
+
+## Plan 8.1 Execution Results
+- **Task 1**: Replaced triple-nested N+1 loop in cards:list-by-board with 4 batch queries using `inArray`. Reduced 300-600+ queries to exactly 4 (columns, cards, cardLabels, labels). Updated LIMITATIONS comment.
+- **Task 2**: Installed vitest v4.0.18 + @vitest/ui. Created vitest.config.ts (globals, node env). Added 3 test scripts to package.json. Extracted `buildCardLabelMap` to src/shared/utils/card-utils.ts (pure, no Electron deps). Updated cards.ts to import from shared util. Created card-utils.test.ts (6 tests) + types.test.ts (6 tests). All 12 tests pass.
+- **Task 3**: Added Content-Security-Policy via session.webRequest.onHeadersReceived in main.ts (dev: ws + unsafe-eval for HMR, prod: strict). Added path traversal prevention + file existence check in attachmentService.ts openAttachment(). Updated LIMITATIONS comment.
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
 
 ## Confidence Levels
 Overall approach: HIGH
-Plan 8.1: HIGH (Task 1, Task 3), MEDIUM (Task 2 — Vitest + Vite 7 compat)
+Plan 8.1 execution: HIGH (all 3 tasks verified, TypeScript clean, 12 tests passing)
+
+## Decisions Made (Plan 8.1)
+- Vitest v4.0.18 compatible with Vite 7.3 and TypeScript 5.9
+- buildCardLabelMap placed in src/shared/utils/ (not src/main/) for Electron-free testing
+- CSP: 'unsafe-inline' for styles (Tailwind), 'unsafe-eval' for scripts in dev only (Vite HMR)
+- CSP connect-src includes all 4 API providers + Ollama localhost
+- Path validation uses path.resolve + startsWith (handles ../ and Windows paths)
+- types.test.ts adapted to actual MEETING_TEMPLATES fields (icon, agenda, aiPromptHint)
 
 ## Next Steps
-1. `/nexus:execute` — Execute Plan 8.1
-2. After execution, consider Plan 8.2 (IPC validation with Zod, structured logging, component refactoring)
+1. `/nexus:git` — Commit Plan 8.1 changes
+2. Consider Plan 8.2 (IPC validation with Zod, structured logging, component refactoring)

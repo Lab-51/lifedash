@@ -75,6 +75,26 @@ const createWindow = async () => {
     },
   });
 
+  // Content Security Policy — defense-in-depth against XSS
+  const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
+  const connectSrc = isDev
+    ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434"
+    : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434";
+  const scriptSrc = isDev
+    ? "script-src 'self' 'unsafe-eval'"       // Vite HMR needs eval in dev
+    : "script-src 'self'";
+
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; ${connectSrc}`
+        ],
+      },
+    });
+  });
+
   // Show window only when the renderer is ready (prevents white flash)
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();

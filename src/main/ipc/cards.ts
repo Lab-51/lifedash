@@ -6,14 +6,13 @@
 // drizzle-orm (eq, and, asc, desc operators), electron (ipcMain)
 
 // === LIMITATIONS ===
-// - cards:list-by-board fetches labels per card in a loop (N+1 queries).
-//   Consider a join-based approach for better performance in the future.
+// - cards:list-by-board uses 4 batch queries (columns, cards, cardLabels, labels).
 // - No pagination on list queries yet.
 // - card:getRelationships fetches titles per relationship (N+1, acceptable for small counts)
 // - card:getActivities limited to most recent 50 entries
 
 import { ipcMain } from 'electron';
-import { eq, and, asc, desc } from 'drizzle-orm';
+import { eq, and, asc, desc, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import {
   cards,
@@ -36,6 +35,7 @@ import type {
   Card,
   Label,
 } from '../../shared/types';
+import { buildCardLabelMap } from '../../shared/utils/card-utils';
 
 /**
  * Fire-and-forget activity log insertion.
@@ -61,42 +61,48 @@ export function registerCardHandlers(): void {
 
   ipcMain.handle('cards:list-by-board', async (_event, boardId: string) => {
     const db = getDb();
-    // Get all columns for this board, then all cards in those columns
+
+    // Query 1: Get all columns for this board
     const boardColumns = await db
       .select()
       .from(columns)
       .where(eq(columns.boardId, boardId));
     const columnIds = boardColumns.map((c) => c.id);
-
     if (columnIds.length === 0) return [];
 
-    // Get cards for all columns in the board
-    const allCards: (Card & { labels: Label[] })[] = [];
-    for (const colId of columnIds) {
-      const colCards = await db
-        .select()
-        .from(cards)
-        .where(and(eq(cards.columnId, colId), eq(cards.archived, false)))
-        .orderBy(asc(cards.position));
+    // Query 2: Batch-fetch all non-archived cards in these columns
+    const allCardRows = await db
+      .select()
+      .from(cards)
+      .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false)))
+      .orderBy(asc(cards.position));
+    if (allCardRows.length === 0) return [];
 
-      for (const card of colCards) {
-        // Get labels for each card
-        const cardLabelRows = await db
-          .select()
-          .from(cardLabels)
-          .where(eq(cardLabels.cardId, card.id));
-        const cardLabelList: Label[] = [];
-        for (const cl of cardLabelRows) {
-          const [label] = await db
-            .select()
-            .from(labels)
-            .where(eq(labels.id, cl.labelId));
-          if (label) cardLabelList.push(label as unknown as Label);
-        }
-        allCards.push({ ...(card as unknown as Card), labels: cardLabelList });
-      }
-    }
-    return allCards;
+    const cardIds = allCardRows.map((c) => c.id);
+
+    // Query 3: Batch-fetch all card-label junction rows for these cards
+    const allCardLabelRows = await db
+      .select()
+      .from(cardLabels)
+      .where(inArray(cardLabels.cardId, cardIds));
+
+    // Query 4: Batch-fetch all labels referenced by these cards
+    const labelIds = [...new Set(allCardLabelRows.map((cl) => cl.labelId))];
+    const allLabels = labelIds.length > 0
+      ? await db.select().from(labels).where(inArray(labels.id, labelIds))
+      : [];
+
+    // Build card -> labels lookup via shared utility
+    const cardLabelMap = buildCardLabelMap(
+      allCardLabelRows,
+      allLabels as unknown as Label[],
+    );
+
+    // Assemble result
+    return allCardRows.map((card) => ({
+      ...(card as unknown as Card),
+      labels: cardLabelMap.get(card.id) ?? [],
+    }));
   });
 
   ipcMain.handle(

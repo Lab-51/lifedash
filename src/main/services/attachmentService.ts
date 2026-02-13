@@ -9,6 +9,7 @@
 // - Files are copied (not moved) — original stays in place
 // - No file size limit enforced (user responsibility)
 // - No duplicate detection (same file can be attached multiple times)
+// - openAttachment validates paths are within userData/attachments/ (path traversal prevention)
 
 import { app, dialog, shell } from 'electron';
 import fs from 'node:fs';
@@ -127,5 +128,17 @@ export async function deleteAttachment(id: string): Promise<void> {
 }
 
 export async function openAttachment(filePath: string): Promise<void> {
-  await shell.openPath(filePath);
+  // Validate that the path is within the attachments directory
+  const attachmentsRoot = path.join(app.getPath('userData'), 'attachments');
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(attachmentsRoot)) {
+    throw new Error('Access denied: file path is outside the attachments directory');
+  }
+
+  // Verify the file exists before attempting to open
+  if (!fs.existsSync(resolved)) {
+    throw new Error('File not found: the attachment file no longer exists on disk');
+  }
+
+  await shell.openPath(resolved);
 }
