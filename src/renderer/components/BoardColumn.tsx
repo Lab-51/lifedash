@@ -52,32 +52,40 @@ function BoardColumn({
     const handleEl = headerRef.current;
     if (!el || !handleEl) return;
 
-    // Card drop target (existing behavior)
-    const cleanupCardDrop = dropTargetForElements({
+    // Combined drop target — accepts both card drops and column reorder drops.
+    // Two separate dropTargetForElements on the same element conflict, so we merge them.
+    const cleanupDrop = dropTargetForElements({
       element: el,
-      getData: () => ({ columnId: column.id }),
-      canDrop: ({ source }) => source.data.type === 'card',
-      getIsSticky: () => true,
-      onDragEnter: () => onDragOverChange(true),
-      onDragLeave: () => onDragOverChange(false),
-      onDrop: () => onDragOverChange(false),
-    });
-
-    // Column drop target (new — accepts other columns)
-    const cleanupColumnDrop = dropTargetForElements({
-      element: el,
-      canDrop: ({ source }) =>
-        source.data.type === 'column' && source.data.columnId !== column.id,
-      getData: ({ input, element }) => {
-        return attachClosestEdge(
-          { type: 'column', columnId: column.id },
-          { input, element, allowedEdges: ['left', 'right'] },
-        );
+      canDrop: ({ source }) => {
+        if (source.data.type === 'card') return true;
+        if (source.data.type === 'column') return source.data.columnId !== column.id;
+        return false;
       },
-      onDragEnter: ({ self }) => setClosestColumnEdge(extractClosestEdge(self.data)),
-      onDrag: ({ self }) => setClosestColumnEdge(extractClosestEdge(self.data)),
-      onDragLeave: () => setClosestColumnEdge(null),
-      onDrop: () => setClosestColumnEdge(null),
+      getData: ({ input, element, source }) => {
+        if (source.data.type === 'column') {
+          return attachClosestEdge(
+            { type: 'column', columnId: column.id },
+            { input, element, allowedEdges: ['left', 'right'] },
+          );
+        }
+        return { columnId: column.id };
+      },
+      getIsSticky: () => true,
+      onDragEnter: ({ source, self }) => {
+        if (source.data.type === 'card') onDragOverChange(true);
+        else if (source.data.type === 'column') setClosestColumnEdge(extractClosestEdge(self.data));
+      },
+      onDrag: ({ source, self }) => {
+        if (source.data.type === 'column') setClosestColumnEdge(extractClosestEdge(self.data));
+      },
+      onDragLeave: ({ source }) => {
+        if (source.data.type === 'card') onDragOverChange(false);
+        else if (source.data.type === 'column') setClosestColumnEdge(null);
+      },
+      onDrop: ({ source }) => {
+        if (source.data.type === 'card') onDragOverChange(false);
+        else if (source.data.type === 'column') setClosestColumnEdge(null);
+      },
     });
 
     // Make column draggable (header is the drag handle)
@@ -93,8 +101,7 @@ function BoardColumn({
     });
 
     return () => {
-      cleanupCardDrop();
-      cleanupColumnDrop();
+      cleanupDrop();
       cleanupDraggable();
     };
   }, [column.id, onDragOverChange]);
