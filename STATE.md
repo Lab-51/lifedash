@@ -504,7 +504,7 @@ Plan 8.4 execution: HIGH (all 3 tasks verified, TypeScript clean, 12/12 tests pa
 1. Apply Zod validation to 6 medium IPC files (brainstorm, backup, settings, notifications, transcription-provider, task-structuring) — 29 handlers — DONE
 2. Apply Zod validation to 5 small IPC files (recording, whisper, diarization, database, window-controls) — 13 handlers + renderer console cleanup — DONE
 3. Decompose IdeaDetailModal (815 → 470 lines) — extract IdeaAnalysisSection + IdeaConvertWizard — DONE
-- Not yet committed
+- Commit: afde301 on origin/main
 
 ## Plan 8.5 Execution Results
 - **Task 1**: Applied validateInput to all param handlers across 6 files: brainstorm.ts (10 calls, 7 handlers), backup.ts (5 calls), settings.ts (5 calls), notifications.ts (2 calls), transcription-provider.ts (5 calls), task-structuring.ts (6 calls). Added 3 new schemas: taskStructuringNameSchema, taskStructuringDescriptionSchema, whisperModelNameSchema. Removed old type imports. All params changed to `unknown`.
