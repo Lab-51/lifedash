@@ -38,3 +38,46 @@ export const cardLabels = pgTable('card_labels', {
 }, (table) => [
   primaryKey({ columns: [table.cardId, table.labelId] }),
 ]);
+
+// --- Card Relationships ---
+
+export const cardRelationshipTypeEnum = pgEnum('card_relationship_type', [
+  'blocks', 'depends_on', 'related_to',
+]);
+
+export const cardRelationships = pgTable('card_relationships', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceCardId: uuid('source_card_id').notNull()
+    .references(() => cards.id, { onDelete: 'cascade' }),
+  targetCardId: uuid('target_card_id').notNull()
+    .references(() => cards.id, { onDelete: 'cascade' }),
+  type: cardRelationshipTypeEnum('type').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// --- Card Comments ---
+
+export const cardComments = pgTable('card_comments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  cardId: uuid('card_id').notNull()
+    .references(() => cards.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// --- Card Activity Log ---
+
+export const cardActivityActionEnum = pgEnum('card_activity_action', [
+  'created', 'updated', 'moved', 'commented',
+  'archived', 'restored', 'relationship_added', 'relationship_removed',
+]);
+
+export const cardActivities = pgTable('card_activities', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  cardId: uuid('card_id').notNull()
+    .references(() => cards.id, { onDelete: 'cascade' }),
+  action: cardActivityActionEnum('action').notNull(),
+  details: text('details'), // JSON string with context-specific data
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

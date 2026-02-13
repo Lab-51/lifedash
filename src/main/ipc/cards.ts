@@ -1,19 +1,31 @@
 // === FILE PURPOSE ===
-// IPC handlers for cards and labels CRUD operations.
-// Includes card movement between columns and label attachment.
+// IPC handlers for cards, labels, comments, relationships, and activity log CRUD operations.
+// Includes card movement between columns, label attachment, and fire-and-forget activity logging.
 
 // === DEPENDENCIES ===
-// drizzle-orm (eq, and, asc operators), electron (ipcMain)
+// drizzle-orm (eq, and, asc, desc operators), electron (ipcMain)
 
 // === LIMITATIONS ===
 // - cards:list-by-board fetches labels per card in a loop (N+1 queries).
 //   Consider a join-based approach for better performance in the future.
 // - No pagination on list queries yet.
+// - card:getRelationships fetches titles per relationship (N+1, acceptable for small counts)
+// - card:getActivities limited to most recent 50 entries
 
 import { ipcMain } from 'electron';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, desc } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { cards, cardLabels, labels, columns } from '../db/schema';
+import {
+  cards,
+  cardLabels,
+  labels,
+  columns,
+  cardComments,
+  cardRelationships,
+  cardRelationshipTypeEnum,
+  cardActivities,
+  cardActivityActionEnum,
+} from '../db/schema';
 import type {
   CreateCardInput,
   UpdateCardInput,
@@ -22,6 +34,25 @@ import type {
   Card,
   Label,
 } from '../../shared/types';
+
+/**
+ * Fire-and-forget activity log insertion.
+ * Does not throw — activity logging should never break primary operations.
+ */
+function logCardActivity(
+  cardId: string,
+  action: string,
+  details?: Record<string, unknown>,
+): void {
+  const db = getDb();
+  db.insert(cardActivities)
+    .values({
+      cardId,
+      action: action as (typeof cardActivityActionEnum.enumValues)[number],
+      details: details ? JSON.stringify(details) : null,
+    })
+    .catch((err: unknown) => console.error('Activity log error:', err));
+}
 
 export function registerCardHandlers(): void {
   // --- Cards ---
@@ -85,6 +116,7 @@ export function registerCardHandlers(): void {
           position: existing.length,
         })
         .returning();
+      logCardActivity(card.id, 'created', { title: data.title });
       return card;
     },
   );
@@ -106,6 +138,16 @@ export function registerCardHandlers(): void {
         .set(setData)
         .where(eq(cards.id, id))
         .returning();
+      // Log 'archived' or 'restored' if archived field changed, otherwise 'updated'
+      if (data.archived === true) {
+        logCardActivity(id, 'archived');
+      } else if (data.archived === false) {
+        logCardActivity(id, 'restored');
+      } else {
+        logCardActivity(id, 'updated', {
+          fields: Object.keys(data).filter(k => k !== 'updatedAt'),
+        });
+      }
       return card;
     },
   );
@@ -124,6 +166,7 @@ export function registerCardHandlers(): void {
         .set({ columnId, position, updatedAt: new Date() })
         .where(eq(cards.id, id))
         .returning();
+      logCardActivity(id, 'moved', { columnId, position });
       return card;
     },
   );
@@ -198,4 +241,136 @@ export function registerCardHandlers(): void {
         );
     },
   );
+
+  // --- Card Comments ---
+
+  ipcMain.handle('card:getComments', async (_event, cardId: string) => {
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(cardComments)
+      .where(eq(cardComments.cardId, cardId))
+      .orderBy(desc(cardComments.createdAt));
+    return rows;
+  });
+
+  ipcMain.handle(
+    'card:addComment',
+    async (_event, input: { cardId: string; content: string }) => {
+      const db = getDb();
+      const [comment] = await db
+        .insert(cardComments)
+        .values({ cardId: input.cardId, content: input.content })
+        .returning();
+      logCardActivity(input.cardId, 'commented', { commentId: comment.id });
+      return comment;
+    },
+  );
+
+  ipcMain.handle(
+    'card:updateComment',
+    async (_event, id: string, content: string) => {
+      const db = getDb();
+      const [comment] = await db
+        .update(cardComments)
+        .set({ content, updatedAt: new Date() })
+        .where(eq(cardComments.id, id))
+        .returning();
+      return comment;
+    },
+  );
+
+  ipcMain.handle('card:deleteComment', async (_event, id: string) => {
+    const db = getDb();
+    await db.delete(cardComments).where(eq(cardComments.id, id));
+  });
+
+  // --- Card Relationships ---
+
+  ipcMain.handle(
+    'card:getRelationships',
+    async (_event, cardId: string) => {
+      const db = getDb();
+      // Get relationships where this card is source or target
+      const asSource = await db
+        .select()
+        .from(cardRelationships)
+        .where(eq(cardRelationships.sourceCardId, cardId));
+      const asTarget = await db
+        .select()
+        .from(cardRelationships)
+        .where(eq(cardRelationships.targetCardId, cardId));
+
+      // Enrich with card titles
+      const all = [...asSource, ...asTarget];
+      const enriched = [];
+      for (const rel of all) {
+        const [sourceCard] = await db
+          .select({ title: cards.title })
+          .from(cards)
+          .where(eq(cards.id, rel.sourceCardId));
+        const [targetCard] = await db
+          .select({ title: cards.title })
+          .from(cards)
+          .where(eq(cards.id, rel.targetCardId));
+        enriched.push({
+          ...rel,
+          sourceCardTitle: sourceCard?.title ?? 'Unknown',
+          targetCardTitle: targetCard?.title ?? 'Unknown',
+        });
+      }
+      return enriched;
+    },
+  );
+
+  ipcMain.handle(
+    'card:addRelationship',
+    async (
+      _event,
+      input: { sourceCardId: string; targetCardId: string; type: string },
+    ) => {
+      const db = getDb();
+      const [rel] = await db
+        .insert(cardRelationships)
+        .values({
+          sourceCardId: input.sourceCardId,
+          targetCardId: input.targetCardId,
+          type: input.type as (typeof cardRelationshipTypeEnum.enumValues)[number],
+        })
+        .returning();
+      logCardActivity(input.sourceCardId, 'relationship_added', {
+        targetCardId: input.targetCardId,
+        type: input.type,
+      });
+      return rel;
+    },
+  );
+
+  ipcMain.handle('card:deleteRelationship', async (_event, id: string) => {
+    const db = getDb();
+    // Get the relationship first for activity logging
+    const [rel] = await db
+      .select()
+      .from(cardRelationships)
+      .where(eq(cardRelationships.id, id));
+    await db.delete(cardRelationships).where(eq(cardRelationships.id, id));
+    if (rel) {
+      logCardActivity(rel.sourceCardId, 'relationship_removed', {
+        targetCardId: rel.targetCardId,
+        type: rel.type,
+      });
+    }
+  });
+
+  // --- Card Activities ---
+
+  ipcMain.handle('card:getActivities', async (_event, cardId: string) => {
+    const db = getDb();
+    return db
+      .select()
+      .from(cardActivities)
+      .where(eq(cardActivities.cardId, cardId))
+      .orderBy(desc(cardActivities.createdAt))
+      .limit(50);
+  });
 }

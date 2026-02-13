@@ -111,6 +111,53 @@ export interface UpdateCardInput {
   position?: number;
 }
 
+// --- Advanced Card Types (R16) ---
+
+export type CardRelationshipType = 'blocks' | 'depends_on' | 'related_to';
+
+export interface CardComment {
+  id: string;
+  cardId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CardRelationship {
+  id: string;
+  sourceCardId: string;
+  targetCardId: string;
+  type: CardRelationshipType;
+  createdAt: string;
+  // Joined titles for display
+  sourceCardTitle?: string;
+  targetCardTitle?: string;
+}
+
+export type CardActivityAction =
+  | 'created' | 'updated' | 'moved' | 'commented'
+  | 'archived' | 'restored' | 'relationship_added' | 'relationship_removed';
+
+export interface CardActivity {
+  id: string;
+  cardId: string;
+  action: CardActivityAction;
+  details: string | null;
+  createdAt: string;
+}
+
+// Input types
+export interface CreateCardCommentInput {
+  cardId: string;
+  content: string;
+}
+
+export interface CreateCardRelationshipInput {
+  sourceCardId: string;
+  targetCardId: string;
+  type: CardRelationshipType;
+}
+
 export interface CreateLabelInput {
   projectId: string;
   name: string;
@@ -427,6 +474,18 @@ export interface ElectronAPI {
   updateCard: (id: string, data: UpdateCardInput) => Promise<Card>;
   deleteCard: (id: string) => Promise<void>;
   moveCard: (id: string, columnId: string, position: number) => Promise<Card>;
+
+  // Card comments
+  getCardComments: (cardId: string) => Promise<CardComment[]>;
+  addCardComment: (input: CreateCardCommentInput) => Promise<CardComment>;
+  updateCardComment: (id: string, content: string) => Promise<CardComment>;
+  deleteCardComment: (id: string) => Promise<void>;
+  // Card relationships
+  getCardRelationships: (cardId: string) => Promise<CardRelationship[]>;
+  addCardRelationship: (input: CreateCardRelationshipInput) => Promise<CardRelationship>;
+  deleteCardRelationship: (id: string) => Promise<void>;
+  // Card activity log
+  getCardActivities: (cardId: string) => Promise<CardActivity[]>;
 
   // Labels
   getLabels: (projectId: string) => Promise<Label[]>;

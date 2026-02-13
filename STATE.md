@@ -2,13 +2,13 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 6 — Plan 6.3 EXECUTED
+Session focus: Phase 7 — Plan 7.1 COMPLETE
 
 ## Position
-Milestone: Phase 6 — Brainstorming & Ideas
-Phase: 6 of 7 (COMPLETE)
-Plan: 3 of 3 (COMPLETE — all 3 tasks executed)
-Task: 3 of 3 (complete)
+Milestone: Phase 7 — v2 Features (Advanced)
+Phase: 7 of 7 (IN PROGRESS)
+Plan: 1 of 8 (COMPLETE — all 3 tasks executed)
+Task: 3 of 3 (COMPLETE)
 
 ## Phase 1 — COMPLETE
 All 3 plans (8 tasks) delivered and pushed to GitHub.
@@ -221,6 +221,30 @@ All 3 plans (9 tasks) executed successfully. Phase 6 delivers:
 - R10: AI Brainstorming Agent — schema, streaming service, chat UI, context injection, export to idea
 - R12: Idea Repository — CRUD, tags, filters, detail modal, convert wizard, AI analysis, brainstorm bridge
 
+## Phase 7 — IN PROGRESS
+Phase 7 covers R11, R13, R14, R15, R16, R17 (31 pts total, v2 features).
+Planned as 8 sequential plans.
+
+### Plan 7.1: Advanced Card Features — Comments, Relationships & Activity Log (3 tasks) — COMPLETE
+1. Schema + migration (cardComments, cardRelationships, cardActivities tables + 2 enums) — DONE
+2. IPC handlers (8 channels) + logCardActivity helper + preload bridge (8 methods) — DONE
+3. Activity auto-logging in existing handlers + boardStore extensions (7 new actions) — DONE
+- Not yet committed
+
+## Plan 7.1 Execution Results
+- **Task 1**: Added 2 enums (cardRelationshipTypeEnum, cardActivityActionEnum) + 3 tables (cardRelationships, cardComments, cardActivities) to cards.ts schema. Generated migration 0003_mute_magik.sql. Added 7 types + 8 ElectronAPI methods to shared/types.ts.
+- **Task 2**: Added logCardActivity helper (fire-and-forget). Added 8 IPC handlers: 4 comments (CRUD) + 3 relationships (CRD) + 1 activities (read, limit 50). Added 8 preload bridge methods. Updated LIMITATIONS header.
+- **Task 3**: Wired logCardActivity into cards:create ('created'), cards:update ('archived'/'restored'/'updated'), cards:move ('moved'). Extended boardStore with 4 state fields + 7 actions (loadCardDetails, clearCardDetails, addComment, updateComment, deleteComment, addRelationship, deleteRelationship).
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
+
+## Decisions Made (Phase 7)
+- IPC-inline pattern for comments/relationships (follows existing cards.ts pattern)
+- Card relationships as directed edges (sourceCardId → targetCardId)
+- Activity details as JSON text (avoids nullable columns)
+- N+1 queries acceptable for relationship title enrichment (small counts)
+- Activities limited to 50 most recent per card
+- Skip activity logging for card delete (cascade-deleted anyway)
+
 ## Next Steps
-1. `/nexus:git` — Commit Plan 6.3 changes
-2. Phase 7 planning
+1. `/nexus:git` — Commit Plan 7.1 changes
+2. `/nexus:plan 7.2` — Plan the Comments/Relationships UI

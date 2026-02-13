@@ -66,6 +66,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
   moveCard: (id: string, columnId: string, position: number) =>
     ipcRenderer.invoke('cards:move', id, columnId, position),
 
+  // Card comments
+  getCardComments: (cardId: string) =>
+    ipcRenderer.invoke('card:getComments', cardId),
+  addCardComment: (input: { cardId: string; content: string }) =>
+    ipcRenderer.invoke('card:addComment', input),
+  updateCardComment: (id: string, content: string) =>
+    ipcRenderer.invoke('card:updateComment', id, content),
+  deleteCardComment: (id: string) =>
+    ipcRenderer.invoke('card:deleteComment', id),
+
+  // Card relationships
+  getCardRelationships: (cardId: string) =>
+    ipcRenderer.invoke('card:getRelationships', cardId),
+  addCardRelationship: (input: {
+    sourceCardId: string;
+    targetCardId: string;
+    type: string;
+  }) => ipcRenderer.invoke('card:addRelationship', input),
+  deleteCardRelationship: (id: string) =>
+    ipcRenderer.invoke('card:deleteRelationship', id),
+
+  // Card activities
+  getCardActivities: (cardId: string) =>
+    ipcRenderer.invoke('card:getActivities', cardId),
+
   // Labels
   getLabels: (projectId: string) =>
     ipcRenderer.invoke('labels:list', projectId),
