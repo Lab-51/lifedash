@@ -1,19 +1,22 @@
 // === FILE PURPOSE ===
 // Card detail modal — overlay for viewing and editing full card details.
 // Contains title editing, priority selector, TipTap rich text description editor,
-// and timestamps. Labels section will be added by Task 2.
+// labels, comments, relationships, and activity log sections.
 
 // === DEPENDENCIES ===
-// react, lucide-react (X), @tiptap/react, @tiptap/starter-kit,
-// @tiptap/extension-placeholder, shared types
+// react, lucide-react (X, Plus, FileText), @tiptap/react, @tiptap/starter-kit,
+// @tiptap/extension-placeholder, shared types, boardStore, section components
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, FileText } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { Card, UpdateCardInput, CardPriority } from '../../shared/types';
 import { useBoardStore } from '../stores/boardStore';
+import CommentsSection from './CommentsSection';
+import RelationshipsSection from './RelationshipsSection';
+import ActivityLog from './ActivityLog';
 
 interface CardDetailModalProps {
   card: Card;
@@ -32,6 +35,52 @@ const LABEL_COLORS = [
   '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899',
 ];
 
+interface CardTemplate {
+  id: string;
+  name: string;
+  icon: string;
+  priority: CardPriority;
+  description: string;
+}
+
+const CARD_TEMPLATES: CardTemplate[] = [
+  {
+    id: 'bug',
+    name: 'Bug Report',
+    icon: '🐛',
+    priority: 'high',
+    description: '<h2>Steps to Reproduce</h2><ol><li></li></ol><h2>Expected Behavior</h2><p></p><h2>Actual Behavior</h2><p></p><h2>Environment</h2><p></p>',
+  },
+  {
+    id: 'feature',
+    name: 'Feature Request',
+    icon: '✨',
+    priority: 'medium',
+    description: '<h2>User Story</h2><p>As a [user], I want [goal] so that [benefit].</p><h2>Acceptance Criteria</h2><ul><li></li></ul><h2>Notes</h2><p></p>',
+  },
+  {
+    id: 'action',
+    name: 'Meeting Action',
+    icon: '📋',
+    priority: 'medium',
+    description: '<h2>Meeting</h2><p></p><h2>Action Required</h2><p></p><h2>Assignee</h2><p></p><h2>Due Date</h2><p></p>',
+  },
+  {
+    id: 'note',
+    name: 'Quick Note',
+    icon: '📝',
+    priority: 'low',
+    description: '<p></p>',
+  },
+  {
+    id: 'research',
+    name: 'Research Task',
+    icon: '🔍',
+    priority: 'medium',
+    description: '<h2>Topic</h2><p></p><h2>Key Questions</h2><ul><li></li></ul><h2>Findings</h2><p></p><h2>Next Steps</h2><p></p>',
+  },
+];
+
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', {
     month: 'short',
@@ -47,8 +96,10 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
   const labelDropdownRef = useRef<HTMLDivElement>(null);
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const templateDropdownRef = useRef<HTMLDivElement>(null);
 
-  const { labels, createLabel, attachLabel, detachLabel } = useBoardStore();
+  const { labels, createLabel, attachLabel, detachLabel, loadCardDetails, clearCardDetails, loadingCardDetails } = useBoardStore();
 
   // TipTap editor setup
   const editor = useEditor({
@@ -77,6 +128,12 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  // Load card details (comments, relationships, activities) on mount
+  useEffect(() => {
+    loadCardDetails(card.id);
+    return () => clearCardDetails();
+  }, [card.id, loadCardDetails, clearCardDetails]);
+
   // Close label dropdown on outside click
   useEffect(() => {
     if (!showLabelDropdown) return;
@@ -88,6 +145,18 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showLabelDropdown]);
+
+  // Close template dropdown on outside click
+  useEffect(() => {
+    if (!showTemplateDropdown) return;
+    const handleClick = (e: MouseEvent) => {
+      if (templateDropdownRef.current && !templateDropdownRef.current.contains(e.target as Node)) {
+        setShowTemplateDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showTemplateDropdown]);
 
   // Title editing handlers
   const startEditingTitle = () => {
@@ -117,6 +186,18 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     if (priority !== card.priority) {
       onUpdate(card.id, { priority });
     }
+  };
+
+  // Template handler
+  const applyTemplate = (template: CardTemplate) => {
+    if (editor) {
+      editor.commands.setContent(template.description);
+      onUpdate(card.id, { description: template.description });
+    }
+    if (template.priority !== card.priority) {
+      onUpdate(card.id, { priority: template.priority });
+    }
+    setShowTemplateDropdown(false);
   };
 
   // Label handlers
@@ -151,7 +232,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={handleOverlayClick}
     >
-      <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-2xl max-h-[80vh] overflow-y-auto mx-4 p-6">
+      <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-3xl max-h-[80vh] overflow-y-auto mx-4 p-6">
         {/* Header: Title + Close button */}
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex-1 min-w-0">
@@ -198,6 +279,32 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Template selector */}
+        <div className="mb-5 relative" ref={templateDropdownRef}>
+          <button
+            onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
+            className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors"
+          >
+            <FileText size={14} />
+            Apply Template
+          </button>
+
+          {showTemplateDropdown && (
+            <div className="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg py-1 min-w-[200px] z-40">
+              {CARD_TEMPLATES.map(template => (
+                <button
+                  key={template.id}
+                  onClick={() => applyTemplate(template)}
+                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors text-left"
+                >
+                  <span>{template.icon}</span>
+                  {template.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Description — TipTap editor */}
@@ -306,6 +413,23 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
             </div>
           </div>
         </div>
+
+        {/* Card Details: Comments, Relationships, Activity */}
+        {loadingCardDetails ? (
+          <div className="text-sm text-surface-500 py-4 text-center">Loading details...</div>
+        ) : (
+          <>
+            <div className="mb-5">
+              <CommentsSection cardId={card.id} />
+            </div>
+            <div className="mb-5">
+              <RelationshipsSection cardId={card.id} />
+            </div>
+            <div className="mb-5">
+              <ActivityLog cardId={card.id} />
+            </div>
+          </>
+        )}
 
         {/* Timestamps */}
         <div className="text-xs text-surface-500 flex items-center gap-1">

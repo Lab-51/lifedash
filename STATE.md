@@ -2,13 +2,13 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 7 — Plan 7.1 COMPLETE
+Session focus: Phase 7 — Plan 7.2 COMPLETE
 
 ## Position
 Milestone: Phase 7 — v2 Features (Advanced)
 Phase: 7 of 7 (IN PROGRESS)
-Plan: 1 of 8 (COMPLETE — all 3 tasks executed)
-Task: 3 of 3 (COMPLETE)
+Plan: 2 of 8 (COMPLETE — 3/3 tasks done)
+Task: 3 of 3 (all complete)
 
 ## Phase 1 — COMPLETE
 All 3 plans (8 tasks) delivered and pushed to GitHub.
@@ -245,6 +245,18 @@ Planned as 8 sequential plans.
 - Activities limited to 50 most recent per card
 - Skip activity logging for card delete (cascade-deleted anyway)
 
+### Plan 7.2: Advanced Card Features — Comments, Relationships & Activity UI (3 tasks) — COMPLETE
+1. CommentsSection (~192 lines, add/edit/delete) + ActivityLog (~155 lines, read-only timeline) — DONE
+2. RelationshipsSection (~190 lines, card picker, grouped display) + CardDetailModal integration (load/clear lifecycle, 3 sections, max-w-3xl) — DONE
+3. Card template presets (5 templates) + template selector dropdown in CardDetailModal — DONE
+- Not yet committed
+
+## Plan 7.2 Execution Results
+- **Task 1**: Created CommentsSection.tsx (add/edit/delete, Ctrl+Enter shortcut, inline edit, timeAgo helper). Created ActivityLog.tsx (8 action types with color-coded icons, describeActivity with JSON details parsing, timeline connector).
+- **Task 2**: Created RelationshipsSection.tsx (card picker filtering current/archived/linked, type selector, grouped by direction with inverse labels, hover-reveal delete). Modified CardDetailModal.tsx (loadCardDetails/clearCardDetails useEffect, 3 sections between Labels and Timestamps, loading guard, max-w-3xl).
+- **Task 3**: Added 5 card templates (Bug Report, Feature Request, Meeting Action, Quick Note, Research Task) with template selector dropdown. applyTemplate fills TipTap + sets priority. Outside-click close.
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
+
 ## Next Steps
-1. `/nexus:git` — Commit Plan 7.1 changes
-2. `/nexus:plan 7.2` — Plan the Comments/Relationships UI
+1. `/nexus:git` — Commit Plans 7.1 + 7.2 changes
+2. `/nexus:plan 7.3` — Database backup/restore, export UI

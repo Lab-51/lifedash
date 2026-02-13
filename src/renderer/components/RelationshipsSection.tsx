@@ -1,0 +1,190 @@
+// === FILE PURPOSE ===
+// Relationships section UI for card detail view.
+// Allows adding and removing card-to-card relationships (blocks, depends_on, related_to).
+// Groups relationships by type with inverse labels for incoming relationships.
+
+// === DEPENDENCIES ===
+// react, lucide-react, boardStore (Zustand), shared types (CardRelationshipType)
+
+import { useState } from 'react';
+import { Link2, Plus, X } from 'lucide-react';
+import { useBoardStore } from '../stores/boardStore';
+import type { CardRelationshipType } from '../../shared/types';
+
+/** Display label for each relationship type (outgoing / incoming) */
+const TYPE_LABELS: Record<CardRelationshipType, { outgoing: string; incoming: string }> = {
+  blocks:     { outgoing: 'Blocks',     incoming: 'Blocked by' },
+  depends_on: { outgoing: 'Depends on', incoming: 'Depended on by' },
+  related_to: { outgoing: 'Related to', incoming: 'Related to' },
+};
+
+/** All group keys in display order */
+const GROUP_ORDER = [
+  'Blocks',
+  'Blocked by',
+  'Depends on',
+  'Depended on by',
+  'Related to',
+] as const;
+
+interface ParsedRelationship {
+  id: string;
+  groupLabel: string;
+  linkedCardTitle: string;
+}
+
+interface RelationshipsSectionProps {
+  cardId: string;
+}
+
+function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
+  const { cards, selectedCardRelationships, addRelationship, deleteRelationship } =
+    useBoardStore();
+
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedTargetId, setSelectedTargetId] = useState('');
+  const [selectedType, setSelectedType] = useState<CardRelationshipType>('related_to');
+
+  // --- Parse relationships into display groups ---
+  const parsed: ParsedRelationship[] = selectedCardRelationships.map(rel => {
+    const isOutgoing = rel.sourceCardId === cardId;
+    const labels = TYPE_LABELS[rel.type];
+    const groupLabel = isOutgoing ? labels.outgoing : labels.incoming;
+    const linkedCardTitle = isOutgoing
+      ? (rel.targetCardTitle ?? 'Unknown card')
+      : (rel.sourceCardTitle ?? 'Unknown card');
+
+    return { id: rel.id, groupLabel, linkedCardTitle };
+  });
+
+  // Group by label, preserving defined order
+  const groups = new Map<string, ParsedRelationship[]>();
+  for (const item of parsed) {
+    const list = groups.get(item.groupLabel) ?? [];
+    list.push(item);
+    groups.set(item.groupLabel, list);
+  }
+
+  // Filter available cards (exclude self, archived, and already-linked)
+  const alreadyLinkedIds = new Set(
+    selectedCardRelationships.flatMap(r => [r.sourceCardId, r.targetCardId]),
+  );
+  const availableCards = cards.filter(
+    c => c.id !== cardId && !c.archived && !alreadyLinkedIds.has(c.id),
+  );
+
+  // --- Handlers ---
+  const handleAdd = async () => {
+    if (!selectedTargetId) return;
+    await addRelationship({
+      sourceCardId: cardId,
+      targetCardId: selectedTargetId,
+      type: selectedType,
+    });
+    setSelectedTargetId('');
+    setSelectedType('related_to');
+    setShowAddForm(false);
+  };
+
+  return (
+    <div>
+      {/* Section header */}
+      <div className="flex items-center gap-1.5 mb-3">
+        <Link2 size={14} className="text-surface-400" />
+        <span className="text-sm text-surface-400">Relationships</span>
+        {selectedCardRelationships.length > 0 && (
+          <span className="bg-surface-800 text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
+            {selectedCardRelationships.length}
+          </span>
+        )}
+
+        {/* Toggle add form */}
+        <button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="text-xs text-surface-400 hover:text-surface-200 ml-auto transition-colors"
+        >
+          {showAddForm ? 'Cancel' : 'Add Relationship'}
+        </button>
+      </div>
+
+      {/* Add relationship form */}
+      {showAddForm && (
+        <div className="bg-surface-800/50 rounded-lg p-3 mt-2 mb-3">
+          <div className="flex items-center gap-2">
+            {/* Card picker */}
+            <select
+              value={selectedTargetId}
+              onChange={e => setSelectedTargetId(e.target.value)}
+              className="bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-sm text-surface-100 flex-1 min-w-0"
+            >
+              <option value="">Select a card...</option>
+              {availableCards.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+
+            {/* Type selector */}
+            <select
+              value={selectedType}
+              onChange={e => setSelectedType(e.target.value as CardRelationshipType)}
+              className="bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-sm text-surface-100"
+            >
+              <option value="blocks">Blocks</option>
+              <option value="depends_on">Depends on</option>
+              <option value="related_to">Related to</option>
+            </select>
+
+            {/* Add button */}
+            <button
+              onClick={handleAdd}
+              disabled={!selectedTargetId}
+              className="text-surface-400 hover:text-surface-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors p-1"
+            >
+              <Plus size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Grouped relationship list */}
+      {parsed.length === 0 ? (
+        <p className="text-sm text-surface-500 italic">No relationships</p>
+      ) : (
+        <div>
+          {GROUP_ORDER.map(groupLabel => {
+            const items = groups.get(groupLabel);
+            if (!items || items.length === 0) return null;
+
+            return (
+              <div key={groupLabel}>
+                <span className="text-xs uppercase tracking-wider text-surface-500 font-medium mt-3 mb-1 block">
+                  {groupLabel}
+                </span>
+                {items.map(item => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between py-1 group"
+                  >
+                    <span className="text-sm text-surface-200 truncate">
+                      {item.linkedCardTitle}
+                    </span>
+                    <button
+                      onClick={() => deleteRelationship(item.id)}
+                      className="text-surface-500 hover:text-surface-300 opacity-0 group-hover:opacity-100 transition-all p-0.5"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default RelationshipsSection;

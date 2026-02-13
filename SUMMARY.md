@@ -1,54 +1,58 @@
-# Plan 7.1 Summary — Advanced Card Features: Comments, Relationships & Activity Log
+# Plan 7.2 Summary — Advanced Card Features: Comments, Relationships & Activity UI
 
 ## Date: 2026-02-13
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Built the complete backend infrastructure for R16: Advanced Card Features — database schema, IPC handlers, preload bridge, activity auto-logging, and Zustand store extensions for card comments, relationships, and activity tracking.
+Built the complete UI for R16: Advanced Card Features — CommentsSection, ActivityLog, RelationshipsSection as standalone components, integrated into CardDetailModal with load/clear lifecycle, plus 5 card template presets with a template selector dropdown.
 
-### Task 1: Schema, Migration & Shared Types
+### Task 1: CommentsSection + ActivityLog Components
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Added 2 new enums to cards.ts: `cardRelationshipTypeEnum` (blocks/depends_on/related_to), `cardActivityActionEnum` (created/updated/moved/commented/archived/restored/relationship_added/relationship_removed)
-- Added 3 new tables: `cardComments` (id, cardId, content, timestamps), `cardRelationships` (id, sourceCardId, targetCardId, type, createdAt), `cardActivities` (id, cardId, action, details JSON, createdAt)
-- All tables use UUID PKs, CASCADE foreign keys to cards.id
-- Generated migration `drizzle/0003_mute_magik.sql` — applied successfully
-- Added 7 types to shared/types.ts: CardRelationshipType, CardComment, CardRelationship, CardActivityAction, CardActivity, CreateCardCommentInput, CreateCardRelationshipInput
-- Added 8 ElectronAPI method signatures (4 comments, 3 relationships, 1 activities)
+- Created CommentsSection.tsx (~192 lines) — add/edit/delete comments UI
+  - Textarea + "Add Comment" button (disabled when empty), Ctrl+Enter shortcut
+  - Inline edit mode with Save/Cancel buttons + Escape key support
+  - Delete without confirmation, comment count badge, empty state
+  - timeAgo() relative timestamps helper
+- Created ActivityLog.tsx (~155 lines) — read-only activity timeline
+  - Color-coded icons per action type (8 types: created, updated, moved, commented, archived, restored, relationship_added, relationship_removed)
+  - describeActivity() parses JSON details for richer descriptions
+  - Timeline connector line via border-l-2, loading/empty states
 
-### Task 2: IPC Handlers, Preload Bridge & Activity Logger
+### Task 2: RelationshipsSection + CardDetailModal Integration
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created `logCardActivity` helper — fire-and-forget (uses .catch, never await), inserts to cardActivities with optional JSON details
-- 4 comment handlers: card:getComments (ordered desc), card:addComment (logs 'commented'), card:updateComment, card:deleteComment
-- 3 relationship handlers: card:getRelationships (enriched with card titles, both directions), card:addRelationship (logs 'relationship_added'), card:deleteRelationship (logs 'relationship_removed')
-- 1 activity handler: card:getActivities (limit 50, ordered desc)
-- 8 preload bridge methods added to preload.ts
+- Created RelationshipsSection.tsx (~190 lines)
+  - Card picker dropdown (excludes current card, archived cards, already-linked cards)
+  - Type selector: Blocks, Depends on, Related to
+  - Grouped display with directional labels (Blocks / Blocked by, Depends on / Depended on by, Related to)
+  - Delete with hover-reveal X button
+- Modified CardDetailModal.tsx (322 → 348 lines)
+  - Added loadCardDetails/clearCardDetails lifecycle via useEffect
+  - Integrated CommentsSection, RelationshipsSection, ActivityLog between Labels and Timestamps
+  - Loading state guard while card details fetch
+  - Expanded modal from max-w-2xl to max-w-3xl
 
-### Task 3: Activity Auto-Logging + boardStore Extensions
+### Task 3: Card Template Presets + Template Selector
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Wired logCardActivity into existing handlers:
-  - cards:create → logs 'created' with title
-  - cards:update → conditionally logs 'archived', 'restored', or 'updated' (with changed field names)
-  - cards:move → logs 'moved' with columnId and position
-  - cards:delete → skipped (activities cascade-delete anyway)
-- Extended boardStore with 4 state fields: selectedCardComments, selectedCardRelationships, selectedCardActivities, loadingCardDetails
-- Added 7 actions: loadCardDetails (Promise.all for parallel fetch), clearCardDetails, addComment (prepend), updateComment, deleteComment, addRelationship (append), deleteRelationship
+- Modified CardDetailModal.tsx (348 → 446 lines)
+  - 5 template presets: Bug Report (high), Feature Request (medium), Meeting Action (medium), Quick Note (low), Research Task (medium)
+  - Template selector dropdown between Priority and Description sections
+  - applyTemplate: fills TipTap via setContent() + updates priority via onUpdate
+  - Outside-click to close dropdown, FileText icon button
 
-## Files Modified (6)
-- `src/main/db/schema/cards.ts` — +2 enums, +3 tables
-- `src/shared/types.ts` — +7 types, +8 ElectronAPI methods
-- `drizzle/0003_mute_magik.sql` — New migration file
-- `src/main/ipc/cards.ts` — +logCardActivity, +8 handlers, +3 auto-log calls
-- `src/preload/preload.ts` — +8 bridge methods
-- `src/renderer/stores/boardStore.ts` — +4 state fields, +7 actions
+## Files Created (3)
+- `src/renderer/components/CommentsSection.tsx` (new, ~192 lines)
+- `src/renderer/components/ActivityLog.tsx` (new, ~155 lines)
+- `src/renderer/components/RelationshipsSection.tsx` (new, ~190 lines)
+
+## Files Modified (1)
+- `src/renderer/components/CardDetailModal.tsx` (322 → 446 lines)
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors after all 3 tasks)
-- Migration: PASS (applied successfully)
-- All activity logging: fire-and-forget verified
 
 ## What's Next
-1. `/nexus:git` to commit Plan 7.1 changes
-2. `/nexus:plan 7.2` — Comments/Relationships UI in CardDetailModal
+1. `/nexus:git` to commit Plan 7.2 changes
+2. `/nexus:plan 7.3` — Database backup/restore, export UI
