@@ -217,4 +217,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   exportBrainstormToIdea: (sessionId: string, messageId: string) =>
     ipcRenderer.invoke('brainstorm:export-to-idea', sessionId, messageId),
+
+  // Backup & Restore
+  backupCreate: () => ipcRenderer.invoke('backup:create'),
+  backupList: () => ipcRenderer.invoke('backup:list'),
+  backupRestore: (filePath: string) => ipcRenderer.invoke('backup:restore', filePath),
+  backupRestoreFromFile: () => ipcRenderer.invoke('backup:restore-from-file'),
+  backupDelete: (fileName: string) => ipcRenderer.invoke('backup:delete', fileName),
+  backupExport: (options: any) => ipcRenderer.invoke('backup:export', options),
+  backupAutoSettingsGet: () => ipcRenderer.invoke('backup:auto-settings-get'),
+  backupAutoSettingsUpdate: (settings: any) =>
+    ipcRenderer.invoke('backup:auto-settings-update', settings),
+  onBackupProgress: (callback: (progress: any) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: any) =>
+      callback(progress);
+    ipcRenderer.on('backup:progress', handler);
+    return () => {
+      ipcRenderer.removeListener('backup:progress', handler);
+    };
+  },
 });

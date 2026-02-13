@@ -17,6 +17,7 @@ import { createTray } from './tray';
 import { connectDatabase, disconnectDatabase } from './db/connection';
 import { runMigrations } from './db/migrate';
 import { initMain } from 'electron-audio-loopback';
+import { initAutoBackup, stopAutoBackup } from './services/autoBackupScheduler';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -95,6 +96,9 @@ const createWindow = async () => {
     await connectDatabase();
     await runMigrations();
     console.log('[DB] Connected and migrations applied');
+
+    // Start auto-backup scheduler (after DB is ready)
+    initAutoBackup(mainWindow);
   } catch (error) {
     console.error('[DB] Connection failed:', error);
   }
@@ -129,6 +133,7 @@ const createWindow = async () => {
 // Also gracefully close the database connection pool.
 app.on('before-quit', async () => {
   (app as unknown as { isQuitting: boolean }).isQuitting = true;
+  stopAutoBackup();
   await disconnectDatabase();
 });
 

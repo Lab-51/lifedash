@@ -1,16 +1,20 @@
 // === FILE PURPOSE ===
-// Settings page — configures AI providers, model assignments, and app preferences.
-// Sections: Appearance, AI Providers, Model Assignments, AI Usage, About.
+// Settings page — configures AI providers, model assignments, app preferences,
+// database backups, and data export.
+// Sections: Appearance, AI Providers, Model Assignments, AI Usage, Backups, Export, About.
 
 import { useEffect, useState } from 'react';
 import { Plus, Bot, Info } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useBackupStore } from '../stores/backupStore';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProviderCard from '../components/ProviderCard';
 import AddProviderForm from '../components/AddProviderForm';
 import TaskModelConfig from '../components/TaskModelConfig';
 import ThemeSelector from '../components/ThemeSelector';
 import UsageSummary from '../components/UsageSummary';
+import BackupSection from '../components/settings/BackupSection';
+import ExportSection from '../components/settings/ExportSection';
 
 function SettingsPage() {
   const { providers, loading, error, encryptionAvailable, loadProviders, loadSettings, checkEncryption } =
@@ -22,6 +26,14 @@ function SettingsPage() {
     loadSettings();
     checkEncryption();
   }, [loadProviders, loadSettings, checkEncryption]);
+
+  // Listen for backup progress events from the main process
+  useEffect(() => {
+    const cleanup = window.electronAPI.onBackupProgress((progress) => {
+      useBackupStore.getState().setProgress(progress);
+    });
+    return cleanup;
+  }, []);
 
   if (loading && providers.length === 0) {
     return (
@@ -121,6 +133,12 @@ function SettingsPage() {
         </div>
         <UsageSummary />
       </section>
+
+      {/* === Section: Database Backups === */}
+      <BackupSection />
+
+      {/* === Section: Export Data === */}
+      <ExportSection />
 
       {/* === Section: About === */}
       <section className="mb-10">

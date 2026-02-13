@@ -433,6 +433,44 @@ export interface CreateBrainstormSessionInput {
   projectId?: string;
 }
 
+// === BACKUP & EXPORT TYPES ===
+
+export interface BackupInfo {
+  fileName: string;
+  filePath: string;
+  createdAt: string; // ISO timestamp
+  sizeBytes: number;
+}
+
+export interface BackupProgress {
+  phase: 'starting' | 'dumping' | 'saving' | 'restoring' | 'complete' | 'failed';
+  message: string;
+  error?: string;
+}
+
+export type ExportFormat = 'json' | 'csv';
+
+export interface ExportOptions {
+  format: ExportFormat;
+  tables?: string[]; // if omitted, export all user-data tables
+}
+
+export interface ExportResult {
+  filePath: string;
+  format: ExportFormat;
+  tables: string[];
+  sizeBytes: number;
+}
+
+export type AutoBackupFrequency = 'daily' | 'weekly' | 'off';
+
+export interface AutoBackupSettings {
+  enabled: boolean;
+  frequency: AutoBackupFrequency;
+  retention: number; // number of backups to keep
+  lastRun: string | null; // ISO timestamp or null
+}
+
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
   platform: NodeJS.Platform;
@@ -562,6 +600,17 @@ export interface ElectronAPI {
   sendBrainstormMessage: (sessionId: string, content: string) => Promise<BrainstormMessage>;
   onBrainstormChunk: (callback: (data: { sessionId: string; chunk: string }) => void) => () => void;
   exportBrainstormToIdea: (sessionId: string, messageId: string) => Promise<Idea>;
+
+  // Backup & Restore
+  backupCreate: () => Promise<BackupInfo>;
+  backupList: () => Promise<BackupInfo[]>;
+  backupRestore: (filePath: string) => Promise<void>;
+  backupRestoreFromFile: () => Promise<void>;
+  backupDelete: (fileName: string) => Promise<void>;
+  backupExport: (options: ExportOptions) => Promise<ExportResult | null>;
+  backupAutoSettingsGet: () => Promise<AutoBackupSettings>;
+  backupAutoSettingsUpdate: (settings: Partial<AutoBackupSettings>) => Promise<void>;
+  onBackupProgress: (callback: (progress: BackupProgress) => void) => () => void;
 }
 
 declare global {
