@@ -6,8 +6,13 @@
 // Electron (ipcMain), transcriptionProviderService, whisperModelManager
 
 import { ipcMain } from 'electron';
+import { z } from 'zod';
 import * as transcriptionProviderService from '../services/transcriptionProviderService';
-import type { TranscriptionProviderType } from '../../shared/types';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import {
+  transcriptionProviderTypeSchema,
+  transcriptionApiKeyProviderSchema,
+} from '../../shared/validation/schemas';
 
 export function registerTranscriptionProviderHandlers(): void {
   ipcMain.handle('transcription:get-config', async () => {
@@ -16,25 +21,29 @@ export function registerTranscriptionProviderHandlers(): void {
 
   ipcMain.handle(
     'transcription:set-provider',
-    async (_event, type: TranscriptionProviderType) => {
-      await transcriptionProviderService.setProviderType(type);
+    async (_event, type: unknown) => {
+      const validType = validateInput(transcriptionProviderTypeSchema, type);
+      await transcriptionProviderService.setProviderType(validType);
     },
   );
 
   ipcMain.handle(
     'transcription:set-api-key',
-    async (_event, provider: 'deepgram' | 'assemblyai', apiKey: string) => {
-      await transcriptionProviderService.setApiKey(provider, apiKey);
+    async (_event, provider: unknown, apiKey: unknown) => {
+      const validProvider = validateInput(transcriptionApiKeyProviderSchema, provider);
+      const validApiKey = validateInput(z.string().min(1), apiKey);
+      await transcriptionProviderService.setApiKey(validProvider, validApiKey);
     },
   );
 
   ipcMain.handle(
     'transcription:test-provider',
-    async (_event, type: TranscriptionProviderType) => {
+    async (_event, type: unknown) => {
+      const validType = validateInput(transcriptionProviderTypeSchema, type);
       // Test implementation depends on provider:
       // 'local' -> check if whisperModelManager.getDefaultModelPath() returns non-null
       // 'deepgram' / 'assemblyai' -> wired in Task 2 (cloud provider adapters)
-      if (type === 'local') {
+      if (validType === 'local') {
         const { getDefaultModelPath } = await import('../services/whisperModelManager');
         const modelPath = getDefaultModelPath();
         return {
@@ -44,16 +53,16 @@ export function registerTranscriptionProviderHandlers(): void {
       }
 
       // Cloud providers: test actual API connectivity
-      if (type === 'deepgram') {
+      if (validType === 'deepgram') {
         const { testConnection } = await import('../services/deepgramTranscriber');
         return testConnection();
       }
-      if (type === 'assemblyai') {
+      if (validType === 'assemblyai') {
         const { testConnection } = await import('../services/assemblyaiTranscriber');
         return testConnection();
       }
 
-      return { success: false, error: `Unknown provider type: ${type}` };
+      return { success: false, error: `Unknown provider type: ${validType}` };
     },
   );
 }

@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Plan 8.4 — Zod IPC Validation Rollout (Schemas + 5 Handler Files)
+Session focus: Plan 8.5 — Remaining IPC Validation, IdeaDetailModal Decomposition & Console Cleanup
 
 ## Position
 Milestone: Post-Review Improvements
 Phase: 8 (Review Fixes)
-Plan: 8.4 of TBD (COMPLETE — 3/3 tasks done)
+Plan: 8.5 of TBD (COMPLETE — 3/3 tasks done)
 Task: 3 of 3
 
 ## Phase 1 — COMPLETE
@@ -500,6 +500,31 @@ Plan 8.4 execution: HIGH (all 3 tasks verified, TypeScript clean, 12/12 tests pa
 - Bonus schemas added for brainstorm, backup, notifications, settings (covers future Plan 8.5 files)
 - Total validated handlers: 63 of ~112 (~56%), up from 13 (~12%)
 
+### Plan 8.5: Remaining IPC Validation, IdeaDetailModal Decomposition & Console Cleanup (3 tasks) — COMPLETE
+1. Apply Zod validation to 6 medium IPC files (brainstorm, backup, settings, notifications, transcription-provider, task-structuring) — 29 handlers — DONE
+2. Apply Zod validation to 5 small IPC files (recording, whisper, diarization, database, window-controls) — 13 handlers + renderer console cleanup — DONE
+3. Decompose IdeaDetailModal (815 → 470 lines) — extract IdeaAnalysisSection + IdeaConvertWizard — DONE
+- Not yet committed
+
+## Plan 8.5 Execution Results
+- **Task 1**: Applied validateInput to all param handlers across 6 files: brainstorm.ts (10 calls, 7 handlers), backup.ts (5 calls), settings.ts (5 calls), notifications.ts (2 calls), transcription-provider.ts (5 calls), task-structuring.ts (6 calls). Added 3 new schemas: taskStructuringNameSchema, taskStructuringDescriptionSchema, whisperModelNameSchema. Removed old type imports. All params changed to `unknown`.
+- **Task 2**: Applied validateInput to recording.ts (1 param handler), whisper.ts (1 param handler), diarization.ts (2 param handlers). Added comments to database.ts and window-controls.ts (all parameterless). audio:chunk skipped (binary data). Removed 2 console.log calls from audioCaptureService.ts. Zero console.log in renderer.
+- **Task 3**: Extracted IdeaAnalysisSection.tsx (135 lines — AI analysis button, loading, error, results with Apply/Dismiss). Extracted IdeaConvertWizard.tsx (273 lines — 3-step project→board→column wizard with internal state). IdeaDetailModal reduced from 815 to 470 lines.
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors.
+- **Tests**: 12/12 passing.
+
+## Decisions Made (Plan 8.5)
+- Pre-created schemas in schemas.ts before parallel agent dispatch (resolved file collision for parallel mode)
+- brainstorm:export-to-idea takes sessionId + messageId (both UUIDs), not messageContent as plan suggested
+- audio:chunk binary data not Zod-validated (comment explains why)
+- window-controls.ts and database.ts: all parameterless, validation not needed (documented)
+- IdeaConvertWizard larger than estimated (273 vs ~150) due to internal state management moving from parent
+- Total validateInput calls: 103 across 15 IPC files (100% handler coverage)
+
+## Confidence Levels
+Overall approach: HIGH
+Plan 8.5 execution: HIGH (all 3 tasks verified, TypeScript clean, 12/12 tests passing)
+
 ## Next Steps
-1. `/nexus:git` — Commit Plan 8.4
-2. `/nexus:plan 8.5` — Remaining 11 IPC files (~40 handlers) + IdeaDetailModal decomposition
+1. `/nexus:git` — Commit Plan 8.5 changes
+2. Plan 8.6+: TBD based on review

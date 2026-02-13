@@ -110,8 +110,6 @@ export async function startCapture(): Promise<void> {
   // Connect to destination to keep the processor running
   // (ScriptProcessorNode requires being connected to output)
   processorNode.connect(audioContext.destination);
-
-  console.log('[AudioCapture] Started -- 16kHz mono Int16 PCM');
 }
 
 /**
@@ -119,7 +117,6 @@ export async function startCapture(): Promise<void> {
  */
 export async function stopCapture(): Promise<void> {
   cleanup();
-  console.log('[AudioCapture] Stopped');
 }
 
 /**

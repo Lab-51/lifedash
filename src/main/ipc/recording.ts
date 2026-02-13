@@ -16,6 +16,8 @@
 
 import { ipcMain, BrowserWindow } from 'electron';
 import * as audioProcessor from '../services/audioProcessor';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import { idParamSchema } from '../../shared/validation/schemas';
 
 export function registerRecordingHandlers(mainWindow: BrowserWindow): void {
   // Pass the window reference to audioProcessor for state push events
@@ -23,8 +25,9 @@ export function registerRecordingHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle(
     'recording:start',
-    async (_event, meetingId: string) => {
-      audioProcessor.startRecording(meetingId);
+    async (_event, meetingId: unknown) => {
+      const validMeetingId = validateInput(idParamSchema, meetingId);
+      audioProcessor.startRecording(validMeetingId);
     },
   );
 
@@ -33,7 +36,7 @@ export function registerRecordingHandlers(mainWindow: BrowserWindow): void {
     return audioPath;
   });
 
-  // One-way audio chunk streaming (no response needed)
+  // audio:chunk: binary PCM data — Zod validation not applicable
   ipcMain.on('audio:chunk', (_event, chunk: Buffer) => {
     audioProcessor.addChunk(chunk);
   });

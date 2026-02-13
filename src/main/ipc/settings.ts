@@ -13,29 +13,34 @@ import { ipcMain } from 'electron';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import { settingKeySchema, settingValueSchema } from '../../shared/validation/schemas';
 
 export function registerSettingsHandlers(): void {
   // Get a single setting by key; returns null if not found
-  ipcMain.handle('settings:get', async (_event, key: string) => {
+  ipcMain.handle('settings:get', async (_event, key: unknown) => {
+    const validKey = validateInput(settingKeySchema, key);
     const db = getDb();
     const rows = await db
       .select()
       .from(settings)
-      .where(eq(settings.key, key));
+      .where(eq(settings.key, validKey));
     return rows.length > 0 ? rows[0].value : null;
   });
 
   // Set (upsert) a setting — inserts or updates on conflict
   ipcMain.handle(
     'settings:set',
-    async (_event, key: string, value: string) => {
+    async (_event, key: unknown, value: unknown) => {
+      const validKey = validateInput(settingKeySchema, key);
+      const validValue = validateInput(settingValueSchema, value);
       const db = getDb();
       await db
         .insert(settings)
-        .values({ key, value })
+        .values({ key: validKey, value: validValue })
         .onConflictDoUpdate({
           target: settings.key,
-          set: { value, updatedAt: new Date() },
+          set: { value: validValue, updatedAt: new Date() },
         });
     },
   );
@@ -48,8 +53,9 @@ export function registerSettingsHandlers(): void {
   });
 
   // Delete a setting by key
-  ipcMain.handle('settings:delete', async (_event, key: string) => {
+  ipcMain.handle('settings:delete', async (_event, key: unknown) => {
+    const validKey = validateInput(settingKeySchema, key);
     const db = getDb();
-    await db.delete(settings).where(eq(settings.key, key));
+    await db.delete(settings).where(eq(settings.key, validKey));
   });
 }

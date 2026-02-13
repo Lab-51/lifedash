@@ -22,7 +22,12 @@ import {
   updateAutoBackupSettings,
 } from '../services/backupService';
 import { exportAllData, writeJSON, tableToCsv } from '../services/exportService';
-import type { ExportOptions } from '../../shared/types';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import {
+  filePathSchema,
+  exportOptionsSchema,
+  autoBackupSettingsUpdateSchema,
+} from '../../shared/validation/schemas';
 
 export function registerBackupHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('backup:create', async () => {
@@ -33,8 +38,9 @@ export function registerBackupHandlers(mainWindow: BrowserWindow): void {
     return listBackups();
   });
 
-  ipcMain.handle('backup:restore', async (_event, filePath: string) => {
-    return restoreBackup(filePath, mainWindow);
+  ipcMain.handle('backup:restore', async (_event, filePath: unknown) => {
+    const validPath = validateInput(filePathSchema, filePath);
+    return restoreBackup(validPath, mainWindow);
   });
 
   ipcMain.handle('backup:restore-from-file', async () => {
@@ -47,15 +53,17 @@ export function registerBackupHandlers(mainWindow: BrowserWindow): void {
     return restoreBackup(result.filePaths[0], mainWindow);
   });
 
-  ipcMain.handle('backup:delete', async (_event, fileName: string) => {
-    return deleteBackup(fileName);
+  ipcMain.handle('backup:delete', async (_event, fileName: unknown) => {
+    const validFileName = validateInput(filePathSchema, fileName);
+    return deleteBackup(validFileName);
   });
 
-  ipcMain.handle('backup:export', async (_event, options: ExportOptions) => {
-    const data = await exportAllData(options.tables);
+  ipcMain.handle('backup:export', async (_event, options: unknown) => {
+    const input = validateInput(exportOptionsSchema, options);
+    const data = await exportAllData(input.tables);
     const tables = Object.keys(data);
 
-    if (options.format === 'json') {
+    if (input.format === 'json') {
       const result = await dialog.showSaveDialog(mainWindow, {
         title: 'Export Data as JSON',
         defaultPath: `living-dashboard-export-${Date.now()}.json`,
@@ -100,8 +108,9 @@ export function registerBackupHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle(
     'backup:auto-settings-update',
-    async (_event, partialSettings: any) => {
-      return updateAutoBackupSettings(partialSettings);
+    async (_event, partialSettings: unknown) => {
+      const input = validateInput(autoBackupSettingsUpdateSchema, partialSettings);
+      return updateAutoBackupSettings(input);
     },
   );
 }

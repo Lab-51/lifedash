@@ -10,6 +10,8 @@
 
 import { ipcMain, BrowserWindow } from 'electron';
 import * as whisperModelManager from '../services/whisperModelManager';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import { whisperModelNameSchema } from '../../shared/validation/schemas';
 
 export function registerWhisperHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('whisper:list-models', async () => {
@@ -19,8 +21,9 @@ export function registerWhisperHandlers(mainWindow: BrowserWindow): void {
     }));
   });
 
-  ipcMain.handle('whisper:download-model', async (_event, fileName: string) => {
-    const { promise } = whisperModelManager.downloadModel(fileName, (downloaded, total) => {
+  ipcMain.handle('whisper:download-model', async (_event, fileName: unknown) => {
+    const validFileName = validateInput(whisperModelNameSchema, fileName);
+    const { promise } = whisperModelManager.downloadModel(validFileName, (downloaded, total) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('whisper:download-progress', {
           fileName,

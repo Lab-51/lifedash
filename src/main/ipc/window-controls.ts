@@ -1,6 +1,7 @@
 // === FILE PURPOSE ===
 // IPC handlers for window control operations (minimize, maximize, close).
 // These handlers are invoked from the renderer via the preload bridge.
+// All handlers are parameterless — no input validation needed
 
 import { BrowserWindow, ipcMain } from 'electron';
 

@@ -302,3 +302,20 @@ export const notificationPreferencesUpdateSchema = z.object({
 
 export const settingKeySchema = z.string().min(1).max(200);
 export const settingValueSchema = z.string().max(50000);
+
+// ============================================================================
+// Task Structuring
+// ============================================================================
+
+/** For task-structuring:quick-plan — name parameter */
+export const taskStructuringNameSchema = z.string().min(1).max(500);
+
+/** For task-structuring:generate-plan description and quick-plan description */
+export const taskStructuringDescriptionSchema = z.string().max(10000);
+
+// ============================================================================
+// Whisper
+// ============================================================================
+
+/** For whisper:download-model — model file name */
+export const whisperModelNameSchema = z.string().min(1).max(200);

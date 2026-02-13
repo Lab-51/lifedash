@@ -4,9 +4,8 @@
 // convert-to-project / convert-to-card wizard, AI analysis, and brainstorm navigation.
 //
 // === DEPENDENCIES ===
-// react, lucide-react (X, Loader2, Trash2, FolderPlus, ArrowRightCircle, ChevronLeft,
-// Sparkles, MessageSquare, AlertCircle),
-// ideaStore, brainstormStore, shared types, window.electronAPI (getProjects, getBoards, getColumns)
+// react, lucide-react (X, Loader2, Trash2, FolderPlus, ArrowRightCircle, MessageSquare),
+// ideaStore, brainstormStore, shared types, IdeaAnalysisSection, IdeaConvertWizard
 
 import { useState, useEffect } from 'react';
 import {
@@ -15,10 +14,7 @@ import {
   Trash2,
   FolderPlus,
   ArrowRightCircle,
-  ChevronLeft,
-  Sparkles,
   MessageSquare,
-  AlertCircle,
 } from 'lucide-react';
 import { useIdeaStore } from '../stores/ideaStore';
 import { useBrainstormStore } from '../stores/brainstormStore';
@@ -26,10 +22,9 @@ import type {
   IdeaStatus,
   EffortLevel,
   ImpactLevel,
-  Project,
-  Board,
-  Column,
 } from '../../shared/types';
+import IdeaAnalysisSection from './IdeaAnalysisSection';
+import IdeaConvertWizard from './IdeaConvertWizard';
 
 // === CONSTANTS ===
 
@@ -72,7 +67,6 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
     deleteIdea,
     clearSelectedIdea,
     convertToProject,
-    convertToCard,
     analysis,
     analyzing,
     analysisError,
@@ -92,15 +86,8 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Convert-to-card wizard state
+  // Convert mode toggle (none / project / card)
   const [convertMode, setConvertMode] = useState<'none' | 'project' | 'card'>('none');
-  const [convertStep, setConvertStep] = useState<1 | 2 | 3>(1);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [boards, setBoards] = useState<Board[]>([]);
-  const [columns, setColumns] = useState<Column[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
-  const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
 
   // Load idea on mount
@@ -129,45 +116,6 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
-
-  // Load projects when entering card convert mode
-  useEffect(() => {
-    if (convertMode !== 'card') return;
-    let cancelled = false;
-    window.electronAPI.getProjects().then((result) => {
-      if (!cancelled) setProjects(result.filter((p) => !p.archived));
-    });
-    return () => { cancelled = true; };
-  }, [convertMode]);
-
-  // Load boards when project selected
-  useEffect(() => {
-    if (convertMode !== 'card' || !selectedProjectId) return;
-    let cancelled = false;
-    window.electronAPI.getBoards(selectedProjectId).then((result) => {
-      if (!cancelled) {
-        setBoards(result);
-        if (result.length === 1) {
-          setSelectedBoardId(result[0].id);
-          setConvertStep(3);
-        }
-      }
-    });
-    return () => { cancelled = true; };
-  }, [selectedProjectId, convertMode]);
-
-  // Load columns when board selected
-  useEffect(() => {
-    if (convertMode !== 'card' || !selectedBoardId) return;
-    let cancelled = false;
-    window.electronAPI.getColumns(selectedBoardId).then((result) => {
-      if (!cancelled) {
-        setColumns(result);
-        if (result.length === 1) setSelectedColumnId(result[0].id);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [selectedBoardId, convertMode]);
 
   // === HANDLERS ===
 
@@ -229,61 +177,6 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
     }
   };
 
-  const handleConvertToCard = async () => {
-    if (!selectedIdea || !selectedColumnId || converting) return;
-    setConverting(true);
-    try {
-      await convertToCard(selectedIdea.id, selectedColumnId);
-      onClose();
-    } finally {
-      setConverting(false);
-    }
-  };
-
-  const resetCardWizard = () => {
-    setConvertMode('none');
-    setConvertStep(1);
-    setProjects([]);
-    setBoards([]);
-    setColumns([]);
-    setSelectedProjectId(null);
-    setSelectedBoardId(null);
-    setSelectedColumnId(null);
-  };
-
-  const handleWizardNext = () => {
-    if (convertStep === 1 && selectedProjectId) {
-      setConvertStep(2);
-    } else if (convertStep === 2 && selectedBoardId) {
-      setConvertStep(3);
-    } else if (convertStep === 3) {
-      handleConvertToCard();
-    }
-  };
-
-  const handleWizardBack = () => {
-    if (convertStep === 3) {
-      if (boards.length === 1) {
-        setSelectedProjectId(null);
-        setSelectedBoardId(null);
-        setSelectedColumnId(null);
-        setBoards([]);
-        setColumns([]);
-        setConvertStep(1);
-      } else {
-        setSelectedBoardId(null);
-        setSelectedColumnId(null);
-        setColumns([]);
-        setConvertStep(2);
-      }
-    } else if (convertStep === 2) {
-      setSelectedProjectId(null);
-      setSelectedBoardId(null);
-      setBoards([]);
-      setConvertStep(1);
-    }
-  };
-
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) onClose();
   };
@@ -307,18 +200,6 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
       console.error('Failed to start brainstorm session:', error);
     }
   };
-
-  const canAdvanceWizard =
-    (convertStep === 1 && selectedProjectId) ||
-    (convertStep === 2 && selectedBoardId) ||
-    (convertStep === 3 && selectedColumnId);
-
-  // Step indicator dots
-  const stepDots = [1, 2, 3].map((s) => {
-    if (s < convertStep) return 'bg-primary-500/50';
-    if (s === convertStep) return 'bg-primary-500';
-    return 'bg-surface-700';
-  });
 
   return (
     <div
@@ -415,106 +296,15 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
             </div>
 
             {/* AI Analysis */}
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-surface-300 flex items-center gap-1.5">
-                  <Sparkles size={14} className="text-purple-400" />
-                  AI Analysis
-                </label>
-                <button
-                  onClick={() => analyzeIdea(selectedIdea.id)}
-                  disabled={analyzing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600/30 text-purple-300 rounded-lg text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {analyzing ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Sparkles size={14} />
-                  )}
-                  {analyzing ? 'Analyzing...' : 'Analyze with AI'}
-                </button>
-              </div>
-
-              {/* Analysis loading state */}
-              {analyzing && (
-                <div className="flex items-center gap-2 py-3 text-sm text-surface-400">
-                  <Loader2 size={16} className="animate-spin" />
-                  Analyzing idea...
-                </div>
-              )}
-
-              {/* Analysis error state */}
-              {analysisError && !analyzing && (
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm">
-                  <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-red-400">{analysisError}</p>
-                    <p className="text-surface-500 text-xs mt-1">
-                      Make sure an AI provider is configured in Settings.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Analysis results */}
-              {analysis && !analyzing && (
-                <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-4 space-y-3">
-                  {/* Suggested Effort */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-surface-400">Suggested Effort:</span>
-                      <span className="bg-blue-500/20 text-blue-300 text-xs px-2 py-0.5 rounded-full">
-                        {analysis.suggestedEffort}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setEffort(analysis.suggestedEffort)}
-                      className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
-                    >
-                      Apply
-                    </button>
-                  </div>
-
-                  {/* Suggested Impact */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-surface-400">Suggested Impact:</span>
-                      <span className="bg-amber-500/20 text-amber-300 text-xs px-2 py-0.5 rounded-full">
-                        {analysis.suggestedImpact}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setImpact(analysis.suggestedImpact)}
-                      className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
-                    >
-                      Apply
-                    </button>
-                  </div>
-
-                  {/* Feasibility notes */}
-                  <div>
-                    <span className="text-xs text-surface-400 block mb-1">Feasibility:</span>
-                    <p className="text-sm text-surface-300">{analysis.feasibilityNotes}</p>
-                  </div>
-
-                  {/* Rationale */}
-                  <div>
-                    <span className="text-xs text-surface-400 block mb-1">Rationale:</span>
-                    <p className="text-sm text-surface-300">{analysis.rationale}</p>
-                  </div>
-
-                  {/* Dismiss button */}
-                  <div className="flex justify-end">
-                    <button
-                      onClick={clearAnalysis}
-                      className="text-xs text-surface-500 hover:text-surface-300 transition-colors"
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <IdeaAnalysisSection
+              analyzing={analyzing}
+              analysisError={analysisError}
+              analysis={analysis}
+              onAnalyze={() => analyzeIdea(selectedIdea.id)}
+              onClearAnalysis={clearAnalysis}
+              onApplyEffort={setEffort}
+              onApplyImpact={setImpact}
+            />
 
             {/* Tags */}
             <div className="mt-4">
@@ -619,145 +409,11 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
               {/* Convert to card wizard */}
               {convertMode === 'card' && (
-                <div>
-                  {/* Step indicator dots */}
-                  <div className="flex items-center justify-center gap-2 my-3">
-                    {stepDots.map((cls, i) => (
-                      <div key={i} className={`w-2 h-2 rounded-full ${cls}`} />
-                    ))}
-                  </div>
-
-                  {/* Step content */}
-                  <div className="min-h-[100px]">
-                    {/* Step 1: Select Project */}
-                    {convertStep === 1 && (
-                      <div>
-                        <p className="text-sm text-surface-300 mb-2">Choose a project</p>
-                        <div className="max-h-48 overflow-y-auto space-y-1.5">
-                          {projects.map((p) => (
-                            <div
-                              key={p.id}
-                              onClick={() => setSelectedProjectId(p.id)}
-                              className={`rounded-lg p-2.5 cursor-pointer border transition ${
-                                selectedProjectId === p.id
-                                  ? 'border-primary-500 bg-primary-500/10'
-                                  : 'border-surface-700 hover:border-surface-600'
-                              }`}
-                            >
-                              <span className="flex items-center text-sm text-surface-200">
-                                <span
-                                  className="w-3 h-3 rounded-full inline-block mr-2 shrink-0"
-                                  style={{ backgroundColor: p.color || '#6b7280' }}
-                                />
-                                {p.name}
-                              </span>
-                            </div>
-                          ))}
-                          {projects.length === 0 && (
-                            <p className="text-sm text-surface-500 text-center py-4">
-                              No projects found
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Step 2: Select Board */}
-                    {convertStep === 2 && (
-                      <div>
-                        <p className="text-sm text-surface-300 mb-2">Choose a board</p>
-                        <div className="max-h-48 overflow-y-auto space-y-1.5">
-                          {boards.map((b) => (
-                            <div
-                              key={b.id}
-                              onClick={() => setSelectedBoardId(b.id)}
-                              className={`rounded-lg p-2.5 cursor-pointer border transition ${
-                                selectedBoardId === b.id
-                                  ? 'border-primary-500 bg-primary-500/10'
-                                  : 'border-surface-700 hover:border-surface-600'
-                              }`}
-                            >
-                              <span className="text-sm text-surface-200">{b.name}</span>
-                            </div>
-                          ))}
-                          {boards.length === 0 && (
-                            <p className="text-sm text-surface-500 text-center py-4">
-                              No boards found
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Step 3: Select Column */}
-                    {convertStep === 3 && (
-                      <div>
-                        <p className="text-sm text-surface-300 mb-2">Choose a column</p>
-                        <div className="max-h-48 overflow-y-auto space-y-1.5">
-                          {columns.map((c) => (
-                            <div
-                              key={c.id}
-                              onClick={() => setSelectedColumnId(c.id)}
-                              className={`rounded-lg p-2.5 cursor-pointer border transition ${
-                                selectedColumnId === c.id
-                                  ? 'border-primary-500 bg-primary-500/10'
-                                  : 'border-surface-700 hover:border-surface-600'
-                              }`}
-                            >
-                              <span className="text-sm text-surface-200">{c.name}</span>
-                            </div>
-                          ))}
-                          {columns.length === 0 && (
-                            <p className="text-sm text-surface-500 text-center py-4">
-                              No columns found
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Wizard footer */}
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-700">
-                    <div>
-                      {convertStep > 1 && (
-                        <button
-                          onClick={handleWizardBack}
-                          className="text-sm text-surface-400 hover:text-surface-200 flex items-center gap-1 transition-colors"
-                        >
-                          <ChevronLeft size={14} />
-                          Back
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={resetCardWizard}
-                        className="text-sm text-surface-400 hover:text-surface-200 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      {convertStep < 3 ? (
-                        <button
-                          onClick={handleWizardNext}
-                          disabled={!canAdvanceWizard}
-                          className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-1.5 rounded-lg transition-colors"
-                        >
-                          Next
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleConvertToCard}
-                          disabled={!selectedColumnId || converting}
-                          className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-                        >
-                          {converting && <Loader2 size={14} className="animate-spin" />}
-                          Convert
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <IdeaConvertWizard
+                  ideaId={selectedIdea.id}
+                  onComplete={onClose}
+                  onCancel={() => setConvertMode('none')}
+                />
               )}
             </div>
 
