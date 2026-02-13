@@ -2,13 +2,13 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 7 — Plan 7.8 COMPLETE
+Session focus: Plan 8.1 — Critical Review Fixes (Performance, Testing, Security)
 
 ## Position
-Milestone: Phase 7 — v2 Features (Advanced)
-Phase: 7 of 7 (COMPLETE)
-Plan: 8 of 8 (COMPLETE — 3/3 tasks done)
-Task: 3 of 3
+Milestone: Post-Review Improvements
+Phase: 8 (Review Fixes)
+Plan: 8.1 of TBD (PLANNED — 0/3 tasks done)
+Task: 0 of 3
 
 ## Phase 1 — COMPLETE
 All 3 plans (8 tasks) delivered and pushed to GitHub.
@@ -395,6 +395,19 @@ All 8 plans (24 tasks) executed successfully. Phase 7 delivers:
 - R14: API Transcription Providers (Deepgram, AssemblyAI) with fallback
 - R17: Desktop Notifications — due date reminders, daily digest
 
+## Phase 8 — IN PROGRESS (Post-Review Improvements)
+Source: REVIEW.md (graded B-, "NEEDS ATTENTION")
+Focus: Highest-impact fixes from project review.
+
+### Plan 8.1: Critical Review Fixes — Performance, Testing, Security (3 tasks) — PLANNED
+1. Fix N+1 query in cards:list-by-board (300+ queries → 4 batch queries with inArray)
+2. Set up Vitest test framework + write initial unit tests (zero → foundation)
+3. Security hardening — CSP headers on BrowserWindow + path validation in openAttachment
+
+## Confidence Levels
+Overall approach: HIGH
+Plan 8.1: HIGH (Task 1, Task 3), MEDIUM (Task 2 — Vitest + Vite 7 compat)
+
 ## Next Steps
-1. `/nexus:git` — Commit all uncommitted Plan 7.1-7.8 changes
-2. Phase 7 complete — all v2 features delivered. Project ready for final review.
+1. `/nexus:execute` — Execute Plan 8.1
+2. After execution, consider Plan 8.2 (IPC validation with Zod, structured logging, component refactoring)

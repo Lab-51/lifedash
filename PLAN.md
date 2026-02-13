@@ -1,636 +1,427 @@
-# Plan 7.8 — Card Attachments, Due Date UI & KanbanCard Enhancements
+# Plan 8.1 — Critical Review Fixes: Performance, Testing Foundation, and Security Hardening
 
-**Requirements:** R16 (Advanced Card Features — remaining items)
-**Scope:** File attachments (schema, service, IPC, UI), due date picker in CardDetailModal, due date + overdue badge on KanbanCard
-**Approach:** Attachment files stored on local filesystem (app data directory), metadata in DB. Due date UI uses native HTML date input (no external library needed — dueDate backend already exists).
+**Source:** REVIEW.md findings (2026-02-13)
+**Scope:** Fix N+1 board query (#2 priority), set up Vitest test framework (#1 priority), add CSP + path validation (security gaps)
+**Approach:** Three highest-impact fixes from the review, targeting performance, quality infrastructure, and security.
 
-## Phase 7 Overview
+## Review Triage
 
-Phase 7 covers R11, R13, R14, R15, R16, R17 (31 pts total, v2 features).
-Planned as 8 sequential plans:
-
-| Plan | Requirement | Focus |
-|------|-------------|-------|
-| 7.1 | R16 (backend) | Card comments, relationships, activity log — schema + services + IPC |
-| 7.2 | R16 (UI) | Comments UI, relationships UI, activity log, card templates in CardDetailModal |
-| 7.3 | R15 | Database backup/restore (pg_dump), JSON/CSV export, backup UI |
-| 7.4 | R11 | AI task structuring — service, IPC, store, project planning modal, card breakdown |
-| 7.5 | R13+R17 | Meeting templates, desktop notifications, daily digest |
-| 7.6 | R14 | API transcription providers (Deepgram, AssemblyAI), fallback |
-| 7.7 | R13 | Speaker diarization, meeting analytics, analytics UI |
-| **7.8** | **R16 (rest)** | **Card attachments, due dates UI, KanbanCard enhancements** |
-
-## Architecture Decisions
-
-1. **File storage in app data directory:** Attachment files are copied into `{userData}/attachments/{cardId}/` using Electron's `app.getPath('userData')`. This keeps files organized per card, survives card metadata changes, and the path is portable relative to the app data location. Files are copied (not moved) so the original stays intact.
-
-2. **Native HTML date input (no date picker library):** The `<input type="date">` and `<input type="datetime-local">` elements provide sufficient functionality for due dates. No need to add a dependency like react-datepicker or date-fns. The dueDate field already exists in schema, types, IPC, and store — we only need the UI.
-
-3. **Attachments as a separate table (not inline on cards):** A `cardAttachments` table with file metadata (name, path, size, MIME type) keeps the cards table clean and supports multiple attachments per card. Files are opened via Electron's `shell.openPath()` for native OS handling.
-
-4. **Overdue badge on KanbanCard:** Cards with dueDate in the past get a red "Overdue" badge, cards due today get an amber "Due today" badge, and cards due within 3 days get a subtle indicator. This makes it easy to spot urgent items on the board without opening the card.
-
-5. **Activity logging for attachments:** Attachment add/remove actions are logged to cardActivities with the 'updated' action type (details JSON contains attachment info). No new enum values needed.
+| Finding | Severity | This Plan? | Rationale |
+|---------|----------|-----------|-----------|
+| Zero test coverage | CRITICAL | Task 2 | Set up framework + initial tests — foundation for all future quality |
+| N+1 query in cards:list-by-board | HIGH | Task 1 | Concrete fix, 300+ queries → 4 queries, most-used feature |
+| Missing CSP + path traversal | HIGH/Missing | Task 3 | Two small targeted security fixes, high impact |
+| Silent error handling | HIGH | Deferred | Scattered across 23 files, needs structured logging plan |
+| Oversized components | HIGH | Deferred | Refactoring needs careful UX review |
+| IPC input validation (Zod) | MEDIUM | Deferred | 60+ channels, needs dedicated plan |
+| 87 `any` type occurrences | MEDIUM | Deferred | Gradual cleanup, not urgent |
 
 ---
 
-<phase n="7.8" name="Card Attachments, Due Date UI & KanbanCard Enhancements">
+<phase n="8.1" name="Critical Review Fixes — Performance, Testing Foundation, and Security Hardening">
   <context>
-    Phase 7, Plan 8 of 8 (final plan). Implements remaining R16 items:
-    - Card file attachments (full stack: schema → service → IPC → UI)
-    - Due date picker UI in CardDetailModal (backend already exists)
-    - Due date / overdue badges on KanbanCard
+    Post-review improvement plan. The project review (REVIEW.md) graded the project B- with
+    "NEEDS ATTENTION" overall. All 17 requirements (99 pts) are delivered across 7 phases, but
+    the codebase lacks test coverage, has a severe N+1 performance issue, and is missing
+    standard security headers.
 
-    Already complete (not in scope):
-    - Card comments, relationships, activity log (Plans 7.1-7.2)
-    - Card templates (Plan 7.2)
-    - Task breakdown / AI structuring (Plan 7.4)
+    Key files:
+    @src/main/ipc/cards.ts — N+1 query in cards:list-by-board handler (lines 62-100)
+    @src/main/db/schema/cards.ts — cards, cardLabels, labels tables
+    @src/main/services/attachmentService.ts — openAttachment has no path validation
+    @src/main/main.ts — BrowserWindow creation, no CSP headers
+    @package.json — no test framework configured
+    @vite.main.config.ts — Vite config for main process (needed for Vitest compat)
 
-    Key existing infrastructure:
-    - cards table already has `dueDate: timestamp('due_date', { withTimezone: true })` — line 29 of cards.ts
-    - Card type has `dueDate: string | null` — types.ts line 47
-    - UpdateCardInput has `dueDate?: string | null` — types.ts line 108
-    - cards:update IPC handler converts string → Date for DB — cards.ts lines 128-135
-    - boardStore.updateCard already passes through dueDate
-    - CardDetailModal currently has NO dueDate UI — needs date input
-    - KanbanCard shows title, priority badge, label dots — no dueDate display
-
-    Key files for context:
-    @src/main/db/schema/cards.ts (add cardAttachments table)
-    @src/shared/types.ts (add attachment types + ElectronAPI methods)
-    @src/main/ipc/cards.ts (add attachment IPC handlers)
-    @src/preload/preload.ts (add attachment bridge methods)
-    @src/renderer/stores/boardStore.ts (add attachment state/actions)
-    @src/renderer/components/CardDetailModal.tsx (add due date picker + attachments section)
-    @src/renderer/components/KanbanCard.tsx (add due date badge)
+    Already confirmed:
+    - Drizzle `inArray` is used successfully in ideaService.ts and brainstormService.ts
+    - No vitest, @vitest/ui, or zod in dependencies
+    - No test files exist anywhere in src/
+    - openAttachment passes arbitrary filePath to shell.openPath() without validation
+    - BrowserWindow has no Content-Security-Policy configured
   </context>
 
   <task type="auto" n="1">
-    <n>Card attachments — schema, types, service, IPC, and preload</n>
-    <files>
-      src/main/db/schema/cards.ts (MODIFY — add cardAttachments table)
-      src/shared/types.ts (MODIFY — add CardAttachment type + 4 ElectronAPI methods)
-      src/main/services/attachmentService.ts (NEW ~120 lines)
-      src/main/ipc/cards.ts (MODIFY — add 4 attachment IPC handlers)
-      src/preload/preload.ts (MODIFY — add 4 attachment bridge methods)
-      drizzle migration (auto-generated)
-    </files>
+    <n>Fix N+1 query in cards:list-by-board</n>
+    <files>src/main/ipc/cards.ts</files>
     <action>
       ## WHY
-      Card attachments allow users to associate files (documents, screenshots, specs) with
-      cards. This completes the R16 Advanced Card Features requirement. We need: a DB table
-      for metadata, a service to copy files to app data and manage lifecycle, IPC handlers
-      for the renderer to add/list/delete attachments, and preload bridges.
+      The `cards:list-by-board` IPC handler (lines 62-100) uses triple-nested loops that
+      generate 300-600+ sequential DB queries for a medium board. This is the #2 priority
+      finding and affects the most-used feature (Kanban board). The fix reduces it to exactly
+      4 queries regardless of board size.
 
       ## WHAT
 
-      ### 1a. Schema — modify src/main/db/schema/cards.ts
+      Replace lines 62-100 in src/main/ipc/cards.ts with a batch-query approach:
 
-      Add a `cardAttachments` table after `cardActivities`:
+      1. Add `inArray` to the existing drizzle-orm import:
+         `import { eq, and, asc, desc, inArray } from 'drizzle-orm';`
 
-      ```typescript
-      // --- Card Attachments ---
-
-      export const cardAttachments = pgTable('card_attachments', {
-        id: uuid('id').primaryKey().defaultRandom(),
-        cardId: uuid('card_id').notNull()
-          .references(() => cards.id, { onDelete: 'cascade' }),
-        fileName: varchar('file_name', { length: 500 }).notNull(),
-        filePath: text('file_path').notNull(),       // Absolute path in app data dir
-        fileSize: integer('file_size').notNull(),     // Bytes
-        mimeType: varchar('mime_type', { length: 200 }),
-        createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-      });
-      ```
-
-      Also add `cardAttachments` to the barrel export in schema/index.ts.
-
-      Generate migration: `npx drizzle-kit generate`
-
-      ### 1b. Types — modify src/shared/types.ts
-
-      Add near the card types section:
+      2. Replace the handler body:
 
       ```typescript
-      // === CARD ATTACHMENT TYPES ===
-
-      export interface CardAttachment {
-        id: string;
-        cardId: string;
-        fileName: string;
-        filePath: string;
-        fileSize: number;
-        mimeType: string | null;
-        createdAt: string;
-      }
-      ```
-
-      Add to ElectronAPI interface:
-
-      ```typescript
-      // Card Attachments
-      getCardAttachments: (cardId: string) => Promise<CardAttachment[]>;
-      addCardAttachment: (cardId: string) => Promise<CardAttachment | null>;  // Opens file dialog
-      deleteCardAttachment: (id: string) => Promise<void>;
-      openCardAttachment: (filePath: string) => Promise<void>;
-      ```
-
-      ### 1c. Create src/main/services/attachmentService.ts (~120 lines)
-
-      File header:
-      ```
-      // === FILE PURPOSE ===
-      // Manages card file attachments — copies files into app data directory,
-      // stores metadata in DB, handles file deletion and opening.
-      //
-      // === DEPENDENCIES ===
-      // electron (app, dialog, shell), fs, path, drizzle
-      //
-      // === LIMITATIONS ===
-      // - Files are copied (not moved) — original stays in place
-      // - No file size limit enforced (user responsibility)
-      // - No duplicate detection (same file can be attached multiple times)
-      ```
-
-      Imports:
-      ```typescript
-      import { app, dialog, shell } from 'electron';
-      import fs from 'node:fs';
-      import path from 'node:path';
-      import { getDb } from '../db/connection';
-      import { cardAttachments } from '../db/schema';
-      import { eq } from 'drizzle-orm';
-      import type { CardAttachment } from '../../shared/types';
-      ```
-
-      Functions:
-
-      **`getAttachmentsDir(cardId: string): string`** (private helper)
-      - Returns `path.join(app.getPath('userData'), 'attachments', cardId)`
-      - Creates directory if it doesn't exist (`fs.mkdirSync(..., { recursive: true })`)
-
-      **`function toAttachment(row): CardAttachment`** (private mapper)
-      - Maps Drizzle row to CardAttachment interface
-      - Converts `createdAt` Date → ISO string
-
-      **`async function getAttachments(cardId: string): Promise<CardAttachment[]>`**
-      - Query `cardAttachments` where cardId matches, ordered by createdAt desc
-      - Map with toAttachment
-
-      **`async function addAttachment(cardId: string): Promise<CardAttachment | null>`**
-      - Open file dialog: `dialog.showOpenDialog({ properties: ['openFile'] })`
-      - If cancelled, return null
-      - Get source file info: `fs.statSync(filePath)` for size
-      - Determine MIME type from extension (use a small lookup map for common types: pdf, png, jpg, gif, txt, md, doc, docx, xls, xlsx, csv, zip — default to `application/octet-stream`)
-      - Get destination dir: `getAttachmentsDir(cardId)`
-      - Copy file: `fs.copyFileSync(sourcePath, destPath)`
-        - If filename collision, append `-1`, `-2` etc. before extension
-      - Insert row into `cardAttachments` table with destPath
-      - Return the new attachment
-
-      **`async function deleteAttachment(id: string): Promise<void>`**
-      - Query the attachment row by id
-      - If found, delete the file from disk (`fs.unlinkSync`, wrapped in try/catch)
-      - Delete the row from DB
-
-      **`async function openAttachment(filePath: string): Promise<void>`**
-      - Call `shell.openPath(filePath)` to open with default OS application
-
-      Export all 4 public functions.
-
-      ### 1d. IPC handlers — modify src/main/ipc/cards.ts
-
-      Add after existing card handlers (before label handlers):
-
-      ```typescript
-      import * as attachmentService from '../services/attachmentService';
-
-      // Card Attachments
-      ipcMain.handle('card:getAttachments', async (_event, cardId: string) => {
-        return attachmentService.getAttachments(cardId);
-      });
-
-      ipcMain.handle('card:addAttachment', async (_event, cardId: string) => {
-        const attachment = await attachmentService.addAttachment(cardId);
-        if (attachment) {
-          logCardActivity(cardId, 'updated', JSON.stringify({
-            action: 'attachment_added',
-            fileName: attachment.fileName,
-          }));
-        }
-        return attachment;
-      });
-
-      ipcMain.handle('card:deleteAttachment', async (_event, id: string) => {
-        // Get attachment info before deleting (for activity log)
+      ipcMain.handle('cards:list-by-board', async (_event, boardId: string) => {
         const db = getDb();
-        const [att] = await db.select().from(cardAttachments).where(eq(cardAttachments.id, id));
-        await attachmentService.deleteAttachment(id);
-        if (att) {
-          logCardActivity(att.cardId, 'updated', JSON.stringify({
-            action: 'attachment_removed',
-            fileName: att.fileName,
-          }));
+
+        // Query 1: Get all columns for this board
+        const boardColumns = await db
+          .select()
+          .from(columns)
+          .where(eq(columns.boardId, boardId));
+        const columnIds = boardColumns.map((c) => c.id);
+        if (columnIds.length === 0) return [];
+
+        // Query 2: Batch-fetch all non-archived cards in these columns
+        const allCardRows = await db
+          .select()
+          .from(cards)
+          .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false)))
+          .orderBy(asc(cards.position));
+        if (allCardRows.length === 0) return [];
+
+        const cardIds = allCardRows.map((c) => c.id);
+
+        // Query 3: Batch-fetch all card-label junction rows for these cards
+        const allCardLabelRows = await db
+          .select()
+          .from(cardLabels)
+          .where(inArray(cardLabels.cardId, cardIds));
+
+        // Query 4: Batch-fetch all labels referenced by these cards
+        const labelIds = [...new Set(allCardLabelRows.map((cl) => cl.labelId))];
+        const allLabels = labelIds.length > 0
+          ? await db.select().from(labels).where(inArray(labels.id, labelIds))
+          : [];
+
+        // Build lookup maps
+        const labelMap = new Map(allLabels.map((l) => [l.id, l as unknown as Label]));
+        const cardLabelMap = new Map<string, Label[]>();
+        for (const cl of allCardLabelRows) {
+          const label = labelMap.get(cl.labelId);
+          if (label) {
+            const existing = cardLabelMap.get(cl.cardId) ?? [];
+            existing.push(label);
+            cardLabelMap.set(cl.cardId, existing);
+          }
         }
-      });
 
-      ipcMain.handle('card:openAttachment', async (_event, filePath: string) => {
-        return attachmentService.openAttachment(filePath);
+        // Assemble result
+        return allCardRows.map((card) => ({
+          ...(card as unknown as Card),
+          labels: cardLabelMap.get(card.id) ?? [],
+        }));
       });
       ```
 
-      Import `cardAttachments` from schema and `eq` from drizzle-orm (if not already imported).
-
-      ### 1e. Preload — modify src/preload/preload.ts
-
-      Add to electronAPI object:
-
-      ```typescript
-      // Card Attachments
-      getCardAttachments: (cardId: string) => ipcRenderer.invoke('card:getAttachments', cardId),
-      addCardAttachment: (cardId: string) => ipcRenderer.invoke('card:addAttachment', cardId),
-      deleteCardAttachment: (id: string) => ipcRenderer.invoke('card:deleteAttachment', id),
-      openCardAttachment: (filePath: string) => ipcRenderer.invoke('card:openAttachment', filePath),
-      ```
-
-      ### 1f. Schema export — modify src/main/db/schema/index.ts
-
-      Add `cardAttachments` to the exports if not auto-exported.
-
-      ### 1g. Generate and apply migration
-
-      Run `npx drizzle-kit generate` to create migration for card_attachments table.
+      3. Update the LIMITATIONS header comment (lines 9-10):
+         Remove: "cards:list-by-board fetches labels per card in a loop (N+1 queries)."
+         Replace with: "cards:list-by-board uses 4 batch queries (columns, cards, cardLabels, labels)."
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. cardAttachments table exists in schema with: id, cardId, fileName, filePath, fileSize, mimeType, createdAt
-      3. CardAttachment type exists in shared/types.ts
-      4. ElectronAPI has 4 new attachment methods
-      5. attachmentService.ts exports: getAttachments, addAttachment, deleteAttachment, openAttachment
-      6. addAttachment opens file dialog, copies file to userData/attachments/{cardId}/, inserts DB row
-      7. deleteAttachment removes file from disk + DB row
-      8. openAttachment uses shell.openPath
-      9. 4 IPC handlers registered: card:getAttachments, card:addAttachment, card:deleteAttachment, card:openAttachment
-      10. Activity logged for attachment add/remove
-      11. 4 preload bridge methods exist
-      12. Migration generated
+      2. No loops containing `await db.` remain in cards:list-by-board handler
+      3. `inArray` import present in drizzle-orm import line
+      4. Handler uses exactly 4 db queries: columns, cards, cardLabels, labels
+      5. Empty-array guard on labelIds prevents empty inArray call
+      6. Return type is unchanged: array of Card with labels
     </verify>
-    <done>cardAttachments table, CardAttachment type, attachment service (file dialog → copy → DB), 4 IPC handlers with activity logging, 4 preload bridges. Migration generated. TypeScript compiles cleanly.</done>
+    <done>
+      cards:list-by-board uses exactly 4 batch queries regardless of board size.
+      No nested DB loops remain. LIMITATIONS comment updated. TypeScript compiles clean.
+    </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Electron dialog.showOpenDialog is available in main process
-      - Electron shell.openPath is available in main process
-      - app.getPath('userData') returns a writable directory
-      - fs.copyFileSync works on Windows for cross-drive copies
-      - cardActivities 'updated' action type is suitable for attachment events (no new enum needed)
+      - Drizzle inArray works with UUID arrays (confirmed in ideaService.ts, brainstormService.ts)
+      - Drizzle inArray with empty array is safe but we guard anyway for clarity
+      - The `as unknown as Card` / `as unknown as Label` casts match existing pattern
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Due date picker in CardDetailModal + overdue badge on KanbanCard</n>
+    <n>Set up Vitest test framework and write initial unit tests</n>
     <files>
-      src/renderer/components/CardDetailModal.tsx (MODIFY — add due date picker section)
-      src/renderer/components/KanbanCard.tsx (MODIFY — add due date badge with overdue styling)
+      package.json (MODIFY — add devDependencies + scripts)
+      vitest.config.ts (NEW)
+      src/main/ipc/__tests__/cards-query.test.ts (NEW)
+      src/shared/__tests__/types.test.ts (NEW)
     </files>
     <action>
       ## WHY
-      The dueDate field exists in schema, types, IPC, and store — but has NO UI anywhere.
-      Users need a way to set/clear due dates on cards, and see at a glance which cards are
-      overdue or due soon on the Kanban board.
+      Zero test coverage across 112 files is the #1 critical finding. Setting up the framework
+      and writing initial tests establishes the pattern, unblocks all future testing, and
+      validates the N+1 fix logic from Task 1.
 
       ## WHAT
 
-      ### 2a. CardDetailModal — add due date picker
+      ### Step 1: Install Vitest
 
-      Read the current CardDetailModal.tsx first to understand structure.
+      Run: `npm install -D vitest @vitest/ui`
 
-      Add a due date section between the Labels section and the Card Details section
-      (i.e., after the labels `</div>` at ~line 421 and before the loadingCardDetails check at ~line 424).
-
-      Import `Calendar` icon from lucide-react.
-
-      Due date section:
-      ```tsx
-      {/* Due Date */}
-      <div className="mb-5">
-        <span className="text-sm text-surface-400 block mb-2">Due Date</span>
-        <div className="flex items-center gap-3">
-          <Calendar size={16} className="text-surface-400 shrink-0" />
-          <input
-            type="datetime-local"
-            value={card.dueDate ? toDateTimeLocalValue(card.dueDate) : ''}
-            onChange={(e) => {
-              const val = e.target.value;
-              onUpdate(card.id, {
-                dueDate: val ? new Date(val).toISOString() : null,
-              });
-            }}
-            className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-100 focus:outline-none focus:border-primary-500 [color-scheme:dark]"
-          />
-          {card.dueDate && (
-            <>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${getDueDateBadge(card.dueDate).classes}`}>
-                {getDueDateBadge(card.dueDate).label}
-              </span>
-              <button
-                onClick={() => onUpdate(card.id, { dueDate: null })}
-                className="text-xs text-surface-500 hover:text-surface-300 transition-colors"
-              >
-                Clear
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-      ```
-
-      Add helper functions (at the top of the file, after formatDate):
+      ### Step 2: Create vitest.config.ts at project root
 
       ```typescript
-      /** Convert ISO string to datetime-local input value (YYYY-MM-DDTHH:mm) */
-      function toDateTimeLocalValue(isoStr: string): string {
-        const d = new Date(isoStr);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const hours = String(d.getHours()).padStart(2, '0');
-        const minutes = String(d.getMinutes()).padStart(2, '0');
-        return `${year}-${month}-${day}T${hours}:${minutes}`;
-      }
+      import { defineConfig } from 'vitest/config';
 
-      /** Get badge classes and label for a due date */
-      function getDueDateBadge(dueDateStr: string): { label: string; classes: string } {
-        const now = new Date();
-        const due = new Date(dueDateStr);
-        const diffMs = due.getTime() - now.getTime();
-        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      export default defineConfig({
+        test: {
+          globals: true,
+          include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+          exclude: ['node_modules', '.vite', 'out'],
+          environment: 'node',
+        },
+      });
+      ```
 
-        if (diffMs < 0) {
-          return { label: 'Overdue', classes: 'bg-red-500/20 text-red-400' };
+      Notes:
+      - `environment: 'node'` for main-process and shared tests (renderer tests will need
+        'jsdom' later, but that requires additional setup)
+      - `globals: true` enables describe/it/expect without imports
+
+      ### Step 3: Add scripts to package.json
+
+      Add to "scripts":
+      ```json
+      "test": "vitest run",
+      "test:watch": "vitest",
+      "test:ui": "vitest --ui"
+      ```
+
+      ### Step 4: Write src/shared/__tests__/types.test.ts
+
+      Test the MEETING_TEMPLATES constant and other exported constants/enums:
+      ```typescript
+      import { describe, it, expect } from 'vitest';
+
+      // Test the MEETING_TEMPLATES constant
+      describe('MEETING_TEMPLATES', () => {
+        // Need to verify what's exported — import the actual constant
+        // Tests: all 6 template types exist, each has type/name/description/agendaHint fields
+      });
+      ```
+
+      Tests to write:
+      - MEETING_TEMPLATES has exactly 6 entries
+      - Each template has required fields: type, name, description, agendaHint
+      - Template types are unique
+      - Each template type value is one of the expected enum values
+
+      Note: The executor should read src/shared/types.ts to find exact exports. If
+      MEETING_TEMPLATES is not directly importable (it may be defined in types.ts which
+      imports from Electron types), create a separate test for pure utility logic instead.
+
+      ### Step 5: Write src/main/ipc/__tests__/cards-query.test.ts
+
+      To make the N+1 fix from Task 1 testable, extract the label-assembly logic into a
+      pure function. In cards.ts, add an exported helper:
+
+      ```typescript
+      /**
+       * Build a map of cardId → Label[] from batch-fetched junction and label rows.
+       * Exported for testing.
+       */
+      export function buildCardLabelMap(
+        cardLabelRows: { cardId: string; labelId: string }[],
+        allLabels: Label[],
+      ): Map<string, Label[]> {
+        const labelMap = new Map(allLabels.map((l) => [l.id, l]));
+        const result = new Map<string, Label[]>();
+        for (const cl of cardLabelRows) {
+          const label = labelMap.get(cl.labelId);
+          if (label) {
+            const existing = result.get(cl.cardId) ?? [];
+            existing.push(label);
+            result.set(cl.cardId, existing);
+          }
         }
-        if (diffDays < 1) {
-          return { label: 'Due today', classes: 'bg-amber-500/20 text-amber-400' };
-        }
-        if (diffDays < 3) {
-          return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-amber-500/10 text-amber-300' };
-        }
-        if (diffDays < 7) {
-          return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-blue-500/10 text-blue-300' };
-        }
-        return { label: formatDate(dueDateStr), classes: 'bg-surface-800 text-surface-400' };
+        return result;
       }
       ```
 
-      The `[color-scheme:dark]` class on the input ensures the native date picker renders
-      in dark mode to match our theme.
+      Then use this function in the handler body (replacing the inline Map-building code).
 
-      ### 2b. KanbanCard — add due date badge
+      Write tests:
+      ```typescript
+      import { describe, it, expect } from 'vitest';
+      import { buildCardLabelMap } from '../cards';
 
-      Read the current KanbanCard.tsx first to understand structure.
-
-      Import `Clock` icon from lucide-react.
-
-      Add the getDueDateBadge helper (same function as above — or extract to a shared util,
-      but since it's small, duplicating in both files is acceptable for now).
-
-      Add due date display between the priority badge and the label dots (or after both).
-      Only show when `card.dueDate` is not null:
-
-      ```tsx
-      {/* Due date badge */}
-      {card.dueDate && (
-        <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${getDueDateBadge(card.dueDate).classes}`}>
-          <Clock size={10} />
-          {getDueDateBadge(card.dueDate).label}
-        </span>
-      )}
+      describe('buildCardLabelMap', () => {
+        it('returns empty map for empty inputs', () => { ... });
+        it('maps labels to correct cards', () => { ... });
+        it('handles cards with no labels', () => { ... });
+        it('handles multiple labels per card', () => { ... });
+        it('handles labels shared across multiple cards', () => { ... });
+        it('skips junction rows with missing label IDs', () => { ... });
+      });
       ```
 
-      Place this in the card footer area, alongside the priority badge and label dots.
-      The exact placement depends on the existing layout — add it as a new row or inline
-      with existing badges. Keep it compact since KanbanCards are small.
+      IMPORTANT: The import `from '../cards'` will attempt to import the full cards.ts file
+      which imports `ipcMain` from 'electron'. Since Vitest runs in Node (not Electron), this
+      will fail. To solve this, either:
+      a) Extract buildCardLabelMap into a separate util file (e.g., src/main/utils/card-utils.ts)
+         that has no Electron dependencies, OR
+      b) Move the function to src/shared/ since it's pure logic
+
+      Recommended: Create src/shared/utils/card-utils.ts with the pure function,
+      import it in both cards.ts and the test file.
     </action>
     <verify>
-      1. `npx tsc --noEmit` — zero TypeScript errors
-      2. CardDetailModal has a datetime-local input for due date
-      3. Setting a date calls onUpdate with ISO string; clearing calls with null
-      4. Due date badge shows: "Overdue" (red), "Due today" (amber), "Due in Nd" (amber/blue), or formatted date
-      5. Clear button removes the due date
-      6. `[color-scheme:dark]` on input for dark mode native picker
-      7. KanbanCard shows due date badge when card.dueDate is set
-      8. KanbanCard badge uses same color scheme as CardDetailModal badge
-      9. toDateTimeLocalValue correctly formats ISO → YYYY-MM-DDTHH:mm for input value
+      1. `npm test` runs successfully and all tests pass
+      2. `npx tsc --noEmit` still passes with zero errors
+      3. vitest.config.ts exists at project root
+      4. package.json has "test", "test:watch", and "test:ui" scripts
+      5. At least 2 test files exist with 8+ test cases total
+      6. buildCardLabelMap is in a pure module importable without Electron
+      7. Tests cover: empty inputs, single card, multiple labels, shared labels, missing labels
     </verify>
-    <done>Due date picker with datetime-local input in CardDetailModal. Status badge (overdue/due today/due soon). Clear button. Due date badge on KanbanCard with color-coded overdue styling. TypeScript compiles cleanly.</done>
-    <confidence>HIGH</confidence>
+    <done>
+      Vitest installed and configured. `npm test` passes with all tests green.
+      Two test files: types.test.ts (constant validation) and cards-query.test.ts
+      (batch label assembly logic). buildCardLabelMap extracted as testable pure function.
+      Foundation ready for additional test suites.
+    </done>
+    <confidence>MEDIUM</confidence>
     <assumptions>
-      - datetime-local input works well in Electron's Chromium renderer
-      - [color-scheme:dark] Tailwind class properly triggers dark mode for native inputs
-      - Card type already has dueDate field available in both components
-      - onUpdate(id, { dueDate: isoString }) flows through store → IPC → DB correctly (already tested in Plan 7.1)
+      - Vitest works with Vite 7.3 and TypeScript 5.9 (Vitest tracks Vite versions closely)
+      - Test files in __tests__ directories are found by Vitest's include pattern
+      - Extracting buildCardLabelMap to a shared util avoids Electron import issues
+      - MEETING_TEMPLATES or similar constants are importable from shared/types.ts without
+        Electron dependencies (types.ts defines an ElectronAPI interface but shouldn't require
+        electron at runtime — may need to verify)
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Attachments UI — store extensions + AttachmentsSection + CardDetailModal integration</n>
+    <n>Security hardening — CSP headers and attachment path validation</n>
     <files>
-      src/renderer/stores/boardStore.ts (MODIFY — add attachment state/actions)
-      src/renderer/components/AttachmentsSection.tsx (NEW ~180 lines)
-      src/renderer/components/CardDetailModal.tsx (MODIFY — integrate AttachmentsSection)
+      src/main/main.ts (MODIFY — add CSP via session.webRequest)
+      src/main/services/attachmentService.ts (MODIFY — validate path in openAttachment)
     </files>
     <action>
       ## WHY
-      The attachment backend (Task 1) and due date UI (Task 2) are complete. Now we need
-      the renderer-side integration: store state for attachments, a UI section for
-      viewing/adding/deleting attachments, and integration into CardDetailModal.
+      The review identified two security gaps:
+      1. No Content-Security-Policy configured on BrowserWindow (Missing severity)
+      2. `openAttachment` accepts any file path from renderer and passes to `shell.openPath()`
+         without validating it's within the attachments directory (path traversal risk)
+
+      Both are small, targeted fixes with high security impact.
 
       ## WHAT
 
-      ### 3a. boardStore — add attachment state and actions
+      ### A) Add Content Security Policy to BrowserWindow (main.ts)
 
-      Read the current boardStore.ts first.
+      After `mainWindow = new BrowserWindow({...})` (line 76) and before `mainWindow.once('ready-to-show', ...)` (line 79), add:
 
-      Add state:
       ```typescript
-      selectedCardAttachments: CardAttachment[];
-      ```
+      // Content Security Policy — defense-in-depth against XSS
+      mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+        const cspDirectives = [
+          "default-src 'self'",
+          "script-src 'self'",
+          "style-src 'self' 'unsafe-inline'",    // Tailwind injects inline styles
+          "img-src 'self' data:",                 // data: URIs for icons
+          "font-src 'self'",
+          "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434",
+        ];
 
-      Initialize to `[]` in the store default.
-
-      Modify `loadCardDetails` to also load attachments:
-      ```typescript
-      // Inside loadCardDetails, alongside existing comment/relationship/activity loads:
-      const attachments = await window.electronAPI.getCardAttachments(cardId);
-      // Add to set:
-      set({ ..., selectedCardAttachments: attachments });
-      ```
-
-      Modify `clearCardDetails` to also clear attachments:
-      ```typescript
-      set({ ..., selectedCardAttachments: [] });
-      ```
-
-      Add actions:
-      ```typescript
-      addAttachment: async (cardId: string) => {
-        const attachment = await window.electronAPI.addCardAttachment(cardId);
-        if (attachment) {
-          set(state => ({
-            selectedCardAttachments: [attachment, ...state.selectedCardAttachments],
-          }));
+        // In development, allow Vite dev server connections
+        if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+          cspDirectives.push("connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434");
+          // Override the connect-src with dev-mode version
+          const idx = cspDirectives.findIndex(d => d.startsWith("connect-src 'self' https://"));
+          if (idx !== -1) cspDirectives.splice(idx, 1);
         }
-      },
 
-      deleteAttachment: async (id: string) => {
-        await window.electronAPI.deleteCardAttachment(id);
-        set(state => ({
-          selectedCardAttachments: state.selectedCardAttachments.filter(a => a.id !== id),
-        }));
-      },
-
-      openAttachment: async (filePath: string) => {
-        await window.electronAPI.openCardAttachment(filePath);
-      },
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            'Content-Security-Policy': [cspDirectives.join('; ')],
+          },
+        });
+      });
       ```
 
-      Import `CardAttachment` from shared/types.ts.
+      Wait — the dev mode logic above has a bug with duplicate connect-src. Simpler approach:
 
-      ### 3b. Create src/renderer/components/AttachmentsSection.tsx (~180 lines)
-
-      Read CommentsSection.tsx for component pattern reference.
-
-      File header:
-      ```
-      // === FILE PURPOSE ===
-      // Displays card file attachments with add, open, and delete functionality.
-      // Files are opened with the OS default application.
-      //
-      // === DEPENDENCIES ===
-      // react, lucide-react, boardStore
-      //
-      // === LIMITATIONS ===
-      // - No drag-and-drop file upload (uses file dialog)
-      // - No file preview (opens with OS app)
-      // - No file size limit enforcement
-      ```
-
-      Props:
       ```typescript
-      interface AttachmentsSectionProps {
-        cardId: string;
+      // Content Security Policy — defense-in-depth against XSS
+      const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
+      const connectSrc = isDev
+        ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434"
+        : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434";
+      const scriptSrc = isDev
+        ? "script-src 'self' 'unsafe-eval'"       // Vite HMR needs eval in dev
+        : "script-src 'self'";
+
+      mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            'Content-Security-Policy': [
+              `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; ${connectSrc}`
+            ],
+          },
+        });
+      });
+      ```
+
+      Note: `'unsafe-eval'` is needed in dev mode because Vite HMR uses eval for module
+      hot replacement. It is NOT included in production CSP.
+
+      ### B) Validate file paths in openAttachment (attachmentService.ts)
+
+      Replace the `openAttachment` function (line 129-131) with:
+
+      ```typescript
+      export async function openAttachment(filePath: string): Promise<void> {
+        // Validate that the path is within the attachments directory
+        const attachmentsRoot = path.join(app.getPath('userData'), 'attachments');
+        const resolved = path.resolve(filePath);
+        if (!resolved.startsWith(attachmentsRoot)) {
+          throw new Error('Access denied: file path is outside the attachments directory');
+        }
+
+        // Verify the file exists before attempting to open
+        if (!fs.existsSync(resolved)) {
+          throw new Error('File not found: the attachment file no longer exists on disk');
+        }
+
+        await shell.openPath(resolved);
       }
       ```
 
-      Component layout:
-      ```
-      ── Attachments (3) ─── [+ Add File] ──────
-      │ 📄 requirements.pdf      1.2 MB    2 days ago   [Open] [🗑]
-      │ 📸 screenshot.png        340 KB    5 min ago    [Open] [🗑]
-      │ 📝 notes.md              2.1 KB    1 hour ago   [Open] [🗑]
-      ────────────────────────────────────────────
-      ```
+      This prevents:
+      1. Path traversal (e.g., `../../etc/passwd` or `C:\Windows\System32\...`)
+      2. Opening deleted files (gives clear error instead of OS-level failure)
 
-      Implementation details:
-
-      - Use boardStore: `selectedCardAttachments`, `addAttachment`, `deleteAttachment`, `openAttachment`
-      - Header row: section title "Attachments" with count badge, "+ Add File" button (calls addAttachment)
-      - Each attachment row:
-        - File icon based on MIME type (use getFileIcon helper):
-          - image/*: ImageIcon (lucide)
-          - application/pdf: FileText
-          - text/*: FileCode
-          - default: File
-        - File name (truncated to ~30 chars with title tooltip for full name)
-        - File size formatted (formatFileSize helper: bytes → KB/MB/GB)
-        - Relative time (reuse timeAgo pattern from CommentsSection if available, or simple logic)
-        - "Open" button: calls openAttachment(filePath)
-        - Delete button (Trash2 icon): calls deleteAttachment(id) with inline confirmation
-      - Empty state: "No attachments. Click '+ Add File' to attach documents, images, or other files."
-      - Delete confirmation: simple inline "Delete?" / "Cancel" toggle (same pattern as CommentsSection)
-
-      Helper functions:
-      ```typescript
-      function formatFileSize(bytes: number): string {
-        if (bytes < 1024) return `${bytes} B`;
-        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-        if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-        return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-      }
-
-      function getFileIcon(mimeType: string | null): React.ComponentType<{ size?: number }> {
-        if (mimeType?.startsWith('image/')) return ImageIcon;
-        if (mimeType === 'application/pdf') return FileText;
-        if (mimeType?.startsWith('text/')) return FileCode;
-        return File;
-      }
-      ```
-
-      Styling:
-      - Follow CommentsSection pattern for consistent look
-      - Attachment rows: `bg-surface-800/50 rounded-lg p-3` with hover highlight
-      - Compact layout for file list
-
-      ### 3c. CardDetailModal — integrate AttachmentsSection
-
-      Import AttachmentsSection:
-      ```typescript
-      import AttachmentsSection from './AttachmentsSection';
-      ```
-
-      Add the section between the Labels and Due Date sections (or between Due Date and
-      the Card Details block — wherever it fits naturally). Recommended placement: after
-      the Due Date section and before the loadingCardDetails guard:
-
-      ```tsx
-      {/* Attachments */}
-      <div className="mb-5">
-        <AttachmentsSection cardId={card.id} />
-      </div>
-      ```
-
-      This should be placed OUTSIDE the loadingCardDetails guard since attachments are
-      loaded as part of loadCardDetails (inside the guard block alongside Comments,
-      Relationships, etc.) — actually, since attachments load with loadCardDetails,
-      place it INSIDE the guard:
-
-      ```tsx
-      {loadingCardDetails ? (
-        <div>Loading details...</div>
-      ) : (
-        <>
-          <div className="mb-5">
-            <AttachmentsSection cardId={card.id} />
-          </div>
-          <div className="mb-5">
-            <CommentsSection cardId={card.id} />
-          </div>
-          ...existing sections...
-        </>
-      )}
-      ```
+      Update the LIMITATIONS comment at top of attachmentService.ts to note the path validation.
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. boardStore has selectedCardAttachments state ([] default)
-      3. loadCardDetails fetches and sets attachments
-      4. clearCardDetails resets attachments to []
-      5. boardStore has addAttachment (opens dialog, adds to state), deleteAttachment (removes from state + DB), openAttachment
-      6. AttachmentsSection shows file list with icon, name, size, time
-      7. "Add File" button opens native file dialog
-      8. "Open" button opens file with OS default app
-      9. Delete button has inline confirmation
-      10. Empty state message when no attachments
-      11. AttachmentsSection integrated in CardDetailModal within loadingCardDetails guard
-      12. File size formatting works (B, KB, MB, GB)
+      2. main.ts has onHeadersReceived with Content-Security-Policy header
+      3. CSP includes: default-src 'self', script-src 'self' (+ 'unsafe-eval' in dev only),
+         style-src 'self' 'unsafe-inline', img-src 'self' data:, connect-src with API domains
+      4. Dev mode CSP includes ws: and localhost:* for Vite HMR
+      5. Production CSP does NOT include 'unsafe-eval'
+      6. openAttachment validates path starts with userData/attachments/
+      7. openAttachment checks file existence before opening
+      8. openAttachment throws clear error messages for invalid/missing paths
+      9. LIMITATIONS comment updated in attachmentService.ts
     </verify>
-    <done>boardStore with attachment state/actions. AttachmentsSection component with file list, add/open/delete. Integrated in CardDetailModal. Full attachment lifecycle works: add (file dialog → copy → DB) → view (list with metadata) → open (OS app) → delete (confirm → remove). TypeScript compiles cleanly.</done>
+    <done>
+      BrowserWindow has Content Security Policy (production-safe, with dev-mode HMR
+      allowances). openAttachment validates paths are within attachments directory and
+      files exist before opening. Both changes compile cleanly.
+    </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - boardStore.loadCardDetails can be extended with one additional Promise.all entry
-      - CommentsSection pattern (title + count + action button + list) is suitable for attachments
-      - Lucide React has File, FileText, FileCode, ImageIcon exports (standard lucide-react icons)
-        - Note: ImageIcon might be named differently — verify import. Alternative: Image from lucide-react
-      - window.electronAPI.addCardAttachment returns null when file dialog is cancelled
+      - Tailwind CSS 4 requires 'unsafe-inline' for style-src (standard for utility-first CSS)
+      - Vite 7 HMR requires 'unsafe-eval' in dev mode for script-src
+      - MAIN_WINDOW_VITE_DEV_SERVER_URL global is available (declared by Electron Forge Vite plugin)
+      - session.webRequest.onHeadersReceived works in Electron 40
+      - app.getPath('userData') returns a consistent base path on Windows
+      - path.resolve + startsWith check is sufficient for path traversal prevention on Windows
+        (path.resolve normalizes separators and resolves ../ segments)
     </assumptions>
   </task>
 </phase>
