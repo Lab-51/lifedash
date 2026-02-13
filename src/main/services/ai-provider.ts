@@ -34,7 +34,7 @@ const TEST_MODELS: Record<AIProviderName, string> = {
   openai: 'gpt-4o-mini',
   anthropic: 'claude-haiku-4-5-20251001',
   ollama: 'llama3.2',
-  kimi: 'kimi-k2.5-preview',
+  kimi: 'kimi-k2.5',
 };
 
 // Provider factory type — callable provider instances that return a LanguageModel
@@ -203,7 +203,7 @@ const DEFAULT_MODELS: Record<AIProviderName, string> = {
   openai: 'gpt-4o-mini',
   anthropic: 'claude-haiku-4-5-20251001',
   ollama: 'llama3.2',
-  kimi: 'kimi-k2.5-preview',
+  kimi: 'kimi-k2.5',
 };
 
 /**

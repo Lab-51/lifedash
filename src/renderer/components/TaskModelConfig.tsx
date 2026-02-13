@@ -33,7 +33,8 @@ const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
     { id: 'codellama', label: 'Code Llama' },
   ],
   kimi: [
-    { id: 'kimi-k2.5-preview', label: 'Kimi K2.5' },
+    { id: 'kimi-k2.5', label: 'Kimi K2.5' },
+    { id: 'kimi-k2.5-preview', label: 'Kimi K2.5 Preview' },
   ],
 };
 
