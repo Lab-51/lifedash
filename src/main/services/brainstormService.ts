@@ -8,18 +8,18 @@
 // === LIMITATIONS ===
 // - Context injection is read-only (project data -> system prompt, no tool calls)
 // - No message editing or deletion (append-only conversation)
-// - buildContext queries are sequential (could be parallelized for perf)
+// - Card/idea/meeting context limited to most recent items to manage token usage
 //
 // === VERIFICATION STATUS ===
 // - DB schema: brainstorming.ts created in this task
 // - streamText API: verified from node_modules/ai/dist/index.d.ts
 // - Shared types: updated in types.ts
 
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, desc, asc, and, inArray, not } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import {
   brainstormSessions, brainstormMessages,
-  projects, boards, meetings, ideas,
+  projects, boards, columns, cards, meetings, meetingBriefs, ideas,
 } from '../db/schema';
 import type {
   BrainstormSession, BrainstormMessage, BrainstormSessionWithMessages,
@@ -175,9 +175,9 @@ export async function getMessages(sessionId: string): Promise<BrainstormMessage[
 }
 
 /**
- * Build a system prompt with project context for the given session.
- * If the session is linked to a project, includes project name, description,
- * board names, and recent meeting titles.
+ * Build system prompt with project context.
+ * Injects: project info, board names, card titles, idea data, meeting briefs.
+ * Queries are parallelized where possible via Promise.all.
  */
 export async function buildContext(sessionId: string): Promise<string> {
   const db = getDb();
@@ -188,31 +188,88 @@ export async function buildContext(sessionId: string): Promise<string> {
 
   let context = getBaseSystemPrompt();
 
-  if (session.projectId) {
-    const [project] = await db.select().from(projects)
-      .where(eq(projects.id, session.projectId));
+  if (!session.projectId) return context;
 
-    if (project) {
-      context += `\n\n## Current Project: ${project.name}`;
-      if (project.description) {
-        context += `\nDescription: ${project.description}`;
+  const [project] = await db.select().from(projects)
+    .where(eq(projects.id, session.projectId));
+  if (!project) return context;
+
+  context += `\n\n## Current Project: ${project.name}`;
+  if (project.description) {
+    context += `\nDescription: ${project.description}`;
+  }
+
+  // Parallel queries: boards, meetings, ideas
+  const [projectBoards, projectMeetings, projectIdeas] = await Promise.all([
+    db.select().from(boards)
+      .where(eq(boards.projectId, project.id)),
+    db.select({ id: meetings.id, title: meetings.title })
+      .from(meetings)
+      .where(eq(meetings.projectId, project.id))
+      .orderBy(desc(meetings.createdAt))
+      .limit(3),
+    db.select({ title: ideas.title, status: ideas.status })
+      .from(ideas)
+      .where(and(
+        eq(ideas.projectId, project.id),
+        not(eq(ideas.status, 'archived')),
+      ))
+      .orderBy(desc(ideas.updatedAt))
+      .limit(5),
+  ]);
+
+  // Board names + card titles per board
+  if (projectBoards.length > 0) {
+    context += `\n\n## Boards`;
+    for (const board of projectBoards) {
+      const boardColumns = await db.select({ id: columns.id })
+        .from(columns).where(eq(columns.boardId, board.id));
+      const columnIds = boardColumns.map(c => c.id);
+
+      if (columnIds.length > 0) {
+        const boardCards = await db.select({ title: cards.title })
+          .from(cards)
+          .where(and(
+            inArray(cards.columnId, columnIds),
+            eq(cards.archived, false),
+          ))
+          .orderBy(desc(cards.updatedAt))
+          .limit(5);
+
+        if (boardCards.length > 0) {
+          context += `\n- ${board.name}: ${boardCards.map(c => c.title).join(', ')}`;
+        } else {
+          context += `\n- ${board.name} (no cards)`;
+        }
+      } else {
+        context += `\n- ${board.name} (no columns)`;
       }
+    }
+  }
 
-      // Load board names
-      const projectBoards = await db.select().from(boards)
-        .where(eq(boards.projectId, project.id));
-      if (projectBoards.length > 0) {
-        context += `\nBoards: ${projectBoards.map(b => b.name).join(', ')}`;
-      }
+  // Recent ideas
+  if (projectIdeas.length > 0) {
+    context += `\n\n## Recent Ideas`;
+    for (const idea of projectIdeas) {
+      context += `\n- ${idea.title} (${idea.status})`;
+    }
+  }
 
-      // Load recent meeting titles
-      const projectMeetings = await db.select({ title: meetings.title })
-        .from(meetings)
-        .where(eq(meetings.projectId, project.id))
-        .orderBy(desc(meetings.createdAt))
-        .limit(5);
-      if (projectMeetings.length > 0) {
-        context += `\nRecent meetings: ${projectMeetings.map(m => m.title).join(', ')}`;
+  // Recent meetings with brief summaries
+  if (projectMeetings.length > 0) {
+    context += `\n\n## Recent Meetings`;
+    for (const mtg of projectMeetings) {
+      context += `\n- ${mtg.title}`;
+      const [brief] = await db.select({ summary: meetingBriefs.summary })
+        .from(meetingBriefs)
+        .where(eq(meetingBriefs.meetingId, mtg.id))
+        .orderBy(desc(meetingBriefs.createdAt))
+        .limit(1);
+      if (brief) {
+        const truncated = brief.summary.length > 200
+          ? brief.summary.slice(0, 200) + '...'
+          : brief.summary;
+        context += ` — ${truncated}`;
       }
     }
   }

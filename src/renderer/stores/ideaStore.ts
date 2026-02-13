@@ -6,7 +6,7 @@
 // zustand, shared types, window.electronAPI
 
 import { create } from 'zustand';
-import type { Idea, CreateIdeaInput, UpdateIdeaInput } from '../../shared/types';
+import type { Idea, IdeaAnalysis, CreateIdeaInput, UpdateIdeaInput } from '../../shared/types';
 
 interface IdeaStore {
   // State
@@ -14,6 +14,9 @@ interface IdeaStore {
   selectedIdea: Idea | null;
   loading: boolean;
   error: string | null;
+  analysis: IdeaAnalysis | null;
+  analyzing: boolean;
+  analysisError: string | null;
 
   // Actions
   loadIdeas: () => Promise<void>;
@@ -24,6 +27,8 @@ interface IdeaStore {
   clearSelectedIdea: () => void;
   convertToProject: (id: string) => Promise<string>;
   convertToCard: (ideaId: string, columnId: string) => Promise<string>;
+  analyzeIdea: (id: string) => Promise<void>;
+  clearAnalysis: () => void;
 }
 
 export const useIdeaStore = create<IdeaStore>((set, get) => ({
@@ -31,6 +36,9 @@ export const useIdeaStore = create<IdeaStore>((set, get) => ({
   selectedIdea: null,
   loading: false,
   error: null,
+  analysis: null,
+  analyzing: false,
+  analysisError: null,
 
   loadIdeas: async () => {
     set({ loading: true, error: null });
@@ -78,7 +86,7 @@ export const useIdeaStore = create<IdeaStore>((set, get) => ({
     });
   },
 
-  clearSelectedIdea: () => set({ selectedIdea: null }),
+  clearSelectedIdea: () => set({ selectedIdea: null, analysis: null, analysisError: null }),
 
   convertToProject: async (id: string) => {
     const result = await window.electronAPI.convertIdeaToProject(id);
@@ -97,4 +105,19 @@ export const useIdeaStore = create<IdeaStore>((set, get) => ({
     });
     return result.cardId;
   },
+
+  analyzeIdea: async (id: string) => {
+    set({ analyzing: true, analysisError: null, analysis: null });
+    try {
+      const analysis = await window.electronAPI.analyzeIdea(id);
+      set({ analysis, analyzing: false });
+    } catch (error) {
+      set({
+        analyzing: false,
+        analysisError: error instanceof Error ? error.message : 'Analysis failed',
+      });
+    }
+  },
+
+  clearAnalysis: () => set({ analysis: null, analysisError: null }),
 }));

@@ -3,10 +3,11 @@
 // tabs, search, and idea cards in a grid layout. Entry point for idea management.
 //
 // === DEPENDENCIES ===
-// react (useEffect, useState), lucide-react icons,
-// ideaStore, shared types
+// react (useEffect, useState), react-router-dom (useNavigate),
+// lucide-react icons, ideaStore, shared types
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Lightbulb, Plus, Search, X, Zap, Target, Loader2 } from 'lucide-react';
 import { useIdeaStore } from '../stores/ideaStore';
 import type { IdeaStatus } from '../../shared/types';
@@ -29,6 +30,7 @@ const STATUS_COLORS: Record<IdeaStatus, string> = {
 };
 
 function IdeasPage() {
+  const navigate = useNavigate();
   const { ideas, loading, error, loadIdeas, createIdea } = useIdeaStore();
   const [filter, setFilter] = useState<IdeaStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -258,6 +260,7 @@ function IdeasPage() {
         <IdeaDetailModal
           ideaId={selectedIdeaId}
           onClose={() => { setSelectedIdeaId(null); loadIdeas(); }}
+          onNavigate={(path) => navigate(path)}
         />
       )}
     </div>

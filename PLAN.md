@@ -1,572 +1,593 @@
-# Phase 6 — Plan 2 of 3: Brainstorming — Schema, Service & Chat UI
+# Plan 6.3: AI Features & Cross-Feature Integration
 
 ## Coverage
-- **R10: AI Brainstorming Agent** (8 pts) — conversational AI, context injection, session management, export outcomes
+- **R12: Idea Repository** (remaining) — AI-assisted idea analysis (feasibility/effort/impact)
+- **R10: AI Brainstorming Agent** (remaining) — Enhanced context injection (cards, ideas, meeting briefs)
+- Cross-feature bridge: "Brainstorm this idea" from IdeaDetailModal
 
 ## Plan Overview
-Phase 6 covers R10 (AI Brainstorming Agent, 8 pts) + R12 (Idea Repository, 5 pts).
+Phase 6 covers R10 (AI Brainstorming, 8 pts) + R12 (Idea Repository, 5 pts).
+Plans 6.1 (Idea Repository) and 6.2 (Brainstorming Chat) are complete.
 
-Plan 6.2 delivers the full AI Brainstorming feature — backend through UI:
-- **Task 1**: Schema, types, streamGenerate helper, brainstormService, IPC handlers, preload bridge
-- **Task 2**: brainstormStore (Zustand) + BrainstormPage (session sidebar + chat + streaming display)
-- **Task 3**: ChatMessage component with markdown, context display, session rename/archive
+Plan 6.3 delivers the remaining ROADMAP Phase 6 deliverables:
+- **Task 1**: AI idea analysis service + IPC + types + store (backend pipeline)
+- **Task 2**: AI analysis UI in IdeaDetailModal + "Brainstorm This Idea" cross-feature button
+- **Task 3**: Enhanced brainstorm context injection (cards, ideas, meeting briefs + parallelized queries)
 
-## Architecture Decisions for Plan 6.2
+## Architecture Decisions for Plan 6.3
 
-1. **New schema needed** — `brainstorm_sessions` + `brainstorm_messages` tables.
-   Requires Drizzle migration generation + execution.
+1. **Non-streaming AI for idea analysis** — Uses `generate()` from ai-provider.ts (not streamText),
+   same pattern as meetingIntelligenceService. Analysis is a one-shot request, not conversational.
 
-2. **Streaming pattern (NEW)** — First feature to use `streamText` from AI SDK v6.
-   - `streamGenerate` added to ai-provider.ts (parallel to `generate`)
-   - IPC handler iterates textStream, pushes chunks via `event.sender.send()`
-   - Preload provides `onBrainstormChunk` listener with cleanup function
-   - Store accumulates chunks in `streamingText` state
+2. **JSON response parsing with fallback** — AI returns structured JSON for analysis.
+   Try JSON.parse first, regex extraction fallback, then sensible defaults. Never crash.
 
-3. **AI SDK v6 streamText API** (verified from node_modules/ai/dist/index.d.ts):
-   - `streamText()` is synchronous (NOT async) — returns StreamTextResult immediately
-   - `result.textStream`: AsyncIterableStream<string> — iterate with `for await`
-   - `result.text`: PromiseLike<string> — full text after stream completes
-   - `result.usage`: PromiseLike<LanguageModelUsage> — token usage after stream completes
-   - Accepts: `{ model, messages, system, temperature, maxOutputTokens }`
+3. **Context enrichment scope** — Add card titles (5/board), idea titles (5 total),
+   meeting briefs (3 truncated) to brainstorm context. Keep total context manageable
+   to avoid excessive token usage.
 
-4. **Context injection** — System prompt includes project name, board names, meeting titles.
-   Built dynamically in `brainstormService.buildContext()`.
-
-5. **Provider resolution refactoring** — Extract `resolveTaskModel` + `ResolvedProvider`
-   from meetingIntelligenceService.ts to ai-provider.ts for shared use.
-
-6. **Export to idea** — Creates idea from selected assistant message content.
+4. **"Brainstorm this idea" flow** — Creates a new brainstorm session, sends an initial
+   message describing the idea, then navigates to BrainstormPage.
 
 ---
 
-<phase n="6.2" name="Brainstorming — Schema, Service & Chat UI">
+<phase n="6.3" name="AI Features & Cross-Feature Integration">
   <context>
-    Plan 6.1 (Idea Repository) is complete. Now implementing R10: AI Brainstorming Agent.
-    This is the first feature to use streaming AI responses via `streamText` from the AI SDK.
+    Plans 6.1 (Idea Repository) and 6.2 (Brainstorming Chat) are complete.
+    This plan delivers the remaining Phase 6 deliverables.
 
-    AI SDK v6 verified API (from node_modules/ai/dist/index.d.ts):
-    - `streamText` from 'ai' — returns StreamTextResult (synchronous, NOT async)
-    - result.textStream: AsyncIterableStream of string — iterate with `for await`
-    - result.text: PromiseLike of string — full text after stream completes
-    - result.usage: PromiseLike of LanguageModelUsage — token usage after stream completes
-    - maxOutputTokens (not maxTokens) for token limit
-    - ollama provider needs `as LanguageModel` cast
+    Existing infrastructure to build on:
+    @src/main/services/ai-provider.ts — resolveTaskModel('idea_analysis'), generate(), logUsage()
+    @src/main/services/ideaService.ts — getIdea(), toIdea(), loadTagsForIdeas() helpers; 7 exports
+    @src/main/services/brainstormService.ts — buildContext() at lines 182-221 (enrich here)
+    @src/main/ipc/ideas.ts — 7 existing idea IPC channels
+    @src/preload/preload.ts — 7 existing idea bridge methods
+    @src/shared/types.ts — AITaskType includes 'idea_analysis'; Idea, EffortLevel, ImpactLevel types
+    @src/renderer/stores/ideaStore.ts — 8 Zustand actions (add analysis state + action)
+    @src/renderer/components/IdeaDetailModal.tsx — 672 lines (add analysis section + brainstorm button)
+    @src/renderer/pages/IdeasPage.tsx — wires IdeaDetailModal
+    @src/renderer/stores/brainstormStore.ts — createSession, sendMessage actions
+    @src/main/db/schema/cards.ts — cards table: title, columnId, archived, updatedAt
+    @src/main/db/schema/boards.ts — columns table: boardId; boards table: projectId, name
+    @src/main/db/schema/ideas.ts — ideas table: title, status, projectId, updatedAt
+    @src/main/db/schema/meetings.ts — meetings + meetingBriefs tables
 
-    Schema patterns (from meetings.ts, ideas.ts):
-    - UUID primary keys with defaultRandom()
-    - Nullable FK with onDelete: 'set null'
-    - Cascade FK with onDelete: 'cascade'
-    - Timestamps with timezone, defaultNow
-    - pgEnum for enums
-
-    'brainstorming' already exists in AITaskType union (types.ts line 128).
-
-    Existing patterns to follow:
-    @src/main/db/schema/meetings.ts (table pattern: parent + child with cascade)
-    @src/main/db/schema/index.ts (barrel export — add brainstorming.ts)
-    @src/main/services/meetingIntelligenceService.ts (resolveTaskModel lines 68-178, AI prompts)
-    @src/main/services/ai-provider.ts (generate function — add streamGenerate alongside it)
-    @src/main/services/ideaService.ts (CRUD service pattern)
-    @src/main/ipc/ideas.ts (IPC handler pattern)
-    @src/main/ipc/index.ts (registration point)
-    @src/preload/preload.ts (bridge methods + listener pattern)
-    @src/shared/types.ts (add types + ElectronAPI extensions)
-    @src/renderer/stores/meetingStore.ts (Zustand store with async actions)
-    @src/renderer/pages/BrainstormPage.tsx (stub to replace)
-    @drizzle.config.ts (schema: ./src/main/db/schema/index.ts, out: ./drizzle)
+    Pattern reference:
+    - meetingIntelligenceService.ts uses resolveTaskModel() + generate() for non-streaming AI
+    - brainstormService.ts buildContext() for context injection pattern
+    - IPC + preload + store pattern established in all previous plans
 
     UI conventions:
     - Primary action: bg-primary-600 hover:bg-primary-500 text-white rounded-lg
     - Section bg: bg-surface-800/50 border border-surface-700 rounded-lg
-    - Loading: Loader2 from lucide-react with animate-spin, text-amber-400
-    - Icons: lucide-react (all standard icons available)
-    - Escape + overlay click to close modals
+    - Loading: Loader2 from lucide-react with animate-spin
+    - Icons: lucide-react (Sparkles, MessageSquare, Check, AlertCircle, etc.)
   </context>
 
   <task type="auto" n="1">
-    <n>Create brainstorming schema, types, stream helper, service, IPC, and preload</n>
+    <n>AI Idea Analysis — Service, IPC, Types & Store</n>
     <files>
-      src/main/db/schema/brainstorming.ts (create)
-      src/main/db/schema/index.ts (modify — add brainstorming export)
-      src/shared/types.ts (modify — add brainstorm types + ElectronAPI extensions)
-      src/main/services/ai-provider.ts (modify — add streamGenerate, resolveTaskModel, logUsage)
-      src/main/services/meetingIntelligenceService.ts (modify — import resolveTaskModel from ai-provider)
-      src/main/services/brainstormService.ts (create)
-      src/main/ipc/brainstorm.ts (create)
-      src/main/ipc/index.ts (modify — register brainstorm handlers)
-      src/preload/preload.ts (modify — add brainstorm bridge methods)
+      src/shared/types.ts (add IdeaAnalysis type + analyzeIdea in ElectronAPI)
+      src/main/services/ideaService.ts (add analyzeIdea function)
+      src/main/ipc/ideas.ts (add idea:analyze channel)
+      src/preload/preload.ts (add analyzeIdea bridge method)
+      src/renderer/stores/ideaStore.ts (add analysis state + analyzeIdea/clearAnalysis actions)
     </files>
     <preconditions>
-      - Phase 6.1 complete, TypeScript compiles clean
-      - AI provider system functional (ai-provider.ts with generate())
-      - meetingIntelligenceService.ts has resolveTaskModel (to be extracted)
-      - Docker PostgreSQL running for migration
+      - Plan 6.2 complete, TypeScript compiles clean
+      - AI provider system functional (ai-provider.ts with generate() + resolveTaskModel())
+      - 'idea_analysis' already exists in AITaskType union (types.ts line 128)
+      - At least one AI provider configured in the app (for runtime testing)
     </preconditions>
     <action>
-      Create the full backend data layer for brainstorming. This introduces the first streaming
-      AI pattern in the codebase using `streamText` from the AI SDK.
+      ## WHY
+      R12 requires "AI-assisted idea analysis (feasibility, effort, impact)". The AITaskType
+      'idea_analysis' is defined but has no implementation. This task creates the full
+      backend-to-store pipeline for AI-powered idea analysis.
 
-      WHY: R10 requires a conversational AI interface with database-backed sessions and
-      context awareness. This task builds the entire backend pipeline before the UI.
+      ## WHAT
 
-      ## 1. Schema (src/main/db/schema/brainstorming.ts, ~40 lines)
-
-      Follow the meetings.ts pattern (parent table + child table with cascade delete):
-
+      ### 1. types.ts — Add IdeaAnalysis type (~line 349, after ConvertIdeaToCardResult)
       ```typescript
-      // === FILE PURPOSE ===
-      // Schema for brainstorm sessions and messages.
-      // Sessions can optionally belong to a project. Messages cascade delete with session.
-
-      import { pgTable, uuid, varchar, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
-      import { projects } from './projects';
-
-      export const brainstormSessionStatusEnum = pgEnum('brainstorm_session_status', ['active', 'archived']);
-      export const brainstormMessageRoleEnum = pgEnum('brainstorm_message_role', ['user', 'assistant']);
-
-      export const brainstormSessions = pgTable('brainstorm_sessions', {
-        id: uuid('id').defaultRandom().primaryKey(),
-        projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
-        title: varchar('title', { length: 500 }).notNull(),
-        status: brainstormSessionStatusEnum('status').default('active').notNull(),
-        createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-        updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-      });
-
-      export const brainstormMessages = pgTable('brainstorm_messages', {
-        id: uuid('id').defaultRandom().primaryKey(),
-        sessionId: uuid('session_id').notNull().references(() => brainstormSessions.id, { onDelete: 'cascade' }),
-        role: brainstormMessageRoleEnum('role').notNull(),
-        content: text('content').notNull(),
-        createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-      });
-      ```
-
-      ## 2. Export from schema/index.ts
-
-      Add line:
-      ```typescript
-      export * from './brainstorming';
-      ```
-
-      ## 3. Shared Types (src/shared/types.ts)
-
-      Add after the Idea types section, before the ElectronAPI interface:
-
-      ```typescript
-      // === BRAINSTORM TYPES ===
-
-      export type BrainstormSessionStatus = 'active' | 'archived';
-      export type BrainstormMessageRole = 'user' | 'assistant';
-
-      export interface BrainstormSession {
-        id: string;
-        projectId: string | null;
-        title: string;
-        status: BrainstormSessionStatus;
-        createdAt: string;
-        updatedAt: string;
-      }
-
-      export interface BrainstormMessage {
-        id: string;
-        sessionId: string;
-        role: BrainstormMessageRole;
-        content: string;
-        createdAt: string;
-      }
-
-      export interface BrainstormSessionWithMessages extends BrainstormSession {
-        messages: BrainstormMessage[];
-      }
-
-      export interface CreateBrainstormSessionInput {
-        title: string;
-        projectId?: string;
+      export interface IdeaAnalysis {
+        suggestedEffort: EffortLevel;
+        suggestedImpact: ImpactLevel;
+        feasibilityNotes: string;
+        rationale: string;
       }
       ```
 
-      Add to the ElectronAPI interface (after the Ideas section):
-
+      Add to ElectronAPI interface (after convertIdeaToCard, ~line 487):
       ```typescript
-      // Brainstorm
-      getBrainstormSessions: () => Promise<BrainstormSession[]>;
-      getBrainstormSession: (id: string) => Promise<BrainstormSessionWithMessages | null>;
-      createBrainstormSession: (data: CreateBrainstormSessionInput) => Promise<BrainstormSession>;
-      updateBrainstormSession: (id: string, data: { title?: string; status?: BrainstormSessionStatus }) => Promise<BrainstormSession>;
-      deleteBrainstormSession: (id: string) => Promise<void>;
-      sendBrainstormMessage: (sessionId: string, content: string) => Promise<BrainstormMessage>;
-      onBrainstormChunk: (callback: (data: { sessionId: string; chunk: string }) => void) => () => void;
-      exportBrainstormToIdea: (sessionId: string, messageId: string) => Promise<Idea>;
+      analyzeIdea: (id: string) => Promise<IdeaAnalysis>;
       ```
 
-      ## 4. AI Provider — streamGenerate + resolveTaskModel extraction (src/main/services/ai-provider.ts)
+      ### 2. ideaService.ts — Add analyzeIdea function
 
-      This step extracts `resolveTaskModel` from meetingIntelligenceService.ts into ai-provider.ts
-      where it logically belongs (provider resolution is a provider concern), and adds the new
-      streaming function.
-
-      ### 4a. Add imports
-
-      Add `streamText` to the existing import:
+      Add import at top:
       ```typescript
-      import { generateText, streamText, type LanguageModel } from 'ai';
+      import { generate, resolveTaskModel } from './ai-provider';
+      import type { IdeaAnalysis, EffortLevel, ImpactLevel } from '../../shared/types';
       ```
 
-      Add new imports for resolveTaskModel:
+      Add new exported function after convertIdeaToCard:
       ```typescript
-      import { eq } from 'drizzle-orm';
-      import { aiProviders, settings } from '../db/schema';
-      import type { TaskModelConfig } from '../../shared/types';
-      ```
+      const IDEA_ANALYSIS_SYSTEM_PROMPT = `You are an idea analysis assistant. Given an idea with its title, description, and tags, analyze it and provide structured feedback.
 
-      Note: `AIProviderName` is already imported.
-
-      ### 4b. Add ResolvedProvider interface + DEFAULT_MODELS + resolveTaskModel
-
-      Copy these exactly from meetingIntelligenceService.ts (lines 68-178):
-
-      ```typescript
-      // ---------------------------------------------------------------------------
-      // Provider Resolution (shared by all AI features)
-      // ---------------------------------------------------------------------------
-
-      export interface ResolvedProvider {
-        providerId: string;
-        providerName: AIProviderName;
-        apiKeyEncrypted: string | null;
-        baseUrl: string | null;
-        model: string;
-        temperature?: number;
-        maxTokens?: number;
+      Respond ONLY with a JSON object (no markdown, no code fences):
+      {
+        "suggestedEffort": "<one of: trivial, small, medium, large, epic>",
+        "suggestedImpact": "<one of: minimal, low, medium, high, critical>",
+        "feasibilityNotes": "<1-3 sentences about technical feasibility, risks, and prerequisites>",
+        "rationale": "<1-3 sentences explaining why you chose these effort/impact levels>"
       }
 
-      const DEFAULT_MODELS: Record<AIProviderName, string> = {
-        openai: 'gpt-4o-mini',
-        anthropic: 'claude-haiku-4-5-20251001',
-        ollama: 'llama3.2',
-      };
+      Effort levels:
+      - trivial: less than a day, straightforward
+      - small: 1-3 days, well-understood
+      - medium: 1-2 weeks, some unknowns
+      - large: 2-4 weeks, significant complexity
+      - epic: 1+ months, major undertaking
 
-      /**
-       * Resolve which AI provider + model to use for a given task type.
-       * 1. Check the `task_models` setting (JSON map of taskType -> TaskModelConfig).
-       * 2. If config exists, look up the provider row.
-       * 3. If no config (or provider is gone/disabled), fall back to first enabled provider.
-       * 4. Returns null if no provider is available.
-       */
-      export async function resolveTaskModel(taskType: string): Promise<ResolvedProvider | null> {
+      Impact levels:
+      - minimal: nice-to-have, few users affected
+      - low: minor improvement, limited scope
+      - medium: noticeable improvement, moderate reach
+      - high: significant value, many users affected
+      - critical: essential, business-critical`;
+
+      export async function analyzeIdea(ideaId: string): Promise<IdeaAnalysis> {
         const db = getDb();
 
-        // 1. Try task_models setting
-        const [settingRow] = await db
-          .select()
-          .from(settings)
-          .where(eq(settings.key, 'task_models'));
+        // Load idea
+        const [ideaRow] = await db.select().from(ideas).where(eq(ideas.id, ideaId));
+        if (!ideaRow) throw new Error(`Idea not found: ${ideaId}`);
 
-        if (settingRow) {
+        // Load tags
+        const tagRows = await db.select({ tag: ideaTags.tag })
+          .from(ideaTags).where(eq(ideaTags.ideaId, ideaId));
+        const tags = tagRows.map(r => r.tag);
+
+        // Resolve AI provider
+        const provider = await resolveTaskModel('idea_analysis');
+        if (!provider) {
+          throw new Error('No AI provider configured. Go to Settings to add one.');
+        }
+
+        // Build prompt
+        let prompt = `Idea: ${ideaRow.title}`;
+        if (ideaRow.description) prompt += `\nDescription: ${ideaRow.description}`;
+        if (tags.length > 0) prompt += `\nTags: ${tags.join(', ')}`;
+        if (ideaRow.effort) prompt += `\nCurrent effort estimate: ${ideaRow.effort}`;
+        if (ideaRow.impact) prompt += `\nCurrent impact estimate: ${ideaRow.impact}`;
+
+        // Generate analysis
+        const result = await generate({
+          providerId: provider.providerId,
+          providerName: provider.providerName,
+          apiKeyEncrypted: provider.apiKeyEncrypted,
+          baseUrl: provider.baseUrl,
+          model: provider.model,
+          taskType: 'idea_analysis',
+          prompt,
+          system: IDEA_ANALYSIS_SYSTEM_PROMPT,
+          temperature: provider.temperature ?? 0.3,
+          maxTokens: provider.maxTokens ?? 1024,
+        });
+
+        // Parse JSON response with fallback
+        return parseAnalysisResponse(result.text);
+      }
+
+      const VALID_EFFORTS: EffortLevel[] = ['trivial', 'small', 'medium', 'large', 'epic'];
+      const VALID_IMPACTS: ImpactLevel[] = ['minimal', 'low', 'medium', 'high', 'critical'];
+
+      function parseAnalysisResponse(text: string): IdeaAnalysis {
+        // Try direct JSON parse
+        try {
+          const parsed = JSON.parse(text);
+          return validateAnalysis(parsed);
+        } catch {
+          // Try extracting JSON from response text
+        }
+
+        // Regex fallback: find JSON object in text
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) {
           try {
-            const taskModels: Record<string, TaskModelConfig> = JSON.parse(settingRow.value);
-            const config = taskModels[taskType];
-            if (config) {
-              const [provider] = await db
-                .select()
-                .from(aiProviders)
-                .where(eq(aiProviders.id, config.providerId));
-              if (provider && provider.enabled) {
-                return {
-                  providerId: provider.id,
-                  providerName: provider.name as AIProviderName,
-                  apiKeyEncrypted: provider.apiKeyEncrypted,
-                  baseUrl: provider.baseUrl,
-                  model: config.model,
-                  temperature: config.temperature,
-                  maxTokens: config.maxTokens,
-                };
-              }
-            }
+            const parsed = JSON.parse(match[0]);
+            return validateAnalysis(parsed);
           } catch {
-            // Malformed JSON — fall through to default
+            // Fall through to defaults
           }
         }
 
-        // 2. Fallback: first enabled provider
-        const [fallbackProvider] = await db
-          .select()
-          .from(aiProviders)
-          .where(eq(aiProviders.enabled, true))
-          .limit(1);
-
-        if (!fallbackProvider) return null;
-
+        // Default fallback — return sensible defaults with raw text as rationale
         return {
-          providerId: fallbackProvider.id,
-          providerName: fallbackProvider.name as AIProviderName,
-          apiKeyEncrypted: fallbackProvider.apiKeyEncrypted,
-          baseUrl: fallbackProvider.baseUrl,
-          model: DEFAULT_MODELS[fallbackProvider.name as AIProviderName] ?? 'gpt-4o-mini',
+          suggestedEffort: 'medium',
+          suggestedImpact: 'medium',
+          feasibilityNotes: 'Unable to parse structured analysis.',
+          rationale: text.slice(0, 500),
+        };
+      }
+
+      function validateAnalysis(parsed: Record<string, unknown>): IdeaAnalysis {
+        return {
+          suggestedEffort: VALID_EFFORTS.includes(parsed.suggestedEffort as EffortLevel)
+            ? (parsed.suggestedEffort as EffortLevel)
+            : 'medium',
+          suggestedImpact: VALID_IMPACTS.includes(parsed.suggestedImpact as ImpactLevel)
+            ? (parsed.suggestedImpact as ImpactLevel)
+            : 'medium',
+          feasibilityNotes: typeof parsed.feasibilityNotes === 'string'
+            ? parsed.feasibilityNotes
+            : 'No feasibility notes provided.',
+          rationale: typeof parsed.rationale === 'string'
+            ? parsed.rationale
+            : 'No rationale provided.',
         };
       }
       ```
 
-      Note: The existing `TEST_MODELS` constant in ai-provider.ts and the new `DEFAULT_MODELS`
-      have overlapping values. Keep both — TEST_MODELS is for connection testing, DEFAULT_MODELS
-      is for task model fallback. Different purposes.
+      ### 3. ideas.ts IPC — Add idea:analyze channel
 
-      ### 4c. Add logUsage helper
+      Add import of analyzeIdea from ideaService (update the existing `import * as ideaService`
+      or individual imports).
 
-      Add after the `generate` function:
-
+      Add handler inside registerIdeaHandlers():
       ```typescript
-      /**
-       * Log AI token usage to the ai_usage table. Fire-and-forget — never throws.
-       */
-      export async function logUsage(
-        providerId: string,
-        model: string,
-        taskType: string,
-        usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | null,
-      ): Promise<void> {
+      ipcMain.handle('idea:analyze', async (_event, id: string) => {
+        return ideaService.analyzeIdea(id);
+      });
+      ```
+
+      ### 4. preload.ts — Add analyzeIdea bridge method
+
+      Add to the idea section (after convertIdeaToCard):
+      ```typescript
+      analyzeIdea: (id: string) => ipcRenderer.invoke('idea:analyze', id),
+      ```
+
+      ### 5. ideaStore.ts — Add analysis state + actions
+
+      Add to the store interface:
+      ```typescript
+      analysis: IdeaAnalysis | null;
+      analyzing: boolean;
+      analysisError: string | null;
+      analyzeIdea: (id: string) => Promise<void>;
+      clearAnalysis: () => void;
+      ```
+
+      Add import: `import type { IdeaAnalysis } from '../../shared/types';`
+
+      Add initial state:
+      ```typescript
+      analysis: null,
+      analyzing: false,
+      analysisError: null,
+      ```
+
+      Add actions:
+      ```typescript
+      analyzeIdea: async (id: string) => {
+        set({ analyzing: true, analysisError: null, analysis: null });
         try {
-          const db = getDb();
-          await db.insert(aiUsage).values({
-            providerId,
-            model,
-            taskType,
-            promptTokens: usage?.inputTokens ?? 0,
-            completionTokens: usage?.outputTokens ?? 0,
-            totalTokens: usage?.totalTokens ?? 0,
-          });
+          const analysis = await window.electronAPI.analyzeIdea(id);
+          set({ analysis, analyzing: false });
         } catch (error) {
-          console.error('[AI] Failed to log usage:', error);
+          set({
+            analyzing: false,
+            analysisError: error instanceof Error ? error.message : 'Analysis failed',
+          });
         }
+      },
+
+      clearAnalysis: () => set({ analysis: null, analysisError: null }),
+      ```
+
+      Update clearSelectedIdea to also clear analysis:
+      ```typescript
+      clearSelectedIdea: () => set({ selectedIdea: null, analysis: null, analysisError: null }),
+      ```
+    </action>
+    <verify>
+      1. `npx tsc --noEmit` passes with zero errors
+      2. IdeaAnalysis type is exported from types.ts with all 4 fields
+      3. analyzeIdea is in ElectronAPI interface
+      4. ideaService.analyzeIdea uses resolveTaskModel('idea_analysis') + generate()
+      5. parseAnalysisResponse handles: valid JSON, JSON in text, total fallback
+      6. validateAnalysis validates effort/impact against allowed enum values
+      7. IPC handler 'idea:analyze' is registered in ideas.ts
+      8. Preload bridge includes analyzeIdea method
+      9. ideaStore has analysis/analyzing/analysisError state + analyzeIdea/clearAnalysis actions
+      10. clearSelectedIdea resets analysis state
+    </verify>
+    <done>
+      Full AI idea analysis pipeline: types → service (with prompt + JSON parsing fallback) →
+      IPC → preload → store. TypeScript compiles cleanly.
+    </done>
+    <confidence>HIGH</confidence>
+    <assumptions>
+      - generate() from ai-provider.ts works for non-streaming analysis (verified pattern from meetingIntelligenceService)
+      - resolveTaskModel('idea_analysis') resolves a provider when user has one configured
+      - JSON response parsing with regex fallback handles common LLM output variations
+      - ideaTags table can be queried directly for tag loading (avoids loadTagsForIdeas helper which expects full idea array)
+    </assumptions>
+  </task>
+
+  <task type="auto" n="2">
+    <n>AI Analysis UI + "Brainstorm This Idea" in IdeaDetailModal</n>
+    <files>
+      src/renderer/components/IdeaDetailModal.tsx (add analysis section + brainstorm button)
+      src/renderer/pages/IdeasPage.tsx (wire onNavigate prop to modal)
+    </files>
+    <preconditions>
+      - Task 1 complete (analyzeIdea pipeline working end-to-end)
+      - ideaStore has analysis/analyzing/analysisError state + actions
+      - brainstormStore has createSession and sendMessage actions
+    </preconditions>
+    <action>
+      ## WHY
+      Task 1 built the backend pipeline for idea analysis. This task adds the user-facing UI
+      so users can request AI analysis and act on suggestions. Additionally, a natural
+      cross-feature bridge is "Brainstorm this idea" — creating a brainstorm session seeded
+      with idea context.
+
+      ## WHAT
+
+      ### 1. IdeaDetailModal.tsx — Add AI Analysis Section
+
+      Add imports:
+      ```typescript
+      import { Sparkles, MessageSquare, AlertCircle } from 'lucide-react';
+      import { useIdeaStore } from '../stores/ideaStore';
+      import { useBrainstormStore } from '../stores/brainstormStore';
+      ```
+
+      Add new props to the component:
+      ```typescript
+      interface IdeaDetailModalProps {
+        // ... existing props
+        onNavigate?: (path: string) => void;
       }
       ```
 
-      ### 4d. Add streamGenerate function
-
-      Add after `logUsage`:
-
+      Inside the component, destructure analysis state from ideaStore:
       ```typescript
-      /**
-       * Stream text generation using a configured provider + model.
-       * Returns a StreamTextResult — caller iterates textStream and logs usage after.
-       *
-       * Usage pattern:
-       *   const result = streamGenerate({ ... });
-       *   for await (const chunk of result.textStream) { /* send to renderer */ }
-       *   const usage = await result.usage;
-       *   await logUsage(providerId, model, taskType, usage);
-       */
-      export function streamGenerate(options: {
-        providerId: string;
-        providerName: AIProviderName;
-        apiKeyEncrypted: string | null;
-        baseUrl: string | null;
-        model: string;
-        messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-        system?: string;
-        temperature?: number;
-        maxTokens?: number;
-      }) {
-        const factory = getProvider(
-          options.providerId,
-          options.providerName,
-          options.apiKeyEncrypted,
-          options.baseUrl,
-        );
-
-        return streamText({
-          model: factory(options.model) as LanguageModel,
-          messages: options.messages,
-          system: options.system,
-          temperature: options.temperature,
-          maxOutputTokens: options.maxTokens,
-        });
-      }
+      const { analysis, analyzing, analysisError, analyzeIdea, clearAnalysis } = useIdeaStore();
       ```
 
-      ## 5. Update meetingIntelligenceService.ts
+      **Add an AI Analysis section between the effort/impact dropdowns and the tags editor.**
 
-      Remove the local `ResolvedProvider` interface (lines 68-76), the `DEFAULT_MODELS`
-      constant (lines 82-86), and the `resolveTaskModel` function (lines 125-178).
-
-      Add/update import from ai-provider:
-      ```typescript
-      import { generate, resolveTaskModel, type ResolvedProvider } from './ai-provider';
+      Layout of analysis section:
+      ```
+      +-------------------------------------------------------+
+      | [Sparkles] AI Analysis           [Analyze with AI btn] |
+      |                                                        |
+      | (if analyzing: spinner + "Analyzing...")               |
+      |                                                        |
+      | (if analysisError: red alert message)                  |
+      |                                                        |
+      | (if analysis result exists:)                           |
+      | +----------------------------------------------------+ |
+      | | Suggested Effort: [medium badge]        [Apply btn] | |
+      | | Suggested Impact: [high badge]          [Apply btn] | |
+      | |                                                    | |
+      | | Feasibility: "The idea is technically..."          | |
+      | | Rationale: "Medium effort because..."              | |
+      | |                                        [Dismiss]   | |
+      | +----------------------------------------------------+ |
+      +-------------------------------------------------------+
       ```
 
-      The existing `import { generate } from './ai-provider';` should be updated to also
-      import `resolveTaskModel` and `ResolvedProvider`.
+      **"Analyze with AI" button:**
+      - Styling: `flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600/30 text-purple-300 rounded-lg text-sm transition-colors`
+      - Icon: Sparkles (size 14)
+      - Text: "Analyze with AI"
+      - Disabled when `analyzing` is true
+      - On click: `analyzeIdea(idea.id)` (idea is the selected idea passed as prop or from store)
 
-      Verify that all references to `resolveTaskModel` and `ResolvedProvider` in
-      meetingIntelligenceService.ts still resolve correctly after the change.
+      **Loading state (analyzing === true):**
+      - Loader2 with animate-spin + "Analyzing idea..." text
+      - text-surface-400 text-sm
 
-      ## 6. brainstormService.ts (src/main/services/brainstormService.ts, ~220-260 lines)
+      **Error state (analysisError !== null):**
+      - AlertCircle icon + error message text
+      - text-red-400 text-sm
+      - Suggestion: "Check that an AI provider is configured in Settings."
 
-      ```typescript
-      // === FILE PURPOSE ===
-      // Brainstorming service — session CRUD, message management, context building,
-      // and export-to-idea functionality.
-      //
-      // === DEPENDENCIES ===
-      // drizzle-orm, DB schema (brainstorming, projects, boards, meetings, ideas), connection
-      //
-      // === LIMITATIONS ===
-      // - Context injection is read-only (project data -> system prompt, no tool calls)
-      // - No message editing or deletion (append-only conversation)
-      // - buildContext queries are sequential (could be parallelized for perf)
-      //
-      // === VERIFICATION STATUS ===
-      // - DB schema: brainstorming.ts created in this task
-      // - streamText API: verified from node_modules/ai/dist/index.d.ts
-      // - Shared types: updated in types.ts
+      **Analysis results panel (analysis !== null):**
+      - Container: `bg-surface-800/50 border border-surface-700 rounded-lg p-4 space-y-3`
+      - Each suggestion row is a flex between label+badge and "Apply" button:
+
+      Effort row:
+      ```tsx
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-surface-400">Suggested Effort:</span>
+          <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs font-medium">
+            {analysis.suggestedEffort}
+          </span>
+        </div>
+        <button
+          onClick={() => setEffort(analysis.suggestedEffort)}
+          className="text-xs text-primary-400 hover:text-primary-300"
+        >
+          Apply
+        </button>
+      </div>
       ```
 
-      Imports:
+      Impact row: same pattern, with `bg-amber-500/20 text-amber-300` badge.
+
+      Feasibility: `<p className="text-sm text-surface-300">{analysis.feasibilityNotes}</p>`
+      Rationale: `<p className="text-sm text-surface-300">{analysis.rationale}</p>`
+
+      Dismiss button at bottom-right:
+      ```tsx
+      <button
+        onClick={clearAnalysis}
+        className="text-xs text-surface-500 hover:text-surface-300"
+      >
+        Dismiss
+      </button>
+      ```
+
+      The "Apply" buttons should update the local form state for effort/impact
+      (the same state variables bound to the dropdowns). The user must still click
+      "Save" to persist — Apply only changes the dropdown value locally.
+
+      ### 2. IdeaDetailModal.tsx — Add "Brainstorm This Idea" Button
+
+      Add in the action buttons area (near "Convert to Project" / "Convert to Card" buttons):
+
+      ```tsx
+      <button
+        onClick={handleBrainstormIdea}
+        className="flex items-center gap-2 px-4 py-2 bg-surface-700 hover:bg-surface-600 text-surface-200 rounded-lg text-sm transition-colors"
+      >
+        <MessageSquare size={16} />
+        Brainstorm This Idea
+      </button>
+      ```
+
+      Handler:
       ```typescript
-      import { eq, desc, asc } from 'drizzle-orm';
-      import { getDb } from '../db/connection';
+      const handleBrainstormIdea = async () => {
+        try {
+          // Create a new brainstorm session with the idea's title and project
+          const session = await useBrainstormStore.getState().createSession({
+            title: `Brainstorm: ${idea.title}`,
+            projectId: idea.projectId || undefined,
+          });
+
+          // Load the session to make it active
+          await useBrainstormStore.getState().loadSession(session.id);
+
+          // Send an initial message describing the idea
+          const description = idea.description
+            ? `\n\n${idea.description}`
+            : '';
+          const tags = idea.tags?.length
+            ? `\n\nTags: ${idea.tags.join(', ')}`
+            : '';
+          await useBrainstormStore.getState().sendMessage(
+            `I'd like to brainstorm about this idea:\n\n**${idea.title}**${description}${tags}`
+          );
+
+          // Navigate to brainstorm page and close modal
+          if (onNavigate) onNavigate('/brainstorm');
+          onClose();
+        } catch (error) {
+          console.error('Failed to start brainstorm session:', error);
+        }
+      };
+      ```
+
+      NOTE: `useBrainstormStore.getState()` is the correct Zustand pattern for calling
+      actions outside of React components or in event handlers. It accesses the store
+      directly without hooks.
+
+      ### 3. IdeasPage.tsx — Wire onNavigate prop
+
+      Add import:
+      ```typescript
+      import { useNavigate } from 'react-router-dom';
+      ```
+
+      Inside the component:
+      ```typescript
+      const navigate = useNavigate();
+      ```
+
+      Pass to IdeaDetailModal:
+      ```tsx
+      <IdeaDetailModal
+        // ... existing props
+        onNavigate={(path) => navigate(path)}
+      />
+      ```
+
+      ### File size note
+      IdeaDetailModal is currently 672 lines. Adding ~80 lines for the analysis section
+      + ~30 lines for the brainstorm button brings it to ~780 lines. This exceeds the
+      500-line guideline but the code is logically cohesive (all idea detail features).
+      Component extraction (IdeaAnalysisPanel) can be done in a future cleanup pass.
+    </action>
+    <verify>
+      1. `npx tsc --noEmit` passes with zero errors
+      2. "Analyze with AI" button is visible in IdeaDetailModal
+      3. Loading state shows spinner + "Analyzing idea..." when analyzing
+      4. Error state shows red message when analysis fails
+      5. Analysis results panel shows effort + impact badges with "Apply" buttons
+      6. "Apply" buttons update the dropdown values locally (not yet saved)
+      7. "Dismiss" button clears the analysis panel
+      8. "Brainstorm This Idea" button exists in the action buttons area
+      9. Clicking "Brainstorm This Idea" creates a session, sends initial message, and navigates
+      10. IdeasPage passes onNavigate prop to IdeaDetailModal
+    </verify>
+    <done>
+      IdeaDetailModal has working AI analysis UI (analyze button, results with apply/dismiss,
+      error handling) + "Brainstorm This Idea" cross-feature bridge. TypeScript compiles cleanly.
+    </done>
+    <confidence>HIGH</confidence>
+    <assumptions>
+      - Sparkles and MessageSquare icons exist in lucide-react (standard icons)
+      - useBrainstormStore.getState() works for imperative store access (standard Zustand pattern)
+      - brainstormStore.createSession returns the session object with id
+      - sendMessage can be called right after loadSession (session is set as active in store)
+      - useNavigate is available from react-router-dom (already used in the app)
+      - The effort/impact local state setters in IdeaDetailModal are named setEffort/setImpact
+        (need to verify actual state variable names during execution)
+    </assumptions>
+  </task>
+
+  <task type="auto" n="3">
+    <n>Enhanced Brainstorm Context Injection</n>
+    <files>
+      src/main/services/brainstormService.ts (enrich buildContext with cards, ideas, meeting briefs)
+    </files>
+    <preconditions>
+      - Plans 6.1 and 6.2 complete (brainstormService.ts exists with buildContext)
+      - Schema tables exist: cards, columns, boards, ideas, meetings, meetingBriefs
+      - buildContext currently injects: project name, description, board names, meeting titles
+    </preconditions>
+    <action>
+      ## WHY
+      R10 requires the brainstorming agent to be "context-aware (knows about current project,
+      cards, meetings)". Currently buildContext() only injects project name, board names, and
+      meeting titles. This task enriches the system prompt with card data, idea data, and
+      meeting brief summaries so the AI has richer context for brainstorming.
+
+      ## WHAT
+
+      ### 1. Update imports in brainstormService.ts
+
+      Add to the schema import (the existing import already includes boards, meetings, ideas):
+      ```typescript
       import {
         brainstormSessions, brainstormMessages,
-        projects, boards, meetings, ideas,
+        projects, boards, columns, cards, meetings, meetingBriefs, ideas,
       } from '../db/schema';
-      import type {
-        BrainstormSession, BrainstormMessage, BrainstormSessionWithMessages,
-        CreateBrainstormSessionInput, BrainstormSessionStatus, Idea,
-      } from '../../shared/types';
       ```
 
-      Row mappers:
+      Add to drizzle-orm import:
       ```typescript
-      function toSession(row: typeof brainstormSessions.$inferSelect): BrainstormSession {
-        return {
-          id: row.id,
-          projectId: row.projectId,
-          title: row.title,
-          status: row.status as BrainstormSessionStatus,
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
-        };
-      }
-
-      function toMessage(row: typeof brainstormMessages.$inferSelect): BrainstormMessage {
-        return {
-          id: row.id,
-          sessionId: row.sessionId,
-          role: row.role as 'user' | 'assistant',
-          content: row.content,
-          createdAt: row.createdAt.toISOString(),
-        };
-      }
+      import { eq, desc, asc, and, inArray, not } from 'drizzle-orm';
       ```
+      (Currently imports: eq, desc, asc. Add: and, inArray, not)
 
-      Exported functions (9 total):
+      ### 2. Rewrite buildContext() with enriched data + Promise.all
 
-      **getSessions()** — List all sessions ordered by updatedAt desc:
+      Replace the entire buildContext function (lines 182-221) with:
+
       ```typescript
-      export async function getSessions(): Promise<BrainstormSession[]> {
-        const db = getDb();
-        const rows = await db.select().from(brainstormSessions)
-          .orderBy(desc(brainstormSessions.updatedAt));
-        return rows.map(toSession);
-      }
-      ```
-
-      **getSession(id)** — Get session with all messages:
-      ```typescript
-      export async function getSession(id: string): Promise<BrainstormSessionWithMessages | null> {
-        const db = getDb();
-        const [sessionRow] = await db.select().from(brainstormSessions)
-          .where(eq(brainstormSessions.id, id));
-        if (!sessionRow) return null;
-
-        const messageRows = await db.select().from(brainstormMessages)
-          .where(eq(brainstormMessages.sessionId, id))
-          .orderBy(asc(brainstormMessages.createdAt));
-
-        return {
-          ...toSession(sessionRow),
-          messages: messageRows.map(toMessage),
-        };
-      }
-      ```
-
-      **createSession(data)** — Create new brainstorm session:
-      ```typescript
-      export async function createSession(data: CreateBrainstormSessionInput): Promise<BrainstormSession> {
-        const db = getDb();
-        const [row] = await db.insert(brainstormSessions).values({
-          title: data.title,
-          projectId: data.projectId ?? null,
-        }).returning();
-        return toSession(row);
-      }
-      ```
-
-      **updateSession(id, data)** — Update title or status:
-      ```typescript
-      export async function updateSession(
-        id: string,
-        data: { title?: string; status?: BrainstormSessionStatus },
-      ): Promise<BrainstormSession> {
-        const db = getDb();
-        const updateObj: Record<string, unknown> = { updatedAt: new Date() };
-        if (data.title !== undefined) updateObj.title = data.title;
-        if (data.status !== undefined) updateObj.status = data.status;
-
-        const [row] = await db.update(brainstormSessions)
-          .set(updateObj)
-          .where(eq(brainstormSessions.id, id))
-          .returning();
-        if (!row) throw new Error(`Session not found: ${id}`);
-        return toSession(row);
-      }
-      ```
-
-      **deleteSession(id)** — Delete session (cascade deletes messages):
-      ```typescript
-      export async function deleteSession(id: string): Promise<void> {
-        const db = getDb();
-        await db.delete(brainstormSessions).where(eq(brainstormSessions.id, id));
-      }
-      ```
-
-      **addMessage(sessionId, role, content)** — Append message to session:
-      ```typescript
-      export async function addMessage(
-        sessionId: string,
-        role: 'user' | 'assistant',
-        content: string,
-      ): Promise<BrainstormMessage> {
-        const db = getDb();
-        const [row] = await db.insert(brainstormMessages).values({
-          sessionId,
-          role,
-          content,
-        }).returning();
-
-        // Touch session updatedAt
-        await db.update(brainstormSessions)
-          .set({ updatedAt: new Date() })
-          .where(eq(brainstormSessions.id, sessionId));
-
-        return toMessage(row);
-      }
-      ```
-
-      **getMessages(sessionId)** — Get ordered message history:
-      ```typescript
-      export async function getMessages(sessionId: string): Promise<BrainstormMessage[]> {
-        const db = getDb();
-        const rows = await db.select().from(brainstormMessages)
-          .where(eq(brainstormMessages.sessionId, sessionId))
-          .orderBy(asc(brainstormMessages.createdAt));
-        return rows.map(toMessage);
-      }
-      ```
-
-      **buildContext(sessionId)** — Build system prompt with project context:
-      ```typescript
+      /**
+       * Build system prompt with project context.
+       * Injects: project info, board names, card titles, idea data, meeting briefs.
+       * Queries are parallelized where possible via Promise.all.
+       */
       export async function buildContext(sessionId: string): Promise<string> {
         const db = getDb();
 
@@ -576,869 +597,135 @@ Plan 6.2 delivers the full AI Brainstorming feature — backend through UI:
 
         let context = getBaseSystemPrompt();
 
-        if (session.projectId) {
-          const [project] = await db.select().from(projects)
-            .where(eq(projects.id, session.projectId));
+        if (!session.projectId) return context;
 
-          if (project) {
-            context += `\n\n## Current Project: ${project.name}`;
-            if (project.description) {
-              context += `\nDescription: ${project.description}`;
+        const [project] = await db.select().from(projects)
+          .where(eq(projects.id, session.projectId));
+        if (!project) return context;
+
+        context += `\n\n## Current Project: ${project.name}`;
+        if (project.description) {
+          context += `\nDescription: ${project.description}`;
+        }
+
+        // Parallel queries: boards, meetings, ideas
+        const [projectBoards, projectMeetings, projectIdeas] = await Promise.all([
+          db.select().from(boards)
+            .where(eq(boards.projectId, project.id)),
+          db.select({ id: meetings.id, title: meetings.title })
+            .from(meetings)
+            .where(eq(meetings.projectId, project.id))
+            .orderBy(desc(meetings.createdAt))
+            .limit(3),
+          db.select({ title: ideas.title, status: ideas.status })
+            .from(ideas)
+            .where(and(
+              eq(ideas.projectId, project.id),
+              not(eq(ideas.status, 'archived')),
+            ))
+            .orderBy(desc(ideas.updatedAt))
+            .limit(5),
+        ]);
+
+        // Board names + card titles per board
+        if (projectBoards.length > 0) {
+          context += `\n\n## Boards`;
+          for (const board of projectBoards) {
+            const boardColumns = await db.select({ id: columns.id })
+              .from(columns).where(eq(columns.boardId, board.id));
+            const columnIds = boardColumns.map(c => c.id);
+
+            if (columnIds.length > 0) {
+              const boardCards = await db.select({ title: cards.title })
+                .from(cards)
+                .where(and(
+                  inArray(cards.columnId, columnIds),
+                  eq(cards.archived, false),
+                ))
+                .orderBy(desc(cards.updatedAt))
+                .limit(5);
+
+              if (boardCards.length > 0) {
+                context += `\n- ${board.name}: ${boardCards.map(c => c.title).join(', ')}`;
+              } else {
+                context += `\n- ${board.name} (no cards)`;
+              }
+            } else {
+              context += `\n- ${board.name} (no columns)`;
             }
+          }
+        }
 
-            // Load board names
-            const projectBoards = await db.select().from(boards)
-              .where(eq(boards.projectId, project.id));
-            if (projectBoards.length > 0) {
-              context += `\nBoards: ${projectBoards.map(b => b.name).join(', ')}`;
-            }
+        // Recent ideas
+        if (projectIdeas.length > 0) {
+          context += `\n\n## Recent Ideas`;
+          for (const idea of projectIdeas) {
+            context += `\n- ${idea.title} (${idea.status})`;
+          }
+        }
 
-            // Load recent meeting titles
-            const projectMeetings = await db.select({ title: meetings.title })
-              .from(meetings)
-              .where(eq(meetings.projectId, project.id))
-              .orderBy(desc(meetings.createdAt))
-              .limit(5);
-            if (projectMeetings.length > 0) {
-              context += `\nRecent meetings: ${projectMeetings.map(m => m.title).join(', ')}`;
+        // Recent meetings with brief summaries
+        if (projectMeetings.length > 0) {
+          context += `\n\n## Recent Meetings`;
+          for (const mtg of projectMeetings) {
+            context += `\n- ${mtg.title}`;
+            const [brief] = await db.select({ summary: meetingBriefs.summary })
+              .from(meetingBriefs)
+              .where(eq(meetingBriefs.meetingId, mtg.id))
+              .orderBy(desc(meetingBriefs.createdAt))
+              .limit(1);
+            if (brief) {
+              // Truncate brief to first 200 chars to keep context manageable
+              const truncated = brief.summary.length > 200
+                ? brief.summary.slice(0, 200) + '...'
+                : brief.summary;
+              context += ` — ${truncated}`;
             }
           }
         }
 
         return context;
       }
-
-      function getBaseSystemPrompt(): string {
-        return `You are a creative brainstorming assistant. Help the user explore ideas, think through problems, and develop concepts.
-
-Guidelines:
-- Be creative and open-minded
-- Ask clarifying questions when needed
-- Suggest multiple perspectives and approaches
-- Help structure thoughts into actionable items
-- Reference project context when relevant
-- Keep responses focused and practical`;
-      }
       ```
 
-      **exportToIdea(sessionId, messageId)** — Create idea from a chat message:
-      ```typescript
-      export async function exportToIdea(
-        sessionId: string,
-        messageId: string,
-      ): Promise<Idea> {
-        const db = getDb();
+      ### 3. Update file header comments
 
-        const [msg] = await db.select().from(brainstormMessages)
-          .where(eq(brainstormMessages.id, messageId));
-        if (!msg) throw new Error(`Message not found: ${messageId}`);
-
-        const [session] = await db.select().from(brainstormSessions)
-          .where(eq(brainstormSessions.id, sessionId));
-
-        const [ideaRow] = await db.insert(ideas).values({
-          title: msg.content.slice(0, 100).replace(/\n/g, ' ').trim(),
-          description: msg.content,
-          projectId: session?.projectId ?? null,
-          status: 'new',
-        }).returning();
-
-        return {
-          id: ideaRow.id,
-          projectId: ideaRow.projectId,
-          title: ideaRow.title,
-          description: ideaRow.description,
-          status: ideaRow.status as 'new',
-          effort: ideaRow.effort as null,
-          impact: ideaRow.impact as null,
-          tags: [],
-          createdAt: ideaRow.createdAt.toISOString(),
-          updatedAt: ideaRow.updatedAt.toISOString(),
-        };
-      }
+      Update the LIMITATIONS section to reflect new capabilities:
       ```
-
-      ## 7. IPC Handlers (src/main/ipc/brainstorm.ts, ~80-100 lines)
-
-      This is the first IPC handler with streaming. The `send-message` handler iterates
-      the text stream and pushes chunks to the renderer via `event.sender.send()`.
-
-      ```typescript
-      // === FILE PURPOSE ===
-      // IPC handlers for brainstorming — CRUD + streaming AI chat.
-
-      import { ipcMain } from 'electron';
-      import * as brainstormService from '../services/brainstormService';
-      import { resolveTaskModel, streamGenerate, logUsage } from '../services/ai-provider';
-
-      export function registerBrainstormHandlers(): void {
-        ipcMain.handle('brainstorm:list-sessions', async () => {
-          return brainstormService.getSessions();
-        });
-
-        ipcMain.handle('brainstorm:get-session', async (_event, id: string) => {
-          return brainstormService.getSession(id);
-        });
-
-        ipcMain.handle('brainstorm:create-session', async (_event, data: any) => {
-          return brainstormService.createSession(data);
-        });
-
-        ipcMain.handle('brainstorm:update-session', async (_event, id: string, data: any) => {
-          return brainstormService.updateSession(id, data);
-        });
-
-        ipcMain.handle('brainstorm:delete-session', async (_event, id: string) => {
-          return brainstormService.deleteSession(id);
-        });
-
-        // Streaming handler — saves user msg, streams AI response, saves assistant msg
-        ipcMain.handle('brainstorm:send-message', async (event, sessionId: string, content: string) => {
-          // 1. Save user message
-          await brainstormService.addMessage(sessionId, 'user', content);
-
-          // 2. Load conversation history + context
-          const messages = await brainstormService.getMessages(sessionId);
-          const context = await brainstormService.buildContext(sessionId);
-
-          // 3. Resolve AI provider
-          const provider = await resolveTaskModel('brainstorming');
-          if (!provider) {
-            throw new Error('No AI provider configured. Go to Settings to add one.');
-          }
-
-          // 4. Stream AI response
-          const result = streamGenerate({
-            providerId: provider.providerId,
-            providerName: provider.providerName,
-            apiKeyEncrypted: provider.apiKeyEncrypted,
-            baseUrl: provider.baseUrl,
-            model: provider.model,
-            messages: messages.map(m => ({
-              role: m.role as 'user' | 'assistant',
-              content: m.content,
-            })),
-            system: context,
-            temperature: provider.temperature ?? 0.7,
-            maxTokens: provider.maxTokens ?? 2048,
-          });
-
-          let fullText = '';
-          for await (const chunk of result.textStream) {
-            fullText += chunk;
-            event.sender.send('brainstorm:stream-chunk', { sessionId, chunk });
-          }
-
-          // 5. Log usage (fire-and-forget)
-          try {
-            const usage = await result.usage;
-            await logUsage(provider.providerId, provider.model, 'brainstorming', usage);
-          } catch (err) {
-            console.error('[Brainstorm] Failed to log usage:', err);
-          }
-
-          // 6. Save and return assistant message
-          const assistantMsg = await brainstormService.addMessage(sessionId, 'assistant', fullText);
-          return assistantMsg;
-        });
-
-        ipcMain.handle('brainstorm:export-to-idea', async (_event, sessionId: string, messageId: string) => {
-          return brainstormService.exportToIdea(sessionId, messageId);
-        });
-      }
-      ```
-
-      ## 8. Register in ipc/index.ts
-
-      Add import:
-      ```typescript
-      import { registerBrainstormHandlers } from './brainstorm';
-      ```
-
-      Add call inside registerIpcHandlers():
-      ```typescript
-      registerBrainstormHandlers();
-      ```
-
-      ## 9. Preload Bridge (src/preload/preload.ts)
-
-      Add after the Ideas section:
-
-      ```typescript
-      // Brainstorm
-      getBrainstormSessions: () => ipcRenderer.invoke('brainstorm:list-sessions'),
-      getBrainstormSession: (id: string) => ipcRenderer.invoke('brainstorm:get-session', id),
-      createBrainstormSession: (data: any) => ipcRenderer.invoke('brainstorm:create-session', data),
-      updateBrainstormSession: (id: string, data: any) =>
-        ipcRenderer.invoke('brainstorm:update-session', id, data),
-      deleteBrainstormSession: (id: string) => ipcRenderer.invoke('brainstorm:delete-session', id),
-      sendBrainstormMessage: (sessionId: string, content: string) =>
-        ipcRenderer.invoke('brainstorm:send-message', sessionId, content),
-      onBrainstormChunk: (callback: (data: { sessionId: string; chunk: string }) => void) => {
-        const handler = (_event: any, data: { sessionId: string; chunk: string }) => callback(data);
-        ipcRenderer.on('brainstorm:stream-chunk', handler);
-        return () => { ipcRenderer.removeListener('brainstorm:stream-chunk', handler); };
-      },
-      exportBrainstormToIdea: (sessionId: string, messageId: string) =>
-        ipcRenderer.invoke('brainstorm:export-to-idea', sessionId, messageId),
-      ```
-
-      ## 10. Generate and run Drizzle migration
-
-      After all files are created and TypeScript compiles:
-      ```bash
-      npm run db:generate
-      npm run db:migrate
-      ```
-    </action>
-    <verify>
-      1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. src/main/db/schema/brainstorming.ts: exports brainstormSessions + brainstormMessages tables
-         + brainstormSessionStatusEnum + brainstormMessageRoleEnum
-      3. src/main/db/schema/index.ts: exports brainstorming module
-      4. src/shared/types.ts: exports BrainstormSession, BrainstormMessage,
-         BrainstormSessionWithMessages, CreateBrainstormSessionInput,
-         BrainstormSessionStatus, BrainstormMessageRole
-      5. src/shared/types.ts: ElectronAPI includes 8 brainstorm methods
-      6. src/main/services/ai-provider.ts: exports streamGenerate, resolveTaskModel,
-         logUsage, ResolvedProvider
-      7. src/main/services/meetingIntelligenceService.ts: imports resolveTaskModel from
-         ai-provider (no longer has local copy of ResolvedProvider/DEFAULT_MODELS/resolveTaskModel)
-      8. src/main/services/brainstormService.ts: exports getSessions, getSession,
-         createSession, updateSession, deleteSession, addMessage, getMessages,
-         buildContext, exportToIdea (9 exports)
-      9. src/main/ipc/brainstorm.ts: exports registerBrainstormHandlers with 7 handlers
-      10. src/main/ipc/index.ts: calls registerBrainstormHandlers()
-      11. src/preload/preload.ts: includes 8 brainstorm bridge methods including
-          onBrainstormChunk with cleanup return function
-      12. Run `npm run db:generate` — generates migration SQL for brainstorm tables
-      13. Run `npm run db:migrate` — applies migration successfully
-    </verify>
-    <done>
-      Full brainstorm backend created: schema with 2 tables + 2 enums, 6 shared types,
-      streamGenerate + resolveTaskModel + logUsage extracted to ai-provider.ts,
-      brainstormService with 9 exports (CRUD + messages + context + export),
-      7 IPC handlers with streaming via event.sender.send(), 8 preload bridge methods.
-      meetingIntelligenceService refactored to use shared resolveTaskModel.
-      TypeScript compiles clean, Drizzle migration applied.
-    </done>
-    <confidence>HIGH</confidence>
-    <assumptions>
-      - streamText from 'ai' v6.0.84 accepts { model, messages, system, temperature, maxOutputTokens }
-        and returns StreamTextResult with textStream AsyncIterable (verified from .d.ts)
-      - event.sender.send() in ipcMain.handle works for pushing real-time chunks to renderer
-        (standard Electron IPC pattern — sender is the webContents of the calling renderer)
-      - Drizzle Kit generates correct migration for new tables with pgEnum types
-      - resolveTaskModel extraction is a safe refactoring (same function, new location)
-      - 'brainstorming' task type already exists in AITaskType union (confirmed types.ts line 128)
-    </assumptions>
-  </task>
-
-  <task type="auto" n="2">
-    <n>Create brainstorm store and replace BrainstormPage with chat UI</n>
-    <files>
-      src/renderer/stores/brainstormStore.ts (create)
-      src/renderer/pages/BrainstormPage.tsx (replace stub)
-    </files>
-    <preconditions>
-      - Task 1 complete (schema, service, IPC, preload all working)
-      - Drizzle migration applied, brainstorm tables exist in DB
-      - ElectronAPI has brainstorm methods including onBrainstormChunk with cleanup
-    </preconditions>
-    <action>
-      Create the Zustand store with streaming state and replace the BrainstormPage stub
-      with a full chat interface featuring session management and AI conversation.
-
-      WHY: Users need a conversational interface to brainstorm with AI. The page needs to
-      manage multiple sessions, display message history, handle streaming responses in
-      real-time, and provide session-project linking.
-
-      ## 1. brainstormStore.ts (src/renderer/stores/brainstormStore.ts, ~180-220 lines)
-
-      This store manages sessions, messages, and the streaming state for live AI responses.
-
-      ```typescript
-      // === FILE PURPOSE ===
-      // Zustand store for brainstorming state — sessions, messages, and streaming.
-      // Handles real-time streaming accumulator pattern for AI responses.
-
-      import { create } from 'zustand';
-      import type {
-        BrainstormSession, BrainstormMessage, BrainstormSessionWithMessages,
-        CreateBrainstormSessionInput, BrainstormSessionStatus, Idea,
-      } from '../../shared/types';
-
-      interface BrainstormStore {
-        // Session state
-        sessions: BrainstormSession[];
-        activeSession: BrainstormSessionWithMessages | null;
-        loadingSessions: boolean;
-        loadingSession: boolean;
-        error: string | null;
-
-        // Streaming state
-        streaming: boolean;
-        streamingText: string;
-
-        // Session actions
-        loadSessions: () => Promise<void>;
-        loadSession: (id: string) => Promise<void>;
-        createSession: (data: CreateBrainstormSessionInput) => Promise<BrainstormSession>;
-        updateSession: (id: string, data: { title?: string; status?: BrainstormSessionStatus }) => Promise<void>;
-        deleteSession: (id: string) => Promise<void>;
-        clearActiveSession: () => void;
-
-        // Chat actions
-        sendMessage: (content: string) => Promise<void>;
-
-        // Export actions
-        exportToIdea: (messageId: string) => Promise<Idea>;
-      }
-
-      export const useBrainstormStore = create<BrainstormStore>((set, get) => ({
-        sessions: [],
-        activeSession: null,
-        loadingSessions: false,
-        loadingSession: false,
-        error: null,
-        streaming: false,
-        streamingText: '',
-
-        loadSessions: async () => {
-          set({ loadingSessions: true, error: null });
-          try {
-            const sessions = await window.electronAPI.getBrainstormSessions();
-            set({ sessions, loadingSessions: false });
-          } catch (error) {
-            set({
-              error: error instanceof Error ? error.message : 'Failed to load sessions',
-              loadingSessions: false,
-            });
-          }
-        },
-
-        loadSession: async (id: string) => {
-          set({ loadingSession: true, error: null });
-          try {
-            const session = await window.electronAPI.getBrainstormSession(id);
-            set({ activeSession: session, loadingSession: false });
-          } catch (error) {
-            set({
-              error: error instanceof Error ? error.message : 'Failed to load session',
-              loadingSession: false,
-            });
-          }
-        },
-
-        createSession: async (data: CreateBrainstormSessionInput) => {
-          const session = await window.electronAPI.createBrainstormSession(data);
-          set({ sessions: [session, ...get().sessions] });
-          return session;
-        },
-
-        updateSession: async (id: string, data) => {
-          const updated = await window.electronAPI.updateBrainstormSession(id, data);
-          set({
-            sessions: get().sessions.map(s => s.id === id ? updated : s),
-            activeSession: get().activeSession?.id === id
-              ? { ...get().activeSession!, ...updated }
-              : get().activeSession,
-          });
-        },
-
-        deleteSession: async (id: string) => {
-          await window.electronAPI.deleteBrainstormSession(id);
-          set({
-            sessions: get().sessions.filter(s => s.id !== id),
-            activeSession: get().activeSession?.id === id ? null : get().activeSession,
-          });
-        },
-
-        clearActiveSession: () => set({ activeSession: null }),
-
-        sendMessage: async (content: string) => {
-          const session = get().activeSession;
-          if (!session || get().streaming) return;
-
-          // Optimistically add user message
-          const tempUserMsg: BrainstormMessage = {
-            id: `temp-${Date.now()}`,
-            sessionId: session.id,
-            role: 'user',
-            content,
-            createdAt: new Date().toISOString(),
-          };
-
-          set({
-            activeSession: {
-              ...session,
-              messages: [...session.messages, tempUserMsg],
-            },
-            streaming: true,
-            streamingText: '',
-            error: null,
-          });
-
-          // Subscribe to stream chunks
-          const cleanup = window.electronAPI.onBrainstormChunk((data) => {
-            if (data.sessionId === session.id) {
-              set({ streamingText: get().streamingText + data.chunk });
-            }
-          });
-
-          try {
-            await window.electronAPI.sendBrainstormMessage(session.id, content);
-
-            // Reload session to get server-assigned message IDs
-            const updatedSession = await window.electronAPI.getBrainstormSession(session.id);
-            set({
-              activeSession: updatedSession,
-              streaming: false,
-              streamingText: '',
-              sessions: get().sessions.map(s =>
-                s.id === session.id ? { ...s, updatedAt: new Date().toISOString() } : s
-              ),
-            });
-          } catch (error) {
-            set({
-              streaming: false,
-              streamingText: '',
-              error: error instanceof Error ? error.message : 'Failed to send message',
-            });
-          } finally {
-            cleanup();
-          }
-        },
-
-        exportToIdea: async (messageId: string) => {
-          const session = get().activeSession;
-          if (!session) throw new Error('No active session');
-          return window.electronAPI.exportBrainstormToIdea(session.id, messageId);
-        },
-      }));
-      ```
-
-      ## 2. BrainstormPage.tsx (src/renderer/pages/BrainstormPage.tsx, ~350-420 lines)
-
-      Replace the stub entirely. This is a split-panel layout: session sidebar + chat area.
-
-      Layout:
-      ```
-      +-------------------------------------------------------------+
-      | Brainstorm                                                   |
-      | AI-powered ideation sessions                                 |
-      |                                                              |
-      | +----------------+------------------------------------------+|
-      | | Sessions       | Session Title           [project badge]  ||
-      | |                |                                          ||
-      | | [+ New]        |   (user message, right-aligned)          ||
-      | |                |   What if we add dark mode?              ||
-      | | > Session 1    |                                          ||
-      | |   Session 2    |   (assistant message, left-aligned)      ||
-      | |   Session 3    |   Great idea! Here are some approaches...||
-      | |                |   1. Theme system with CSS vars    [Bulb]||
-      | |                |                                          ||
-      | |                |   (streaming message with cursor)        ||
-      | |                |   The best approach would be...#         ||
-      | |                |                                          ||
-      | |                |   [Type your message...         ] [Send] ||
-      | +----------------+------------------------------------------+|
-      +-------------------------------------------------------------+
-      ```
-
-      Imports:
-      ```typescript
-      import { useState, useEffect, useRef } from 'react';
-      import {
-        Brain, Plus, Send, Loader2, Trash2, Archive,
-        Lightbulb, MessageSquare, User, Bot,
-      } from 'lucide-react';
-      import { useBrainstormStore } from '../stores/brainstormStore';
-      import { useProjectStore } from '../stores/projectStore';
-      import type { BrainstormMessage } from '../../shared/types';
-      ```
-
-      State:
-      ```typescript
-      const {
-        sessions, activeSession, loadingSessions, loadingSession,
-        streaming, streamingText, error,
-        loadSessions, loadSession, createSession, updateSession,
-        deleteSession, sendMessage, clearActiveSession, exportToIdea,
-      } = useBrainstormStore();
-      const { projects, loadProjects } = useProjectStore();
-      const [input, setInput] = useState('');
-      const [newSessionTitle, setNewSessionTitle] = useState('');
-      const [showNewSession, setShowNewSession] = useState(false);
-      const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-      const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-      const messagesEndRef = useRef<HTMLDivElement>(null);
-      ```
-
-      Effects:
-      ```typescript
-      // Load sessions on mount
-      useEffect(() => {
-        loadSessions();
-        loadProjects();
-      }, []);
-
-      // Auto-scroll to bottom when new messages or streaming text changes
-      useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, [activeSession?.messages, streamingText]);
-      ```
-
-      Handlers:
-      ```typescript
-      const handleCreateSession = async () => {
-        if (!newSessionTitle.trim()) return;
-        const session = await createSession({
-          title: newSessionTitle.trim(),
-          projectId: selectedProjectId || undefined,
-        });
-        setNewSessionTitle('');
-        setSelectedProjectId('');
-        setShowNewSession(false);
-        loadSession(session.id);
-      };
-
-      const handleSendMessage = async () => {
-        if (!input.trim() || streaming) return;
-        const content = input.trim();
-        setInput('');
-        await sendMessage(content);
-      };
-
-      const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          handleSendMessage();
-        }
-      };
-
-      const handleExportToIdea = async (messageId: string) => {
-        try {
-          await exportToIdea(messageId);
-        } catch (err) {
-          console.error('Failed to export to idea:', err);
-        }
-      };
-
-      const handleDeleteSession = async (id: string) => {
-        await deleteSession(id);
-        setConfirmDeleteId(null);
-      };
-      ```
-
-      Helper — relative time formatter:
-      ```typescript
-      function formatRelativeTime(isoDate: string): string {
-        const seconds = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
-        if (seconds < 60) return 'just now';
-        if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-        if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-        return `${Math.floor(seconds / 86400)}d ago`;
-      }
-      ```
-
-      JSX structure:
-
-      **Page header**: h1 "Brainstorm" + p subtitle, same as other pages.
-
-      **Main container**: `flex h-[calc(100vh-10rem)] gap-0 border border-surface-700 rounded-xl overflow-hidden`
-
-      **Left sidebar** (`w-64 flex-shrink-0 border-r border-surface-700 bg-surface-900 flex flex-col`):
-      - Header: "Sessions" label with Plus button (toggles showNewSession)
-      - If showNewSession: form with title input, project select dropdown (optional, "No project" default),
-        Create + Cancel buttons
-      - Scrollable session list (`flex-1 overflow-y-auto`):
-        - Each session: clickable row, shows title (truncated), relative date
-        - Active session: `bg-surface-700/50 border-l-2 border-primary-500`
-        - Inactive: `hover:bg-surface-800/50`
-        - Show linked project name as small badge if projectId is set
-        - On hover: delete icon (Trash2, size 14)
-        - Delete: click shows inline "Delete?" confirm, confirm click deletes
-      - Empty state: "No sessions" + "Create one to start brainstorming"
-
-      **Right panel** (`flex-1 flex flex-col bg-surface-900/50`):
-      - If no active session: centered empty state (Brain icon + "Select or create a session")
-      - If loadingSession: centered Loader2 spinner
-      - If active session:
-        - **Header bar** (`px-4 py-3 border-b border-surface-700`):
-          - Session title (text-lg font-medium)
-          - Project badge if linked (bg-surface-700 text-xs px-2 py-0.5 rounded-full)
-        - **Messages area** (`flex-1 overflow-y-auto p-4 space-y-3`):
-          - User messages: right-aligned (`ml-auto max-w-[80%]`)
-            - bg-primary-600/20 border border-primary-500/30 rounded-2xl rounded-br-sm p-3
-            - Small User icon + "You" label at top
-            - Content: whitespace-pre-wrap, text-sm text-surface-200
-          - Assistant messages: left-aligned (`mr-auto max-w-[80%]`)
-            - bg-surface-800 border border-surface-700 rounded-2xl rounded-bl-sm p-3
-            - Small Bot icon + "AI" label at top
-            - Content: whitespace-pre-wrap, text-sm text-surface-200
-            - Export button on hover: Lightbulb icon, "Save as Idea"
-          - Streaming message (if streaming && streamingText):
-            - Same styling as assistant but with `animate-pulse` cursor at end
-            - Content: streamingText + pulsing block character
-          - Streaming indicator (if streaming && !streamingText):
-            - Three animated dots or Loader2 spinner with "AI is thinking..."
-          - messagesEndRef div at bottom for auto-scroll
-        - **Input area** (`border-t border-surface-700 p-3`):
-          - Flex row: textarea + send button
-          - textarea: bg-surface-800 border border-surface-700 rounded-xl px-4 py-2.5
-            text-sm resize-none, placeholder "Type your message... (Shift+Enter for new line)"
-            onKeyDown for Enter to send
-          - Send button: bg-primary-600 hover:bg-primary-500 disabled when empty or streaming
-            Send icon
-          - Error display below input if error exists (text-red-400 text-sm)
-
-      Messages are rendered with simple whitespace-pre-wrap for now. Task 3 will
-      add proper markdown rendering via a ChatMessage component.
-    </action>
-    <verify>
-      1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. brainstormStore.ts: exports useBrainstormStore hook
-      3. brainstormStore.ts: has loadSessions, loadSession, createSession, updateSession,
-         deleteSession, clearActiveSession, sendMessage, exportToIdea (8 actions)
-      4. brainstormStore.ts: streaming state (streaming boolean + streamingText accumulator)
-      5. brainstormStore.ts: sendMessage subscribes to chunks via onBrainstormChunk,
-         accumulates text, cleans up listener on completion or error
-      6. BrainstormPage.tsx: page header with title and subtitle
-      7. BrainstormPage.tsx: session sidebar with list, new session form, delete with confirm
-      8. BrainstormPage.tsx: new session form has title input + optional project dropdown
-      9. BrainstormPage.tsx: chat area shows messages with user/assistant visual distinction
-      10. BrainstormPage.tsx: streaming message appears during AI response with cursor animation
-      11. BrainstormPage.tsx: textarea input with Enter to send, Shift+Enter for newline
-      12. BrainstormPage.tsx: auto-scroll to bottom on new messages and during streaming
-      13. BrainstormPage.tsx: export-to-idea button on assistant messages
-      14. BrainstormPage.tsx: empty states for no sessions and no active session
-      15. BrainstormPage.tsx: error state display
-    </verify>
-    <done>
-      brainstormStore.ts created with session/message/streaming state and 8 actions including
-      optimistic user message display and streaming chunk accumulation. BrainstormPage.tsx
-      replaced with full split-panel chat UI: session sidebar (create with project link,
-      list with relative dates, delete with confirm), chat area with message history
-      (user right-aligned, assistant left-aligned), real-time streaming display with
-      animated cursor, textarea input with keyboard shortcuts, auto-scroll, and
-      export-to-idea on assistant messages. TypeScript compiles clean.
-    </done>
-    <confidence>HIGH</confidence>
-    <assumptions>
-      - onBrainstormChunk cleanup function correctly removes IPC listener
-      - scrollIntoView({ behavior: 'smooth' }) works during rapid streaming updates
-      - textarea with onKeyDown for Enter/Shift+Enter is standard React pattern
-      - Session sidebar at w-64 provides sufficient space for titles
-      - Reloading full session after send (rather than optimistic insert) is acceptable
-        for keeping message IDs in sync with the database
-    </assumptions>
-  </task>
-
-  <task type="auto" n="3">
-    <n>Add ChatMessage component with markdown, context indicator, and session polish</n>
-    <files>
-      src/renderer/components/ChatMessage.tsx (create)
-      src/renderer/pages/BrainstormPage.tsx (modify — use ChatMessage, add context + session rename/archive)
-    </files>
-    <preconditions>
-      - Task 2 complete (brainstormStore and BrainstormPage working)
-      - Sessions can be created, messages sent, streaming works
-      - Messages currently render with whitespace-pre-wrap (no markdown)
-    </preconditions>
-    <action>
-      Extract message rendering into a reusable ChatMessage component with lightweight
-      markdown support, add a context indicator, and polish session management.
-
-      WHY: AI responses often contain markdown (headings, lists, code blocks) that should
-      render properly. Users also need to see what context is being injected into their
-      brainstorming session, and session management benefits from rename and archive.
-
-      ## 1. ChatMessage.tsx (src/renderer/components/ChatMessage.tsx, ~150-180 lines)
-
-      Extract message rendering from BrainstormPage into a standalone component.
-
-      ```typescript
-      // === FILE PURPOSE ===
-      // Renders a single brainstorm chat message with role-based styling
-      // and lightweight markdown rendering for AI responses.
-      //
-      // === DEPENDENCIES ===
-      // lucide-react
-      //
       // === LIMITATIONS ===
-      // - Markdown rendering is regex-based, not a full parser
-      // - Handles: headings, bullets, numbered lists, code blocks, inline code, bold, italic
-      // - Does NOT handle: nested lists, tables, images, links
-
-      import { useState } from 'react';
-      import { Lightbulb, Check, User, Bot } from 'lucide-react';
-      import type { BrainstormMessage } from '../../shared/types';
-
-      interface ChatMessageProps {
-        message: BrainstormMessage;
-        onExportToIdea?: (messageId: string) => void;
-      }
+      // - Context injection is read-only (project data -> system prompt, no tool calls)
+      // - No message editing or deletion (append-only conversation)
+      // - Card/idea/meeting context limited to most recent items to manage token usage
       ```
 
-      Lightweight markdown renderer — `renderMarkdown(content: string): React.ReactNode`:
-      - Split content by code blocks first (``` ... ```)
-      - For code blocks: render as `<pre className="bg-surface-950 border border-surface-700
-        rounded-lg p-3 text-xs font-mono overflow-x-auto my-2"><code>{content}</code></pre>`
-      - For text sections, process line by line:
-        - Lines starting with `## ` or `### `: render as styled headings
-          `<div className="font-semibold text-surface-100 mt-3 mb-1">`
-        - Lines starting with `- ` or `* `: collect consecutive, wrap in `<ul className="list-disc pl-4 space-y-0.5">`
-        - Lines starting with `\d+. `: collect consecutive, wrap in `<ol className="list-decimal pl-4 space-y-0.5">`
-        - Empty lines: `<div className="h-2" />` (spacing)
-        - Other lines: `<p className="my-0.5">`
-      - Within text: apply inline formatting:
-        - `**text**` -> `<strong>`
-        - `*text*` (not **) -> `<em>`
-        - `` `code` `` -> `<code className="bg-surface-700 px-1 py-0.5 rounded text-xs font-mono">`
-
-      Implement as a function component, NOT a full markdown parser. Keep it simple:
-      use string.split() and regex, return JSX elements with keys.
-
-      User messages:
-      - Container: `ml-auto max-w-[80%]`
-      - Bubble: `bg-primary-600/20 border border-primary-500/30 rounded-2xl rounded-br-sm p-3`
-      - Header: User icon (size 14) + "You" label, text-xs text-surface-500
-      - Content: `whitespace-pre-wrap text-sm text-surface-200` (no markdown for user msgs)
-      - Timestamp: bottom-right, text-xs text-surface-600
-
-      Assistant messages:
-      - Container: `mr-auto max-w-[80%] group` (group for hover actions)
-      - Bubble: `bg-surface-800 border border-surface-700 rounded-2xl rounded-bl-sm p-3`
-      - Header: Bot icon (size 14, text-primary-400) + "AI" label, text-xs text-surface-500
-      - Content: rendered via renderMarkdown(), `text-sm text-surface-200`
-      - Hover action bar: `opacity-0 group-hover:opacity-100 transition-opacity`
-        flex items-center gap-1 mt-2 pt-2 border-t border-surface-700
-        - Export button: Lightbulb icon + "Save as Idea", text-xs, rounded-md px-2 py-1
-          hover:bg-surface-700 text-surface-400 hover:text-amber-400
-        - On click: calls onExportToIdea, shows Check icon + "Saved!" for 2 seconds
-      - Timestamp: bottom-right, text-xs text-surface-600
-
-      ```typescript
-      export default function ChatMessage({ message, onExportToIdea }: ChatMessageProps) {
-        const [exported, setExported] = useState(false);
-
-        const handleExport = () => {
-          if (onExportToIdea && !exported) {
-            onExportToIdea(message.id);
-            setExported(true);
-            setTimeout(() => setExported(false), 2000);
-          }
-        };
-
-        // ... render based on message.role
-      }
-      ```
-
-      ## 2. Update BrainstormPage.tsx
-
-      ### 2a. Replace inline message rendering with ChatMessage
-
-      Add import:
-      ```typescript
-      import ChatMessage from '../components/ChatMessage';
-      ```
-
-      Replace the inline message map in the messages area with:
-      ```tsx
-      {activeSession.messages.map(msg => (
-        <ChatMessage
-          key={msg.id}
-          message={msg}
-          onExportToIdea={msg.role === 'assistant' ? handleExportToIdea : undefined}
-        />
-      ))}
-      ```
-
-      Keep the streaming message as inline JSX (it uses streamingText, not a BrainstormMessage):
-      ```tsx
-      {streaming && streamingText && (
-        <div className="mr-auto max-w-[80%] bg-surface-800 border border-surface-700 rounded-2xl rounded-bl-sm p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Bot size={14} className="text-primary-400" />
-            <span className="text-xs text-surface-500">AI</span>
-          </div>
-          <div className="text-sm text-surface-200 whitespace-pre-wrap">
-            {streamingText}<span className="animate-pulse text-primary-400">|</span>
-          </div>
-        </div>
-      )}
-      ```
-
-      ### 2b. Add context indicator to chat header
-
-      In the header bar of the active session, below the title, add:
-      ```tsx
-      <div className="flex items-center gap-2 text-xs text-surface-500 mt-0.5">
-        <span>Context:</span>
-        {activeSession.projectId ? (
-          <span className="bg-surface-700 px-2 py-0.5 rounded-full text-surface-300">
-            {projects.find(p => p.id === activeSession.projectId)?.name ?? 'Project'}
-          </span>
-        ) : (
-          <span className="text-surface-600">General (no project linked)</span>
-        )}
-      </div>
-      ```
-
-      ### 2c. Add session rename (inline edit)
-
-      In the session sidebar, add double-click to rename:
-      - State: `const [renamingId, setRenamingId] = useState<string | null>(null);`
-        `const [renameTitle, setRenameTitle] = useState('');`
-      - On double-click on session title: set renamingId and renameTitle
-      - Show input instead of title text when renamingId matches
-      - Enter: save via updateSession(id, { title: renameTitle }), clear renamingId
-      - Escape: cancel rename, clear renamingId
-      - Blur: save (same as Enter)
-
-      ### 2d. Add archive toggle
-
-      In session sidebar hover actions (next to delete icon):
-      - Archive icon button (Archive from lucide-react, size 14)
-      - On click: updateSession(id, { status: 'archived' })
-      - Add state: `const [showArchived, setShowArchived] = useState(false);`
-      - Filter sessions in sidebar:
-        `const filteredSessions = showArchived ? sessions : sessions.filter(s => s.status === 'active');`
-      - Toggle at top of session list: "Show archived" checkbox/toggle
-      - Archived sessions: `opacity-50` styling
+      Remove the old note about "buildContext queries are sequential" since we now
+      use Promise.all for the main parallel queries.
     </action>
     <verify>
-      1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. ChatMessage.tsx: renders user messages right-aligned with primary bubble styling
-      3. ChatMessage.tsx: renders assistant messages left-aligned with surface bubble styling
-      4. ChatMessage.tsx: markdown handles headings (## and ###), bullets, numbered lists,
-         code blocks, inline code, bold, and italic
-      5. ChatMessage.tsx: assistant messages show export-to-idea on hover
-      6. ChatMessage.tsx: export shows "Saved!" confirmation for 2 seconds
-      7. BrainstormPage.tsx: uses ChatMessage component for all messages
-      8. BrainstormPage.tsx: streaming message shows with animated cursor
-      9. BrainstormPage.tsx: context indicator in chat header shows project name or "General"
-      10. BrainstormPage.tsx: session rename via double-click inline edit
-      11. BrainstormPage.tsx: archive toggle on session hover
-      12. BrainstormPage.tsx: "Show archived" filter toggle in sidebar
+      1. `npx tsc --noEmit` passes with zero errors
+      2. drizzle-orm imports include: eq, desc, asc, and, inArray, not
+      3. Schema imports include: columns, cards, meetingBriefs (in addition to existing)
+      4. buildContext uses Promise.all for boards, meetings, ideas queries
+      5. Context includes board names with card titles (up to 5 per board)
+      6. Context includes idea titles with status (up to 5, excluding archived)
+      7. Context includes meeting titles with truncated brief summaries (up to 3)
+      8. Empty states handled gracefully (boards with no columns, no cards, etc.)
+      9. File header LIMITATIONS comment updated
     </verify>
     <done>
-      ChatMessage.tsx created (~150-180 lines) with role-based styling and lightweight
-      regex-based markdown rendering (headings, lists, code blocks, inline formatting).
-      BrainstormPage.tsx updated: uses ChatMessage for message display, context indicator
-      in chat header, session rename via double-click, archive toggle, and session list
-      filtering. Plan 6.2 delivers complete R10: AI Brainstorming Agent with conversational
-      streaming interface, context injection, session management, markdown rendering,
-      and export to ideas. TypeScript compiles clean.
+      Brainstorm context injection enriched with card titles per board, idea titles with status,
+      and meeting brief summaries (truncated to 200 chars). Main queries parallelized with
+      Promise.all. TypeScript compiles cleanly.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Lightweight regex-based markdown rendering covers most AI response formatting
-        (full library like react-markdown not needed for MVP)
-      - Double-click for inline rename is discoverable (common pattern in file managers)
-      - group-hover for export button action bar works with Tailwind (standard Tailwind pattern)
-      - Code block detection via ``` split is reliable for AI-generated content
+      - `columns` table is exported from schema/boards.ts (verified in exploration)
+      - `meetingBriefs` table is exported from schema/meetings.ts (verified in exploration)
+      - `inArray` and `not` are exported from drizzle-orm (standard operators)
+      - `cards.archived` field exists as boolean (verified: schema/cards.ts line 30)
+      - `ideas.status` can be compared with `not(eq(..., 'archived'))` for filtering
+      - Brief truncation at 200 chars keeps total context within reasonable token limits
+      - Sequential card queries per board are acceptable (typically 1-3 boards per project)
     </assumptions>
   </task>
 </phase>

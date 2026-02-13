@@ -32,4 +32,8 @@ export function registerIdeaHandlers(): void {
   ipcMain.handle('ideas:convert-to-card', async (_event, ideaId: string, columnId: string) => {
     return ideaService.convertIdeaToCard(ideaId, columnId);
   });
+
+  ipcMain.handle('idea:analyze', async (_event, id: string) => {
+    return ideaService.analyzeIdea(id);
+  });
 }

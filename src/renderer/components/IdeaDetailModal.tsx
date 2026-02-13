@@ -1,11 +1,12 @@
 // === FILE PURPOSE ===
 // Detail modal for viewing and editing an idea. Supports inline editing of title,
-// description, status, effort, impact, and tags. Includes delete with confirmation
-// and convert-to-project / convert-to-card wizard (same pattern as ConvertActionModal).
+// description, status, effort, impact, and tags. Includes delete with confirmation,
+// convert-to-project / convert-to-card wizard, AI analysis, and brainstorm navigation.
 //
 // === DEPENDENCIES ===
-// react, lucide-react (X, Loader2, Trash2, FolderPlus, ArrowRightCircle, ChevronLeft),
-// ideaStore, shared types, window.electronAPI (getProjects, getBoards, getColumns)
+// react, lucide-react (X, Loader2, Trash2, FolderPlus, ArrowRightCircle, ChevronLeft,
+// Sparkles, MessageSquare, AlertCircle),
+// ideaStore, brainstormStore, shared types, window.electronAPI (getProjects, getBoards, getColumns)
 
 import { useState, useEffect } from 'react';
 import {
@@ -15,8 +16,12 @@ import {
   FolderPlus,
   ArrowRightCircle,
   ChevronLeft,
+  Sparkles,
+  MessageSquare,
+  AlertCircle,
 } from 'lucide-react';
 import { useIdeaStore } from '../stores/ideaStore';
+import { useBrainstormStore } from '../stores/brainstormStore';
 import type {
   IdeaStatus,
   EffortLevel,
@@ -56,9 +61,10 @@ const IMPACT_OPTIONS: { label: string; value: ImpactLevel }[] = [
 interface IdeaDetailModalProps {
   ideaId: string;
   onClose: () => void;
+  onNavigate?: (path: string) => void;
 }
 
-export default function IdeaDetailModal({ ideaId, onClose }: IdeaDetailModalProps) {
+export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDetailModalProps) {
   const {
     selectedIdea,
     loadIdea,
@@ -67,6 +73,11 @@ export default function IdeaDetailModal({ ideaId, onClose }: IdeaDetailModalProp
     clearSelectedIdea,
     convertToProject,
     convertToCard,
+    analysis,
+    analyzing,
+    analysisError,
+    analyzeIdea,
+    clearAnalysis,
   } = useIdeaStore();
 
   // Local edit state
@@ -277,6 +288,26 @@ export default function IdeaDetailModal({ ideaId, onClose }: IdeaDetailModalProp
     if (e.target === e.currentTarget) onClose();
   };
 
+  const handleBrainstormIdea = async () => {
+    if (!selectedIdea) return;
+    try {
+      const session = await useBrainstormStore.getState().createSession({
+        title: `Brainstorm: ${selectedIdea.title}`,
+        projectId: selectedIdea.projectId || undefined,
+      });
+      await useBrainstormStore.getState().loadSession(session.id);
+      const description = selectedIdea.description ? `\n\n${selectedIdea.description}` : '';
+      const tagList = selectedIdea.tags?.length ? `\n\nTags: ${selectedIdea.tags.join(', ')}` : '';
+      await useBrainstormStore.getState().sendMessage(
+        `I'd like to brainstorm about this idea:\n\n**${selectedIdea.title}**${description}${tagList}`
+      );
+      if (onNavigate) onNavigate('/brainstorm');
+      onClose();
+    } catch (error) {
+      console.error('Failed to start brainstorm session:', error);
+    }
+  };
+
   const canAdvanceWizard =
     (convertStep === 1 && selectedProjectId) ||
     (convertStep === 2 && selectedBoardId) ||
@@ -383,6 +414,108 @@ export default function IdeaDetailModal({ ideaId, onClose }: IdeaDetailModalProp
               />
             </div>
 
+            {/* AI Analysis */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-surface-300 flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-purple-400" />
+                  AI Analysis
+                </label>
+                <button
+                  onClick={() => analyzeIdea(selectedIdea.id)}
+                  disabled={analyzing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600/30 text-purple-300 rounded-lg text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {analyzing ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={14} />
+                  )}
+                  {analyzing ? 'Analyzing...' : 'Analyze with AI'}
+                </button>
+              </div>
+
+              {/* Analysis loading state */}
+              {analyzing && (
+                <div className="flex items-center gap-2 py-3 text-sm text-surface-400">
+                  <Loader2 size={16} className="animate-spin" />
+                  Analyzing idea...
+                </div>
+              )}
+
+              {/* Analysis error state */}
+              {analysisError && !analyzing && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm">
+                  <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-red-400">{analysisError}</p>
+                    <p className="text-surface-500 text-xs mt-1">
+                      Make sure an AI provider is configured in Settings.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Analysis results */}
+              {analysis && !analyzing && (
+                <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-4 space-y-3">
+                  {/* Suggested Effort */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-surface-400">Suggested Effort:</span>
+                      <span className="bg-blue-500/20 text-blue-300 text-xs px-2 py-0.5 rounded-full">
+                        {analysis.suggestedEffort}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setEffort(analysis.suggestedEffort)}
+                      className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                    >
+                      Apply
+                    </button>
+                  </div>
+
+                  {/* Suggested Impact */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-surface-400">Suggested Impact:</span>
+                      <span className="bg-amber-500/20 text-amber-300 text-xs px-2 py-0.5 rounded-full">
+                        {analysis.suggestedImpact}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setImpact(analysis.suggestedImpact)}
+                      className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                    >
+                      Apply
+                    </button>
+                  </div>
+
+                  {/* Feasibility notes */}
+                  <div>
+                    <span className="text-xs text-surface-400 block mb-1">Feasibility:</span>
+                    <p className="text-sm text-surface-300">{analysis.feasibilityNotes}</p>
+                  </div>
+
+                  {/* Rationale */}
+                  <div>
+                    <span className="text-xs text-surface-400 block mb-1">Rationale:</span>
+                    <p className="text-sm text-surface-300">{analysis.rationale}</p>
+                  </div>
+
+                  {/* Dismiss button */}
+                  <div className="flex justify-end">
+                    <button
+                      onClick={clearAnalysis}
+                      className="text-xs text-surface-500 hover:text-surface-300 transition-colors"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Tags */}
             <div className="mt-4">
               <label className="text-sm font-medium text-surface-300 mb-2 block">
@@ -424,29 +557,38 @@ export default function IdeaDetailModal({ ideaId, onClose }: IdeaDetailModalProp
               </div>
             </div>
 
-            {/* Divider */}
+            {/* Divider — Actions */}
             <div className="border-t border-surface-700 mt-4 pt-4">
               <label className="text-sm font-medium text-surface-300 mb-2 block">
-                Convert
+                Actions
               </label>
 
-              {/* Default: two convert buttons */}
+              {/* Brainstorm + Convert buttons */}
               {convertMode === 'none' && (
-                <div className="flex items-center gap-2">
+                <div className="space-y-2">
                   <button
-                    onClick={() => setConvertMode('project')}
-                    className="flex-1 flex items-center justify-center gap-2 p-3 border border-surface-700 rounded-lg text-sm text-surface-200 hover:border-primary-500 hover:bg-primary-500/10 transition-colors cursor-pointer"
+                    onClick={handleBrainstormIdea}
+                    className="flex items-center gap-2 px-4 py-2 bg-surface-700 hover:bg-surface-600 text-surface-200 rounded-lg text-sm transition-colors w-full"
                   >
-                    <FolderPlus size={16} />
-                    Create Project
+                    <MessageSquare size={16} />
+                    Brainstorm This Idea
                   </button>
-                  <button
-                    onClick={() => setConvertMode('card')}
-                    className="flex-1 flex items-center justify-center gap-2 p-3 border border-surface-700 rounded-lg text-sm text-surface-200 hover:border-primary-500 hover:bg-primary-500/10 transition-colors cursor-pointer"
-                  >
-                    <ArrowRightCircle size={16} />
-                    Add as Card
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setConvertMode('project')}
+                      className="flex-1 flex items-center justify-center gap-2 p-3 border border-surface-700 rounded-lg text-sm text-surface-200 hover:border-primary-500 hover:bg-primary-500/10 transition-colors cursor-pointer"
+                    >
+                      <FolderPlus size={16} />
+                      Create Project
+                    </button>
+                    <button
+                      onClick={() => setConvertMode('card')}
+                      className="flex-1 flex items-center justify-center gap-2 p-3 border border-surface-700 rounded-lg text-sm text-surface-200 hover:border-primary-500 hover:bg-primary-500/10 transition-colors cursor-pointer"
+                    >
+                      <ArrowRightCircle size={16} />
+                      Add as Card
+                    </button>
+                  </div>
                 </div>
               )}
 

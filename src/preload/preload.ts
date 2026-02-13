@@ -174,6 +174,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   convertIdeaToProject: (id: string) => ipcRenderer.invoke('ideas:convert-to-project', id),
   convertIdeaToCard: (ideaId: string, columnId: string) =>
     ipcRenderer.invoke('ideas:convert-to-card', ideaId, columnId),
+  analyzeIdea: (id: string) => ipcRenderer.invoke('idea:analyze', id),
 
   // Brainstorm
   getBrainstormSessions: () => ipcRenderer.invoke('brainstorm:list-sessions'),

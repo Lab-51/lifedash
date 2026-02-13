@@ -17,8 +17,12 @@
 import { eq, desc, count, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { ideas, ideaTags, projects, cards } from '../db/schema';
+import { generate, resolveTaskModel } from './ai-provider';
 import type {
   Idea,
+  IdeaAnalysis,
+  EffortLevel,
+  ImpactLevel,
   CreateIdeaInput,
   UpdateIdeaInput,
   ConvertIdeaToProjectResult,
@@ -260,5 +264,133 @@ export async function convertIdeaToCard(
   return {
     idea: toIdea(updatedRow, tagMap.get(ideaId) ?? []),
     cardId: card.id,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// AI Idea Analysis
+// ---------------------------------------------------------------------------
+
+const IDEA_ANALYSIS_SYSTEM_PROMPT = `You are an idea analysis assistant. Given an idea with its title, description, and tags, analyze it and provide structured feedback.
+
+Respond ONLY with a JSON object (no markdown, no code fences):
+{
+  "suggestedEffort": "<one of: trivial, small, medium, large, epic>",
+  "suggestedImpact": "<one of: minimal, low, medium, high, critical>",
+  "feasibilityNotes": "<1-3 sentences about technical feasibility, risks, and prerequisites>",
+  "rationale": "<1-3 sentences explaining why you chose these effort/impact levels>"
+}
+
+Effort levels:
+- trivial: less than a day, straightforward
+- small: 1-3 days, well-understood
+- medium: 1-2 weeks, some unknowns
+- large: 2-4 weeks, significant complexity
+- epic: 1+ months, major undertaking
+
+Impact levels:
+- minimal: nice-to-have, few users affected
+- low: minor improvement, limited scope
+- medium: noticeable improvement, moderate reach
+- high: significant value, many users affected
+- critical: essential, business-critical`;
+
+const VALID_EFFORTS: EffortLevel[] = ['trivial', 'small', 'medium', 'large', 'epic'];
+const VALID_IMPACTS: ImpactLevel[] = ['minimal', 'low', 'medium', 'high', 'critical'];
+
+/**
+ * Analyze an idea using AI to suggest effort, impact, feasibility, and rationale.
+ * Uses the 'idea_analysis' task type to resolve the configured AI provider.
+ */
+export async function analyzeIdea(ideaId: string): Promise<IdeaAnalysis> {
+  const db = getDb();
+
+  // Load idea
+  const [ideaRow] = await db.select().from(ideas).where(eq(ideas.id, ideaId));
+  if (!ideaRow) throw new Error(`Idea not found: ${ideaId}`);
+
+  // Load tags
+  const tagRows = await db
+    .select({ tag: ideaTags.tag })
+    .from(ideaTags)
+    .where(eq(ideaTags.ideaId, ideaId));
+  const tags = tagRows.map((r) => r.tag);
+
+  // Resolve AI provider
+  const provider = await resolveTaskModel('idea_analysis');
+  if (!provider) {
+    throw new Error('No AI provider configured. Go to Settings to add one.');
+  }
+
+  // Build prompt
+  let prompt = `Idea: ${ideaRow.title}`;
+  if (ideaRow.description) prompt += `\nDescription: ${ideaRow.description}`;
+  if (tags.length > 0) prompt += `\nTags: ${tags.join(', ')}`;
+  if (ideaRow.effort) prompt += `\nCurrent effort estimate: ${ideaRow.effort}`;
+  if (ideaRow.impact) prompt += `\nCurrent impact estimate: ${ideaRow.impact}`;
+
+  // Generate analysis
+  const result = await generate({
+    providerId: provider.providerId,
+    providerName: provider.providerName,
+    apiKeyEncrypted: provider.apiKeyEncrypted,
+    baseUrl: provider.baseUrl,
+    model: provider.model,
+    taskType: 'idea_analysis',
+    prompt,
+    system: IDEA_ANALYSIS_SYSTEM_PROMPT,
+    temperature: provider.temperature ?? 0.3,
+    maxTokens: provider.maxTokens ?? 1024,
+  });
+
+  // Parse JSON response with fallback
+  return parseAnalysisResponse(result.text);
+}
+
+function parseAnalysisResponse(text: string): IdeaAnalysis {
+  // Try direct JSON parse
+  try {
+    const parsed = JSON.parse(text);
+    return validateAnalysis(parsed);
+  } catch {
+    // Try extracting JSON from response text
+  }
+
+  // Regex fallback: find JSON object in text
+  const match = text.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[0]);
+      return validateAnalysis(parsed);
+    } catch {
+      // Fall through to defaults
+    }
+  }
+
+  // Default fallback — return sensible defaults with raw text as rationale
+  return {
+    suggestedEffort: 'medium',
+    suggestedImpact: 'medium',
+    feasibilityNotes: 'Unable to parse structured analysis.',
+    rationale: text.slice(0, 500),
+  };
+}
+
+function validateAnalysis(parsed: Record<string, unknown>): IdeaAnalysis {
+  return {
+    suggestedEffort: VALID_EFFORTS.includes(parsed.suggestedEffort as EffortLevel)
+      ? (parsed.suggestedEffort as EffortLevel)
+      : 'medium',
+    suggestedImpact: VALID_IMPACTS.includes(parsed.suggestedImpact as ImpactLevel)
+      ? (parsed.suggestedImpact as ImpactLevel)
+      : 'medium',
+    feasibilityNotes:
+      typeof parsed.feasibilityNotes === 'string'
+        ? parsed.feasibilityNotes
+        : 'No feasibility notes provided.',
+    rationale:
+      typeof parsed.rationale === 'string'
+        ? parsed.rationale
+        : 'No rationale provided.',
   };
 }

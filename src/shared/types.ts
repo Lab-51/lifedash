@@ -348,6 +348,13 @@ export interface ConvertIdeaToCardResult {
   cardId: string;
 }
 
+export interface IdeaAnalysis {
+  suggestedEffort: EffortLevel;
+  suggestedImpact: ImpactLevel;
+  feasibilityNotes: string;
+  rationale: string;
+}
+
 // === BRAINSTORM TYPES ===
 
 export type BrainstormSessionStatus = 'active' | 'archived';
@@ -485,6 +492,7 @@ export interface ElectronAPI {
   deleteIdea: (id: string) => Promise<void>;
   convertIdeaToProject: (id: string) => Promise<ConvertIdeaToProjectResult>;
   convertIdeaToCard: (ideaId: string, columnId: string) => Promise<ConvertIdeaToCardResult>;
+  analyzeIdea: (id: string) => Promise<IdeaAnalysis>;
 
   // Brainstorm
   getBrainstormSessions: () => Promise<BrainstormSession[]>;
