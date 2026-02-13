@@ -46,6 +46,15 @@ interface ProviderFactory {
   (modelId: string): LanguageModel;
 }
 
+// Providers that don't support custom temperature values
+const FIXED_TEMPERATURE_PROVIDERS: Set<AIProviderName> = new Set(['kimi']);
+
+/** Strip temperature for providers that only accept fixed values (e.g. Kimi K2.5). */
+function sanitizeTemperature(providerName: AIProviderName, temperature?: number): number | undefined {
+  if (FIXED_TEMPERATURE_PROVIDERS.has(providerName)) return undefined;
+  return temperature;
+}
+
 // Cache provider factories by DB id (invalidated on config change)
 const providerCache = new Map<string, ProviderFactory>();
 
@@ -163,7 +172,7 @@ export async function generate(options: {
     model: factory(options.model) as LanguageModel,
     prompt: options.prompt,
     system: options.system,
-    temperature: options.temperature,
+    temperature: sanitizeTemperature(options.providerName, options.temperature),
     maxOutputTokens: options.maxTokens,
   });
 
@@ -326,7 +335,7 @@ export function streamGenerate(options: {
     model: factory(options.model) as LanguageModel,
     messages: options.messages,
     system: options.system,
-    temperature: options.temperature,
+    temperature: sanitizeTemperature(options.providerName, options.temperature),
     maxOutputTokens: options.maxTokens,
   });
 }
