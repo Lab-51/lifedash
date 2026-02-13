@@ -1,26 +1,34 @@
 // === FILE PURPOSE ===
 // Audio capture bridge -- thin layer that captures system audio via
-// electron-audio-loopback, extracts PCM via ScriptProcessorNode,
+// electron-audio-loopback AND optionally the user's microphone,
+// mixes them via Web Audio API, extracts PCM via ScriptProcessorNode,
 // and streams Int16 chunks to the main process via IPC.
 //
 // === DEPENDENCIES ===
-// Web Audio API (AudioContext, ScriptProcessorNode), window.electronAPI
+// Web Audio API (AudioContext, ScriptProcessorNode, GainNode), window.electronAPI
 //
 // === LIMITATIONS ===
 // - Uses deprecated ScriptProcessorNode (migrate to AudioWorklet in v2)
 // - Single recording at a time
 // - getDisplayMedia shows system picker dialog (user must select screen)
-// - No audio level metering (future enhancement)
+// - Mic failure is non-fatal (falls back to system-only)
 
 const SAMPLE_RATE = 16000; // 16kHz for Whisper
 const BUFFER_SIZE = 4096; // ScriptProcessorNode buffer size (samples per callback)
 const INPUT_CHANNELS = 1; // Mono (browser handles stereo->mono downmix)
 const OUTPUT_CHANNELS = 1; // Mono output
 
+// System audio resources
 let audioContext: AudioContext | null = null;
 let mediaStream: MediaStream | null = null;
 let sourceNode: MediaStreamAudioSourceNode | null = null;
+let systemGainNode: GainNode | null = null;
 let processorNode: ScriptProcessorNode | null = null;
+
+// Microphone resources
+let micStream: MediaStream | null = null;
+let micSourceNode: MediaStreamAudioSourceNode | null = null;
+let micGainNode: GainNode | null = null;
 
 /**
  * Convert Float32 audio samples to Int16 PCM.
@@ -36,20 +44,39 @@ function float32ToInt16(float32: Float32Array): Int16Array {
 }
 
 /**
- * Start capturing system audio.
- *
- * Flow:
- * 1. Enable loopback audio (patches getDisplayMedia)
- * 2. Call getDisplayMedia (shows system picker -- user selects screen)
- * 3. Remove video tracks (we only need audio)
- * 4. Disable loopback (restore normal getDisplayMedia)
- * 5. Create AudioContext at 16kHz (browser resamples automatically)
- * 6. Connect: MediaStreamSource -> ScriptProcessorNode
- * 7. On each audio buffer: convert Float32->Int16, send to main via IPC
- *
- * @throws If user cancels the picker dialog or audio capture fails
+ * Attempt to acquire the user's microphone stream.
+ * Returns null on failure (permission denied, no hardware, etc.) — non-fatal.
  */
-export async function startCapture(): Promise<void> {
+async function acquireMicStream(): Promise<MediaStream | null> {
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+  } catch {
+    // Permission denied or no mic hardware — fall back to system-only
+    console.warn('Microphone not available, recording system audio only.');
+    return null;
+  }
+}
+
+/**
+ * Start capturing system audio, optionally mixed with microphone input.
+ *
+ * Audio graph:
+ *   getDisplayMedia (system) → systemSource → systemGain ─┐
+ *                                                          ├→ processorNode → IPC
+ *   getUserMedia (mic)       → micSource    → micGain    ─┘
+ *
+ * Web Audio API automatically sums signals connected to the same input node.
+ *
+ * @param includeMic Whether to also capture the user's microphone (default: true)
+ * @throws If user cancels the picker dialog or system audio capture fails
+ */
+export async function startCapture(includeMic: boolean = true): Promise<void> {
   if (audioContext) {
     throw new Error('Already capturing. Call stopCapture() first.');
   }
@@ -89,15 +116,35 @@ export async function startCapture(): Promise<void> {
   // Step 5: Create AudioContext at 16kHz -- browser handles resampling from 48kHz
   audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
 
-  // Step 6: Connect audio pipeline
+  // Step 6: Build audio pipeline with GainNodes for mixing
   sourceNode = audioContext.createMediaStreamSource(mediaStream);
+  systemGainNode = audioContext.createGain();
+  systemGainNode.gain.value = 1.0;
+
   processorNode = audioContext.createScriptProcessor(
     BUFFER_SIZE,
     INPUT_CHANNELS,
     OUTPUT_CHANNELS,
   );
 
-  // Step 7: Extract PCM and send to main
+  // Connect system audio: source → gain → processor
+  sourceNode.connect(systemGainNode);
+  systemGainNode.connect(processorNode);
+
+  // Step 7: Optionally add microphone input
+  if (includeMic) {
+    micStream = await acquireMicStream();
+    if (micStream) {
+      micSourceNode = audioContext.createMediaStreamSource(micStream);
+      micGainNode = audioContext.createGain();
+      micGainNode.gain.value = 1.0;
+      // Connect mic: source → gain → processor (sums with system audio)
+      micSourceNode.connect(micGainNode);
+      micGainNode.connect(processorNode);
+    }
+  }
+
+  // Step 8: Extract PCM and send to main
   processorNode.onaudioprocess = (event: AudioProcessingEvent) => {
     const float32Data = event.inputBuffer.getChannelData(0);
     const int16Data = float32ToInt16(float32Data);
@@ -106,7 +153,6 @@ export async function startCapture(): Promise<void> {
     window.electronAPI.sendAudioChunk(int16Data.buffer as ArrayBuffer);
   };
 
-  sourceNode.connect(processorNode);
   // Connect to destination to keep the processor running
   // (ScriptProcessorNode requires being connected to output)
   processorNode.connect(audioContext.destination);
@@ -134,6 +180,24 @@ function cleanup(): void {
     processorNode.disconnect();
     processorNode.onaudioprocess = null;
     processorNode = null;
+  }
+  // Clean up mic resources
+  if (micGainNode) {
+    micGainNode.disconnect();
+    micGainNode = null;
+  }
+  if (micSourceNode) {
+    micSourceNode.disconnect();
+    micSourceNode = null;
+  }
+  if (micStream) {
+    micStream.getTracks().forEach((track) => track.stop());
+    micStream = null;
+  }
+  // Clean up system audio resources
+  if (systemGainNode) {
+    systemGainNode.disconnect();
+    systemGainNode = null;
   }
   if (sourceNode) {
     sourceNode.disconnect();

@@ -7,7 +7,7 @@
 // react, lucide-react (Mic, Square, Loader2), recordingStore
 
 import { useState } from 'react';
-import { Mic, Square, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Square, Loader2 } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
@@ -20,8 +20,8 @@ function formatElapsed(seconds: number): string {
 
 export default function RecordingControls() {
   const {
-    isRecording, elapsed, error, starting,
-    startRecording, stopRecording,
+    isRecording, elapsed, error, starting, includeMic,
+    startRecording, stopRecording, setIncludeMic,
   } = useRecordingStore();
   const [title, setTitle] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<MeetingTemplateType>('none');
@@ -77,6 +77,20 @@ export default function RecordingControls() {
               ))}
             </div>
           )}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includeMic}
+              onChange={(e) => setIncludeMic(e.target.checked)}
+              disabled={starting}
+              className="h-3.5 w-3.5 rounded accent-primary-500 bg-surface-700 border-surface-600
+                         disabled:opacity-50"
+            />
+            {includeMic ? <Mic size={14} className="text-surface-300" /> : <MicOff size={14} className="text-surface-500" />}
+            <span className="text-xs text-surface-400">
+              {includeMic ? 'Microphone on' : 'Microphone off'}
+            </span>
+          </label>
           <button
             onClick={handleStart}
             disabled={!title.trim() || starting}

@@ -21,8 +21,10 @@ interface RecordingStore {
   lastTranscript: string;
   error: string | null;
   starting: boolean;
+  includeMic: boolean;
 
   // Actions
+  setIncludeMic: (value: boolean) => void;
   startRecording: (title: string, projectId?: string, template?: MeetingTemplateType) => Promise<void>;
   stopRecording: () => Promise<void>;
   initListener: () => () => void;
@@ -35,6 +37,9 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   lastTranscript: '',
   error: null,
   starting: false,
+  includeMic: true,
+
+  setIncludeMic: (value: boolean) => set({ includeMic: value }),
 
   startRecording: async (title: string, projectId?: string, template?: MeetingTemplateType) => {
     set({ starting: true, error: null });
@@ -49,8 +54,8 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       // Step 2: Tell main process to start recording
       await window.electronAPI.startRecording(meeting.id);
 
-      // Step 3: Start audio capture in renderer
-      await audioCaptureService.startCapture();
+      // Step 3: Start audio capture in renderer (with optional mic mixing)
+      await audioCaptureService.startCapture(get().includeMic);
 
       set({
         isRecording: true,
