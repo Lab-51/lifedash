@@ -72,10 +72,18 @@ parentPort?.on('message', async (msg: MainToWorkerMessage) => {
 
         const result = await promise;
 
+        // Sanitize segment timestamps from native binding
+        // whisper.cpp may return denormalized floats (e.g. 3.57e-310) for t0/t1
+        const sanitizedSegments = result.segments.map((seg: { text: string; t0: number; t1: number }) => ({
+          text: seg.text,
+          t0: Number.isFinite(seg.t0) ? Math.round(seg.t0) : 0,
+          t1: Number.isFinite(seg.t1) ? Math.round(seg.t1) : 0,
+        }));
+
         parentPort?.postMessage({
           type: 'result',
           text: result.result,
-          segments: result.segments,
+          segments: sanitizedSegments,
           segmentIndex: msg.segmentIndex,
           startTimeMs: msg.startTimeMs,
         });

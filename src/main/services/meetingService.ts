@@ -154,7 +154,7 @@ export async function addTranscriptSegment(
   const db = getDb();
   const [row] = await db
     .insert(transcripts)
-    .values({ meetingId, content, startTime, endTime })
+    .values({ meetingId, content, startTime: Math.round(startTime), endTime: Math.round(endTime) })
     .returning();
   return toTranscriptSegment(row);
 }

@@ -324,8 +324,8 @@ async function handleWorkerMessage(msg: WorkerMessage): Promise<void> {
       // Save each segment to the database
       for (const seg of msg.segments) {
         if (!seg.text.trim()) continue;
-        const segStartMs = msg.startTimeMs + seg.t0;
-        const segEndMs = msg.startTimeMs + seg.t1;
+        const segStartMs = Math.max(0, Math.round(msg.startTimeMs + seg.t0));
+        const segEndMs = Math.max(0, Math.round(msg.startTimeMs + seg.t1));
 
         try {
           const saved = await meetingService.addTranscriptSegment(
