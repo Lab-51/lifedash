@@ -164,4 +164,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('meetings:update-action-status', id, status),
   convertActionToCard: (actionItemId: string, columnId: string) =>
     ipcRenderer.invoke('meetings:convert-action-to-card', actionItemId, columnId),
+
+  // Ideas
+  getIdeas: () => ipcRenderer.invoke('ideas:list'),
+  getIdea: (id: string) => ipcRenderer.invoke('ideas:get', id),
+  createIdea: (data: any) => ipcRenderer.invoke('ideas:create', data),
+  updateIdea: (id: string, data: any) => ipcRenderer.invoke('ideas:update', id, data),
+  deleteIdea: (id: string) => ipcRenderer.invoke('ideas:delete', id),
+  convertIdeaToProject: (id: string) => ipcRenderer.invoke('ideas:convert-to-project', id),
+  convertIdeaToCard: (ideaId: string, columnId: string) =>
+    ipcRenderer.invoke('ideas:convert-to-card', ideaId, columnId),
 });

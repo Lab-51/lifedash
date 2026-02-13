@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 5 — Plan 5.2 EXECUTED (Phase 5 COMPLETE)
+Session focus: Phase 6 — Plan 6.1 EXECUTED (all 3 tasks complete)
 
 ## Position
-Milestone: Phase 5 — Meeting Intelligence: Briefs & Actions
-Phase: 5 of 7 (COMPLETE)
-Plan: 2 of 2 (COMPLETE)
+Milestone: Phase 6 — Brainstorming & Ideas
+Phase: 6 of 7 (IN PROGRESS)
+Plan: 1 of 3 (COMPLETE)
 Task: 3 of 3 (all complete)
 
 ## Phase 1 — COMPLETE
@@ -142,7 +142,7 @@ Architecture decisions:
 1. Create BriefSection.tsx + ActionItemList.tsx (standalone components) — DONE
 2. Create ConvertActionModal.tsx + integrate all into MeetingDetailModal — DONE
 3. Add meeting history search to MeetingsPage — DONE
-- Not yet committed
+- Commit: ab355be on origin/main
 
 ## Plan 5.2 Execution Results
 - **Task 1**: Created BriefSection.tsx (113 lines) — renders meeting brief with markdown parsing (## headings, - bullets, paragraphs), relative timestamp, loading spinner, generate button. Created ActionItemList.tsx (179 lines) — renders action items with status icons (Circle/CheckCircle2/XCircle/ArrowRightCircle), contextual action buttons (approve/dismiss/convert per status), count badge, loading state, generate button.
@@ -150,10 +150,42 @@ Architecture decisions:
 - **Task 3**: Modified MeetingsPage.tsx (218→270 lines) — added search input with Search icon and clear button on filter tabs row, case-insensitive title filtering combined with status filter, search-specific empty state, result count display.
 - **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
 
+## Phase 6 — IN PROGRESS
+Phase 6 covers R10: AI Brainstorming Agent (8 pts) + R12: Idea Repository (5 pts).
+Total: 13 points, ~9 tasks across 3 plans.
+
+### Plan 6.1: Idea Repository — Service, Store & UI (3 tasks) — COMPLETE
+1. Idea types + ideaService.ts (7 exports) + IPC handlers (7 channels) + preload bridge — DONE
+2. ideaStore.ts (Zustand, 8 actions) + IdeasPage.tsx (269 lines, grid/filters/search) — DONE
+3. IdeaDetailModal.tsx (672 lines, edit/tags/convert wizard) — DONE
+- Not yet committed
+
+## Plan 6.1 Execution Results
+- **Task 1**: Added 9 idea types to shared/types.ts (Idea, CreateIdeaInput, UpdateIdeaInput, IdeaStatus, EffortLevel, ImpactLevel, ConvertIdeaToCardInput, ConvertIdeaToProjectResult, ConvertIdeaToCardResult). ElectronAPI extended with 7 idea methods. Created ideaService.ts (7 exports + toIdea/loadTagsForIdeas/replaceTags helpers). Created ideas.ts IPC handlers (7 channels). Registered in ipc/index.ts. Extended preload.ts with 7 methods.
+- **Task 2**: Created ideaStore.ts (100 lines, Zustand — loadIdeas, loadIdea, createIdea, updateIdea, deleteIdea, clearSelectedIdea, convertToProject, convertToCard). Replaced IdeasPage.tsx stub (269 lines — quick-add form, 5 filter tabs, search, responsive card grid, status badges/tags/effort/impact, 3 empty states).
+- **Task 3**: Created IdeaDetailModal.tsx (672 lines — editable title, description textarea, status/effort/impact dropdowns, tags editor with add/remove, convert-to-project confirmation, convert-to-card 3-step wizard, delete with confirmation, save button). Uncommented import/render in IdeasPage.
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
+- **Code Review**: 0 critical, 0 high, 2 medium (file size 672 lines — could extract wizard; missing loading spinner in wizard). Approved.
+
+### Plan 6.2: Brainstorming — Schema, Service & Chat UI (3 tasks) — NOT YET PLANNED
+### Plan 6.3: AI Features & Cross-Feature Integration (3 tasks) — NOT YET PLANNED
+
 ## Confidence Levels
 Overall approach: HIGH
-Plan 5.2 execution: HIGH (all tasks verified, TypeScript clean)
+Plan 6.1 execution: HIGH (all tasks verified, TypeScript clean)
+
+## Decisions Made (Phase 6)
+- Ideas schema already exists — no migrations needed for Plan 6.1
+- Tags managed via delete-all + re-insert (simpler than individual add/remove)
+- Convert to project: creates project + links idea + marks active
+- Convert to card: reuses ConvertActionModal wizard pattern (project → board → column)
+- AI idea analysis deferred to Plan 6.3 (not in 6.1)
+- IdeaDetailModal at 672 lines (above 500 guideline) — accepted for now, wizard extraction deferred
+
+## Blockers
+- None
 
 ## Next Steps
-1. `/nexus:git` — Commit Plan 5.2 changes
-2. Phase 5 complete → plan Phase 6
+1. `/nexus:git` — Commit Plan 6.1 changes
+2. `/nexus:plan 6` — Plan 6.2 (brainstorming)
+3. After 6.2: plan and execute 6.3 (AI features)

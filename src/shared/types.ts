@@ -297,6 +297,57 @@ export interface WhisperDownloadProgress {
   percent: number;        // 0-100
 }
 
+// === IDEA TYPES ===
+
+export type IdeaStatus = 'new' | 'exploring' | 'active' | 'archived';
+export type EffortLevel = 'trivial' | 'small' | 'medium' | 'large' | 'epic';
+export type ImpactLevel = 'minimal' | 'low' | 'medium' | 'high' | 'critical';
+
+export interface Idea {
+  id: string;
+  projectId: string | null;
+  title: string;
+  description: string | null;
+  status: IdeaStatus;
+  effort: EffortLevel | null;
+  impact: ImpactLevel | null;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateIdeaInput {
+  title: string;
+  description?: string;
+  projectId?: string;
+  tags?: string[];
+}
+
+export interface UpdateIdeaInput {
+  title?: string;
+  description?: string | null;
+  projectId?: string | null;
+  status?: IdeaStatus;
+  effort?: EffortLevel | null;
+  impact?: ImpactLevel | null;
+  tags?: string[];
+}
+
+export interface ConvertIdeaToCardInput {
+  ideaId: string;
+  columnId: string;
+}
+
+export interface ConvertIdeaToProjectResult {
+  idea: Idea;
+  projectId: string;
+}
+
+export interface ConvertIdeaToCardResult {
+  idea: Idea;
+  cardId: string;
+}
+
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
   platform: NodeJS.Platform;
@@ -394,6 +445,15 @@ export interface ElectronAPI {
   getMeetingActionItems: (meetingId: string) => Promise<ActionItem[]>;
   updateActionItemStatus: (id: string, status: ActionItemStatus) => Promise<ActionItem>;
   convertActionToCard: (actionItemId: string, columnId: string) => Promise<ConvertActionToCardResult>;
+
+  // Ideas
+  getIdeas: () => Promise<Idea[]>;
+  getIdea: (id: string) => Promise<Idea | null>;
+  createIdea: (data: CreateIdeaInput) => Promise<Idea>;
+  updateIdea: (id: string, data: UpdateIdeaInput) => Promise<Idea>;
+  deleteIdea: (id: string) => Promise<void>;
+  convertIdeaToProject: (id: string) => Promise<ConvertIdeaToProjectResult>;
+  convertIdeaToCard: (ideaId: string, columnId: string) => Promise<ConvertIdeaToCardResult>;
 }
 
 declare global {
