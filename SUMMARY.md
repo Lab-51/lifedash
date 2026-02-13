@@ -1,72 +1,48 @@
-# Plan 4.3 Summary — Whisper Transcription Pipeline
+# Plan 4.4 Summary — Meetings UI & Transcript Display
 
 ## Date: 2026-02-13
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Implemented the full Whisper transcription pipeline: model management, worker thread, transcription service, audio pipeline integration, and IPC/preload bridge for renderer access.
+Built the full meetings UI: Zustand store, meetings list page with recording controls, meeting detail modal with scrollable transcript timeline, real-time transcript updates, meeting-project linking, and whisper model download notice.
 
-### Task 1: Whisper model manager and transcription worker thread
-**Status:** COMPLETE | **Confidence:** MEDIUM (worker bundling assumption)
-
-- Created whisperModelManager.ts: downloads GGML models from HuggingFace with redirect handling, progress callbacks, abort support. 6 models (tiny/base/small × English/multilingual).
-- Created transcriptionWorker.ts: worker thread running Whisper off the main event loop. Protocol: init → ready, transcribe → result, stop → stopped.
-- Updated forge.config.ts: added worker as second build entry (no `target`, alongside main.js).
-- Updated vite.main.config.ts: externalized `@fugood/whisper.node` (native addon).
-
-### Task 2: Transcription service and audio pipeline integration
+### Task 1: Meeting store and meetings list page
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created transcriptionService.ts: orchestrates full pipeline — accumulates PCM chunks into 10-second segments (320KB), dispatches to worker via queue, saves results to DB, pushes to renderer.
-- Modified audioProcessor.ts: integrated transcription at all points (setMainWindow, startRecording, addChunk, stopRecording, pushState).
+- Created meetingStore.ts: Zustand store with loadMeetings, loadMeeting, updateMeeting, deleteMeeting, clearSelectedMeeting, addTranscriptSegment.
+- Created MeetingCard.tsx: card showing title, date/time, duration, status badge (recording/processing/completed with color coding), optional project name tag.
+- Replaced MeetingsPage.tsx stub: full page with RecordingControls, filter tabs (All/Recording/Completed), responsive card grid (1/2/3 cols), loading spinner, empty state, error banner, auto-refresh when recording stops.
 
-### Task 3: Whisper model types, IPC handlers, and preload bridge
+### Task 2: Meeting detail modal with transcript timeline
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created whisper.ts IPC handlers: 3 channels (list-models, download-model with progress push, has-model).
-- Extended shared/types.ts: WhisperModel, WhisperDownloadProgress types + 4 ElectronAPI methods.
-- Updated ipc/index.ts: registered whisper handlers.
-- Updated preload.ts: 4 whisper bridge methods.
+- Created MeetingDetailModal.tsx: fixed overlay modal following CardDetailModal pattern. Editable title (click-to-edit), status badge, duration, date/time metadata. Scrollable transcript timeline with MM:SS timestamps. Auto-scroll during live recording. Delete with 2-step confirmation. Escape + overlay click close. Clears selectedMeeting on close.
+- Modified MeetingsPage.tsx: renders modal when selectedMeetingId set, loads meeting detail on select, listens for onTranscriptSegment events for real-time updates, refreshes list on modal close.
 
-## Files Created (4)
-- `src/main/services/whisperModelManager.ts` (~120 lines)
-- `src/main/services/transcriptionService.ts` (~215 lines)
-- `src/main/workers/transcriptionWorker.ts` (~65 lines)
-- `src/main/ipc/whisper.ts` (~40 lines)
+### Task 3: Meeting-project linking and whisper model status
+**Status:** COMPLETE | **Confidence:** HIGH
 
-## Files Modified (5)
-- `forge.config.ts` — worker build entry
-- `vite.main.config.ts` — native addon externalization
-- `src/main/services/audioProcessor.ts` — transcription service integration
-- `src/shared/types.ts` — WhisperModel types + ElectronAPI whisper methods
-- `src/main/ipc/index.ts` — registerWhisperHandlers
-- `src/preload/preload.ts` — 4 whisper bridge methods
+- Modified MeetingDetailModal.tsx: project selector dropdown (No project + all projects from projectStore). Loads projects on mount. Calls updateMeeting on change.
+- Modified MeetingsPage.tsx: checks hasWhisperModel on mount. Shows info notice when no model available. Download button triggers downloadWhisperModel with real-time progress bar via onWhisperDownloadProgress.
 
-## Transcription Pipeline Architecture
-```
-Renderer (audio chunks) → IPC → audioProcessor.addChunk()
-                                    ↓
-                          transcriptionService.addChunk()
-                                    ↓
-                          Accumulate 10s segments (320KB)
-                                    ↓
-                          Worker thread (Whisper transcription)
-                                    ↓
-                          meetingService.addTranscriptSegment() → DB
-                                    ↓
-                          mainWindow.webContents.send → Renderer
-```
+## Files Created (3)
+- `src/renderer/stores/meetingStore.ts` (~65 lines)
+- `src/renderer/components/MeetingCard.tsx` (~75 lines)
+- `src/renderer/components/MeetingDetailModal.tsx` (~265 lines)
+
+## Files Modified (1)
+- `src/renderer/pages/MeetingsPage.tsx` — full rewrite from placeholder to complete page (~220 lines)
+
+## Adaptation Note
+- Plan referenced `startMs`/`text` fields on TranscriptSegment, but actual type uses `startTime`/`content`. Code correctly uses the actual field names.
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors after each task and final)
-- Sequential execution: Task 2 depends on Task 1, Task 3 depends on both
+- Sequential execution: Task 2 depends on Task 1, Task 3 depends on Task 2
 
-## Assumptions to Verify at Runtime
-- Electron Forge VitePlugin supports build entries without `target` property
-- @fugood/whisper.node works inside worker_threads
-- path.join(__dirname, 'transcriptionWorker.js') resolves correctly in Vite build output
-- HuggingFace model URLs follow expected pattern and handle 302 redirects
+## Phase 4 Complete
+All 4 plans (12 tasks) executed. Phase 4 fully delivers R4 (Audio Capture) and R5 (Transcription).
 
 ## What's Next
-1. `/nexus:git` to commit Plan 4.3 changes
-2. `/nexus:plan 4.4` — Meetings UI page, transcript display, meeting ↔ project linking
+1. `/nexus:git` to commit Plan 4.4 changes
+2. Phase 5: Meeting Intelligence — Briefs & Actions

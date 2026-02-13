@@ -1,905 +1,705 @@
-# Phase 4 — Plan 3 of 4: Whisper Transcription Pipeline
+# Phase 4 — Plan 4 of 4: Meetings UI & Transcript Display
 
 ## Coverage
-- **R5: Meeting Intelligence — Transcription** (core implementation)
+- **R4: Audio Capture** (UI completion — meetings list, recording from meetings page)
+- **R5: Transcription** (UI completion — transcript display, real-time updates)
 
 ## Plan Overview
 Phase 4 delivers Meeting Intelligence: Audio Capture (R4) and Transcription (R5). It requires 4 plans:
 
 - **Plan 4.1** (DONE): Foundation — deps, shared types, meeting service, IPC handlers.
 - **Plan 4.2** (DONE): Audio capture pipeline — capture bridge, audio processing in main, recording UI.
-- **Plan 4.3** (this plan): Whisper transcription — worker thread, chunked transcription, real-time pipeline.
-- **Plan 4.4**: Meetings UI — meetings page, transcript display, meeting ↔ project linking.
+- **Plan 4.3** (DONE): Whisper transcription — worker thread, chunked transcription, real-time pipeline.
+- **Plan 4.4** (this plan): Meetings UI — meetings page, transcript display, meeting ↔ project linking.
 
-## Architecture Decisions for Plan 4.3
+## Architecture Decisions for Plan 4.4
 
-1. **Worker thread for transcription** — Whisper is CPU-intensive and would block Electron's
-   main process event loop. We use Node.js `worker_threads` to run transcription in a
-   separate thread. The worker stays alive for the duration of a recording session (model
-   stays loaded in memory). This avoids the 2-5 second model loading penalty per chunk.
+1. **Meetings store (Zustand)** — Follows the same pattern as projectStore. Manages
+   the meetings list and selected meeting detail (with transcript segments). All data
+   flows through `window.electronAPI` IPC bridge.
 
-2. **Chunk accumulation in main process** — Audio chunks arrive from the renderer at ~256ms
-   intervals (4096 Int16 samples per chunk). The transcription service accumulates these into
-   ~10-second PCM segments (160,000 samples = 320KB). When a segment is full, it's dispatched
-   to the worker for transcription. This produces near-real-time results with 10-12 second
-   latency (10s accumulation + 2-5s transcription).
+2. **MeetingsPage with integrated RecordingControls** — The RecordingControls component
+   already exists from Plan 4.2. We embed it at the top of the Meetings page so users
+   can start recordings directly from the meetings view.
 
-3. **Worker thread bundling** — Electron Forge + Vite requires the worker file to be a
-   separate compiled JS file. We add a second build entry in forge.config.ts for the worker.
-   The main process references it via `path.join(__dirname, 'transcriptionWorker.js')`.
+3. **Meeting detail as a modal** — Follows the CardDetailModal pattern: fixed overlay
+   with Escape-to-close, overlay click to close, scrollable content. Shows meeting info
+   at top, transcript timeline below.
 
-4. **Model lazy download** — Whisper models are too large to bundle (244MB+ for small.en).
-   The model manager downloads from HuggingFace on first use. Downloads go to
-   `{userData}/whisper-models/`. Default: `ggml-base.en.bin` (74MB, fast, English-only).
+4. **Transcript timeline** — Segments displayed as a vertically scrollable list with
+   timestamps on the left and content on the right. During active recording, new segments
+   append automatically via `onTranscriptSegment` IPC event and auto-scroll to bottom.
 
-5. **Transcription results flow** — Worker produces segments with timestamps → transcription
-   service saves each segment to DB via `meetingService.addTranscriptSegment()` → pushes
-   segment to renderer via `recording:transcript-segment` IPC → updates `lastTranscript`
-   in recording state for the sidebar indicator.
+5. **Meeting ↔ project linking** — A dropdown in the meeting detail modal lets users
+   link/unlink meetings to projects. Uses the existing `useProjectStore.loadProjects()`
+   to populate the dropdown and `window.electronAPI.updateMeeting()` to persist.
 
-6. **ArrayBuffer transfer** — When sending PCM data to the worker, we use transferable objects
-   (`worker.postMessage(msg, [msg.audioData])`) to avoid copying the 320KB buffer.
-
-## Verified API: @fugood/whisper.node v1.0.16
-
-```typescript
-import { initWhisper } from '@fugood/whisper.node';
-
-// Initialize (loads model into memory — takes 2-5s)
-const context = await initWhisper({ filePath: '/path/to/ggml-base.en.bin' });
-
-// Transcribe raw PCM buffer (16kHz, 16-bit, mono)
-const { promise, stop } = context.transcribeData(arrayBuffer, {
-  language: 'en',
-  onNewSegments: (result) => {
-    // result.segments: Array<{ text: string, t0: number, t1: number }>
-  },
-});
-const result = await promise;
-// result: { result: string, segments: [...], isAborted: boolean }
-
-await context.release(); // MUST call to free memory
-```
-
-- `transcribeData` accepts ArrayBuffer (16kHz, 16-bit, mono PCM)
-- Returns `{ stop: () => Promise<void>, promise: Promise<TranscribeResult> }`
-- Segments have `text`, `t0` (ms), `t1` (ms) — relative to chunk start
-- `onNewSegments` callback fires as segments are recognized (for progress)
-- Context must be released when done
-
-## Audio Math
-
-- Sample rate: 16,000 Hz, mono, Int16 (2 bytes/sample)
-- Renderer sends: 4096 samples per chunk ≈ 256ms ≈ 8,192 bytes
-- 10-second segment: 16,000 × 10 = 160,000 samples = 320,000 bytes
-- Chunks per segment: 160,000 / 4,096 ≈ 39 chunks
-- IPC overhead: ~32 KB/s (negligible)
+6. **Status filter tabs** — Simple tabs (All / Recording / Completed) above the meeting
+   list. Client-side filtering since the dataset is small for a personal tool.
 
 ---
 
-<phase n="4.3" name="Whisper Transcription Pipeline">
+<phase n="4.4" name="Meetings UI and Transcript Display">
   <context>
-    Plans 4.1 and 4.2 are complete. The app has:
-    - audioProcessor.ts: accumulates PCM chunks, saves WAV, pushes RecordingState
-    - recording.ts IPC: recording:start, recording:stop, audio:chunk handlers
-    - audioCaptureService.ts (renderer): loopback → getDisplayMedia → ScriptProcessorNode → Int16 → IPC
-    - recordingStore.ts: Zustand store with startRecording/stopRecording/initListener
+    Plans 4.1-4.3 are complete. The app has:
     - meetingService.ts: CRUD + addTranscriptSegment() + getTranscripts()
-    - preload.ts: onTranscriptSegment() callback already wired (from Plan 4.2)
-    - shared/types.ts: TranscriptSegment { id, meetingId, content, startTime, endTime, createdAt }
-    - RecordingState { isRecording, meetingId, elapsed, lastTranscript }
+    - Meeting, MeetingWithTranscript, TranscriptSegment, RecordingState types in shared/types.ts
+    - WhisperModel, WhisperDownloadProgress types in shared/types.ts
+    - ElectronAPI: getMeetings, getMeeting (with segments), createMeeting, updateMeeting, deleteMeeting
+    - ElectronAPI: startRecording, stopRecording, sendAudioChunk, onRecordingState, onTranscriptSegment
+    - ElectronAPI: getWhisperModels, downloadWhisperModel, hasWhisperModel, onWhisperDownloadProgress
+    - recordingStore.ts: Zustand store with startRecording/stopRecording/initListener
+    - RecordingControls.tsx: title input + start/stop + elapsed timer
+    - RecordingIndicator.tsx: sidebar pulsing dot
+    - MeetingsPage.tsx: currently a placeholder stub
+    - projectStore.ts: loadProjects() returns Project[] (needed for project linking)
 
-    @fugood/whisper.node v1.0.16 installed (Plan 4.1), API verified:
-    - initWhisper({ filePath }) → WhisperContext
-    - context.transcribeData(arrayBuffer, options) → { promise, stop }
-    - TranscribeResult: { result, segments: Array<{ text, t0, t1 }>, isAborted }
-    - context.release() — MUST call to free resources
-
-    Electron Forge config: forge.config.ts with VitePlugin.
-    Worker files need separate build entry: { entry: '...worker.ts', config: 'vite.main.config.ts' }
+    UI patterns to follow:
+    - ProjectsPage.tsx: header + grid of cards + loading/empty/error states
+    - CardDetailModal.tsx: fixed overlay, Escape/overlay-click close, scrollable content
+    - projectStore.ts: Zustand pattern (state + actions, IPC via window.electronAPI)
 
     Key files to reference:
-    @src/main/services/audioProcessor.ts
-    @src/main/services/meetingService.ts
-    @src/main/ipc/recording.ts
-    @src/main/ipc/index.ts
+    @src/renderer/pages/MeetingsPage.tsx
+    @src/renderer/pages/ProjectsPage.tsx
+    @src/renderer/components/CardDetailModal.tsx
+    @src/renderer/components/RecordingControls.tsx
+    @src/renderer/stores/projectStore.ts
+    @src/renderer/stores/recordingStore.ts
     @src/shared/types.ts
     @src/preload/preload.ts
-    @forge.config.ts
   </context>
 
   <task type="auto" n="1">
-    <n>Create whisper model manager and transcription worker thread</n>
+    <n>Create meeting store and meetings list page with recording controls</n>
     <files>
-      src/main/services/whisperModelManager.ts (create — model download, path resolution, availability check)
-      src/main/workers/transcriptionWorker.ts (create — worker thread that loads whisper and transcribes PCM)
-      forge.config.ts (modify — add worker as second main-process build entry)
+      src/renderer/stores/meetingStore.ts (create — Zustand store for meetings CRUD + selected meeting)
+      src/renderer/components/MeetingCard.tsx (create — card component for meetings list)
+      src/renderer/pages/MeetingsPage.tsx (replace — full meetings page with list, recording controls, states)
     </files>
     <preconditions>
-      - Plan 4.2 complete (audioProcessor, recording IPC)
-      - @fugood/whisper.node v1.0.16 installed
+      - Plans 4.1-4.3 complete (meeting backend, IPC, types all in place)
+      - RecordingControls.tsx exists (Plan 4.2)
+      - projectStore.ts exists (Plan 2.1)
     </preconditions>
     <action>
-      Create the model management service and the transcription worker thread.
+      Create the meeting Zustand store and replace the MeetingsPage stub with a full meetings
+      list view that includes recording controls.
 
-      WHY: Whisper models aren't bundled (74-244MB). We need a model manager to download them
-      on first use. The worker thread is needed because Whisper is CPU-intensive — running it
-      on the main thread would freeze the Electron UI. The worker stays alive for a recording
-      session to avoid reloading the model for each chunk.
+      WHY: Users need to see their meetings, start new recordings, and access meeting details.
+      The Meetings page is the primary entry point for all meeting intelligence features.
 
-      ## Step 1: Create whisperModelManager.ts
+      ## Step 1: Create meetingStore.ts
 
-      Create `src/main/services/whisperModelManager.ts`:
-
-      ```typescript
-      // === FILE PURPOSE ===
-      // Whisper model management — download, locate, and check availability of GGML models.
-      //
-      // === DEPENDENCIES ===
-      // electron (app, BrowserWindow), node:fs, node:path, node:https
-      //
-      // === LIMITATIONS ===
-      // - Downloads from HuggingFace only (no mirror support yet)
-      // - No checksum verification (future enhancement)
-      // - Single download at a time
-
-      import { app, BrowserWindow } from 'electron';
-      import fs from 'node:fs';
-      import path from 'node:path';
-      import https from 'node:https';
-
-      const HF_BASE_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main';
-
-      export interface WhisperModelInfo {
-        name: string;         // e.g., 'base.en'
-        fileName: string;     // e.g., 'ggml-base.en.bin'
-        size: string;         // Human-readable size
-        description: string;
-      }
-
-      /** Available models for download */
-      export const AVAILABLE_MODELS: WhisperModelInfo[] = [
-        { name: 'tiny.en', fileName: 'ggml-tiny.en.bin', size: '39 MB', description: 'Fastest, English-only' },
-        { name: 'base.en', fileName: 'ggml-base.en.bin', size: '74 MB', description: 'Fast, English-only (default)' },
-        { name: 'small.en', fileName: 'ggml-small.en.bin', size: '244 MB', description: 'Balanced, English-only' },
-        { name: 'tiny', fileName: 'ggml-tiny.bin', size: '39 MB', description: 'Fastest, multilingual' },
-        { name: 'base', fileName: 'ggml-base.bin', size: '74 MB', description: 'Fast, multilingual' },
-        { name: 'small', fileName: 'ggml-small.bin', size: '244 MB', description: 'Balanced, multilingual' },
-      ];
-
-      export function getModelsDir(): string {
-        return path.join(app.getPath('userData'), 'whisper-models');
-      }
-
-      export function getModelPath(fileName: string): string {
-        return path.join(getModelsDir(), fileName);
-      }
-
-      export function isModelAvailable(fileName: string): boolean {
-        return fs.existsSync(getModelPath(fileName));
-      }
-
-      /** Get list of locally available models */
-      export function getLocalModels(): WhisperModelInfo[] {
-        return AVAILABLE_MODELS.filter((m) => isModelAvailable(m.fileName));
-      }
-
-      /** Get the default model. Returns path if available, null if needs download. */
-      export function getDefaultModelPath(): string | null {
-        // Prefer base.en → tiny.en → any available model
-        const preferred = ['ggml-base.en.bin', 'ggml-tiny.en.bin'];
-        for (const fileName of preferred) {
-          if (isModelAvailable(fileName)) return getModelPath(fileName);
-        }
-        const local = getLocalModels();
-        if (local.length > 0) return getModelPath(local[0].fileName);
-        return null;
-      }
-
-      /** Download a model from HuggingFace with progress callback */
-      export function downloadModel(
-        fileName: string,
-        onProgress?: (downloaded: number, total: number) => void,
-      ): { promise: Promise<string>; abort: () => void } {
-        const url = `${HF_BASE_URL}/${fileName}`;
-        const destPath = getModelPath(fileName);
-        let aborted = false;
-        let req: ReturnType<typeof https.get> | null = null;
-
-        const promise = new Promise<string>((resolve, reject) => {
-          fs.mkdirSync(getModelsDir(), { recursive: true });
-          const tempPath = `${destPath}.downloading`;
-
-          const file = fs.createWriteStream(tempPath);
-          const makeRequest = (requestUrl: string) => {
-            req = https.get(requestUrl, (response) => {
-              // Handle redirects (HuggingFace uses 302)
-              if (response.statusCode === 301 || response.statusCode === 302) {
-                const redirectUrl = response.headers.location;
-                if (redirectUrl) {
-                  makeRequest(redirectUrl);
-                  return;
-                }
-              }
-
-              if (response.statusCode !== 200) {
-                file.close();
-                fs.unlinkSync(tempPath);
-                reject(new Error(`Download failed: HTTP ${response.statusCode}`));
-                return;
-              }
-
-              const total = parseInt(response.headers['content-length'] || '0', 10);
-              let downloaded = 0;
-
-              response.on('data', (chunk: Buffer) => {
-                if (aborted) return;
-                downloaded += chunk.length;
-                onProgress?.(downloaded, total);
-              });
-
-              response.pipe(file);
-
-              file.on('finish', () => {
-                file.close(() => {
-                  if (aborted) {
-                    fs.unlinkSync(tempPath);
-                    reject(new Error('Download aborted'));
-                    return;
-                  }
-                  // Rename temp → final (atomic on same filesystem)
-                  fs.renameSync(tempPath, destPath);
-                  resolve(destPath);
-                });
-              });
-            });
-
-            req.on('error', (err) => {
-              file.close();
-              if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-              reject(err);
-            });
-          };
-
-          makeRequest(url);
-        });
-
-        const abort = () => {
-          aborted = true;
-          req?.destroy();
-        };
-
-        return { promise, abort };
-      }
-      ```
-
-      ## Step 2: Create transcriptionWorker.ts
-
-      Create `src/main/workers/transcriptionWorker.ts`:
+      Create `src/renderer/stores/meetingStore.ts` following the projectStore pattern:
 
       ```typescript
       // === FILE PURPOSE ===
-      // Worker thread for Whisper transcription. Runs in a separate thread
-      // to avoid blocking Electron's main process event loop.
-      //
-      // Protocol:
-      //   Main → Worker: { type: 'init', modelPath: string }
-      //   Main → Worker: { type: 'transcribe', audioData: ArrayBuffer, segmentIndex: number, startTimeMs: number }
-      //   Main → Worker: { type: 'stop' }
-      //   Worker → Main: { type: 'ready' }
-      //   Worker → Main: { type: 'result', text: string, segments: Array<{text,t0,t1}>, segmentIndex: number, startTimeMs: number }
-      //   Worker → Main: { type: 'error', message: string }
+      // Zustand store for meeting state management.
+      // Manages the meeting list, selected meeting detail, and CRUD operations.
       //
       // === DEPENDENCIES ===
-      // @fugood/whisper.node (initWhisper)
-      //
-      // === LIMITATIONS ===
-      // - Sequential transcription only (one segment at a time)
-      // - Must init before transcribe
+      // zustand, shared types, window.electronAPI
 
-      import { parentPort } from 'worker_threads';
-      import { initWhisper } from '@fugood/whisper.node';
+      import { create } from 'zustand';
+      import type {
+        Meeting,
+        MeetingWithTranscript,
+        TranscriptSegment,
+        UpdateMeetingInput,
+      } from '../../shared/types';
 
-      // Types for the WhisperContext returned by initWhisper
-      // (using the actual return type from the library)
-      type WhisperContext = Awaited<ReturnType<typeof initWhisper>>;
+      interface MeetingStore {
+        // State
+        meetings: Meeting[];
+        selectedMeeting: MeetingWithTranscript | null;
+        loading: boolean;
+        error: string | null;
 
-      let context: WhisperContext | null = null;
+        // Actions
+        loadMeetings: () => Promise&lt;void&gt;;
+        loadMeeting: (id: string) => Promise&lt;void&gt;;
+        updateMeeting: (id: string, data: UpdateMeetingInput) => Promise&lt;void&gt;;
+        deleteMeeting: (id: string) => Promise&lt;void&gt;;
+        clearSelectedMeeting: () => void;
+        addTranscriptSegment: (segment: TranscriptSegment) => void;
+      }
 
-      parentPort?.on('message', async (msg: any) => {
-        try {
-          switch (msg.type) {
-            case 'init': {
-              if (context) {
-                await context.release();
-              }
-              context = await initWhisper({ filePath: msg.modelPath });
-              parentPort?.postMessage({ type: 'ready' });
-              break;
-            }
+      export const useMeetingStore = create&lt;MeetingStore&gt;((set, get) => ({
+        meetings: [],
+        selectedMeeting: null,
+        loading: false,
+        error: null,
 
-            case 'transcribe': {
-              if (!context) {
-                parentPort?.postMessage({
-                  type: 'error',
-                  message: 'Worker not initialized. Send init message first.',
-                });
-                return;
-              }
-
-              const { promise } = context.transcribeData(msg.audioData, {
-                language: 'en',
-              });
-
-              const result = await promise;
-
-              parentPort?.postMessage({
-                type: 'result',
-                text: result.result,
-                segments: result.segments,
-                segmentIndex: msg.segmentIndex,
-                startTimeMs: msg.startTimeMs,
-              });
-              break;
-            }
-
-            case 'stop': {
-              if (context) {
-                await context.release();
-                context = null;
-              }
-              parentPort?.postMessage({ type: 'stopped' });
-              break;
-            }
+        loadMeetings: async () => {
+          set({ loading: true, error: null });
+          try {
+            const meetings = await window.electronAPI.getMeetings();
+            set({ meetings, loading: false });
+          } catch (error) {
+            set({
+              error: error instanceof Error ? error.message : 'Failed to load meetings',
+              loading: false,
+            });
           }
-        } catch (error) {
-          parentPort?.postMessage({
-            type: 'error',
-            message: error instanceof Error ? error.message : String(error),
+        },
+
+        loadMeeting: async (id: string) => {
+          try {
+            const meeting = await window.electronAPI.getMeeting(id);
+            set({ selectedMeeting: meeting });
+          } catch (error) {
+            set({
+              error: error instanceof Error ? error.message : 'Failed to load meeting',
+            });
+          }
+        },
+
+        updateMeeting: async (id, data) => {
+          const updated = await window.electronAPI.updateMeeting(id, data);
+          set({
+            meetings: get().meetings.map(m => (m.id === id ? updated : m)),
+            selectedMeeting: get().selectedMeeting?.id === id
+              ? { ...get().selectedMeeting!, ...updated }
+              : get().selectedMeeting,
           });
-        }
-      });
+        },
+
+        deleteMeeting: async (id) => {
+          await window.electronAPI.deleteMeeting(id);
+          set({
+            meetings: get().meetings.filter(m => m.id !== id),
+            selectedMeeting: get().selectedMeeting?.id === id ? null : get().selectedMeeting,
+          });
+        },
+
+        clearSelectedMeeting: () => set({ selectedMeeting: null }),
+
+        // Append a transcript segment to the selected meeting (for real-time updates)
+        addTranscriptSegment: (segment: TranscriptSegment) => {
+          const selected = get().selectedMeeting;
+          if (selected && selected.id === segment.meetingId) {
+            set({
+              selectedMeeting: {
+                ...selected,
+                segments: [...selected.segments, segment],
+              },
+            });
+          }
+        },
+      }));
       ```
 
-      ## Step 3: Add worker as build entry in forge.config.ts
+      Key design decisions:
+      - `selectedMeeting` holds the full `MeetingWithTranscript` (with segments) for the detail modal
+      - `addTranscriptSegment()` enables real-time updates: when a new segment arrives via IPC,
+        we append it to the selected meeting's segments (if that meeting is currently open)
+      - `updateMeeting` updates both the list entry and the selected meeting (if open)
+      - `deleteMeeting` clears selectedMeeting if the deleted meeting was open
 
-      In `forge.config.ts`, add the worker as a second build entry alongside main.ts:
+      ## Step 2: Create MeetingCard.tsx
+
+      Create `src/renderer/components/MeetingCard.tsx`:
 
       ```typescript
-      build: [
-        {
-          entry: 'src/main/main.ts',
-          config: 'vite.main.config.ts',
-          target: 'main',
+      // === FILE PURPOSE ===
+      // Meeting card component — displays a single meeting in the meetings list.
+      // Shows title, date, duration, status badge, and optional project name.
+
+      import { Mic, Clock, CheckCircle2, Loader2 } from 'lucide-react';
+      import type { Meeting } from '../../shared/types';
+
+      interface MeetingCardProps {
+        meeting: Meeting;
+        projectName?: string;
+        onClick: () => void;
+      }
+
+      const STATUS_STYLES: Record&lt;string, { label: string; className: string; icon: typeof Mic }&gt; = {
+        recording: {
+          label: 'Recording',
+          className: 'bg-red-500/15 text-red-400',
+          icon: Mic,
         },
-        {
-          entry: 'src/main/workers/transcriptionWorker.ts',
-          config: 'vite.main.config.ts',
+        processing: {
+          label: 'Processing',
+          className: 'bg-amber-500/15 text-amber-400',
+          icon: Loader2,
         },
-        {
-          entry: 'src/preload/preload.ts',
-          config: 'vite.preload.config.ts',
-          target: 'preload',
+        completed: {
+          label: 'Completed',
+          className: 'bg-emerald-500/15 text-emerald-400',
+          icon: CheckCircle2,
         },
-      ],
+      };
+
+      function formatDate(dateStr: string): string {
+        return new Date(dateStr).toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric',
+        });
+      }
+
+      function formatTime(dateStr: string): string {
+        return new Date(dateStr).toLocaleTimeString('en-US', {
+          hour: 'numeric', minute: '2-digit',
+        });
+      }
+
+      function formatDuration(startedAt: string, endedAt: string | null): string {
+        if (!endedAt) return 'In progress';
+        const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+        const totalSec = Math.floor(ms / 1000);
+        const min = Math.floor(totalSec / 60);
+        const sec = totalSec % 60;
+        if (min === 0) return `${sec}s`;
+        return `${min}m ${sec}s`;
+      }
+
+      export default function MeetingCard({ meeting, projectName, onClick }: MeetingCardProps) {
+        const status = STATUS_STYLES[meeting.status] || STATUS_STYLES.completed;
+        const StatusIcon = status.icon;
+
+        return (
+          &lt;button
+            onClick={onClick}
+            className="w-full text-left p-4 bg-surface-800 border border-surface-700 rounded-lg
+                       hover:border-surface-600 transition-colors group"
+          &gt;
+            &lt;div className="flex items-start justify-between gap-2"&gt;
+              &lt;h3 className="font-semibold text-surface-100 truncate"&gt;
+                {meeting.title}
+              &lt;/h3&gt;
+              &lt;span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full shrink-0 ${status.className}`}&gt;
+                &lt;StatusIcon size={12} className={meeting.status === 'recording' ? 'animate-pulse' : ''} /&gt;
+                {status.label}
+              &lt;/span&gt;
+            &lt;/div&gt;
+
+            &lt;div className="mt-2 flex items-center gap-3 text-xs text-surface-400"&gt;
+              &lt;span&gt;{formatDate(meeting.startedAt)}&lt;/span&gt;
+              &lt;span&gt;{formatTime(meeting.startedAt)}&lt;/span&gt;
+              &lt;span className="flex items-center gap-1"&gt;
+                &lt;Clock size={12} /&gt;
+                {formatDuration(meeting.startedAt, meeting.endedAt)}
+              &lt;/span&gt;
+            &lt;/div&gt;
+
+            {projectName && (
+              &lt;div className="mt-2"&gt;
+                &lt;span className="text-xs bg-primary-600/10 text-primary-400 px-2 py-0.5 rounded-full"&gt;
+                  {projectName}
+                &lt;/span&gt;
+              &lt;/div&gt;
+            )}
+          &lt;/button&gt;
+        );
+      }
       ```
 
-      IMPORTANT: The worker entry does NOT have a `target` property — it's just an additional
-      build that produces a JS file in the same output directory as main.js. This way,
-      `path.join(__dirname, 'transcriptionWorker.js')` from the main process resolves correctly.
+      ## Step 3: Replace MeetingsPage.tsx
 
-      VERIFY: After making this change, check that `npm run build` (or `npx electron-forge build`)
-      produces both `main.js` and `transcriptionWorker.js` in the `.vite/build/` directory.
-      If the plugin doesn't support entries without a target, we may need an alternative approach
-      (see assumptions below).
+      Replace the stub in `src/renderer/pages/MeetingsPage.tsx` with the full page:
 
-      IMPORTANT: Check the `@fugood/whisper.node` native addon. Since it's a native Node.js addon
-      (.node file), it may need to be externalized from the Vite bundle. In `vite.main.config.ts`,
-      add:
+      - **Header section**: "Meetings" title + subtitle (same pattern as ProjectsPage)
+      - **RecordingControls**: embedded at the top of the page (import from components)
+      - **Status filter tabs**: All | Recording | Completed — simple client-side filter
+      - **Meeting cards list**: responsive grid using MeetingCard component
+      - **States**: loading spinner, empty state (Mic icon + message), error banner
+      - **On mount**: call `loadMeetings()` + `loadProjects()` (for project name resolution)
+      - **Auto-refresh**: when recording state changes (isRecording goes false), reload meetings
+
+      The page layout:
+      ```
+      ┌─────────────────────────────────────────┐
+      │ Meetings                                 │
+      │ Record, transcribe, and review.          │
+      ├─────────────────────────────────────────┤
+      │ [RecordingControls component]            │
+      ├─────────────────────────────────────────┤
+      │ [All] [Recording] [Completed]  filter    │
+      ├─────────────────────────────────────────┤
+      │ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
+      │ │ Meeting  │ │ Meeting  │ │ Meeting  │ │
+      │ │ Card 1   │ │ Card 2   │ │ Card 3   │ │
+      │ └──────────┘ └──────────┘ └──────────┘ │
+      └─────────────────────────────────────────┘
+      ```
+
+      Key behaviors:
+      - Import `useRecordingStore` to detect when recording stops → call `loadMeetings()`
+      - Import `useProjectStore` to resolve project names on meeting cards
+      - Client-side filter on `meeting.status`
+      - Click a MeetingCard → set the meeting ID for the detail modal (Task 2)
+      - For now, just track `selectedMeetingId` in local state. The modal is built in Task 2.
+
+      For the meeting click handler, just set state — the modal won't render until Task 2:
       ```typescript
-      export default defineConfig({
-        build: {
-          rollupOptions: {
-            external: ['@fugood/whisper.node'],
-          },
-        },
-      });
+      const [selectedMeetingId, setSelectedMeetingId] = useState&lt;string | null&gt;(null);
+      // Modal will be added in Task 2
       ```
-      This tells Vite not to bundle the native addon — it will be resolved at runtime from
-      node_modules. Also check if `wavefile` or other packages need the same treatment. If the
-      current build works without externals for wavefile, it's fine — wavefile is pure JS.
-
-      Actually, check the current vite.main.config.ts first. If it already has externals configured
-      by the Forge plugin, we may just need to add to the list. If not, configure it.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify whisperModelManager.ts exports: getModelsDir, getModelPath, isModelAvailable, getLocalModels, getDefaultModelPath, downloadModel, AVAILABLE_MODELS
-      3. Verify transcriptionWorker.ts handles 3 message types: init, transcribe, stop
-      4. Verify forge.config.ts has 3 build entries (main, worker, preload)
-      5. Run `npx electron-forge build` or check that `npm run make` doesn't break (if too slow, at minimum verify the forge config is valid JSON/TS)
-      6. Verify vite.main.config.ts externalizes @fugood/whisper.node (native addon)
+      2. Verify meetingStore.ts exports: useMeetingStore with loadMeetings, loadMeeting, updateMeeting, deleteMeeting, clearSelectedMeeting, addTranscriptSegment
+      3. Verify MeetingCard.tsx renders: title, date, time, duration, status badge, optional project name
+      4. Verify MeetingsPage.tsx:
+         - Renders RecordingControls at top
+         - Has status filter tabs (All/Recording/Completed)
+         - Renders grid of MeetingCards
+         - Has loading, empty, and error states
+         - Calls loadMeetings on mount
+         - Resolves project names from projectStore
     </verify>
     <done>
-      Whisper model manager can download models from HuggingFace with progress tracking.
-      Transcription worker thread handles init (load model) → transcribe (PCM → text) → stop
-      (release). Forge config updated to build worker as separate JS file. Native addon
-      externalized in Vite config. TypeScript compiles clean.
+      Meeting store manages meetings list and selected meeting with CRUD operations.
+      MeetingsPage shows a list of meeting cards with RecordingControls, status filters,
+      and project name badges. Cards are clickable (handler ready for Task 2 modal).
+      TypeScript compiles clean.
     </done>
-    <confidence>MEDIUM</confidence>
+    <confidence>HIGH</confidence>
     <assumptions>
-      - Electron Forge VitePlugin supports build entries without `target` property (need to verify)
-      - @fugood/whisper.node works inside a worker_threads Worker (native addons generally do)
-      - HuggingFace model URLs follow pattern: /ggerganov/whisper.cpp/resolve/main/{fileName}
-      - initWhisper can be called inside a worker thread (not just main thread)
-      - path.join(__dirname, 'transcriptionWorker.js') resolves correctly in the Vite build output
-      - @fugood/whisper.node needs to be externalized from Vite bundle (native .node addon)
+      - RecordingControls component works correctly as an embedded component (not just standalone)
+      - projectStore.loadProjects() can be called from MeetingsPage without side effects
+      - Client-side filtering is sufficient for a personal tool (no server-side pagination needed)
+      - MeetingWithTranscript type from getMeeting(id) includes segments array
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Create transcription service and integrate with audio pipeline</n>
+    <n>Create meeting detail modal with transcript timeline</n>
     <files>
-      src/main/services/transcriptionService.ts (create — chunk accumulation, worker dispatch, result handling)
-      src/main/services/audioProcessor.ts (modify — forward chunks to transcription, update lastTranscript)
-      src/main/ipc/recording.ts (modify — initialize transcription, push transcript segments to renderer)
+      src/renderer/components/MeetingDetailModal.tsx (create — modal with meeting info + transcript display)
+      src/renderer/pages/MeetingsPage.tsx (modify — wire up modal open/close + transcript segment listener)
     </files>
     <preconditions>
-      - Task 1 completed (whisperModelManager + transcriptionWorker + forge config)
-      - meetingService.addTranscriptSegment() exists (Plan 4.1)
-      - audioProcessor.addChunk() receives PCM from renderer (Plan 4.2)
+      - Task 1 completed (meetingStore, MeetingCard, MeetingsPage exist)
+      - CardDetailModal.tsx exists as reference pattern (Plan 2.3)
+      - onTranscriptSegment IPC event wired in preload (Plan 4.2)
     </preconditions>
     <action>
-      Create the transcription service that orchestrates the chunked transcription pipeline,
-      and integrate it with the existing audio processor and recording IPC.
+      Create the meeting detail modal that displays meeting metadata and a scrollable
+      transcript timeline. Wire it into the MeetingsPage with real-time transcript updates.
 
-      WHY: The audio processor currently only accumulates chunks for WAV saving. We need to also
-      feed those chunks into the transcription pipeline for near-real-time transcription. The
-      transcription service is the "brain" that accumulates 10-second segments, dispatches them
-      to the worker, saves results to DB, and pushes them to the renderer.
+      WHY: Users need to view meeting transcripts after (or during) a recording. The modal
+      provides a focused view of a single meeting with its full transcript. Real-time updates
+      during active recordings make the transcription feel responsive.
 
-      ## Step 1: Create transcriptionService.ts
+      ## Step 1: Create MeetingDetailModal.tsx
 
-      Create `src/main/services/transcriptionService.ts`:
+      Create `src/renderer/components/MeetingDetailModal.tsx` following the CardDetailModal pattern:
 
       ```typescript
       // === FILE PURPOSE ===
-      // Transcription service — accumulates PCM chunks into 10-second segments,
-      // dispatches them to the whisper worker thread, saves results to DB,
-      // and pushes segments to the renderer.
+      // Meeting detail modal — overlay for viewing meeting info and transcript.
+      // Shows meeting metadata at top, scrollable transcript timeline below.
+      // During active recordings, new segments append and auto-scroll.
       //
       // === DEPENDENCIES ===
-      // worker_threads (Worker), whisperModelManager, meetingService, electron (BrowserWindow)
-      //
-      // === LIMITATIONS ===
-      // - Sequential transcription (one segment at a time in the worker)
-      // - Fixed 10-second segments (no VAD-based splitting)
-      // - English-only for v1 (language is hardcoded in worker)
+      // react, lucide-react, meetingStore, shared types
 
-      import { Worker } from 'worker_threads';
-      import { BrowserWindow } from 'electron';
-      import path from 'node:path';
-      import * as meetingService from './meetingService';
-      import * as whisperModelManager from './whisperModelManager';
-
-      const SAMPLE_RATE = 16000;
-      const SEGMENT_DURATION_SEC = 10;
-      const SAMPLES_PER_SEGMENT = SAMPLE_RATE * SEGMENT_DURATION_SEC; // 160,000
-      const BYTES_PER_SEGMENT = SAMPLES_PER_SEGMENT * 2; // 320,000 (Int16 = 2 bytes)
-
-      let worker: Worker | null = null;
-      let mainWindow: BrowserWindow | null = null;
-      let currentMeetingId: string | null = null;
-      let accumulatorBuffer: Buffer = Buffer.alloc(0);
-      let segmentIndex = 0;
-      let lastTranscriptText = '';
-      let pendingSegments: Buffer[] = []; // Queue of segments waiting to be transcribed
-      let transcribing = false;
-
-      export function setMainWindow(win: BrowserWindow): void {
-        mainWindow = win;
-      }
-
-      export function getLastTranscript(): string {
-        return lastTranscriptText;
-      }
-
-      /**
-       * Start the transcription pipeline for a recording session.
-       * Spawns a worker, loads the whisper model, and prepares for chunk ingestion.
-       */
-      export async function start(meetingId: string): Promise<void> {
-        const modelPath = whisperModelManager.getDefaultModelPath();
-        if (!modelPath) {
-          console.log('[Transcription] No whisper model available. Skipping transcription.');
-          return;
-        }
-
-        currentMeetingId = meetingId;
-        accumulatorBuffer = Buffer.alloc(0);
-        segmentIndex = 0;
-        lastTranscriptText = '';
-        pendingSegments = [];
-        transcribing = false;
-
-        // Spawn worker
-        const workerPath = path.join(__dirname, 'transcriptionWorker.js');
-        worker = new Worker(workerPath);
-
-        // Handle messages from worker
-        worker.on('message', handleWorkerMessage);
-        worker.on('error', (err) => {
-          console.error('[Transcription] Worker error:', err);
-        });
-
-        // Initialize whisper in the worker
-        await new Promise<void>((resolve, reject) => {
-          const onMessage = (msg: any) => {
-            if (msg.type === 'ready') {
-              worker?.off('message', onMessage);
-              resolve();
-            } else if (msg.type === 'error') {
-              worker?.off('message', onMessage);
-              reject(new Error(msg.message));
-            }
-          };
-          worker!.on('message', onMessage);
-          worker!.postMessage({ type: 'init', modelPath });
-        });
-
-        // Re-attach the main message handler (was temporarily replaced during init)
-        worker.on('message', handleWorkerMessage);
-        console.log(`[Transcription] Started with model: ${path.basename(modelPath)}`);
-      }
-
-      /**
-       * Feed a PCM chunk into the transcription pipeline.
-       * Accumulates chunks and dispatches 10-second segments to the worker.
-       */
-      export function addChunk(chunk: Buffer): void {
-        if (!worker || !currentMeetingId) return;
-
-        accumulatorBuffer = Buffer.concat([accumulatorBuffer, chunk]);
-
-        // When we have enough for a full segment, queue it
-        while (accumulatorBuffer.byteLength >= BYTES_PER_SEGMENT) {
-          const segment = accumulatorBuffer.subarray(0, BYTES_PER_SEGMENT);
-          pendingSegments.push(Buffer.from(segment)); // Copy to avoid reference issues
-          accumulatorBuffer = accumulatorBuffer.subarray(BYTES_PER_SEGMENT);
-          dispatchNext();
-        }
-      }
-
-      /**
-       * Stop the transcription pipeline. Transcribes any remaining audio, then terminates.
-       */
-      export async function stop(): Promise<void> {
-        if (!worker) return;
-
-        // Transcribe remaining accumulated audio (partial segment)
-        if (accumulatorBuffer.byteLength > 0 && currentMeetingId) {
-          pendingSegments.push(Buffer.from(accumulatorBuffer));
-          accumulatorBuffer = Buffer.alloc(0);
-          dispatchNext();
-        }
-
-        // Wait for pending transcriptions to finish
-        await waitForPending();
-
-        // Terminate worker
-        worker.postMessage({ type: 'stop' });
-        await worker.terminate();
-        worker = null;
-        currentMeetingId = null;
-        console.log('[Transcription] Stopped');
-      }
-
-      /** Dispatch the next pending segment to the worker if not already transcribing */
-      function dispatchNext(): void {
-        if (transcribing || pendingSegments.length === 0 || !worker) return;
-
-        transcribing = true;
-        const segment = pendingSegments.shift()!;
-        const startTimeMs = segmentIndex * SEGMENT_DURATION_SEC * 1000;
-
-        // Convert Buffer to ArrayBuffer for transfer
-        const arrayBuffer = segment.buffer.slice(
-          segment.byteOffset,
-          segment.byteOffset + segment.byteLength,
-        );
-
-        worker.postMessage(
-          {
-            type: 'transcribe',
-            audioData: arrayBuffer,
-            segmentIndex,
-            startTimeMs,
-          },
-          [arrayBuffer], // Transfer ownership (zero-copy)
-        );
-        segmentIndex++;
-      }
-
-      /** Handle messages from the transcription worker */
-      async function handleWorkerMessage(msg: any): Promise<void> {
-        if (msg.type === 'result') {
-          transcribing = false;
-
-          if (msg.text && msg.text.trim() && currentMeetingId) {
-            const text = msg.text.trim();
-            lastTranscriptText = text;
-
-            // Save each segment to the database
-            for (const seg of msg.segments) {
-              if (!seg.text.trim()) continue;
-              const segStartMs = msg.startTimeMs + seg.t0;
-              const segEndMs = msg.startTimeMs + seg.t1;
-
-              try {
-                const saved = await meetingService.addTranscriptSegment(
-                  currentMeetingId,
-                  seg.text.trim(),
-                  segStartMs,
-                  segEndMs,
-                );
-
-                // Push segment to renderer
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                  mainWindow.webContents.send('recording:transcript-segment', saved);
-                }
-              } catch (err) {
-                console.error('[Transcription] Failed to save segment:', err);
-              }
-            }
-          }
-
-          // Process next pending segment
-          dispatchNext();
-        } else if (msg.type === 'error') {
-          console.error('[Transcription] Worker error:', msg.message);
-          transcribing = false;
-          dispatchNext(); // Try next segment
-        }
-      }
-
-      /** Wait for all pending transcriptions to complete */
-      function waitForPending(): Promise<void> {
-        return new Promise((resolve) => {
-          const check = () => {
-            if (!transcribing && pendingSegments.length === 0) {
-              resolve();
-            } else {
-              setTimeout(check, 200);
-            }
-          };
-          check();
-        });
+      interface MeetingDetailModalProps {
+        onClose: () => void;
       }
       ```
 
-      ## Step 2: Modify audioProcessor.ts
+      Structure of the modal:
 
-      In `src/main/services/audioProcessor.ts`:
+      ```
+      ┌─ Meeting Detail Modal ──────────────────┐
+      │ [Title (editable)]            [X close]  │
+      │                                          │
+      │ Status: ● Completed    Duration: 5m 23s  │
+      │ Date: Feb 13, 2026 at 3:45 PM           │
+      │ Project: [dropdown or badge]             │
+      │                                          │
+      │ ── Transcript ─────────────────────────  │
+      │                                          │
+      │ 00:00  Welcome everyone to today's...    │
+      │ 00:12  Let's start with the agenda...    │
+      │ 00:25  First item is the Q4 review...    │
+      │ 00:38  Sales numbers were up 15%...      │
+      │ ...                                      │
+      │ (auto-scrolls during live recording)     │
+      │                                          │
+      │ [Delete Meeting]                         │
+      └──────────────────────────────────────────┘
+      ```
 
-      1. Import the transcription service:
+      Key implementation details:
+
+      **Header**: Title displayed as h2. Click to edit (same pattern as CardDetailModal):
+      - isEditingTitle state, input field, save on blur/Enter, cancel on Escape
+      - Calls `meetingStore.updateMeeting(id, { title })` to persist
+
+      **Metadata row**: Status badge (same styles as MeetingCard), duration, date/time.
+
+      **Transcript section**:
+      - Heading: "Transcript" with segment count
+      - If no segments: empty state message ("No transcript available" or "Transcription in progress...")
+      - Scrollable list of segments: timestamp on the left (formatted as MM:SS), content on the right
+      - Container with `ref` for auto-scrolling
+      - During active recording (meeting.status === 'recording'), auto-scroll to bottom when new segments arrive
+
+      Segment timestamp formatting:
+      ```typescript
+      function formatTimestamp(ms: number): string {
+        const totalSec = Math.floor(ms / 1000);
+        const min = Math.floor(totalSec / 60).toString().padStart(2, '0');
+        const sec = (totalSec % 60).toString().padStart(2, '0');
+        return `${min}:${sec}`;
+      }
+      ```
+
+      **Delete button**: At the bottom. Shows confirmation state ("Are you sure?" with Confirm/Cancel)
+      before actually deleting. After delete, calls `onClose()`.
+
+      **Close handlers**: Escape key + overlay click (same as CardDetailModal).
+
+      **Data loading**: On mount, call `meetingStore.loadMeeting(meetingId)` to fetch meeting with
+      transcript segments. The modal reads from `meetingStore.selectedMeeting`. On unmount, call
+      `meetingStore.clearSelectedMeeting()`.
+
+      Use `useMeetingStore` for all data access. The selected meeting's segments are in
+      `selectedMeeting.segments`.
+
+      ## Step 2: Wire modal into MeetingsPage
+
+      In `src/renderer/pages/MeetingsPage.tsx`:
+
+      1. Import MeetingDetailModal
+      2. When `selectedMeetingId` is set, render the modal:
          ```typescript
-         import * as transcriptionService from './transcriptionService';
+         {selectedMeetingId && (
+           &lt;MeetingDetailModal
+             onClose={() => {
+               setSelectedMeetingId(null);
+               loadMeetings(); // Refresh list after viewing/editing
+             }}
+           /&gt;
+         )}
          ```
 
-      2. In `setMainWindow()`, also set the window on transcription service:
+      3. Before rendering the modal, call `loadMeeting(selectedMeetingId)` when selectedMeetingId changes:
          ```typescript
-         export function setMainWindow(win: BrowserWindow): void {
-           mainWindow = win;
-           transcriptionService.setMainWindow(win);
-         }
+         useEffect(() => {
+           if (selectedMeetingId) {
+             loadMeeting(selectedMeetingId);
+           }
+         }, [selectedMeetingId, loadMeeting]);
          ```
 
-      3. In `startRecording()`, after resetting state, start transcription:
+      4. Add real-time transcript segment listener:
          ```typescript
-         // After: pushState();
-         // Start transcription pipeline (non-blocking, may skip if no model)
-         transcriptionService.start(meetingId).catch((err) => {
-           console.error('[Audio] Transcription start failed:', err);
-         });
+         useEffect(() => {
+           const cleanup = window.electronAPI.onTranscriptSegment((segment) => {
+             addTranscriptSegment(segment);
+           });
+           return cleanup;
+         }, [addTranscriptSegment]);
          ```
+         This ensures that when the whisper worker produces new segments during a live recording,
+         they appear in the modal's transcript view in real-time.
 
-      4. In `addChunk()`, also forward to transcription service:
-         ```typescript
-         export function addChunk(chunk: Buffer): void {
-           if (!currentMeetingId) return;
-           chunks.push(chunk);
-           transcriptionService.addChunk(chunk);
-         }
-         ```
-
-      5. In `stopRecording()`, stop transcription before concatenating chunks:
-         ```typescript
-         // After clearing the stateTimer, before concatenating chunks:
-         await transcriptionService.stop();
-         ```
-
-      6. In `pushState()`, update lastTranscript from transcription service:
-         ```typescript
-         lastTranscript: transcriptionService.getLastTranscript(),
-         ```
-
-      ## Step 3: Modify recording.ts IPC
-
-      The recording IPC handlers don't need structural changes — the transcription integration
-      happens inside audioProcessor → transcriptionService. But verify that transcript segments
-      are being pushed via `recording:transcript-segment` (which is already handled by
-      transcriptionService directly using the mainWindow reference).
-
-      No changes needed to recording.ts — the transcription service handles its own IPC push.
-      But verify the flow works end-to-end.
+      5. Auto-refresh meetings list when recording stops:
+         The page already listens to `isRecording` from `useRecordingStore` (from Task 1).
+         When `isRecording` transitions from true → false, call `loadMeetings()` to refresh
+         the list (the completed meeting's status and duration will have changed).
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify transcriptionService.ts exports: setMainWindow, getLastTranscript, start, addChunk, stop
-      3. Verify audioProcessor.ts imports and calls transcriptionService methods:
-         - setMainWindow passes window to transcriptionService
-         - startRecording calls transcriptionService.start()
-         - addChunk forwards to transcriptionService.addChunk()
-         - stopRecording calls transcriptionService.stop()
-         - pushState uses transcriptionService.getLastTranscript()
-      4. Verify transcription service accumulates chunks into ~10-second segments (BYTES_PER_SEGMENT = 320000)
-      5. Verify results flow: worker result → meetingService.addTranscriptSegment() → mainWindow.webContents.send('recording:transcript-segment', saved)
-      6. Verify worker uses transferable objects for ArrayBuffer (zero-copy)
+      2. Verify MeetingDetailModal.tsx:
+         - Renders meeting title (editable), status badge, duration, date
+         - Shows transcript segments with timestamps (MM:SS format)
+         - Has delete button with confirmation
+         - Closes on Escape key and overlay click
+      3. Verify MeetingsPage.tsx:
+         - Renders MeetingDetailModal when selectedMeetingId is set
+         - Calls loadMeeting when selectedMeetingId changes
+         - Listens for onTranscriptSegment and forwards to meetingStore.addTranscriptSegment
+         - Refreshes meetings list when recording stops
+      4. Verify transcript auto-scroll: transcript container has a ref and scrolls to bottom on new segments
     </verify>
     <done>
-      Transcription service orchestrates full pipeline: accumulate PCM → 10s segments →
-      worker dispatch → save to DB → push to renderer. Audio processor forwards chunks
-      to transcription service. LastTranscript updates in recording state. TypeScript
-      compiles clean.
+      Meeting detail modal shows full meeting info and scrollable transcript timeline.
+      Title is editable. Delete with confirmation. Real-time transcript updates during
+      active recording with auto-scroll. Modal wired into MeetingsPage. TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - transcriptionService.start() is non-blocking (awaited in background, recording continues even if model unavailable)
-      - Worker path resolves correctly: path.join(__dirname, 'transcriptionWorker.js')
-      - meetingService.addTranscriptSegment() works during active recording (DB writes don't block)
-      - Buffer.concat for accumulation is efficient enough at these sizes (320KB segments)
-      - Transferable ArrayBuffer works with worker_threads postMessage
+      - meetingStore.loadMeeting(id) returns MeetingWithTranscript with segments array
+      - onTranscriptSegment fires for each new segment during recording (verified in Plan 4.3)
+      - Auto-scroll using scrollIntoView or scrollTop works in the modal container
+      - Delete meeting also cleans up associated transcript segments (cascading via DB)
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Add whisper model management types, IPC handlers, and preload bridge</n>
+    <n>Add meeting-project linking and whisper model status</n>
     <files>
-      src/shared/types.ts (modify — add WhisperModel types + model management methods to ElectronAPI)
-      src/main/ipc/whisper.ts (create — IPC handlers for model management)
-      src/main/ipc/index.ts (modify — register whisper handlers)
-      src/preload/preload.ts (modify — add model management bridge methods)
+      src/renderer/components/MeetingDetailModal.tsx (modify — add project selector dropdown)
+      src/renderer/pages/MeetingsPage.tsx (modify — add whisper model status notice)
     </files>
     <preconditions>
-      - Task 1 completed (whisperModelManager exists)
-      - Task 2 completed (transcription pipeline works)
+      - Task 2 completed (MeetingDetailModal + MeetingsPage fully wired)
+      - projectStore.ts exists with loadProjects/projects
+      - ElectronAPI: hasWhisperModel, getWhisperModels, downloadWhisperModel, onWhisperDownloadProgress
     </preconditions>
     <action>
-      Add the IPC layer for whisper model management so the renderer can check model
-      availability, trigger downloads, and track download progress.
+      Add project linking in the meeting detail modal and a whisper model status notice
+      on the meetings page.
 
-      WHY: The renderer needs to know if a whisper model is available before starting a
-      recording with transcription. If no model is installed, it should show a download
-      prompt. The model download progress needs to be pushed to the renderer for UI feedback.
+      WHY: Meeting ↔ project linking is a key feature — it lets users associate meetings with
+      projects so they can later extract action items into project cards (Phase 5). The whisper
+      model notice is important because transcription won't work without a downloaded model,
+      and users need to know this + be able to download one.
 
-      ## Step 1: Update shared/types.ts
+      ## Step 1: Add project selector to MeetingDetailModal
 
-      Add whisper model types after the existing meeting types section:
+      In `src/renderer/components/MeetingDetailModal.tsx`:
 
-      ```typescript
-      // === WHISPER MODEL TYPES ===
+      1. Import `useProjectStore` from `../stores/projectStore`
+      2. Load projects on mount: `useEffect(() => { loadProjects(); }, [loadProjects]);`
+      3. Add a project selector row below the metadata section:
 
-      export interface WhisperModel {
-        name: string;           // e.g., 'base.en'
-        fileName: string;       // e.g., 'ggml-base.en.bin'
-        size: string;           // Human-readable: '74 MB'
-        description: string;
-        available: boolean;     // true if downloaded locally
-      }
-
-      export interface WhisperDownloadProgress {
-        fileName: string;
-        downloaded: number;     // bytes
-        total: number;          // bytes
-        percent: number;        // 0-100
-      }
+      ```
+      Project: [dropdown: None / Project 1 / Project 2 / ...]
       ```
 
-      Add to the ElectronAPI interface (after the meeting recording methods):
+      Implementation:
+      - A `&lt;select&gt;` element styled consistently with the app
+      - Options: "None" (value="") + all projects from useProjectStore
+      - On change: call `updateMeeting(meeting.id, { projectId: value || null })`
+      - Selected value: `meeting.projectId || ''`
 
+      Style the select to match the app:
       ```typescript
-      // Whisper Models
-      getWhisperModels: () => Promise<WhisperModel[]>;
-      downloadWhisperModel: (fileName: string) => Promise<string>;
-      hasWhisperModel: () => Promise<boolean>;
-      onWhisperDownloadProgress: (callback: (progress: WhisperDownloadProgress) => void) => () => void;
+      &lt;select
+        value={selectedMeeting.projectId || ''}
+        onChange={(e) => updateMeeting(selectedMeeting.id, {
+          projectId: e.target.value || null,
+        })}
+        className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-1.5
+                   text-sm text-surface-200 focus:outline-none focus:border-primary-500"
+      &gt;
+        &lt;option value=""&gt;No project&lt;/option&gt;
+        {projects.map(p =&gt; (
+          &lt;option key={p.id} value={p.id}&gt;{p.name}&lt;/option&gt;
+        ))}
+      &lt;/select&gt;
       ```
 
-      ## Step 2: Create whisper.ts IPC handlers
+      ## Step 2: Add whisper model status notice to MeetingsPage
 
-      Create `src/main/ipc/whisper.ts`:
+      Users need to know if a whisper model is available before they can get transcription.
+      Add a notice at the top of the page (below RecordingControls, above the filter tabs).
 
-      ```typescript
-      // === FILE PURPOSE ===
-      // IPC handlers for whisper model management — list, download, check availability.
+      On mount, check `window.electronAPI.hasWhisperModel()`:
+      - If true: show nothing (model is available, transcription will work)
+      - If false: show an info notice:
 
-      import { ipcMain, BrowserWindow } from 'electron';
-      import * as whisperModelManager from '../services/whisperModelManager';
-
-      export function registerWhisperHandlers(mainWindow: BrowserWindow): void {
-        ipcMain.handle('whisper:list-models', async () => {
-          return whisperModelManager.AVAILABLE_MODELS.map((m) => ({
-            ...m,
-            available: whisperModelManager.isModelAvailable(m.fileName),
-          }));
-        });
-
-        ipcMain.handle('whisper:download-model', async (_event, fileName: string) => {
-          const { promise } = whisperModelManager.downloadModel(fileName, (downloaded, total) => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('whisper:download-progress', {
-                fileName,
-                downloaded,
-                total,
-                percent: total > 0 ? Math.round((downloaded / total) * 100) : 0,
-              });
-            }
-          });
-          return promise;
-        });
-
-        ipcMain.handle('whisper:has-model', async () => {
-          return whisperModelManager.getDefaultModelPath() !== null;
-        });
-      }
+      ```
+      ┌─────────────────────────────────────────────────────┐
+      │ ℹ️ No Whisper model installed. Recordings will be   │
+      │ saved but won't have transcription.                 │
+      │ [Download Model (74 MB)]                            │
+      └─────────────────────────────────────────────────────┘
       ```
 
-      ## Step 3: Register in ipc/index.ts
+      When the user clicks "Download Model":
+      - Call `window.electronAPI.downloadWhisperModel('ggml-base.en.bin')`
+      - Show download progress inline (percent bar or text)
+      - Listen to `onWhisperDownloadProgress` for real-time progress
+      - On completion: hide the notice, show brief success message
 
-      Add import: `import { registerWhisperHandlers } from './whisper';`
-      Add call: `registerWhisperHandlers(mainWindow);` inside registerIpcHandlers().
-
-      ## Step 4: Extend preload bridge
-
-      In `src/preload/preload.ts`, add after the Recording section:
-
+      State for this:
       ```typescript
-      // Whisper Models
-      getWhisperModels: () => ipcRenderer.invoke('whisper:list-models'),
-      downloadWhisperModel: (fileName: string) =>
-        ipcRenderer.invoke('whisper:download-model', fileName),
-      hasWhisperModel: () => ipcRenderer.invoke('whisper:has-model'),
-      onWhisperDownloadProgress: (callback: (progress: any) => void) => {
-        const handler = (_event: Electron.IpcRendererEvent, progress: any) => {
-          callback(progress);
-        };
-        ipcRenderer.on('whisper:download-progress', handler);
-        return () => {
-          ipcRenderer.removeListener('whisper:download-progress', handler);
-        };
-      },
+      const [hasModel, setHasModel] = useState&lt;boolean | null&gt;(null); // null = checking
+      const [downloading, setDownloading] = useState(false);
+      const [downloadProgress, setDownloadProgress] = useState(0);
+      ```
+
+      On mount:
+      ```typescript
+      useEffect(() => {
+        window.electronAPI.hasWhisperModel().then(setHasModel);
+      }, []);
+      ```
+
+      Download handler:
+      ```typescript
+      const handleDownloadModel = async () => {
+        setDownloading(true);
+        const cleanup = window.electronAPI.onWhisperDownloadProgress((progress) => {
+          setDownloadProgress(progress.percent);
+        });
+        try {
+          await window.electronAPI.downloadWhisperModel('ggml-base.en.bin');
+          setHasModel(true);
+        } catch (err) {
+          // Show error
+        } finally {
+          setDownloading(false);
+          cleanup();
+        }
+      };
+      ```
+
+      Style the notice:
+      ```typescript
+      &lt;div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20"&gt;
+        &lt;div className="flex items-start gap-3"&gt;
+          &lt;Info size={16} className="text-blue-400 mt-0.5 shrink-0" /&gt;
+          &lt;div className="flex-1"&gt;
+            &lt;p className="text-sm text-blue-300"&gt;
+              No Whisper model installed. Recordings will be saved but transcription
+              won't be available.
+            &lt;/p&gt;
+            {downloading ? (
+              &lt;div className="mt-2"&gt;
+                &lt;div className="h-1.5 bg-surface-700 rounded-full overflow-hidden"&gt;
+                  &lt;div className="h-full bg-blue-500 transition-all" style={{ width: `${downloadProgress}%` }} /&gt;
+                &lt;/div&gt;
+                &lt;p className="text-xs text-surface-400 mt-1"&gt;Downloading... {downloadProgress}%&lt;/p&gt;
+              &lt;/div&gt;
+            ) : (
+              &lt;button
+                onClick={handleDownloadModel}
+                className="mt-2 text-sm text-blue-400 hover:text-blue-300 underline"
+              &gt;
+                Download base.en model (74 MB)
+              &lt;/button&gt;
+            )}
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
       ```
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify shared/types.ts has WhisperModel and WhisperDownloadProgress types
-      3. Verify ElectronAPI has 4 whisper methods: getWhisperModels, downloadWhisperModel, hasWhisperModel, onWhisperDownloadProgress
-      4. Verify whisper.ts IPC handles 3 channels: whisper:list-models, whisper:download-model, whisper:has-model
-      5. Verify whisper:download-progress is pushed to renderer during download
-      6. Verify ipc/index.ts imports and calls registerWhisperHandlers(mainWindow)
-      7. Verify preload.ts has 4 whisper bridge methods matching ElectronAPI interface
+      2. Verify MeetingDetailModal.tsx:
+         - Has a project selector dropdown with "No project" + all projects
+         - Changing the dropdown calls updateMeeting with new projectId
+         - Project list is loaded from projectStore on mount
+      3. Verify MeetingsPage.tsx:
+         - Checks hasWhisperModel on mount
+         - Shows info notice when no model is available
+         - "Download Model" button triggers download with progress bar
+         - Progress updates in real-time via onWhisperDownloadProgress
+         - Notice hides when model is available
+      4. Verify project name resolution still works on MeetingCards (from Task 1)
     </verify>
     <done>
-      Whisper model types in shared/types.ts. IPC handlers for model list, download with
-      progress, and availability check. Preload bridge wired. Renderer can now check for
-      models, trigger downloads, and receive progress updates. TypeScript compiles clean.
+      Meeting detail modal has a project selector dropdown for linking meetings to projects.
+      MeetingsPage shows a whisper model status notice with download capability when no model
+      is installed. Progress bar shows real-time download progress. TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - HuggingFace download URLs are stable and follow the expected pattern
-      - https.get follows 302 redirects for HuggingFace CDN
-      - Content-Length header is provided by HuggingFace (for progress calculation)
-      - Download progress push via mainWindow.webContents.send works during download
+      - hasWhisperModel() accurately reflects whether any model is locally available
+      - downloadWhisperModel('ggml-base.en.bin') downloads to the correct location
+      - onWhisperDownloadProgress fires reliably during download
+      - DB cascade: deleting a meeting also deletes its transcript segments (Drizzle onDelete: cascade)
+      - select element renders correctly with dark theme styling in Electron
     </assumptions>
   </task>
 </phase>

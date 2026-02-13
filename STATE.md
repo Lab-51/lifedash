@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 4 — Plan 4.3 Executed
+Session focus: Phase 4 — Plan 4.4 COMPLETE
 
 ## Position
 Milestone: Phase 4 — Meeting Intelligence
 Phase: 4 of 7
-Plan: 3 of 4 (COMPLETE)
+Plan: 4 of 4 (COMPLETE)
 Task: 3 of 3 (all complete)
 
 ## Phase 1 — COMPLETE
@@ -108,6 +108,24 @@ Package installations: HIGH (all 3 verified on npm, installed successfully)
 - **Task 3**: Created whisper.ts IPC handlers (3 channels). Extended shared/types.ts (WhisperModel, WhisperDownloadProgress, 4 ElectronAPI methods). Registered in ipc/index.ts. Extended preload.ts (4 whisper bridge methods).
 - **TypeScript**: `npx tsc --noEmit` passes with zero errors.
 
+### Plan 4.4: Meetings UI & Transcript Display (3 tasks) — COMPLETE
+1. Meeting store + MeetingsPage list view + RecordingControls — DONE
+2. Meeting detail modal + transcript timeline + real-time updates — DONE
+3. Meeting-project linking + whisper model status notice — DONE
+- Not yet committed
+
+## Plan 4.4 Execution Results
+- **Task 1**: Created meetingStore.ts (Zustand — loadMeetings, loadMeeting, updateMeeting, deleteMeeting, clearSelectedMeeting, addTranscriptSegment). Created MeetingCard.tsx (title, date, time, duration, status badge, project name). Replaced MeetingsPage.tsx stub with full page (RecordingControls, filter tabs, meeting cards grid, loading/empty/error states, auto-refresh on recording stop).
+- **Task 2**: Created MeetingDetailModal.tsx (editable title, status/duration/date metadata, scrollable transcript timeline with MM:SS timestamps, auto-scroll during live recording, delete with confirmation, Escape + overlay close). Wired into MeetingsPage (loadMeeting on select, onTranscriptSegment real-time listener, list refresh on close).
+- **Task 3**: Added project selector dropdown to MeetingDetailModal (No project + all projects from projectStore). Added whisper model notice to MeetingsPage (hasWhisperModel check, download button with real-time progress bar via onWhisperDownloadProgress).
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors.
+- **Note**: TranscriptSegment uses `startTime`/`content` fields (not `startMs`/`text` as in plan). Code correctly uses actual field names.
+
+## Phase 4 — COMPLETE
+All 4 plans (12 tasks) executed successfully. Phase 4 delivers:
+- R4: Audio Capture — meeting CRUD, audio capture pipeline, recording UI
+- R5: Transcription — whisper model manager, transcription worker, meetings UI with transcript display
+
 ## Next Steps
-1. `/nexus:git` — Commit Plan 4.3 changes
-2. `/nexus:plan 4.4` — Meetings UI, transcript display, meeting ↔ project linking
+1. `/nexus:git` — Commit Plan 4.4 changes
+2. Phase 5 follows (Meeting Intelligence — Briefs & Actions)
