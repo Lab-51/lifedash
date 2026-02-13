@@ -91,6 +91,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCardActivities: (cardId: string) =>
     ipcRenderer.invoke('card:getActivities', cardId),
 
+  // Card Attachments
+  getCardAttachments: (cardId: string) => ipcRenderer.invoke('card:getAttachments', cardId),
+  addCardAttachment: (cardId: string) => ipcRenderer.invoke('card:addAttachment', cardId),
+  deleteCardAttachment: (id: string) => ipcRenderer.invoke('card:deleteAttachment', id),
+  openCardAttachment: (filePath: string) => ipcRenderer.invoke('card:openAttachment', filePath),
+
   // Labels
   getLabels: (projectId: string) =>
     ipcRenderer.invoke('labels:list', projectId),

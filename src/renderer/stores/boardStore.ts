@@ -20,6 +20,7 @@ import type {
   CardComment,
   CardRelationship,
   CardActivity,
+  CardAttachment,
   CreateCardCommentInput,
   CreateCardRelationshipInput,
 } from '../../shared/types';
@@ -38,6 +39,7 @@ interface BoardStore {
   selectedCardComments: CardComment[];
   selectedCardRelationships: CardRelationship[];
   selectedCardActivities: CardActivity[];
+  selectedCardAttachments: CardAttachment[];
   loadingCardDetails: boolean;
 
   // Actions
@@ -64,6 +66,11 @@ interface BoardStore {
   deleteComment: (id: string) => Promise<void>;
   addRelationship: (input: CreateCardRelationshipInput) => Promise<void>;
   deleteRelationship: (id: string) => Promise<void>;
+
+  // Card attachment actions
+  addAttachment: (cardId: string) => Promise<void>;
+  deleteAttachment: (id: string) => Promise<void>;
+  openAttachment: (filePath: string) => Promise<void>;
 }
 
 export const useBoardStore = create<BoardStore>((set, get) => ({
@@ -77,6 +84,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   selectedCardComments: [],
   selectedCardRelationships: [],
   selectedCardActivities: [],
+  selectedCardAttachments: [],
   loadingCardDetails: false,
 
   loadBoard: async (projectId: string) => {
@@ -238,15 +246,17 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   loadCardDetails: async (cardId: string) => {
     set({ loadingCardDetails: true });
     try {
-      const [comments, relationships, activities] = await Promise.all([
+      const [comments, relationships, activities, attachments] = await Promise.all([
         window.electronAPI.getCardComments(cardId),
         window.electronAPI.getCardRelationships(cardId),
         window.electronAPI.getCardActivities(cardId),
+        window.electronAPI.getCardAttachments(cardId),
       ]);
       set({
         selectedCardComments: comments,
         selectedCardRelationships: relationships,
         selectedCardActivities: activities,
+        selectedCardAttachments: attachments,
         loadingCardDetails: false,
       });
     } catch (error) {
@@ -259,6 +269,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     selectedCardComments: [],
     selectedCardRelationships: [],
     selectedCardActivities: [],
+    selectedCardAttachments: [],
   }),
 
   addComment: async (input: CreateCardCommentInput) => {
@@ -296,6 +307,28 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     set({
       selectedCardRelationships: get().selectedCardRelationships.filter(r => r.id !== id),
     });
+  },
+
+  // --- Card Attachment Actions ---
+
+  addAttachment: async (cardId: string) => {
+    const attachment = await window.electronAPI.addCardAttachment(cardId);
+    if (attachment) {
+      set(state => ({
+        selectedCardAttachments: [attachment, ...state.selectedCardAttachments],
+      }));
+    }
+  },
+
+  deleteAttachment: async (id: string) => {
+    await window.electronAPI.deleteCardAttachment(id);
+    set(state => ({
+      selectedCardAttachments: state.selectedCardAttachments.filter(a => a.id !== id),
+    }));
+  },
+
+  openAttachment: async (filePath: string) => {
+    await window.electronAPI.openCardAttachment(filePath);
   },
 }));
 

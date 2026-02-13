@@ -25,7 +25,9 @@ import {
   cardRelationshipTypeEnum,
   cardActivities,
   cardActivityActionEnum,
+  cardAttachments,
 } from '../db/schema';
+import * as attachmentService from '../services/attachmentService';
 import type {
   CreateCardInput,
   UpdateCardInput,
@@ -372,5 +374,38 @@ export function registerCardHandlers(): void {
       .where(eq(cardActivities.cardId, cardId))
       .orderBy(desc(cardActivities.createdAt))
       .limit(50);
+  });
+
+  // --- Card Attachments ---
+
+  ipcMain.handle('card:getAttachments', async (_event, cardId: string) => {
+    return attachmentService.getAttachments(cardId);
+  });
+
+  ipcMain.handle('card:addAttachment', async (_event, cardId: string) => {
+    const attachment = await attachmentService.addAttachment(cardId);
+    if (attachment) {
+      logCardActivity(cardId, 'updated', {
+        action: 'attachment_added',
+        fileName: attachment.fileName,
+      });
+    }
+    return attachment;
+  });
+
+  ipcMain.handle('card:deleteAttachment', async (_event, id: string) => {
+    const db = getDb();
+    const [att] = await db.select().from(cardAttachments).where(eq(cardAttachments.id, id));
+    await attachmentService.deleteAttachment(id);
+    if (att) {
+      logCardActivity(att.cardId, 'updated', {
+        action: 'attachment_removed',
+        fileName: att.fileName,
+      });
+    }
+  });
+
+  ipcMain.handle('card:openAttachment', async (_event, filePath: string) => {
+    return attachmentService.openAttachment(filePath);
   });
 }

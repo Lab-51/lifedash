@@ -1,19 +1,20 @@
 // === FILE PURPOSE ===
 // Card detail modal — overlay for viewing and editing full card details.
 // Contains title editing, priority selector, TipTap rich text description editor,
-// labels, comments, relationships, and activity log sections.
+// labels, due date picker with status badge, comments, relationships, and activity log sections.
 
 // === DEPENDENCIES ===
-// react, lucide-react (X, Plus, FileText), @tiptap/react, @tiptap/starter-kit,
+// react, lucide-react (X, Plus, FileText, Calendar), @tiptap/react, @tiptap/starter-kit,
 // @tiptap/extension-placeholder, shared types, boardStore, section components
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Plus, FileText } from 'lucide-react';
+import { X, Plus, FileText, Calendar } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { Card, UpdateCardInput, CardPriority } from '../../shared/types';
 import { useBoardStore } from '../stores/boardStore';
+import AttachmentsSection from './AttachmentsSection';
 import CommentsSection from './CommentsSection';
 import RelationshipsSection from './RelationshipsSection';
 import ActivityLog from './ActivityLog';
@@ -89,6 +90,39 @@ function formatDate(dateStr: string): string {
     day: 'numeric',
     year: 'numeric',
   });
+}
+
+/** Convert ISO string to datetime-local input value (YYYY-MM-DDTHH:mm) */
+function toDateTimeLocalValue(isoStr: string): string {
+  const d = new Date(isoStr);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+/** Get badge classes and label for a due date */
+function getDueDateBadge(dueDateStr: string): { label: string; classes: string } {
+  const now = new Date();
+  const due = new Date(dueDateStr);
+  const diffMs = due.getTime() - now.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+  if (diffMs < 0) {
+    return { label: 'Overdue', classes: 'bg-red-500/20 text-red-400' };
+  }
+  if (diffDays < 1) {
+    return { label: 'Due today', classes: 'bg-amber-500/20 text-amber-400' };
+  }
+  if (diffDays < 3) {
+    return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-amber-500/10 text-amber-300' };
+  }
+  if (diffDays < 7) {
+    return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-blue-500/10 text-blue-300' };
+  }
+  return { label: formatDate(dueDateStr), classes: 'bg-surface-800 text-surface-400' };
 }
 
 function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
@@ -420,11 +454,46 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
           </div>
         </div>
 
+        {/* Due Date */}
+        <div className="mb-5">
+          <span className="text-sm text-surface-400 block mb-2">Due Date</span>
+          <div className="flex items-center gap-3">
+            <Calendar size={16} className="text-surface-400 shrink-0" />
+            <input
+              type="datetime-local"
+              value={card.dueDate ? toDateTimeLocalValue(card.dueDate) : ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                onUpdate(card.id, {
+                  dueDate: val ? new Date(val).toISOString() : null,
+                });
+              }}
+              className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-100 focus:outline-none focus:border-primary-500 [color-scheme:dark]"
+            />
+            {card.dueDate && (
+              <>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${getDueDateBadge(card.dueDate).classes}`}>
+                  {getDueDateBadge(card.dueDate).label}
+                </span>
+                <button
+                  onClick={() => onUpdate(card.id, { dueDate: null })}
+                  className="text-xs text-surface-500 hover:text-surface-300 transition-colors"
+                >
+                  Clear
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
         {/* Card Details: Comments, Relationships, Activity */}
         {loadingCardDetails ? (
           <div className="text-sm text-surface-500 py-4 text-center">Loading details...</div>
         ) : (
           <>
+            <div className="mb-5">
+              <AttachmentsSection cardId={card.id} />
+            </div>
             <div className="mb-5">
               <CommentsSection cardId={card.id} />
             </div>

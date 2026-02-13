@@ -1,8 +1,8 @@
-# Plan 7.7 — Speaker Diarization & Meeting Analytics
+# Plan 7.8 — Card Attachments, Due Date UI & KanbanCard Enhancements
 
-**Requirements:** R13 (Advanced Meeting Features — 8 pts, partial)
-**Scope:** Post-recording speaker diarization (Deepgram + AssemblyAI), meeting analytics (speaker stats, talk time, action item tracking), analytics UI
-**Approach:** Post-recording diarization on full audio file (not per-segment), analytics computed from transcript + action item data, speaker-labeled transcript display
+**Requirements:** R16 (Advanced Card Features — remaining items)
+**Scope:** File attachments (schema, service, IPC, UI), due date picker in CardDetailModal, due date + overdue badge on KanbanCard
+**Approach:** Attachment files stored on local filesystem (app data directory), metadata in DB. Due date UI uses native HTML date input (no external library needed — dueDate backend already exists).
 
 ## Phase 7 Overview
 
@@ -17,826 +17,620 @@ Planned as 8 sequential plans:
 | 7.4 | R11 | AI task structuring — service, IPC, store, project planning modal, card breakdown |
 | 7.5 | R13+R17 | Meeting templates, desktop notifications, daily digest |
 | 7.6 | R14 | API transcription providers (Deepgram, AssemblyAI), fallback |
-| **7.7** | **R13** | **Speaker diarization, meeting analytics, analytics UI** |
-| 7.8 | R16 (rest) | Card attachments, due dates UI, reminders |
+| 7.7 | R13 | Speaker diarization, meeting analytics, analytics UI |
+| **7.8** | **R16 (rest)** | **Card attachments, due dates UI, KanbanCard enhancements** |
 
 ## Architecture Decisions
 
-1. **Post-recording diarization (not per-segment):** 10-second segments are too short for reliable cross-segment speaker consistency. Both Deepgram and AssemblyAI recommend longer audio for diarization (30+ seconds per speaker). Instead, after a recording completes, the user can trigger "Identify Speakers" which sends the full WAV file to the API. The API returns words with speaker labels, which we map back to existing transcript segments by timestamp. This preserves existing transcript text while adding accurate speaker attribution.
+1. **File storage in app data directory:** Attachment files are copied into `{userData}/attachments/{cardId}/` using Electron's `app.getPath('userData')`. This keeps files organized per card, survives card metadata changes, and the path is portable relative to the app data location. Files are copied (not moved) so the original stays intact.
 
-2. **Speaker column on transcripts table:** Add a nullable `speaker` varchar column to the transcripts table. Null means "not diarized" (backward-compatible with all existing data). For Deepgram, speakers are integers (0, 1, 2...) stored as strings. For AssemblyAI, speakers are letters ("A", "B"...) stored as-is. We normalize to "Speaker 1", "Speaker 2" etc. in the service layer for consistent display.
+2. **Native HTML date input (no date picker library):** The `<input type="date">` and `<input type="datetime-local">` elements provide sufficient functionality for due dates. No need to add a dependency like react-datepicker or date-fns. The dueDate field already exists in schema, types, IPC, and store — we only need the UI.
 
-3. **Diarization as full-file transcription + speaker mapping:** Send full WAV to Deepgram (`?diarize=true`) or AssemblyAI (`speaker_labels: true`). The API returns words with speaker labels. For each existing transcript segment, find words that overlap its time range and assign the majority speaker. This avoids re-transcribing (keeps existing text) while adding speaker data.
+3. **Attachments as a separate table (not inline on cards):** A `cardAttachments` table with file metadata (name, path, size, MIME type) keeps the cards table clean and supports multiple attachments per card. Files are opened via Electron's `shell.openPath()` for native OS handling.
 
-4. **Analytics as computed values (not stored):** Meeting analytics (duration, word count, speaker breakdown, action item stats) are computed on-demand from transcript segments and action items. No new analytics table needed — these are derived from existing data. This avoids data staleness issues.
+4. **Overdue badge on KanbanCard:** Cards with dueDate in the past get a red "Overdue" badge, cards due today get an amber "Due today" badge, and cards due within 3 days get a subtle indicator. This makes it easy to spot urgent items on the board without opening the card.
 
-5. **Deferred items:** Calendar integration and automatic meeting detection (VAD) are complex features requiring OS-level integrations. These are deferred to ISSUES.md rather than cramming into this plan.
+5. **Activity logging for attachments:** Attachment add/remove actions are logged to cardActivities with the 'updated' action type (details JSON contains attachment info). No new enum values needed.
 
 ---
 
-<phase n="7.7" name="Speaker Diarization & Meeting Analytics">
+<phase n="7.8" name="Card Attachments, Due Date UI & KanbanCard Enhancements">
   <context>
-    Phase 7, Plan 7 of 8. Implements remaining R13 items:
-    - Speaker diarization (who said what) — via Deepgram/AssemblyAI post-recording
-    - Meeting analytics (talk time, speaker stats, action item tracking)
+    Phase 7, Plan 8 of 8 (final plan). Implements remaining R16 items:
+    - Card file attachments (full stack: schema → service → IPC → UI)
+    - Due date picker UI in CardDetailModal (backend already exists)
+    - Due date / overdue badges on KanbanCard
 
     Already complete (not in scope):
-    - Meeting templates (Plan 7.5)
-    - API transcription providers (Plan 7.6)
+    - Card comments, relationships, activity log (Plans 7.1-7.2)
+    - Card templates (Plan 7.2)
+    - Task breakdown / AI structuring (Plan 7.4)
 
-    Deferred to ISSUES.md:
-    - Meeting calendar integration (needs OS-level calendar access)
-    - Automatic meeting detection (needs VAD library)
-
-    Current transcription infrastructure:
-    - transcripts table: id, meetingId, content, startTime, endTime, createdAt (NO speaker column)
-    - meetings table: has audioPath (full WAV file path after recording)
-    - deepgramTranscriber.ts: transcribeSegment() for 10-sec PCM, testConnection()
-    - assemblyaiTranscriber.ts: transcribeSegment() for 10-sec PCM (with WAV conversion), testConnection()
-    - transcriptionService.ts: 10-sec segment pipeline, provider routing (local/deepgram/assemblyai)
-    - transcriptionProviderService.ts: getConfig, getDecryptedKey, provider settings
-    - meetingService.ts: addTranscriptSegment(meetingId, content, startTime, endTime)
-    - MeetingDetailModal.tsx: transcript timeline with MM:SS timestamps, brief + actions sections
-
-    API diarization parameters (verified):
-    - Deepgram: `diarize=true` query param → words get `speaker` (integer 0-based) + `speaker_confidence`
-    - AssemblyAI: `speaker_labels: true` in request body → `utterances` array with `speaker` (letter "A", "B"), words also get `speaker`
+    Key existing infrastructure:
+    - cards table already has `dueDate: timestamp('due_date', { withTimezone: true })` — line 29 of cards.ts
+    - Card type has `dueDate: string | null` — types.ts line 47
+    - UpdateCardInput has `dueDate?: string | null` — types.ts line 108
+    - cards:update IPC handler converts string → Date for DB — cards.ts lines 128-135
+    - boardStore.updateCard already passes through dueDate
+    - CardDetailModal currently has NO dueDate UI — needs date input
+    - KanbanCard shows title, priority badge, label dots — no dueDate display
 
     Key files for context:
-    @src/main/db/schema/meetings.ts (add speaker column to transcripts)
-    @src/main/services/deepgramTranscriber.ts (add transcribeFileWithDiarization)
-    @src/main/services/assemblyaiTranscriber.ts (add transcribeFileWithDiarization)
-    @src/main/services/meetingService.ts (add updateSegmentSpeakers)
-    @src/main/services/transcriptionProviderService.ts (getConfig, getDecryptedKey)
-    @src/shared/types.ts (add speaker to TranscriptSegment, add diarization types, add analytics types)
-    @src/main/ipc/index.ts (register new handlers)
-    @src/preload/preload.ts (add bridge methods)
-    @src/renderer/components/MeetingDetailModal.tsx (speaker labels, analytics, diarize button)
+    @src/main/db/schema/cards.ts (add cardAttachments table)
+    @src/shared/types.ts (add attachment types + ElectronAPI methods)
+    @src/main/ipc/cards.ts (add attachment IPC handlers)
+    @src/preload/preload.ts (add attachment bridge methods)
+    @src/renderer/stores/boardStore.ts (add attachment state/actions)
+    @src/renderer/components/CardDetailModal.tsx (add due date picker + attachments section)
+    @src/renderer/components/KanbanCard.tsx (add due date badge)
   </context>
 
   <task type="auto" n="1">
-    <n>Schema extension + diarization service + transcriber functions + IPC</n>
+    <n>Card attachments — schema, types, service, IPC, and preload</n>
     <files>
-      src/main/db/schema/meetings.ts (MODIFY — add speaker column to transcripts)
-      src/shared/types.ts (MODIFY — add speaker to TranscriptSegment, add DiarizationWord/DiarizationResult types, add ElectronAPI methods)
-      src/main/services/deepgramTranscriber.ts (MODIFY — add transcribeFileWithDiarization function)
-      src/main/services/assemblyaiTranscriber.ts (MODIFY — add transcribeFileWithDiarization function)
-      src/main/services/meetingService.ts (MODIFY — add updateSegmentSpeakers, add speaker to addTranscriptSegment)
-      src/main/services/speakerDiarizationService.ts (NEW ~180 lines)
-      src/main/ipc/diarization.ts (NEW ~30 lines)
-      src/main/ipc/index.ts (MODIFY — register diarization handlers)
-      src/preload/preload.ts (MODIFY — add diarization bridge methods)
-      drizzle migration (auto-generated for speaker column)
+      src/main/db/schema/cards.ts (MODIFY — add cardAttachments table)
+      src/shared/types.ts (MODIFY — add CardAttachment type + 4 ElectronAPI methods)
+      src/main/services/attachmentService.ts (NEW ~120 lines)
+      src/main/ipc/cards.ts (MODIFY — add 4 attachment IPC handlers)
+      src/preload/preload.ts (MODIFY — add 4 attachment bridge methods)
+      drizzle migration (auto-generated)
     </files>
     <action>
       ## WHY
-      Speaker diarization ("who said what") requires: schema support for speaker labels,
-      full-file transcription functions with diarization enabled on both API providers,
-      a service to orchestrate the diarization process (send full audio, map speakers to
-      existing segments), and IPC plumbing for the renderer to trigger diarization.
+      Card attachments allow users to associate files (documents, screenshots, specs) with
+      cards. This completes the R16 Advanced Card Features requirement. We need: a DB table
+      for metadata, a service to copy files to app data and manage lifecycle, IPC handlers
+      for the renderer to add/list/delete attachments, and preload bridges.
 
       ## WHAT
 
-      ### 1a. Schema — modify src/main/db/schema/meetings.ts
+      ### 1a. Schema — modify src/main/db/schema/cards.ts
 
-      Add `speaker` column to the transcripts table:
+      Add a `cardAttachments` table after `cardActivities`:
+
       ```typescript
-      speaker: varchar('speaker', { length: 50 }),  // nullable — null means not diarized
+      // --- Card Attachments ---
+
+      export const cardAttachments = pgTable('card_attachments', {
+        id: uuid('id').primaryKey().defaultRandom(),
+        cardId: uuid('card_id').notNull()
+          .references(() => cards.id, { onDelete: 'cascade' }),
+        fileName: varchar('file_name', { length: 500 }).notNull(),
+        filePath: text('file_path').notNull(),       // Absolute path in app data dir
+        fileSize: integer('file_size').notNull(),     // Bytes
+        mimeType: varchar('mime_type', { length: 200 }),
+        createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+      });
       ```
-      Place it after `endTime` and before `createdAt`.
+
+      Also add `cardAttachments` to the barrel export in schema/index.ts.
 
       Generate migration: `npx drizzle-kit generate`
-      Apply migration: standard Drizzle migrate on app startup (already wired).
 
       ### 1b. Types — modify src/shared/types.ts
 
-      Add `speaker` field to TranscriptSegment interface:
+      Add near the card types section:
+
       ```typescript
-      export interface TranscriptSegment {
+      // === CARD ATTACHMENT TYPES ===
+
+      export interface CardAttachment {
         id: string;
-        meetingId: string;
-        content: string;
-        startTime: number;
-        endTime: number;
-        speaker: string | null;  // NEW — null = not diarized
+        cardId: string;
+        fileName: string;
+        filePath: string;
+        fileSize: number;
+        mimeType: string | null;
         createdAt: string;
       }
       ```
 
-      Add diarization types (place near transcription types):
-      ```typescript
-      // === DIARIZATION TYPES ===
-
-      export interface DiarizationWord {
-        text: string;
-        startMs: number;
-        endMs: number;
-        speaker: string;  // Normalized: "Speaker 1", "Speaker 2", etc.
-      }
-
-      export interface DiarizationResult {
-        words: DiarizationWord[];
-        speakers: string[];        // Unique speaker labels found
-        durationMs: number;        // Total audio duration
-      }
-      ```
-
       Add to ElectronAPI interface:
-      ```typescript
-      // Diarization
-      diarizeMeeting: (meetingId: string) => Promise<{ success: boolean; speakers: string[]; error?: string }>;
-      ```
-
-      ### 1c. Modify deepgramTranscriber.ts — add transcribeFileWithDiarization
-
-      Add a new export function that sends a full WAV file with diarization:
 
       ```typescript
-      /**
-       * Transcribe a full WAV file with speaker diarization using Deepgram.
-       * Returns words with speaker labels for post-recording speaker identification.
-       * @param wavBuffer Complete WAV file buffer
-       */
-      export async function transcribeFileWithDiarization(
-        wavBuffer: Buffer,
-      ): Promise<DiarizationResult> {
-        const apiKey = await transcriptionProviderService.getDecryptedKey('deepgram');
-        if (!apiKey) throw new Error('Deepgram API key not configured');
-
-        // Add diarize=true to enable speaker identification
-        const url = `${DEEPGRAM_API_URL}?model=nova-2&language=en&punctuate=true&diarize=true&encoding=linear16&sample_rate=16000`;
-
-        const response = await net.fetch(url, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Token ${apiKey}`,
-            'Content-Type': 'audio/wav',  // Full WAV file, not raw PCM
-          },
-          body: new Uint8Array(wavBuffer),
-        });
-
-        if (!response.ok) {
-          const bodyText = await response.text();
-          throw new Error(`Deepgram diarization error ${response.status}: ${bodyText}`);
-        }
-
-        const data: any = await response.json();
-        const words = data.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
-
-        // Deepgram speakers are integers (0, 1, 2...) — normalize to "Speaker 1", "Speaker 2"
-        const speakerSet = new Set<string>();
-        const diarizationWords: DiarizationWord[] = words.map((w: any) => {
-          const speaker = `Speaker ${(w.speaker ?? 0) + 1}`;
-          speakerSet.add(speaker);
-          return {
-            text: w.word,
-            startMs: Math.round((w.start ?? 0) * 1000),
-            endMs: Math.round((w.end ?? 0) * 1000),
-            speaker,
-          };
-        });
-
-        const duration = data.metadata?.duration ?? 0;
-        return {
-          words: diarizationWords,
-          speakers: Array.from(speakerSet).sort(),
-          durationMs: Math.round(duration * 1000),
-        };
-      }
+      // Card Attachments
+      getCardAttachments: (cardId: string) => Promise<CardAttachment[]>;
+      addCardAttachment: (cardId: string) => Promise<CardAttachment | null>;  // Opens file dialog
+      deleteCardAttachment: (id: string) => Promise<void>;
+      openCardAttachment: (filePath: string) => Promise<void>;
       ```
 
-      Import DiarizationResult and DiarizationWord from shared/types.ts.
-      Update the LIMITATIONS header comment to note that diarization IS now implemented.
-
-      ### 1d. Modify assemblyaiTranscriber.ts — add transcribeFileWithDiarization
-
-      ```typescript
-      /**
-       * Transcribe a full WAV file with speaker diarization using AssemblyAI.
-       * Returns words with speaker labels for post-recording speaker identification.
-       * @param wavBuffer Complete WAV file buffer (already in WAV format)
-       */
-      export async function transcribeFileWithDiarization(
-        wavBuffer: Buffer,
-      ): Promise<DiarizationResult> {
-        const apiKey = await transcriptionProviderService.getDecryptedKey('assemblyai');
-        if (!apiKey) throw new Error('AssemblyAI API key not configured');
-
-        // Step 1: Upload WAV file
-        const uploadResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/upload`, {
-          method: 'POST',
-          headers: {
-            'Authorization': apiKey,
-            'Content-Type': 'application/octet-stream',
-          },
-          body: new Uint8Array(wavBuffer),
-        });
-
-        if (!uploadResponse.ok) {
-          const bodyText = await uploadResponse.text();
-          throw new Error(`AssemblyAI upload error ${uploadResponse.status}: ${bodyText}`);
-        }
-
-        const uploadData: any = await uploadResponse.json();
-        const uploadUrl: string = uploadData.upload_url;
-        if (!uploadUrl) throw new Error('AssemblyAI upload did not return upload_url');
-
-        // Step 2: Submit transcription with speaker_labels enabled
-        const transcriptResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/transcript`, {
-          method: 'POST',
-          headers: {
-            'Authorization': apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            audio_url: uploadUrl,
-            language_code: 'en',
-            speaker_labels: true,  // Enable diarization
-          }),
-        });
-
-        if (!transcriptResponse.ok) {
-          const bodyText = await transcriptResponse.text();
-          throw new Error(`AssemblyAI transcript error ${transcriptResponse.status}: ${bodyText}`);
-        }
-
-        const transcriptData: any = await transcriptResponse.json();
-        const transcriptId: string = transcriptData.id;
-        if (!transcriptId) throw new Error('AssemblyAI transcript did not return id');
-
-        // Step 3: Poll for result (longer timeout for full files)
-        const maxAttempts = 120;  // 2 minutes for full-file diarization
-        for (let i = 0; i < maxAttempts; i++) {
-          await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
-
-          const pollResponse = await net.fetch(
-            `${ASSEMBLYAI_API_URL}/transcript/${transcriptId}`,
-            { headers: { 'Authorization': apiKey } },
-          );
-
-          if (!pollResponse.ok) {
-            const bodyText = await pollResponse.text();
-            throw new Error(`AssemblyAI poll error ${pollResponse.status}: ${bodyText}`);
-          }
-
-          const result: any = await pollResponse.json();
-
-          if (result.status === 'completed') {
-            // AssemblyAI speakers are letters ("A", "B"...) — normalize to "Speaker 1", etc.
-            const speakerMap = new Map<string, string>();
-            let speakerCount = 0;
-
-            const words: DiarizationWord[] = (result.words ?? []).map((w: any) => {
-              const rawSpeaker = w.speaker ?? 'A';
-              if (!speakerMap.has(rawSpeaker)) {
-                speakerCount++;
-                speakerMap.set(rawSpeaker, `Speaker ${speakerCount}`);
-              }
-              return {
-                text: w.text,
-                startMs: w.start ?? 0,  // AssemblyAI words are already in ms
-                endMs: w.end ?? 0,
-                speaker: speakerMap.get(rawSpeaker)!,
-              };
-            });
-
-            return {
-              words,
-              speakers: Array.from(speakerMap.values()).sort(),
-              durationMs: result.audio_duration ? Math.round(result.audio_duration * 1000) : 0,
-            };
-          }
-
-          if (result.status === 'error') {
-            throw new Error(`AssemblyAI diarization error: ${result.error}`);
-          }
-        }
-
-        throw new Error('AssemblyAI diarization timed out after polling');
-      }
-      ```
-
-      NOTE: The existing `pcmToWav()` helper is only needed when sending raw PCM segments.
-      For diarization, the input is already a WAV file (read from disk via audioPath), so
-      no conversion is needed. If the audioPath file happens to be raw PCM, we'd need conversion,
-      but audioProcessor.ts saves as WAV format, so this should be safe.
-
-      Update the LIMITATIONS header to note diarization is now implemented.
-
-      ### 1e. Modify meetingService.ts — add updateSegmentSpeakers + speaker support
-
-      Add a new function to batch-update speaker labels on existing transcript segments:
-
-      ```typescript
-      /**
-       * Update speaker labels for transcript segments of a meeting.
-       * @param meetingId The meeting to update
-       * @param speakerMap Map of segment ID → speaker label
-       */
-      export async function updateSegmentSpeakers(
-        meetingId: string,
-        speakerMap: Map<string, string>,
-      ): Promise<void> {
-        const db = getDb();
-        // Update each segment's speaker label
-        for (const [segmentId, speaker] of speakerMap) {
-          await db
-            .update(transcripts)
-            .set({ speaker })
-            .where(eq(transcripts.id, segmentId));
-        }
-      }
-      ```
-
-      Also update `toTranscriptSegment()` mapper to include the speaker field:
-      ```typescript
-      function toTranscriptSegment(row: ...): TranscriptSegment {
-        return {
-          ...existing fields...,
-          speaker: row.speaker ?? null,
-        };
-      }
-      ```
-
-      ### 1f. Create src/main/services/speakerDiarizationService.ts (~180 lines)
+      ### 1c. Create src/main/services/attachmentService.ts (~120 lines)
 
       File header:
       ```
       // === FILE PURPOSE ===
-      // Orchestrates post-recording speaker diarization. Reads the full WAV file,
-      // sends it to the configured API provider with diarization enabled, then maps
-      // speaker labels back to existing transcript segments by timestamp overlap.
+      // Manages card file attachments — copies files into app data directory,
+      // stores metadata in DB, handles file deletion and opening.
       //
       // === DEPENDENCIES ===
-      // fs (read WAV file), meetingService, deepgramTranscriber, assemblyaiTranscriber,
-      // transcriptionProviderService
+      // electron (app, dialog, shell), fs, path, drizzle
       //
       // === LIMITATIONS ===
-      // - Requires a cloud API provider (Deepgram or AssemblyAI) — local Whisper has no diarization
-      // - Requires audioPath to be set on the meeting (WAV file must exist on disk)
-      // - Speaker labels are best-effort — short meetings or quick speaker switches may be inaccurate
+      // - Files are copied (not moved) — original stays in place
+      // - No file size limit enforced (user responsibility)
+      // - No duplicate detection (same file can be attached multiple times)
       ```
 
       Imports:
       ```typescript
+      import { app, dialog, shell } from 'electron';
       import fs from 'node:fs';
-      import * as meetingService from './meetingService';
-      import * as deepgramTranscriber from './deepgramTranscriber';
-      import * as assemblyaiTranscriber from './assemblyaiTranscriber';
-      import * as transcriptionProviderService from './transcriptionProviderService';
-      import type { DiarizationWord, TranscriptSegment } from '../../shared/types';
+      import path from 'node:path';
+      import { getDb } from '../db/connection';
+      import { cardAttachments } from '../db/schema';
+      import { eq } from 'drizzle-orm';
+      import type { CardAttachment } from '../../shared/types';
       ```
 
-      Single export:
+      Functions:
 
-      **`async function diarizeMeeting(meetingId: string): Promise<{ success: boolean; speakers: string[]; error?: string }>`**
+      **`getAttachmentsDir(cardId: string): string`** (private helper)
+      - Returns `path.join(app.getPath('userData'), 'attachments', cardId)`
+      - Creates directory if it doesn't exist (`fs.mkdirSync(..., { recursive: true })`)
 
-      Steps:
-      1. Load meeting with transcript: `meetingService.getMeeting(meetingId)`
-      2. Validate: meeting exists, status === 'completed', audioPath exists and file is readable
-      3. Resolve provider: `transcriptionProviderService.getConfig()` — must be 'deepgram' or 'assemblyai' (not 'local')
-         - If 'local', check if either API has a key configured and use that instead
-         - If no API provider available, return error "Speaker diarization requires a cloud transcription provider (Deepgram or AssemblyAI)"
-      4. Read WAV file: `fs.readFileSync(meeting.audioPath)`
-      5. Call provider:
-         - If deepgram: `deepgramTranscriber.transcribeFileWithDiarization(wavBuffer)`
-         - If assemblyai: `assemblyaiTranscriber.transcribeFileWithDiarization(wavBuffer)`
-      6. Map speakers to segments:
-         - For each existing transcript segment, find all diarization words that overlap its time range
-         - A word overlaps a segment if: `word.startMs < segment.endTime && word.endMs > segment.startTime`
-         - Count speaker occurrences among overlapping words
-         - Assign the majority speaker to the segment
-         - Build a Map<segmentId, speakerLabel>
-      7. Update DB: `meetingService.updateSegmentSpeakers(meetingId, speakerMap)`
-      8. Return `{ success: true, speakers: result.speakers }`
+      **`function toAttachment(row): CardAttachment`** (private mapper)
+      - Maps Drizzle row to CardAttachment interface
+      - Converts `createdAt` Date → ISO string
 
-      Error handling:
-      - Wrap entire operation in try/catch
-      - Return `{ success: false, speakers: [], error: message }` on failure
-      - Log errors to console
+      **`async function getAttachments(cardId: string): Promise<CardAttachment[]>`**
+      - Query `cardAttachments` where cardId matches, ordered by createdAt desc
+      - Map with toAttachment
 
-      ### 1g. Create src/main/ipc/diarization.ts (~30 lines)
+      **`async function addAttachment(cardId: string): Promise<CardAttachment | null>`**
+      - Open file dialog: `dialog.showOpenDialog({ properties: ['openFile'] })`
+      - If cancelled, return null
+      - Get source file info: `fs.statSync(filePath)` for size
+      - Determine MIME type from extension (use a small lookup map for common types: pdf, png, jpg, gif, txt, md, doc, docx, xls, xlsx, csv, zip — default to `application/octet-stream`)
+      - Get destination dir: `getAttachmentsDir(cardId)`
+      - Copy file: `fs.copyFileSync(sourcePath, destPath)`
+        - If filename collision, append `-1`, `-2` etc. before extension
+      - Insert row into `cardAttachments` table with destPath
+      - Return the new attachment
+
+      **`async function deleteAttachment(id: string): Promise<void>`**
+      - Query the attachment row by id
+      - If found, delete the file from disk (`fs.unlinkSync`, wrapped in try/catch)
+      - Delete the row from DB
+
+      **`async function openAttachment(filePath: string): Promise<void>`**
+      - Call `shell.openPath(filePath)` to open with default OS application
+
+      Export all 4 public functions.
+
+      ### 1d. IPC handlers — modify src/main/ipc/cards.ts
+
+      Add after existing card handlers (before label handlers):
 
       ```typescript
-      import { ipcMain } from 'electron';
-      import * as speakerDiarizationService from '../services/speakerDiarizationService';
+      import * as attachmentService from '../services/attachmentService';
 
-      export function registerDiarizationHandlers(): void {
-        ipcMain.handle('meeting:diarize', async (_event, meetingId: string) => {
-          return speakerDiarizationService.diarizeMeeting(meetingId);
-        });
-      }
+      // Card Attachments
+      ipcMain.handle('card:getAttachments', async (_event, cardId: string) => {
+        return attachmentService.getAttachments(cardId);
+      });
+
+      ipcMain.handle('card:addAttachment', async (_event, cardId: string) => {
+        const attachment = await attachmentService.addAttachment(cardId);
+        if (attachment) {
+          logCardActivity(cardId, 'updated', JSON.stringify({
+            action: 'attachment_added',
+            fileName: attachment.fileName,
+          }));
+        }
+        return attachment;
+      });
+
+      ipcMain.handle('card:deleteAttachment', async (_event, id: string) => {
+        // Get attachment info before deleting (for activity log)
+        const db = getDb();
+        const [att] = await db.select().from(cardAttachments).where(eq(cardAttachments.id, id));
+        await attachmentService.deleteAttachment(id);
+        if (att) {
+          logCardActivity(att.cardId, 'updated', JSON.stringify({
+            action: 'attachment_removed',
+            fileName: att.fileName,
+          }));
+        }
+      });
+
+      ipcMain.handle('card:openAttachment', async (_event, filePath: string) => {
+        return attachmentService.openAttachment(filePath);
+      });
       ```
 
-      ### 1h. Register in src/main/ipc/index.ts
+      Import `cardAttachments` from schema and `eq` from drizzle-orm (if not already imported).
 
-      Import and call `registerDiarizationHandlers()`.
+      ### 1e. Preload — modify src/preload/preload.ts
 
-      ### 1i. Extend src/preload/preload.ts
+      Add to electronAPI object:
 
-      Add to electronAPI:
       ```typescript
-      // Diarization
-      diarizeMeeting: (meetingId: string) => ipcRenderer.invoke('meeting:diarize', meetingId),
+      // Card Attachments
+      getCardAttachments: (cardId: string) => ipcRenderer.invoke('card:getAttachments', cardId),
+      addCardAttachment: (cardId: string) => ipcRenderer.invoke('card:addAttachment', cardId),
+      deleteCardAttachment: (id: string) => ipcRenderer.invoke('card:deleteAttachment', id),
+      openCardAttachment: (filePath: string) => ipcRenderer.invoke('card:openAttachment', filePath),
       ```
 
-      ### 1j. Generate and apply migration
+      ### 1f. Schema export — modify src/main/db/schema/index.ts
 
-      Run `npx drizzle-kit generate` to create migration for the new speaker column.
-      The migration should be a simple `ALTER TABLE transcripts ADD COLUMN speaker varchar(50);`
+      Add `cardAttachments` to the exports if not auto-exported.
+
+      ### 1g. Generate and apply migration
+
+      Run `npx drizzle-kit generate` to create migration for card_attachments table.
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. transcripts table has new `speaker` column (nullable varchar(50))
-      3. TranscriptSegment type includes `speaker: string | null`
-      4. DiarizationWord and DiarizationResult types exist
-      5. deepgramTranscriber exports: transcribeSegment (existing) + transcribeFileWithDiarization (new)
-      6. assemblyaiTranscriber exports: transcribeSegment (existing) + transcribeFileWithDiarization (new)
-      7. Deepgram diarization uses `diarize=true` query param, Content-Type `audio/wav`
-      8. AssemblyAI diarization uses `speaker_labels: true` in request body
-      9. Speaker labels normalized to "Speaker 1", "Speaker 2" etc. (consistent across providers)
-      10. speakerDiarizationService.diarizeMeeting reads WAV, calls API, maps speakers to segments, updates DB
-      11. meetingService.updateSegmentSpeakers batch-updates speaker column
-      12. toTranscriptSegment mapper includes speaker field
-      13. IPC handler registered for 'meeting:diarize' channel
-      14. preload.ts has diarizeMeeting bridge method
-      15. Migration generated and applies cleanly
+      2. cardAttachments table exists in schema with: id, cardId, fileName, filePath, fileSize, mimeType, createdAt
+      3. CardAttachment type exists in shared/types.ts
+      4. ElectronAPI has 4 new attachment methods
+      5. attachmentService.ts exports: getAttachments, addAttachment, deleteAttachment, openAttachment
+      6. addAttachment opens file dialog, copies file to userData/attachments/{cardId}/, inserts DB row
+      7. deleteAttachment removes file from disk + DB row
+      8. openAttachment uses shell.openPath
+      9. 4 IPC handlers registered: card:getAttachments, card:addAttachment, card:deleteAttachment, card:openAttachment
+      10. Activity logged for attachment add/remove
+      11. 4 preload bridge methods exist
+      12. Migration generated
     </verify>
-    <done>Schema with speaker column, diarization functions on both API transcribers (Deepgram diarize=true, AssemblyAI speaker_labels=true), speaker diarization service (orchestrator: read WAV → API → map speakers → update DB), IPC + preload wired. Migration applied. TypeScript compiles cleanly.</done>
+    <done>cardAttachments table, CardAttachment type, attachment service (file dialog → copy → DB), 4 IPC handlers with activity logging, 4 preload bridges. Migration generated. TypeScript compiles cleanly.</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - audioProcessor.ts saves recordings as WAV format (verified — uses wavefile library)
-      - Deepgram accepts WAV files with Content-Type: audio/wav (standard format)
-      - AssemblyAI accepts WAV files via /v2/upload (same as existing segment upload path)
-      - Deepgram word response includes `speaker` integer field when diarize=true
-      - AssemblyAI word response includes `speaker` letter field when speaker_labels=true
-      - Meeting audioPath is an absolute filesystem path readable by fs.readFileSync
-      - Existing transcript segments have accurate startTime/endTime for timestamp matching
+      - Electron dialog.showOpenDialog is available in main process
+      - Electron shell.openPath is available in main process
+      - app.getPath('userData') returns a writable directory
+      - fs.copyFileSync works on Windows for cross-drive copies
+      - cardActivities 'updated' action type is suitable for attachment events (no new enum needed)
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Meeting analytics service + types + IPC + preload</n>
+    <n>Due date picker in CardDetailModal + overdue badge on KanbanCard</n>
     <files>
-      src/shared/types.ts (MODIFY — add MeetingAnalytics type + ElectronAPI method)
-      src/main/services/meetingAnalyticsService.ts (NEW ~120 lines)
-      src/main/ipc/diarization.ts (MODIFY — add analytics handler)
-      src/preload/preload.ts (MODIFY — add analytics bridge method)
+      src/renderer/components/CardDetailModal.tsx (MODIFY — add due date picker section)
+      src/renderer/components/KanbanCard.tsx (MODIFY — add due date badge with overdue styling)
     </files>
     <action>
       ## WHY
-      Meeting analytics give users insight into their meetings: who talked the most,
-      how long the meeting was, word counts, and action item outcomes. These are computed
-      from existing transcript segments and action items — no new data collection needed.
+      The dueDate field exists in schema, types, IPC, and store — but has NO UI anywhere.
+      Users need a way to set/clear due dates on cards, and see at a glance which cards are
+      overdue or due soon on the Kanban board.
 
       ## WHAT
 
-      ### 2a. Types — modify src/shared/types.ts
+      ### 2a. CardDetailModal — add due date picker
 
-      Add MeetingAnalytics type (place near diarization types):
+      Read the current CardDetailModal.tsx first to understand structure.
+
+      Add a due date section between the Labels section and the Card Details section
+      (i.e., after the labels `</div>` at ~line 421 and before the loadingCardDetails check at ~line 424).
+
+      Import `Calendar` icon from lucide-react.
+
+      Due date section:
+      ```tsx
+      {/* Due Date */}
+      <div className="mb-5">
+        <span className="text-sm text-surface-400 block mb-2">Due Date</span>
+        <div className="flex items-center gap-3">
+          <Calendar size={16} className="text-surface-400 shrink-0" />
+          <input
+            type="datetime-local"
+            value={card.dueDate ? toDateTimeLocalValue(card.dueDate) : ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              onUpdate(card.id, {
+                dueDate: val ? new Date(val).toISOString() : null,
+              });
+            }}
+            className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-100 focus:outline-none focus:border-primary-500 [color-scheme:dark]"
+          />
+          {card.dueDate && (
+            <>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${getDueDateBadge(card.dueDate).classes}`}>
+                {getDueDateBadge(card.dueDate).label}
+              </span>
+              <button
+                onClick={() => onUpdate(card.id, { dueDate: null })}
+                className="text-xs text-surface-500 hover:text-surface-300 transition-colors"
+              >
+                Clear
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      ```
+
+      Add helper functions (at the top of the file, after formatDate):
+
       ```typescript
-      // === MEETING ANALYTICS TYPES ===
-
-      export interface SpeakerStats {
-        speaker: string;           // "Speaker 1", "Speaker 2", or "Unknown"
-        segmentCount: number;      // Number of transcript segments
-        wordCount: number;         // Total words spoken
-        talkTimeMs: number;        // Total talk time in milliseconds
-        talkTimePercent: number;   // Percentage of total talk time (0-100)
+      /** Convert ISO string to datetime-local input value (YYYY-MM-DDTHH:mm) */
+      function toDateTimeLocalValue(isoStr: string): string {
+        const d = new Date(isoStr);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
       }
 
-      export interface MeetingAnalytics {
-        meetingId: string;
-        durationMs: number;              // Total meeting duration (endedAt - startedAt)
-        totalSegments: number;           // Number of transcript segments
-        totalWords: number;              // Total word count across all segments
-        hasDiarization: boolean;         // Whether speaker labels are available
-        speakers: SpeakerStats[];        // Per-speaker breakdown (empty if no diarization)
-        actionItemCounts: {
-          total: number;
-          pending: number;
-          approved: number;
-          dismissed: number;
-          converted: number;
-        };
-        wordsPerMinute: number;          // Average speaking pace
-      }
-      ```
+      /** Get badge classes and label for a due date */
+      function getDueDateBadge(dueDateStr: string): { label: string; classes: string } {
+        const now = new Date();
+        const due = new Date(dueDateStr);
+        const diffMs = due.getTime() - now.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
-      Add to ElectronAPI:
-      ```typescript
-      // Meeting Analytics
-      getMeetingAnalytics: (meetingId: string) => Promise<MeetingAnalytics>;
-      ```
-
-      ### 2b. Create src/main/services/meetingAnalyticsService.ts (~120 lines)
-
-      File header:
-      ```
-      // === FILE PURPOSE ===
-      // Computes meeting analytics from transcript segments and action items.
-      // All values are derived on-demand (not stored) — always fresh.
-      //
-      // === DEPENDENCIES ===
-      // meetingService, drizzle (for action item counts)
-      //
-      // === LIMITATIONS ===
-      // - Speaker breakdown only available if meeting has been diarized
-      // - Words per minute is an approximation (based on total words / duration)
-      ```
-
-      Imports:
-      ```typescript
-      import { getDb } from '../db/connection';
-      import { meetings, transcripts, actionItems } from '../db/schema';
-      import { eq, sql, and } from 'drizzle-orm';
-      import type { MeetingAnalytics, SpeakerStats } from '../../shared/types';
-      ```
-
-      Single export:
-
-      **`async function calculateAnalytics(meetingId: string): Promise<MeetingAnalytics>`**
-
-      Steps:
-      1. Load meeting record (for startedAt, endedAt, duration calculation)
-      2. Load all transcript segments for this meeting
-      3. Query action item counts by status (single aggregation query)
-      4. Calculate derived values:
-
-      Duration:
-      ```typescript
-      const durationMs = meeting.endedAt
-        ? new Date(meeting.endedAt).getTime() - new Date(meeting.startedAt).getTime()
-        : 0;
-      ```
-
-      Total words:
-      ```typescript
-      const totalWords = segments.reduce(
-        (sum, seg) => sum + seg.content.split(/\s+/).filter(Boolean).length,
-        0,
-      );
-      ```
-
-      Speaker breakdown (if diarized):
-      ```typescript
-      const hasDiarization = segments.some(s => s.speaker !== null);
-
-      if (hasDiarization) {
-        // Group segments by speaker
-        const bySpkr = new Map<string, { segments: typeof segments }>();
-        for (const seg of segments) {
-          const spkr = seg.speaker ?? 'Unknown';
-          if (!bySpkr.has(spkr)) bySpkr.set(spkr, { segments: [] });
-          bySpkr.get(spkr)!.segments.push(seg);
+        if (diffMs < 0) {
+          return { label: 'Overdue', classes: 'bg-red-500/20 text-red-400' };
         }
-
-        // Calculate per-speaker stats
-        const totalTalkTime = segments.reduce((sum, s) => sum + (s.endTime - s.startTime), 0);
-
-        speakers = Array.from(bySpkr.entries()).map(([speaker, data]) => {
-          const talkTimeMs = data.segments.reduce((sum, s) => sum + (s.endTime - s.startTime), 0);
-          const wordCount = data.segments.reduce(
-            (sum, s) => sum + s.content.split(/\s+/).filter(Boolean).length, 0);
-          return {
-            speaker,
-            segmentCount: data.segments.length,
-            wordCount,
-            talkTimeMs,
-            talkTimePercent: totalTalkTime > 0 ? Math.round((talkTimeMs / totalTalkTime) * 100) : 0,
-          };
-        }).sort((a, b) => b.talkTimeMs - a.talkTimeMs);  // Most talkative first
+        if (diffDays < 1) {
+          return { label: 'Due today', classes: 'bg-amber-500/20 text-amber-400' };
+        }
+        if (diffDays < 3) {
+          return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-amber-500/10 text-amber-300' };
+        }
+        if (diffDays < 7) {
+          return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-blue-500/10 text-blue-300' };
+        }
+        return { label: formatDate(dueDateStr), classes: 'bg-surface-800 text-surface-400' };
       }
       ```
 
-      Action item counts:
-      ```typescript
-      const actionRows = await db
-        .select({
-          status: actionItems.status,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(actionItems)
-        .where(eq(actionItems.meetingId, meetingId))
-        .groupBy(actionItems.status);
+      The `[color-scheme:dark]` class on the input ensures the native date picker renders
+      in dark mode to match our theme.
 
-      const actionItemCounts = {
-        total: 0, pending: 0, approved: 0, dismissed: 0, converted: 0,
-      };
-      for (const row of actionRows) {
-        actionItemCounts[row.status as keyof typeof actionItemCounts] = row.count;
-        actionItemCounts.total += row.count;
-      }
+      ### 2b. KanbanCard — add due date badge
+
+      Read the current KanbanCard.tsx first to understand structure.
+
+      Import `Clock` icon from lucide-react.
+
+      Add the getDueDateBadge helper (same function as above — or extract to a shared util,
+      but since it's small, duplicating in both files is acceptable for now).
+
+      Add due date display between the priority badge and the label dots (or after both).
+      Only show when `card.dueDate` is not null:
+
+      ```tsx
+      {/* Due date badge */}
+      {card.dueDate && (
+        <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${getDueDateBadge(card.dueDate).classes}`}>
+          <Clock size={10} />
+          {getDueDateBadge(card.dueDate).label}
+        </span>
+      )}
       ```
 
-      Words per minute:
-      ```typescript
-      const durationMin = durationMs / 60000;
-      const wordsPerMinute = durationMin > 0 ? Math.round(totalWords / durationMin) : 0;
-      ```
-
-      Return the assembled MeetingAnalytics object.
-
-      ### 2c. Add IPC handler in src/main/ipc/diarization.ts
-
-      Rename file consideration: since this file now handles both diarization and analytics,
-      rename the file to `meeting-advanced.ts` or keep as `diarization.ts` and just add the
-      analytics handler. Keep as `diarization.ts` for simplicity — analytics is closely related.
-
-      Add:
-      ```typescript
-      import * as meetingAnalyticsService from '../services/meetingAnalyticsService';
-
-      // Inside registerDiarizationHandlers():
-      ipcMain.handle('meeting:analytics', async (_event, meetingId: string) => {
-        return meetingAnalyticsService.calculateAnalytics(meetingId);
-      });
-      ```
-
-      ### 2d. Extend src/preload/preload.ts
-
-      Add:
-      ```typescript
-      getMeetingAnalytics: (meetingId: string) => ipcRenderer.invoke('meeting:analytics', meetingId),
-      ```
+      Place this in the card footer area, alongside the priority badge and label dots.
+      The exact placement depends on the existing layout — add it as a new row or inline
+      with existing badges. Keep it compact since KanbanCards are small.
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. SpeakerStats type has: speaker, segmentCount, wordCount, talkTimeMs, talkTimePercent
-      3. MeetingAnalytics type has: meetingId, durationMs, totalSegments, totalWords, hasDiarization, speakers, actionItemCounts, wordsPerMinute
-      4. meetingAnalyticsService.calculateAnalytics returns correct analytics structure
-      5. Speaker breakdown only populated when hasDiarization is true (segments have speaker labels)
-      6. Action item counts aggregated by status from DB
-      7. wordsPerMinute calculated from total words / duration in minutes
-      8. IPC handler registered for 'meeting:analytics'
-      9. preload.ts has getMeetingAnalytics bridge method
-      10. Analytics are computed on-demand (no stored/stale data)
+      2. CardDetailModal has a datetime-local input for due date
+      3. Setting a date calls onUpdate with ISO string; clearing calls with null
+      4. Due date badge shows: "Overdue" (red), "Due today" (amber), "Due in Nd" (amber/blue), or formatted date
+      5. Clear button removes the due date
+      6. `[color-scheme:dark]` on input for dark mode native picker
+      7. KanbanCard shows due date badge when card.dueDate is set
+      8. KanbanCard badge uses same color scheme as CardDetailModal badge
+      9. toDateTimeLocalValue correctly formats ISO → YYYY-MM-DDTHH:mm for input value
     </verify>
-    <done>MeetingAnalytics type with speaker breakdown and action item counts. meetingAnalyticsService computes all values from existing transcript + action item data. IPC + preload wired. TypeScript compiles cleanly.</done>
+    <done>Due date picker with datetime-local input in CardDetailModal. Status badge (overdue/due today/due soon). Clear button. Due date badge on KanbanCard with color-coded overdue styling. TypeScript compiles cleanly.</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Transcript segments have accurate startTime/endTime in milliseconds
-      - Action items have status field matching one of: pending, approved, dismissed, converted
-      - Meeting has startedAt and endedAt timestamps (endedAt null for incomplete meetings)
-      - Drizzle sql template supports count(*) with ::int cast for type safety
+      - datetime-local input works well in Electron's Chromium renderer
+      - [color-scheme:dark] Tailwind class properly triggers dark mode for native inputs
+      - Card type already has dueDate field available in both components
+      - onUpdate(id, { dueDate: isoString }) flows through store → IPC → DB correctly (already tested in Plan 7.1)
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Speaker labels in transcript + meeting analytics UI + diarization trigger</n>
+    <n>Attachments UI — store extensions + AttachmentsSection + CardDetailModal integration</n>
     <files>
-      src/renderer/stores/meetingStore.ts (MODIFY — add diarization + analytics state/actions)
-      src/renderer/components/MeetingAnalyticsSection.tsx (NEW ~200 lines)
-      src/renderer/components/MeetingDetailModal.tsx (MODIFY — speaker labels, analytics section, diarize button)
+      src/renderer/stores/boardStore.ts (MODIFY — add attachment state/actions)
+      src/renderer/components/AttachmentsSection.tsx (NEW ~180 lines)
+      src/renderer/components/CardDetailModal.tsx (MODIFY — integrate AttachmentsSection)
     </files>
     <action>
       ## WHY
-      Users need to see speaker labels in the transcript ("Speaker 1: Hello everyone"),
-      trigger diarization after recording, and view meeting analytics (duration, speaker
-      breakdown, word counts, action item summary). This completes the user-facing R13 features.
+      The attachment backend (Task 1) and due date UI (Task 2) are complete. Now we need
+      the renderer-side integration: store state for attachments, a UI section for
+      viewing/adding/deleting attachments, and integration into CardDetailModal.
 
       ## WHAT
 
-      ### 3a. Modify meetingStore.ts — add diarization + analytics state
+      ### 3a. boardStore — add attachment state and actions
+
+      Read the current boardStore.ts first.
 
       Add state:
       ```typescript
-      diarizing: boolean;
-      diarizationError: string | null;
-      analytics: MeetingAnalytics | null;
-      analyticsLoading: boolean;
+      selectedCardAttachments: CardAttachment[];
+      ```
+
+      Initialize to `[]` in the store default.
+
+      Modify `loadCardDetails` to also load attachments:
+      ```typescript
+      // Inside loadCardDetails, alongside existing comment/relationship/activity loads:
+      const attachments = await window.electronAPI.getCardAttachments(cardId);
+      // Add to set:
+      set({ ..., selectedCardAttachments: attachments });
+      ```
+
+      Modify `clearCardDetails` to also clear attachments:
+      ```typescript
+      set({ ..., selectedCardAttachments: [] });
       ```
 
       Add actions:
       ```typescript
-      diarizeMeeting: async (meetingId: string) => {
-        set({ diarizing: true, diarizationError: null });
-        try {
-          const result = await window.electronAPI.diarizeMeeting(meetingId);
-          if (result.success) {
-            // Reload the meeting to get updated segments with speaker labels
-            const meeting = await window.electronAPI.getMeeting(meetingId);
-            set({ selectedMeeting: meeting, diarizing: false });
-          } else {
-            set({ diarizing: false, diarizationError: result.error ?? 'Diarization failed' });
-          }
-        } catch (err) {
-          set({ diarizing: false, diarizationError: err instanceof Error ? err.message : 'Diarization failed' });
+      addAttachment: async (cardId: string) => {
+        const attachment = await window.electronAPI.addCardAttachment(cardId);
+        if (attachment) {
+          set(state => ({
+            selectedCardAttachments: [attachment, ...state.selectedCardAttachments],
+          }));
         }
       },
 
-      loadAnalytics: async (meetingId: string) => {
-        set({ analyticsLoading: true });
-        try {
-          const analytics = await window.electronAPI.getMeetingAnalytics(meetingId);
-          set({ analytics, analyticsLoading: false });
-        } catch {
-          set({ analyticsLoading: false });
-        }
+      deleteAttachment: async (id: string) => {
+        await window.electronAPI.deleteCardAttachment(id);
+        set(state => ({
+          selectedCardAttachments: state.selectedCardAttachments.filter(a => a.id !== id),
+        }));
       },
 
-      clearAnalytics: () => set({ analytics: null, analyticsLoading: false, diarizing: false, diarizationError: null }),
+      openAttachment: async (filePath: string) => {
+        await window.electronAPI.openCardAttachment(filePath);
+      },
       ```
 
-      In clearSelectedMeeting (or equivalent clear action), also reset analytics + diarization state.
+      Import `CardAttachment` from shared/types.ts.
 
-      ### 3b. Create src/renderer/components/MeetingAnalyticsSection.tsx (~200 lines)
+      ### 3b. Create src/renderer/components/AttachmentsSection.tsx (~180 lines)
 
-      Read BriefSection.tsx and ActionItemList.tsx first for component patterns.
+      Read CommentsSection.tsx for component pattern reference.
+
+      File header:
+      ```
+      // === FILE PURPOSE ===
+      // Displays card file attachments with add, open, and delete functionality.
+      // Files are opened with the OS default application.
+      //
+      // === DEPENDENCIES ===
+      // react, lucide-react, boardStore
+      //
+      // === LIMITATIONS ===
+      // - No drag-and-drop file upload (uses file dialog)
+      // - No file preview (opens with OS app)
+      // - No file size limit enforcement
+      ```
 
       Props:
       ```typescript
-      interface MeetingAnalyticsSectionProps {
-        meetingId: string;
+      interface AttachmentsSectionProps {
+        cardId: string;
       }
       ```
 
-      Layout:
+      Component layout:
       ```
-      ── Meeting Analytics ──────────────────────────
-
-      Duration: 45m 23s    Segments: 47    Words: 3,421    WPM: 75
-
-      [If hasDiarization:]
-      ── Speaker Breakdown ──
-      Speaker 1  ████████████████░░░░  62% (2,121 words, 28m 07s)
-      Speaker 2  ████████░░░░░░░░░░░░  31% (1,060 words, 14m 03s)
-      Speaker 3  ██░░░░░░░░░░░░░░░░░░   7% (240 words, 3m 13s)
-
-      [If !hasDiarization:]
-      Speaker data not available. [Identify Speakers] button
-
-      ── Action Items ──
-      Total: 5  |  Pending: 2  |  Approved: 1  |  Converted: 2
-      ─────────────────────────────────────────────
+      ── Attachments (3) ─── [+ Add File] ──────
+      │ 📄 requirements.pdf      1.2 MB    2 days ago   [Open] [🗑]
+      │ 📸 screenshot.png        340 KB    5 min ago    [Open] [🗑]
+      │ 📝 notes.md              2.1 KB    1 hour ago   [Open] [🗑]
+      ────────────────────────────────────────────
       ```
 
-      Component:
-      - Uses meetingStore.analytics (loaded via loadAnalytics on mount)
-      - Shows loading spinner while analyticsLoading
-      - Top stats row: duration (formatted as Xh Ym Zs), segments count, total words, WPM
-      - Speaker breakdown section (only if hasDiarization):
-        - For each speaker: name, horizontal bar (colored), percentage, word count, talk time
-        - Bar colors: use a predefined palette (e.g., blue, green, amber, purple, rose)
-        - Sorted by talk time (most to least)
-      - If no diarization: show message + "Identify Speakers" button
-        - Button calls meetingStore.diarizeMeeting(meetingId)
-        - Show spinner while diarizing
-        - Show error message if diarizationError
-        - After success, analytics auto-refresh (loadAnalytics)
-      - Action item summary: compact row with colored count badges
+      Implementation details:
+
+      - Use boardStore: `selectedCardAttachments`, `addAttachment`, `deleteAttachment`, `openAttachment`
+      - Header row: section title "Attachments" with count badge, "+ Add File" button (calls addAttachment)
+      - Each attachment row:
+        - File icon based on MIME type (use getFileIcon helper):
+          - image/*: ImageIcon (lucide)
+          - application/pdf: FileText
+          - text/*: FileCode
+          - default: File
+        - File name (truncated to ~30 chars with title tooltip for full name)
+        - File size formatted (formatFileSize helper: bytes → KB/MB/GB)
+        - Relative time (reuse timeAgo pattern from CommentsSection if available, or simple logic)
+        - "Open" button: calls openAttachment(filePath)
+        - Delete button (Trash2 icon): calls deleteAttachment(id) with inline confirmation
+      - Empty state: "No attachments. Click '+ Add File' to attach documents, images, or other files."
+      - Delete confirmation: simple inline "Delete?" / "Cancel" toggle (same pattern as CommentsSection)
+
+      Helper functions:
+      ```typescript
+      function formatFileSize(bytes: number): string {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+      }
+
+      function getFileIcon(mimeType: string | null): React.ComponentType<{ size?: number }> {
+        if (mimeType?.startsWith('image/')) return ImageIcon;
+        if (mimeType === 'application/pdf') return FileText;
+        if (mimeType?.startsWith('text/')) return FileCode;
+        return File;
+      }
+      ```
 
       Styling:
-      - Follow existing section patterns (BriefSection border/padding style)
-      - Use Tailwind for bar charts (div with dynamic width% and bg-color)
-      - Lucide icons: BarChart3, Users, Clock, MessageSquare for section headers
+      - Follow CommentsSection pattern for consistent look
+      - Attachment rows: `bg-surface-800/50 rounded-lg p-3` with hover highlight
+      - Compact layout for file list
 
-      ### 3c. Modify MeetingDetailModal.tsx — speaker labels + analytics integration
+      ### 3c. CardDetailModal — integrate AttachmentsSection
 
-      Speaker labels in transcript timeline:
-      - Currently, transcript segments display as `MM:SS — content`
-      - If segment.speaker is not null, display as `MM:SS — [Speaker 1] content`
-      - Color-code speaker labels using the same palette as analytics bars
-      - Create a small helper: `getSpeakerColor(speaker: string): string` that maps
-        "Speaker 1" → blue, "Speaker 2" → green, etc.
+      Import AttachmentsSection:
+      ```typescript
+      import AttachmentsSection from './AttachmentsSection';
+      ```
 
-      Integration:
-      - Import MeetingAnalyticsSection
-      - Add it between the project selector section and the BriefSection
-      - On modal open (useEffect with selectedMeeting): call loadAnalytics(meetingId)
-      - On modal close (clearSelectedMeeting): also call clearAnalytics()
-      - After successful diarization: call loadAnalytics to refresh (the store's
-        diarizeMeeting already reloads the meeting, so the transcript will update;
-        analytics should also refresh)
+      Add the section between the Labels and Due Date sections (or between Due Date and
+      the Card Details block — wherever it fits naturally). Recommended placement: after
+      the Due Date section and before the loadingCardDetails guard:
 
-      Loading/error states:
-      - While diarizing: show spinner on the "Identify Speakers" button
-      - diarizationError: show inline red error text below the button
-      - Provider hint: if no API provider configured, show "Configure Deepgram or AssemblyAI
-        in Settings to enable speaker identification"
+      ```tsx
+      {/* Attachments */}
+      <div className="mb-5">
+        <AttachmentsSection cardId={card.id} />
+      </div>
+      ```
+
+      This should be placed OUTSIDE the loadingCardDetails guard since attachments are
+      loaded as part of loadCardDetails (inside the guard block alongside Comments,
+      Relationships, etc.) — actually, since attachments load with loadCardDetails,
+      place it INSIDE the guard:
+
+      ```tsx
+      {loadingCardDetails ? (
+        <div>Loading details...</div>
+      ) : (
+        <>
+          <div className="mb-5">
+            <AttachmentsSection cardId={card.id} />
+          </div>
+          <div className="mb-5">
+            <CommentsSection cardId={card.id} />
+          </div>
+          ...existing sections...
+        </>
+      )}
+      ```
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. meetingStore has diarizing, diarizationError, analytics, analyticsLoading state
-      3. meetingStore.diarizeMeeting calls IPC, reloads meeting on success
-      4. meetingStore.loadAnalytics calls IPC, stores result
-      5. MeetingAnalyticsSection shows: duration, segments, words, WPM
-      6. MeetingAnalyticsSection shows speaker breakdown bars when hasDiarization is true
-      7. MeetingAnalyticsSection shows "Identify Speakers" button when hasDiarization is false
-      8. "Identify Speakers" button triggers diarization, shows spinner, handles errors
-      9. Transcript segments in MeetingDetailModal show speaker labels with color coding when available
-      10. Speaker colors are consistent between transcript labels and analytics bars
-      11. Analytics loaded on modal open, cleared on modal close
-      12. Provider hint shown when no API key configured
+      2. boardStore has selectedCardAttachments state ([] default)
+      3. loadCardDetails fetches and sets attachments
+      4. clearCardDetails resets attachments to []
+      5. boardStore has addAttachment (opens dialog, adds to state), deleteAttachment (removes from state + DB), openAttachment
+      6. AttachmentsSection shows file list with icon, name, size, time
+      7. "Add File" button opens native file dialog
+      8. "Open" button opens file with OS default app
+      9. Delete button has inline confirmation
+      10. Empty state message when no attachments
+      11. AttachmentsSection integrated in CardDetailModal within loadingCardDetails guard
+      12. File size formatting works (B, KB, MB, GB)
     </verify>
-    <done>Speaker-labeled transcript display with color-coded speaker names. MeetingAnalyticsSection with duration/words/WPM stats, speaker breakdown bars, action item counts. "Identify Speakers" button triggers post-recording diarization. Full integration in MeetingDetailModal. TypeScript compiles cleanly.</done>
+    <done>boardStore with attachment state/actions. AttachmentsSection component with file list, add/open/delete. Integrated in CardDetailModal. Full attachment lifecycle works: add (file dialog → copy → DB) → view (list with metadata) → open (OS app) → delete (confirm → remove). TypeScript compiles cleanly.</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - meetingStore.selectedMeeting is loaded with segments that include speaker field
-      - MeetingDetailModal already has useEffect for loading meeting data on open
-      - BriefSection and ActionItemList patterns are suitable for MeetingAnalyticsSection
-      - Lucide React has BarChart3, Users, Clock icons (standard lucide-react exports)
-      - 6+ speaker colors are sufficient (most meetings have 2-5 speakers)
+      - boardStore.loadCardDetails can be extended with one additional Promise.all entry
+      - CommentsSection pattern (title + count + action button + list) is suitable for attachments
+      - Lucide React has File, FileText, FileCode, ImageIcon exports (standard lucide-react icons)
+        - Note: ImageIcon might be named differently — verify import. Alternative: Image from lucide-react
+      - window.electronAPI.addCardAttachment returns null when file dialog is cancelled
     </assumptions>
   </task>
 </phase>

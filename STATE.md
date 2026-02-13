@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 7 — Plan 7.7 COMPLETE
+Session focus: Phase 7 — Plan 7.8 COMPLETE
 
 ## Position
 Milestone: Phase 7 — v2 Features (Advanced)
-Phase: 7 of 7 (IN PROGRESS)
-Plan: 7 of 8 (COMPLETE — 3/3 tasks done)
+Phase: 7 of 7 (COMPLETE)
+Plan: 8 of 8 (COMPLETE — 3/3 tasks done)
 Task: 3 of 3
 
 ## Phase 1 — COMPLETE
@@ -365,6 +365,36 @@ Planned as 8 sequential plans.
 - Analytics computed on-demand (not stored) — derived from transcript + action items
 - Calendar integration and auto meeting detection deferred to ISSUES.md
 
+### Plan 7.8: Card Attachments, Due Date UI & KanbanCard Enhancements (3 tasks) — COMPLETE
+1. Card attachments — schema, types, service, IPC, and preload (backend) — DONE
+2. Due date picker in CardDetailModal + overdue badge on KanbanCard — DONE
+3. Attachments UI — store extensions + AttachmentsSection + CardDetailModal integration — DONE
+- Not yet committed
+
+## Plan 7.8 Execution Results
+- **Task 1**: Added cardAttachments table to schema (id, cardId, fileName, filePath, fileSize, mimeType, createdAt). Created attachmentService.ts (~120 lines: MIME lookup, getAttachmentsDir helper, getAttachments, addAttachment with file dialog + copy + collision handling, deleteAttachment with disk + DB cleanup, openAttachment via shell.openPath). Added CardAttachment type + 4 ElectronAPI methods. 4 IPC handlers with activity logging. 4 preload bridge methods. Migration 0006 generated.
+- **Task 2**: Added toDateTimeLocalValue + getDueDateBadge helpers to CardDetailModal. Added datetime-local input with dark mode support, status badge (Overdue/Due today/Due in Nd), Clear button. Added Clock + getDueDateBadge to KanbanCard with compact due date badge in footer row.
+- **Task 3**: Extended boardStore with selectedCardAttachments state, loadCardDetails parallel fetch, clearCardDetails reset, addAttachment/deleteAttachment/openAttachment actions. Created AttachmentsSection.tsx (~140 lines: file icon by MIME type, file size formatting, timeAgo, add/open/delete with confirmation). Integrated in CardDetailModal as first section inside loading guard.
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
+
+## Decisions Made (Plan 7.8)
+- File storage in app data directory: userData/attachments/{cardId}/ — files copied, originals stay
+- Native HTML datetime-local input (no date picker library) — works well in Electron Chromium
+- Attachment metadata in separate table (not inline on cards) — supports multiple per card
+- MIME type from extension lookup map (20 common types) — default to application/octet-stream
+- getDueDateBadge duplicated in CardDetailModal + KanbanCard (small function, avoids shared util)
+- Filename collision handling: append -1, -2 etc. before extension
+- AttachmentsSection placed before CommentsSection in card detail
+
+## Phase 7 — COMPLETE
+All 8 plans (24 tasks) executed successfully. Phase 7 delivers:
+- R16: Advanced Card Features — comments, relationships, activity log, templates, attachments, due date UI
+- R15: Database Backup/Restore — pg_dump/psql, JSON/CSV export, auto-backup scheduler
+- R11: AI Task Structuring — project planning modal, task breakdown section
+- R13: Meeting Templates + Desktop Notifications + Speaker Diarization + Meeting Analytics
+- R14: API Transcription Providers (Deepgram, AssemblyAI) with fallback
+- R17: Desktop Notifications — due date reminders, daily digest
+
 ## Next Steps
-1. `/nexus:git` — Commit Plan 7.7 changes
-2. `/nexus:plan 7.8` — Card attachments, due dates UI, reminders
+1. `/nexus:git` — Commit all uncommitted Plan 7.1-7.8 changes
+2. Phase 7 complete — all v2 features delivered. Project ready for final review.

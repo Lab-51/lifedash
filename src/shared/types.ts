@@ -146,6 +146,18 @@ export interface CardActivity {
   createdAt: string;
 }
 
+// === CARD ATTACHMENT TYPES ===
+
+export interface CardAttachment {
+  id: string;
+  cardId: string;
+  fileName: string;
+  filePath: string;
+  fileSize: number;
+  mimeType: string | null;
+  createdAt: string;
+}
+
 // Input types
 export interface CreateCardCommentInput {
   cardId: string;
@@ -711,6 +723,12 @@ export interface ElectronAPI {
   deleteCardRelationship: (id: string) => Promise<void>;
   // Card activity log
   getCardActivities: (cardId: string) => Promise<CardActivity[]>;
+
+  // Card Attachments
+  getCardAttachments: (cardId: string) => Promise<CardAttachment[]>;
+  addCardAttachment: (cardId: string) => Promise<CardAttachment | null>;
+  deleteCardAttachment: (id: string) => Promise<void>;
+  openCardAttachment: (filePath: string) => Promise<void>;
 
   // Labels
   getLabels: (projectId: string) => Promise<Label[]>;

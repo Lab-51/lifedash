@@ -81,3 +81,16 @@ export const cardActivities = pgTable('card_activities', {
   details: text('details'), // JSON string with context-specific data
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// --- Card Attachments ---
+
+export const cardAttachments = pgTable('card_attachments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  cardId: uuid('card_id').notNull()
+    .references(() => cards.id, { onDelete: 'cascade' }),
+  fileName: varchar('file_name', { length: 500 }).notNull(),
+  filePath: text('file_path').notNull(),       // Absolute path in app data dir
+  fileSize: integer('file_size').notNull(),     // Bytes
+  mimeType: varchar('mime_type', { length: 200 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

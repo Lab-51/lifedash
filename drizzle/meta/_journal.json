@@ -43,6 +43,13 @@
       "when": 1770998525992,
       "tag": "0005_great_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1771000290668,
+      "tag": "0006_organic_colleen_wing",
+      "breakpoints": true
     }
   ]
 }

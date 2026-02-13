@@ -1,14 +1,14 @@
 // === FILE PURPOSE ===
 // KanbanCard — renders a single card in a Kanban column.
-// Shows priority border, priority badge, label dots, and hover actions.
+// Shows priority border, priority badge, label dots, due date badge, and hover actions.
 // Supports inline title editing and delete with confirmation.
 
 // === DEPENDENCIES ===
-// react, lucide-react (Pencil, Trash2), shared types (Card, UpdateCardInput),
+// react, lucide-react (Pencil, Trash2, Clock), shared types (Card, UpdateCardInput),
 // @atlaskit/pragmatic-drag-and-drop (draggable)
 
 import { useState, useRef, useEffect } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Clock } from 'lucide-react';
 import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import type { Card, UpdateCardInput } from '../../shared/types';
 
@@ -25,6 +25,29 @@ const PRIORITY_CONFIG = {
   high:   { border: 'border-l-amber-500',   badge: 'bg-amber-500/20 text-amber-400',     label: 'HIGH' },
   urgent: { border: 'border-l-red-500',     badge: 'bg-red-500/20 text-red-400',         label: 'URG' },
 } as const;
+
+/** Get badge classes and label for a due date */
+function getDueDateBadge(dueDateStr: string): { label: string; classes: string } {
+  const now = new Date();
+  const due = new Date(dueDateStr);
+  const diffMs = due.getTime() - now.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+  if (diffMs < 0) {
+    return { label: 'Overdue', classes: 'bg-red-500/20 text-red-400' };
+  }
+  if (diffDays < 1) {
+    return { label: 'Due today', classes: 'bg-amber-500/20 text-amber-400' };
+  }
+  if (diffDays < 3) {
+    return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-amber-500/10 text-amber-300' };
+  }
+  if (diffDays < 7) {
+    return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-blue-500/10 text-blue-300' };
+  }
+  const formatted = new Date(dueDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return { label: formatted, classes: 'bg-surface-800 text-surface-400' };
+}
 
 function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
@@ -144,8 +167,8 @@ function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
 
       {/* Bottom row: labels + actions */}
       <div className="flex items-center justify-between mt-2">
-        {/* Label dots */}
-        <div className="flex items-center gap-1">
+        {/* Label dots + due date badge */}
+        <div className="flex items-center gap-1.5">
           {card.labels?.map(label => (
             <span
               key={label.id}
@@ -154,6 +177,12 @@ function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
               title={label.name}
             />
           ))}
+          {card.dueDate && (
+            <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${getDueDateBadge(card.dueDate).classes}`}>
+              <Clock size={10} />
+              {getDueDateBadge(card.dueDate).label}
+            </span>
+          )}
         </div>
 
         {/* Hover-reveal actions */}
