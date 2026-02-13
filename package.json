@@ -2,6 +2,7 @@
   "name": "living-dashboard",
   "version": "0.1.0",
   "description": "AI-powered Electron desktop dashboard for professionals",
+  "author": "Living Dashboard",
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
