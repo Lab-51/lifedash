@@ -1,8 +1,8 @@
-# Plan 7.4 — AI Task Structuring Engine
+# Plan 7.5 — Meeting Templates & Desktop Notifications
 
-**Requirement:** R11 — Task Structuring Engine (8 points)
-**Scope:** AI-assisted project planning with pillars, task breakdown, dependencies, and production-focused templates
-**Approach:** Transient AI output (not persisted in new DB tables) — user reviews suggestions and applies them as real boards/columns/cards
+**Requirements:** R13 (partial — meeting templates) + R17 (desktop notifications, daily digest)
+**Scope:** Meeting template presets with template-aware AI summarization, desktop notifications via Electron Notification API, and daily digest scheduler
+**Approach:** Schema migration for template field, template presets as constants, Electron native notifications with settings-based preferences
 
 ## Phase 7 Overview
 
@@ -14,778 +14,734 @@ Planned as 8 sequential plans:
 | 7.1 | R16 (backend) | Card comments, relationships, activity log — schema + services + IPC |
 | 7.2 | R16 (UI) | Comments UI, relationships UI, activity log, card templates in CardDetailModal |
 | 7.3 | R15 | Database backup/restore (pg_dump), JSON/CSV export, backup UI |
-| **7.4** | **R11** | **AI task structuring — service, IPC, store, project planning modal, card breakdown** |
-| 7.5 | R13+R17 | Meeting templates, notifications, daily digest |
+| 7.4 | R11 | AI task structuring — service, IPC, store, project planning modal, card breakdown |
+| **7.5** | **R13+R17** | **Meeting templates, desktop notifications, daily digest** |
 | 7.6 | R14 | API transcription providers (Deepgram, AssemblyAI), fallback |
 | 7.7 | R13 | Meeting analytics, speaker diarization, advanced features |
-| 7.8 | R16 (rest) | Card attachments, due dates, reminders |
+| 7.8 | R16 (rest) | Card attachments, due dates UI, reminders |
 
 ## Architecture Decisions
 
-1. **Transient AI output (no new DB tables):** The AI generates project plans and task breakdowns as JSON that the user reviews in a modal. Accepted suggestions are converted to real boards/columns/cards via existing services. This follows the idea analysis pattern — keeps things simple, avoids schema bloat for ephemeral data.
+1. **Meeting templates as enum + constant presets:** Add a `meetingTemplateEnum` to the meetings table (`none`, `standup`, `retro`, `planning`, `brainstorm`, `one_on_one`). Template presets are defined as a TypeScript constant with name, description, agenda structure, and customized AI summarization prompts. This avoids a separate DB table for rarely-changing data.
 
-2. **Two AI operations:**
-   - `generateProjectPlan(projectId, description)` — Generates production-focused pillars (e.g., Architecture, Security, Scalability, Testing, DevOps), each with suggested tasks. Also generates milestones with task groupings.
-   - `generateTaskBreakdown(cardId)` — Breaks a single card into subtasks with effort estimates and dependency suggestions.
+2. **Template-aware AI summarization:** The meetingIntelligenceService's SUMMARIZATION_SYSTEM_PROMPT becomes a function that incorporates template-specific instructions. For example, a standup template tells the AI to look for blockers, yesterday's work, and today's plans. The action extraction prompt also adapts.
 
-3. **Non-streaming generation:** Both operations use `generate()` (not `streamGenerate()`) because the output must be parsed as structured JSON. User sees a loading spinner, then the full result. This matches the idea analysis and meeting brief patterns.
+3. **Electron native Notification API:** Use Electron's built-in `new Notification()` (no 3rd-party packages). Works on Windows 10+, macOS, and Linux. Notification preferences stored in the existing settings key-value table.
 
-4. **New task type: `task_structuring`** — Added to `AITaskType` union and `resolveTaskModel`. Users can assign a specific provider/model for task structuring via the existing per-task model config UI in Settings.
+4. **Notification scheduler pattern:** Follow the `autoBackupScheduler.ts` pattern — hourly interval check for due cards (within 24h), plus a daily digest at configurable time. Graceful error handling, non-blocking.
 
-5. **Apply actions use existing services:** Applying a plan creates boards/columns/cards through the existing `boardStore` actions and IPC handlers. No new DB operations needed.
-
-6. **System prompts are production-focused:** The AI is instructed to think about architecture, security, scalability, testing, CI/CD, monitoring — not just feature work. This is R11's key differentiator from generic task management.
+5. **Settings-based notification preferences:** Store notification config as JSON in the settings table under `notification_preferences` key. Defaults: all enabled, no quiet hours. UI in SettingsPage as a new section.
 
 ---
 
-<phase n="7.4" name="AI Task Structuring Engine">
+<phase n="7.5" name="Meeting Templates & Desktop Notifications">
   <context>
-    Phase 7, Plan 4 of 8. Implements R11: Task Structuring Engine (8 pts).
+    Phase 7, Plan 5 of 8. Implements:
+    - R13 (partial): Meeting templates — standup, retro, planning, brainstorm, 1-on-1
+    - R17: Desktop notifications + daily digest
 
-    R11 requirements:
-    - AI-assisted project planning when starting new projects
-    - Generates project pillars (architecture, security, scalability, etc.)
-    - Suggests task breakdown and dependencies
-    - Production-focused templates and checklists
-    - Sprint/milestone planning assistance
+    Current meeting infrastructure:
+    - meetings table: id, projectId, title, startedAt, endedAt, audioPath, status, createdAt (NO template field)
+    - meetingStatusEnum: 'recording' | 'processing' | 'completed'
+    - meetingService.ts: CRUD for meetings and transcripts
+    - meetingIntelligenceService.ts: SUMMARIZATION_SYSTEM_PROMPT + ACTION_EXTRACTION_SYSTEM_PROMPT (hardcoded prompts)
+    - CreateMeetingInput: { title, projectId? }
+    - RecordingControls.tsx: title input + start/stop
+    - recordingStore.ts: startRecording(title, projectId?) → creates meeting + starts capture
 
-    Existing AI infrastructure:
-    - ai-provider.ts: generate(), streamGenerate(), resolveTaskModel(), logUsage()
-    - AITaskType: 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis'
-    - Pattern: resolveTaskModel(taskType) → generate({...provider, prompt, system}) → parse JSON → logUsage()
-    - IPC handlers follow modular pattern: src/main/ipc/[feature].ts → registerXyzHandlers()
-    - Zustand stores in src/renderer/stores/
-    - Modals follow CardDetailModal/IdeaDetailModal patterns
+    Current notification infrastructure:
+    - tray.ts: basic tray icon with show/quit menu (no notification integration)
+    - autoBackupScheduler.ts: hourly interval pattern (reusable for notification scheduler)
+    - Settings stored in settings table as key-value pairs
 
-    Key files for context injection:
-    - projects table: id, name, description, color, archived
-    - boards table: id, projectId, name, position
-    - columns table: id, boardId, name, position
-    - cards table: id, columnId, title, description, position, priority, dueDate, archived
-
-    @src/main/services/ai-provider.ts (generate, resolveTaskModel, logUsage)
-    @src/main/services/ideaService.ts (analyzeIdea pattern — JSON AI response with fallback parsing)
-    @src/main/services/meetingIntelligenceService.ts (generateBrief + generateActions patterns)
-    @src/main/ipc/index.ts (handler registration)
-    @src/shared/types.ts (AITaskType, ElectronAPI)
-    @src/preload/preload.ts (bridge pattern)
-    @src/renderer/pages/ProjectsPage.tsx (project list — add "Plan with AI" button)
-    @src/renderer/components/CardDetailModal.tsx (card detail — add "Break Down" button)
-    @src/renderer/stores/boardStore.ts (existing card/board actions for applying plan)
-    @src/renderer/stores/projectStore.ts (project CRUD)
+    Key files for context:
+    @src/main/db/schema/meetings.ts (schema — add template enum + column)
+    @src/main/services/meetingService.ts (CRUD — update toMeeting, createMeeting)
+    @src/main/services/meetingIntelligenceService.ts (AI prompts — make template-aware)
+    @src/main/services/autoBackupScheduler.ts (scheduler pattern to follow)
+    @src/main/tray.ts (system tray)
+    @src/main/main.ts (startup — wire scheduler init/stop)
+    @src/main/ipc/meetings.ts (IPC handlers)
+    @src/preload/preload.ts (bridge methods)
+    @src/shared/types.ts (Meeting, CreateMeetingInput, ElectronAPI)
+    @src/renderer/components/RecordingControls.tsx (add template selector)
+    @src/renderer/pages/MeetingsPage.tsx (show template badge on cards)
+    @src/renderer/components/MeetingDetailModal.tsx (show template info)
+    @src/renderer/stores/recordingStore.ts (pass template to startRecording)
+    @src/renderer/pages/SettingsPage.tsx (add notification settings section)
   </context>
 
   <task type="auto" n="1">
-    <n>Task structuring types, service, IPC handlers, and preload bridge</n>
+    <n>Meeting templates — schema, types, service, and template-aware AI prompts</n>
     <files>
-      src/shared/types.ts (MODIFY — add task structuring types + 3 ElectronAPI methods)
-      src/main/services/taskStructuringService.ts (NEW ~250 lines)
-      src/main/ipc/task-structuring.ts (NEW ~60 lines)
-      src/main/ipc/index.ts (MODIFY — register new handlers)
-      src/preload/preload.ts (MODIFY — add 3 bridge methods)
+      src/main/db/schema/meetings.ts (MODIFY — add meetingTemplateEnum + template column)
+      src/shared/types.ts (MODIFY — add MeetingTemplateType, MeetingTemplate, update Meeting + CreateMeetingInput)
+      src/main/services/meetingService.ts (MODIFY — handle template field in CRUD)
+      src/main/services/meetingIntelligenceService.ts (MODIFY — template-aware prompts)
+      drizzle migration (GENERATE — via npx drizzle-kit generate)
     </files>
     <action>
       ## WHY
-      R11 requires AI-assisted project planning with production-focused pillars and task breakdown.
-      This task builds the backend: AI service with two generation functions, IPC handlers,
-      shared types, and preload bridge. Following the established ideaService.analyzeIdea pattern
-      for structured JSON generation with fallback parsing.
+      R13 requires meeting templates (standup, retro, planning, etc.) to provide structured
+      meeting experiences. Templates customize the AI summarization to focus on template-relevant
+      information (e.g., standups → blockers/progress/plans, retros → went well/improve/actions).
 
       ## WHAT
 
-      ### 1a. Types — add to src/shared/types.ts
+      ### 1a. Schema — modify src/main/db/schema/meetings.ts
 
-      Update the AITaskType union to include 'task_structuring':
+      Add a new enum and column:
       ```typescript
-      export type AITaskType = 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis' | 'task_structuring';
+      export const meetingTemplateEnum = pgEnum('meeting_template', [
+        'none', 'standup', 'retro', 'planning', 'brainstorm', 'one_on_one'
+      ]);
       ```
 
-      Add these types (place before the ElectronAPI interface, after existing AI types):
+      Add to meetings table:
+      ```typescript
+      template: meetingTemplateEnum('template').default('none').notNull(),
+      ```
+
+      ### 1b. Generate migration
+
+      Run: `npx drizzle-kit generate`
+      Then apply: `npx drizzle-kit push` (or let the app apply on startup via runMigrations)
+
+      ### 1c. Types — modify src/shared/types.ts
+
+      Add template types (place near meeting types):
 
       ```typescript
-      // === TASK STRUCTURING TYPES ===
+      export type MeetingTemplateType = 'none' | 'standup' | 'retro' | 'planning' | 'brainstorm' | 'one_on_one';
 
-      export interface ProjectPillar {
-        name: string;           // e.g. "Architecture", "Security", "Testing"
-        description: string;    // Brief explanation of pillar's focus
-        tasks: PillarTask[];    // Suggested tasks under this pillar
-      }
-
-      export interface PillarTask {
-        title: string;
-        description: string;
-        priority: 'low' | 'medium' | 'high' | 'urgent';
-        effort: 'small' | 'medium' | 'large';  // T-shirt sizing
-        dependencies?: string[];  // titles of other tasks this depends on
-      }
-
-      export interface ProjectMilestone {
+      export interface MeetingTemplate {
+        type: MeetingTemplateType;
         name: string;
         description: string;
-        taskTitles: string[];   // references to PillarTask titles
+        icon: string;           // Lucide icon name
+        agenda: string[];       // Suggested agenda items
+        aiPromptHint: string;   // Injected into AI summarization prompt
       }
+      ```
 
-      export interface ProjectPlan {
-        pillars: ProjectPillar[];
-        milestones: ProjectMilestone[];
-        summary: string;        // High-level plan overview
-      }
-
-      export interface SubtaskSuggestion {
+      Update Meeting interface to include template:
+      ```typescript
+      export interface Meeting {
+        id: string;
+        projectId: string | null;
         title: string;
-        description: string;
-        priority: 'low' | 'medium' | 'high' | 'urgent';
-        effort: 'small' | 'medium' | 'large';
-        order: number;          // suggested execution order
+        template: MeetingTemplateType;  // ADD THIS
+        startedAt: string;
+        endedAt: string | null;
+        audioPath: string | null;
+        status: MeetingStatus;
+        createdAt: string;
+      }
+      ```
+
+      Update CreateMeetingInput:
+      ```typescript
+      export interface CreateMeetingInput {
+        title: string;
+        projectId?: string;
+        template?: MeetingTemplateType;  // ADD THIS — defaults to 'none'
+      }
+      ```
+
+      Add a MEETING_TEMPLATES constant (exported for use in both main and renderer):
+      ```typescript
+      export const MEETING_TEMPLATES: MeetingTemplate[] = [
+        {
+          type: 'none',
+          name: 'General',
+          description: 'No specific template — general meeting',
+          icon: 'MessageSquare',
+          agenda: [],
+          aiPromptHint: '',
+        },
+        {
+          type: 'standup',
+          name: 'Daily Standup',
+          description: 'Quick status update — what was done, what is planned, any blockers',
+          icon: 'Users',
+          agenda: ['What I did yesterday', 'What I plan to do today', 'Blockers or concerns'],
+          aiPromptHint: 'This is a daily standup meeting. Focus on: (1) work completed since last standup, (2) planned work for today, (3) blockers or impediments. Keep the summary structured around these three areas.',
+        },
+        {
+          type: 'retro',
+          name: 'Retrospective',
+          description: 'Team reflection — what went well, what to improve, action items',
+          icon: 'RotateCcw',
+          agenda: ['What went well', 'What could be improved', 'Action items for next sprint'],
+          aiPromptHint: 'This is a retrospective meeting. Organize the summary into: (1) What went well — positive outcomes and successes, (2) What could be improved — pain points and challenges, (3) Action items — concrete steps the team agreed to take.',
+        },
+        {
+          type: 'planning',
+          name: 'Sprint Planning',
+          description: 'Plan upcoming work — priorities, capacity, commitments',
+          icon: 'CalendarCheck',
+          agenda: ['Sprint goal', 'Priority items for the sprint', 'Capacity and availability', 'Commitments and assignments'],
+          aiPromptHint: 'This is a sprint/iteration planning meeting. Focus on: (1) the sprint goal or objectives, (2) which items were prioritized, (3) capacity considerations, (4) who committed to what work. Track any estimated effort or story points mentioned.',
+        },
+        {
+          type: 'brainstorm',
+          name: 'Brainstorming',
+          description: 'Creative ideation session — explore ideas freely',
+          icon: 'Lightbulb',
+          agenda: ['Problem statement or opportunity', 'Idea generation', 'Discussion and evaluation', 'Next steps'],
+          aiPromptHint: 'This is a brainstorming session. Capture all ideas discussed, even partial ones. Group related ideas together. Note which ideas received the most interest or support. Highlight any novel or unconventional suggestions.',
+        },
+        {
+          type: 'one_on_one',
+          name: '1-on-1',
+          description: 'One-on-one meeting — feedback, goals, personal development',
+          icon: 'UserCheck',
+          agenda: ['Check-in and wellbeing', 'Progress on goals', 'Feedback (both directions)', 'Development and growth', 'Action items'],
+          aiPromptHint: 'This is a 1-on-1 meeting. Focus on: (1) personal updates and wellbeing, (2) progress on previously set goals, (3) feedback exchanged, (4) career development topics, (5) agreed action items. Be sensitive with personal topics — summarize without including private details.',
+        },
+      ];
+      ```
+
+      ### 1d. meetingService — modify src/main/services/meetingService.ts
+
+      Update `toMeeting()` mapper to include template:
+      ```typescript
+      template: row.template,
+      ```
+
+      Update `createMeeting()` to accept and save template:
+      The insert call should include `template: data.template ?? 'none'`.
+
+      ### 1e. meetingIntelligenceService — make prompts template-aware
+
+      Change SUMMARIZATION_SYSTEM_PROMPT from a constant string to a function:
+      ```typescript
+      function getSummarizationPrompt(template: MeetingTemplateType): string {
+        const templateInfo = MEETING_TEMPLATES.find(t => t.type === template);
+        const basePrompt = `You are a meeting summarization assistant...`;
+
+        if (!templateInfo || !templateInfo.aiPromptHint) {
+          return basePrompt;
+        }
+
+        return `${basePrompt}\n\nIMPORTANT CONTEXT: ${templateInfo.aiPromptHint}`;
+      }
+      ```
+
+      Import MEETING_TEMPLATES and MeetingTemplateType from shared/types.
+
+      Update `generateBrief()` to accept template parameter and pass it to getSummarizationPrompt.
+      The template comes from the meeting record — load it when loading the meeting for brief generation.
+      Since generateBrief already calls getMeeting(meetingId), the Meeting object now includes template.
+      Use `meeting.template` to get the template-aware prompt.
+
+      Similarly, update the ACTION_EXTRACTION_SYSTEM_PROMPT to be template-aware (optional but valuable):
+      For standups, the AI should extract blocker-resolution actions.
+      For retros, the AI should extract improvement actions.
+      For planning, the AI should extract task assignments.
+
+      Make ACTION_EXTRACTION_SYSTEM_PROMPT a function:
+      ```typescript
+      function getActionExtractionPrompt(template: MeetingTemplateType): string {
+        const base = `You are a meeting action item extractor...`;
+        if (template === 'standup') {
+          return `${base}\n\nThis is a standup — prioritize extracting blocker-resolution tasks and follow-up items.`;
+        }
+        if (template === 'retro') {
+          return `${base}\n\nThis is a retrospective — focus on improvement action items the team agreed to pursue.`;
+        }
+        if (template === 'planning') {
+          return `${base}\n\nThis is a planning meeting — extract task assignments and commitments with owners when mentioned.`;
+        }
+        return base;
+      }
+      ```
+
+      Update generateActions() similarly to use the template-aware prompt.
+
+      ### 1f. No IPC/preload changes needed for this task
+      The existing meeting CRUD IPC handlers already pass through CreateMeetingInput,
+      which now includes the optional template field. The DB accepts it via the schema change.
+    </action>
+    <verify>
+      1. `npx drizzle-kit generate` produces a migration adding meeting_template enum + column
+      2. `npx tsc --noEmit` — zero TypeScript errors
+      3. meetings table has template column with default 'none'
+      4. Meeting type includes template field
+      5. CreateMeetingInput has optional template field
+      6. MEETING_TEMPLATES constant has 6 entries (none, standup, retro, planning, brainstorm, one_on_one)
+      7. meetingService.toMeeting includes template field
+      8. meetingService.createMeeting saves template to DB
+      9. meetingIntelligenceService uses template-aware prompts for summarization and action extraction
+      10. MEETING_TEMPLATES imported from shared/types in meetingIntelligenceService
+    </verify>
+    <done>Meeting template schema (migration applied), shared types with 6 template presets, template-aware AI prompts in meetingIntelligenceService. TypeScript compiles cleanly.</done>
+    <confidence>HIGH</confidence>
+    <assumptions>
+      - Drizzle pgEnum + column addition works with generate (standard Drizzle workflow)
+      - Default 'none' for existing rows doesn't require data migration
+      - MEETING_TEMPLATES as a shared constant is importable by both main and renderer
+      - Template-aware prompts improve AI output quality for structured meeting types
+    </assumptions>
+  </task>
+
+  <task type="auto" n="2">
+    <n>Meeting templates — UI integration (RecordingControls, MeetingsPage, MeetingDetailModal)</n>
+    <files>
+      src/renderer/components/RecordingControls.tsx (MODIFY — add template selector dropdown)
+      src/renderer/stores/recordingStore.ts (MODIFY — startRecording accepts template)
+      src/renderer/pages/MeetingsPage.tsx (MODIFY — show template badge on meeting cards)
+      src/renderer/components/MeetingDetailModal.tsx (MODIFY — show template info + agenda)
+    </files>
+    <action>
+      ## WHY
+      Users need to select a template before starting a recording, see which template a meeting
+      used, and view the template's agenda structure in the meeting detail. The template selection
+      should be easy and optional (defaults to "General").
+
+      ## WHAT
+
+      ### 2a. RecordingControls — add template selector
+
+      Import MEETING_TEMPLATES and MeetingTemplateType from shared/types.
+      Import an icon (e.g., FileText or Layout from lucide-react) for the template selector.
+
+      Add local state: `selectedTemplate: MeetingTemplateType` (default: 'none')
+
+      Add a template selector dropdown below the title input (when not recording):
+      ```tsx
+      <select
+        value={selectedTemplate}
+        onChange={(e) => setSelectedTemplate(e.target.value as MeetingTemplateType)}
+        className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2
+                   text-sm text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+        disabled={starting}
+      >
+        {MEETING_TEMPLATES.map((t) => (
+          <option key={t.type} value={t.type}>
+            {t.name} — {t.description}
+          </option>
+        ))}
+      </select>
+      ```
+
+      Update handleStart to pass template:
+      ```typescript
+      const handleStart = async () => {
+        if (!title.trim()) return;
+        await startRecording(title.trim(), undefined, selectedTemplate);
+        setTitle('');
+        setSelectedTemplate('none');
+      };
+      ```
+
+      Show template-specific hint when a template is selected (not 'none'):
+      Display the template's agenda items as a small list below the selector:
+      ```tsx
+      {selectedTemplate !== 'none' && (
+        <div className="text-xs text-surface-400 space-y-0.5">
+          <span className="font-medium">Suggested agenda:</span>
+          {MEETING_TEMPLATES.find(t => t.type === selectedTemplate)?.agenda.map((item, i) => (
+            <div key={i}>• {item}</div>
+          ))}
+        </div>
+      )}
+      ```
+
+      ### 2b. recordingStore — accept template parameter
+
+      Update the startRecording signature:
+      ```typescript
+      startRecording: (title: string, projectId?: string, template?: MeetingTemplateType) => Promise<void>;
+      ```
+
+      Pass template to createMeeting:
+      ```typescript
+      const meeting = await window.electronAPI.createMeeting({
+        title,
+        projectId,
+        template: template ?? 'none',
+      });
+      ```
+
+      ### 2c. MeetingsPage — show template badge on meeting cards
+
+      Import MEETING_TEMPLATES from shared/types.
+
+      On each MeetingCard component (or inline in MeetingsPage if MeetingCard is simple),
+      show a small badge if the meeting has a template other than 'none':
+      ```tsx
+      {meeting.template && meeting.template !== 'none' && (
+        <span className="text-xs px-1.5 py-0.5 rounded bg-surface-700 text-surface-300">
+          {MEETING_TEMPLATES.find(t => t.type === meeting.template)?.name ?? meeting.template}
+        </span>
+      )}
+      ```
+
+      Place this near the meeting title or status badge area.
+
+      Check if MeetingsPage renders meeting cards inline or via a MeetingCard component.
+      If MeetingCard.tsx exists as a separate component, modify it there.
+      If inline in MeetingsPage, add the badge inline.
+
+      ### 2d. MeetingDetailModal — show template info
+
+      Import MEETING_TEMPLATES from shared/types.
+
+      Add a template indicator in the metadata area (near status, duration, date):
+      ```tsx
+      {meeting.template && meeting.template !== 'none' && (() => {
+        const tmpl = MEETING_TEMPLATES.find(t => t.type === meeting.template);
+        return tmpl ? (
+          <div className="flex items-center gap-2 text-sm text-surface-300">
+            <span className="font-medium">{tmpl.name}</span>
+            {tmpl.agenda.length > 0 && (
+              <div className="mt-1 text-xs text-surface-400">
+                {tmpl.agenda.map((item, i) => (
+                  <div key={i}>• {item}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null;
+      })()}
+      ```
+
+      This is informational — shows what template was used and its agenda for reference.
+    </action>
+    <verify>
+      1. `npx tsc --noEmit` — zero TypeScript errors
+      2. RecordingControls shows template dropdown with 6 options
+      3. Selecting a non-'none' template shows the agenda hint below the dropdown
+      4. startRecording passes template to createMeeting
+      5. MeetingsPage/MeetingCard shows template badge for templated meetings
+      6. MeetingDetailModal shows template name and agenda for templated meetings
+      7. Template selector resets to 'none' after starting a recording
+      8. Default template is 'none' (backward compatible with existing meetings)
+    </verify>
+    <done>Template selector in RecordingControls, template badges on meeting cards, template info in MeetingDetailModal. Users can select a meeting type before recording. TypeScript compiles cleanly.</done>
+    <confidence>HIGH</confidence>
+    <assumptions>
+      - MEETING_TEMPLATES importable from shared/types in renderer code (Vite handles this)
+      - MeetingCard is either a separate component or inline in MeetingsPage (check during execution)
+      - HTML select element is sufficient for template selection (no need for custom dropdown library)
+      - Existing recordings display correctly with template='none' (backward compatible)
+    </assumptions>
+  </task>
+
+  <task type="auto" n="3">
+    <n>Desktop notifications — service, scheduler, IPC, and settings UI</n>
+    <files>
+      src/main/services/notificationService.ts (NEW ~120 lines)
+      src/main/services/notificationScheduler.ts (NEW ~130 lines)
+      src/main/ipc/notifications.ts (NEW ~50 lines)
+      src/main/ipc/index.ts (MODIFY — register notification handlers)
+      src/shared/types.ts (MODIFY — add notification types + 3 ElectronAPI methods)
+      src/preload/preload.ts (MODIFY — add 3 notification bridge methods)
+      src/main/main.ts (MODIFY — wire scheduler init/stop)
+      src/renderer/components/settings/NotificationSection.tsx (NEW ~150 lines)
+      src/renderer/pages/SettingsPage.tsx (MODIFY — add NotificationSection)
+    </files>
+    <action>
+      ## WHY
+      R17 requires desktop notifications for due tasks, meeting reminders, and a daily digest.
+      Electron has a built-in Notification API that works cross-platform. The scheduler follows
+      the proven autoBackupScheduler pattern.
+
+      ## WHAT
+
+      ### 3a. Types — add to src/shared/types.ts
+
+      ```typescript
+      // === NOTIFICATION TYPES ===
+
+      export interface NotificationPreferences {
+        enabled: boolean;                // Master toggle
+        dueDateReminders: boolean;       // Notify when cards are due within 24h
+        dailyDigest: boolean;            // Morning summary of tasks/meetings
+        dailyDigestHour: number;         // Hour (0-23) to send daily digest (default: 9)
+        recordingReminders: boolean;     // Remind to record upcoming meetings
       }
 
-      export interface TaskBreakdown {
-        subtasks: SubtaskSuggestion[];
-        notes: string;          // Additional context/reasoning from AI
+      export interface DailyDigestData {
+        dueToday: Array<{ title: string; projectName: string }>;
+        overdue: Array<{ title: string; projectName: string; dueDate: string }>;
+        recentMeetings: Array<{ title: string; date: string }>;
       }
       ```
 
       Add to ElectronAPI interface:
       ```typescript
-      // Task Structuring
-      taskStructuringGeneratePlan: (projectId: string, description: string) => Promise<ProjectPlan>;
-      taskStructuringBreakdown: (cardId: string) => Promise<TaskBreakdown>;
-      taskStructuringQuickPlan: (projectName: string, projectDescription: string) => Promise<ProjectPlan>;
+      // Notifications
+      notificationGetPreferences: () => Promise<NotificationPreferences>;
+      notificationUpdatePreferences: (prefs: Partial<NotificationPreferences>) => Promise<void>;
+      notificationSendTest: () => Promise<void>;
       ```
 
-      The third method (`quickPlan`) allows generating a plan for a new project that doesn't
-      exist yet — user provides name+description directly, no projectId needed. This supports
-      the "plan before creating" workflow.
-
-      ### 1b. Create src/main/services/taskStructuringService.ts
+      ### 3b. Create src/main/services/notificationService.ts
 
       File header:
       ```
       // === FILE PURPOSE ===
-      // AI task structuring service — generates project plans with production-focused
-      // pillars and breaks down cards into subtasks. Uses the generate() wrapper from
-      // ai-provider.ts for structured JSON output.
+      // Desktop notification service using Electron's Notification API.
+      // Sends native OS notifications for due dates, daily digest, and reminders.
       //
       // === DEPENDENCIES ===
-      // - ai-provider.ts (generate, resolveTaskModel, logUsage)
-      // - Database connection for loading project/card context
+      // Electron (Notification), settings table for preferences
       //
       // === LIMITATIONS ===
-      // - Generated plans are transient (not persisted in DB)
-      // - JSON parsing has fallback but may fail on very malformed AI output
-      // - Depends on AI provider being configured for 'task_structuring' task type
+      // - Requires OS notification permissions (usually granted by default for desktop apps)
+      // - No notification history/log (fire-and-forget)
+      // - Daily digest is text-only (no rich HTML in OS notifications)
       ```
 
       Imports:
       ```typescript
-      import { eq } from 'drizzle-orm';
+      import { Notification } from 'electron';
       import { getDb } from '../db/connection';
-      import { projects, boards, columns, cards } from '../db/schema';
-      import { generate, resolveTaskModel, logUsage } from './ai-provider';
-      import type { ProjectPlan, TaskBreakdown } from '../../shared/types';
+      import { settings } from '../db/schema';
+      import { eq } from 'drizzle-orm';
+      import type { NotificationPreferences } from '../../shared/types';
       ```
 
-      System prompts (define as constants at module level):
-
+      Constants:
       ```typescript
-      const PROJECT_PLAN_SYSTEM_PROMPT = `You are a senior software architect and project planner.
-      Your job is to create a production-focused project plan with clear pillars, tasks, and milestones.
-
-      You MUST focus on production-readiness pillars:
-      - Architecture: System design, data models, API design, scalability patterns
-      - Security: Authentication, authorization, input validation, data protection
-      - Testing: Unit tests, integration tests, E2E tests, test infrastructure
-      - DevOps: CI/CD pipeline, deployment, monitoring, logging, alerting
-      - Performance: Optimization, caching, load handling, resource management
-      - Documentation: API docs, architecture docs, onboarding guides
-
-      Not every project needs all pillars. Choose the relevant ones based on the project description.
-      Typically 3-5 pillars are appropriate.
-
-      Each task should be specific and actionable (not vague like "implement security").
-      Include effort estimates (small/medium/large) and priority levels.
-      Identify dependencies between tasks where they exist.
-
-      Group tasks into 2-4 milestones representing logical delivery phases.
-
-      Respond with ONLY valid JSON matching this structure:
-      {
-        "summary": "Brief plan overview",
-        "pillars": [
-          {
-            "name": "Pillar Name",
-            "description": "What this pillar covers",
-            "tasks": [
-              {
-                "title": "Specific task title",
-                "description": "What needs to be done and why",
-                "priority": "high",
-                "effort": "medium",
-                "dependencies": ["Other task title if any"]
-              }
-            ]
-          }
-        ],
-        "milestones": [
-          {
-            "name": "Milestone 1: Foundation",
-            "description": "What this milestone achieves",
-            "taskTitles": ["Task title 1", "Task title 2"]
-          }
-        ]
-      }`;
-
-      const TASK_BREAKDOWN_SYSTEM_PROMPT = `You are a senior developer breaking down a task into subtasks.
-      Given a card title, description, and project context, create specific, actionable subtasks.
-
-      Each subtask should be:
-      - Small enough to complete in one focused session (1-4 hours)
-      - Specific and testable (not vague)
-      - Ordered logically (dependencies reflected in order)
-
-      Include effort estimates (small = <1h, medium = 1-4h, large = 4-8h).
-
-      Respond with ONLY valid JSON matching this structure:
-      {
-        "subtasks": [
-          {
-            "title": "Specific subtask title",
-            "description": "What to do",
-            "priority": "medium",
-            "effort": "small",
-            "order": 1
-          }
-        ],
-        "notes": "Additional context or considerations"
-      }`;
+      const SETTINGS_KEY = 'notification_preferences';
+      const DEFAULT_PREFERENCES: NotificationPreferences = {
+        enabled: true,
+        dueDateReminders: true,
+        dailyDigest: true,
+        dailyDigestHour: 9,
+        recordingReminders: true,
+      };
       ```
 
       Exports:
 
-      **`generateProjectPlan(projectId: string, additionalDescription?: string): Promise<ProjectPlan>`**
-      1. Load project from DB: `db.select().from(projects).where(eq(projects.id, projectId))`
-      2. If not found, throw Error('Project not found')
-      3. Load boards for project: `db.select().from(boards).where(eq(boards.projectId, projectId))`
-      4. For each board, load columns: `db.select().from(columns).where(eq(columns.boardId, board.id))`
-      5. For each column, load non-archived cards (titles only, for context)
-      6. Build context string:
-         ```
-         Project: {name}
-         Description: {description}
-         {additionalDescription ? `Additional context: ${additionalDescription}` : ''}
-         Existing boards: {board names with column names}
-         Existing cards: {card titles per column, up to 10 per board}
-         ```
-      7. Resolve provider: `const provider = await resolveTaskModel('task_structuring')`
-      8. If null, throw Error('No AI provider configured. Please set up an AI provider in Settings.')
-      9. Call generate:
-         ```typescript
-         const result = await generate({
-           providerId: provider.providerId,
-           providerName: provider.providerName,
-           apiKeyEncrypted: provider.apiKeyEncrypted,
-           baseUrl: provider.baseUrl,
-           model: provider.model,
-           taskType: 'task_structuring',
-           system: PROJECT_PLAN_SYSTEM_PROMPT,
-           prompt: contextString,
-           temperature: provider.temperature ?? 0.4,
-           maxTokens: provider.maxTokens ?? 4096,
-         });
-         ```
-      10. Parse JSON response with fallback:
-          ```typescript
-          let plan: ProjectPlan;
-          try {
-            // Try to extract JSON from response (may have markdown fences)
-            const jsonStr = result.text.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim();
-            plan = JSON.parse(jsonStr);
-          } catch {
-            throw new Error('Failed to parse AI response as project plan. Please try again.');
-          }
-          ```
-      11. Validate structure: ensure pillars is array, each has name+tasks, etc.
-          If invalid, throw Error with descriptive message.
-      12. Log usage (fire-and-forget):
-          ```typescript
-          logUsage(provider.providerId, provider.model, 'task_structuring', result.usage).catch(() => {});
-          ```
-      13. Return plan
+      **`getNotificationPreferences(): Promise<NotificationPreferences>`**
+      - Query settings table for SETTINGS_KEY
+      - If not found, return DEFAULT_PREFERENCES
+      - Parse stored JSON value, merge with defaults for forward-compatibility
 
-      **`generateQuickPlan(projectName: string, projectDescription: string): Promise<ProjectPlan>`**
-      1. Same as generateProjectPlan but doesn't load from DB
-      2. Build context: `Project: ${projectName}\nDescription: ${projectDescription}`
-      3. Same generate + parse + validate + logUsage flow
-      4. Return plan
+      **`updateNotificationPreferences(prefs: Partial<NotificationPreferences>): Promise<void>`**
+      - Load current preferences
+      - Merge with new values
+      - Upsert to settings table (check if exists → update or insert)
 
-      **`generateTaskBreakdown(cardId: string): Promise<TaskBreakdown>`**
-      1. Load card from DB: `db.select().from(cards).where(eq(cards.id, cardId))`
-      2. If not found, throw Error('Card not found')
-      3. Load column → board → project for context
-      4. Load sibling cards (same column) for context
-      5. Build context:
-         ```
-         Project: {projectName}
-         Board: {boardName}
-         Column: {columnName}
+      **`showNotification(title: string, body: string): void`**
+      - Check if Notification.isSupported() (Electron API)
+      - Create new Notification({ title, body, icon: undefined })
+      - Call notification.show()
+      - Wrap in try-catch (non-fatal)
 
-         Card: {card.title}
-         Description: {card.description || 'No description'}
-         Priority: {card.priority}
+      **`sendTestNotification(): void`**
+      - Call showNotification('Living Dashboard', 'Notifications are working!')
 
-         Other cards in this column: {sibling card titles}
-         ```
-      6. Resolve provider, generate, parse JSON, validate, logUsage
-      7. Return TaskBreakdown
+      ### 3c. Create src/main/services/notificationScheduler.ts
 
-      ### 1c. Create src/main/ipc/task-structuring.ts
+      Follow autoBackupScheduler.ts pattern exactly.
+
+      File header:
+      ```
+      // === FILE PURPOSE ===
+      // Background scheduler for notification checks.
+      // Periodically checks for due cards and sends daily digest.
+      //
+      // === DEPENDENCIES ===
+      // notificationService, database (cards, meetings)
+      //
+      // === LIMITATIONS ===
+      // - Hourly check granularity (not minute-precise)
+      // - Daily digest timing approximate (depends on check interval)
+      ```
+
+      Imports:
+      ```typescript
+      import { eq, and, lte, gte, isNotNull, not } from 'drizzle-orm';
+      import { getDb } from '../db/connection';
+      import { cards, columns, boards, projects, meetings } from '../db/schema';
+      import { getNotificationPreferences, showNotification } from './notificationService';
+      ```
+
+      Constants:
+      ```typescript
+      const CHECK_INTERVAL_MS = 3_600_000;  // 1 hour
+      const STARTUP_DELAY_MS = 30_000;       // 30 seconds (after backup scheduler's 10s)
+      ```
+
+      Module-level state:
+      ```typescript
+      let intervalId: ReturnType<typeof setInterval> | null = null;
+      let lastDigestDate: string | null = null;  // 'YYYY-MM-DD' of last digest sent
+      ```
+
+      Exports:
+
+      **`initNotificationScheduler(): void`**
+      - Set timeout for first check (STARTUP_DELAY_MS)
+      - Set interval for periodic checks (CHECK_INTERVAL_MS)
+      - Log init
+
+      **`stopNotificationScheduler(): void`**
+      - Clear interval, reset state, log stop
+
+      **`async checkAndNotify(): Promise<void>`**
+      Wrapped in try-catch (never throw from background scheduler):
+      1. Load preferences via getNotificationPreferences()
+      2. If !preferences.enabled, return early
+      3. If preferences.dueDateReminders, check for due cards:
+         - Query cards where dueDate is within next 24 hours AND archived = false
+         - For each due card not already notified this cycle:
+           - Join through columns → boards → projects to get project name
+           - showNotification(`Due soon: ${card.title}`, `In project: ${projectName}`)
+         - Limit to 5 notifications per check (prevent notification spam)
+      4. If preferences.dailyDigest, check if digest is due:
+         - Get current date as YYYY-MM-DD string
+         - Get current hour
+         - If currentHour >= preferences.dailyDigestHour AND lastDigestDate !== today:
+           - Build digest: count due today, overdue, recent meetings (last 24h)
+           - showNotification('Daily Digest', `${dueCount} tasks due today, ${overdueCount} overdue`)
+           - Set lastDigestDate = today
+
+      Note: Use simple date comparisons. Don't need timezone-perfect precision for notifications.
+      Due card query:
+      ```typescript
+      const now = new Date();
+      const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const dueCards = await db
+        .select({ title: cards.title, dueDate: cards.dueDate, columnId: cards.columnId })
+        .from(cards)
+        .where(
+          and(
+            isNotNull(cards.dueDate),
+            lte(cards.dueDate, in24h),
+            not(cards.archived),
+          )
+        )
+        .limit(10);
+      ```
+
+      ### 3d. Create src/main/ipc/notifications.ts
 
       ```typescript
       import { ipcMain } from 'electron';
-      import { generateProjectPlan, generateQuickPlan, generateTaskBreakdown } from '../services/taskStructuringService';
+      import {
+        getNotificationPreferences,
+        updateNotificationPreferences,
+        sendTestNotification,
+      } from '../services/notificationService';
 
-      export function registerTaskStructuringHandlers(): void {
-        ipcMain.handle('task-structuring:generate-plan', async (_event, projectId: string, description?: string) => {
-          return generateProjectPlan(projectId, description);
+      export function registerNotificationHandlers(): void {
+        ipcMain.handle('notifications:get-preferences', async () => {
+          return getNotificationPreferences();
         });
 
-        ipcMain.handle('task-structuring:quick-plan', async (_event, name: string, description: string) => {
-          return generateQuickPlan(name, description);
+        ipcMain.handle('notifications:update-preferences', async (_event, prefs) => {
+          await updateNotificationPreferences(prefs);
         });
 
-        ipcMain.handle('task-structuring:breakdown', async (_event, cardId: string) => {
-          return generateTaskBreakdown(cardId);
+        ipcMain.handle('notifications:test', async () => {
+          sendTestNotification();
         });
       }
       ```
 
-      ### 1d. Register in src/main/ipc/index.ts
+      ### 3e. Register in src/main/ipc/index.ts
 
-      Add import: `import { registerTaskStructuringHandlers } from './task-structuring';`
-      Add call: `registerTaskStructuringHandlers();` in registerIpcHandlers
+      Add import and call registerNotificationHandlers() in registerIpcHandlers.
 
-      ### 1e. Extend src/preload/preload.ts
+      ### 3f. Extend src/preload/preload.ts
 
-      Add to the electronAPI object:
+      Add to electronAPI:
       ```typescript
-      // Task Structuring
-      taskStructuringGeneratePlan: (projectId: string, description: string) =>
-        ipcRenderer.invoke('task-structuring:generate-plan', projectId, description),
-      taskStructuringBreakdown: (cardId: string) =>
-        ipcRenderer.invoke('task-structuring:breakdown', cardId),
-      taskStructuringQuickPlan: (name: string, description: string) =>
-        ipcRenderer.invoke('task-structuring:quick-plan', name, description),
+      // Notifications
+      notificationGetPreferences: () => ipcRenderer.invoke('notifications:get-preferences'),
+      notificationUpdatePreferences: (prefs: Partial<NotificationPreferences>) =>
+        ipcRenderer.invoke('notifications:update-preferences', prefs),
+      notificationSendTest: () => ipcRenderer.invoke('notifications:test'),
       ```
+
+      Note: preload doesn't import types — use the parameter shape inline.
+      Actually, preload uses `: (...) =>` style without importing types.
+      Check existing preload patterns and follow them.
+
+      ### 3g. Wire scheduler into src/main/main.ts
+
+      Add import:
+      ```typescript
+      import { initNotificationScheduler, stopNotificationScheduler } from './services/notificationScheduler';
+      ```
+
+      In createWindow, after initAutoBackup(mainWindow):
+      ```typescript
+      initNotificationScheduler();
+      ```
+
+      In before-quit handler, after stopAutoBackup():
+      ```typescript
+      stopNotificationScheduler();
+      ```
+
+      ### 3h. Create src/renderer/components/settings/NotificationSection.tsx
+
+      Settings panel for notification preferences. Follow BackupSection pattern.
+
+      ```
+      ── Notifications ─────────────────────────────
+      ☑ Enable notifications (master toggle)
+
+      ☑ Due date reminders
+        Notify when cards are due within 24 hours
+
+      ☑ Daily digest
+        Receive a morning summary of tasks and meetings
+        Time: [9:00 AM ▼] (hour selector)
+
+      ☑ Recording reminders
+        Remind to start recording for upcoming meetings
+
+      [Send Test Notification]
+      ─────────────────────────────────────────────
+      ```
+
+      State: load preferences on mount, update via electronAPI on toggle change.
+      Each toggle is a checkbox or switch.
+      The hour selector is a simple select with 0-23 mapped to "12:00 AM", "1:00 AM", etc.
+      "Send Test Notification" button calls electronAPI.notificationSendTest().
+
+      Import: Bell (or BellRing) from lucide-react for section icon.
+
+      Styling: Follow BackupSection's layout patterns (section title, description text,
+      toggle rows with labels, info text under each toggle).
+
+      ### 3i. Add NotificationSection to SettingsPage
+
+      Import NotificationSection.
+      Add it between BackupSection and ExportSection (or after ExportSection, before About).
+      Use the same section wrapper pattern.
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. 'task_structuring' is in AITaskType union
-      3. taskStructuringService.ts exports: generateProjectPlan, generateQuickPlan, generateTaskBreakdown
-      4. System prompts explicitly mention production-focused pillars
-      5. JSON parsing includes markdown fence stripping and error handling
-      6. task-structuring.ts IPC handlers: 3 channels registered
-      7. ElectronAPI has 3 new methods
-      8. preload.ts has 3 matching bridge methods
-      9. ipc/index.ts imports and calls registerTaskStructuringHandlers()
+      2. notificationService.ts exports: getNotificationPreferences, updateNotificationPreferences, showNotification, sendTestNotification
+      3. notificationScheduler.ts exports: initNotificationScheduler, stopNotificationScheduler
+      4. Scheduler follows autoBackupScheduler pattern (interval + startup delay + try-catch)
+      5. notifications.ts has 3 IPC handlers registered
+      6. preload.ts has 3 notification bridge methods
+      7. main.ts calls initNotificationScheduler after DB connect and stopNotificationScheduler on before-quit
+      8. NotificationSection.tsx renders: master toggle, 3 feature toggles, hour selector, test button
+      9. SettingsPage includes NotificationSection
+      10. Notification.isSupported() checked before showing notifications
+      11. Daily digest tracks lastDigestDate to avoid duplicate sends
     </verify>
-    <done>Complete backend for AI task structuring: service with two AI generation functions (project plan + card breakdown), 3 IPC channels, types, and preload bridge. TypeScript compiles cleanly.</done>
+    <done>Desktop notification infrastructure: service (Electron Notification API), scheduler (hourly checks for due cards + daily digest), IPC bridge, and settings UI with toggles and test button. Wired into app startup/shutdown lifecycle.</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - generate() from ai-provider.ts works for task_structuring task type (same as summarization/idea_analysis)
-      - AI providers return valid JSON when prompted with structured instructions (with fallback parsing)
-      - 4096 max tokens is sufficient for project plans (typical plan is ~2000 tokens)
-      - Temperature 0.4 balances creativity with structure (lower than brainstorming's 0.7)
-      - Column → board → project traversal via Drizzle joins works (standard foreign key relationships)
-    </assumptions>
-  </task>
-
-  <task type="auto" n="2">
-    <n>Task structuring store and project planning modal UI</n>
-    <files>
-      src/renderer/stores/taskStructuringStore.ts (NEW ~80 lines)
-      src/renderer/components/ProjectPlanningModal.tsx (NEW ~400 lines)
-      src/renderer/pages/ProjectsPage.tsx (MODIFY — add "Plan with AI" button to project cards)
-    </files>
-    <action>
-      ## WHY
-      Users need a visual interface to trigger AI project planning, review the generated
-      pillars/milestones/tasks, and apply suggestions as real boards and cards. The modal
-      should present the plan clearly and allow selective application.
-
-      ## WHAT
-
-      ### 2a. Create src/renderer/stores/taskStructuringStore.ts
-
-      Zustand store for task structuring state:
-
-      ```typescript
-      interface TaskStructuringState {
-        // Project plan
-        plan: ProjectPlan | null;
-        planLoading: boolean;
-        planError: string | null;
-        // Card breakdown
-        breakdown: TaskBreakdown | null;
-        breakdownLoading: boolean;
-        breakdownError: string | null;
-        // Actions
-        generatePlan: (projectId: string, description?: string) => Promise<void>;
-        generateQuickPlan: (name: string, description: string) => Promise<void>;
-        generateBreakdown: (cardId: string) => Promise<void>;
-        clearPlan: () => void;
-        clearBreakdown: () => void;
-      }
-      ```
-
-      Implementation:
-      - generatePlan: sets planLoading=true, calls electronAPI.taskStructuringGeneratePlan,
-        sets plan on success, sets planError on failure, planLoading=false
-      - generateQuickPlan: same flow but calls electronAPI.taskStructuringQuickPlan
-      - generateBreakdown: sets breakdownLoading=true, calls electronAPI.taskStructuringBreakdown,
-        sets breakdown on success, sets breakdownError on failure
-      - clearPlan: resets plan/planLoading/planError to initial values
-      - clearBreakdown: resets breakdown/breakdownLoading/breakdownError to initial values
-      - Error messages: extract from error (e.message or 'Failed to generate plan')
-
-      ### 2b. Create src/renderer/components/ProjectPlanningModal.tsx
-
-      Full-screen overlay modal for AI project planning. Triggered from ProjectsPage.
-
-      Props:
-      ```typescript
-      interface ProjectPlanningModalProps {
-        projectId: string;
-        projectName: string;
-        onClose: () => void;
-        onApply: (pillars: ProjectPillar[]) => Promise<void>;
-      }
-      ```
-
-      Structure (visual layout):
-      ```
-      ┌─ AI Project Planning ────────────────────────────────[×]─┐
-      │                                                           │
-      │  Planning for: {projectName}                              │
-      │  ┌──────────────────────────────────────────────────────┐ │
-      │  │ Additional context (optional):                        │ │
-      │  │ [textarea for extra instructions to AI]               │ │
-      │  └──────────────────────────────────────────────────────┘ │
-      │  [Generate Plan] (or [Regenerate] if plan exists)         │
-      │                                                           │
-      │  ── Loading State ──                                      │
-      │  ◐ Generating project plan... (with spinner)              │
-      │                                                           │
-      │  ── Error State ──                                        │
-      │  ⚠ Error message. Check AI provider settings. [Retry]    │
-      │                                                           │
-      │  ── Plan Results (when plan loaded) ──                    │
-      │                                                           │
-      │  Summary: {plan.summary}                                  │
-      │                                                           │
-      │  ┌─ Pillars (tabs or accordion) ───────────────────────┐ │
-      │  │ [Architecture] [Security] [Testing] [DevOps]         │ │
-      │  │                                                       │ │
-      │  │ Architecture — System design and data models          │ │
-      │  │                                                       │ │
-      │  │  ☑ Design database schema        HIGH  Medium         │ │
-      │  │  ☑ Set up API layer              HIGH  Large          │ │
-      │  │  ☑ Define data models            MED   Small          │ │
-      │  │    → depends on: Design database schema               │ │
-      │  └───────────────────────────────────────────────────────┘ │
-      │                                                           │
-      │  ┌─ Milestones ───────────────────────────────────────┐   │
-      │  │ M1: Foundation — Core infrastructure                │   │
-      │  │   • Design database schema                          │   │
-      │  │   • Set up API layer                                │   │
-      │  │                                                     │   │
-      │  │ M2: Features — Main functionality                   │   │
-      │  │   • Implement user flows                            │   │
-      │  └─────────────────────────────────────────────────────┘   │
-      │                                                           │
-      │  [Apply Plan — Create Board & Cards]         [Cancel]     │
-      └───────────────────────────────────────────────────────────┘
-      ```
-
-      State (local):
-      - `additionalContext: string` — textarea value for extra context to AI
-      - `selectedTasks: Set<string>` — task titles that are selected for apply (all selected by default)
-
-      Behavior:
-      - **On mount**: Don't auto-generate. Wait for user to click Generate.
-      - **Generate/Regenerate button**: calls taskStructuringStore.generatePlan(projectId, additionalContext).
-        Text changes to "Regenerate" after first plan is loaded.
-      - **Pillars display**: Tab-based navigation between pillars.
-        Each pillar shows its name, description, and task list.
-        Each task has a checkbox (for selective apply), title, priority badge, effort badge.
-        Dependencies shown as small text below task: "→ depends on: X, Y"
-      - **Milestones**: Read-only section showing milestone names and their task groupings.
-        Informational only (milestones don't map to DB entities).
-      - **Apply button**: Creates a new board named "AI Plan — {date}" on the project.
-        For each pillar: creates a column named after the pillar.
-        For each selected task in that pillar: creates a card in the column.
-        Card priority = task.priority, description = task.description.
-        After apply: close modal.
-        The onApply callback handles the actual creation:
-        ```typescript
-        // In ProjectsPage, the onApply handler:
-        async function handleApplyPlan(pillars: ProjectPillar[]) {
-          const board = await boardStore.createBoard(projectId, 'AI Plan');
-          for (const pillar of pillars) {
-            const column = await boardStore.createColumn(board.id, pillar.name);
-            for (const task of pillar.tasks) {
-              if (selectedTasks.has(task.title)) {
-                await boardStore.createCard(column.id, {
-                  title: task.title,
-                  description: task.description,
-                  priority: task.priority,
-                });
-              }
-            }
-          }
-        }
-        ```
-        Wait — the apply logic with selected tasks should live inside the modal since
-        it knows which tasks are selected. Actually, make onApply simpler: the modal
-        filters to selected tasks and passes filtered pillars to onApply. The parent
-        (ProjectsPage) handles board/column/card creation.
-
-        Actually, it's cleaner if the modal does the apply itself since it has access to
-        boardStore and knows selected tasks. Change props to not need onApply:
-        ```typescript
-        interface ProjectPlanningModalProps {
-          projectId: string;
-          projectName: string;
-          onClose: () => void;
-        }
-        ```
-        The modal imports boardStore directly and handles apply internally.
-
-      - **Cancel/Close**: Calls clearPlan() + onClose(). Escape key and overlay click also close.
-      - **Empty state**: "Generate an AI-powered project plan with production-focused pillars."
-      - **Priority badges**: Same color coding as CardDetailModal (emerald=low, blue=med, amber=high, red=urgent)
-      - **Effort badges**: Small grey badges: "S" / "M" / "L"
-
-      Styling:
-      - Modal: `fixed inset-0 z-50 bg-black/50` overlay, `max-w-4xl max-h-[85vh] overflow-y-auto`
-      - Section headers: `text-lg font-semibold text-surface-100`
-      - Tabs: horizontal button row with active state (underline or bg highlight)
-      - Task rows: `bg-surface-800/50 rounded-lg px-4 py-2` with flex layout
-      - Apply button: `bg-primary-600 hover:bg-primary-500` (primary action)
-      - Cancel: `text-surface-400 hover:text-surface-200` (text button)
-
-      Lucide icons to import: X (close), Brain or Sparkles (AI indicator), Check (apply),
-      RefreshCw (regenerate), AlertCircle (error), Loader2 (spinner)
-
-      ### 2c. Modify ProjectsPage.tsx
-
-      Add "Plan with AI" button to each project card in the grid:
-      1. Import: `ProjectPlanningModal`, `Brain` (or `Sparkles`) from lucide-react
-      2. Add local state: `planningProjectId: string | null` (which project's modal is open)
-      3. On each project card, add a small button: sparkle/brain icon + "Plan" tooltip
-         Position: top-right corner of the card, or in the card footer action row
-      4. On click: `setPlanningProjectId(project.id)`
-      5. When planningProjectId is set, render:
-         ```tsx
-         {planningProjectId && (
-           <ProjectPlanningModal
-             projectId={planningProjectId}
-             projectName={projects.find(p => p.id === planningProjectId)?.name || ''}
-             onClose={() => setPlanningProjectId(null)}
-           />
-         )}
-         ```
-      6. Also add "Plan with AI" to the project creation flow: after creating a new project,
-         offer to open the planning modal. This can be a simple button in the create confirmation
-         or auto-open if the user checks a box.
-
-         Simpler approach: just add the button on the card. Users can click it right after creating.
-
-      Note: The modal needs access to boardStore for creating boards/columns/cards.
-      Import useBoardStore or use window.electronAPI directly in the modal.
-      Prefer using boardStore for consistency with existing patterns.
-      BUT boardStore.createBoard/createColumn/createCard may not exist directly...
-
-      Check: boardStore currently has createCard, moveCard, updateCard, deleteCard,
-      and board/column operations are likely in projectStore or via IPC.
-      The modal should use electronAPI directly for board/column creation since boardStore
-      is scoped to the currently loaded board view.
-
-      Actually, looking at the architecture:
-      - Board CRUD goes through IPC: 'boards:create', 'boards:list', etc.
-      - Column CRUD: 'columns:create', etc.
-      - Card CRUD: 'cards:create', etc.
-
-      The modal should call electronAPI.boardCreate, electronAPI.columnCreate,
-      electronAPI.cardCreate directly (these exist in the preload bridge).
-
-      Verify these methods exist in ElectronAPI:
-      - boardCreate(projectId, name): creates board
-      - columnCreate(boardId, name): creates column
-      - cardCreate(columnId, data): creates card
-
-      If not, the modal calls the existing store methods or goes through
-      whatever pattern is used. Check the actual ElectronAPI methods.
-
-      Rather than guessing, instruct the executor to verify what board/column/card
-      creation methods exist on electronAPI and use those.
-    </action>
-    <verify>
-      1. `npx tsc --noEmit` — zero TypeScript errors
-      2. taskStructuringStore.ts exists with plan/breakdown state + 5 actions
-      3. ProjectPlanningModal.tsx renders: context textarea, generate button,
-         loading/error states, pillar tabs with task checkboxes, milestones, apply button
-      4. ProjectsPage has "Plan with AI" button on each project card
-      5. Clicking "Plan with AI" opens ProjectPlanningModal with correct projectId
-      6. Apply creates board + columns + cards via electronAPI
-      7. Modal closes properly (Escape, overlay click, close button, after apply)
-      8. Selected tasks can be toggled via checkboxes
-    </verify>
-    <done>Project planning modal with pillar tabs, task selection, and apply action. Users can generate AI project plans from ProjectsPage and create boards/columns/cards from the suggestions.</done>
-    <confidence>HIGH</confidence>
-    <assumptions>
-      - electronAPI has methods for board/column/card creation (verify during execution)
-      - boardStore or direct electronAPI calls work for creating boards/columns/cards
-      - Lucide has Brain or Sparkles icon (standard lucide icons)
-      - Zustand stores can be imported and used in modal components
-      - 400 lines is within acceptable range for a feature-rich modal
-    </assumptions>
-  </task>
-
-  <task type="auto" n="3">
-    <n>Card task breakdown UI and integration into CardDetailModal</n>
-    <files>
-      src/renderer/components/TaskBreakdownSection.tsx (NEW ~200 lines)
-      src/renderer/components/CardDetailModal.tsx (MODIFY — add breakdown section)
-    </files>
-    <action>
-      ## WHY
-      R11 also requires task breakdown for individual cards — "suggests task breakdown and
-      dependencies." This adds an AI-powered "Break into subtasks" feature to the card detail
-      modal, complementing the project-level planning from Task 2.
-
-      ## WHAT
-
-      ### 3a. Create src/renderer/components/TaskBreakdownSection.tsx
-
-      A section component for the CardDetailModal that generates and displays subtask
-      suggestions, with an "Apply" action to create the subtasks as new cards.
-
-      Props:
-      ```typescript
-      interface TaskBreakdownSectionProps {
-        cardId: string;
-        columnId: string;  // For creating subtask cards in the same column
-      }
-      ```
-
-      Structure:
-      ```
-      ── AI Task Breakdown ──────────────────────────────────
-      [Break into Subtasks]  (button, or [Regenerate] if breakdown exists)
-
-      ◐ Analyzing task...  (loading state)
-
-      ⚠ Error message  (error state)
-
-      Suggested subtasks:
-      ☑ 1. Set up database migration       MED  S
-      ☑ 2. Create API endpoint             HIGH M
-      ☑ 3. Add input validation            HIGH S
-      ☐ 4. Write unit tests                MED  M
-
-      Notes: Consider adding error handling for edge cases...
-
-      [Create Selected as Cards]
-      ─────────────────────────────────────────────────────
-      ```
-
-      State (local):
-      - `selectedSubtasks: Set<number>` — indices of selected subtasks (all selected by default)
-      - `applying: boolean` — loading state during apply
-
-      Behavior:
-      - **Generate button**: calls taskStructuringStore.generateBreakdown(cardId)
-        Uses the store's breakdownLoading/breakdownError/breakdown state.
-      - **Subtask list**: Each subtask has checkbox, order number, title, priority badge, effort badge.
-        Description shown as tooltip or small text below title.
-      - **Select all / deselect all**: Optional toggle at top of list.
-      - **Apply button**: "Create Selected as Cards"
-        For each selected subtask (in order):
-        - Creates a new card in the same column via electronAPI.cardCreate(columnId, {
-            title: subtask.title,
-            description: subtask.description,
-            priority: subtask.priority,
-          })
-        After all created: show brief success message, clear breakdown.
-      - **Notes**: Display the AI's notes section in a muted text block.
-      - **Empty state**: Just the "Break into Subtasks" button with a brief description:
-        "Use AI to break this task into smaller, actionable subtasks."
-
-      Styling:
-      - Section wrapper: same pattern as CommentsSection (collapsible section style)
-      - Section title: `text-sm text-surface-400` with Sparkles or ListTodo icon
-      - Subtask rows: compact, similar to action items in ActionItemList
-      - Priority badges: same color coding as elsewhere
-      - Apply button: `bg-primary-600 text-sm`
-
-      Lucide icons: Sparkles (or ListChecks), Check, Loader2
-
-      ### 3b. Modify CardDetailModal.tsx
-
-      1. Import TaskBreakdownSection
-      2. Add after the CommentsSection (or after RelationshipsSection):
-         ```tsx
-         <div className="mb-5">
-           <TaskBreakdownSection cardId={card.id} columnId={card.columnId} />
-         </div>
-         ```
-
-         Note: card.columnId — verify this field exists on the Card type. The card is passed
-         as a prop. If columnId isn't on the Card type, it may need to be derived from the
-         card's position in the board. Check Card type in shared/types.ts.
-
-         If Card doesn't have columnId, the parent (BoardView) knows which column the card
-         is in. In that case, add columnId to CardDetailModalProps:
-         ```typescript
-         interface CardDetailModalProps {
-           card: Card;
-           columnId: string;  // Add this
-           onUpdate: (id: string, data: UpdateCardInput) => Promise<void>;
-           onClose: () => void;
-         }
-         ```
-         And pass it from wherever CardDetailModal is rendered.
-
-      3. Also clean up: when card detail modal closes, call clearBreakdown() from
-         taskStructuringStore to reset state.
-
-      ### Integration notes
-
-      - The breakdown feature is contextual to a single card. It loads the card + project
-        context automatically via the backend service.
-      - Created subtask cards appear in the same column, so the user sees them immediately
-        when they close the modal and return to the board view.
-      - No new IPC channels needed — Task 1's 'task-structuring:breakdown' handles this.
-    </action>
-    <verify>
-      1. `npx tsc --noEmit` — zero TypeScript errors
-      2. TaskBreakdownSection.tsx renders: generate button, loading/error states,
-         subtask list with checkboxes and badges, apply button, notes section
-      3. CardDetailModal includes TaskBreakdownSection with correct props
-      4. Clicking "Break into Subtasks" calls the AI and displays results
-      5. "Create Selected as Cards" creates cards in the same column
-      6. Subtask selection (checkboxes) works correctly
-      7. Breakdown state is cleared when modal closes
-      8. New cards appear in the board after apply (verify card creation IPC works)
-    </verify>
-    <done>TaskBreakdownSection integrated into CardDetailModal. Users can generate AI subtask suggestions for any card and create them as new cards with one click.</done>
-    <confidence>HIGH</confidence>
-    <assumptions>
-      - Card type has columnId or it can be passed as a prop to CardDetailModal
-      - electronAPI.cardCreate (or equivalent) exists for creating cards in a column
-      - Creating multiple cards sequentially is acceptable (no batch create needed)
-      - The board view auto-refreshes or the user navigates back to see new cards
-      - TaskBreakdownSection at ~200 lines keeps CardDetailModal additions minimal (~5 lines)
+      - Electron's Notification API is supported on Windows 11 (it is — verified for Electron apps)
+      - settings table key-value pattern works for JSON notification preferences
+      - Hourly check interval is sufficient for due date reminders (not time-critical)
+      - No notification icon needed (OS default is acceptable)
+      - cards.dueDate column exists in schema (confirmed — timestamp with timezone, nullable)
+      - drizzle-orm supports isNotNull, lte, and, not operators (standard Drizzle operators)
     </assumptions>
   </task>
 </phase>
