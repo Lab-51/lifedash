@@ -6,6 +6,9 @@
 import { ipcMain } from 'electron';
 import * as brainstormService from '../services/brainstormService';
 import { resolveTaskModel, streamGenerate, logUsage } from '../services/ai-provider';
+import { createLogger } from '../services/logger';
+
+const log = createLogger('Brainstorm');
 
 export function registerBrainstormHandlers(): void {
   ipcMain.handle('brainstorm:list-sessions', async () => {
@@ -70,7 +73,7 @@ export function registerBrainstormHandlers(): void {
       const usage = await result.usage;
       await logUsage(provider.providerId, provider.model, 'brainstorming', usage);
     } catch (err) {
-      console.error('[Brainstorm] Failed to log usage:', err);
+      log.error('Failed to log usage:', err);
     }
 
     // 6. Save and return assistant message

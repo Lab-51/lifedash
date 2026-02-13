@@ -24,7 +24,10 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { aiUsage, aiProviders, settings } from '../db/schema';
 import { decryptString } from './secure-storage';
+import { createLogger } from './logger';
 import type { AIProviderName, TaskModelConfig } from '../../shared/types';
+
+const log = createLogger('AI');
 
 // Default models for connection testing (cheapest per provider)
 const TEST_MODELS: Record<AIProviderName, string> = {
@@ -161,7 +164,7 @@ export async function generate(options: {
       // Cost estimation added in Plan 3.3 (requires pricing table)
     });
   } catch (logError) {
-    console.error('[AI] Failed to log usage:', logError);
+    log.error('Failed to log usage:', logError);
   }
 
   return {
@@ -270,7 +273,7 @@ export async function logUsage(
       totalTokens: usage?.totalTokens ?? 0,
     });
   } catch (error) {
-    console.error('[AI] Failed to log usage:', error);
+    log.error('Failed to log usage:', error);
   }
 }
 

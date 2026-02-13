@@ -20,6 +20,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { RecordingState } from '../../shared/types';
 import * as transcriptionService from './transcriptionService';
+import { createLogger } from './logger';
+
+const log = createLogger('Audio');
 
 let chunks: Buffer[] = [];
 let currentMeetingId: string | null = null;
@@ -58,7 +61,7 @@ export function startRecording(meetingId: string): void {
 
   // Start transcription pipeline (non-blocking, may skip if no model)
   transcriptionService.start(meetingId).catch((err) => {
-    console.error('[Audio] Transcription start failed:', err);
+    log.error('Transcription start failed:', err);
   });
 }
 
@@ -116,8 +119,8 @@ async function saveWav(meetingId: string, pcmBuffer: Buffer): Promise<string> {
   wav.fromScratch(1, 16000, '16', int16);
 
   fs.writeFileSync(filePath, wav.toBuffer());
-  console.log(
-    `[Audio] Saved WAV: ${filePath} (${(pcmBuffer.byteLength / 1024).toFixed(0)} KB)`,
+  log.debug(
+    `Saved WAV: ${filePath} (${(pcmBuffer.byteLength / 1024).toFixed(0)} KB)`,
   );
 
   return filePath;

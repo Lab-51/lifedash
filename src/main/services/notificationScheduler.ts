@@ -16,6 +16,9 @@ import {
   getNotificationPreferences,
   showNotification,
 } from './notificationService';
+import { createLogger } from './logger';
+
+const log = createLogger('NotificationScheduler');
 
 const CHECK_INTERVAL_MS = 3_600_000; // 1 hour
 const STARTUP_DELAY_MS = 30_000; // 30 seconds
@@ -32,18 +35,18 @@ export function initNotificationScheduler(): void {
   // Run first check after a short delay (don't block app startup)
   startupTimeoutId = setTimeout(() => {
     checkAndNotify().catch((err) => {
-      console.error('[NotificationScheduler] Initial check failed:', err);
+      log.error('Initial check failed:', err);
     });
   }, STARTUP_DELAY_MS);
 
   // Then check every hour
   intervalId = setInterval(() => {
     checkAndNotify().catch((err) => {
-      console.error('[NotificationScheduler] Scheduled check failed:', err);
+      log.error('Scheduled check failed:', err);
     });
   }, CHECK_INTERVAL_MS);
 
-  console.log('[NotificationScheduler] Scheduler initialized');
+  log.info('Scheduler initialized');
 }
 
 /**
@@ -59,7 +62,7 @@ export function stopNotificationScheduler(): void {
     intervalId = null;
   }
   lastDigestDate = null;
-  console.log('[NotificationScheduler] Scheduler stopped');
+  log.info('Scheduler stopped');
 }
 
 /**
@@ -84,7 +87,7 @@ export async function checkAndNotify(): Promise<void> {
       await checkDailyDigest(preferences.dailyDigestHour);
     }
   } catch (err) {
-    console.error('[NotificationScheduler] Check failed:', err);
+    log.error('Check failed:', err);
     // Never throw from background scheduler
   }
 }
@@ -137,7 +140,7 @@ async function checkDueDateReminders(): Promise<void> {
       );
     }
   } catch (err) {
-    console.error('[NotificationScheduler] Due date check failed:', err);
+    log.error('Due date check failed:', err);
   }
 }
 
@@ -202,6 +205,6 @@ async function checkDailyDigest(digestHour: number): Promise<void> {
 
     lastDigestDate = todayStr;
   } catch (err) {
-    console.error('[NotificationScheduler] Daily digest check failed:', err);
+    log.error('Daily digest check failed:', err);
   }
 }

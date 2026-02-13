@@ -14,6 +14,7 @@
 import { ipcMain } from 'electron';
 import { eq, and, asc, desc, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
+import { createLogger } from '../services/logger';
 import {
   cards,
   cardLabels,
@@ -37,6 +38,8 @@ import type {
 } from '../../shared/types';
 import { buildCardLabelMap } from '../../shared/utils/card-utils';
 
+const log = createLogger('Cards');
+
 /**
  * Fire-and-forget activity log insertion.
  * Does not throw — activity logging should never break primary operations.
@@ -53,7 +56,7 @@ function logCardActivity(
       action: action as (typeof cardActivityActionEnum.enumValues)[number],
       details: details ? JSON.stringify(details) : null,
     })
-    .catch((err: unknown) => console.error('Activity log error:', err));
+    .catch((err: unknown) => log.error('Activity log error:', err));
 }
 
 export function registerCardHandlers(): void {

@@ -1,553 +1,497 @@
-# Plan 8.2 — README, Within-Column Card Reordering, and UI Polish
+# Plan 8.3 — Structured Logging, Zod IPC Validation, and BoardColumn Extraction
 
-**Source:** REVIEW.md findings (2026-02-13) — priorities #3 and #5, plus quick wins
-**Scope:** Create README.md (critical documentation gap), implement within-column card reordering (most visibly missing Kanban feature), and batch quick UI fixes (padding, code dedup, confirmation)
-**Approach:** One documentation task, one feature task, one polish batch — all independent, parallelizable.
+**Source:** REVIEW.md findings (2026-02-13) — structured logging (MEDIUM), IPC validation (MEDIUM), component refactoring (HIGH)
+**Scope:** Create structured logger and migrate main-process logging, add Zod validation to the first IPC module (projects.ts as pilot), extract BoardColumn from BoardPage to its own file.
+**Approach:** Infrastructure task, validation pilot, and one safe extraction — all touching different file areas, potentially parallelizable.
 
-## Review Triage (continued from Plan 8.1)
+## Scope Rationale
 
-| Finding | Severity | This Plan? | Rationale |
-|---------|----------|-----------|-----------|
-| No README.md | HIGH | Task 1 | #3 review priority, developer cloning repo has zero guidance |
-| Missing within-column card reordering | HIGH | Task 2 | #5 review priority, most visibly missing Kanban feature |
-| BrainstormPage padding inconsistency | LOW | Task 3 | Quick fix, 1 line |
-| getDueDateBadge duplication | LOW | Task 3 | Extract to shared util, remove 2 copies |
-| restoreFromFile lacks confirmation | LOW | Task 3 | Small UX safety improvement |
-| IPC input validation (Zod) | MEDIUM | Plan 8.3 | 60+ channels, needs dedicated plan |
-| Structured logging | MEDIUM | Plan 8.3 | 67 console calls across 23 files |
-| Component refactoring | HIGH | Plan 8.3 | 3 oversized components need careful decomposition |
+The full review findings (104 IPC handlers, 67 console calls, 9 oversized components) are too large for one plan. This plan tackles:
+- **Structured logging:** All 50 main-process calls (complete migration)
+- **Zod validation:** Pilot on projects.ts (9 handlers) + reusable infrastructure
+- **Component refactoring:** BoardColumn extraction (safest, highest-impact extraction)
+
+Remaining work deferred to Plan 8.4:
+- Zod validation for remaining 95 IPC handlers
+- Renderer-side logging (17 calls)
+- IdeaDetailModal (814 lines) + CardDetailModal (502 lines) decomposition
 
 ---
 
-<phase n="8.2" name="README, Within-Column Card Reordering, and UI Polish">
+<phase n="8.3" name="Structured Logging, Zod IPC Validation, and BoardColumn Extraction">
   <context>
-    Post-review improvement plan (continued from Plan 8.1). The project review graded B-
-    with missing README (#3 priority), missing within-column card reordering (#5 priority),
-    and several quick UI polish items.
+    Post-review improvement plan (continued from Plan 8.2). The project review identified
+    three systematic issues: raw console logging (67 calls, no structure), zero IPC input
+    validation (104 handlers accept unvalidated data), and 9 oversized components.
+
+    This plan addresses all three areas with scoped, achievable tasks.
 
     Key files:
-    @src/renderer/pages/BoardPage.tsx — drag monitor (lines 299-324), column drop targets (lines 56-69)
-    @src/renderer/components/KanbanCard.tsx — draggable setup (lines 77-93), getDueDateBadge (lines 29-50)
-    @src/renderer/components/CardDetailModal.tsx — getDueDateBadge (lines 106-126)
-    @src/renderer/pages/BrainstormPage.tsx — page wrapper (line 100-101, uses `space-y-4` only)
-    @src/renderer/components/settings/BackupSection.tsx — restore handlers (lines 87-89, 118)
-    @src/renderer/stores/boardStore.ts — moveCard (lines 185-190)
-    @package.json — dependencies
+    @src/main/services/ — 10 files with 39 console calls (transcriptionService has 12 alone)
+    @src/main/main.ts — 4 console calls (startup/shutdown lifecycle)
+    @src/main/ipc/ — 1 console call (cards.ts)
+    @src/main/ipc/projects.ts — 9 IPC handlers, 6 input types already defined in types.ts
+    @src/shared/types.ts — 24 input interfaces (CreateProjectInput, UpdateProjectInput, etc.)
+    @src/renderer/pages/BoardPage.tsx — 620 lines, BoardColumn nested at lines 27-205
 
     Already confirmed:
-    - `@atlaskit/pragmatic-drag-and-drop` v1.7.7 installed (core only)
-    - `@atlaskit/pragmatic-drag-and-drop-hitbox` v1.1.0 available on npm (edge detection for reordering)
-    - BoardPage.tsx line 314: `if (sourceColumnId === targetColumnId) return;` explicitly skips same-column drops
-    - All other pages use `p-6` wrapper; BrainstormPage uses only `space-y-4`
-    - getDueDateBadge is nearly identical in KanbanCard.tsx:30-50 and CardDetailModal.tsx:107-126
-    - BackupSection has inline confirmation for listed backups but restoreFromFile (line 118) has none
-    - No README.md exists at project root
+    - Zod v3.25.76 available as transitive dependency (via AI SDK), NOT in package.json directly
+    - 50 console calls in main process across 12 files
+    - All logging uses [Prefix] convention (e.g., [Transcription], [AutoBackup], [DB])
+    - BoardColumn is a named function component with explicit BoardColumnProps interface
+    - BoardColumn is used only in BoardPage.tsx (no other imports)
+    - projects.ts imports 6 input types: Create/Update for Project, Board, Column
   </context>
 
   <task type="auto" n="1">
-    <n>Create README.md with project overview and developer quick start</n>
-    <files>README.md (NEW)</files>
+    <n>Create structured logger and migrate all main-process logging</n>
+    <files>
+      src/main/services/logger.ts (NEW)
+      src/main/main.ts (MODIFY)
+      src/main/ipc/cards.ts (MODIFY)
+      src/main/ipc/brainstorm.ts (MODIFY)
+      src/main/services/ai-provider.ts (MODIFY)
+      src/main/services/audioProcessor.ts (MODIFY)
+      src/main/services/autoBackupScheduler.ts (MODIFY)
+      src/main/services/backupService.ts (MODIFY)
+      src/main/services/notificationScheduler.ts (MODIFY)
+      src/main/services/notificationService.ts (MODIFY)
+      src/main/services/speakerDiarizationService.ts (MODIFY)
+      src/main/services/transcriptionProviderService.ts (MODIFY)
+      src/main/services/transcriptionService.ts (MODIFY)
+    </files>
     <action>
       ## WHY
-      No README.md exists. A developer cloning this repo has zero guidance on prerequisites,
-      setup, or how to run the application. The review estimates onboarding time drops from
-      2-4 hours to 30-60 minutes with a good README. This is #3 review priority.
+      The project has 50 raw console.log/error/warn calls in the main process with no
+      structure, no log levels, and no timestamps. A structured logger improves debuggability,
+      enables filtering by level/prefix, and provides timestamps. The existing [Prefix]
+      convention is a good foundation to build on.
 
       ## WHAT
 
-      Create README.md at project root. Read PROJECT.md, ROADMAP.md, package.json, and
-      docker-compose.yml to ensure accuracy. The README should include:
+      ### Create src/main/services/logger.ts
 
-      ### Section 1: Project Title + One-Line Description
-      "Living Dashboard" — AI-powered desktop dashboard for meeting intelligence, project
-      management, brainstorming, and idea tracking.
+      A lightweight logger — NOT a full library (no winston/pino needed for a desktop app).
+      The logger wraps console methods with structure:
 
-      ### Section 2: Features (bullet list)
-      - Meeting recording + real-time transcription (local Whisper + API fallback)
-      - Kanban project management with drag-and-drop
-      - AI-powered meeting briefs and action item extraction
-      - Conversational AI brainstorming
-      - AI task structuring and project planning
-      - Idea repository with tags, analysis, and project conversion
-      - Multi-provider AI support (OpenAI, Anthropic, Ollama, Deepgram, AssemblyAI)
-      - Database backup/restore and data export
-      - Desktop notifications for due dates and daily digest
-      - Dark theme UI with system tray integration
+      ```typescript
+      // === FILE PURPOSE ===
+      // Structured logger for main process. Wraps console with levels, timestamps, and prefixes.
 
-      ### Section 3: Prerequisites
-      - Node.js 18+ (verify actual minimum from package.json engines or tsconfig target)
-      - Docker Desktop (for PostgreSQL 16)
-      - Git
+      export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-      ### Section 4: Quick Start
-      ```bash
-      git clone [repo-url]
-      cd living-dashboard
-      npm install
-      docker compose up -d     # Start PostgreSQL
-      npm start                # Launch in development mode
+      const LOG_LEVELS: Record<LogLevel, number> = {
+        debug: 0,
+        info: 1,
+        warn: 2,
+        error: 3,
+      };
+
+      let currentLevel: LogLevel = 'info';
+
+      export function setLogLevel(level: LogLevel): void {
+        currentLevel = level;
+      }
+
+      function shouldLog(level: LogLevel): boolean {
+        return LOG_LEVELS[level] >= LOG_LEVELS[currentLevel];
+      }
+
+      function formatTimestamp(): string {
+        return new Date().toISOString().slice(11, 23); // HH:mm:ss.SSS
+      }
+
+      function formatMessage(level: LogLevel, prefix: string, message: string, ...args: unknown[]): void {
+        if (!shouldLog(level)) return;
+        const tag = `${formatTimestamp()} [${level.toUpperCase().padEnd(5)}] [${prefix}]`;
+        switch (level) {
+          case 'error':
+            console.error(tag, message, ...args);
+            break;
+          case 'warn':
+            console.warn(tag, message, ...args);
+            break;
+          default:
+            console.log(tag, message, ...args);
+            break;
+        }
+      }
+
+      /** Create a scoped logger with a fixed prefix */
+      export function createLogger(prefix: string) {
+        return {
+          debug: (message: string, ...args: unknown[]) => formatMessage('debug', prefix, message, ...args),
+          info: (message: string, ...args: unknown[]) => formatMessage('info', prefix, message, ...args),
+          warn: (message: string, ...args: unknown[]) => formatMessage('warn', prefix, message, ...args),
+          error: (message: string, ...args: unknown[]) => formatMessage('error', prefix, message, ...args),
+        };
+      }
       ```
 
-      ### Section 5: Available Scripts
-      Table format from package.json scripts:
-      | Script | Description |
-      | `npm start` | Start development server |
-      | `npm run package` | Package for distribution |
-      | `npm run make` | Build distributable |
-      | `npm test` | Run tests |
-      | `npm run test:watch` | Run tests in watch mode |
-      | `npm run db:generate` | Generate Drizzle migration |
-      | `npm run db:migrate` | Apply migrations |
-      | `npm run db:studio` | Open Drizzle Studio |
-      | `npm run db:up` | Start PostgreSQL container |
-      | `npm run db:down` | Stop PostgreSQL container |
+      ### Migrate all 50 main-process console calls
 
-      ### Section 6: Tech Stack (compact table)
-      | Layer | Technology |
-      | Desktop Shell | Electron 40 |
-      | Frontend | React 19, TypeScript 5.9, Tailwind CSS 4 |
-      | Database | PostgreSQL 16 (Docker), Drizzle ORM |
-      | AI | Vercel AI SDK 6, OpenAI, Anthropic, Ollama |
-      | Transcription | Whisper (local), Deepgram, AssemblyAI |
-      | Drag-and-drop | @atlaskit/pragmatic-drag-and-drop |
-      | Rich text | TipTap |
-      | State | Zustand |
+      For each file, create a scoped logger at the top and replace console calls:
 
-      ### Section 7: Project Structure (abbreviated tree)
-      ```
-      src/
-        main/           # Electron main process
-          db/            # Schema, migrations, connection
-          ipc/           # IPC handlers (60+ channels)
-          services/      # Business logic services
-        preload/         # Electron preload bridge
-        renderer/        # React frontend
-          components/    # Reusable components
-          pages/         # Route pages
-          stores/        # Zustand state management
-        shared/          # Types and utilities shared across processes
-      ```
+      **Migration rules:**
+      - `console.log('[Prefix] message')` → `log.info('message')` (prefix moves to createLogger)
+      - `console.error('[Prefix] message:', err)` → `log.error('message:', err)`
+      - `console.warn(...)` → `log.warn(...)`
+      - `console.log(...)` for debug/progress → `log.debug(...)` or `log.info(...)` based on context
+      - Status messages (startup, connected, etc.) → `log.info(...)`
+      - Error handling → `log.error(...)`
+      - Progress/diagnostic (word counts, fallback decisions) → `log.debug(...)`
 
-      ### Section 8: Configuration
-      - Copy `.env.example` to `.env` for custom database settings
-      - AI API keys: configured in Settings page (stored with OS-level encryption)
-      - Whisper model: download from Settings page
+      **File-by-file migration (50 calls across 12 files):**
 
-      ### Section 9: License
-      "This project is not currently licensed for public distribution."
-      (No LICENSE file exists — state this honestly.)
+      | File | Calls | Logger Prefix |
+      |------|-------|---------------|
+      | transcriptionService.ts | 12 | Transcription |
+      | autoBackupScheduler.ts | 9 | AutoBackup |
+      | notificationScheduler.ts | 7 | Notifications |
+      | speakerDiarizationService.ts | 4 | Diarization |
+      | main.ts | 4 | App |
+      | notificationService.ts | 3 | Notifications |
+      | backupService.ts | 3 | Backup |
+      | ai-provider.ts | 2 | AI |
+      | audioProcessor.ts | 2 | Audio |
+      | transcriptionProviderService.ts | 2 | TranscriptionProvider |
+      | cards.ts (IPC) | 1 | Cards |
+      | brainstorm.ts (IPC) | 1 | Brainstorm |
 
-      IMPORTANT: Keep the README concise and accurate. Do NOT fabricate setup steps you
-      haven't verified. Read the actual files to ensure all script names and descriptions
-      are correct.
+      NOTE: notificationScheduler.ts and notificationService.ts can share the same
+      prefix 'Notifications' since they're the same subsystem, OR use distinct prefixes
+      'NotificationScheduler' and 'NotificationService' if the existing [Prefix] differs.
+      Check the actual prefix strings in each file and match them.
+
+      IMPORTANT: Read each file before modifying. Preserve the exact log message content
+      — only change the call site pattern. The [Prefix] text that was inline in each
+      console call should be REMOVED from the message string since it's now provided
+      by createLogger.
     </action>
     <verify>
-      1. README.md exists at project root
-      2. All script names match actual package.json scripts
-      3. Tech stack versions match actual package.json dependencies
-      4. Prerequisites listed (Node.js, Docker, Git)
-      5. Quick start includes: clone, npm install, docker compose up -d, npm start
-      6. Project structure tree matches actual directory layout
-      7. No fabricated URLs or links (except placeholder for clone URL)
+      1. `npx tsc --noEmit` — zero TypeScript errors
+      2. logger.ts exists in src/main/services/
+      3. Zero `console.log`, `console.error`, or `console.warn` calls remain in src/main/
+         (search with grep to confirm — exception: the logger.ts file itself uses console internally)
+      4. Each migrated file has `const log = createLogger('...')` at the top
+      5. `npm test` — all 12 tests still pass
     </verify>
     <done>
-      README.md exists with project overview, features, prerequisites, quick start,
-      scripts table, tech stack, project structure, and configuration notes.
-      All content verified against actual project files.
+      Structured logger created. All 50 main-process console calls migrated to
+      log.info/warn/error/debug. Zero raw console calls remain in main process
+      (except inside logger.ts itself). TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - docker-compose.yml exists and uses `docker compose` command (not `docker-compose`)
-      - .env.example exists with database configuration
-      - No specific Node.js engine version is specified in package.json (will use 18+ as safe minimum)
+      - A lightweight custom logger is sufficient (no need for winston/pino in a desktop app)
+      - The [Prefix] convention in existing logs maps cleanly to createLogger prefixes
+      - Renderer-side logging (17 calls) is intentionally deferred to Plan 8.4
+      - Debug level won't be visible by default (currentLevel starts at 'info')
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Implement within-column card reordering via drag-and-drop</n>
+    <n>Add Zod IPC validation — infrastructure + projects.ts pilot</n>
     <files>
-      package.json (MODIFY — add @atlaskit/pragmatic-drag-and-drop-hitbox)
-      src/renderer/components/KanbanCard.tsx (MODIFY — add drop target with edge detection)
-      src/renderer/pages/BoardPage.tsx (MODIFY — update drag monitor for same-column + cross-column)
+      package.json (MODIFY — add zod as direct dependency)
+      src/shared/validation/schemas.ts (NEW — Zod schemas for project/board/column inputs)
+      src/shared/validation/ipc-validator.ts (NEW — withValidation wrapper)
+      src/main/ipc/projects.ts (MODIFY — apply validation to all 9 handlers)
     </files>
     <action>
       ## WHY
-      Within-column card reordering is the #5 review priority and the most visibly missing
-      Kanban feature. BoardPage.tsx line 314 explicitly returns early for same-column drops:
-      `if (sourceColumnId === targetColumnId) return;`. Users can drag cards between columns
-      but cannot reorder cards within a column, which is a fundamental Kanban expectation.
+      All 104 IPC handlers accept parameters without runtime validation. TypeScript types
+      provide compile-time safety but IPC calls come from the renderer process at runtime —
+      malformed data can cause uncaught errors or corrupt the database. Zod validation at
+      the IPC boundary catches bad input early with clear error messages.
+
+      This task establishes the validation pattern on one module (projects.ts, 9 handlers)
+      as a pilot. The pattern can then be applied to remaining handlers incrementally.
 
       ## WHAT
 
-      ### Step 1: Install hitbox addon
+      ### Step 1: Add Zod as direct dependency
 
-      Run: `npm install @atlaskit/pragmatic-drag-and-drop-hitbox`
+      Run: `npm install zod`
 
-      This provides `attachClosestEdge` and `extractClosestEdge` for determining whether
-      a drop occurred on the top or bottom edge of a target card.
+      Zod v3.25.76 is already available as a transitive dependency via AI SDK, but it
+      should be listed explicitly in package.json for clarity.
 
-      ### Step 2: Make KanbanCard a drop target (KanbanCard.tsx)
+      ### Step 2: Create Zod schemas (src/shared/validation/schemas.ts)
 
-      Add imports:
-      ```typescript
-      import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
-      import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
-      ```
-
-      Add a `closestEdge` state:
-      ```typescript
-      const [closestEdge, setClosestEdge] = useState<'top' | 'bottom' | null>(null);
-      ```
-
-      Register the card as a drop target (in a new useEffect alongside the draggable one):
-      ```typescript
-      useEffect(() => {
-        const el = cardRef.current;
-        if (!el) return;
-
-        return dropTargetForElements({
-          element: el,
-          canDrop: ({ source }) => source.data.type === 'card' && source.data.cardId !== card.id,
-          getData: ({ input, element }) => {
-            const data = { type: 'card', cardId: card.id, columnId: card.columnId, position: card.position };
-            return attachClosestEdge(data, { input, element, allowedEdges: ['top', 'bottom'] });
-          },
-          onDragEnter: ({ self }) => {
-            setClosestEdge(extractClosestEdge(self.data));
-          },
-          onDrag: ({ self }) => {
-            setClosestEdge(extractClosestEdge(self.data));
-          },
-          onDragLeave: () => setClosestEdge(null),
-          onDrop: () => setClosestEdge(null),
-        });
-      }, [card.id, card.columnId, card.position]);
-      ```
-
-      Add a visual drop indicator line. In the card's JSX, add a blue line indicator
-      showing where the card will be inserted:
-
-      ```tsx
-      {/* Drop indicator — shows where the card will be placed */}
-      {closestEdge === 'top' && (
-        <div className="absolute -top-0.5 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
-      )}
-      {closestEdge === 'bottom' && (
-        <div className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
-      )}
-      ```
-
-      Ensure the card's outer div has `relative` in its className for absolute positioning.
-
-      ### Step 3: Update BoardPage drag monitor (BoardPage.tsx)
-
-      Replace the existing drag monitor (lines 299-324) with a version that handles
-      both same-column reordering AND cross-column moves:
+      Read the input interfaces from src/shared/types.ts (lines 64-96 for project/board/column
+      types) and create matching Zod schemas:
 
       ```typescript
-      // Board-level drag monitor — handles card moves (cross-column and within-column reorder)
-      useEffect(() => {
-        return monitorForElements({
-          canMonitor: ({ source }) => source.data.type === 'card',
-          onDrop: ({ source, location }) => {
-            const dropTargets = location.current.dropTargets;
-            if (dropTargets.length === 0) return;
+      // === FILE PURPOSE ===
+      // Zod validation schemas for IPC input types.
+      // Each schema mirrors a TypeScript interface from shared/types.ts.
+      // Used by the IPC validation wrapper to validate incoming data at runtime.
 
-            const cardId = source.data.cardId as string;
-            const sourceColumnId = source.data.sourceColumnId as string;
-            const sourcePosition = source.data.sourcePosition as number;
+      import { z } from 'zod';
 
-            // Check if we dropped on a card (reorder) or just a column (append)
-            const cardTarget = dropTargets.find(t => t.data.type === 'card');
-            const columnTarget = dropTargets.find(t => t.data.columnId && t.data.type !== 'card');
+      // --- ID validation (reusable) ---
+      const uuid = z.string().uuid();
 
-            if (cardTarget) {
-              // Dropped on a specific card — insert above or below it
-              const targetColumnId = cardTarget.data.columnId as string;
-              const targetPosition = cardTarget.data.position as number;
-              const edge = extractClosestEdge(cardTarget.data);
+      // --- Projects ---
+      export const createProjectInputSchema = z.object({
+        name: z.string().min(1).max(200),
+        description: z.string().max(2000).optional(),
+        color: z.string().max(50).optional(),
+      });
 
-              let newPosition: number;
-              if (sourceColumnId === targetColumnId) {
-                // Same-column reorder
-                if (edge === 'top') {
-                  newPosition = sourcePosition < targetPosition ? targetPosition - 1 : targetPosition;
-                } else {
-                  newPosition = sourcePosition < targetPosition ? targetPosition : targetPosition + 1;
-                }
-                // No-op if position didn't change
-                if (newPosition === sourcePosition) return;
-              } else {
-                // Cross-column: insert at target position
-                newPosition = edge === 'top' ? targetPosition : targetPosition + 1;
-              }
+      export const updateProjectInputSchema = z.object({
+        name: z.string().min(1).max(200).optional(),
+        description: z.string().max(2000).nullable().optional(),
+        color: z.string().max(50).nullable().optional(),
+        archived: z.boolean().optional(),
+      });
 
-              moveCard(cardId, targetColumnId, newPosition);
-            } else if (columnTarget) {
-              // Dropped on empty area of column — append to end
-              const targetColumnId = columnTarget.data.columnId as string;
-              if (sourceColumnId === targetColumnId) return; // No-op for same column
-              const targetCards = getCardsByColumn(cards, targetColumnId);
-              moveCard(cardId, targetColumnId, targetCards.length);
-            }
+      // --- Boards ---
+      export const createBoardInputSchema = z.object({
+        projectId: uuid,
+        name: z.string().min(1).max(200),
+      });
 
-            setDragOverColumnId(null);
-          },
-        });
-      }, [cards, moveCard]);
+      export const updateBoardInputSchema = z.object({
+        name: z.string().min(1).max(200).optional(),
+      });
+
+      // --- Columns ---
+      export const createColumnInputSchema = z.object({
+        boardId: uuid,
+        name: z.string().min(1).max(200),
+        position: z.number().int().min(0),
+      });
+
+      export const updateColumnInputSchema = z.object({
+        name: z.string().min(1).max(200).optional(),
+        position: z.number().int().min(0).optional(),
+      });
+
+      // --- Common ---
+      export const idParamSchema = uuid;
       ```
 
-      Add the `extractClosestEdge` import at the top of BoardPage.tsx:
-      ```typescript
-      import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
-      ```
+      IMPORTANT: Read the actual TypeScript interfaces in types.ts to ensure the Zod
+      schemas match exactly. Check which fields are optional, nullable, or have
+      specific constraints. Do NOT guess — verify against the source.
 
-      ### Step 4: Update cards:move IPC handler for position reordering
-
-      The current `cards:move` handler (src/main/ipc/cards.ts) just sets the new
-      columnId + position but doesn't shift other cards. For within-column reordering to
-      work properly, we need to reorder positions of sibling cards.
-
-      Modify the `cards:move` handler to:
-      1. If column changed OR position changed, shift sibling card positions
-      2. Use a simple approach: set the moved card's position, then re-index all cards
-         in the target column by their existing order
+      ### Step 3: Create IPC validation wrapper (src/shared/validation/ipc-validator.ts)
 
       ```typescript
-      ipcMain.handle(
-        'cards:move',
-        async (_event, id: string, columnId: string, position: number) => {
-          const db = getDb();
+      // === FILE PURPOSE ===
+      // Reusable IPC validation wrapper. Validates handler parameters using Zod schemas
+      // before executing the handler logic. Returns structured errors on validation failure.
 
-          // Update the card's column and position
-          const [card] = await db
-            .update(cards)
-            .set({ columnId, position, updatedAt: new Date() })
-            .where(eq(cards.id, id))
-            .returning();
+      import { z } from 'zod';
 
-          // Re-index all non-archived cards in the target column to close gaps
-          const columnCards = await db
-            .select({ id: cards.id })
-            .from(cards)
-            .where(and(eq(cards.columnId, columnId), eq(cards.archived, false)))
-            .orderBy(asc(cards.position), asc(cards.updatedAt));
-
-          for (let i = 0; i < columnCards.length; i++) {
-            if (i !== columnCards[i].position) {
-              await db.update(cards).set({ position: i }).where(eq(cards.id, columnCards[i].id));
-            }
-          }
-
-          logCardActivity(id, 'moved', { columnId, position });
-          return card;
-        },
-      );
+      /** Validate IPC handler input against a Zod schema */
+      export function validateInput<T>(schema: z.ZodType<T>, data: unknown): T {
+        const result = schema.safeParse(data);
+        if (!result.success) {
+          const issues = result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+          throw new Error(`Validation failed: ${issues}`);
+        }
+        return result.data;
+      }
       ```
 
-      Wait — this approach has a problem. The card we just moved already has the new
-      position, but other cards haven't been shifted yet. A cleaner approach:
+      This is deliberately simple — a function, not a decorator or middleware pattern.
+      Handlers call `validateInput(schema, data)` at the top of their handler body.
+      If validation fails, it throws an Error that Electron IPC propagates to the renderer.
 
+      ### Step 4: Apply validation to projects.ts (9 handlers)
+
+      Read src/main/ipc/projects.ts and modify each handler to validate inputs.
+
+      **For handlers that receive typed objects:**
       ```typescript
-      ipcMain.handle(
-        'cards:move',
-        async (_event, id: string, columnId: string, position: number) => {
-          const db = getDb();
+      // Before:
+      ipcMain.handle('projects:create', async (_event, data: CreateProjectInput) => {
+        const db = getDb();
+        // ...
+      });
 
-          // Get all non-archived cards in target column (excluding the moved card)
-          const siblingsInTarget = await db
-            .select()
-            .from(cards)
-            .where(
-              and(
-                eq(cards.columnId, columnId),
-                eq(cards.archived, false),
-              ),
-            )
-            .orderBy(asc(cards.position));
-
-          // Remove the moved card from the list (it may already be in this column)
-          const filtered = siblingsInTarget.filter(c => c.id !== id);
-
-          // Insert at the requested position
-          const reordered = [...filtered];
-          reordered.splice(position, 0, { id } as typeof cards.$inferSelect);
-
-          // Update all positions in one pass
-          for (let i = 0; i < reordered.length; i++) {
-            await db.update(cards).set({ position: i, ...(reordered[i].id === id ? { columnId, updatedAt: new Date() } : {}) }).where(eq(cards.id, reordered[i].id));
-          }
-
-          // Return the updated card
-          const [updated] = await db.select().from(cards).where(eq(cards.id, id));
-
-          logCardActivity(id, 'moved', { columnId, position });
-          return updated;
-        },
-      );
+      // After:
+      ipcMain.handle('projects:create', async (_event, data: unknown) => {
+        const input = validateInput(createProjectInputSchema, data);
+        const db = getDb();
+        // use input.name, input.description, etc.
+      });
       ```
 
-      The executor should implement a clean version of this. The key requirements are:
-      1. Get sibling cards in target column (sorted by position)
-      2. Remove the dragged card from the list
-      3. Insert it at the requested position index
-      4. Update all card positions to match their array index
-      5. Return the updated card
+      **For handlers that receive primitive ID params:**
+      ```typescript
+      // Before:
+      ipcMain.handle('projects:get', async (_event, id: string) => { ... });
 
-      NOTE: This replaces the existing `cards:move` handler (lines 162-174 in cards.ts).
+      // After:
+      ipcMain.handle('projects:get', async (_event, id: unknown) => {
+        const validId = validateInput(idParamSchema, id);
+        // use validId
+      });
+      ```
+
+      **For list handlers with no params:**
+      No validation needed (projects:list takes no arguments).
+
+      Apply to all 9 handlers in projects.ts:
+      1. projects:list — no params, skip
+      2. projects:create — validate CreateProjectInput
+      3. projects:get — validate id (UUID)
+      4. projects:update — validate id + UpdateProjectInput
+      5. projects:delete — validate id
+      6. boards:create — validate CreateBoardInput
+      7. boards:update — validate id + UpdateBoardInput
+      8. columns:create — validate CreateColumnInput
+      9. columns:update — validate id + UpdateColumnInput
+
+      NOTE: There may also be boards:list-by-project, columns:list-by-board, etc.
+      Read the file to find ALL handlers and validate all that take parameters.
+
+      Add imports at the top of projects.ts:
+      ```typescript
+      import { validateInput } from '../../shared/validation/ipc-validator';
+      import {
+        createProjectInputSchema,
+        updateProjectInputSchema,
+        createBoardInputSchema,
+        updateBoardInputSchema,
+        createColumnInputSchema,
+        updateColumnInputSchema,
+        idParamSchema,
+      } from '../../shared/validation/schemas';
+      ```
+
+      Change parameter types from specific types to `unknown` to enforce runtime
+      validation. The Zod schema provides the runtime guarantee that TypeScript
+      types previously only provided at compile time.
     </action>
     <verify>
-      1. `npm install` completes (new dependency added)
-      2. `npx tsc --noEmit` — zero TypeScript errors
-      3. KanbanCard has both `draggable()` and `dropTargetForElements()` registered
-      4. KanbanCard shows a blue drop indicator line on drag hover (top or bottom edge)
-      5. BoardPage drag monitor handles both same-column AND cross-column drops
-      6. The `if (sourceColumnId === targetColumnId) return;` line is REMOVED
-      7. cards:move handler reorders sibling positions in the target column
-      8. Dragging a card within the same column updates its position correctly
-      9. Cross-column drag still works (existing functionality preserved)
+      1. `npx tsc --noEmit` — zero TypeScript errors
+      2. `npm test` — all tests pass
+      3. zod appears in package.json dependencies (not just devDependencies)
+      4. src/shared/validation/schemas.ts exists with 6+ schemas
+      5. src/shared/validation/ipc-validator.ts exists with validateInput function
+      6. Every handler in projects.ts that takes parameters calls validateInput()
+      7. Parameter types changed from specific types to `unknown` where validation added
+      8. No handler in projects.ts directly uses unvalidated params (all go through schema)
     </verify>
     <done>
-      Within-column card reordering works via drag-and-drop. Cards show a blue
-      insertion indicator. Both same-column reorder and cross-column move are supported.
-      cards:move handler properly reindexes sibling positions. TypeScript compiles clean.
+      Zod added as direct dependency. Validation schemas created for project/board/column
+      inputs. validateInput wrapper created. All projects.ts handlers validated with
+      Zod schemas. Pattern documented and ready for incremental rollout to remaining
+      95 handlers. TypeScript compiles clean.
     </done>
     <confidence>MEDIUM</confidence>
     <assumptions>
-      - @atlaskit/pragmatic-drag-and-drop-hitbox v1.1.0 is compatible with core v1.7.7
-      - extractClosestEdge returns 'top' | 'bottom' | null from the attached edge data
-      - attachClosestEdge adds edge data to the getData response
-      - The position reindexing approach (fetch siblings, splice, update all) is correct
-        for PostgreSQL integer positions
-      - Multiple sequential DB updates for position reindexing is acceptable (small card counts
-        per column, typically 5-20 cards)
+      - Zod v3.25.76 (transitive) is compatible as direct dependency (no version conflicts)
+      - The 6 input types in types.ts have fields that map cleanly to Zod types
+      - Changing handler param types from specific to `unknown` is safe since Zod provides the typing
+      - UUID validation via z.string().uuid() matches the actual ID format used by the DB
+      - Simple function wrapper (not middleware) is sufficient for the pattern
+      - Remaining 95 handlers can follow the same pattern in future plans
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>UI polish batch — BrainstormPage padding, getDueDateBadge extraction, restore confirmation</n>
+    <n>Extract BoardColumn component from BoardPage to its own file</n>
     <files>
-      src/renderer/pages/BrainstormPage.tsx (MODIFY — add p-6 wrapper)
-      src/renderer/utils/date-utils.ts (NEW — shared getDueDateBadge)
-      src/renderer/components/KanbanCard.tsx (MODIFY — import from shared util)
-      src/renderer/components/CardDetailModal.tsx (MODIFY — import from shared util)
-      src/renderer/components/settings/BackupSection.tsx (MODIFY — add restoreFromFile confirmation)
+      src/renderer/components/BoardColumn.tsx (NEW)
+      src/renderer/pages/BoardPage.tsx (MODIFY)
     </files>
     <action>
       ## WHY
-      Three quick wins from the review: inconsistent page padding, duplicated utility function,
-      and a missing safety confirmation. Each is 5-15 lines of change, but together they
-      polish the UI and reduce code duplication.
+      BoardPage.tsx is 620 lines — the second-largest React file. Lines 25-205 contain
+      BoardColumn, a fully-defined function component with its own interface (BoardColumnProps)
+      that is nested inside BoardPage.tsx. Extracting it to its own file immediately reduces
+      BoardPage to ~415 lines and makes BoardColumn independently testable and reusable.
+
+      This is the safest refactoring because:
+      1. BoardColumn is already a named function (not an inline component)
+      2. It has an explicit props interface (BoardColumnProps)
+      3. It uses no closured state from BoardPage (all data passed via props)
+      4. It's used in only one place (BoardPage.tsx)
 
       ## WHAT
 
-      ### Fix A: BrainstormPage padding
+      ### Step 1: Read BoardPage.tsx to understand the extraction boundary
 
-      In BrainstormPage.tsx, line 101, change:
-      ```tsx
-      <div className="space-y-4">
-      ```
-      to:
-      ```tsx
-      <div className="p-6 space-y-4">
-      ```
+      Read the full file. Identify:
+      - The BoardColumnProps interface (starts around line 27)
+      - The BoardColumn function component (starts around line 39, ends around line 205)
+      - All imports used by BoardColumn (React hooks, drag-and-drop, types, components)
+      - All imports used ONLY by BoardColumn (can be moved, not duplicated)
 
-      This matches every other page: SettingsPage (`p-6`), ProjectsPage (`p-6`),
-      MeetingsPage (`p-6`), IdeasPage (`p-6`), BoardPage (`px-6 pt-6`).
+      ### Step 2: Create src/renderer/components/BoardColumn.tsx
 
-      ### Fix B: Extract getDueDateBadge to shared utility
+      Move:
+      - The BoardColumnProps interface
+      - The BoardColumn function component
+      - All necessary imports
 
-      Create `src/renderer/utils/date-utils.ts`:
+      The new file structure:
       ```typescript
       // === FILE PURPOSE ===
-      // Shared date utility functions used across renderer components.
+      // BoardColumn — renders a single Kanban column with drop target, card list, and add-card form.
 
-      /** Get badge classes and label for a due date string */
-      export function getDueDateBadge(dueDateStr: string): { label: string; classes: string } {
-        const now = new Date();
-        const due = new Date(dueDateStr);
-        const diffMs = due.getTime() - now.getTime();
-        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      // === DEPENDENCIES ===
+      // react, @atlaskit/pragmatic-drag-and-drop, KanbanCard, types
 
-        if (diffMs < 0) {
-          return { label: 'Overdue', classes: 'bg-red-500/20 text-red-400' };
-        }
-        if (diffDays < 1) {
-          return { label: 'Due today', classes: 'bg-amber-500/20 text-amber-400' };
-        }
-        if (diffDays < 3) {
-          return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-amber-500/10 text-amber-300' };
-        }
-        if (diffDays < 7) {
-          return { label: `Due in ${Math.ceil(diffDays)}d`, classes: 'bg-blue-500/10 text-blue-300' };
-        }
-        const formatted = new Date(dueDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        return { label: formatted, classes: 'bg-surface-800 text-surface-400' };
-      }
+      import { ... } from 'react';
+      import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+      import KanbanCard from './KanbanCard';
+      import type { Card, Column, UpdateCardInput, CardPriority } from '../../shared/types';
+
+      // [BoardColumnProps interface]
+      // [BoardColumn function - export default]
+
+      export default BoardColumn;
       ```
 
-      Then in KanbanCard.tsx:
-      - Delete the local `getDueDateBadge` function (lines 29-50)
-      - Add import: `import { getDueDateBadge } from '../utils/date-utils';`
-      Note: KanbanCard is in `src/renderer/components/`, so the import path is `../utils/date-utils`.
+      IMPORTANT: Check what imports BoardColumn actually uses vs what BoardPage uses.
+      Only move the imports that BoardColumn needs. BoardPage keeps its own imports.
 
-      In CardDetailModal.tsx:
-      - Delete the local `getDueDateBadge` function (lines 106-126)
-      - Add import: `import { getDueDateBadge } from '../utils/date-utils';`
-      Note: CardDetailModal is in `src/renderer/components/`, same import path.
+      Check if BoardColumn references any other functions/variables from BoardPage scope
+      (like utility functions or constants). If so, those need to move too or be passed as props.
 
-      Note: CardDetailModal has a `formatDate` helper used in its version of getDueDateBadge.
-      If this `formatDate` is ONLY used by getDueDateBadge, you can remove it too. If it's
-      used elsewhere in the file, keep it. Check before removing.
+      ### Step 3: Update BoardPage.tsx
 
-      ### Fix C: Add restoreFromFile confirmation
+      - Remove the BoardColumnProps interface (lines ~27-37)
+      - Remove the BoardColumn function (lines ~39-205)
+      - Add import: `import BoardColumn from '../components/BoardColumn';`
+      - Remove any imports that were ONLY used by BoardColumn (now handled in the new file)
+      - Keep the existing BoardPage function and all its logic unchanged
 
-      In BackupSection.tsx, line 118 calls `restoreFromFile` directly without confirmation.
-      Add a confirmation state and UI:
+      ### Step 4: Verify no broken references
 
-      1. Add state: `const [confirmRestoreFile, setConfirmRestoreFile] = useState(false);`
-
-      2. Change the "Restore from File..." button onClick from `restoreFromFile` to
-         `() => setConfirmRestoreFile(true)`
-
-      3. When confirmRestoreFile is true, show inline confirmation buttons (matching
-         the existing pattern used for individual backup restore at lines 201-218):
-         ```tsx
-         {confirmRestoreFile ? (
-           <div className="flex items-center gap-2">
-             <span className="text-sm text-amber-400">Overwrite current database?</span>
-             <button onClick={() => setConfirmRestoreFile(false)} className="...">Cancel</button>
-             <button onClick={() => { setConfirmRestoreFile(false); restoreFromFile(); }} className="...">Confirm</button>
-           </div>
-         ) : (
-           <button onClick={() => setConfirmRestoreFile(true)}>Restore from File...</button>
-         )}
-         ```
-
-      Match the existing button styling patterns in BackupSection.tsx.
+      - Check that BoardPage still renders BoardColumn with the correct props
+      - Check that drag-and-drop still works (BoardColumn is both a drop target and card container)
+      - Check the types passed via props match the extracted interface
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. BrainstormPage wrapper div has `p-6` class
-      3. date-utils.ts exists in src/renderer/utils/
-      4. KanbanCard.tsx imports getDueDateBadge from utils, no local definition
-      5. CardDetailModal.tsx imports getDueDateBadge from utils, no local definition
-      6. Both components still show correct due date badges (no visual regression)
-      7. BackupSection "Restore from File..." shows confirmation before executing
-      8. Existing individual backup restore confirmation still works
+      2. `npm test` — all tests pass
+      3. src/renderer/components/BoardColumn.tsx exists with BoardColumn component
+      4. BoardPage.tsx imports BoardColumn from '../components/BoardColumn'
+      5. BoardPage.tsx no longer contains the BoardColumn function or BoardColumnProps interface
+      6. BoardPage.tsx is ~415 lines or fewer (was 620)
+      7. BoardColumn.tsx is ~180-200 lines
+      8. No duplicate imports between the two files
     </verify>
     <done>
-      BrainstormPage has consistent p-6 padding. getDueDateBadge is a single shared
-      utility imported by both KanbanCard and CardDetailModal. restoreFromFile shows
-      confirmation before overwriting the database. TypeScript compiles clean.
+      BoardColumn extracted to its own file. BoardPage reduced from 620 to ~415 lines.
+      BoardColumn is independently importable with clean props interface. Drag-and-drop
+      behavior preserved. TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Adding p-6 to BrainstormPage won't break its split-panel layout (the inner container
-        has its own height calculation via h-[calc(100vh-10rem)] which may need adjustment)
-      - getDueDateBadge is functionally identical in both files (confirmed via code read)
-      - The src/renderer/utils/ directory may not exist yet (create it)
-      - BackupSection's existing button styling can be matched for the confirmation UI
+      - BoardColumn uses no closured state from BoardPage (confirmed: all data via props)
+      - The BoardColumnProps interface fully defines the component's contract
+      - No other file imports BoardColumn (it was a nested function)
+      - Moving the component doesn't affect React reconciliation (same component identity)
+      - Drag-and-drop registration (dropTargetForElements) works the same in a separate file
     </assumptions>
   </task>
 </phase>

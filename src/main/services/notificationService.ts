@@ -14,7 +14,10 @@ import { Notification } from 'electron';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import { createLogger } from './logger';
 import type { NotificationPreferences } from '../../shared/types';
+
+const log = createLogger('Notifications');
 
 const SETTINGS_KEY = 'notification_preferences';
 
@@ -48,7 +51,7 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
     const stored = JSON.parse(rows[0].value) as Partial<NotificationPreferences>;
     return { ...DEFAULT_PREFERENCES, ...stored };
   } catch (err) {
-    console.error('[Notifications] Failed to load preferences:', err);
+    log.error('Failed to load preferences:', err);
     return { ...DEFAULT_PREFERENCES };
   }
 }
@@ -93,14 +96,14 @@ export async function updateNotificationPreferences(
 export function showNotification(title: string, body: string): void {
   try {
     if (!Notification.isSupported()) {
-      console.warn('[Notifications] Notifications not supported on this platform');
+      log.warn('Notifications not supported on this platform');
       return;
     }
 
     const notification = new Notification({ title, body });
     notification.show();
   } catch (err) {
-    console.error('[Notifications] Failed to show notification:', err);
+    log.error('Failed to show notification:', err);
   }
 }
 

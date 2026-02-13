@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Plan 8.2 — README, Within-Column Reordering, UI Polish
+Session focus: Plan 8.3 — Structured Logging, Zod IPC Validation, BoardColumn Extraction
 
 ## Position
 Milestone: Post-Review Improvements
 Phase: 8 (Review Fixes)
-Plan: 8.2 of TBD (COMPLETE — 3/3 tasks done)
+Plan: 8.3 of TBD (COMPLETE — 3/3 tasks done)
 Task: 3 of 3
 
 ## Phase 1 — COMPLETE
@@ -450,6 +450,34 @@ Plan 8.2 execution: HIGH (all 3 tasks verified, TypeScript clean, tests passing)
 - getDueDateBadge: shared version omits year (matches KanbanCard compact format)
 - CardDetailModal: formatDate helper kept (used independently for Created/Updated timestamps)
 
+### Plan 8.3: Structured Logging, Zod IPC Validation, BoardColumn Extraction (3 tasks) — COMPLETE
+1. Create structured logger + migrate all 50 main-process console calls (12 files) — DONE
+2. Add Zod IPC validation — infrastructure + projects.ts pilot (13 handlers) — DONE
+3. Extract BoardColumn component from BoardPage to its own file (621 → 441 lines) — DONE
+- Not yet committed
+
+## Plan 8.3 Execution Results
+- **Task 1**: Created logger.ts (createLogger with levels/timestamps/prefixes). Migrated ~50 console calls across 12 files. Zero raw console calls remain in src/main/ (only inside logger.ts). 12 prefixes: App, Transcription, AutoBackup, Notifications, NotificationScheduler, Diarization, Backup, AI, Audio, TranscriptionProvider, Cards, Brainstorm.
+- **Task 2**: Added zod as direct dependency. Created schemas.ts (7 schemas + columnReorder) and ipc-validator.ts (validateInput wrapper). Applied validation to all 13 handlers in projects.ts (16 validateInput calls). Param types changed to `unknown`. Pattern ready for rollout to remaining ~95 handlers.
+- **Task 3**: Created BoardColumn.tsx (192 lines). BoardPage.tsx reduced from 621 to 441 lines. Cleaned up BoardPage imports. Component identity and DnD behavior preserved.
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
+- **Tests**: 12/12 passing.
+
+## Decisions Made (Plan 8.3)
+- Custom lightweight logger (no winston/pino) — sufficient for desktop app
+- Logger default level: 'info' (debug hidden by default, available via setLogLevel)
+- notificationScheduler and notificationService use distinct prefixes (NotificationScheduler vs Notifications)
+- Zod schemas match TypeScript interfaces exactly — verified against types.ts
+- Handler params changed from specific types to `unknown` — Zod provides runtime typing
+- validateInput throws Error with structured issue messages (path + message)
+- columnReorderSchema validates array of UUIDs (boardId validated separately)
+- BoardColumn extracted cleanly — no closured state from BoardPage
+- dropTargetForElements removed from BoardPage (only needed in BoardColumn)
+
+## Confidence Levels
+Overall approach: HIGH
+Plan 8.3 execution: HIGH (all 3 tasks verified, TypeScript clean, tests passing)
+
 ## Next Steps
-1. `/nexus:git` — Commit Plan 8.2 changes
-2. `/nexus:plan 8.3` — IPC validation with Zod, structured logging, component refactoring
+1. `/nexus:git` to commit Plan 8.3 changes
+2. `/nexus:plan 8.4` for remaining Zod handlers, IdeaDetailModal + CardDetailModal decomposition

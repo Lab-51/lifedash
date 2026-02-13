@@ -23,7 +23,10 @@ import * as deepgramTranscriber from './deepgramTranscriber';
 import * as assemblyaiTranscriber from './assemblyaiTranscriber';
 import { getDb } from '../db/connection';
 import { aiUsage } from '../db/schema';
+import { createLogger } from './logger';
 import type { TranscriptionProviderType } from '../../shared/types';
+
+const log = createLogger('Transcription');
 
 const SAMPLE_RATE = 16000;
 const SEGMENT_DURATION_SEC = 10;
@@ -70,7 +73,7 @@ export async function start(meetingId: string): Promise<void> {
     // Local Whisper path — need a model
     const modelPath = whisperModelManager.getDefaultModelPath();
     if (!modelPath) {
-      console.log('[Transcription] No whisper model available. Skipping transcription.');
+      log.info('No whisper model available. Skipping transcription.');
       currentMeetingId = null;
       return;
     }
@@ -82,7 +85,7 @@ export async function start(meetingId: string): Promise<void> {
 
     // Handle worker errors
     worker.on('error', (err) => {
-      console.error('[Transcription] Worker error:', err);
+      log.error('Worker error:', err);
     });
 
     // Initialize whisper in the worker
@@ -103,19 +106,19 @@ export async function start(meetingId: string): Promise<void> {
 
     // Attach the main message handler for transcription results
     worker.on('message', handleWorkerMessage);
-    console.log(`[Transcription] Started (local) with model: ${path.basename(modelPath)}`);
+    log.info(`Started (local) with model: ${path.basename(modelPath)}`);
   } else {
     // Cloud API provider — verify key is configured
     const key = await transcriptionProviderService.getDecryptedKey(
       activeProvider as 'deepgram' | 'assemblyai',
     );
     if (!key) {
-      console.log(`[Transcription] No API key configured for ${activeProvider}. Skipping transcription.`);
+      log.info(`No API key configured for ${activeProvider}. Skipping transcription.`);
       currentMeetingId = null;
       return;
     }
 
-    console.log(`[Transcription] Started (${activeProvider}) — cloud API mode`);
+    log.info(`Started (${activeProvider}) — cloud API mode`);
   }
 }
 
@@ -165,7 +168,7 @@ export async function stop(): Promise<void> {
 
   currentMeetingId = null;
   activeProvider = 'local';
-  console.log('[Transcription] Stopped');
+  log.info('Stopped');
 }
 
 /** Dispatch the next pending segment to the worker or cloud API */
@@ -237,7 +240,7 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
             mainWindow.webContents.send('recording:transcript-segment', saved);
           }
         } catch (err) {
-          console.error('[Transcription] Failed to save segment:', err);
+          log.error('Failed to save segment:', err);
         }
       }
 
@@ -256,11 +259,11 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
       } catch { /* non-fatal */ }
     }
   } catch (err) {
-    console.error(`[Transcription] API (${activeProvider}) failed:`, err);
+    log.error(`API (${activeProvider}) failed:`, err);
 
     // FALLBACK: try local Whisper if worker exists
     if (worker) {
-      console.log('[Transcription] Falling back to local Whisper');
+      log.debug('Falling back to local Whisper');
       const arrayBuffer = segment.buffer.slice(
         segment.byteOffset,
         segment.byteOffset + segment.byteLength,
@@ -277,7 +280,7 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
       return; // Worker message handler will set transcribing = false
     }
 
-    console.error('[Transcription] No fallback available. Skipping segment.');
+    log.error('No fallback available. Skipping segment.');
   }
 
   transcribing = false;
@@ -313,7 +316,7 @@ async function handleWorkerMessage(msg: any): Promise<void> {
             mainWindow.webContents.send('recording:transcript-segment', saved);
           }
         } catch (err) {
-          console.error('[Transcription] Failed to save segment:', err);
+          log.error('Failed to save segment:', err);
         }
       }
     }
@@ -321,7 +324,7 @@ async function handleWorkerMessage(msg: any): Promise<void> {
     // Process next pending segment
     dispatchNext();
   } else if (msg.type === 'error') {
-    console.error('[Transcription] Worker error:', msg.message);
+    log.error('Worker error:', msg.message);
     transcribing = false;
     dispatchNext(); // Try next segment
   }

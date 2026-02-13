@@ -19,6 +19,9 @@ import { runMigrations } from './db/migrate';
 import { initMain } from 'electron-audio-loopback';
 import { initAutoBackup, stopAutoBackup } from './services/autoBackupScheduler';
 import { initNotificationScheduler, stopNotificationScheduler } from './services/notificationScheduler';
+import { createLogger } from './services/logger';
+
+const log = createLogger('App');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -116,7 +119,7 @@ const createWindow = async () => {
   try {
     await connectDatabase();
     await runMigrations();
-    console.log('[DB] Connected and migrations applied');
+    log.info('DB connected and migrations applied');
 
     // Start auto-backup scheduler (after DB is ready)
     initAutoBackup(mainWindow);
@@ -124,7 +127,7 @@ const createWindow = async () => {
     // Start notification scheduler (after DB is ready)
     initNotificationScheduler();
   } catch (error) {
-    console.error('[DB] Connection failed:', error);
+    log.error('DB connection failed:', error);
   }
 
   // --- Close-to-tray behavior ---
@@ -165,7 +168,7 @@ app.on('before-quit', async () => {
 // Create window when Electron is ready
 app.on('ready', () => {
   createWindow().catch((error) => {
-    console.error('[App] Failed to create window:', error);
+    log.error('Failed to create window:', error);
   });
 });
 
@@ -183,7 +186,7 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow().catch((error) => {
-      console.error('[App] Failed to create window on activate:', error);
+      log.error('Failed to create window on activate:', error);
     });
   } else if (mainWindow && !mainWindow.isVisible()) {
     mainWindow.show();

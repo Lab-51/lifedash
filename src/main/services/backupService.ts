@@ -18,12 +18,15 @@ import * as path from 'node:path';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
+import { createLogger } from './logger';
 import type {
   BackupInfo,
   BackupProgress,
   AutoBackupSettings,
   AutoBackupFrequency,
 } from '../../shared/types';
+
+const log = createLogger('Backup');
 
 const execFileAsync = promisify(execFile);
 
@@ -155,7 +158,7 @@ export async function restoreBackup(
     try {
       await createBackup(mainWindow);
     } catch (err) {
-      console.error('[Backup] Safety backup failed (continuing restore):', err);
+      log.error('Safety backup failed (continuing restore):', err);
     }
 
     emitProgress(mainWindow, {
@@ -222,9 +225,9 @@ export async function cleanOldBackups(retention: number): Promise<void> {
   for (const backup of toDelete) {
     try {
       await fs.promises.unlink(backup.filePath);
-      console.log(`[Backup] Cleaned old backup: ${backup.fileName}`);
+      log.debug(`Cleaned old backup: ${backup.fileName}`);
     } catch (err) {
-      console.error(`[Backup] Failed to delete ${backup.fileName}:`, err);
+      log.error(`Failed to delete ${backup.fileName}:`, err);
     }
   }
 }

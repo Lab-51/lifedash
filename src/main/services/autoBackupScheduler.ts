@@ -17,6 +17,9 @@ import {
   getAutoBackupSettings,
   updateAutoBackupSettings,
 } from './backupService';
+import { createLogger } from './logger';
+
+const log = createLogger('AutoBackup');
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let mainWindowRef: BrowserWindow | null = null;
@@ -30,18 +33,18 @@ export function initAutoBackup(mainWindow: BrowserWindow): void {
   // Run first check after a short delay (don't block app startup)
   setTimeout(() => {
     checkAndRunBackup().catch((err) => {
-      console.error('[AutoBackup] Initial check failed:', err);
+      log.error('Initial check failed:', err);
     });
   }, STARTUP_DELAY_MS);
 
   // Then check every hour
   intervalId = setInterval(() => {
     checkAndRunBackup().catch((err) => {
-      console.error('[AutoBackup] Scheduled check failed:', err);
+      log.error('Scheduled check failed:', err);
     });
   }, CHECK_INTERVAL_MS);
 
-  console.log('[AutoBackup] Scheduler initialized');
+  log.info('Scheduler initialized');
 }
 
 export function stopAutoBackup(): void {
@@ -50,7 +53,7 @@ export function stopAutoBackup(): void {
     intervalId = null;
   }
   mainWindowRef = null;
-  console.log('[AutoBackup] Scheduler stopped');
+  log.info('Scheduler stopped');
 }
 
 export async function checkAndRunBackup(): Promise<void> {
@@ -81,14 +84,14 @@ export async function checkAndRunBackup(): Promise<void> {
 
     if (!isDue) return;
 
-    console.log('[AutoBackup] Backup is due, starting...');
+    log.info('Backup is due, starting...');
 
     try {
       await createBackup(mainWindowRef);
       await updateAutoBackupSettings({ lastRun: new Date().toISOString() });
-      console.log('[AutoBackup] Backup completed successfully');
+      log.info('Backup completed successfully');
     } catch (backupErr) {
-      console.error('[AutoBackup] Backup failed:', backupErr);
+      log.error('Backup failed:', backupErr);
       // Don't throw — background task shouldn't crash the app
       return;
     }
@@ -97,10 +100,10 @@ export async function checkAndRunBackup(): Promise<void> {
     try {
       await cleanOldBackups(settings.retention);
     } catch (cleanErr) {
-      console.error('[AutoBackup] Retention cleanup failed:', cleanErr);
+      log.error('Retention cleanup failed:', cleanErr);
     }
   } catch (err) {
-    console.error('[AutoBackup] Check failed:', err);
+    log.error('Check failed:', err);
     // Never throw from background scheduler
   }
 }

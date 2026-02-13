@@ -17,7 +17,10 @@ import * as meetingService from './meetingService';
 import * as deepgramTranscriber from './deepgramTranscriber';
 import * as assemblyaiTranscriber from './assemblyaiTranscriber';
 import * as transcriptionProviderService from './transcriptionProviderService';
+import { createLogger } from './logger';
 import type { DiarizationWord, TranscriptSegment } from '../../shared/types';
+
+const log = createLogger('Diarization');
 
 /**
  * Resolve which API provider to use for diarization.
@@ -130,12 +133,12 @@ export async function diarizeMeeting(
     const wavBuffer = fs.readFileSync(meeting.audioPath);
 
     // 5. Call provider with diarization
-    console.log(`[Diarization] Starting ${provider} diarization for meeting ${meetingId}`);
+    log.info(`Starting ${provider} diarization for meeting ${meetingId}`);
     const result = provider === 'deepgram'
       ? await deepgramTranscriber.transcribeFileWithDiarization(wavBuffer)
       : await assemblyaiTranscriber.transcribeFileWithDiarization(wavBuffer);
 
-    console.log(`[Diarization] Got ${result.words.length} words, ${result.speakers.length} speakers`);
+    log.debug(`Got ${result.words.length} words, ${result.speakers.length} speakers`);
 
     // 6. Map speakers to existing segments
     const speakerMap = mapSpeakersToSegments(meeting.segments, result.words);
@@ -143,13 +146,13 @@ export async function diarizeMeeting(
     // 7. Update DB
     if (speakerMap.size > 0) {
       await meetingService.updateSegmentSpeakers(meetingId, speakerMap);
-      console.log(`[Diarization] Updated ${speakerMap.size} segments with speaker labels`);
+      log.debug(`Updated ${speakerMap.size} segments with speaker labels`);
     }
 
     return { success: true, speakers: result.speakers };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Diarization failed';
-    console.error('[Diarization] Error:', message);
+    log.error('Error:', message);
     return { success: false, speakers: [], error: message };
   }
 }

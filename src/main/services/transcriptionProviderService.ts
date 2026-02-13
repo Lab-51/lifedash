@@ -14,11 +14,14 @@ import { settings } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { encryptString, decryptString } from './secure-storage';
 import * as whisperModelManager from './whisperModelManager';
+import { createLogger } from './logger';
 import type {
   TranscriptionProviderConfig,
   TranscriptionProviderStatus,
   TranscriptionProviderType,
 } from '../../shared/types';
+
+const log = createLogger('TranscriptionProvider');
 
 const SETTINGS_KEY = 'transcription_provider';
 const DEFAULT_CONFIG: TranscriptionProviderConfig = { type: 'local' };
@@ -44,7 +47,7 @@ export async function getConfig(): Promise<TranscriptionProviderConfig> {
     const stored = JSON.parse(rows[0].value) as Partial<TranscriptionProviderConfig>;
     return { ...DEFAULT_CONFIG, ...stored };
   } catch (err) {
-    console.error('[TranscriptionProvider] Failed to load config:', err);
+    log.error('Failed to load config:', err);
     return { ...DEFAULT_CONFIG };
   }
 }
@@ -109,7 +112,7 @@ export async function getDecryptedKey(
   try {
     return decryptString(encrypted);
   } catch (err) {
-    console.error(`[TranscriptionProvider] Failed to decrypt ${provider} key:`, err);
+    log.error(`Failed to decrypt ${provider} key:`, err);
     return null;
   }
 }
