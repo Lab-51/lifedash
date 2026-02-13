@@ -16,6 +16,30 @@ import type { TranscriberResult, DiarizationResult, DiarizationWord } from '../.
 
 const DEEPGRAM_API_URL = 'https://api.deepgram.com/v1/listen';
 
+// --- Deepgram API response types ---
+
+interface DeepgramWord {
+  word: string;
+  start: number;
+  end: number;
+  confidence: number;
+  speaker?: number;
+}
+
+interface DeepgramResponse {
+  results?: {
+    channels?: Array<{
+      alternatives?: Array<{
+        transcript?: string;
+        words?: DeepgramWord[];
+      }>;
+    }>;
+  };
+  metadata?: {
+    duration?: number;
+  };
+}
+
 /**
  * Transcribe a PCM audio segment using Deepgram's REST API.
  * @param pcmBuffer Raw PCM audio (16-bit mono, 16kHz)
@@ -46,14 +70,12 @@ export async function transcribeSegment(
     throw new Error(`Deepgram API error ${response.status}: ${bodyText}`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data: any = await response.json();
+  const data = await response.json() as DeepgramResponse;
 
   const transcript: string =
     data.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? '';
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const words: Array<{ word: string; start: number; end: number; confidence: number }> =
+  const words: DeepgramWord[] =
     data.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
 
   // Build result — word timing is in seconds (float), convert to ms
@@ -126,14 +148,12 @@ export async function transcribeFileWithDiarization(
     throw new Error(`Deepgram diarization error ${response.status}: ${bodyText}`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data: any = await response.json();
-  const words = data.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
+  const data = await response.json() as DeepgramResponse;
+  const words: DeepgramWord[] = data.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
 
   // Deepgram speakers are integers (0, 1, 2...) — normalize to "Speaker 1", "Speaker 2"
   const speakerSet = new Set<string>();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const diarizationWords: DiarizationWord[] = words.map((w: any) => {
+  const diarizationWords: DiarizationWord[] = words.map((w: DeepgramWord) => {
     const speaker = `Speaker ${(w.speaker ?? 0) + 1}`;
     speakerSet.add(speaker);
     return {

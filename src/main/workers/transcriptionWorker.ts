@@ -24,9 +24,28 @@ import { initWhisper } from '@fugood/whisper.node';
 // (using the actual return type from the library)
 type WhisperContext = Awaited<ReturnType<typeof initWhisper>>;
 
+// Messages received from the main process
+interface WorkerInitMessage {
+  type: 'init';
+  modelPath: string;
+}
+
+interface WorkerTranscribeMessage {
+  type: 'transcribe';
+  audioData: ArrayBuffer;
+  segmentIndex: number;
+  startTimeMs: number;
+}
+
+interface WorkerStopMessage {
+  type: 'stop';
+}
+
+type MainToWorkerMessage = WorkerInitMessage | WorkerTranscribeMessage | WorkerStopMessage;
+
 let context: WhisperContext | null = null;
 
-parentPort?.on('message', async (msg: any) => {
+parentPort?.on('message', async (msg: MainToWorkerMessage) => {
   try {
     switch (msg.type) {
       case 'init': {

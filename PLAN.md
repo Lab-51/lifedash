@@ -1,385 +1,382 @@
-# Plan 8.6 — Types Module Split, Test Coverage Expansion & BoardStore Decomposition
+# Plan 8.7 — Preload Bridge Namespacing, `any` Elimination & Developer Documentation
 
-**Source:** REVIEW.md findings. Plans 8.1-8.5 addressed the top 5 review priorities (N+1 fix, test framework, README, IPC validation, card reordering) plus structured logging, CSP, component decomposition. Remaining high-impact items: monolithic types.ts (847 lines, 55 importers), low test coverage (12 tests), and bloated boardStore (375 lines, 26 methods).
+**Source:** REVIEW.md findings. Plans 8.1-8.6 addressed 12 of 14 short-term items (N+1 fix, test framework, README, IPC validation, card reordering, structured logging, CSP, types split, IdeaDetailModal/BoardColumn/boardStore decomposition). Remaining high-impact items: monolithic preload bridge (274 lines, 80+ flat methods, arch concern #1), 80 `any` type occurrences (code quality concern #7), and missing developer/architecture documentation (documentation review: "SPARSE").
 **Scope:** 3 tasks — all independent (different file domains), safe for parallel execution.
-**Approach:** Task 1 splits types.ts into domain modules with barrel re-export (zero import changes). Task 2 adds 20+ tests for schemas, validators, and utilities. Task 3 extracts card detail state from boardStore into a dedicated cardDetailStore.
+**Approach:** Task 1 splits preload.ts into domain modules and replaces 29 `any` params with proper types. Task 2 eliminates remaining ~51 `any` occurrences across 13 service/component files. Task 3 creates DEVELOPMENT.md and ARCHITECTURE.md developer documentation.
 
 ## Scope Rationale
 
-`shared/types.ts` at 847 lines is the largest file exceeding the 500-line guideline and was flagged as a "merge conflict magnet" and scalability concern. Barrel re-export means all 55 importing files need ZERO changes — the module resolution handles it transparently.
+`preload.ts` at 274 lines with 80+ flat methods is the #1 architecture concern: "Every new feature requires modifying this file." At 2x features it would exceed 500 lines. Domain-scoped modules follow the same pattern used for types.ts (Plan 8.6) and IPC handlers (existing architecture). The 29 `any` params in preload account for 36% of all `any` occurrences — fixing them during the restructure is efficient.
 
-Test coverage at 12 tests (2 files) is still the #1 risk from the review. The Zod validation rollout (Plans 8.3-8.5) created 48 schemas and a validator function — all highly testable pure functions with no Electron dependencies.
+The remaining 51 `any` types are concentrated in API response parsing (assemblyaiTranscriber: 17, deepgramTranscriber: 7, exportService: 8) where proper response interfaces add type safety to external API boundaries.
 
-boardStore at 375 lines manages 7 entity types (boards, columns, cards, labels, comments, relationships, attachments + activities). The card detail concern (comments, relationships, activities, attachments, breakdown) is cleanly separable.
+Developer documentation was rated "SPARSE / NEEDS WORK" in the review. README.md exists (Plan 8.2) but new developers still have no guide for setup workflow, project structure explanation, adding features, or understanding the architecture (process model, IPC patterns, data flow).
 
 ---
 
-<phase n="8.6" name="Types Module Split, Test Coverage Expansion & BoardStore Decomposition">
+<phase n="8.7" name="Preload Bridge Namespacing, any Elimination & Developer Documentation">
   <context>
-    Plans 8.1-8.5 completed. Remaining high-impact review items:
-    - shared/types.ts: 847 lines, imported by 55 files (architecture concern #2)
-    - Test coverage: only 12 tests in 2 files (review priority #1)
-    - boardStore.ts: 375 lines, 26+ methods spanning 7 entity types (architecture concern #6)
+    Plans 8.1-8.6 completed. Remaining high-impact review items:
+    - preload.ts: 274 lines, 80+ flat methods, 29 `any` params (architecture concern #1)
+    - 80 `any` type occurrences across 14 files (code quality concern #7)
+    - No DEVELOPMENT.md or ARCHITECTURE.md (documentation: "SPARSE")
 
     Key reference files:
-    @src/shared/types.ts — 847 lines, monolithic types file to split
-    @src/shared/validation/schemas.ts — 321 lines, 48 schema exports to test
-    @src/shared/validation/ipc-validator.ts — validateInput function to test
-    @src/renderer/utils/date-utils.ts — getDueDateBadge utility to test
-    @src/shared/utils/card-utils.ts — buildCardLabelMap (already tested)
-    @src/renderer/stores/boardStore.ts — 375 lines, store to decompose
-    @src/renderer/components/CardDetailModal.tsx — primary consumer of card detail state
-    @src/renderer/components/CommentsSection.tsx — uses boardStore card detail state
-    @src/renderer/components/RelationshipsSection.tsx — uses boardStore card detail state
-    @src/renderer/components/AttachmentsSection.tsx — uses boardStore card detail state
-    @src/renderer/components/ActivityLog.tsx — uses boardStore card detail state
-    @src/renderer/components/TaskBreakdownSection.tsx — uses boardStore card detail state
+    @src/preload/preload.ts — 274 lines, monolithic preload bridge to split
+    @src/shared/types/electron-api.ts — ElectronAPI interface (typed contract)
+    @src/main/services/assemblyaiTranscriber.ts — 17 `any` occurrences
+    @src/main/services/deepgramTranscriber.ts — 7 `any` occurrences
+    @src/main/services/exportService.ts — 8 `any` occurrences
+    @src/main/services/transcriptionService.ts — 5 `any` occurrences
+    @src/main/services/ai-provider.ts — 3 `any` occurrences
+    @src/main/services/taskStructuringService.ts — 2 `any` occurrences
+    @README.md — existing project overview for doc reference
+    @PROJECT.md — vision and architecture overview
   </context>
 
   <task type="auto" n="1">
-    <n>Split shared/types.ts into domain-specific modules with barrel re-export</n>
+    <n>Namespace preload bridge into domain modules with typed parameters</n>
     <files>
-      src/shared/types.ts (DELETE after extraction)
-      src/shared/types/index.ts (CREATE — barrel re-export)
-      src/shared/types/common.ts (CREATE — DatabaseStatus, shared primitives)
-      src/shared/types/projects.ts (CREATE — Project, Board, Column, Card, Label + inputs)
-      src/shared/types/cards.ts (CREATE — CardComment, CardRelationship, CardActivity, CardAttachment, CardTemplate + inputs)
-      src/shared/types/ai.ts (CREATE — AI provider types, AITaskType, generate/stream types)
-      src/shared/types/meetings.ts (CREATE — Meeting, Transcript, Recording, Meeting templates + inputs)
-      src/shared/types/intelligence.ts (CREATE — ActionItem, MeetingWithTranscript, Diarization, Analytics)
-      src/shared/types/ideas.ts (CREATE — Idea, IdeaAnalysis, convert types + inputs)
-      src/shared/types/brainstorm.ts (CREATE — BrainstormSession, BrainstormMessage + inputs)
-      src/shared/types/backup.ts (CREATE — BackupInfo, ExportOptions, AutoBackupSettings)
-      src/shared/types/tasks.ts (CREATE — ProjectPlan, TaskBreakdown, Pillar, Milestone)
-      src/shared/types/notifications.ts (CREATE — NotificationPreferences)
-      src/shared/types/transcription.ts (CREATE — TranscriptionProvider types)
-      src/shared/types/electron-api.ts (CREATE — ElectronAPI interface + Window global)
+      src/preload/preload.ts (MODIFY — 274 → ~40 lines, orchestrator)
+      src/preload/domains/window.ts (CREATE — window controls)
+      src/preload/domains/database.ts (CREATE — DB status)
+      src/preload/domains/projects.ts (CREATE — projects, boards, columns, cards, labels)
+      src/preload/domains/card-details.ts (CREATE — comments, relationships, activities, attachments)
+      src/preload/domains/settings.ts (CREATE — settings, AI providers, AI usage)
+      src/preload/domains/meetings.ts (CREATE — meetings, recording, whisper, intelligence, diarization, analytics)
+      src/preload/domains/ideas.ts (CREATE — ideas, idea analysis)
+      src/preload/domains/brainstorm.ts (CREATE — brainstorm sessions, streaming)
+      src/preload/domains/backup.ts (CREATE — backup, restore, export, auto-settings)
+      src/preload/domains/task-structuring.ts (CREATE — task structuring)
+      src/preload/domains/notifications.ts (CREATE — notification preferences)
+      src/preload/domains/transcription.ts (CREATE — transcription provider config)
     </files>
     <action>
       ## WHY
-      shared/types.ts at 847 lines is 70% over the 500-line guideline. It's a merge
-      conflict magnet and makes it hard to understand type domains. The review flagged it
-      as architecture concern #2 and a scalability blocker at 2x features.
+      preload.ts at 274 lines with 80+ flat methods is architecture concern #1.
+      The review says: "Every new feature requires modifying this file. Uses `any`
+      for parameters at runtime." At 2x features it would exceed 500 lines. The
+      29 `any` params also break type safety at the IPC boundary.
 
       ## WHAT
 
-      1. READ src/shared/types.ts FULLY. Identify all type sections by the existing
-         `// === DOMAIN TYPES ===` comments.
+      1. READ src/preload/preload.ts FULLY. Identify all domain sections by the
+         existing `// Comments`, `// Cards`, `// Meetings` etc. comments.
 
-      2. Create directory: src/shared/types/
+      2. READ src/shared/types/electron-api.ts to understand the typed contract.
+         The domain files should match the ElectronAPI interface signatures.
 
-      3. Create domain files. Each file gets:
-         - A brief header comment explaining domain
-         - The types from that section of the original file
-         - Any cross-domain imports (e.g., electron-api.ts imports from all domains)
+      3. Create directory: src/preload/domains/
 
-      Domain mapping (verify against actual file — these are estimates):
+      4. Create domain files. Each file:
+         - Imports `ipcRenderer` from 'electron'
+         - Imports relevant types from '../../shared/types' for parameter typing
+         - Exports an object with the domain's methods
+         - Replaces `any` params with proper types (e.g., `data: any` → `data: CreateProjectInput`)
 
-      | File | Types (approximate) |
-      |------|---------------------|
-      | common.ts | DatabaseStatus |
-      | projects.ts | Project, Board, Column, Card, CardPriority, Label, Create/Update inputs for all |
-      | cards.ts | CardComment, CardRelationship, CardRelationshipType, CardActivity, CardActivityAction, CardAttachment, CardTemplate, CARD_TEMPLATES, Create inputs |
-      | ai.ts | AIProviderName, AIProvider, AITaskType, AIUsageLog, TaskModelConfig, DEFAULT_MODELS, CreateAIProviderInput, UpdateAIProviderInput |
-      | meetings.ts | Meeting, CreateMeetingInput, UpdateMeetingInput, TranscriptSegment, RecordingState, MeetingTemplateType, MeetingTemplate, MEETING_TEMPLATES, MeetingBrief |
-      | intelligence.ts | ActionItem, ActionItemStatus, MeetingWithTranscript, DiarizationWord, DiarizationResult, SpeakerStats, MeetingAnalytics |
-      | ideas.ts | Idea, IdeaStatus, EffortLevel, ImpactLevel, IdeaAnalysis, Create/Update/Convert inputs and results |
-      | brainstorm.ts | BrainstormSession, BrainstormMessage, BrainstormSessionStatus, BrainstormMessageRole, BrainstormSessionWithMessages, CreateBrainstormSessionInput |
-      | backup.ts | BackupInfo, BackupProgress, ExportFormat, ExportOptions, ExportResult, AutoBackupFrequency, AutoBackupSettings |
-      | tasks.ts | ProjectPillar, PillarTask, ProjectMilestone, ProjectPlan, SubtaskSuggestion, TaskBreakdown |
-      | notifications.ts | NotificationPreferences |
-      | transcription.ts | TranscriptionProviderType, TranscriptionProviderConfig, TranscriptionProviderStatus, TranscriberResult |
-      | electron-api.ts | ElectronAPI interface + `declare global { interface Window { electronAPI: ElectronAPI } }` |
+      Domain mapping (verify against actual preload.ts):
 
-      4. Create barrel re-export: src/shared/types/index.ts
+      | File | Methods | `any` params to type |
+      |------|---------|---------------------|
+      | window.ts | windowMinimize, windowMaximize, windowClose, windowIsMaximized, onWindowMaximizeChange | 0 |
+      | database.ts | getDatabaseStatus | 0 |
+      | projects.ts | getProjects, createProject, updateProject, deleteProject, getBoards, createBoard, updateBoard, deleteBoard, getColumns, createColumn, updateColumn, deleteColumn, reorderColumns, getCardsByBoard, createCard, updateCard, deleteCard, moveCard, getLabels, createLabel, updateLabel, deleteLabel, attachLabel, detachLabel | ~12 (create/update params) |
+      | card-details.ts | getCardComments, addCardComment, updateCardComment, deleteCardComment, getCardRelationships, addCardRelationship, deleteCardRelationship, getCardActivities, getCardAttachments, addCardAttachment, deleteCardAttachment, openCardAttachment | 0 (already typed) |
+      | settings.ts | getSetting, setSetting, getAllSettings, deleteSetting, getAIProviders, createAIProvider, updateAIProvider, deleteAIProvider, testAIConnection, isEncryptionAvailable, getAIUsage, getAIUsageSummary | ~4 |
+      | meetings.ts | getMeetings, getMeeting, createMeeting, updateMeeting, deleteMeeting, startRecording, stopRecording, sendAudioChunk, enableLoopbackAudio, disableLoopbackAudio, onRecordingState, onTranscriptSegment, getWhisperModels, downloadWhisperModel, hasWhisperModel, onWhisperDownloadProgress, generateBrief, generateActionItems, getMeetingBrief, getMeetingActionItems, updateActionItemStatus, convertActionToCard, diarizeMeeting, getMeetingAnalytics | ~6 (callbacks + create) |
+      | ideas.ts | getIdeas, getIdea, createIdea, updateIdea, deleteIdea, convertIdeaToProject, convertIdeaToCard, analyzeIdea | ~2 |
+      | brainstorm.ts | getBrainstormSessions, getBrainstormSession, createBrainstormSession, updateBrainstormSession, deleteBrainstormSession, sendBrainstormMessage, onBrainstormChunk, exportBrainstormToIdea | ~2 |
+      | backup.ts | backupCreate, backupList, backupRestore, backupRestoreFromFile, backupDelete, backupExport, backupAutoSettingsGet, backupAutoSettingsUpdate, onBackupProgress | ~3 |
+      | task-structuring.ts | taskStructuringGeneratePlan, taskStructuringBreakdown, taskStructuringQuickPlan | 0 |
+      | notifications.ts | notificationGetPreferences, notificationUpdatePreferences, notificationSendTest | ~1 |
+      | transcription.ts | transcriptionGetConfig, transcriptionSetProvider, transcriptionSetApiKey, transcriptionTestProvider | 0 |
+
+      5. Rewrite preload.ts as an orchestrator:
          ```typescript
-         // Barrel re-export — all types available via `from '../../shared/types'`
-         export * from './common';
-         export * from './projects';
-         export * from './cards';
-         export * from './ai';
-         export * from './meetings';
-         export * from './intelligence';
-         export * from './ideas';
-         export * from './brainstorm';
-         export * from './backup';
-         export * from './tasks';
-         export * from './notifications';
-         export * from './transcription';
-         export * from './electron-api';
+         import { contextBridge } from 'electron';
+         import { windowBridge } from './domains/window';
+         import { databaseBridge } from './domains/database';
+         import { projectsBridge } from './domains/projects';
+         // ... all domain imports
+
+         contextBridge.exposeInMainWorld('electronAPI', {
+           platform: process.platform,
+           ...windowBridge,
+           ...databaseBridge,
+           ...projectsBridge,
+           ...cardDetailsBridge,
+           ...settingsBridge,
+           ...meetingsBridge,
+           ...ideasBridge,
+           ...brainstormBridge,
+           ...backupBridge,
+           ...taskStructuringBridge,
+           ...notificationsBridge,
+           ...transcriptionBridge,
+         });
          ```
 
-      5. DELETE the original src/shared/types.ts file.
-
-      6. Verify all 55 importing files resolve correctly. The import path
-         `from '../../shared/types'` resolves to `types/index.ts` when `types.ts`
-         no longer exists. TypeScript module resolution checks types.ts first,
-         then types/index.ts.
+      6. Verify the exported API is identical — same method names, same behavior.
 
       IMPORTANT:
-      - DO NOT change any import paths in consuming files. The barrel re-export
-        ensures backward compatibility.
-      - The electron-api.ts file must import types from sibling domain files
-        (e.g., `import type { Project } from './projects'`) to define ElectronAPI.
-      - MEETING_TEMPLATES and CARD_TEMPLATES are runtime values (const arrays),
-        not just types — they must be in their respective domain files.
-      - Handle cross-references carefully. Some types reference others:
-        ActionItem references Card-like fields, MeetingWithTranscript references
-        Meeting + TranscriptSegment + ActionItem, etc.
-      - The existing test file `src/shared/__tests__/types.test.ts` imports from
-        `../../shared/types` — it should still work without changes.
+      - DO NOT change the ElectronAPI interface (shared/types/electron-api.ts)
+      - DO NOT change any renderer code — the API surface is identical
+      - The `ipcRenderer.on()` listener patterns (onRecordingState, onBrainstormChunk,
+        etc.) need `ipcRenderer` imported in each domain file
+      - `sendAudioChunk` uses `ipcRenderer.send()` (not invoke) — preserve this
+      - `Buffer.from(buffer)` in sendAudioChunk is OK in preload context (Node APIs available)
+      - Type imports should use `import type { ... }` for types-only imports
+      - Each domain file should be 15-40 lines
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. `npm test` — all 12 tests pass (types.test.ts still works)
-      3. src/shared/types.ts no longer exists (deleted)
-      4. src/shared/types/index.ts exists (barrel re-export)
-      5. 12-14 domain type files in src/shared/types/ directory
-      6. No file in the project imports from individual domain files
-         (all imports go through barrel: `from '../../shared/types'`)
+      2. `npm test` — all 98 tests pass
+      3. preload.ts is under 50 lines (orchestrator only)
+      4. 12 domain files exist in src/preload/domains/
+      5. Zero `any` occurrences in preload.ts and all domain files:
+         `grep -r "any" src/preload/ --include="*.ts" | grep -v "import type" | grep -v "node_modules"`
+      6. All domain files export a named bridge object
     </verify>
     <done>
-      shared/types.ts (847 lines) split into 12-14 domain modules with barrel
-      re-export. All 55 importing files continue working without changes. Each
-      domain file is under 100 lines. TypeScript compiles clean.
+      preload.ts reduced from 274 to ~40 lines. 12 domain modules in
+      src/preload/domains/. All 29 `any` params replaced with proper types.
+      API surface unchanged — zero renderer changes needed.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - TypeScript module resolution resolves `shared/types` → `shared/types/index.ts` when types.ts is deleted
-      - Vite/Electron Forge bundler handles the same resolution
-      - Cross-domain type references are limited (most types are self-contained within domains)
-      - MEETING_TEMPLATES and CARD_TEMPLATES can move to domain files without issues
+      - Object spread in contextBridge.exposeInMainWorld works correctly
+      - ipcRenderer can be imported in each domain file independently
+      - Type imports from shared/types resolve in preload context (same as current)
+      - No method name collisions across domains (each domain has unique prefixes)
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Expand test coverage — Zod schemas, IPC validator, and utility tests</n>
+    <n>Eliminate all remaining `any` types across source files</n>
     <files>
-      src/shared/validation/__tests__/schemas.test.ts (CREATE — ~200 lines)
-      src/shared/validation/__tests__/ipc-validator.test.ts (CREATE — ~80 lines)
-      src/renderer/utils/__tests__/date-utils.test.ts (CREATE — ~60 lines)
+      src/main/services/assemblyaiTranscriber.ts (MODIFY — replace 9 `any` types)
+      src/main/services/deepgramTranscriber.ts (MODIFY — replace 4 `any` types)
+      src/main/services/exportService.ts (MODIFY — replace 8 `any` types)
+      src/main/services/transcriptionService.ts (MODIFY — replace 3 `any` types)
+      src/main/services/ai-provider.ts (MODIFY — replace 2 `any` types)
+      src/main/services/taskStructuringService.ts (MODIFY — replace 1 `any` type)
+      src/main/services/ideaService.ts (MODIFY — replace 1 `any` type)
+      src/main/services/whisperModelManager.ts (MODIFY — replace 1 `any` type)
+      src/main/workers/transcriptionWorker.ts (MODIFY — replace 1 `any` type)
+      src/renderer/stores/settingsStore.ts (MODIFY — replace 1 `any` type)
+      src/renderer/components/ProjectPlanningModal.tsx (MODIFY — replace 1 `any` type)
+      src/renderer/components/settings/BackupSection.tsx (MODIFY — replace 1 `any` type)
     </files>
     <action>
       ## WHY
-      Test coverage at 12 tests (2 files) is still the #1 review risk. Plans 8.3-8.5
-      added 48 Zod schemas and a validation wrapper — all pure functions that are
-      highly testable without Electron mocking. Adding schema tests ensures the
-      validation we rolled out actually rejects bad input correctly.
+      87 `any` type occurrences were flagged as MEDIUM severity in the code quality
+      review. After Task 1 removes 29 from preload, ~51 remain across 12+ files.
+      Most are in API response parsing (assemblyai: 17 grep matches, deepgram: 7)
+      where typed interfaces catch breaking API changes at compile time.
+
+      Note: grep counts include `eslint-disable-next-line @typescript-eslint/no-explicit-any`
+      comments. The actual `any` TYPE occurrences are fewer. When you replace the `any`
+      with a proper type, also remove the corresponding eslint-disable comment.
 
       ## WHAT
 
-      ### 1. Schema validation tests (schemas.test.ts, ~200 lines)
+      READ each file before modifying. For each `any`, determine the correct type.
 
-      Test each important schema for both valid and invalid inputs:
+      ### 1. assemblyaiTranscriber.ts (highest count — ~9 actual `any` types)
 
-      **Primitive/common schemas:**
-      - idParamSchema: valid UUID passes, non-UUID rejects, empty string rejects
-      - settingKeySchema: valid passes, empty rejects, 201+ chars rejects
-      - filePathSchema: valid passes, empty rejects
+      Create response interfaces for AssemblyAI API responses:
+      ```typescript
+      interface AssemblyAIUploadResponse { upload_url: string }
+      interface AssemblyAITranscript {
+        id: string;
+        status: 'queued' | 'processing' | 'completed' | 'error';
+        text?: string;
+        error?: string;
+        words?: Array<{ text: string; start: number; end: number; speaker?: string }>;
+      }
+      ```
+      Replace `const uploadData: any` → `const uploadData: AssemblyAIUploadResponse`
+      Replace `const transcriptData: any` → `const transcriptData: AssemblyAITranscript`
+      Replace `const result: any` in poll loops → `const result: AssemblyAITranscript`
+      Replace `(w: any)` in word mapping → `(w: AssemblyAITranscript['words'][number])`
+      Similar for `transcribeFileWithDiarization` function.
+      Remove all `eslint-disable-next-line @typescript-eslint/no-explicit-any` comments.
 
-      **Enum schemas (sample 3-4):**
-      - cardPrioritySchema: 'low'/'medium'/'high'/'urgent' pass, 'invalid' rejects
-      - ideaStatusSchema: valid values pass, invalid rejects
-      - meetingTemplateTypeSchema: all 6 values pass, invalid rejects
-      - aiProviderNameSchema: 'openai'/'anthropic'/'ollama' pass, 'invalid' rejects
+      ### 2. deepgramTranscriber.ts (~4 actual `any` types)
 
-      **Object schemas (sample 5-6 most important):**
-      - createProjectInputSchema: valid passes, missing name rejects, name too long rejects
-      - createCardInputSchema: valid passes, missing columnId rejects, non-UUID columnId rejects
-      - updateCardInputSchema: empty object passes (all optional), invalid priority rejects
-      - createIdeaInputSchema: valid passes, too many tags rejects (>20)
-      - createMeetingInputSchema: valid passes, invalid template rejects
-      - exportOptionsSchema: valid JSON format passes, invalid format rejects
+      Create response interface:
+      ```typescript
+      interface DeepgramResponse {
+        results?: {
+          channels?: Array<{
+            alternatives?: Array<{
+              transcript?: string;
+              words?: Array<{ word: string; start: number; end: number; speaker?: number }>;
+            }>;
+          }>;
+        };
+      }
+      ```
+      Replace all `any` response types. Remove eslint-disable comments.
 
-      **New schemas from Plan 8.5:**
-      - taskStructuringNameSchema: valid passes, empty rejects, 501+ chars rejects
-      - taskStructuringDescriptionSchema: valid passes, 10001+ chars rejects
-      - whisperModelNameSchema: valid passes, empty rejects
+      ### 3. exportService.ts (8 `any` types)
 
-      ### 2. IPC validator tests (ipc-validator.test.ts, ~80 lines)
+      - `EXPORT_TABLES: Record<string, any>` → `Record<string, PgTable>` (import from drizzle-orm/pg-core or use a more specific type). If PgTable is not available, use `Record<string, { [key: string]: unknown }>` or the actual Drizzle table type.
+      - `Record<string, any[]>` → `Record<string, Record<string, unknown>[]>`
+      - `(row: any)` → `(row: Record<string, unknown>)`
+      - `toCsvRow(values: any[])` → `toCsvRow(values: unknown[])`
+      - `tableToCsv(rows: any[])` → `tableToCsv(rows: Record<string, unknown>[])`
 
-      - validateInput with valid data returns parsed result
-      - validateInput with invalid data throws Error
-      - Error message contains field path
-      - Error message contains validation issue description
-      - Nested object validation works (e.g., object with UUID field)
-      - Optional fields work (undefined passes, null fails where not nullable)
+      READ the Drizzle schema imports to determine the most accurate types.
 
-      ### 3. Date utility tests (date-utils.test.ts, ~60 lines)
+      ### 4. transcriptionService.ts (~3 actual `any` types)
 
-      - getDueDateBadge with past date returns overdue (red)
-      - getDueDateBadge with today returns "Due today" (yellow)
-      - getDueDateBadge with future date returns "Due in Nd" (blue)
-      - getDueDateBadge with null returns null
-      - getDueDateBadge boundary: yesterday, tomorrow
+      READ the file first. Replace `any` with specific types (likely worker message
+      types or transcription result types).
+
+      ### 5. ai-provider.ts (~2 actual `any` types)
+
+      Likely in error handling or response parsing. Replace with `unknown` or
+      specific SDK types from `ai` package.
+
+      ### 6. Remaining files (1 each)
+
+      - taskStructuringService.ts: likely JSON parse result → use `unknown` + type guard
+      - ideaService.ts: likely JSON parse result → use `unknown` + type guard
+      - whisperModelManager.ts: likely HTTP response or error → use `unknown`
+      - transcriptionWorker.ts: likely message handler → type the message protocol
+      - settingsStore.ts: likely settings value → use `string | null`
+      - ProjectPlanningModal.tsx: likely event handler or API response → specific type
+      - BackupSection.tsx: likely event handler → specific type
 
       IMPORTANT:
-      - Use Vitest (already configured): `import { describe, it, expect } from 'vitest'`
-      - Import schemas and validateInput directly (pure functions, no Electron deps)
-      - For date-utils, may need to mock Date.now() for deterministic tests
-      - Create __tests__ directories as needed
-      - Target: 25-30 new tests minimum
+      - Prefer specific types over `unknown` when the shape is known
+      - Use `unknown` over `any` when the shape is truly unknown, with type guards
+      - Remove all `eslint-disable-next-line @typescript-eslint/no-explicit-any` comments
+        when the underlying `any` is fixed
+      - Do NOT change behavior — only types
+      - Each file's interfaces should be defined locally (near usage), not in shared/types
+        (these are internal implementation details, not public API)
     </action>
     <verify>
-      1. `npm test` — all tests pass (12 existing + 25-30 new = 37-42 total)
-      2. `npx tsc --noEmit` — zero TypeScript errors
-      3. 3 new test files exist in correct directories
-      4. At least 25 new tests added (verify with test count output)
+      1. `npx tsc --noEmit` — zero TypeScript errors
+      2. `npm test` — all 98 tests pass
+      3. Zero `any` type annotations in source files (excluding test files, node_modules):
+         Run: `grep -rn "\bany\b" src/ --include="*.ts" --include="*.tsx" | grep -v "node_modules" | grep -v "__tests__" | grep -v "eslint-disable" | grep -v "\/\/" | grep -v "string literal"`
+         Verify count is 0 (or only in string literals like "any blockers")
+      4. All eslint-disable comments for `no-explicit-any` removed
     </verify>
     <done>
-      Test count tripled from 12 to 37-42. Schema validation tests ensure the
-      Zod rollout actually catches bad input. Utility tests cover date formatting.
-      IPC validator tests confirm error messaging.
+      All `any` type annotations eliminated from source files. API response
+      interfaces created for AssemblyAI, Deepgram, and export service. Type
+      safety at all external API boundaries. Zero eslint-disable-any comments.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Vitest is configured and working (verified in Plan 8.1)
-      - Zod schemas are importable without Electron environment
-      - date-utils getDueDateBadge is a pure function (or needs minimal mocking)
-      - Schema tests can use inline test data (no external fixtures needed)
+      - AssemblyAI and Deepgram API response shapes are stable (typed from observed usage)
+      - Drizzle ORM provides adequate table types for exportService
+      - JSON.parse results can use `unknown` with type assertions after validation
+      - `any` in string literals (e.g., "any blockers" in meeting prompts) are false positives
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Decompose boardStore — extract cardDetailStore for card sub-entity state</n>
+    <n>Create developer documentation — DEVELOPMENT.md and ARCHITECTURE.md</n>
     <files>
-      src/renderer/stores/boardStore.ts (MODIFY — 375 → ~220 lines)
-      src/renderer/stores/cardDetailStore.ts (CREATE — ~170 lines)
-      src/renderer/components/CardDetailModal.tsx (MODIFY — update store import)
-      src/renderer/components/CommentsSection.tsx (MODIFY — update store import)
-      src/renderer/components/RelationshipsSection.tsx (MODIFY — update store import)
-      src/renderer/components/AttachmentsSection.tsx (MODIFY — update store import)
-      src/renderer/components/ActivityLog.tsx (MODIFY — update store import)
-      src/renderer/components/TaskBreakdownSection.tsx (MODIFY — update store import)
+      docs/DEVELOPMENT.md (CREATE — ~150 lines)
+      docs/ARCHITECTURE.md (CREATE — ~200 lines)
     </files>
     <action>
       ## WHY
-      boardStore at 375 lines with 26+ methods manages 7 entity types across 2 concerns:
-      1. Board-level: project, board, columns, cards, labels (core Kanban)
-      2. Card detail: comments, relationships, activities, attachments (selected card)
-
-      The review flagged it as architecture concern #6: "2-6x more complex than other
-      stores." Splitting along this natural boundary makes each store focused and testable.
+      The documentation review rated coverage as "SPARSE" and onboarding as "NEEDS WORK."
+      README.md exists (Plan 8.2) but provides only a quick start. New developers have
+      no guide for daily workflow, project structure, adding features, debugging, or
+      understanding the architecture. The review estimates onboarding time drops from
+      2-4 hours to under 15 minutes with proper dev + architecture docs.
 
       ## WHAT
 
-      ### 1. Create cardDetailStore.ts (~170 lines)
+      READ these files before writing docs to ensure accuracy:
+      - README.md — existing overview (don't duplicate, reference it)
+      - PROJECT.md — vision and tech stack
+      - package.json — all scripts
+      - src/ directory structure (use `ls -R` or glob to map it)
+      - src/main/main.ts — app lifecycle
+      - src/main/ipc/index.ts — IPC registration pattern
+      - src/main/db/connection.ts — DB connection
+      - src/main/db/schema/ — schema files
+      - src/preload/preload.ts — preload bridge (will be refactored by Task 1 but doc the pattern)
+      - src/renderer/App.tsx — React app entry
+      - src/renderer/stores/ — Zustand stores
+      - vitest.config.ts — test configuration
+      - forge.config.ts — Electron Forge config
+      - docker-compose.yml — Docker setup
 
-      Move from boardStore to cardDetailStore:
+      ### 1. DEVELOPMENT.md (~150 lines)
 
-      **State fields:**
-      - selectedCardComments: CardComment[]
-      - selectedCardRelationships: CardRelationship[]
-      - selectedCardActivities: CardActivity[]
-      - selectedCardAttachments: CardAttachment[]
-      - loadingCardDetails: boolean
+      Sections:
+      - **Prerequisites** — Node.js, Docker, Git (with version requirements from package.json engines)
+      - **First-Time Setup** — step-by-step (clone, install, docker compose up, env, start)
+      - **Daily Development** — `npm start`, hot reload behavior, what runs where
+      - **Project Structure** — tree diagram of src/ with one-line descriptions per directory
+      - **NPM Scripts** — table of all scripts from package.json with descriptions
+      - **Adding a New Feature** — the standard flow:
+        1. Add types to src/shared/types/ (create domain file or extend existing)
+        2. Create/extend service in src/main/services/
+        3. Add IPC handler in src/main/ipc/
+        4. Register handler in src/main/ipc/index.ts
+        5. Add preload bridge method in src/preload/domains/
+        6. Extend ElectronAPI interface in src/shared/types/electron-api.ts
+        7. Create/extend Zustand store in src/renderer/stores/
+        8. Build UI components in src/renderer/components/
+      - **Database** — running migrations, creating new migrations, schema location
+      - **Testing** — running tests, writing tests, test file location conventions
+      - **Debugging** — DevTools access, main process logging, common issues
+      - **Common Issues** — Docker not running, port conflicts, Whisper model not found
 
-      **Actions (move entirely):**
-      - loadCardDetails(cardId: string) — loads all 4 collections in parallel
-      - clearCardDetails() — resets all to empty/false
-      - addComment(input) — creates comment via IPC, refreshes list
-      - updateComment(id, content) — updates via IPC, refreshes list
-      - deleteComment(id) — deletes via IPC, refreshes list
-      - addRelationship(input) — creates via IPC, refreshes list
-      - deleteRelationship(id) — deletes via IPC, refreshes list
-      - addAttachment(cardId) — adds via IPC (file dialog), refreshes list
-      - deleteAttachment(id) — deletes via IPC, refreshes list
-      - openAttachment(filePath) — opens via IPC
+      ### 2. ARCHITECTURE.md (~200 lines)
 
-      Store interface:
-      ```typescript
-      interface CardDetailStore {
-        selectedCardComments: CardComment[];
-        selectedCardRelationships: CardRelationship[];
-        selectedCardActivities: CardActivity[];
-        selectedCardAttachments: CardAttachment[];
-        loadingCardDetails: boolean;
-
-        loadCardDetails: (cardId: string) => Promise<void>;
-        clearCardDetails: () => void;
-        addComment: (input: CreateCardCommentInput) => Promise<void>;
-        updateComment: (id: string, content: string) => Promise<void>;
-        deleteComment: (id: string) => Promise<void>;
-        addRelationship: (input: CreateCardRelationshipInput) => Promise<void>;
-        deleteRelationship: (id: string) => Promise<void>;
-        addAttachment: (cardId: string) => Promise<void>;
-        deleteAttachment: (id: string) => Promise<void>;
-        openAttachment: (filePath: string) => Promise<void>;
-      }
-
-      export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
-        // ... move implementations from boardStore
-      }));
-      ```
-
-      ### 2. Update boardStore.ts (~220 lines)
-
-      Remove all card detail state and actions. boardStore keeps:
-      - project, board, columns, cards, labels, loading, error
-      - loadBoard, addColumn, updateColumn, deleteColumn, reorderColumns
-      - addCard, updateCard, deleteCard, moveCard
-      - loadLabels, createLabel, deleteLabel, attachLabel, detachLabel
-
-      Remove from interface and implementation:
-      - selectedCardComments, selectedCardRelationships, selectedCardActivities,
-        selectedCardAttachments, loadingCardDetails
-      - loadCardDetails, clearCardDetails
-      - addComment, updateComment, deleteComment
-      - addRelationship, deleteRelationship
-      - addAttachment, deleteAttachment, openAttachment
-
-      ### 3. Update consuming components
-
-      READ each component before modifying. Replace `useBoardStore` with
-      `useCardDetailStore` for card detail operations:
-
-      - **CardDetailModal.tsx**: Change imports. `useBoardStore` for board-level
-        state (cards, columns, labels, updateCard, deleteCard, attachLabel, etc.).
-        `useCardDetailStore` for loadCardDetails, clearCardDetails, and all
-        card detail sub-entity state.
-
-      - **CommentsSection.tsx**: Change to `useCardDetailStore` for
-        selectedCardComments, addComment, updateComment, deleteComment.
-
-      - **RelationshipsSection.tsx**: Change to `useCardDetailStore` for
-        selectedCardRelationships, addRelationship, deleteRelationship.
-
-      - **AttachmentsSection.tsx**: Change to `useCardDetailStore` for
-        selectedCardAttachments, addAttachment, deleteAttachment, openAttachment.
-
-      - **ActivityLog.tsx**: Change to `useCardDetailStore` for
-        selectedCardActivities.
-
-      - **TaskBreakdownSection.tsx**: Check if it uses any card detail state.
-        If so, update. If it only uses boardStore for addCard/board-level ops, leave.
+      Sections:
+      - **Overview** — high-level diagram (text-based) of the 3-process model
+      - **Process Model** — main process, preload, renderer (what runs where, why)
+      - **Data Flow** — unidirectional: UI → Store → IPC → Service → DB → IPC → Store → UI
+      - **IPC Communication** — how channels work, naming conventions, handler registration
+      - **Database Layer** — PostgreSQL via Docker, Drizzle ORM, migration system, schema organization
+      - **State Management** — Zustand stores pattern, 9 stores listed with responsibility
+      - **AI Provider System** — provider abstraction, per-task model routing, usage logging
+      - **Security Model** — context isolation, API key encryption, CSP, IPC validation (Zod)
+      - **Audio Pipeline** — capture → chunking → transcription → storage → display
+      - **Key Patterns** — service layer pattern, store pattern, IPC handler pattern, type organization
 
       IMPORTANT:
-      - DO NOT change any behavior — this is a pure structural refactor
-      - Preserve the exact same IPC calls and state management patterns
-      - The two stores are independent (no cross-store communication needed)
-      - loadCardDetails in the new store should be a standalone implementation
-        (copy from boardStore, don't import from it)
+      - All content MUST be verified against actual source code — DO NOT fabricate
+      - Reference specific file paths so developers can find things
+      - Keep it practical and scannable (tables, code blocks, bullet points)
+      - Do NOT duplicate README.md content — reference it instead
+      - Use actual npm script names, actual file paths, actual patterns from the codebase
+      - Create the docs/ directory if it doesn't exist
     </action>
     <verify>
-      1. `npx tsc --noEmit` — zero TypeScript errors
-      2. `npm test` — all tests pass
-      3. boardStore.ts is under 250 lines
-      4. cardDetailStore.ts exists and is under 200 lines
-      5. No card detail state remains in boardStore (grep for selectedCard)
-      6. All 6 consumer components import from correct store
+      1. docs/DEVELOPMENT.md exists and is 100-200 lines
+      2. docs/ARCHITECTURE.md exists and is 150-250 lines
+      3. All file paths referenced in docs actually exist (spot-check 5+)
+      4. All npm scripts referenced match package.json
+      5. Architecture descriptions match actual code patterns
+      6. `npx tsc --noEmit` — still passes (docs don't affect compilation)
     </verify>
     <done>
-      boardStore decomposed from 375 to ~220 lines. cardDetailStore (~170 lines)
-      manages comments, relationships, activities, and attachments independently.
-      All consumer components updated. TypeScript compiles clean.
+      DEVELOPMENT.md (setup guide, project structure, adding features, debugging)
+      and ARCHITECTURE.md (process model, data flow, IPC, stores, AI, security)
+      created in docs/ directory. All content verified against actual codebase.
+      New developer onboarding time estimated to drop from 2-4 hours to under 15 minutes.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Card detail state has no cross-dependencies with board-level state
-      - loadCardDetails implementation can be copied (no shared helper needed)
-      - CommentsSection, RelationshipsSection, AttachmentsSection, ActivityLog use
-        only card detail state from boardStore (no board-level state mixed in)
-      - TaskBreakdownSection may use boardStore for addCard — needs verification
+      - docs/ directory can be created at project root
+      - Text-based architecture diagrams are sufficient (no image tooling)
+      - Doc content can reference Task 1's preload namespacing pattern (if Task 1 runs first)
+        OR the current flat pattern (if docs run first) — either is valid
+      - README.md linking to docs/ is optional (can be added separately)
     </assumptions>
   </task>
 </phase>

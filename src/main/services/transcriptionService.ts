@@ -28,6 +28,32 @@ import type { TranscriptionProviderType } from '../../shared/types';
 
 const log = createLogger('Transcription');
 
+// --- Worker message types ---
+
+/** Messages sent from the transcription worker back to the main process */
+interface WorkerReadyMessage {
+  type: 'ready';
+}
+
+interface WorkerResultMessage {
+  type: 'result';
+  text: string;
+  segments: Array<{ text: string; t0: number; t1: number }>;
+  segmentIndex: number;
+  startTimeMs: number;
+}
+
+interface WorkerErrorMessage {
+  type: 'error';
+  message: string;
+}
+
+interface WorkerStoppedMessage {
+  type: 'stopped';
+}
+
+type WorkerMessage = WorkerReadyMessage | WorkerResultMessage | WorkerErrorMessage | WorkerStoppedMessage;
+
 const SAMPLE_RATE = 16000;
 const SEGMENT_DURATION_SEC = 10;
 const SAMPLES_PER_SEGMENT = SAMPLE_RATE * SEGMENT_DURATION_SEC; // 160,000
@@ -90,8 +116,7 @@ export async function start(meetingId: string): Promise<void> {
 
     // Initialize whisper in the worker
     await new Promise<void>((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const onMessage = (msg: any) => {
+      const onMessage = (msg: WorkerMessage) => {
         if (msg.type === 'ready') {
           worker?.off('message', onMessage);
           resolve();
@@ -288,8 +313,7 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
 }
 
 /** Handle messages from the transcription worker */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleWorkerMessage(msg: any): Promise<void> {
+async function handleWorkerMessage(msg: WorkerMessage): Promise<void> {
   if (msg.type === 'result') {
     transcribing = false;
 

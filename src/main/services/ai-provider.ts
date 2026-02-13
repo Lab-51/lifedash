@@ -36,11 +36,14 @@ const TEST_MODELS: Record<AIProviderName, string> = {
   ollama: 'llama3.2',
 };
 
-// Provider factory type — uses `any` because ollama-ai-provider v1.2.0 returns
+// Provider factory type — callable provider instances that return a LanguageModel
+// when called with a model ID string. ollama-ai-provider v1.2.0 returns
 // LanguageModelV1 while @ai-sdk/openai and @ai-sdk/anthropic return LanguageModelV3.
-// The AI SDK generateText function handles both at runtime.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ProviderFactory = (...args: any[]) => any;
+// Both are accepted by generateText at runtime via the LanguageModel union type.
+// We use a callable interface since providers are objects with a call signature.
+interface ProviderFactory {
+  (modelId: string): LanguageModel;
+}
 
 // Cache provider factories by DB id (invalidated on config change)
 const providerCache = new Map<string, ProviderFactory>();
@@ -50,13 +53,16 @@ function createFactory(
   apiKey?: string,
   baseUrl?: string,
 ): ProviderFactory {
+  // Each SDK provider is a callable object that returns its own LanguageModel version.
+  // OpenAI/Anthropic return LanguageModelV3, Ollama returns LanguageModelV1.
+  // generateText accepts all versions at runtime, so the cast is safe.
   switch (name) {
     case 'openai':
-      return createOpenAI({ apiKey: apiKey || '' });
+      return createOpenAI({ apiKey: apiKey || '' }) as unknown as ProviderFactory;
     case 'anthropic':
-      return createAnthropic({ apiKey: apiKey || '' });
+      return createAnthropic({ apiKey: apiKey || '' }) as unknown as ProviderFactory;
     case 'ollama':
-      return createOllama({ baseURL: baseUrl || 'http://localhost:11434/api' });
+      return createOllama({ baseURL: baseUrl || 'http://localhost:11434/api' }) as unknown as ProviderFactory;
     default:
       throw new Error(`Unknown AI provider: ${name}`);
   }

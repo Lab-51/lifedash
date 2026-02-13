@@ -11,12 +11,12 @@
 // - CSV: one file per table (relational data doesn't flatten well)
 
 import * as fs from 'node:fs';
+import { PgTable } from 'drizzle-orm/pg-core';
 import { getDb } from '../db/connection';
 import * as schema from '../db/schema';
 
 // Tables to export (map of tableName -> drizzle table reference)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const EXPORT_TABLES: Record<string, any> = {
+const EXPORT_TABLES: Record<string, PgTable> = {
   projects: schema.projects,
   boards: schema.boards,
   columns: schema.columns,
@@ -46,9 +46,9 @@ const SENSITIVE_COLUMNS: Record<string, string[]> = {
 
 export async function exportAllData(
   tables?: string[],
-): Promise<Record<string, any[]>> {
+): Promise<Record<string, Record<string, unknown>[]>> {
   const db = getDb();
-  const result: Record<string, any[]> = {};
+  const result: Record<string, Record<string, unknown>[]> = {};
   const tableNames = tables || Object.keys(EXPORT_TABLES);
 
   for (const name of tableNames) {
@@ -60,7 +60,7 @@ export async function exportAllData(
     // Strip sensitive columns
     const sensitiveKeys = SENSITIVE_COLUMNS[name];
     if (sensitiveKeys) {
-      result[name] = rows.map((row: any) => {
+      result[name] = rows.map((row: Record<string, unknown>) => {
         const cleaned = { ...row };
         for (const key of sensitiveKeys) {
           delete cleaned[key];
@@ -76,7 +76,7 @@ export async function exportAllData(
 }
 
 export async function writeJSON(
-  data: Record<string, any[]>,
+  data: Record<string, Record<string, unknown>[]>,
   filePath: string,
 ): Promise<number> {
   const json = JSON.stringify(data, null, 2);
@@ -86,7 +86,7 @@ export async function writeJSON(
 
 // --- CSV helpers ---
 
-function toCsvRow(values: any[]): string {
+function toCsvRow(values: unknown[]): string {
   return values
     .map((v) => {
       if (v === null || v === undefined) return '';
@@ -99,7 +99,7 @@ function toCsvRow(values: any[]): string {
     .join(',');
 }
 
-export function tableToCsv(rows: any[]): string {
+export function tableToCsv(rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return '';
   const headers = Object.keys(rows[0]);
   const lines = [toCsvRow(headers)];

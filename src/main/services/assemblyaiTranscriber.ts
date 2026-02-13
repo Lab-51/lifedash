@@ -19,6 +19,29 @@ const ASSEMBLYAI_API_URL = 'https://api.assemblyai.com/v2';
 const POLL_INTERVAL_MS = 1000;
 const MAX_POLL_ATTEMPTS = 30;
 
+// --- AssemblyAI API response types ---
+
+interface AssemblyAIUploadResponse {
+  upload_url: string;
+}
+
+interface AssemblyAIWord {
+  text: string;
+  start: number;
+  end: number;
+  confidence?: number;
+  speaker?: string;
+}
+
+interface AssemblyAITranscript {
+  id: string;
+  status: 'queued' | 'processing' | 'completed' | 'error';
+  text?: string;
+  error?: string;
+  words?: AssemblyAIWord[];
+  audio_duration?: number;
+}
+
 /**
  * Convert raw PCM buffer (16-bit mono 16kHz) to a WAV buffer.
  * AssemblyAI needs WAV format, not raw PCM.
@@ -62,8 +85,7 @@ export async function transcribeSegment(
     throw new Error(`AssemblyAI upload error ${uploadResponse.status}: ${bodyText}`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const uploadData: any = await uploadResponse.json();
+  const uploadData = await uploadResponse.json() as AssemblyAIUploadResponse;
   const uploadUrl: string = uploadData.upload_url;
 
   if (!uploadUrl) {
@@ -85,8 +107,7 @@ export async function transcribeSegment(
     throw new Error(`AssemblyAI transcript error ${transcriptResponse.status}: ${bodyText}`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const transcriptData: any = await transcriptResponse.json();
+  const transcriptData = await transcriptResponse.json() as AssemblyAITranscript;
   const transcriptId: string = transcriptData.id;
 
   if (!transcriptId) {
@@ -107,15 +128,13 @@ export async function transcribeSegment(
       throw new Error(`AssemblyAI poll error ${pollResponse.status}: ${bodyText}`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result: any = await pollResponse.json();
+    const result = await pollResponse.json() as AssemblyAITranscript;
 
     if (result.status === 'completed') {
       const text: string = result.text || '';
 
       // AssemblyAI words have { text, start, end, confidence } with ms timestamps
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const words: Array<{ text: string; start: number; end: number }> = result.words ?? [];
+      const words: AssemblyAIWord[] = result.words ?? [];
 
       if (words.length > 0) {
         return {
@@ -183,8 +202,7 @@ export async function testConnection(): Promise<{
       throw new Error(`Upload failed (${uploadResponse.status}): ${bodyText}`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data: any = await uploadResponse.json();
+    const data = await uploadResponse.json() as AssemblyAIUploadResponse;
     if (!data.upload_url) {
       throw new Error('Upload succeeded but no upload_url returned');
     }
@@ -222,8 +240,7 @@ export async function transcribeFileWithDiarization(
     throw new Error(`AssemblyAI upload error ${uploadResponse.status}: ${bodyText}`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const uploadData: any = await uploadResponse.json();
+  const uploadData = await uploadResponse.json() as AssemblyAIUploadResponse;
   const uploadUrl: string = uploadData.upload_url;
   if (!uploadUrl) throw new Error('AssemblyAI upload did not return upload_url');
 
@@ -246,8 +263,7 @@ export async function transcribeFileWithDiarization(
     throw new Error(`AssemblyAI transcript error ${transcriptResponse.status}: ${bodyText}`);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const transcriptData: any = await transcriptResponse.json();
+  const transcriptData = await transcriptResponse.json() as AssemblyAITranscript;
   const transcriptId: string = transcriptData.id;
   if (!transcriptId) throw new Error('AssemblyAI transcript did not return id');
 
@@ -266,16 +282,14 @@ export async function transcribeFileWithDiarization(
       throw new Error(`AssemblyAI poll error ${pollResponse.status}: ${bodyText}`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result: any = await pollResponse.json();
+    const result = await pollResponse.json() as AssemblyAITranscript;
 
     if (result.status === 'completed') {
       // AssemblyAI speakers are letters ("A", "B"...) — normalize to "Speaker 1", etc.
       const speakerMap = new Map<string, string>();
       let speakerCount = 0;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const diarizationWords: DiarizationWord[] = (result.words ?? []).map((w: any) => {
+      const diarizationWords: DiarizationWord[] = (result.words ?? []).map((w: AssemblyAIWord) => {
         const rawSpeaker = w.speaker ?? 'A';
         if (!speakerMap.has(rawSpeaker)) {
           speakerCount++;
