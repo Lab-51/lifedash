@@ -11,6 +11,7 @@ import type {
   MeetingWithTranscript,
   TranscriptSegment,
   UpdateMeetingInput,
+  ActionItemStatus,
 } from '../../shared/types';
 
 interface MeetingStore {
@@ -20,6 +21,10 @@ interface MeetingStore {
   loading: boolean;
   error: string | null;
 
+  // Intelligence generation state
+  generatingBrief: boolean;
+  generatingActions: boolean;
+
   // Actions
   loadMeetings: () => Promise<void>;
   loadMeeting: (id: string) => Promise<void>;
@@ -27,6 +32,12 @@ interface MeetingStore {
   deleteMeeting: (id: string) => Promise<void>;
   clearSelectedMeeting: () => void;
   addTranscriptSegment: (segment: TranscriptSegment) => void;
+
+  // Intelligence actions
+  generateBrief: (meetingId: string) => Promise<void>;
+  generateActionItems: (meetingId: string) => Promise<void>;
+  updateActionItemStatus: (id: string, status: ActionItemStatus) => Promise<void>;
+  convertActionToCard: (actionItemId: string, columnId: string) => Promise<string>;
 }
 
 export const useMeetingStore = create<MeetingStore>((set, get) => ({
@@ -34,6 +45,8 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   selectedMeeting: null,
   loading: false,
   error: null,
+  generatingBrief: false,
+  generatingActions: false,
 
   loadMeetings: async () => {
     set({ loading: true, error: null });
@@ -89,6 +102,78 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
           segments: [...selected.segments, segment],
         },
       });
+    }
+  },
+
+  // Generate AI brief for a meeting
+  generateBrief: async (meetingId) => {
+    set({ generatingBrief: true, error: null });
+    try {
+      const brief = await window.electronAPI.generateBrief(meetingId);
+      const selected = get().selectedMeeting;
+      if (selected && selected.id === meetingId) {
+        set({ selectedMeeting: { ...selected, brief } });
+      }
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to generate brief' });
+    } finally {
+      set({ generatingBrief: false });
+    }
+  },
+
+  // Generate AI action items from transcript
+  generateActionItems: async (meetingId) => {
+    set({ generatingActions: true, error: null });
+    try {
+      const actionItems = await window.electronAPI.generateActionItems(meetingId);
+      const selected = get().selectedMeeting;
+      if (selected && selected.id === meetingId) {
+        set({ selectedMeeting: { ...selected, actionItems } });
+      }
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to generate action items' });
+    } finally {
+      set({ generatingActions: false });
+    }
+  },
+
+  // Update action item status (approve/dismiss)
+  updateActionItemStatus: async (id, status) => {
+    try {
+      const updated = await window.electronAPI.updateActionItemStatus(id, status);
+      const selected = get().selectedMeeting;
+      if (selected) {
+        set({
+          selectedMeeting: {
+            ...selected,
+            actionItems: selected.actionItems.map(a => (a.id === id ? updated : a)),
+          },
+        });
+      }
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to update action item' });
+    }
+  },
+
+  // Convert action item to board card
+  convertActionToCard: async (actionItemId, columnId) => {
+    try {
+      const result = await window.electronAPI.convertActionToCard(actionItemId, columnId);
+      const selected = get().selectedMeeting;
+      if (selected) {
+        set({
+          selectedMeeting: {
+            ...selected,
+            actionItems: selected.actionItems.map(a =>
+              a.id === actionItemId ? result.actionItem : a,
+            ),
+          },
+        });
+      }
+      return result.cardId;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to convert action to card' });
+      throw error;
     }
   },
 }));

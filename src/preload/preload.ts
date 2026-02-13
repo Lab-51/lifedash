@@ -150,4 +150,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('whisper:download-progress', handler);
     };
   },
+
+  // Meeting Intelligence
+  generateBrief: (meetingId: string) =>
+    ipcRenderer.invoke('meetings:generate-brief', meetingId),
+  generateActionItems: (meetingId: string) =>
+    ipcRenderer.invoke('meetings:generate-actions', meetingId),
+  getMeetingBrief: (meetingId: string) =>
+    ipcRenderer.invoke('meetings:get-brief', meetingId),
+  getMeetingActionItems: (meetingId: string) =>
+    ipcRenderer.invoke('meetings:get-actions', meetingId),
+  updateActionItemStatus: (id: string, status: string) =>
+    ipcRenderer.invoke('meetings:update-action-status', id, status),
+  convertActionToCard: (actionItemId: string, columnId: string) =>
+    ipcRenderer.invoke('meetings:convert-action-to-card', actionItemId, columnId),
 });

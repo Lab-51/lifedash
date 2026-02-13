@@ -228,6 +228,30 @@ export interface ActionItem {
   createdAt: string;
 }
 
+// === MEETING INTELLIGENCE TYPES ===
+
+export interface GenerateBriefInput {
+  meetingId: string;
+}
+
+export interface GenerateActionsInput {
+  meetingId: string;
+}
+
+export interface UpdateActionItemInput {
+  status: ActionItemStatus;
+}
+
+export interface ConvertActionToCardInput {
+  actionItemId: string;
+  columnId: string;
+}
+
+export interface ConvertActionToCardResult {
+  actionItem: ActionItem;
+  cardId: string;
+}
+
 export interface CreateMeetingInput {
   title: string;
   projectId?: string;
@@ -241,9 +265,11 @@ export interface UpdateMeetingInput {
   status?: MeetingStatus;
 }
 
-/** Meeting with its transcript segments (for detail view) */
+/** Meeting with its transcript segments, brief, and action items (for detail view) */
 export interface MeetingWithTranscript extends Meeting {
   segments: TranscriptSegment[];
+  brief: MeetingBrief | null;
+  actionItems: ActionItem[];
 }
 
 /** Recording state pushed from main to renderer via events */
@@ -360,6 +386,14 @@ export interface ElectronAPI {
   downloadWhisperModel: (fileName: string) => Promise<string>;
   hasWhisperModel: () => Promise<boolean>;
   onWhisperDownloadProgress: (callback: (progress: WhisperDownloadProgress) => void) => () => void;
+
+  // Meeting Intelligence
+  generateBrief: (meetingId: string) => Promise<MeetingBrief>;
+  generateActionItems: (meetingId: string) => Promise<ActionItem[]>;
+  getMeetingBrief: (meetingId: string) => Promise<MeetingBrief | null>;
+  getMeetingActionItems: (meetingId: string) => Promise<ActionItem[]>;
+  updateActionItemStatus: (id: string, status: ActionItemStatus) => Promise<ActionItem>;
+  convertActionToCard: (actionItemId: string, columnId: string) => Promise<ConvertActionToCardResult>;
 }
 
 declare global {

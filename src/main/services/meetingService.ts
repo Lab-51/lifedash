@@ -11,9 +11,11 @@
 
 import { eq, desc, asc } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { meetings, transcripts } from '../db/schema';
+import { meetings, transcripts, meetingBriefs, actionItems } from '../db/schema';
 import type {
   Meeting,
+  MeetingBrief,
+  ActionItem,
   MeetingWithTranscript,
   TranscriptSegment,
   CreateMeetingInput,
@@ -46,6 +48,26 @@ function toTranscriptSegment(row: typeof transcripts.$inferSelect): TranscriptSe
   };
 }
 
+function toBrief(row: typeof meetingBriefs.$inferSelect): MeetingBrief {
+  return {
+    id: row.id,
+    meetingId: row.meetingId,
+    summary: row.summary,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function toActionItem(row: typeof actionItems.$inferSelect): ActionItem {
+  return {
+    id: row.id,
+    meetingId: row.meetingId,
+    cardId: row.cardId,
+    description: row.description,
+    status: row.status,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 export async function getMeetings(): Promise<Meeting[]> {
   const db = getDb();
   const rows = await db.select().from(meetings).orderBy(desc(meetings.startedAt));
@@ -63,9 +85,24 @@ export async function getMeeting(id: string): Promise<MeetingWithTranscript | nu
     .where(eq(transcripts.meetingId, id))
     .orderBy(asc(transcripts.startTime));
 
+  const [briefRow] = await db
+    .select()
+    .from(meetingBriefs)
+    .where(eq(meetingBriefs.meetingId, id))
+    .orderBy(desc(meetingBriefs.createdAt))
+    .limit(1);
+
+  const actionRows = await db
+    .select()
+    .from(actionItems)
+    .where(eq(actionItems.meetingId, id))
+    .orderBy(asc(actionItems.createdAt));
+
   return {
     ...toMeeting(row),
     segments: segments.map(toTranscriptSegment),
+    brief: briefRow ? toBrief(briefRow) : null,
+    actionItems: actionRows.map(toActionItem),
   };
 }
 
