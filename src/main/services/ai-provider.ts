@@ -34,6 +34,7 @@ const TEST_MODELS: Record<AIProviderName, string> = {
   openai: 'gpt-4o-mini',
   anthropic: 'claude-haiku-4-5-20251001',
   ollama: 'llama3.2',
+  kimi: 'kimi-k2.5-preview',
 };
 
 // Provider factory type — callable provider instances that return a LanguageModel
@@ -63,6 +64,11 @@ function createFactory(
       return createAnthropic({ apiKey: apiKey || '' }) as unknown as ProviderFactory;
     case 'ollama':
       return createOllama({ baseURL: baseUrl || 'http://localhost:11434/api' }) as unknown as ProviderFactory;
+    case 'kimi':
+      return createOpenAI({
+        apiKey: apiKey || '',
+        baseURL: baseUrl || 'https://api.moonshot.ai/v1',
+      }) as unknown as ProviderFactory;
     default:
       throw new Error(`Unknown AI provider: ${name}`);
   }
@@ -197,6 +203,7 @@ const DEFAULT_MODELS: Record<AIProviderName, string> = {
   openai: 'gpt-4o-mini',
   anthropic: 'claude-haiku-4-5-20251001',
   ollama: 'llama3.2',
+  kimi: 'kimi-k2.5-preview',
 };
 
 /**

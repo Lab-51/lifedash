@@ -15,6 +15,7 @@ const PROVIDER_META: Record<string, { label: string; color: string }> = {
   openai: { label: 'OpenAI', color: '#10a37f' },
   anthropic: { label: 'Anthropic', color: '#d4a574' },
   ollama: { label: 'Ollama', color: '#ffffff' },
+  kimi: { label: 'Kimi', color: '#6366f1' },
 };
 
 interface ProviderCardProps {

@@ -113,7 +113,7 @@ describe('meetingTemplateTypeSchema', () => {
 });
 
 describe('aiProviderNameSchema', () => {
-  it.each(['openai', 'anthropic', 'ollama'])('accepts "%s"', (val) => {
+  it.each(['openai', 'anthropic', 'ollama', 'kimi'])('accepts "%s"', (val) => {
     expect(aiProviderNameSchema.safeParse(val).success).toBe(true);
   });
 

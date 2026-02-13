@@ -32,6 +32,9 @@ const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
     { id: 'mistral', label: 'Mistral' },
     { id: 'codellama', label: 'Code Llama' },
   ],
+  kimi: [
+    { id: 'kimi-k2.5-preview', label: 'Kimi K2.5' },
+  ],
 };
 
 interface TaskModelConfigProps {

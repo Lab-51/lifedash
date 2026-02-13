@@ -11,6 +11,7 @@ const PROVIDER_OPTIONS: { value: AIProviderName; label: string; description: str
   { value: 'openai', label: 'OpenAI', description: 'GPT-4o, GPT-4o Mini, o1' },
   { value: 'anthropic', label: 'Anthropic', description: 'Claude Sonnet, Claude Haiku' },
   { value: 'ollama', label: 'Ollama', description: 'Local models (Llama, Mistral, etc.)' },
+  { value: 'kimi', label: 'Kimi', description: 'Kimi K2.5 by Moonshot AI' },
 ];
 
 interface AddProviderFormProps {
@@ -74,6 +75,8 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
                   setName(opt.value);
                   if (opt.value === 'ollama' && !baseUrl) {
                     setBaseUrl('http://localhost:11434');
+                  } else if (opt.value === 'kimi' && !baseUrl) {
+                    setBaseUrl('https://api.moonshot.ai/v1');
                   }
                 }}
                 className={`flex-1 p-2.5 rounded-lg border text-left text-sm transition-colors ${
