@@ -17,6 +17,8 @@ import { useBoardStore } from '../stores/boardStore';
 import CommentsSection from './CommentsSection';
 import RelationshipsSection from './RelationshipsSection';
 import ActivityLog from './ActivityLog';
+import TaskBreakdownSection from './TaskBreakdownSection';
+import { useTaskStructuringStore } from '../stores/taskStructuringStore';
 
 interface CardDetailModalProps {
   card: Card;
@@ -100,6 +102,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const templateDropdownRef = useRef<HTMLDivElement>(null);
 
   const { labels, createLabel, attachLabel, detachLabel, loadCardDetails, clearCardDetails, loadingCardDetails } = useBoardStore();
+  const clearBreakdown = useTaskStructuringStore(s => s.clearBreakdown);
 
   // TipTap editor setup
   const editor = useEditor({
@@ -131,8 +134,11 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   // Load card details (comments, relationships, activities) on mount
   useEffect(() => {
     loadCardDetails(card.id);
-    return () => clearCardDetails();
-  }, [card.id, loadCardDetails, clearCardDetails]);
+    return () => {
+      clearCardDetails();
+      clearBreakdown();
+    };
+  }, [card.id, loadCardDetails, clearCardDetails, clearBreakdown]);
 
   // Close label dropdown on outside click
   useEffect(() => {
@@ -427,6 +433,9 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
             </div>
             <div className="mb-5">
               <ActivityLog cardId={card.id} />
+            </div>
+            <div className="mb-5">
+              <TaskBreakdownSection cardId={card.id} columnId={card.columnId} />
             </div>
           </>
         )}

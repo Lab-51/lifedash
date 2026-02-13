@@ -5,14 +5,15 @@
 
 // === DEPENDENCIES ===
 // react (useEffect, useState), react-router-dom (useNavigate),
-// lucide-react (FolderKanban, Plus, Archive), projectStore, LoadingSpinner,
-// shared types (CreateProjectInput)
+// lucide-react (FolderKanban, Plus, Archive, Sparkles), projectStore, LoadingSpinner,
+// ProjectPlanningModal, shared types (CreateProjectInput)
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderKanban, Plus, Archive } from 'lucide-react';
+import { FolderKanban, Plus, Archive, Sparkles } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ProjectPlanningModal from '../components/ProjectPlanningModal';
 import type { CreateProjectInput } from '../../shared/types';
 
 const PRESET_COLORS = [
@@ -29,6 +30,7 @@ function ProjectsPage() {
   const { projects, loading, error, loadProjects, createProject, updateProject } =
     useProjectStore();
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [planningProjectId, setPlanningProjectId] = useState<string | null>(null);
   const [formData, setFormData] = useState<CreateProjectInput>({
     name: '',
     description: '',
@@ -196,13 +198,22 @@ function ProjectsPage() {
                     {project.name}
                   </h3>
                 </div>
-                <button
-                  onClick={e => handleArchive(e, project.id)}
-                  className="text-surface-500 hover:text-surface-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2"
-                  title="Archive project"
-                >
-                  <Archive size={16} />
-                </button>
+                <div className="flex items-center gap-1 shrink-0 ml-2">
+                  <button
+                    onClick={e => { e.stopPropagation(); setPlanningProjectId(project.id); }}
+                    className="text-surface-500 hover:text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    title="Plan with AI"
+                  >
+                    <Sparkles size={16} />
+                  </button>
+                  <button
+                    onClick={e => handleArchive(e, project.id)}
+                    className="text-surface-500 hover:text-surface-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    title="Archive project"
+                  >
+                    <Archive size={16} />
+                  </button>
+                </div>
               </div>
               {project.description && (
                 <p className="mt-2 text-sm text-surface-400 line-clamp-2">
@@ -215,6 +226,14 @@ function ProjectsPage() {
             </div>
           ))}
         </div>
+      )}
+      {/* AI Planning Modal */}
+      {planningProjectId && (
+        <ProjectPlanningModal
+          projectId={planningProjectId}
+          projectName={projects.find(p => p.id === planningProjectId)?.name || ''}
+          onClose={() => setPlanningProjectId(null)}
+        />
       )}
     </div>
   );

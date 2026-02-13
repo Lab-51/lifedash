@@ -1,8 +1,8 @@
-# Plan 7.3 — Database Backup/Restore & Data Export
+# Plan 7.4 — AI Task Structuring Engine
 
-**Requirement:** R15 — Database Backup & Sync (5 points)
-**Scope:** pg_dump backup/restore via Docker, JSON/CSV data export, auto-backup scheduling, backup management UI
-**Deferred:** Cloud backup (S3/Google Drive) → ISSUES.md (adds significant scope: auth, SDK deps, config UI)
+**Requirement:** R11 — Task Structuring Engine (8 points)
+**Scope:** AI-assisted project planning with pillars, task breakdown, dependencies, and production-focused templates
+**Approach:** Transient AI output (not persisted in new DB tables) — user reviews suggestions and applies them as real boards/columns/cards
 
 ## Phase 7 Overview
 
@@ -13,779 +13,779 @@ Planned as 8 sequential plans:
 |------|-------------|-------|
 | 7.1 | R16 (backend) | Card comments, relationships, activity log — schema + services + IPC |
 | 7.2 | R16 (UI) | Comments UI, relationships UI, activity log, card templates in CardDetailModal |
-| **7.3** | **R15** | **Database backup/restore (pg_dump), JSON/CSV export, backup UI** |
-| 7.4 | R11 | Task structuring AI service — project planning, pillars, task breakdown |
-| 7.5 | R11 (UI) | Task structuring UI — planning wizard, templates, milestone view |
+| 7.3 | R15 | Database backup/restore (pg_dump), JSON/CSV export, backup UI |
+| **7.4** | **R11** | **AI task structuring — service, IPC, store, project planning modal, card breakdown** |
+| 7.5 | R13+R17 | Meeting templates, notifications, daily digest |
 | 7.6 | R14 | API transcription providers (Deepgram, AssemblyAI), fallback |
-| 7.7 | R13 | Meeting templates, analytics, speaker diarization |
-| 7.8 | R17 | Notifications service, desktop/tray notifications, reminders |
+| 7.7 | R13 | Meeting analytics, speaker diarization, advanced features |
+| 7.8 | R16 (rest) | Card attachments, due dates, reminders |
 
 ## Architecture Decisions
 
-1. **Backup method: pg_dump/psql via Docker exec** — Uses `child_process.execFile('docker', ['exec', ...])` to run `pg_dump` and `psql` inside the PostgreSQL container. This is the cleanest approach for a Dockerized PostgreSQL: captures full schema including enums, constraints, indexes, and data. `execFile` (not `exec`) avoids shell injection risks.
+1. **Transient AI output (no new DB tables):** The AI generates project plans and task breakdowns as JSON that the user reviews in a modal. Accepted suggestions are converted to real boards/columns/cards via existing services. This follows the idea analysis pattern — keeps things simple, avoids schema bloat for ephemeral data.
 
-2. **Backup format: Plain SQL (.sql)** — Human-readable, restorable with `psql`, includes `--clean --if-exists` flags for idempotent restore (DROP + CREATE statements).
+2. **Two AI operations:**
+   - `generateProjectPlan(projectId, description)` — Generates production-focused pillars (e.g., Architecture, Security, Scalability, Testing, DevOps), each with suggested tasks. Also generates milestones with task groupings.
+   - `generateTaskBreakdown(cardId)` — Breaks a single card into subtasks with effort estimates and dependency suggestions.
 
-3. **Export method: Drizzle queries → JSON/CSV** — Queries all tables via Drizzle ORM, serializes to JSON (single file) or CSV (one file per table, zipped). No external dependencies needed.
+3. **Non-streaming generation:** Both operations use `generate()` (not `streamGenerate()`) because the output must be parsed as structured JSON. User sees a loading spinner, then the full result. This matches the idea analysis and meeting brief patterns.
 
-4. **Storage: app.getPath('userData')/backups/** — Default location for automatic backups. Manual exports use Electron's `dialog.showSaveDialog` for user-chosen location.
+4. **New task type: `task_structuring`** — Added to `AITaskType` union and `resolveTaskModel`. Users can assign a specific provider/model for task structuring via the existing per-task model config UI in Settings.
 
-5. **Auto-backup: setInterval in main process** — Checks hourly whether a backup is due (daily/weekly). Simple and reliable with no cron library dependency. Settings stored in existing settings table.
+5. **Apply actions use existing services:** Applying a plan creates boards/columns/cards through the existing `boardStore` actions and IPC handlers. No new DB operations needed.
 
-6. **Restore safety: Pre-restore backup** — Automatically creates a backup before any restore operation. Confirmation required in UI.
-
-7. **Security: API keys excluded from exports** — `aiProviders.apiKeyEncrypted` column is stripped from JSON/CSV exports. Backups via pg_dump include it (same machine, encrypted at rest).
-
-8. **Audio files NOT in backups** — Referenced by path in DB, potentially gigabytes. Noted in UI.
+6. **System prompts are production-focused:** The AI is instructed to think about architecture, security, scalability, testing, CI/CD, monitoring — not just feature work. This is R11's key differentiator from generic task management.
 
 ---
 
-<phase n="7.3" name="Database Backup/Restore & Data Export">
+<phase n="7.4" name="AI Task Structuring Engine">
   <context>
-    Phase 7, Plan 3 of 8. Implements R15: Database Backup & Sync.
-    PostgreSQL 16 runs in Docker container "living-dashboard-db" with user "dashboard",
-    database "living_dashboard".
+    Phase 7, Plan 4 of 8. Implements R11: Task Structuring Engine (8 pts).
 
-    Existing infrastructure:
-    - Service files in src/main/services/ (9 files, e.g. secure-storage.ts, ai-provider.ts)
-    - IPC handlers in src/main/ipc/ (12 files), registered via registerIpcHandlers(mainWindow)
-    - Types in src/shared/types.ts (ElectronAPI interface with ~60 methods)
-    - Preload bridge in src/preload/preload.ts (contextBridge.exposeInMainWorld)
-    - DB connection via src/main/db/connection.ts (getConnectionString, getDb, checkDatabaseHealth)
-    - Settings table: key-value store (key VARCHAR 255 PK, value text)
-    - Schema: 20 tables across 10 schema files in src/main/db/schema/
+    R11 requirements:
+    - AI-assisted project planning when starting new projects
+    - Generates project pillars (architecture, security, scalability, etc.)
+    - Suggests task breakdown and dependencies
+    - Production-focused templates and checklists
+    - Sprint/milestone planning assistance
 
-    @docker-compose.yml (container name, credentials, port)
-    @src/main/db/connection.ts (getConnectionString, getDb)
-    @src/main/db/schema/index.ts (all table imports — barrel export)
-    @src/main/ipc/index.ts (handler registration pattern)
-    @src/main/ipc/settings.ts (simple handler example)
-    @src/preload/preload.ts (preload bridge pattern)
-    @src/shared/types.ts (type definitions + ElectronAPI)
-    @src/renderer/pages/SettingsPage.tsx (settings UI structure)
+    Existing AI infrastructure:
+    - ai-provider.ts: generate(), streamGenerate(), resolveTaskModel(), logUsage()
+    - AITaskType: 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis'
+    - Pattern: resolveTaskModel(taskType) → generate({...provider, prompt, system}) → parse JSON → logUsage()
+    - IPC handlers follow modular pattern: src/main/ipc/[feature].ts → registerXyzHandlers()
+    - Zustand stores in src/renderer/stores/
+    - Modals follow CardDetailModal/IdeaDetailModal patterns
+
+    Key files for context injection:
+    - projects table: id, name, description, color, archived
+    - boards table: id, projectId, name, position
+    - columns table: id, boardId, name, position
+    - cards table: id, columnId, title, description, position, priority, dueDate, archived
+
+    @src/main/services/ai-provider.ts (generate, resolveTaskModel, logUsage)
+    @src/main/services/ideaService.ts (analyzeIdea pattern — JSON AI response with fallback parsing)
+    @src/main/services/meetingIntelligenceService.ts (generateBrief + generateActions patterns)
+    @src/main/ipc/index.ts (handler registration)
+    @src/shared/types.ts (AITaskType, ElectronAPI)
+    @src/preload/preload.ts (bridge pattern)
+    @src/renderer/pages/ProjectsPage.tsx (project list — add "Plan with AI" button)
+    @src/renderer/components/CardDetailModal.tsx (card detail — add "Break Down" button)
+    @src/renderer/stores/boardStore.ts (existing card/board actions for applying plan)
+    @src/renderer/stores/projectStore.ts (project CRUD)
   </context>
 
   <task type="auto" n="1">
-    <n>Backup service, export service, types, IPC handlers, and preload bridge</n>
+    <n>Task structuring types, service, IPC handlers, and preload bridge</n>
     <files>
-      src/main/services/backupService.ts (NEW ~280 lines)
-      src/main/services/exportService.ts (NEW ~200 lines)
-      src/main/ipc/backup.ts (NEW ~130 lines)
-      src/main/ipc/index.ts (MODIFY — add registerBackupHandlers import + call)
-      src/shared/types.ts (MODIFY — add backup/export types + 8 ElectronAPI methods)
-      src/preload/preload.ts (MODIFY — add 8 backup/export bridge methods)
+      src/shared/types.ts (MODIFY — add task structuring types + 3 ElectronAPI methods)
+      src/main/services/taskStructuringService.ts (NEW ~250 lines)
+      src/main/ipc/task-structuring.ts (NEW ~60 lines)
+      src/main/ipc/index.ts (MODIFY — register new handlers)
+      src/preload/preload.ts (MODIFY — add 3 bridge methods)
     </files>
     <action>
       ## WHY
-      R15 requires pg_dump backup/restore, manual backup/restore UI, and JSON/CSV export.
-      This task builds the complete backend infrastructure: service layer, IPC handlers,
-      types, and preload bridge. Separating backup (Docker/pg_dump) from export (Drizzle queries)
-      keeps concerns clean and failure modes isolated.
+      R11 requires AI-assisted project planning with production-focused pillars and task breakdown.
+      This task builds the backend: AI service with two generation functions, IPC handlers,
+      shared types, and preload bridge. Following the established ideaService.analyzeIdea pattern
+      for structured JSON generation with fallback parsing.
 
       ## WHAT
 
       ### 1a. Types — add to src/shared/types.ts
 
-      Add these types before the ElectronAPI interface:
+      Update the AITaskType union to include 'task_structuring':
+      ```typescript
+      export type AITaskType = 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis' | 'task_structuring';
+      ```
+
+      Add these types (place before the ElectronAPI interface, after existing AI types):
 
       ```typescript
-      // === BACKUP & EXPORT TYPES ===
+      // === TASK STRUCTURING TYPES ===
 
-      export interface BackupInfo {
-        fileName: string;
-        filePath: string;
-        createdAt: string; // ISO timestamp
-        sizeBytes: number;
+      export interface ProjectPillar {
+        name: string;           // e.g. "Architecture", "Security", "Testing"
+        description: string;    // Brief explanation of pillar's focus
+        tasks: PillarTask[];    // Suggested tasks under this pillar
       }
 
-      export interface BackupProgress {
-        phase: 'starting' | 'dumping' | 'saving' | 'restoring' | 'complete' | 'failed';
-        message: string;
-        error?: string;
+      export interface PillarTask {
+        title: string;
+        description: string;
+        priority: 'low' | 'medium' | 'high' | 'urgent';
+        effort: 'small' | 'medium' | 'large';  // T-shirt sizing
+        dependencies?: string[];  // titles of other tasks this depends on
       }
 
-      export type ExportFormat = 'json' | 'csv';
-
-      export interface ExportOptions {
-        format: ExportFormat;
-        tables?: string[]; // if omitted, export all user-data tables
+      export interface ProjectMilestone {
+        name: string;
+        description: string;
+        taskTitles: string[];   // references to PillarTask titles
       }
 
-      export interface ExportResult {
-        filePath: string;
-        format: ExportFormat;
-        tables: string[];
-        sizeBytes: number;
+      export interface ProjectPlan {
+        pillars: ProjectPillar[];
+        milestones: ProjectMilestone[];
+        summary: string;        // High-level plan overview
       }
 
-      export type AutoBackupFrequency = 'daily' | 'weekly' | 'off';
+      export interface SubtaskSuggestion {
+        title: string;
+        description: string;
+        priority: 'low' | 'medium' | 'high' | 'urgent';
+        effort: 'small' | 'medium' | 'large';
+        order: number;          // suggested execution order
+      }
 
-      export interface AutoBackupSettings {
-        enabled: boolean;
-        frequency: AutoBackupFrequency;
-        retention: number; // number of backups to keep
-        lastRun: string | null; // ISO timestamp or null
+      export interface TaskBreakdown {
+        subtasks: SubtaskSuggestion[];
+        notes: string;          // Additional context/reasoning from AI
       }
       ```
 
       Add to ElectronAPI interface:
       ```typescript
-      // Backup & Restore
-      backupCreate: () => Promise<BackupInfo>;
-      backupList: () => Promise<BackupInfo[]>;
-      backupRestore: (filePath: string) => Promise<void>;
-      backupRestoreFromFile: () => Promise<void>;
-      backupDelete: (fileName: string) => Promise<void>;
-      backupExport: (options: ExportOptions) => Promise<ExportResult | null>;
-      backupAutoSettingsGet: () => Promise<AutoBackupSettings>;
-      backupAutoSettingsUpdate: (settings: Partial<AutoBackupSettings>) => Promise<void>;
-      onBackupProgress: (callback: (progress: BackupProgress) => void) => () => void;
+      // Task Structuring
+      taskStructuringGeneratePlan: (projectId: string, description: string) => Promise<ProjectPlan>;
+      taskStructuringBreakdown: (cardId: string) => Promise<TaskBreakdown>;
+      taskStructuringQuickPlan: (projectName: string, projectDescription: string) => Promise<ProjectPlan>;
       ```
 
-      ### 1b. Create src/main/services/backupService.ts
+      The third method (`quickPlan`) allows generating a plan for a new project that doesn't
+      exist yet — user provides name+description directly, no projectId needed. This supports
+      the "plan before creating" workflow.
+
+      ### 1b. Create src/main/services/taskStructuringService.ts
 
       File header:
       ```
       // === FILE PURPOSE ===
-      // Database backup and restore via pg_dump/psql through Docker exec.
-      // Manages backup files in app.getPath('userData')/backups/.
+      // AI task structuring service — generates project plans with production-focused
+      // pillars and breaks down cards into subtasks. Uses the generate() wrapper from
+      // ai-provider.ts for structured JSON output.
       //
       // === DEPENDENCIES ===
-      // - Docker CLI on system PATH
-      // - PostgreSQL container "living-dashboard-db" running
+      // - ai-provider.ts (generate, resolveTaskModel, logUsage)
+      // - Database connection for loading project/card context
       //
       // === LIMITATIONS ===
-      // - Audio files are NOT backed up (stored outside DB)
-      // - Requires Docker to be running
+      // - Generated plans are transient (not persisted in DB)
+      // - JSON parsing has fallback but may fail on very malformed AI output
+      // - Depends on AI provider being configured for 'task_structuring' task type
+      ```
+
+      Imports:
+      ```typescript
+      import { eq } from 'drizzle-orm';
+      import { getDb } from '../db/connection';
+      import { projects, boards, columns, cards } from '../db/schema';
+      import { generate, resolveTaskModel, logUsage } from './ai-provider';
+      import type { ProjectPlan, TaskBreakdown } from '../../shared/types';
+      ```
+
+      System prompts (define as constants at module level):
+
+      ```typescript
+      const PROJECT_PLAN_SYSTEM_PROMPT = `You are a senior software architect and project planner.
+      Your job is to create a production-focused project plan with clear pillars, tasks, and milestones.
+
+      You MUST focus on production-readiness pillars:
+      - Architecture: System design, data models, API design, scalability patterns
+      - Security: Authentication, authorization, input validation, data protection
+      - Testing: Unit tests, integration tests, E2E tests, test infrastructure
+      - DevOps: CI/CD pipeline, deployment, monitoring, logging, alerting
+      - Performance: Optimization, caching, load handling, resource management
+      - Documentation: API docs, architecture docs, onboarding guides
+
+      Not every project needs all pillars. Choose the relevant ones based on the project description.
+      Typically 3-5 pillars are appropriate.
+
+      Each task should be specific and actionable (not vague like "implement security").
+      Include effort estimates (small/medium/large) and priority levels.
+      Identify dependencies between tasks where they exist.
+
+      Group tasks into 2-4 milestones representing logical delivery phases.
+
+      Respond with ONLY valid JSON matching this structure:
+      {
+        "summary": "Brief plan overview",
+        "pillars": [
+          {
+            "name": "Pillar Name",
+            "description": "What this pillar covers",
+            "tasks": [
+              {
+                "title": "Specific task title",
+                "description": "What needs to be done and why",
+                "priority": "high",
+                "effort": "medium",
+                "dependencies": ["Other task title if any"]
+              }
+            ]
+          }
+        ],
+        "milestones": [
+          {
+            "name": "Milestone 1: Foundation",
+            "description": "What this milestone achieves",
+            "taskTitles": ["Task title 1", "Task title 2"]
+          }
+        ]
+      }`;
+
+      const TASK_BREAKDOWN_SYSTEM_PROMPT = `You are a senior developer breaking down a task into subtasks.
+      Given a card title, description, and project context, create specific, actionable subtasks.
+
+      Each subtask should be:
+      - Small enough to complete in one focused session (1-4 hours)
+      - Specific and testable (not vague)
+      - Ordered logically (dependencies reflected in order)
+
+      Include effort estimates (small = <1h, medium = 1-4h, large = 4-8h).
+
+      Respond with ONLY valid JSON matching this structure:
+      {
+        "subtasks": [
+          {
+            "title": "Specific subtask title",
+            "description": "What to do",
+            "priority": "medium",
+            "effort": "small",
+            "order": 1
+          }
+        ],
+        "notes": "Additional context or considerations"
+      }`;
       ```
 
       Exports:
-      - `getBackupDir(): string` — Returns `path.join(app.getPath('userData'), 'backups')`.
-        Creates directory with `fs.mkdirSync({ recursive: true })` if it doesn't exist.
 
-      - `isDockerAvailable(): Promise<boolean>` — Runs `execFile('docker', ['info'])`
-        wrapped in try/catch. Returns true if exit code 0, false otherwise.
-
-      - `createBackup(mainWindow?: BrowserWindow): Promise<BackupInfo>` —
-        1. Emit progress: { phase: 'starting', message: 'Preparing backup...' }
-        2. Generate filename: `backup-${format(new Date(), 'yyyy-MM-dd-HHmmss')}.sql`
-           (use manual date formatting, no date-fns: `new Date().toISOString().replace(/[T:]/g, '-').slice(0, 19)` → `backup-2026-02-13-143022.sql`)
-        3. Emit progress: { phase: 'dumping', message: 'Dumping database...' }
-        4. Run: `execFile('docker', ['exec', 'living-dashboard-db', 'pg_dump', '-U', 'dashboard', '--clean', '--if-exists', 'living_dashboard'])`
-        5. Capture stdout (the SQL dump)
-        6. Emit progress: { phase: 'saving', message: 'Saving backup file...' }
-        7. Write stdout to `path.join(getBackupDir(), filename)` via `fs.promises.writeFile`
-        8. Get file stats for size
-        9. Emit progress: { phase: 'complete', message: 'Backup complete' }
-        10. Return BackupInfo
-
-        On error: emit { phase: 'failed', message: '...', error: err.message }, then throw.
-        Progress via `mainWindow?.webContents.send('backup:progress', progress)`.
-
-      - `listBackups(): Promise<BackupInfo[]>` —
-        1. Read backup dir with `fs.promises.readdir`
-        2. Filter files matching `/^backup-\d{4}-\d{2}-\d{2}-\d{6}\.sql$/`
-        3. For each: get stats (size, mtime)
-        4. Return sorted by createdAt descending
-        5. If dir doesn't exist, return empty array
-
-      - `restoreBackup(filePath: string, mainWindow?: BrowserWindow): Promise<void>` —
-        1. Verify file exists with `fs.promises.access`
-        2. Emit progress: { phase: 'starting', message: 'Creating safety backup...' }
-        3. Call `createBackup(mainWindow)` as safety net (catch and log errors, don't block)
-        4. Emit progress: { phase: 'restoring', message: 'Restoring database...' }
-        5. Read backup file content
-        6. Spawn: `spawn('docker', ['exec', '-i', 'living-dashboard-db', 'psql', '-U', 'dashboard', 'living_dashboard'])`
-        7. Pipe file content to stdin, wait for completion
-        8. Emit progress: { phase: 'complete', message: 'Restore complete' }
-        On error: emit failed progress, throw.
-
-      - `deleteBackup(fileName: string): Promise<void>` —
-        1. Validate fileName matches `/^backup-[\d-]+\.sql$/` (prevent path traversal)
-        2. Construct full path: `path.join(getBackupDir(), fileName)`
-        3. Delete with `fs.promises.unlink`
-
-      - `cleanOldBackups(retention: number): Promise<void>` —
-        1. List backups (sorted newest first)
-        2. If count > retention, delete the oldest ones
-        3. Log deletions
-
-      Implementation notes:
-      - Use `child_process.execFile` for pg_dump (captures stdout into buffer)
-      - Use `child_process.spawn` for psql restore (needs stdin piping)
-      - Wrap execFile in a Promise (use util.promisify or manual Promise wrapper)
-      - Set maxBuffer for execFile: 100MB (`100 * 1024 * 1024`) to handle large dumps
-      - All file operations use fs.promises (async)
-
-      ### 1c. Create src/main/services/exportService.ts
-
-      File header:
-      ```
-      // === FILE PURPOSE ===
-      // Export database data as JSON or CSV for external use.
-      // Queries all tables via Drizzle ORM, serializes, and writes to file.
-      //
-      // === DEPENDENCIES ===
-      // - Database connection (getDb from connection.ts)
-      //
-      // === LIMITATIONS ===
-      // - API keys (aiProviders.apiKeyEncrypted) excluded from exports
-      // - Audio files not included
-      // - CSV: one file per table (relational data doesn't flatten)
-      ```
-
-      Imports: All schema tables from `../db/schema`, getDb from `../db/connection`.
-
-      Table export list (map of tableName → drizzle table reference):
-      ```typescript
-      const EXPORT_TABLES: Record<string, any> = {
-        projects, boards, columns, cards, labels, cardLabels,
-        cardComments, cardRelationships, cardActivities,
-        meetings, transcripts, meetingBriefs, actionItems,
-        ideas, ideaTags,
-        brainstormSessions, brainstormMessages,
-        settings, aiProviders, aiUsage,
-      };
-      ```
-
-      Exports:
-      - `exportAllData(tables?: string[]): Promise<Record<string, any[]>>` —
-        1. Get db instance
-        2. For each table in EXPORT_TABLES (or filtered by `tables` param):
-           `const rows = await db.select().from(table)`
-        3. Special handling for aiProviders: map rows to exclude `apiKeyEncrypted` field
-        4. Return `{ [tableName]: rows[] }`
-
-      - `writeJSON(data: Record<string, any[]>, filePath: string): Promise<number>` —
-        1. `JSON.stringify(data, null, 2)`
-        2. Write to filePath
-        3. Return file size in bytes
-
-      - `writeCSV(data: Record<string, any[]>, filePath: string): Promise<number>` —
-        For JSON export: single .json file.
-        For CSV export: write a single .csv file with a section per table
-        (header row with table name, column headers, data rows, blank line separator).
-
-        OR simpler approach: if format is CSV and there are multiple tables,
-        create individual .csv files in a temp directory and the IPC handler
-        uses dialog.showOpenDialog({ properties: ['openDirectory'] }) to let user
-        pick a folder.
-
-        Actually, simplest approach: Write one CSV per table to user-selected directory.
-        Each file named `{tableName}.csv`.
-
-        CSV serialization helper:
-        ```typescript
-        function toCsvRow(values: any[]): string {
-          return values.map(v => {
-            if (v === null || v === undefined) return '';
-            const str = String(v);
-            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-              return `"${str.replace(/"/g, '""')}"`;
-            }
-            return str;
-          }).join(',');
-        }
-
-        function tableToCsv(rows: any[]): string {
-          if (rows.length === 0) return '';
-          const headers = Object.keys(rows[0]);
-          const lines = [toCsvRow(headers)];
-          for (const row of rows) {
-            lines.push(toCsvRow(headers.map(h => row[h])));
+      **`generateProjectPlan(projectId: string, additionalDescription?: string): Promise<ProjectPlan>`**
+      1. Load project from DB: `db.select().from(projects).where(eq(projects.id, projectId))`
+      2. If not found, throw Error('Project not found')
+      3. Load boards for project: `db.select().from(boards).where(eq(boards.projectId, projectId))`
+      4. For each board, load columns: `db.select().from(columns).where(eq(columns.boardId, board.id))`
+      5. For each column, load non-archived cards (titles only, for context)
+      6. Build context string:
+         ```
+         Project: {name}
+         Description: {description}
+         {additionalDescription ? `Additional context: ${additionalDescription}` : ''}
+         Existing boards: {board names with column names}
+         Existing cards: {card titles per column, up to 10 per board}
+         ```
+      7. Resolve provider: `const provider = await resolveTaskModel('task_structuring')`
+      8. If null, throw Error('No AI provider configured. Please set up an AI provider in Settings.')
+      9. Call generate:
+         ```typescript
+         const result = await generate({
+           providerId: provider.providerId,
+           providerName: provider.providerName,
+           apiKeyEncrypted: provider.apiKeyEncrypted,
+           baseUrl: provider.baseUrl,
+           model: provider.model,
+           taskType: 'task_structuring',
+           system: PROJECT_PLAN_SYSTEM_PROMPT,
+           prompt: contextString,
+           temperature: provider.temperature ?? 0.4,
+           maxTokens: provider.maxTokens ?? 4096,
+         });
+         ```
+      10. Parse JSON response with fallback:
+          ```typescript
+          let plan: ProjectPlan;
+          try {
+            // Try to extract JSON from response (may have markdown fences)
+            const jsonStr = result.text.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim();
+            plan = JSON.parse(jsonStr);
+          } catch {
+            throw new Error('Failed to parse AI response as project plan. Please try again.');
           }
-          return lines.join('\n');
-        }
-        ```
+          ```
+      11. Validate structure: ensure pillars is array, each has name+tasks, etc.
+          If invalid, throw Error with descriptive message.
+      12. Log usage (fire-and-forget):
+          ```typescript
+          logUsage(provider.providerId, provider.model, 'task_structuring', result.usage).catch(() => {});
+          ```
+      13. Return plan
 
-      ### 1d. Create src/main/ipc/backup.ts
+      **`generateQuickPlan(projectName: string, projectDescription: string): Promise<ProjectPlan>`**
+      1. Same as generateProjectPlan but doesn't load from DB
+      2. Build context: `Project: ${projectName}\nDescription: ${projectDescription}`
+      3. Same generate + parse + validate + logUsage flow
+      4. Return plan
 
-      Follow existing handler pattern (export registerBackupHandlers function):
+      **`generateTaskBreakdown(cardId: string): Promise<TaskBreakdown>`**
+      1. Load card from DB: `db.select().from(cards).where(eq(cards.id, cardId))`
+      2. If not found, throw Error('Card not found')
+      3. Load column → board → project for context
+      4. Load sibling cards (same column) for context
+      5. Build context:
+         ```
+         Project: {projectName}
+         Board: {boardName}
+         Column: {columnName}
+
+         Card: {card.title}
+         Description: {card.description || 'No description'}
+         Priority: {card.priority}
+
+         Other cards in this column: {sibling card titles}
+         ```
+      6. Resolve provider, generate, parse JSON, validate, logUsage
+      7. Return TaskBreakdown
+
+      ### 1c. Create src/main/ipc/task-structuring.ts
 
       ```typescript
-      export function registerBackupHandlers(mainWindow: BrowserWindow): void {
-        ipcMain.handle('backup:create', async () => {
-          return createBackup(mainWindow);
+      import { ipcMain } from 'electron';
+      import { generateProjectPlan, generateQuickPlan, generateTaskBreakdown } from '../services/taskStructuringService';
+
+      export function registerTaskStructuringHandlers(): void {
+        ipcMain.handle('task-structuring:generate-plan', async (_event, projectId: string, description?: string) => {
+          return generateProjectPlan(projectId, description);
         });
 
-        ipcMain.handle('backup:list', async () => {
-          return listBackups();
+        ipcMain.handle('task-structuring:quick-plan', async (_event, name: string, description: string) => {
+          return generateQuickPlan(name, description);
         });
 
-        ipcMain.handle('backup:restore', async (_event, filePath: string) => {
-          return restoreBackup(filePath, mainWindow);
-        });
-
-        ipcMain.handle('backup:restore-from-file', async () => {
-          const result = await dialog.showOpenDialog(mainWindow, {
-            title: 'Select Backup File',
-            filters: [{ name: 'SQL Backup', extensions: ['sql'] }],
-            properties: ['openFile'],
-          });
-          if (result.canceled || !result.filePaths[0]) return;
-          return restoreBackup(result.filePaths[0], mainWindow);
-        });
-
-        ipcMain.handle('backup:delete', async (_event, fileName: string) => {
-          return deleteBackup(fileName);
-        });
-
-        ipcMain.handle('backup:export', async (_event, options: ExportOptions) => {
-          const data = await exportAllData(options.tables);
-          const tables = Object.keys(data);
-
-          if (options.format === 'json') {
-            const result = await dialog.showSaveDialog(mainWindow, {
-              title: 'Export Data as JSON',
-              defaultPath: `living-dashboard-export-${Date.now()}.json`,
-              filters: [{ name: 'JSON', extensions: ['json'] }],
-            });
-            if (result.canceled || !result.filePath) return null;
-            const size = await writeJSON(data, result.filePath);
-            return { filePath: result.filePath, format: 'json', tables, sizeBytes: size };
-          } else {
-            // CSV: show folder picker, write one file per table
-            const result = await dialog.showOpenDialog(mainWindow, {
-              title: 'Select Export Folder for CSV Files',
-              properties: ['openDirectory', 'createDirectory'],
-            });
-            if (result.canceled || !result.filePaths[0]) return null;
-            const dir = result.filePaths[0];
-            let totalSize = 0;
-            for (const [name, rows] of Object.entries(data)) {
-              const csv = tableToCsv(rows);
-              const fp = path.join(dir, `${name}.csv`);
-              await fs.promises.writeFile(fp, csv, 'utf-8');
-              totalSize += Buffer.byteLength(csv);
-            }
-            return { filePath: dir, format: 'csv', tables, sizeBytes: totalSize };
-          }
-        });
-
-        // Auto-backup settings
-        ipcMain.handle('backup:auto-settings-get', async () => {
-          return getAutoBackupSettings();
-        });
-
-        ipcMain.handle('backup:auto-settings-update', async (_event, settings) => {
-          return updateAutoBackupSettings(settings);
+        ipcMain.handle('task-structuring:breakdown', async (_event, cardId: string) => {
+          return generateTaskBreakdown(cardId);
         });
       }
       ```
 
-      Import getAutoBackupSettings/updateAutoBackupSettings from autoBackupScheduler
-      (will be created in Task 3). For now, create simple stub functions that read/write
-      from the settings table directly within this file, OR better: define them in
-      backupService.ts so Task 3 can move/enhance them.
+      ### 1d. Register in src/main/ipc/index.ts
 
-      Actually, to avoid circular dependencies and keep Task 1 self-contained:
-      Define getAutoBackupSettings and updateAutoBackupSettings in backupService.ts
-      (they just read/write settings table). Task 3 will import and use them from there
-      when building the scheduler.
+      Add import: `import { registerTaskStructuringHandlers } from './task-structuring';`
+      Add call: `registerTaskStructuringHandlers();` in registerIpcHandlers
 
-      ```typescript
-      // In backupService.ts:
-      export async function getAutoBackupSettings(): Promise<AutoBackupSettings> {
-        const db = getDb();
-        const rows = await db.select().from(settings)
-          .where(sql`${settings.key} LIKE 'autoBackup.%'`);
-        const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
-        return {
-          enabled: map['autoBackup.enabled'] === 'true',
-          frequency: (map['autoBackup.frequency'] as AutoBackupFrequency) || 'daily',
-          retention: parseInt(map['autoBackup.retention'] || '5', 10),
-          lastRun: map['autoBackup.lastRun'] || null,
-        };
-      }
-
-      export async function updateAutoBackupSettings(
-        updates: Partial<AutoBackupSettings>
-      ): Promise<void> {
-        const db = getDb();
-        const entries: [string, string][] = [];
-        if (updates.enabled !== undefined) entries.push(['autoBackup.enabled', String(updates.enabled)]);
-        if (updates.frequency !== undefined) entries.push(['autoBackup.frequency', updates.frequency]);
-        if (updates.retention !== undefined) entries.push(['autoBackup.retention', String(updates.retention)]);
-        if (updates.lastRun !== undefined) entries.push(['autoBackup.lastRun', updates.lastRun || '']);
-        for (const [key, value] of entries) {
-          await db.insert(settings).values({ key, value })
-            .onConflictDoUpdate({ target: settings.key, set: { value } });
-        }
-      }
-      ```
-
-      ### 1e. Register in src/main/ipc/index.ts
-
-      Add import: `import { registerBackupHandlers } from './backup';`
-      Add call: `registerBackupHandlers(mainWindow);` (in registerIpcHandlers)
-
-      ### 1f. Extend src/preload/preload.ts
+      ### 1e. Extend src/preload/preload.ts
 
       Add to the electronAPI object:
       ```typescript
-      // Backup & Restore
-      backupCreate: () => ipcRenderer.invoke('backup:create'),
-      backupList: () => ipcRenderer.invoke('backup:list'),
-      backupRestore: (filePath: string) => ipcRenderer.invoke('backup:restore', filePath),
-      backupRestoreFromFile: () => ipcRenderer.invoke('backup:restore-from-file'),
-      backupDelete: (fileName: string) => ipcRenderer.invoke('backup:delete', fileName),
-      backupExport: (options: ExportOptions) => ipcRenderer.invoke('backup:export', options),
-      backupAutoSettingsGet: () => ipcRenderer.invoke('backup:auto-settings-get'),
-      backupAutoSettingsUpdate: (settings: Partial<AutoBackupSettings>) =>
-        ipcRenderer.invoke('backup:auto-settings-update', settings),
-      onBackupProgress: (callback: (progress: BackupProgress) => void) => {
-        const handler = (_event: any, progress: BackupProgress) => callback(progress);
-        ipcRenderer.on('backup:progress', handler);
-        return () => { ipcRenderer.removeListener('backup:progress', handler); };
-      },
+      // Task Structuring
+      taskStructuringGeneratePlan: (projectId: string, description: string) =>
+        ipcRenderer.invoke('task-structuring:generate-plan', projectId, description),
+      taskStructuringBreakdown: (cardId: string) =>
+        ipcRenderer.invoke('task-structuring:breakdown', cardId),
+      taskStructuringQuickPlan: (name: string, description: string) =>
+        ipcRenderer.invoke('task-structuring:quick-plan', name, description),
       ```
-
-      Import types in preload if needed (ExportOptions, AutoBackupSettings, BackupProgress
-      are used as parameter types — import from '../shared/types').
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. backupService.ts exports: getBackupDir, isDockerAvailable, createBackup, listBackups,
-         restoreBackup, deleteBackup, cleanOldBackups, getAutoBackupSettings, updateAutoBackupSettings
-      3. exportService.ts exports: exportAllData, writeJSON, writeCSV (or tableToCsv + writeCSV)
-      4. backup.ts IPC handlers: 8 channels registered
-      5. index.ts imports and calls registerBackupHandlers(mainWindow)
-      6. ElectronAPI has 9 new methods (8 invoke + 1 event listener)
-      7. preload.ts has 9 new bridge methods
+      2. 'task_structuring' is in AITaskType union
+      3. taskStructuringService.ts exports: generateProjectPlan, generateQuickPlan, generateTaskBreakdown
+      4. System prompts explicitly mention production-focused pillars
+      5. JSON parsing includes markdown fence stripping and error handling
+      6. task-structuring.ts IPC handlers: 3 channels registered
+      7. ElectronAPI has 3 new methods
+      8. preload.ts has 3 matching bridge methods
+      9. ipc/index.ts imports and calls registerTaskStructuringHandlers()
     </verify>
-    <done>Complete backend for backup/restore/export: two service files, IPC handlers, types, preload bridge. TypeScript compiles cleanly.</done>
+    <done>Complete backend for AI task structuring: service with two AI generation functions (project plan + card breakdown), 3 IPC channels, types, and preload bridge. TypeScript compiles cleanly.</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Docker CLI available on system PATH (standard for Docker Desktop on Windows/Mac)
-      - Container name "living-dashboard-db" matches docker-compose.yml (verified)
-      - pg_dump and psql available inside postgres:16-alpine container (standard)
-      - child_process.execFile works on Windows with Docker (standard Node.js behavior)
-      - app.getPath('userData') returns writable directory (guaranteed by Electron)
-      - maxBuffer of 100MB sufficient for pg_dump output (handles very large databases)
-      - Drizzle db.select().from(table) works for all schema tables (standard Drizzle API)
+      - generate() from ai-provider.ts works for task_structuring task type (same as summarization/idea_analysis)
+      - AI providers return valid JSON when prompted with structured instructions (with fallback parsing)
+      - 4096 max tokens is sufficient for project plans (typical plan is ~2000 tokens)
+      - Temperature 0.4 balances creativity with structure (lower than brainstorming's 0.7)
+      - Column → board → project traversal via Drizzle joins works (standard foreign key relationships)
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Backup management UI and data export in Settings page</n>
+    <n>Task structuring store and project planning modal UI</n>
     <files>
-      src/renderer/stores/backupStore.ts (NEW ~90 lines)
-      src/renderer/components/settings/BackupSection.tsx (NEW ~300 lines)
-      src/renderer/components/settings/ExportSection.tsx (NEW ~120 lines)
-      src/renderer/pages/SettingsPage.tsx (MODIFY — add backup/export sections + progress listener)
+      src/renderer/stores/taskStructuringStore.ts (NEW ~80 lines)
+      src/renderer/components/ProjectPlanningModal.tsx (NEW ~400 lines)
+      src/renderer/pages/ProjectsPage.tsx (MODIFY — add "Plan with AI" button to project cards)
     </files>
     <action>
       ## WHY
-      Users need a visual interface to manage backups (create, view, restore, delete)
-      and export their data. This integrates into the existing Settings page, which already
-      has section-based layout for Appearance, AI Providers, Model Assignments, etc.
+      Users need a visual interface to trigger AI project planning, review the generated
+      pillars/milestones/tasks, and apply suggestions as real boards and cards. The modal
+      should present the plan clearly and allow selective application.
 
       ## WHAT
 
-      ### 2a. Create src/renderer/stores/backupStore.ts
+      ### 2a. Create src/renderer/stores/taskStructuringStore.ts
 
-      Zustand store for backup state management:
+      Zustand store for task structuring state:
 
       ```typescript
-      interface BackupState {
-        backups: BackupInfo[];
-        loading: boolean;
-        error: string | null;
-        progress: BackupProgress | null;
-        autoSettings: AutoBackupSettings | null;
+      interface TaskStructuringState {
+        // Project plan
+        plan: ProjectPlan | null;
+        planLoading: boolean;
+        planError: string | null;
+        // Card breakdown
+        breakdown: TaskBreakdown | null;
+        breakdownLoading: boolean;
+        breakdownError: string | null;
         // Actions
-        loadBackups: () => Promise<void>;
-        createBackup: () => Promise<void>;
-        restoreBackup: (filePath: string) => Promise<void>;
-        restoreFromFile: () => Promise<void>;
-        deleteBackup: (fileName: string) => Promise<void>;
-        exportData: (options: ExportOptions) => Promise<ExportResult | null>;
-        loadAutoSettings: () => Promise<void>;
-        updateAutoSettings: (settings: Partial<AutoBackupSettings>) => Promise<void>;
-        setProgress: (progress: BackupProgress | null) => void;
-        clearError: () => void;
+        generatePlan: (projectId: string, description?: string) => Promise<void>;
+        generateQuickPlan: (name: string, description: string) => Promise<void>;
+        generateBreakdown: (cardId: string) => Promise<void>;
+        clearPlan: () => void;
+        clearBreakdown: () => void;
       }
       ```
 
       Implementation:
-      - loadBackups: calls electronAPI.backupList(), sets backups + loading
-      - createBackup: sets loading, calls electronAPI.backupCreate(), reloads list
-      - restoreBackup: calls electronAPI.backupRestore(filePath), reloads list
-      - restoreFromFile: calls electronAPI.backupRestoreFromFile(), reloads list
-      - deleteBackup: calls electronAPI.backupDelete(fileName), reloads list
-      - exportData: calls electronAPI.backupExport(options), returns result
-      - loadAutoSettings: calls electronAPI.backupAutoSettingsGet()
-      - updateAutoSettings: calls electronAPI.backupAutoSettingsUpdate(), reloads settings
-      - Error handling: catch in each action, set error message
-      - Progress: setProgress called from onBackupProgress listener
+      - generatePlan: sets planLoading=true, calls electronAPI.taskStructuringGeneratePlan,
+        sets plan on success, sets planError on failure, planLoading=false
+      - generateQuickPlan: same flow but calls electronAPI.taskStructuringQuickPlan
+      - generateBreakdown: sets breakdownLoading=true, calls electronAPI.taskStructuringBreakdown,
+        sets breakdown on success, sets breakdownError on failure
+      - clearPlan: resets plan/planLoading/planError to initial values
+      - clearBreakdown: resets breakdown/breakdownLoading/breakdownError to initial values
+      - Error messages: extract from error (e.message or 'Failed to generate plan')
 
-      ### 2b. Create src/renderer/components/settings/BackupSection.tsx
+      ### 2b. Create src/renderer/components/ProjectPlanningModal.tsx
 
-      Component for backup management, rendered in SettingsPage.
+      Full-screen overlay modal for AI project planning. Triggered from ProjectsPage.
 
-      Structure:
-      ```
-      ┌─ Database Backups ──────────────────────────────────────────┐
-      │                                                              │
-      │  [Create Backup]   [Restore from File...]                    │
-      │                                                              │
-      │  ┌─ Progress Bar (visible during backup/restore) ────────┐  │
-      │  │  ◐ Dumping database...                                 │  │
-      │  └────────────────────────────────────────────────────────┘  │
-      │                                                              │
-      │  ┌─ Error Banner (if error) ─────────────────────────────┐  │
-      │  │  ⚠ Error message here                          [×]    │  │
-      │  └────────────────────────────────────────────────────────┘  │
-      │                                                              │
-      │  ┌─ Backup List ─────────────────────────────────────────┐  │
-      │  │  backup-2026-02-13-143022.sql   Feb 13   1.2 MB       │  │
-      │  │                              [Restore] [Delete]        │  │
-      │  │                                                        │  │
-      │  │  backup-2026-02-12-090015.sql   Feb 12   1.1 MB       │  │
-      │  │                              [Restore] [Delete]        │  │
-      │  └────────────────────────────────────────────────────────┘  │
-      │                                                              │
-      │  ℹ Backups include all database data. Audio files are        │
-      │    stored separately and not included in backups.            │
-      │                                                              │
-      │  ── Auto-Backup ──                                           │
-      │  [Toggle: Automatic Backups]                                 │
-      │  Frequency: [Daily ▼]                                        │
-      │  Keep last: [5] backups                                      │
-      │  Last backup: Feb 13, 2026 at 2:30 PM                       │
-      └──────────────────────────────────────────────────────────────┘
-      ```
-
-      Props: none (uses backupStore directly)
-
-      State (local):
-      - `confirmRestore: string | null` — filePath of backup being confirmed for restore
-      - `confirmDelete: string | null` — fileName of backup being confirmed for delete
-
-      Behavior:
-      - **Create Backup**: Button with Database icon. On click, call backupStore.createBackup().
-        Disabled while loading or progress is active.
-      - **Restore from File**: Button with Upload icon. Opens file dialog via backupStore.restoreFromFile().
-      - **Backup List**: Load on mount via useEffect → backupStore.loadBackups().
-        Each row shows: fileName, formatted date (from createdAt), human-readable size.
-        "Restore" button → sets confirmRestore state.
-        "Delete" button → sets confirmDelete state.
-      - **Restore confirmation**: Inline banner below the backup row:
-        "This will replace ALL current data. A safety backup will be created first."
-        [Cancel] [Restore] (red button)
-      - **Delete confirmation**: Inline text: "Delete this backup?" [Cancel] [Delete]
-      - **Progress indicator**: When progress is not null, show phase message with spinner.
-        Blue for dumping/saving/restoring, green for complete, red for failed.
-      - **Error banner**: Red bg, error message, dismiss (×) button.
-      - **Empty state**: "No backups yet. Create your first backup to protect your data."
-
-      **Auto-backup controls** (bottom section):
-      - Toggle switch: "Automatic Backups" (styled like a checkbox/toggle)
-      - When enabled, show:
-        - Frequency: select dropdown (Daily / Weekly)
-        - Retention: number input (1-50, default 5) with label "Keep last N backups"
-        - Last backup time: formatted from autoSettings.lastRun
-      - Changes call backupStore.updateAutoSettings({ ... })
-      - Load on mount: backupStore.loadAutoSettings()
-
-      Size formatting helper:
+      Props:
       ```typescript
-      function formatSize(bytes: number): string {
-        if (bytes < 1024) return `${bytes} B`;
-        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      interface ProjectPlanningModalProps {
+        projectId: string;
+        projectName: string;
+        onClose: () => void;
+        onApply: (pillars: ProjectPillar[]) => Promise<void>;
       }
       ```
 
-      Styling — follow existing SettingsPage section pattern:
-      - Section wrapper: `bg-surface-900 rounded-xl p-6` (or matching existing sections)
-      - Section title: `text-lg font-semibold text-surface-100 mb-4`
-      - Buttons: primary (bg-primary-600 hover:bg-primary-500), destructive (bg-red-600/20 text-red-400 hover:bg-red-600/30)
-      - List items: `bg-surface-800/50 rounded-lg px-4 py-3`
-      - Info text: `text-xs text-surface-500 mt-4`
-      - Toggle: simple checkbox or custom toggle (keep it simple — a checkbox with label is fine)
-
-      ### 2c. Create src/renderer/components/settings/ExportSection.tsx
-
-      Separate component for data export (different user intent from backup):
-
+      Structure (visual layout):
       ```
-      ┌─ Export Data ────────────────────────────────────────────────┐
-      │                                                              │
-      │  Export your data for external use or migration.             │
-      │  API keys are excluded for security.                         │
-      │                                                              │
-      │  [Export as JSON]   [Export as CSV]                           │
-      │                                                              │
-      │  ✓ Exported to C:\Users\...\export.json (1.5 MB)            │
-      └──────────────────────────────────────────────────────────────┘
+      ┌─ AI Project Planning ────────────────────────────────[×]─┐
+      │                                                           │
+      │  Planning for: {projectName}                              │
+      │  ┌──────────────────────────────────────────────────────┐ │
+      │  │ Additional context (optional):                        │ │
+      │  │ [textarea for extra instructions to AI]               │ │
+      │  └──────────────────────────────────────────────────────┘ │
+      │  [Generate Plan] (or [Regenerate] if plan exists)         │
+      │                                                           │
+      │  ── Loading State ──                                      │
+      │  ◐ Generating project plan... (with spinner)              │
+      │                                                           │
+      │  ── Error State ──                                        │
+      │  ⚠ Error message. Check AI provider settings. [Retry]    │
+      │                                                           │
+      │  ── Plan Results (when plan loaded) ──                    │
+      │                                                           │
+      │  Summary: {plan.summary}                                  │
+      │                                                           │
+      │  ┌─ Pillars (tabs or accordion) ───────────────────────┐ │
+      │  │ [Architecture] [Security] [Testing] [DevOps]         │ │
+      │  │                                                       │ │
+      │  │ Architecture — System design and data models          │ │
+      │  │                                                       │ │
+      │  │  ☑ Design database schema        HIGH  Medium         │ │
+      │  │  ☑ Set up API layer              HIGH  Large          │ │
+      │  │  ☑ Define data models            MED   Small          │ │
+      │  │    → depends on: Design database schema               │ │
+      │  └───────────────────────────────────────────────────────┘ │
+      │                                                           │
+      │  ┌─ Milestones ───────────────────────────────────────┐   │
+      │  │ M1: Foundation — Core infrastructure                │   │
+      │  │   • Design database schema                          │   │
+      │  │   • Set up API layer                                │   │
+      │  │                                                     │   │
+      │  │ M2: Features — Main functionality                   │   │
+      │  │   • Implement user flows                            │   │
+      │  └─────────────────────────────────────────────────────┘   │
+      │                                                           │
+      │  [Apply Plan — Create Board & Cards]         [Cancel]     │
+      └───────────────────────────────────────────────────────────┘
       ```
 
-      State:
-      - `exporting: boolean` — loading state
-      - `result: ExportResult | null` — last export result (shown as success message)
-      - `error: string | null`
+      State (local):
+      - `additionalContext: string` — textarea value for extra context to AI
+      - `selectedTasks: Set<string>` — task titles that are selected for apply (all selected by default)
 
       Behavior:
-      - "Export as JSON" → calls backupStore.exportData({ format: 'json' })
-      - "Export as CSV" → calls backupStore.exportData({ format: 'csv' })
-      - Shows success message with file path and size after export
-      - Shows error if export fails
-      - Both buttons disabled while exporting
+      - **On mount**: Don't auto-generate. Wait for user to click Generate.
+      - **Generate/Regenerate button**: calls taskStructuringStore.generatePlan(projectId, additionalContext).
+        Text changes to "Regenerate" after first plan is loaded.
+      - **Pillars display**: Tab-based navigation between pillars.
+        Each pillar shows its name, description, and task list.
+        Each task has a checkbox (for selective apply), title, priority badge, effort badge.
+        Dependencies shown as small text below task: "→ depends on: X, Y"
+      - **Milestones**: Read-only section showing milestone names and their task groupings.
+        Informational only (milestones don't map to DB entities).
+      - **Apply button**: Creates a new board named "AI Plan — {date}" on the project.
+        For each pillar: creates a column named after the pillar.
+        For each selected task in that pillar: creates a card in the column.
+        Card priority = task.priority, description = task.description.
+        After apply: close modal.
+        The onApply callback handles the actual creation:
+        ```typescript
+        // In ProjectsPage, the onApply handler:
+        async function handleApplyPlan(pillars: ProjectPillar[]) {
+          const board = await boardStore.createBoard(projectId, 'AI Plan');
+          for (const pillar of pillars) {
+            const column = await boardStore.createColumn(board.id, pillar.name);
+            for (const task of pillar.tasks) {
+              if (selectedTasks.has(task.title)) {
+                await boardStore.createCard(column.id, {
+                  title: task.title,
+                  description: task.description,
+                  priority: task.priority,
+                });
+              }
+            }
+          }
+        }
+        ```
+        Wait — the apply logic with selected tasks should live inside the modal since
+        it knows which tasks are selected. Actually, make onApply simpler: the modal
+        filters to selected tasks and passes filtered pillars to onApply. The parent
+        (ProjectsPage) handles board/column/card creation.
 
-      Styling: same section pattern as BackupSection.
+        Actually, it's cleaner if the modal does the apply itself since it has access to
+        boardStore and knows selected tasks. Change props to not need onApply:
+        ```typescript
+        interface ProjectPlanningModalProps {
+          projectId: string;
+          projectName: string;
+          onClose: () => void;
+        }
+        ```
+        The modal imports boardStore directly and handles apply internally.
 
-      ### 2d. Modify SettingsPage.tsx
+      - **Cancel/Close**: Calls clearPlan() + onClose(). Escape key and overlay click also close.
+      - **Empty state**: "Generate an AI-powered project plan with production-focused pillars."
+      - **Priority badges**: Same color coding as CardDetailModal (emerald=low, blue=med, amber=high, red=urgent)
+      - **Effort badges**: Small grey badges: "S" / "M" / "L"
 
-      1. Import BackupSection and ExportSection
-      2. Add them as new sections. Place after the "About" section (or before it):
+      Styling:
+      - Modal: `fixed inset-0 z-50 bg-black/50` overlay, `max-w-4xl max-h-[85vh] overflow-y-auto`
+      - Section headers: `text-lg font-semibold text-surface-100`
+      - Tabs: horizontal button row with active state (underline or bg highlight)
+      - Task rows: `bg-surface-800/50 rounded-lg px-4 py-2` with flex layout
+      - Apply button: `bg-primary-600 hover:bg-primary-500` (primary action)
+      - Cancel: `text-surface-400 hover:text-surface-200` (text button)
+
+      Lucide icons to import: X (close), Brain or Sparkles (AI indicator), Check (apply),
+      RefreshCw (regenerate), AlertCircle (error), Loader2 (spinner)
+
+      ### 2c. Modify ProjectsPage.tsx
+
+      Add "Plan with AI" button to each project card in the grid:
+      1. Import: `ProjectPlanningModal`, `Brain` (or `Sparkles`) from lucide-react
+      2. Add local state: `planningProjectId: string | null` (which project's modal is open)
+      3. On each project card, add a small button: sparkle/brain icon + "Plan" tooltip
+         Position: top-right corner of the card, or in the card footer action row
+      4. On click: `setPlanningProjectId(project.id)`
+      5. When planningProjectId is set, render:
          ```tsx
-         <BackupSection />
-         <ExportSection />
+         {planningProjectId && (
+           <ProjectPlanningModal
+             projectId={planningProjectId}
+             projectName={projects.find(p => p.id === planningProjectId)?.name || ''}
+             onClose={() => setPlanningProjectId(null)}
+           />
+         )}
          ```
-      3. Add useEffect to subscribe to backup progress events:
-         ```tsx
-         useEffect(() => {
-           const cleanup = window.electronAPI.onBackupProgress((progress) => {
-             useBackupStore.getState().setProgress(progress);
-           });
-           return cleanup;
-         }, []);
-         ```
+      6. Also add "Plan with AI" to the project creation flow: after creating a new project,
+         offer to open the planning modal. This can be a simple button in the create confirmation
+         or auto-open if the user checks a box.
+
+         Simpler approach: just add the button on the card. Users can click it right after creating.
+
+      Note: The modal needs access to boardStore for creating boards/columns/cards.
+      Import useBoardStore or use window.electronAPI directly in the modal.
+      Prefer using boardStore for consistency with existing patterns.
+      BUT boardStore.createBoard/createColumn/createCard may not exist directly...
+
+      Check: boardStore currently has createCard, moveCard, updateCard, deleteCard,
+      and board/column operations are likely in projectStore or via IPC.
+      The modal should use electronAPI directly for board/column creation since boardStore
+      is scoped to the currently loaded board view.
+
+      Actually, looking at the architecture:
+      - Board CRUD goes through IPC: 'boards:create', 'boards:list', etc.
+      - Column CRUD: 'columns:create', etc.
+      - Card CRUD: 'cards:create', etc.
+
+      The modal should call electronAPI.boardCreate, electronAPI.columnCreate,
+      electronAPI.cardCreate directly (these exist in the preload bridge).
+
+      Verify these methods exist in ElectronAPI:
+      - boardCreate(projectId, name): creates board
+      - columnCreate(boardId, name): creates column
+      - cardCreate(columnId, data): creates card
+
+      If not, the modal calls the existing store methods or goes through
+      whatever pattern is used. Check the actual ElectronAPI methods.
+
+      Rather than guessing, instruct the executor to verify what board/column/card
+      creation methods exist on electronAPI and use those.
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. backupStore.ts exists with ~10 actions
-      3. BackupSection.tsx renders: create button, backup list, restore/delete per backup,
-         progress indicator, error banner, auto-backup controls
-      4. ExportSection.tsx renders: JSON/CSV export buttons, success/error messages
-      5. SettingsPage includes BackupSection and ExportSection
-      6. Progress events flow from main → renderer → store → UI
-      7. Restore confirmation dialog appears before restore executes
+      2. taskStructuringStore.ts exists with plan/breakdown state + 5 actions
+      3. ProjectPlanningModal.tsx renders: context textarea, generate button,
+         loading/error states, pillar tabs with task checkboxes, milestones, apply button
+      4. ProjectsPage has "Plan with AI" button on each project card
+      5. Clicking "Plan with AI" opens ProjectPlanningModal with correct projectId
+      6. Apply creates board + columns + cards via electronAPI
+      7. Modal closes properly (Escape, overlay click, close button, after apply)
+      8. Selected tasks can be toggled via checkboxes
     </verify>
-    <done>Backup management UI (create, list, restore, delete, auto-backup settings) and export UI (JSON/CSV) integrated into Settings page. Users can fully manage backups and export data visually.</done>
+    <done>Project planning modal with pillar tabs, task selection, and apply action. Users can generate AI project plans from ProjectsPage and create boards/columns/cards from the suggestions.</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - lucide-react has: Database, Upload, Download, Trash2, RotateCcw, AlertCircle, Check icons (standard lucide icons)
-      - SettingsPage section layout is consistent (white/dark bg sections with padding/rounded)
-      - Zustand store can be accessed both via hook (in components) and via getState() (in useEffect)
-      - electronAPI.onBackupProgress returns a cleanup function (standard preload pattern)
+      - electronAPI has methods for board/column/card creation (verify during execution)
+      - boardStore or direct electronAPI calls work for creating boards/columns/cards
+      - Lucide has Brain or Sparkles icon (standard lucide icons)
+      - Zustand stores can be imported and used in modal components
+      - 400 lines is within acceptable range for a feature-rich modal
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Auto-backup scheduler with settings persistence and retention cleanup</n>
+    <n>Card task breakdown UI and integration into CardDetailModal</n>
     <files>
-      src/main/services/autoBackupScheduler.ts (NEW ~100 lines)
-      src/main/main.ts (MODIFY — init scheduler after DB connect, cleanup on quit)
+      src/renderer/components/TaskBreakdownSection.tsx (NEW ~200 lines)
+      src/renderer/components/CardDetailModal.tsx (MODIFY — add breakdown section)
     </files>
     <action>
       ## WHY
-      R15 requires "scheduled automatic backups." This task adds a background scheduler
-      in the main process that periodically checks whether a backup is due based on
-      user settings, runs pg_dump, and cleans up old backups according to retention policy.
+      R11 also requires task breakdown for individual cards — "suggests task breakdown and
+      dependencies." This adds an AI-powered "Break into subtasks" feature to the card detail
+      modal, complementing the project-level planning from Task 2.
 
       ## WHAT
 
-      ### 3a. Create src/main/services/autoBackupScheduler.ts
+      ### 3a. Create src/renderer/components/TaskBreakdownSection.tsx
 
-      File header:
-      ```
-      // === FILE PURPOSE ===
-      // Background scheduler for automatic database backups.
-      // Checks hourly if a backup is due based on user-configured frequency.
-      //
-      // === DEPENDENCIES ===
-      // - backupService (createBackup, cleanOldBackups, getAutoBackupSettings, updateAutoBackupSettings)
-      // - Database connection must be established before init
-      //
-      // === LIMITATIONS ===
-      // - Hourly check granularity (not second-precise)
-      // - Requires Docker running when backup triggers
-      ```
+      A section component for the CardDetailModal that generates and displays subtask
+      suggestions, with an "Apply" action to create the subtasks as new cards.
 
-      Module state:
+      Props:
       ```typescript
-      let intervalId: ReturnType<typeof setInterval> | null = null;
-      let mainWindowRef: BrowserWindow | null = null;
+      interface TaskBreakdownSectionProps {
+        cardId: string;
+        columnId: string;  // For creating subtask cards in the same column
+      }
       ```
 
-      Exports:
-      - `initAutoBackup(mainWindow: BrowserWindow): void` —
-        1. Store mainWindow reference
-        2. Set interval: every 1 hour (3_600_000 ms), call `checkAndRunBackup()`
-        3. Also run checkAndRunBackup() once immediately (debounced by 10 seconds
-           after startup to avoid blocking app launch)
+      Structure:
+      ```
+      ── AI Task Breakdown ──────────────────────────────────
+      [Break into Subtasks]  (button, or [Regenerate] if breakdown exists)
 
-      - `stopAutoBackup(): void` —
-        1. If intervalId exists, clearInterval
-        2. Set intervalId = null, mainWindowRef = null
+      ◐ Analyzing task...  (loading state)
 
-      - `checkAndRunBackup(): Promise<void>` —
-        1. Read auto-backup settings via `getAutoBackupSettings()`
-        2. If not enabled, return early
-        3. Determine if backup is due:
-           - If lastRun is null → due (first time)
-           - If frequency is 'daily' → due if lastRun > 24 hours ago
-           - If frequency is 'weekly' → due if lastRun > 7 days ago
-           - If frequency is 'off' → return (shouldn't happen if enabled, but guard)
-        4. If due:
-           a. Try `createBackup(mainWindowRef)` — wrap in try/catch, log errors
-           b. On success: update lastRun to new Date().toISOString()
-              via `updateAutoBackupSettings({ lastRun: new Date().toISOString() })`
-           c. Read retention setting, call `cleanOldBackups(retention)`
-        5. On any error: console.error, don't throw (background task shouldn't crash app)
+      ⚠ Error message  (error state)
 
-      All operations wrapped in try/catch with console.error logging.
-      This is a fire-and-forget background task — errors are logged, never thrown.
+      Suggested subtasks:
+      ☑ 1. Set up database migration       MED  S
+      ☑ 2. Create API endpoint             HIGH M
+      ☑ 3. Add input validation            HIGH S
+      ☐ 4. Write unit tests                MED  M
 
-      ### 3b. Modify src/main/main.ts
+      Notes: Consider adding error handling for edge cases...
 
-      1. Import: `import { initAutoBackup, stopAutoBackup } from './services/autoBackupScheduler';`
+      [Create Selected as Cards]
+      ─────────────────────────────────────────────────────
+      ```
 
-      2. After the mainWindow is created and database is connected (look for where
-         `registerIpcHandlers(mainWindow)` is called), add:
-         ```typescript
-         // Start auto-backup scheduler
-         initAutoBackup(mainWindow);
+      State (local):
+      - `selectedSubtasks: Set<number>` — indices of selected subtasks (all selected by default)
+      - `applying: boolean` — loading state during apply
+
+      Behavior:
+      - **Generate button**: calls taskStructuringStore.generateBreakdown(cardId)
+        Uses the store's breakdownLoading/breakdownError/breakdown state.
+      - **Subtask list**: Each subtask has checkbox, order number, title, priority badge, effort badge.
+        Description shown as tooltip or small text below title.
+      - **Select all / deselect all**: Optional toggle at top of list.
+      - **Apply button**: "Create Selected as Cards"
+        For each selected subtask (in order):
+        - Creates a new card in the same column via electronAPI.cardCreate(columnId, {
+            title: subtask.title,
+            description: subtask.description,
+            priority: subtask.priority,
+          })
+        After all created: show brief success message, clear breakdown.
+      - **Notes**: Display the AI's notes section in a muted text block.
+      - **Empty state**: Just the "Break into Subtasks" button with a brief description:
+        "Use AI to break this task into smaller, actionable subtasks."
+
+      Styling:
+      - Section wrapper: same pattern as CommentsSection (collapsible section style)
+      - Section title: `text-sm text-surface-400` with Sparkles or ListTodo icon
+      - Subtask rows: compact, similar to action items in ActionItemList
+      - Priority badges: same color coding as elsewhere
+      - Apply button: `bg-primary-600 text-sm`
+
+      Lucide icons: Sparkles (or ListChecks), Check, Loader2
+
+      ### 3b. Modify CardDetailModal.tsx
+
+      1. Import TaskBreakdownSection
+      2. Add after the CommentsSection (or after RelationshipsSection):
+         ```tsx
+         <div className="mb-5">
+           <TaskBreakdownSection cardId={card.id} columnId={card.columnId} />
+         </div>
          ```
 
-      3. In the app 'before-quit' or 'will-quit' handler (or window close handler),
-         add: `stopAutoBackup();`
-         If no quit handler exists, add one:
+         Note: card.columnId — verify this field exists on the Card type. The card is passed
+         as a prop. If columnId isn't on the Card type, it may need to be derived from the
+         card's position in the board. Check Card type in shared/types.ts.
+
+         If Card doesn't have columnId, the parent (BoardView) knows which column the card
+         is in. In that case, add columnId to CardDetailModalProps:
          ```typescript
-         app.on('before-quit', () => {
-           stopAutoBackup();
-         });
+         interface CardDetailModalProps {
+           card: Card;
+           columnId: string;  // Add this
+           onUpdate: (id: string, data: UpdateCardInput) => Promise<void>;
+           onClose: () => void;
+         }
          ```
+         And pass it from wherever CardDetailModal is rendered.
 
-      ### Notes on integration
+      3. Also clean up: when card detail modal closes, call clearBreakdown() from
+         taskStructuringStore to reset state.
 
-      - The auto-backup settings are already readable/writable via backupService.ts
-        (getAutoBackupSettings/updateAutoBackupSettings added in Task 1).
-      - The IPC channels for settings get/update are already in backup.ts (Task 1).
-      - The BackupSection UI controls from Task 2 already call these IPC channels.
-      - This task just adds the background scheduler that reads those settings and acts.
-      - When the user changes auto-backup settings in the UI, the next hourly check
-        will pick up the new values (no restart needed).
+      ### Integration notes
+
+      - The breakdown feature is contextual to a single card. It loads the card + project
+        context automatically via the backend service.
+      - Created subtask cards appear in the same column, so the user sees them immediately
+        when they close the modal and return to the board view.
+      - No new IPC channels needed — Task 1's 'task-structuring:breakdown' handles this.
     </action>
     <verify>
       1. `npx tsc --noEmit` — zero TypeScript errors
-      2. autoBackupScheduler.ts exports: initAutoBackup, stopAutoBackup, checkAndRunBackup
-      3. main.ts calls initAutoBackup(mainWindow) after DB connection
-      4. main.ts calls stopAutoBackup() on app quit
-      5. checkAndRunBackup correctly determines if backup is due (daily: >24h, weekly: >7d)
-      6. Errors in background backup are caught and logged (not thrown)
-      7. cleanOldBackups called after successful auto-backup
+      2. TaskBreakdownSection.tsx renders: generate button, loading/error states,
+         subtask list with checkboxes and badges, apply button, notes section
+      3. CardDetailModal includes TaskBreakdownSection with correct props
+      4. Clicking "Break into Subtasks" calls the AI and displays results
+      5. "Create Selected as Cards" creates cards in the same column
+      6. Subtask selection (checkboxes) works correctly
+      7. Breakdown state is cleared when modal closes
+      8. New cards appear in the board after apply (verify card creation IPC works)
     </verify>
-    <done>Auto-backup scheduler runs in background, checks hourly, respects user settings for frequency and retention, cleans up old backups. Integrated into app lifecycle (start on boot, stop on quit).</done>
+    <done>TaskBreakdownSection integrated into CardDetailModal. Users can generate AI subtask suggestions for any card and create them as new cards with one click.</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - setInterval persists for Electron main process lifetime (standard Node.js behavior)
-      - Hourly check interval is acceptable granularity (not second-precise scheduling)
-      - Docker container is running when auto-backup triggers (if not, backup fails gracefully)
-      - Settings table is available when scheduler first checks (migrations run before scheduler init)
-      - getAutoBackupSettings reads from settings table each check (picks up UI changes automatically)
+      - Card type has columnId or it can be passed as a prop to CardDetailModal
+      - electronAPI.cardCreate (or equivalent) exists for creating cards in a column
+      - Creating multiple cards sequentially is acceptable (no batch create needed)
+      - The board view auto-refreshes or the user navigates back to see new cards
+      - TaskBreakdownSection at ~200 lines keeps CardDetailModal additions minimal (~5 lines)
     </assumptions>
   </task>
 </phase>

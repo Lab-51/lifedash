@@ -16,6 +16,7 @@ import { registerMeetingIntelligenceHandlers } from './meeting-intelligence';
 import { registerIdeaHandlers } from './ideas';
 import { registerBrainstormHandlers } from './brainstorm';
 import { registerBackupHandlers } from './backup';
+import { registerTaskStructuringHandlers } from './task-structuring';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -35,4 +36,5 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerIdeaHandlers();
   registerBrainstormHandlers();
   registerBackupHandlers(mainWindow);
+  registerTaskStructuringHandlers();
 }

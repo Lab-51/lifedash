@@ -172,7 +172,7 @@ export interface UpdateLabelInput {
 // === AI PROVIDER TYPES ===
 
 export type AIProviderName = 'openai' | 'anthropic' | 'ollama';
-export type AITaskType = 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis';
+export type AITaskType = 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis' | 'task_structuring';
 
 /** AI provider as seen by renderer (no decrypted keys — only hasApiKey boolean) */
 export interface AIProvider {
@@ -471,6 +471,47 @@ export interface AutoBackupSettings {
   lastRun: string | null; // ISO timestamp or null
 }
 
+// === TASK STRUCTURING TYPES ===
+
+export interface ProjectPillar {
+  name: string;
+  description: string;
+  tasks: PillarTask[];
+}
+
+export interface PillarTask {
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  effort: 'small' | 'medium' | 'large';
+  dependencies?: string[];
+}
+
+export interface ProjectMilestone {
+  name: string;
+  description: string;
+  taskTitles: string[];
+}
+
+export interface ProjectPlan {
+  pillars: ProjectPillar[];
+  milestones: ProjectMilestone[];
+  summary: string;
+}
+
+export interface SubtaskSuggestion {
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  effort: 'small' | 'medium' | 'large';
+  order: number;
+}
+
+export interface TaskBreakdown {
+  subtasks: SubtaskSuggestion[];
+  notes: string;
+}
+
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
   platform: NodeJS.Platform;
@@ -611,6 +652,11 @@ export interface ElectronAPI {
   backupAutoSettingsGet: () => Promise<AutoBackupSettings>;
   backupAutoSettingsUpdate: (settings: Partial<AutoBackupSettings>) => Promise<void>;
   onBackupProgress: (callback: (progress: BackupProgress) => void) => () => void;
+
+  // Task Structuring
+  taskStructuringGeneratePlan: (projectId: string, description: string) => Promise<ProjectPlan>;
+  taskStructuringBreakdown: (cardId: string) => Promise<TaskBreakdown>;
+  taskStructuringQuickPlan: (projectName: string, projectDescription: string) => Promise<ProjectPlan>;
 }
 
 declare global {

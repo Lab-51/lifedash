@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 7 — Plan 7.3 EXECUTED
+Session focus: Phase 7 — Plan 7.4 EXECUTED
 
 ## Position
 Milestone: Phase 7 — v2 Features (Advanced)
 Phase: 7 of 7 (IN PROGRESS)
-Plan: 3 of 8 (COMPLETE — 3/3 tasks done)
+Plan: 4 of 8 (COMPLETE — 3/3 tasks done)
 Task: 3 of 3
 
 ## Phase 1 — COMPLETE
@@ -278,6 +278,29 @@ Planned as 8 sequential plans.
 - Safety backup before every restore (logged but non-blocking on failure)
 - Filename validation regex prevents path traversal in deleteBackup
 
+### Plan 7.4: AI Task Structuring Engine (3 tasks) — COMPLETE
+1. Task structuring types + service + IPC + preload (backend) — DONE
+2. Task structuring store + ProjectPlanningModal + ProjectsPage integration — DONE
+3. TaskBreakdownSection + CardDetailModal integration — DONE
+- Not yet committed
+
+## Plan 7.4 Execution Results
+- **Task 1**: Added 'task_structuring' to AITaskType. Added 7 types (ProjectPillar, PillarTask, ProjectMilestone, ProjectPlan, SubtaskSuggestion, TaskBreakdown) + 3 ElectronAPI methods to types.ts. Created taskStructuringService.ts (~270 lines, 2 system prompts, 3 exports: generateProjectPlan, generateQuickPlan, generateTaskBreakdown, with shared generatePlanFromContext helper). Created task-structuring.ts IPC handlers (3 channels). Registered in ipc/index.ts. Extended preload.ts (3 bridge methods).
+- **Task 2**: Created taskStructuringStore.ts (83 lines, Zustand — 5 actions). Created ProjectPlanningModal.tsx (462 lines — context textarea, generate/regenerate, pillar tabs with task checkboxes and priority/effort badges, milestones, apply creates board+columns+cards). Modified ProjectsPage.tsx (added Sparkles "Plan with AI" button on each project card, modal render).
+- **Task 3**: Created TaskBreakdownSection.tsx (~230 lines — generate button, subtask list with checkboxes/badges, select all toggle, apply creates cards in same column, success feedback). Modified CardDetailModal.tsx (4 changes: imports, clearBreakdown on unmount, TaskBreakdownSection after ActivityLog).
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
+
+## Decisions Made (Plan 7.4)
+- Transient AI output: no new DB tables, results displayed in modal, applied as real boards/columns/cards
+- Non-streaming: generate() not streamGenerate(), JSON output must be parsed
+- New task type: 'task_structuring' added to AITaskType for per-task model routing
+- Production-focused prompts: pillars include Architecture, Security, Testing, DevOps, Performance, Documentation
+- Temperature 0.4: lower than brainstorming (0.7), balances structure with useful suggestions
+- Apply creates: board → columns (named after pillars) → cards (one per selected task)
+- generate() in ai-provider.ts already handles usage logging internally, no separate logUsage needed
+- Modal uses window.electronAPI directly for board/column/card creation (not boardStore, which is scoped to loaded board)
+- TaskBreakdownSection creates cards in same column as parent card
+
 ## Next Steps
-1. `/nexus:git` — Commit Plans 7.1 + 7.2 + 7.3 changes
-2. `/nexus:plan 7.4` — Plan next: R11 Task Structuring AI service
+1. `/nexus:git` — Commit Plans 7.1 + 7.2 + 7.3 + 7.4 changes
+2. `/nexus:plan 7.5` — Plan next iteration (Meeting templates, notifications, daily digest)

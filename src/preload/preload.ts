@@ -236,4 +236,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('backup:progress', handler);
     };
   },
+
+  // Task Structuring
+  taskStructuringGeneratePlan: (projectId: string, description: string) =>
+    ipcRenderer.invoke('task-structuring:generate-plan', projectId, description),
+  taskStructuringBreakdown: (cardId: string) =>
+    ipcRenderer.invoke('task-structuring:breakdown', cardId),
+  taskStructuringQuickPlan: (name: string, description: string) =>
+    ipcRenderer.invoke('task-structuring:quick-plan', name, description),
 });
