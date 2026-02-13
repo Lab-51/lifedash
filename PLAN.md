@@ -1,607 +1,582 @@
-# Phase 5 — Plan 1 of 2: Meeting Intelligence Service & IPC
+# Phase 5 — Plan 2 of 2: Meeting Intelligence UI
 
 ## Coverage
-- **R6: Meeting Intelligence — AI Brief & Actions** (backend service, IPC layer, types)
+- **R6: Meeting Intelligence — AI Brief & Actions** (frontend UI for brief display, action item management, convert-to-card, search)
 
 ## Plan Overview
-Phase 5 delivers AI-generated meeting summaries and actionable item extraction (R6). It requires 2 plans:
+Plan 5.1 delivered the backend: meetingIntelligenceService.ts, IPC handlers, types, preload bridge, and store extensions. All 6 IPC channels are working and the meetingStore already has `generateBrief`, `generateActionItems`, `updateActionItemStatus`, and `convertActionToCard` actions.
 
-- **Plan 5.1** (this plan): Backend — intelligence service, IPC handlers, shared types, preload bridge, store extensions.
-- **Plan 5.2** (next plan): Frontend — brief display in MeetingDetailModal, action item review/edit UI, convert-to-card flow, meeting history search.
+Plan 5.2 builds the UI on top of this foundation:
 
-## Architecture Decisions for Plan 5.1
+- **Task 1**: Brief section + action item list components (standalone, reusable)
+- **Task 2**: Convert-to-card modal + MeetingDetailModal integration (wire everything together)
+- **Task 3**: Meeting history search on MeetingsPage + polish
 
-1. **meetingIntelligenceService.ts** — New service in `src/main/services/`. Contains all AI
-   generation logic (brief + actions), action item CRUD, and convert-to-card logic. Uses
-   the existing `generate()` function from `ai-provider.ts` for all AI calls.
+## Architecture Decisions for Plan 5.2
 
-2. **Provider resolution** — A helper function `resolveProvider(taskType)` checks the settings
-   table for a `task_models` JSON config. If found, uses the specified provider/model for
-   that task type. Falls back to the first enabled provider with sensible defaults.
+1. **Component decomposition** — The MeetingDetailModal is already 263 lines. Rather than
+   bloating it further, we extract BriefSection and ActionItemList as standalone components
+   that receive data and callbacks as props. The modal orchestrates them.
 
-3. **Structured AI output** — For action item extraction, the AI is instructed to return
-   JSON array of `{ description: string }` objects. We parse this with JSON.parse wrapped
-   in try/catch, with a regex fallback to extract bullet points if JSON parsing fails.
+2. **ConvertActionModal** — A 3-step flow (project → board → column) in a small overlay modal.
+   Uses `window.electronAPI.getBoards(projectId)` and `window.electronAPI.getColumns(boardId)`
+   directly for lightweight data fetching (no need to load full boardStore which carries cards/labels).
 
-4. **Prompt templates** — Two system prompts: one for meeting summarization (structured
-   bullet-point format) and one for action item extraction (JSON array output). These are
-   constants in the service file.
+3. **Search** — Client-side filtering on MeetingsPage. Filters by title and brief summary text.
+   No backend search needed since meeting lists are already fully loaded in the store.
 
-5. **Action item lifecycle** — `pending` → `approved`/`dismissed` (user decision) →
-   `converted` (when approved action is turned into a card). The `convertActionToCard`
-   function creates a card in the specified column and links it back to the action item.
-
-6. **IPC channels** — New `meeting-intelligence.ts` handler file with 6 channels:
-   `meetings:generate-brief`, `meetings:generate-actions`, `meetings:get-brief`,
-   `meetings:get-actions`, `meetings:update-action-status`, `meetings:convert-action-to-card`.
-
-7. **MeetingWithTranscript extension** — The `getMeeting` service and store will be extended
-   to include `brief` and `actionItems` alongside `segments`, so the detail modal has all
-   data in one fetch.
+4. **No new store changes** — All state management was completed in Plan 5.1 Task 3. The UI
+   components use the existing meetingStore actions directly.
 
 ---
 
-<phase n="5.1" name="Meeting Intelligence Service and IPC">
+<phase n="5.2" name="Meeting Intelligence UI">
   <context>
-    Phase 4 is complete. The app has:
-    - AI provider system: generate() in ai-provider.ts (providerName, model, system, prompt, taskType → text + usage)
-    - Meeting system: meetingService.ts (getMeeting returns MeetingWithTranscript with segments)
-    - DB schema: meetingBriefs table (id, meetingId, summary), actionItems table (id, meetingId, cardId, description, status)
-    - Card system: cards:create IPC handler creates cards with columnId, title, description, position
-    - Types: MeetingBrief, ActionItem, ActionItemStatus already defined in shared/types.ts
-    - Settings: key-value table via getSetting/setSetting
-    - TaskModelConfig type exists: { providerId, model, temperature?, maxTokens? }
-    - aiProviders table: id, name, displayName, enabled, apiKeyEncrypted, baseUrl
-    - Pattern: services in src/main/services/, IPC in src/main/ipc/, types in src/shared/types.ts
+    Plan 5.1 is complete. The backend and store layer are fully implemented:
+
+    - meetingIntelligenceService.ts: 8 exports (generateBrief, generateActionItems, getBrief,
+      getActionItems, updateActionItemStatus, convertActionToCard, deleteActionItem, resolveTaskModel)
+    - 6 IPC channels: meetings:generate-brief, meetings:generate-actions, meetings:get-brief,
+      meetings:get-actions, meetings:update-action-status, meetings:convert-action-to-card
+    - meetingStore: generatingBrief, generatingActions state flags + 4 new actions
+    - MeetingWithTranscript: includes brief (MeetingBrief | null) and actionItems (ActionItem[])
+    - ActionItemStatus: 'pending' | 'approved' | 'dismissed' | 'converted'
+    - ElectronAPI: getBoards(projectId), getColumns(boardId) available for convert flow
 
     Key files to reference:
-    @src/main/services/ai-provider.ts (generate function signature)
-    @src/main/services/meetingService.ts (getMeeting, addTranscriptSegment)
-    @src/main/db/schema/meetings.ts (meetingBriefs, actionItems tables)
-    @src/main/db/schema/ai-providers.ts (aiProviders table)
-    @src/main/ipc/meetings.ts (existing meeting handlers)
-    @src/main/ipc/cards.ts (card creation pattern)
-    @src/main/ipc/index.ts (handler registration)
-    @src/shared/types.ts (MeetingBrief, ActionItem, TaskModelConfig, ElectronAPI)
-    @src/preload/preload.ts (bridge pattern)
-    @src/renderer/stores/meetingStore.ts (Zustand store)
+    @src/renderer/stores/meetingStore.ts (all store actions already implemented)
+    @src/renderer/components/MeetingDetailModal.tsx (263 lines — needs integration)
+    @src/renderer/pages/MeetingsPage.tsx (218 lines — needs search)
+    @src/renderer/stores/projectStore.ts (projects list for convert flow)
+    @src/renderer/stores/boardStore.ts (pattern reference, but NOT used directly)
+    @src/shared/types.ts (MeetingBrief, ActionItem, ActionItemStatus, Board, Column)
+    @src/renderer/components/CardDetailModal.tsx (modal pattern reference)
+    @src/renderer/components/MeetingCard.tsx (card pattern reference)
+
+    UI conventions from existing code:
+    - Primary action: bg-primary-600 hover:bg-primary-500 text-white rounded-lg px-3 py-1.5
+    - Section bg: bg-surface-800/50 border border-surface-700 rounded-lg p-3
+    - Status badges: inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full
+    - Loading: Loader2 from lucide-react with animate-spin, text-amber-400
+    - Icons: lucide-react (X, Clock, Trash2, Plus, Check, XCircle, ArrowRight, Search, Loader2, etc.)
+    - Escape + overlay click to close modals
+    - Outside-click detection for dropdowns via useRef + mousedown listener
   </context>
 
   <task type="auto" n="1">
-    <n>Create meeting intelligence service with AI prompts and action item management</n>
+    <n>Create BriefSection and ActionItemList components</n>
     <files>
-      src/main/services/meetingIntelligenceService.ts (create)
+      src/renderer/components/BriefSection.tsx (create)
+      src/renderer/components/ActionItemList.tsx (create)
     </files>
     <preconditions>
-      - Phase 4 complete (meeting service, transcripts, AI provider system all working)
-      - meetingBriefs and actionItems DB tables exist (created in Phase 1 migration)
-      - generate() function available from ai-provider.ts
-      - aiProviders and settings tables queryable via Drizzle
+      - Plan 5.1 complete (meetingStore has generateBrief, generateActionItems, updateActionItemStatus)
+      - MeetingWithTranscript includes brief and actionItems
+      - All shared types defined (MeetingBrief, ActionItem, ActionItemStatus)
     </preconditions>
     <action>
-      Create `src/main/services/meetingIntelligenceService.ts` — the core intelligence service
-      that generates meeting briefs and action items using AI, and manages action item lifecycle.
+      Create two standalone components for displaying meeting intelligence data. These
+      will be integrated into MeetingDetailModal in Task 2.
 
-      WHY: This is the central piece of Phase 5. All AI-powered meeting analysis flows through
-      this service. It needs to resolve which AI provider to use, format prompts, parse
-      responses, and persist results. Keeping it in a separate service (not inline in IPC
-      handlers) keeps the code organized and testable.
+      WHY: Keeping these as separate components prevents MeetingDetailModal from growing
+      beyond 500 lines and makes each component focused and testable.
 
-      ## Exports (8 functions):
+      ## Component 1: BriefSection.tsx (~80-100 lines)
 
-      ### 1. `resolveTaskModel(taskType: string)` — Helper
-      Internal helper to determine which AI provider + model to use for a given task type.
-      - Query settings table for key `task_models` — expected value is JSON: `{ "summarization": { "providerId": "...", "model": "...", "temperature": 0.3 }, ... }`
-      - Parse JSON, look up the entry for `taskType`
-      - If found, fetch the provider row from aiProviders by providerId to get apiKeyEncrypted/baseUrl
-      - If NOT found (or no settings), fall back to first `enabled: true` provider from aiProviders table
-      - Default models by provider: openai → 'gpt-4o-mini', anthropic → 'claude-haiku-4-5-20251001', ollama → 'llama3.2'
-      - Return `{ providerId, providerName, apiKeyEncrypted, baseUrl, model, temperature, maxTokens }` or `null` if no provider configured
-      - Type the return as `ResolvedProvider | null`
-
-      ### 2. `generateBrief(meetingId: string): Promise<MeetingBrief>`
-      - Fetch meeting with transcripts via `getMeeting(meetingId)` from meetingService
-      - If no segments, throw Error('No transcript available for this meeting')
-      - Combine transcript: segments sorted by startTime, joined with newlines, each prefixed with `[MM:SS]`
-      - Resolve provider via `resolveTaskModel('summarization')`
-      - If no provider available, throw Error('No AI provider configured. Add one in Settings.')
-      - Call `generate()` with summarization system prompt and the full transcript as user prompt
-      - Insert result into meetingBriefs table (meetingId, summary: result.text)
-      - Return the mapped MeetingBrief
-
-      ### 3. `generateActionItems(meetingId: string): Promise<ActionItem[]>`
-      - Same transcript preparation as generateBrief
-      - Resolve provider via `resolveTaskModel('summarization')` (same task type — action extraction is part of meeting intelligence)
-      - Call `generate()` with action extraction system prompt, instructing JSON array output
-      - Parse response: try JSON.parse first, fallback to line-by-line extraction (split on newlines, filter lines starting with `-` or `*` or numbered)
-      - For each extracted description: insert into actionItems table (meetingId, description, status: 'pending')
-      - Return array of mapped ActionItem objects
-
-      ### 4. `getBrief(meetingId: string): Promise<MeetingBrief | null>`
-      - Query meetingBriefs where meetingId matches, order by createdAt desc, limit 1
-      - Return mapped MeetingBrief or null
-
-      ### 5. `getActionItems(meetingId: string): Promise<ActionItem[]>`
-      - Query actionItems where meetingId matches, order by createdAt asc
-      - Return mapped ActionItem array
-
-      ### 6. `updateActionItemStatus(id: string, status: ActionItemStatus): Promise<ActionItem>`
-      - Update actionItems set status where id matches
-      - Return mapped ActionItem
-
-      ### 7. `convertActionToCard(actionItemId: string, columnId: string): Promise<{ actionItem: ActionItem; cardId: string }>`
-      - Get action item by id
-      - Get current max position in target column (count cards in that column)
-      - Insert new card: title = first 100 chars of description, description = full description, priority = 'medium', position = count
-      - Update action item: status = 'converted', cardId = new card id
-      - Return updated action item and card id
-
-      ### 8. `deleteActionItem(id: string): Promise<void>`
-      - Delete from actionItems where id matches (for cleanup)
-
-      ## Prompt Templates (constants):
-
-      ```
-      SUMMARIZATION_SYSTEM_PROMPT:
-      "You are a meeting summarization assistant. Given a meeting transcript, produce a structured summary.
-
-      Format your response as:
-
-      ## Key Points
-      - [Main discussion points as bullet items]
-
-      ## Decisions Made
-      - [Any decisions that were reached]
-
-      ## Follow-ups
-      - [Items that need follow-up action]
-
-      Be concise. Focus on substance, not filler. If the transcript is short or unclear, summarize what's available."
-      ```
-
-      ```
-      ACTION_EXTRACTION_SYSTEM_PROMPT:
-      "You are a meeting action item extractor. Given a meeting transcript, identify concrete action items — tasks, assignments, and follow-ups that someone needs to do.
-
-      Respond ONLY with a JSON array of objects, each with a 'description' field:
-      [
-        { "description": "Schedule follow-up meeting with design team" },
-        { "description": "Update the Q4 budget spreadsheet with new numbers" }
-      ]
-
-      Rules:
-      - Each action item should be a specific, actionable task
-      - Start each description with a verb (Schedule, Update, Review, Create, Send, etc.)
-      - If no clear action items exist, return an empty array: []
-      - Do NOT include general observations or discussion summaries
-      - Maximum 10 action items"
-      ```
-
-      ## Mapper functions:
-
+      Props interface:
       ```typescript
-      function toBrief(row: typeof meetingBriefs.$inferSelect): MeetingBrief {
-        return {
-          id: row.id,
-          meetingId: row.meetingId,
-          summary: row.summary,
-          createdAt: row.createdAt.toISOString(),
-        };
-      }
-
-      function toActionItem(row: typeof actionItems.$inferSelect): ActionItem {
-        return {
-          id: row.id,
-          meetingId: row.meetingId,
-          cardId: row.cardId,
-          description: row.description,
-          status: row.status,
-          createdAt: row.createdAt.toISOString(),
-        };
+      interface BriefSectionProps {
+        meetingId: string;
+        brief: MeetingBrief | null;
+        isCompleted: boolean;         // only show generate button for completed meetings
+        generatingBrief: boolean;
+        onGenerate: () => void;
       }
       ```
 
-      ## Imports needed:
-      - `eq, desc, asc` from drizzle-orm
-      - `getDb` from ../db/connection
-      - `meetingBriefs, actionItems, aiProviders, cards` from ../db/schema
-      - `settings` from ../db/schema (for task model config)
-      - `generate` from ./ai-provider
-      - `getMeeting` from ./meetingService
-      - Types: MeetingBrief, ActionItem, ActionItemStatus, AIProviderName from shared/types
+      Layout:
+      - Section header: "Brief" label with styled heading (text-sm font-medium text-surface-300)
+      - If `generatingBrief` is true:
+        - Show loading state: Loader2 icon (animate-spin) + "Generating brief..." text in amber-400
+      - If `brief` exists:
+        - Container: bg-surface-800/50 border border-surface-700 rounded-lg p-3
+        - Render brief.summary as text content. The summary contains markdown-like formatting
+          (## headings, - bullet points). Parse it simply:
+          - Split by newlines
+          - Lines starting with "## " → render as bold text-surface-200 (h4-like, font-semibold mt-3 mb-1)
+          - Lines starting with "- " → render as bullet items (ml-4 text-surface-300 with bullet marker)
+          - Other non-empty lines → render as paragraph text (text-surface-300)
+        - Below summary: timestamp "Generated {relative time or date}" in text-xs text-surface-500
+      - If `brief` is null AND `isCompleted` AND NOT generating:
+        - Show "Generate Brief" button: Sparkles icon + text
+        - Button style: text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1.5
+        - onClick calls onGenerate
+      - If `brief` is null AND NOT completed:
+        - Show info text: "Complete the recording to generate a brief" in text-sm text-surface-500
+
+      Imports: React, Loader2 + Sparkles from lucide-react, MeetingBrief type
+
+      ## Component 2: ActionItemList.tsx (~120-150 lines)
+
+      Props interface:
+      ```typescript
+      interface ActionItemListProps {
+        meetingId: string;
+        actionItems: ActionItem[];
+        isCompleted: boolean;
+        generatingActions: boolean;
+        onGenerate: () => void;
+        onUpdateStatus: (id: string, status: ActionItemStatus) => void;
+        onConvert: (actionItem: ActionItem) => void;  // opens convert modal (handled by parent)
+      }
+      ```
+
+      Layout:
+      - Section header: "Action Items" with count badge if items exist
+        - "Action Items" text-sm font-medium text-surface-300
+        - Badge: bg-surface-700 text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-2
+      - If `generatingActions` is true:
+        - Loading state: Loader2 animate-spin + "Extracting action items..." in amber-400
+      - If `actionItems.length > 0`:
+        - Container: space-y-2
+        - Each action item rendered as a row:
+          - Container: bg-surface-800/50 border border-surface-700 rounded-lg p-3 flex items-start gap-3
+          - Left: status indicator icon (circle)
+            - pending: empty circle outline (text-surface-500)
+            - approved: CheckCircle2 (text-emerald-400)
+            - dismissed: XCircle (text-surface-500, opacity-50)
+            - converted: ArrowRightCircle (text-primary-400)
+          - Center (flex-1):
+            - Description text: text-sm text-surface-200 (or text-surface-500 line-through if dismissed)
+            - If converted and cardId exists: small "Converted to card" label in text-xs text-primary-400
+          - Right: action buttons (only show for actionable statuses)
+            - If status is 'pending':
+              - Approve button: Check icon (size 14), text-emerald-400 hover:text-emerald-300
+                onClick → onUpdateStatus(item.id, 'approved')
+              - Dismiss button: X icon (size 14), text-surface-500 hover:text-red-400
+                onClick → onUpdateStatus(item.id, 'dismissed')
+              - Convert button: ArrowRight icon (size 14), text-primary-400 hover:text-primary-300
+                onClick → onConvert(item)
+            - If status is 'approved':
+              - Convert button only (ArrowRight icon)
+              - Already approved indicator visible from left icon
+            - If status is 'dismissed' or 'converted':
+              - No action buttons (final states)
+          - Button container: flex items-center gap-1
+          - Each button: p-1 rounded hover:bg-surface-700 transition-colors
+      - If `actionItems.length === 0` AND `isCompleted` AND NOT generating:
+        - "Generate Action Items" button (same style as BriefSection generate button, use ListChecks icon)
+      - If `actionItems.length === 0` AND NOT completed:
+        - Info text: "Complete the recording to extract action items" in text-sm text-surface-500
+
+      Imports: React, Check, X, Loader2, ArrowRight, ListChecks, CheckCircle2, XCircle, ArrowRightCircle
+      from lucide-react, ActionItem + ActionItemStatus types
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify file exports: resolveTaskModel, generateBrief, generateActionItems, getBrief, getActionItems, updateActionItemStatus, convertActionToCard, deleteActionItem
-      3. Verify prompt constants exist: SUMMARIZATION_SYSTEM_PROMPT, ACTION_EXTRACTION_SYSTEM_PROMPT
-      4. Verify mapper functions: toBrief and toActionItem correctly map DB rows to shared types
-      5. Verify resolveTaskModel checks settings table then falls back to first enabled provider
-      6. Verify generateBrief throws on empty transcript and missing provider
-      7. Verify generateActionItems has JSON parse + line fallback
-      8. Verify convertActionToCard creates a card AND updates the action item status/cardId
+      2. BriefSection.tsx: exports default component, accepts BriefSectionProps
+      3. BriefSection: renders brief.summary with basic markdown parsing (headings + bullets)
+      4. BriefSection: shows generate button only when brief is null AND meeting is completed
+      5. BriefSection: shows Loader2 spinner when generatingBrief is true
+      6. ActionItemList.tsx: exports default component, accepts ActionItemListProps
+      7. ActionItemList: renders each action item with status icon, description, and action buttons
+      8. ActionItemList: pending items show approve/dismiss/convert buttons
+      9. ActionItemList: approved items show only convert button
+      10. ActionItemList: dismissed/converted items show no buttons
+      11. ActionItemList: shows generate button when no items AND meeting is completed
     </verify>
     <done>
-      meetingIntelligenceService.ts exists with 8 exported functions covering AI brief generation,
-      action item extraction, action lifecycle management, and convert-to-card. Prompt templates
-      are well-structured. Provider resolution falls back gracefully. TypeScript compiles clean.
+      Two standalone components created: BriefSection.tsx (~80-100 lines) renders meeting briefs
+      with simple markdown formatting and generate button. ActionItemList.tsx (~120-150 lines)
+      renders action items with status-colored icons, action buttons per status, and generate
+      button. Both follow existing Tailwind conventions. TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - generate() from ai-provider.ts returns { text, usage } — verified from reading the file
-      - meetingBriefs and actionItems tables use the schema from meetings.ts — verified
-      - cards table accepts columnId, title, description, position, priority — verified from cards.ts IPC
-      - settings table stores string values — task_models will be stored as JSON string
-      - AI providers return valid text that can be parsed — fallback parsing handles edge cases
+      - lucide-react includes Sparkles, ListChecks, CheckCircle2, XCircle, ArrowRightCircle icons
+        (these are standard lucide icons, verified available in lucide-react)
+      - brief.summary follows the markdown-like format from the SUMMARIZATION_SYSTEM_PROMPT
+        (## headings + - bullet points). Simple string splitting is sufficient.
+      - ActionItem status transitions are enforced by the backend — UI only needs to show
+        appropriate buttons per current status
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Create IPC handlers, shared types, and preload bridge for meeting intelligence</n>
+    <n>Create ConvertActionModal and integrate intelligence UI into MeetingDetailModal</n>
     <files>
-      src/main/ipc/meeting-intelligence.ts (create — 6 IPC handlers)
-      src/main/ipc/index.ts (modify — register new handlers)
-      src/shared/types.ts (modify — add input types + extend ElectronAPI)
-      src/preload/preload.ts (modify — add 6 bridge methods)
+      src/renderer/components/ConvertActionModal.tsx (create)
+      src/renderer/components/MeetingDetailModal.tsx (modify)
     </files>
     <preconditions>
-      - Task 1 complete (meetingIntelligenceService.ts exists with all exports)
-      - Existing IPC registration pattern in index.ts understood
-      - Existing preload bridge pattern understood
+      - Task 1 complete (BriefSection.tsx and ActionItemList.tsx exist)
+      - meetingStore has convertActionToCard(actionItemId, columnId) action
+      - ElectronAPI has getBoards(projectId) and getColumns(boardId) methods
+      - projectStore has projects list
     </preconditions>
     <action>
-      Create the IPC communication layer for meeting intelligence and extend the shared types
-      and preload bridge.
+      Create the convert-to-card modal and wire all intelligence components into MeetingDetailModal.
 
-      WHY: The renderer process needs to trigger AI generation and manage action items.
-      This task creates the complete communication bridge following the established patterns.
+      WHY: The convert flow needs project/board/column selection which is a distinct interaction
+      pattern (multi-step wizard). MeetingDetailModal is the integration point where brief and
+      action items are displayed alongside the existing transcript.
 
-      ## Step 1: Add shared types to src/shared/types.ts
+      ## Component 1: ConvertActionModal.tsx (~150-180 lines)
 
-      Add these new types AFTER the existing ActionItem interface (around line 229):
-
+      Props interface:
       ```typescript
-      // === MEETING INTELLIGENCE TYPES ===
-
-      export interface GenerateBriefInput {
-        meetingId: string;
-      }
-
-      export interface GenerateActionsInput {
-        meetingId: string;
-      }
-
-      export interface UpdateActionItemInput {
-        status: ActionItemStatus;
-      }
-
-      export interface ConvertActionToCardInput {
-        actionItemId: string;
-        columnId: string;
-      }
-
-      export interface ConvertActionToCardResult {
+      interface ConvertActionModalProps {
         actionItem: ActionItem;
-        cardId: string;
+        onConvert: (actionItemId: string, columnId: string) => Promise<string>;
+        onClose: () => void;
       }
       ```
 
-      Extend the `MeetingWithTranscript` interface to include brief and action items:
-
+      State:
       ```typescript
-      /** Meeting with its transcript segments, brief, and action items (for detail view) */
-      export interface MeetingWithTranscript extends Meeting {
-        segments: TranscriptSegment[];
-        brief: MeetingBrief | null;
-        actionItems: ActionItem[];
-      }
+      const [step, setStep] = useState<1 | 2 | 3>(1);
+      const [projects, setProjects] = useState<Project[]>([]);
+      const [boards, setBoards] = useState<Board[]>([]);
+      const [columns, setColumns] = useState<Column[]>([]);
+      const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+      const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
+      const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
+      const [loading, setLoading] = useState(false);
+      const [converting, setConverting] = useState(false);
       ```
 
-      NOTE: This changes the MeetingWithTranscript type. The meetingService.getMeeting() must
-      also be updated to include brief and actionItems. Add this update to meetingService.ts:
-      - Import meetingBriefs and actionItems from schema
-      - Import MeetingBrief and ActionItem types
-      - Add toBrief and toActionItem mappers (or import from meetingIntelligenceService)
-      - In getMeeting(): after fetching segments, also fetch the latest brief and all action items
-      - Return them as part of MeetingWithTranscript
+      Data loading:
+      - On mount: load projects via `window.electronAPI.getProjects()`, set in state
+      - When selectedProjectId changes (step 1 → 2): load boards via `window.electronAPI.getBoards(projectId)`
+        - If exactly 1 board, auto-select it and auto-advance to step 3
+        - If multiple boards, stay on step 2
+      - When selectedBoardId changes (step 2 → 3): load columns via `window.electronAPI.getColumns(boardId)`
+        - Auto-select first column if only 1 exists
 
-      Extend ElectronAPI interface with 6 new methods (add after the Meetings section):
+      Layout:
+      - Overlay: fixed inset-0 z-[60] (above MeetingDetailModal z-50) flex items-center justify-center bg-black/50
+      - Modal: bg-surface-900 rounded-xl border border-surface-700 w-full max-w-md mx-4 p-5
+      - Header: "Convert to Card" title + X close button
+      - Below header: show truncated action description (text-sm text-surface-400, max 2 lines with line-clamp-2)
+      - Step indicator: 3 dots/circles showing progress
+        - Active step: bg-primary-500
+        - Completed step: bg-primary-500/50
+        - Upcoming step: bg-surface-700
+        - Layout: flex items-center gap-2, centered, my-4
+      - Step content area:
+        - **Step 1 — Select Project:**
+          - Label: "Choose a project" text-sm text-surface-300 mb-2
+          - Radio-button list of projects (max-h-48 overflow-y-auto)
+          - Each: rounded-lg p-2.5 cursor-pointer border transition
+            - Selected: border-primary-500 bg-primary-500/10
+            - Unselected: border-surface-700 hover:border-surface-600
+          - Show project name + color dot
+        - **Step 2 — Select Board:** (skipped if project has only 1 board)
+          - Label: "Choose a board" text-sm text-surface-300 mb-2
+          - Same radio-button list pattern for boards
+          - Show board name
+        - **Step 3 — Select Column:**
+          - Label: "Choose a column" text-sm text-surface-300 mb-2
+          - Same radio-button list pattern for columns
+          - Show column name
+      - Footer: flex items-center justify-between mt-4 pt-3 border-t border-surface-700
+        - Left: Back button (hidden on step 1)
+          - text-sm text-surface-400 hover:text-surface-200
+        - Right: flex items-center gap-2
+          - Cancel button: text-sm text-surface-400 hover:text-surface-200
+          - Next/Convert button:
+            - Steps 1-2: "Next" — disabled until selection made
+            - Step 3: "Convert" — disabled until column selected, shows Loader2 when converting
+            - Style: bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed
+              text-white text-sm px-4 py-1.5 rounded-lg
 
+      Convert handler:
       ```typescript
-      // Meeting Intelligence
-      generateBrief: (meetingId: string) => Promise<MeetingBrief>;
-      generateActionItems: (meetingId: string) => Promise<ActionItem[]>;
-      getMeetingBrief: (meetingId: string) => Promise<MeetingBrief | null>;
-      getMeetingActionItems: (meetingId: string) => Promise<ActionItem[]>;
-      updateActionItemStatus: (id: string, status: ActionItemStatus) => Promise<ActionItem>;
-      convertActionToCard: (actionItemId: string, columnId: string) => Promise<ConvertActionToCardResult>;
+      const handleConvert = async () => {
+        if (!selectedColumnId) return;
+        setConverting(true);
+        try {
+          await onConvert(actionItem.id, selectedColumnId);
+          onClose();
+        } catch {
+          // Error handled by meetingStore
+        } finally {
+          setConverting(false);
+        }
+      };
       ```
 
-      ## Step 2: Create src/main/ipc/meeting-intelligence.ts
+      Escape key and overlay click to close (same pattern as other modals).
 
-      New IPC handler file following the same pattern as meetings.ts:
+      Imports: React (useState, useEffect), X, Loader2, ChevronLeft, ArrowRight from lucide-react,
+      Project, Board, Column, ActionItem types from shared/types
 
-      ```typescript
-      // === FILE PURPOSE ===
-      // IPC handlers for AI-powered meeting intelligence — brief generation,
-      // action item extraction, and action-to-card conversion.
+      ## Component 2: MeetingDetailModal.tsx modifications
 
-      import { ipcMain } from 'electron';
-      import * as intelligence from '../services/meetingIntelligenceService';
-      import type { ActionItemStatus } from '../../shared/types';
+      The existing modal is 263 lines. We add BriefSection and ActionItemList between the
+      project linking section and the transcript section.
 
-      export function registerMeetingIntelligenceHandlers(): void {
-        // Generate AI brief for a completed meeting
-        ipcMain.handle('meetings:generate-brief', async (_event, meetingId: string) => {
-          return intelligence.generateBrief(meetingId);
-        });
+      Changes:
+      1. Add imports at the top:
+         ```typescript
+         import BriefSection from './BriefSection';
+         import ActionItemList from './ActionItemList';
+         import ConvertActionModal from './ConvertActionModal';
+         import type { ActionItem } from '../../shared/types';
+         ```
 
-        // Generate AI-extracted action items from transcript
-        ipcMain.handle('meetings:generate-actions', async (_event, meetingId: string) => {
-          return intelligence.generateActionItems(meetingId);
-        });
+      2. Add store destructuring for intelligence state:
+         ```typescript
+         const {
+           selectedMeeting, updateMeeting, deleteMeeting, clearSelectedMeeting,
+           generateBrief, generateActionItems,
+           generatingBrief, generatingActions,
+           updateActionItemStatus, convertActionToCard,
+         } = useMeetingStore();
+         ```
 
-        // Get existing brief for a meeting
-        ipcMain.handle('meetings:get-brief', async (_event, meetingId: string) => {
-          return intelligence.getBrief(meetingId);
-        });
+      3. Add local state for convert modal:
+         ```typescript
+         const [convertingAction, setConvertingAction] = useState<ActionItem | null>(null);
+         ```
 
-        // Get action items for a meeting
-        ipcMain.handle('meetings:get-actions', async (_event, meetingId: string) => {
-          return intelligence.getActionItems(meetingId);
-        });
+      4. Insert BriefSection AFTER the project linking div (after line ~196), BEFORE transcript:
+         ```tsx
+         {/* AI Brief */}
+         <div className="mb-5">
+           <BriefSection
+             meetingId={meeting.id}
+             brief={meeting.brief}
+             isCompleted={meeting.status === 'completed'}
+             generatingBrief={generatingBrief}
+             onGenerate={() => generateBrief(meeting.id)}
+           />
+         </div>
+         ```
 
-        // Update action item status (approve/dismiss)
-        ipcMain.handle(
-          'meetings:update-action-status',
-          async (_event, id: string, status: ActionItemStatus) => {
-            return intelligence.updateActionItemStatus(id, status);
-          },
-        );
+      5. Insert ActionItemList AFTER BriefSection, BEFORE transcript:
+         ```tsx
+         {/* Action Items */}
+         <div className="mb-5">
+           <ActionItemList
+             meetingId={meeting.id}
+             actionItems={meeting.actionItems}
+             isCompleted={meeting.status === 'completed'}
+             generatingActions={generatingActions}
+             onGenerate={() => generateActionItems(meeting.id)}
+             onUpdateStatus={updateActionItemStatus}
+             onConvert={(item) => setConvertingAction(item)}
+           />
+         </div>
+         ```
 
-        // Convert an action item to a project card
-        ipcMain.handle(
-          'meetings:convert-action-to-card',
-          async (_event, actionItemId: string, columnId: string) => {
-            return intelligence.convertActionToCard(actionItemId, columnId);
-          },
-        );
-      }
-      ```
+      6. Add ConvertActionModal INSIDE the component, after the main modal div (before closing
+         fragment or at the end of the return):
+         ```tsx
+         {convertingAction && (
+           <ConvertActionModal
+             actionItem={convertingAction}
+             onConvert={convertActionToCard}
+             onClose={() => setConvertingAction(null)}
+           />
+         )}
+         ```
 
-      ## Step 3: Register in src/main/ipc/index.ts
-
-      - Import `registerMeetingIntelligenceHandlers` from './meeting-intelligence'
-      - Add `registerMeetingIntelligenceHandlers();` call in `registerIpcHandlers()`
-      - No mainWindow parameter needed (intelligence handlers don't send events to renderer)
-
-      ## Step 4: Extend src/preload/preload.ts
-
-      Add 6 new bridge methods in the Meeting Intelligence section:
-
-      ```typescript
-      // Meeting Intelligence
-      generateBrief: (meetingId: string) =>
-        ipcRenderer.invoke('meetings:generate-brief', meetingId),
-      generateActionItems: (meetingId: string) =>
-        ipcRenderer.invoke('meetings:generate-actions', meetingId),
-      getMeetingBrief: (meetingId: string) =>
-        ipcRenderer.invoke('meetings:get-brief', meetingId),
-      getMeetingActionItems: (meetingId: string) =>
-        ipcRenderer.invoke('meetings:get-actions', meetingId),
-      updateActionItemStatus: (id: string, status: string) =>
-        ipcRenderer.invoke('meetings:update-action-status', id, status),
-      convertActionToCard: (actionItemId: string, columnId: string) =>
-        ipcRenderer.invoke('meetings:convert-action-to-card', actionItemId, columnId),
-      ```
-
-      ## Step 5: Update meetingService.ts getMeeting() to include brief + actionItems
-
-      Modify `src/main/services/meetingService.ts`:
-      - Import `meetingBriefs, actionItems` from schema
-      - Import `MeetingBrief, ActionItem` types
-      - Add `toBrief()` and `toActionItem()` mapper functions
-      - In `getMeeting(id)`: after fetching segments, also query:
-        - `meetingBriefs` where meetingId = id, order by createdAt desc, limit 1
-        - `actionItems` where meetingId = id, order by createdAt asc
-      - Return: `{ ...toMeeting(row), segments, brief: briefRow ? toBrief(briefRow) : null, actionItems: actionRows.map(toActionItem) }`
+      The total MeetingDetailModal will grow from ~263 to ~300 lines — well within limits since
+      the heavy lifting is in the child components.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify shared/types.ts: new input types exist, MeetingWithTranscript has brief + actionItems, ElectronAPI has 6 new methods
-      3. Verify meeting-intelligence.ts: 6 IPC handlers registered, all calling the service
-      4. Verify ipc/index.ts: imports and calls registerMeetingIntelligenceHandlers
-      5. Verify preload.ts: 6 new bridge methods match the ElectronAPI interface
-      6. Verify meetingService.ts: getMeeting returns MeetingWithTranscript with brief and actionItems
-      7. Grep for 'meetings:generate-brief' — should appear in IPC handler + preload
+      2. ConvertActionModal.tsx: exports default, accepts ConvertActionModalProps
+      3. ConvertActionModal: loads projects on mount via electronAPI
+      4. ConvertActionModal: step 1 shows project list, step 2 boards, step 3 columns
+      5. ConvertActionModal: auto-skips step 2 if project has exactly 1 board
+      6. ConvertActionModal: Convert button calls onConvert(actionItemId, columnId) and closes on success
+      7. ConvertActionModal: has z-[60] to stack above MeetingDetailModal
+      8. MeetingDetailModal: imports and renders BriefSection between project linking and transcript
+      9. MeetingDetailModal: imports and renders ActionItemList between BriefSection and transcript
+      10. MeetingDetailModal: renders ConvertActionModal when convertingAction state is set
+      11. MeetingDetailModal: passes correct store actions as callbacks to child components
     </verify>
     <done>
-      Complete IPC bridge for meeting intelligence: 6 handlers in meeting-intelligence.ts,
-      registered in index.ts. Shared types extended with input/result types and MeetingWithTranscript
-      now includes brief + actionItems. Preload bridge has 6 new methods. meetingService.getMeeting()
-      returns the extended type. TypeScript compiles clean.
+      ConvertActionModal.tsx created with 3-step wizard (project → board → column) using
+      electronAPI for data loading. MeetingDetailModal updated to integrate BriefSection,
+      ActionItemList, and ConvertActionModal. All intelligence UI is accessible from the
+      meeting detail view. TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - meetingIntelligenceService exports match what IPC handlers call (Task 1 complete)
-      - MeetingWithTranscript type change is backwards-compatible (brief defaults to null, actionItems to [])
-      - Existing code that uses MeetingWithTranscript only accesses .segments — adding new fields won't break it
-      - Drizzle schema barrel export already includes meetingBriefs and actionItems
+      - Most projects have exactly 1 board (created automatically by boardStore.loadBoard).
+        The step-2-skip optimization handles this common case while still supporting
+        multi-board projects.
+      - electronAPI.getBoards and getColumns are fast enough to call on step transitions
+        (no caching needed — small data sets)
+      - z-[60] is sufficient to stack above z-50. No other modals use z-[60].
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Extend meeting store with brief and action item state management</n>
+    <n>Add meeting history search to MeetingsPage</n>
     <files>
-      src/renderer/stores/meetingStore.ts (modify — add brief/actions state + actions)
+      src/renderer/pages/MeetingsPage.tsx (modify)
     </files>
     <preconditions>
-      - Task 2 complete (IPC bridge, types, preload all in place)
-      - MeetingWithTranscript now includes brief and actionItems
-      - ElectronAPI has generateBrief, generateActionItems, updateActionItemStatus, convertActionToCard
+      - Tasks 1-2 complete (intelligence UI integrated in MeetingDetailModal)
+      - MeetingsPage currently has filter tabs (all/recording/completed) but no search
+      - meetings array in store includes all loaded meetings
+      - MeetingWithTranscript includes brief (available after loadMeeting, but Meeting list
+        items don't include brief — search will be title-only on the list, which is fine for v1)
     </preconditions>
     <action>
-      Extend the existing meeting Zustand store with state and actions for briefs and action items.
+      Add a search input to MeetingsPage that filters meetings by title.
 
-      WHY: Plan 5.2 will build the UI components that display briefs and manage action items.
-      Having the store ready means the UI can simply call store actions and read store state.
-      This keeps the UI components thin and the data flow clean.
+      WHY: R6 includes "Meeting history view with search" as a deliverable. Users need to
+      find past meetings quickly as the list grows. Title search covers the primary use case.
 
-      ## Changes to meetingStore.ts:
+      ## Changes to MeetingsPage.tsx:
 
-      ### 1. Add new state fields to the interface:
+      ### 1. Add Search icon import:
+      Add `Search, X as XIcon` to the lucide-react import. (X is already used in other files
+      but not in MeetingsPage — rename to XIcon to avoid confusion if needed, or just add
+      Search since X isn't currently imported in MeetingsPage.)
 
+      Check the current imports: `Mic, Info` are imported. Add `Search` and `X`.
+
+      ### 2. Add search state:
       ```typescript
-      interface MeetingStore {
-        // Existing state
-        meetings: Meeting[];
-        selectedMeeting: MeetingWithTranscript | null;
-        loading: boolean;
-        error: string | null;
-
-        // New: intelligence generation state
-        generatingBrief: boolean;
-        generatingActions: boolean;
-
-        // Existing actions (unchanged)
-        loadMeetings: () => Promise<void>;
-        loadMeeting: (id: string) => Promise<void>;
-        updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<void>;
-        deleteMeeting: (id: string) => Promise<void>;
-        clearSelectedMeeting: () => void;
-        addTranscriptSegment: (segment: TranscriptSegment) => void;
-
-        // New actions
-        generateBrief: (meetingId: string) => Promise<void>;
-        generateActionItems: (meetingId: string) => Promise<void>;
-        updateActionItemStatus: (id: string, status: ActionItemStatus) => Promise<void>;
-        convertActionToCard: (actionItemId: string, columnId: string) => Promise<string>;
-      }
+      const [searchQuery, setSearchQuery] = useState('');
       ```
 
-      ### 2. Add initial state for new fields:
+      ### 3. Add search input UI:
+      Insert a search bar between the header and RecordingControls sections (or between
+      RecordingControls and the filter tabs — pick the most natural position).
 
-      ```typescript
-      generatingBrief: false,
-      generatingActions: false,
+      Best placement: between filter tabs and the meeting cards grid, on the same row as
+      the filter tabs.
+
+      Modify the filter tabs row to include search:
+      ```tsx
+      {/* Filter tabs + Search */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-1">
+          {FILTER_TABS.map(tab => (
+            <button key={tab.value} ... >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Search input */}
+        <div className="flex-1" />
+        <div className="relative">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-500" />
+          <input
+            type="text"
+            placeholder="Search meetings..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="bg-surface-800 border border-surface-700 rounded-lg pl-8 pr-8 py-1.5
+                       text-sm text-surface-200 placeholder:text-surface-500
+                       focus:outline-none focus:border-primary-500 w-48"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      </div>
       ```
 
-      ### 3. Implement new actions:
-
-      **generateBrief**: Calls the IPC, sets the brief on selectedMeeting.
+      ### 4. Update filtering logic:
+      Modify the `filteredMeetings` computation to include search:
       ```typescript
-      generateBrief: async (meetingId) => {
-        set({ generatingBrief: true, error: null });
-        try {
-          const brief = await window.electronAPI.generateBrief(meetingId);
-          const selected = get().selectedMeeting;
-          if (selected && selected.id === meetingId) {
-            set({ selectedMeeting: { ...selected, brief } });
-          }
-        } catch (error) {
-          set({ error: error instanceof Error ? error.message : 'Failed to generate brief' });
-        } finally {
-          set({ generatingBrief: false });
+      const filteredMeetings = meetings.filter(m => {
+        // Status filter
+        if (filter === 'recording' && m.status !== 'recording') return false;
+        if (filter === 'completed' && m.status !== 'completed') return false;
+
+        // Search filter (case-insensitive title match)
+        if (searchQuery.trim()) {
+          const query = searchQuery.trim().toLowerCase();
+          if (!m.title.toLowerCase().includes(query)) return false;
         }
-      },
+
+        return true;
+      });
       ```
 
-      **generateActionItems**: Calls the IPC, sets action items on selectedMeeting.
-      ```typescript
-      generateActionItems: async (meetingId) => {
-        set({ generatingActions: true, error: null });
-        try {
-          const actionItems = await window.electronAPI.generateActionItems(meetingId);
-          const selected = get().selectedMeeting;
-          if (selected && selected.id === meetingId) {
-            set({ selectedMeeting: { ...selected, actionItems } });
-          }
-        } catch (error) {
-          set({ error: error instanceof Error ? error.message : 'Failed to generate action items' });
-        } finally {
-          set({ generatingActions: false });
-        }
-      },
+      ### 5. Update empty state:
+      When search is active and no results, show a search-specific empty state:
+      ```tsx
+      {filteredMeetings.length === 0 ? (
+        <div className="mt-12 flex flex-col items-center justify-center text-surface-500">
+          {searchQuery.trim() ? (
+            <>
+              <Search size={48} className="mb-4 text-surface-600" />
+              <p className="text-lg">No matching meetings</p>
+              <p className="text-sm text-surface-500 mt-1">
+                Try a different search term
+              </p>
+            </>
+          ) : (
+            <>
+              <Mic size={48} className="mb-4 text-surface-600" />
+              <p className="text-lg">
+                {filter === 'all' ? 'No meetings yet' : `No ${filter} meetings`}
+              </p>
+              <p className="text-sm text-surface-500 mt-1">
+                {filter === 'all'
+                  ? 'Start a recording to create your first meeting'
+                  : 'Try a different filter'}
+              </p>
+            </>
+          )}
+        </div>
+      ) : (
+        /* existing grid */
+      )}
       ```
 
-      **updateActionItemStatus**: Updates a single action item's status in the store.
-      ```typescript
-      updateActionItemStatus: async (id, status) => {
-        try {
-          const updated = await window.electronAPI.updateActionItemStatus(id, status);
-          const selected = get().selectedMeeting;
-          if (selected) {
-            set({
-              selectedMeeting: {
-                ...selected,
-                actionItems: selected.actionItems.map(a =>
-                  a.id === id ? updated : a
-                ),
-              },
-            });
-          }
-        } catch (error) {
-          set({ error: error instanceof Error ? error.message : 'Failed to update action item' });
-        }
-      },
+      ### 6. Show result count when searching:
+      Optionally add a count indicator above the grid when search is active:
+      ```tsx
+      {searchQuery.trim() && filteredMeetings.length > 0 && (
+        <p className="text-xs text-surface-500 mb-2">
+          {filteredMeetings.length} result{filteredMeetings.length !== 1 ? 's' : ''}
+        </p>
+      )}
       ```
 
-      **convertActionToCard**: Converts action to card, updates action item in store, returns cardId.
-      ```typescript
-      convertActionToCard: async (actionItemId, columnId) => {
-        try {
-          const result = await window.electronAPI.convertActionToCard(actionItemId, columnId);
-          const selected = get().selectedMeeting;
-          if (selected) {
-            set({
-              selectedMeeting: {
-                ...selected,
-                actionItems: selected.actionItems.map(a =>
-                  a.id === actionItemId ? result.actionItem : a
-                ),
-              },
-            });
-          }
-          return result.cardId;
-        } catch (error) {
-          set({ error: error instanceof Error ? error.message : 'Failed to convert action to card' });
-          throw error;
-        }
-      },
-      ```
-
-      ### 4. Import new types:
-
-      Add `ActionItemStatus` to the import from shared/types.ts.
-      The `MeetingBrief` and `ActionItem` types are already imported via MeetingWithTranscript.
-
-      ### 5. Note on existing loadMeeting:
-
-      The existing `loadMeeting` action already calls `window.electronAPI.getMeeting(id)`,
-      which now returns MeetingWithTranscript with brief and actionItems. So loadMeeting
-      automatically loads the brief and action items — no change needed there.
+      Total change: MeetingsPage grows from ~218 to ~260 lines — well within limits.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify meetingStore interface: has generatingBrief, generatingActions state flags
-      3. Verify meetingStore actions: generateBrief, generateActionItems, updateActionItemStatus, convertActionToCard
-      4. Verify generateBrief sets selectedMeeting.brief on success
-      5. Verify generateActionItems sets selectedMeeting.actionItems on success
-      6. Verify updateActionItemStatus replaces the specific action item in the array
-      7. Verify convertActionToCard returns cardId and updates the action item in the array
-      8. Verify error handling: all new actions catch errors and set error state
+      2. MeetingsPage: search input renders with Search icon and clear button
+      3. MeetingsPage: typing in search filters meetings by title (case-insensitive)
+      4. MeetingsPage: clearing search shows all meetings again
+      5. MeetingsPage: search works in combination with filter tabs
+      6. MeetingsPage: search-specific empty state shows when no results match
+      7. MeetingsPage: result count displays when search is active
+      8. Verify Search and X icons are properly imported from lucide-react
     </verify>
     <done>
-      Meeting store extended with brief/action item state management. Four new actions:
-      generateBrief, generateActionItems, updateActionItemStatus, convertActionToCard.
-      Two new state flags: generatingBrief, generatingActions. All actions properly update
-      selectedMeeting state and handle errors. TypeScript compiles clean.
+      MeetingsPage updated with search functionality. Search input on the filter row with
+      icon, clear button, and placeholder. Client-side title filtering combined with existing
+      status filter tabs. Search-specific empty state and result count. TypeScript compiles clean.
+      Phase 5 (R6: Meeting Intelligence) is fully delivered.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - MeetingWithTranscript now includes brief and actionItems (Task 2 changes)
-      - window.electronAPI methods match the preload bridge from Task 2
-      - selectedMeeting is loaded before intelligence actions are called (UI will enforce this)
-      - convertActionToCard result includes the updated actionItem with status='converted' and cardId set
+      - Title-only search is sufficient for v1. Brief text search would require loading
+        all briefs which isn't available on the meeting list items (only on detail load).
+        This can be enhanced in a future phase if needed.
+      - Meeting list will remain small enough for client-side filtering (hundreds, not thousands).
+        No debounce or virtualization needed.
+      - The Search icon from lucide-react is available (it's a standard lucide icon).
     </assumptions>
   </task>
 </phase>

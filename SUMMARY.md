@@ -1,50 +1,44 @@
-# Plan 5.1 Summary — Meeting Intelligence Service & IPC
+# Plan 5.2 Summary — Meeting Intelligence UI
 
 ## Date: 2026-02-13
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Built the complete backend for AI-powered meeting intelligence: service with AI brief generation and action item extraction, IPC communication layer, shared types, preload bridge, and Zustand store extensions.
+Built the complete frontend UI for AI-powered meeting intelligence: brief display with markdown parsing, action item list with status management, convert-to-card wizard, and meeting search.
 
-### Task 1: Meeting intelligence service
+### Task 1: BriefSection and ActionItemList components
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created meetingIntelligenceService.ts with 8 exports: resolveTaskModel, generateBrief, generateActionItems, getBrief, getActionItems, updateActionItemStatus, convertActionToCard, deleteActionItem.
-- Two prompt templates: structured summarization (Key Points/Decisions/Follow-ups) and JSON action extraction with verb-first descriptions.
-- Provider resolution: checks `task_models` setting JSON → falls back to first enabled provider with default models per provider type.
-- Action extraction: JSON.parse with bullet-point line fallback for robustness.
-- Convert-to-card: creates card in target column, marks action item as 'converted' with cardId reference.
+- Created BriefSection.tsx (113 lines): renders meeting brief with simple markdown parsing (## headings, - bullets, paragraphs), relative timestamps ("Generated 5m ago"), loading spinner during generation, and a generate button for completed meetings without a brief.
+- Created ActionItemList.tsx (179 lines): renders action items with status-colored icons (Circle/CheckCircle2/XCircle/ArrowRightCircle), contextual action buttons per status (pending: approve/dismiss/convert; approved: convert only; dismissed/converted: none), count badge in header, loading state, and generate button.
 
-### Task 2: IPC handlers, types, preload bridge, meetingService extension
+### Task 2: ConvertActionModal and MeetingDetailModal integration
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created meeting-intelligence.ts IPC handler file (6 channels).
-- Extended shared/types.ts: 5 new input/result types, MeetingWithTranscript extended with brief + actionItems, 6 new ElectronAPI methods.
-- Extended preload.ts with 6 bridge methods.
-- Registered new handlers in ipc/index.ts.
-- Extended meetingService.ts getMeeting() to fetch latest brief and all action items.
+- Created ConvertActionModal.tsx (317 lines): 3-step wizard modal for converting action items to board cards. Step 1: select project (with color dots). Step 2: select board (auto-skipped if only 1 board). Step 3: select column. Features step indicator dots, back navigation that handles auto-skip, loading spinners, escape/overlay close, z-[60] stacking above parent modal. Filters out archived projects.
+- Modified MeetingDetailModal.tsx (263→306 lines): integrated BriefSection, ActionItemList, and ConvertActionModal. Brief and action items appear between project linking and transcript sections. ConvertActionModal renders conditionally as a sibling element via React fragment.
 
-### Task 3: Meeting store extensions
+### Task 3: Meeting history search
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Extended meetingStore.ts: 2 state flags (generatingBrief, generatingActions), 4 new actions (generateBrief, generateActionItems, updateActionItemStatus, convertActionToCard).
-- All actions properly update selectedMeeting state and handle errors.
+- Modified MeetingsPage.tsx (218→270 lines): added search input with Search icon and X clear button on the filter tabs row. Case-insensitive title filtering combined with existing status filter tabs. Search-specific empty state ("No matching meetings"). Result count display when searching.
 
-## Files Created (2)
-- `src/main/services/meetingIntelligenceService.ts` (~419 lines)
-- `src/main/ipc/meeting-intelligence.ts` (~40 lines)
+## Files Created (3)
+- `src/renderer/components/BriefSection.tsx` (113 lines)
+- `src/renderer/components/ActionItemList.tsx` (179 lines)
+- `src/renderer/components/ConvertActionModal.tsx` (317 lines)
 
-## Files Modified (5)
-- `src/main/ipc/index.ts` — registered meetingIntelligenceHandlers
-- `src/shared/types.ts` — 5 new types, MeetingWithTranscript extended, 6 ElectronAPI methods
-- `src/preload/preload.ts` — 6 bridge methods
-- `src/main/services/meetingService.ts` — getMeeting() returns brief + actionItems
-- `src/renderer/stores/meetingStore.ts` — 2 state flags + 4 intelligence actions
+## Files Modified (2)
+- `src/renderer/components/MeetingDetailModal.tsx` (263→306 lines)
+- `src/renderer/pages/MeetingsPage.tsx` (218→270 lines)
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors after each task and final)
 - Sequential execution: Task 2 depends on Task 1, Task 3 depends on Task 2
 
+## Phase 5 Complete
+R6: Meeting Intelligence — AI Brief & Actions is fully delivered across Plans 5.1 + 5.2 (6 tasks total).
+
 ## What's Next
-1. `/nexus:git` to commit Plan 5.1 changes
-2. `/nexus:plan 5.2` — Meeting Intelligence UI (brief display, action review, convert-to-card flow)
+1. `/nexus:git` to commit Plan 5.2 changes
+2. Plan Phase 6

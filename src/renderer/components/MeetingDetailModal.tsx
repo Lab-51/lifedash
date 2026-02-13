@@ -10,6 +10,10 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Clock, Trash2 } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
+import BriefSection from './BriefSection';
+import ActionItemList from './ActionItemList';
+import ConvertActionModal from './ConvertActionModal';
+import type { ActionItem } from '../../shared/types';
 
 interface MeetingDetailModalProps {
   onClose: () => void;
@@ -51,11 +55,17 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
 }
 
 export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps) {
-  const { selectedMeeting, updateMeeting, deleteMeeting, clearSelectedMeeting } = useMeetingStore();
+  const {
+    selectedMeeting, updateMeeting, deleteMeeting, clearSelectedMeeting,
+    generateBrief, generateActionItems,
+    generatingBrief, generatingActions,
+    updateActionItemStatus, convertActionToCard,
+  } = useMeetingStore();
   const { projects, loadProjects } = useProjectStore();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [convertingAction, setConvertingAction] = useState<ActionItem | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const prevSegmentCount = useRef(0);
 
@@ -128,6 +138,7 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
   };
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={handleOverlayClick}
@@ -195,6 +206,30 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
           </select>
         </div>
 
+        {/* AI Brief */}
+        <div className="mb-5">
+          <BriefSection
+            meetingId={meeting.id}
+            brief={meeting.brief}
+            isCompleted={meeting.status === 'completed'}
+            generatingBrief={generatingBrief}
+            onGenerate={() => generateBrief(meeting.id)}
+          />
+        </div>
+
+        {/* Action Items */}
+        <div className="mb-5">
+          <ActionItemList
+            meetingId={meeting.id}
+            actionItems={meeting.actionItems}
+            isCompleted={meeting.status === 'completed'}
+            generatingActions={generatingActions}
+            onGenerate={() => generateActionItems(meeting.id)}
+            onUpdateStatus={updateActionItemStatus}
+            onConvert={(item) => setConvertingAction(item)}
+          />
+        </div>
+
         {/* Transcript section */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-3">
@@ -259,5 +294,13 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
         </div>
       </div>
     </div>
+    {convertingAction && (
+      <ConvertActionModal
+        actionItem={convertingAction}
+        onConvert={convertActionToCard}
+        onClose={() => setConvertingAction(null)}
+      />
+    )}
+    </>
   );
 }

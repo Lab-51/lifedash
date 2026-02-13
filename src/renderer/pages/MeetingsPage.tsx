@@ -7,7 +7,7 @@
 // meetingStore, recordingStore, projectStore, RecordingControls, MeetingCard, LoadingSpinner
 
 import { useEffect, useState, useRef } from 'react';
-import { Mic, Info } from 'lucide-react';
+import { Mic, Info, Search, X } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useProjectStore } from '../stores/projectStore';
@@ -29,6 +29,7 @@ function MeetingsPage() {
   const { isRecording } = useRecordingStore();
   const { projects, loadProjects } = useProjectStore();
   const [filter, setFilter] = useState<FilterTab>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
   const prevIsRecording = useRef(isRecording);
   const [hasModel, setHasModel] = useState<boolean | null>(null);
@@ -89,11 +90,18 @@ function MeetingsPage() {
   // Build project name lookup map
   const projectNameMap = new Map(projects.map(p => [p.id, p.name]));
 
-  // Filter meetings
+  // Filter meetings by status and search query
   const filteredMeetings = meetings.filter(m => {
-    if (filter === 'all') return true;
-    if (filter === 'recording') return m.status === 'recording';
-    if (filter === 'completed') return m.status === 'completed';
+    // Status filter
+    if (filter === 'recording' && m.status !== 'recording') return false;
+    if (filter === 'completed' && m.status !== 'completed') return false;
+
+    // Search filter (case-insensitive title match)
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      if (!m.title.toLowerCase().includes(query)) return false;
+    }
+
     return true;
   });
 
@@ -158,35 +166,79 @@ function MeetingsPage() {
         </div>
       )}
 
-      {/* Filter tabs */}
-      <div className="flex items-center gap-1 mb-4">
-        {FILTER_TABS.map(tab => (
-          <button
-            key={tab.value}
-            onClick={() => setFilter(tab.value)}
-            className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-              filter === tab.value
-                ? 'bg-surface-700 text-surface-100'
-                : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Filter tabs + Search */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-1">
+          {FILTER_TABS.map(tab => (
+            <button
+              key={tab.value}
+              onClick={() => setFilter(tab.value)}
+              className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                filter === tab.value
+                  ? 'bg-surface-700 text-surface-100'
+                  : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Search input */}
+        <div className="flex-1" />
+        <div className="relative">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-500" />
+          <input
+            type="text"
+            placeholder="Search meetings..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="bg-surface-800 border border-surface-700 rounded-lg pl-8 pr-8 py-1.5
+                       text-sm text-surface-200 placeholder:text-surface-500
+                       focus:outline-none focus:border-primary-500 w-48"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Result count when searching */}
+      {searchQuery.trim() && filteredMeetings.length > 0 && (
+        <p className="text-xs text-surface-500 mb-2">
+          {filteredMeetings.length} result{filteredMeetings.length !== 1 ? 's' : ''}
+        </p>
+      )}
 
       {/* Meeting cards grid or empty state */}
       {filteredMeetings.length === 0 ? (
         <div className="mt-12 flex flex-col items-center justify-center text-surface-500">
-          <Mic size={48} className="mb-4 text-surface-600" />
-          <p className="text-lg">
-            {filter === 'all' ? 'No meetings yet' : `No ${filter} meetings`}
-          </p>
-          <p className="text-sm text-surface-500 mt-1">
-            {filter === 'all'
-              ? 'Start a recording to create your first meeting'
-              : 'Try a different filter'}
-          </p>
+          {searchQuery.trim() ? (
+            <>
+              <Search size={48} className="mb-4 text-surface-600" />
+              <p className="text-lg">No matching meetings</p>
+              <p className="text-sm text-surface-500 mt-1">
+                Try a different search term
+              </p>
+            </>
+          ) : (
+            <>
+              <Mic size={48} className="mb-4 text-surface-600" />
+              <p className="text-lg">
+                {filter === 'all' ? 'No meetings yet' : `No ${filter} meetings`}
+              </p>
+              <p className="text-sm text-surface-500 mt-1">
+                {filter === 'all'
+                  ? 'Start a recording to create your first meeting'
+                  : 'Try a different filter'}
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
