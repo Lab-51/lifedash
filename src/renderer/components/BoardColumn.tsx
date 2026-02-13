@@ -1,12 +1,16 @@
 // === FILE PURPOSE ===
 // BoardColumn — renders a single Kanban column with drop target, card list, and add-card form.
+// Supports drag-and-drop for both cards (into column) and column reordering.
 
 // === DEPENDENCIES ===
-// react, @atlaskit/pragmatic-drag-and-drop, KanbanCard, shared types
+// react, lucide-react, @atlaskit/pragmatic-drag-and-drop, @atlaskit/pragmatic-drag-and-drop-hitbox,
+// KanbanCard, shared types
 
 import { useRef, useState, useEffect } from 'react';
-import { Plus, X } from 'lucide-react';
-import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { Plus, X, GripVertical } from 'lucide-react';
+import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
+import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import KanbanCard from './KanbanCard';
 import type { Card, Column, UpdateCardInput } from '../../shared/types';
 
@@ -34,17 +38,22 @@ function BoardColumn({
   onCardClick,
 }: BoardColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const cardInputRef = useRef<HTMLInputElement>(null);
   const [addingCard, setAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [closestColumnEdge, setClosestColumnEdge] = useState<Edge | null>(null);
 
-  // Drop target setup
+  // Combined drag-and-drop setup: card drop target + column drop target + column draggable
   useEffect(() => {
     const el = columnRef.current;
-    if (!el) return;
+    const handleEl = headerRef.current;
+    if (!el || !handleEl) return;
 
-    return dropTargetForElements({
+    // Card drop target (existing behavior)
+    const cleanupCardDrop = dropTargetForElements({
       element: el,
       getData: () => ({ columnId: column.id }),
       canDrop: ({ source }) => source.data.type === 'card',
@@ -53,6 +62,41 @@ function BoardColumn({
       onDragLeave: () => onDragOverChange(false),
       onDrop: () => onDragOverChange(false),
     });
+
+    // Column drop target (new — accepts other columns)
+    const cleanupColumnDrop = dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) =>
+        source.data.type === 'column' && source.data.columnId !== column.id,
+      getData: ({ input, element }) => {
+        return attachClosestEdge(
+          { type: 'column', columnId: column.id },
+          { input, element, allowedEdges: ['left', 'right'] },
+        );
+      },
+      onDragEnter: ({ self }) => setClosestColumnEdge(extractClosestEdge(self.data)),
+      onDrag: ({ self }) => setClosestColumnEdge(extractClosestEdge(self.data)),
+      onDragLeave: () => setClosestColumnEdge(null),
+      onDrop: () => setClosestColumnEdge(null),
+    });
+
+    // Make column draggable (header is the drag handle)
+    const cleanupDraggable = draggable({
+      element: el,
+      dragHandle: handleEl,
+      getInitialData: () => ({
+        type: 'column',
+        columnId: column.id,
+      }),
+      onDragStart: () => setIsDragging(true),
+      onDrop: () => setIsDragging(false),
+    });
+
+    return () => {
+      cleanupCardDrop();
+      cleanupColumnDrop();
+      cleanupDraggable();
+    };
   }, [column.id, onDragOverChange]);
 
   // Focus card input when adding
@@ -97,13 +141,22 @@ function BoardColumn({
   return (
     <div
       ref={columnRef}
-      className={`w-72 shrink-0 flex flex-col bg-surface-800/50 rounded-lg transition-all ${
+      className={`w-72 shrink-0 flex flex-col bg-surface-800/50 rounded-lg transition-all relative ${
         isDragOver ? 'ring-2 ring-primary-500/50 ring-inset' : ''
-      }`}
+      } ${isDragging ? 'opacity-40' : ''}`}
     >
-      {/* Column header */}
-      <div className="group px-3 py-3 flex items-center justify-between">
+      {/* Column reorder edge indicators */}
+      {closestColumnEdge === 'left' && (
+        <div className="absolute -left-0.5 top-0 bottom-0 w-0.5 bg-blue-500 rounded-full z-10" />
+      )}
+      {closestColumnEdge === 'right' && (
+        <div className="absolute -right-0.5 top-0 bottom-0 w-0.5 bg-blue-500 rounded-full z-10" />
+      )}
+
+      {/* Column header (drag handle) */}
+      <div ref={headerRef} className="group px-3 py-3 flex items-center justify-between cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-2">
+          <GripVertical size={14} className="text-surface-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
           <span className="font-semibold text-sm text-surface-200">
             {column.name}
           </span>

@@ -1,7 +1,7 @@
 // === FILE PURPOSE ===
 // Board view page — displays the Kanban board for a project.
 // Renders columns with cards, supports adding/deleting columns and cards.
-// Supports drag-and-drop of cards between columns via pragmatic-drag-and-drop.
+// Supports drag-and-drop of cards between columns and column reordering via pragmatic-drag-and-drop.
 
 // === DEPENDENCIES ===
 // react (useEffect, useState, useRef, useCallback), react-router-dom (useParams, Link),
@@ -28,7 +28,7 @@ function BoardPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const {
     project, columns, cards, labels, loading, error,
-    loadBoard, addColumn, deleteColumn, addCard, updateCard, deleteCard, moveCard,
+    loadBoard, addColumn, deleteColumn, addCard, updateCard, deleteCard, moveCard, reorderColumns,
   } = useBoardStore();
 
   // Local UI state for add-column form
@@ -173,6 +173,37 @@ function BoardPage() {
       },
     });
   }, [cards, moveCard]);
+
+  // Board-level drag monitor — handles column reordering
+  useEffect(() => {
+    return monitorForElements({
+      canMonitor: ({ source }) => source.data.type === 'column',
+      onDrop: ({ source, location }) => {
+        const dropTargets = location.current.dropTargets;
+        if (dropTargets.length === 0) return;
+
+        const sourceColumnId = source.data.columnId as string;
+        const columnTarget = dropTargets.find(t => t.data.type === 'column');
+        if (!columnTarget) return;
+
+        const targetColumnId = columnTarget.data.columnId as string;
+        if (sourceColumnId === targetColumnId) return;
+
+        const edge = extractClosestEdge(columnTarget.data);
+
+        // Calculate new column order
+        const currentOrder = columns.map(c => c.id);
+        const sourceIndex = currentOrder.indexOf(sourceColumnId);
+        currentOrder.splice(sourceIndex, 1);
+
+        const newTargetIndex = currentOrder.indexOf(targetColumnId);
+        const insertIndex = edge === 'left' ? newTargetIndex : newTargetIndex + 1;
+        currentOrder.splice(insertIndex, 0, sourceColumnId);
+
+        reorderColumns(currentOrder);
+      },
+    });
+  }, [columns, reorderColumns]);
 
   // Stable callback for drag-over state changes
   const handleDragOverChange = useCallback(
