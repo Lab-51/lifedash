@@ -1,753 +1,975 @@
-# Phase 3 — Plan 3 of 3: Theme, Usage & App Settings
+# Phase 4 — Plan 2 of 4: Audio Capture Pipeline
 
 ## Coverage
-- **R9: Settings & Configuration** (remaining — theme toggle, usage display, about/info)
-- **R7: AI Provider System** (token usage tracking UI)
+- **R4: Meeting Intelligence — Audio Capture** (core implementation)
 
 ## Plan Overview
-Phase 3 delivers the AI Provider System (R7) and Settings & Configuration (R9). It requires 3 plans:
+Phase 4 delivers Meeting Intelligence: Audio Capture (R4) and Transcription (R5). It requires 4 plans:
 
-- **Plan 3.1** (COMPLETE): Backend foundation — deps, DB schema, services, IPC handlers.
-- **Plan 3.2** (COMPLETE): Settings UI — store, settings page, provider cards, model config.
-- **Plan 3.3** (this plan): Theme system, token usage display, and app info section.
+- **Plan 4.1** (DONE): Foundation — deps, shared types, meeting service, IPC handlers.
+- **Plan 4.2** (this plan): Audio capture pipeline — capture bridge, audio processing in main, recording UI.
+- **Plan 4.3**: Whisper transcription — worker thread, chunked transcription, real-time pipeline.
+- **Plan 4.4**: Meetings UI — meetings page, transcript display, meeting ↔ project linking.
 
-## Design Decisions for This Plan
+## Architecture Decisions for Plan 4.2
 
-1. **Theme system** — CSS custom property override approach.
-   Tailwind CSS 4's `@theme` sets `--color-surface-*` as CSS custom properties on `:root`.
-   Light mode overrides these via `html.light { --color-surface-*: ... }` selector,
-   inverting the surface scale so all existing classes work without any component changes.
-   Primary colors stay the same (blue works on both backgrounds).
+1. **Audio capture flow** — Renderer enables loopback via IPC → calls `getDisplayMedia()` (patched
+   by electron-audio-loopback) → extracts PCM via ScriptProcessorNode → converts Float32 to Int16
+   → sends Int16 chunks to main via IPC. Main accumulates chunks and saves WAV.
 
-2. **Theme persistence** — Stored in settings table as `app.theme` key.
-   Values: `'dark'` | `'light'` | `'system'`. System follows `prefers-color-scheme`.
-   Applied early in App.tsx via a `useTheme` hook that reads from settingsStore
-   and sets the class on `document.documentElement`.
+2. **electron-audio-loopback Manual Mode** — Since we use `contextIsolation: true` and
+   `nodeIntegration: false`, we use the "Manual Mode" from the library's README:
+   - Preload exposes `enableLoopbackAudio()` / `disableLoopbackAudio()` via contextBridge
+   - These invoke auto-registered IPC handlers `enable-loopback-audio` / `disable-loopback-audio`
+   - Renderer calls `getDisplayMedia({ video: true, audio: true })` (video required by API)
+   - Video tracks are immediately stopped and removed
+   - This shows a system picker dialog — acceptable UX for starting a recording session
 
-3. **Theme toggle location** — Sidebar bottom area (always accessible).
-   Small icon button below the nav items (Sun/Moon icon). Cycles: dark → light → system.
-   Full theme selector also available in the Appearance section on Settings page.
+3. **ScriptProcessorNode for MVP** — Deprecated but simpler than AudioWorklet. No separate
+   worker file needed, no CSP issues in Electron. Can migrate to AudioWorklet in v2.
 
-4. **Usage display** — New section on Settings page below Model Assignments.
-   Shows total tokens, estimated cost, breakdowns by provider and task type.
-   Uses existing `getAIUsageSummary` IPC. Data loaded on mount.
-   Minimal UI — table layout, no charts for v1.
+4. **Resampling via AudioContext** — Create `new AudioContext({ sampleRate: 16000 })`.
+   The browser automatically resamples the 48kHz system audio to 16kHz. ScriptProcessorNode
+   with 1 input channel handles stereo→mono downmix.
 
-5. **About section** — Brief section at bottom of Settings page showing app version,
-   database status, and encryption status. Informational only.
+5. **IPC audio streaming** — `ipcRenderer.send('audio:chunk', buffer)` one-way (fire-and-forget).
+   Int16 at 16kHz mono = ~32KB/s, negligible overhead. Main receives as Buffer.
+
+6. **Recording state push** — Main process sends `recording:state-update` events to renderer
+   via `mainWindow.webContents.send()`. Follows the same pattern as `window:maximize-change`.
+
+7. **WAV storage** — Files saved to `{app.getPath('userData')}/recordings/{meetingId}.wav`
+   using the `wavefile` package's `fromScratch()` API.
 
 ---
 
-<phase n="3.3" name="Theme, Usage & App Settings">
+<phase n="4.2" name="Audio Capture Pipeline">
   <context>
-    Plans 3.1 and 3.2 are complete. The app now has:
-    - Settings page with AI Providers section and Model Assignments section
-    - settingsStore with loadSettings, setSetting, and generic key-value persistence
-    - IPC handlers: getAIUsage (100 recent), getAIUsageSummary (aggregated)
-    - ElectronAPI: getAIUsage, getAIUsageSummary, getDatabaseStatus, isEncryptionAvailable
-    - Preload bridge: All methods wired
-    - Tailwind CSS 4 with @theme defining --color-surface-* and --color-primary-*
-    - Surface palette: 50 (#f8fafc) through 950 (#020617), used everywhere
-    - App layout: TitleBar + AppLayout (Sidebar + main) + StatusBar
-    - Sidebar: 5 nav items (Projects, Meetings, Ideas, Brainstorm, Settings)
+    Plan 4.1 is complete. The app has meeting CRUD (service + IPC + preload), 3 Phase 4
+    packages installed (electron-audio-loopback, @fugood/whisper.node, wavefile), and
+    initMain() configured in main.ts.
 
-    Theme approach: Tailwind CSS 4's @theme sets CSS custom properties on :root.
-    We add `html.light` overrides that invert the surface scale. This makes ALL
-    existing Tailwind classes (bg-surface-900, text-surface-100, etc.) automatically
-    adapt to the theme without touching any component files.
+    Existing meeting infrastructure (from Plan 4.1):
+    - meetingService: getMeetings, getMeeting, createMeeting, updateMeeting, deleteMeeting,
+      addTranscriptSegment, getTranscripts
+    - IPC channels: meetings:list, meetings:get, meetings:create, meetings:update, meetings:delete
+    - Preload: getMeetings, getMeeting, createMeeting, updateMeeting, deleteMeeting
+    - Types: Meeting, MeetingWithTranscript, TranscriptSegment, RecordingState,
+      CreateMeetingInput, UpdateMeetingInput (all in shared/types.ts)
+    - ElectronAPI: has 5 meeting CRUD methods active + 4 recording methods COMMENTED OUT
 
-    UI patterns (from Phase 2):
-    - Page layout: p-6 padding, h1 text-2xl font-bold
-    - Section: mb-10, h2 text-lg font-semibold, p text-sm text-surface-500
-    - Cards: p-4 bg-surface-800 border border-surface-700 rounded-lg
-    - Buttons: bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg
-    - Empty state: flex flex-col items-center justify-center text-surface-500
-    - Icons: Lucide React, size={16} inline, size={20} nav
+    electron-audio-loopback verified behavior (from README):
+    - initMain() auto-registers IPC handlers: 'enable-loopback-audio', 'disable-loopback-audio'
+    - Manual Mode (our pattern): preload exposes enable/disable → renderer calls getDisplayMedia
+    - getDisplayMedia({ video: true, audio: true }) — video is REQUIRED by the API
+    - Must remove video tracks after getting the stream
+    - Stream contains system audio loopback track(s)
 
-    @src/renderer/styles/globals.css (theme CSS — to be modified)
-    @src/renderer/stores/settingsStore.ts (settings store — reference)
-    @src/renderer/pages/SettingsPage.tsx (settings page — to be modified)
-    @src/renderer/components/Sidebar.tsx (sidebar — to be modified)
-    @src/renderer/App.tsx (root component — to add useTheme)
-    @src/shared/types.ts (AIUsageSummary type — reference)
+    wavefile v11.0.0 API:
+    - new WaveFile() → wav.fromScratch(channels, sampleRate, bitDepth, samples) → wav.toBuffer()
+    - For 16kHz mono Int16: wav.fromScratch(1, 16000, '16', int16Array)
+
+    Key files to reference:
+    @src/shared/types.ts
+    @src/main/services/meetingService.ts
+    @src/main/ipc/index.ts
+    @src/main/main.ts
+    @src/preload/preload.ts
+    @src/renderer/stores/settingsStore.ts (pattern reference for Zustand stores)
+    @src/renderer/components/Sidebar.tsx
   </context>
 
   <task type="auto" n="1">
-    <n>Create theme system with CSS overrides and useTheme hook</n>
+    <n>Create audio processor service in main + recording IPC handlers + extend preload and types</n>
     <files>
-      src/renderer/styles/globals.css (modify — add light theme overrides + scrollbar theme)
-      src/renderer/hooks/useTheme.ts (create — hook that applies theme to document)
-      src/renderer/App.tsx (modify — add useTheme call in AppShell)
+      src/main/services/audioProcessor.ts (create — accumulate PCM, save WAV, manage state)
+      src/main/ipc/recording.ts (create — IPC handlers for recording control + audio streaming)
+      src/main/ipc/index.ts (modify — register recording handlers)
+      src/shared/types.ts (modify — uncomment recording methods, add sendAudioChunk + loopback)
+      src/preload/preload.ts (modify — add recording + loopback methods to bridge)
     </files>
+    <preconditions>
+      - Plan 4.1 complete (meeting CRUD, packages installed)
+      - electron-audio-loopback initMain() called in main.ts
+      - wavefile v11.0.0 installed
+    </preconditions>
     <action>
-      Create the theme system that enables light/dark/system modes using CSS
-      custom property overrides and a React hook for persistence.
+      Create the main-process audio processing pipeline and wire it through IPC to the renderer.
 
-      WHY: The app is currently dark-mode only. Users need a light theme option
-      for daytime use and accessibility. The CSS override approach means ZERO
-      changes to existing components — all surface-* classes adapt automatically.
+      WHY: The main process needs to receive raw PCM audio chunks from the renderer, accumulate
+      them into a complete recording buffer, and save the result as a WAV file when recording
+      stops. It also needs to push recording state updates (elapsed time, isRecording) to the
+      renderer. This is the backend for the audio capture pipeline.
 
-      ## Step 1: Modify globals.css
+      ## Step 1: Update shared/types.ts
 
-      Add light theme CSS overrides AFTER the existing `@theme` block (before scrollbar styles).
-      The light theme inverts the surface scale so semantic usage stays correct:
-      - `bg-surface-900` (main background) → becomes light
-      - `text-surface-100` (primary text) → becomes dark
-      - `border-surface-700` (borders) → becomes proportionally appropriate
+      Uncomment the recording methods in the ElectronAPI interface and add new methods.
+      Find the commented-out recording methods block and replace with active methods:
 
-      Add this block after the `@theme { ... }` closing brace:
-
-      ```css
-      /* Light theme — inverts surface scale so all existing classes adapt */
-      html.light {
-        --color-surface-50: #020617;
-        --color-surface-100: #0f172a;
-        --color-surface-200: #1e293b;
-        --color-surface-300: #334155;
-        --color-surface-400: #64748b;
-        --color-surface-500: #94a3b8;
-        --color-surface-600: #cbd5e1;
-        --color-surface-700: #e2e8f0;
-        --color-surface-800: #f1f5f9;
-        --color-surface-900: #f8fafc;
-        --color-surface-950: #ffffff;
-      }
+      ```typescript
+      // Recording
+      startRecording: (meetingId: string) => Promise<void>;
+      stopRecording: () => Promise<void>;
+      sendAudioChunk: (buffer: ArrayBuffer) => void;
+      enableLoopbackAudio: () => Promise<void>;
+      disableLoopbackAudio: () => Promise<void>;
+      onRecordingState: (callback: (state: RecordingState) => void) => () => void;
+      onTranscriptSegment: (callback: (segment: TranscriptSegment) => void) => () => void;
       ```
 
-      Also update the scrollbar comment to say "Custom scrollbar" instead of
-      "Custom scrollbar for dark theme" since it now works for both.
+      Note: `sendAudioChunk` returns void (not Promise) — it's a fire-and-forget one-way message.
 
-      Also update the light theme scrollbar to use a lighter track for better visibility.
-      Add after the existing scrollbar styles:
-      ```css
-      html.light ::-webkit-scrollbar-thumb {
-        background: var(--color-surface-400);
-      }
-      html.light ::-webkit-scrollbar-thumb:hover {
-        background: var(--color-surface-500);
-      }
-      ```
+      ## Step 2: Create audioProcessor.ts
 
-      ## Step 2: Create useTheme hook
-
-      Create src/renderer/hooks/useTheme.ts:
+      Create `src/main/services/audioProcessor.ts`:
 
       ```typescript
       // === FILE PURPOSE ===
-      // Hook that manages the app theme (dark/light/system).
-      // Reads theme preference from settingsStore, applies the correct CSS class
-      // to document.documentElement, and listens for system theme changes.
+      // Audio processing service — accumulates PCM chunks from renderer,
+      // saves WAV files, manages recording state, and pushes updates.
+      //
+      // === DEPENDENCIES ===
+      // electron (app, BrowserWindow), wavefile, node:fs, node:path
+      //
+      // === LIMITATIONS ===
+      // - No transcription (Plan 4.3)
+      // - No audio level metering
+      // - Single recording at a time
 
-      import { useEffect } from 'react';
-      import { useSettingsStore } from '../stores/settingsStore';
+      import { app, BrowserWindow } from 'electron';
+      import { WaveFile } from 'wavefile';
+      import fs from 'node:fs';
+      import path from 'node:path';
+      import type { RecordingState } from '../../shared/types';
 
-      export type ThemeMode = 'dark' | 'light' | 'system';
+      let chunks: Buffer[] = [];
+      let currentMeetingId: string | null = null;
+      let startTime = 0;
+      let stateTimer: ReturnType<typeof setInterval> | null = null;
+      let mainWindow: BrowserWindow | null = null;
 
-      /** Resolves 'system' to the actual theme based on OS preference */
-      function resolveTheme(mode: ThemeMode): 'dark' | 'light' {
-        if (mode === 'system') {
-          return window.matchMedia('(prefers-color-scheme: light)').matches
-            ? 'light'
-            : 'dark';
+      function getRecordingsDir(): string {
+        return path.join(app.getPath('userData'), 'recordings');
+      }
+
+      export function setMainWindow(win: BrowserWindow): void {
+        mainWindow = win;
+      }
+
+      export function isRecording(): boolean {
+        return currentMeetingId !== null;
+      }
+
+      export function startRecording(meetingId: string): void {
+        if (currentMeetingId) {
+          throw new Error('Already recording. Stop current recording first.');
         }
-        return mode;
+        currentMeetingId = meetingId;
+        chunks = [];
+        startTime = Date.now();
+
+        // Push state updates to renderer every second
+        stateTimer = setInterval(() => {
+          pushState();
+        }, 1000);
+
+        // Push initial state immediately
+        pushState();
       }
 
-      /** Apply the resolved theme class to the document root */
-      function applyTheme(mode: ThemeMode) {
-        const resolved = resolveTheme(mode);
-        document.documentElement.classList.toggle('light', resolved === 'light');
+      export function addChunk(chunk: Buffer): void {
+        if (!currentMeetingId) return; // Ignore chunks when not recording
+        chunks.push(chunk);
       }
 
-      /**
-       * Manages app theme. Call once at the app root level.
-       * Reads from settings store key 'app.theme' (default: 'dark').
-       * Applies CSS class to <html> and listens for system theme changes.
-       */
-      export function useTheme() {
-        const settings = useSettingsStore(s => s.settings);
-        const setSetting = useSettingsStore(s => s.setSetting);
+      export async function stopRecording(): Promise<string> {
+        if (!currentMeetingId) {
+          throw new Error('Not currently recording.');
+        }
 
-        const themeMode = (settings['app.theme'] as ThemeMode) || 'dark';
+        // Stop timer
+        if (stateTimer) {
+          clearInterval(stateTimer);
+          stateTimer = null;
+        }
 
-        // Apply theme whenever the setting changes
-        useEffect(() => {
-          applyTheme(themeMode);
-        }, [themeMode]);
+        const meetingId = currentMeetingId;
+        currentMeetingId = null;
 
-        // Listen for OS theme changes when mode is 'system'
-        useEffect(() => {
-          if (themeMode !== 'system') return;
+        // Combine all chunks into a single buffer
+        const combined = Buffer.concat(chunks);
+        chunks = []; // Free memory
 
-          const mq = window.matchMedia('(prefers-color-scheme: light)');
-          const handler = () => applyTheme('system');
-          mq.addEventListener('change', handler);
-          return () => mq.removeEventListener('change', handler);
-        }, [themeMode]);
+        // Save WAV file
+        const audioPath = await saveWav(meetingId, combined);
 
-        const setTheme = (mode: ThemeMode) => {
-          setSetting('app.theme', mode);
+        // Push stopped state
+        pushState();
+
+        return audioPath;
+      }
+
+      async function saveWav(meetingId: string, pcmBuffer: Buffer): Promise<string> {
+        const dir = getRecordingsDir();
+        fs.mkdirSync(dir, { recursive: true });
+
+        const filePath = path.join(dir, `${meetingId}.wav`);
+
+        // Convert Buffer to Int16Array
+        const int16 = new Int16Array(
+          pcmBuffer.buffer,
+          pcmBuffer.byteOffset,
+          pcmBuffer.byteLength / 2,
+        );
+
+        // Create WAV: 1 channel (mono), 16kHz, 16-bit PCM
+        const wav = new WaveFile();
+        wav.fromScratch(1, 16000, '16', int16);
+
+        fs.writeFileSync(filePath, wav.toBuffer());
+        console.log(`[Audio] Saved WAV: ${filePath} (${(pcmBuffer.byteLength / 1024).toFixed(0)} KB)`);
+
+        return filePath;
+      }
+
+      function pushState(): void {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+
+        const state: RecordingState = {
+          isRecording: currentMeetingId !== null,
+          meetingId: currentMeetingId,
+          elapsed: currentMeetingId ? Math.floor((Date.now() - startTime) / 1000) : 0,
+          lastTranscript: '', // Plan 4.3 will populate this
         };
 
-        return { themeMode, setTheme };
+        mainWindow.webContents.send('recording:state-update', state);
       }
       ```
 
-      ## Step 3: Modify App.tsx
+      IMPORTANT: Check if `wavefile` exports `WaveFile` as a named export or default export.
+      The npm package typically uses: `import { WaveFile } from 'wavefile';` but verify by
+      checking `node_modules/wavefile/index.js` or type declarations. If it's a default export,
+      use `import WaveFile from 'wavefile';` instead.
 
-      Add `useTheme` call inside the `AppShell` component so theme is applied
-      on every render (including initial load). AppShell already lives inside
-      HashRouter and runs hooks.
+      ## Step 3: Create recording IPC handlers
 
-      Add import at top:
+      Create `src/main/ipc/recording.ts`:
+
       ```typescript
-      import { useTheme } from './hooks/useTheme';
-      ```
+      // === FILE PURPOSE ===
+      // IPC handlers for audio recording control and streaming.
+      // Coordinates between audioProcessor (raw audio) and meetingService (DB).
 
-      Add the hook call as the first line inside AppShell function body:
-      ```typescript
-      useTheme();
-      ```
+      import { ipcMain, BrowserWindow } from 'electron';
+      import * as audioProcessor from '../services/audioProcessor';
+      import * as meetingService from '../services/meetingService';
 
-      The AppShell function should look like:
-      ```typescript
-      function AppShell({ children }: { children: ReactNode }) {
-        const navigate = useNavigate();
-        useKeyboardShortcuts(navigate);
-        useTheme();
-        return <>{children}</>;
+      export function registerRecordingHandlers(mainWindow: BrowserWindow): void {
+        // Pass the window reference to audioProcessor for state push events
+        audioProcessor.setMainWindow(mainWindow);
+
+        ipcMain.handle('recording:start', async (_event, meetingId: string) => {
+          audioProcessor.startRecording(meetingId);
+        });
+
+        ipcMain.handle('recording:stop', async () => {
+          const audioPath = await audioProcessor.stopRecording();
+          // audioPath is returned but the renderer will update the meeting
+          // via meetingService.updateMeeting separately if needed
+          return audioPath;
+        });
+
+        // One-way audio chunk streaming (no response needed)
+        ipcMain.on('audio:chunk', (_event, chunk: Buffer) => {
+          audioProcessor.addChunk(chunk);
+        });
       }
       ```
 
-      Key design notes:
-      - Default theme is 'dark' (matches current app appearance)
-      - 'system' mode follows OS prefers-color-scheme and reacts to changes
-      - applyTheme uses classList.toggle for clean add/remove
-      - No class on html = dark mode (backward compatible with current state)
-      - html.light class = light mode (CSS overrides kick in)
-      - Theme is applied in AppShell so it runs before any page renders
+      Note: `registerRecordingHandlers` takes `mainWindow: BrowserWindow` — same pattern as
+      `registerWindowControlHandlers`.
+
+      ## Step 4: Register in IPC index
+
+      In `src/main/ipc/index.ts`:
+      - Add import: `import { registerRecordingHandlers } from './recording';`
+      - Add call: `registerRecordingHandlers(mainWindow);` (passing mainWindow, same as
+        registerWindowControlHandlers)
+
+      ## Step 5: Extend preload bridge
+
+      In `src/preload/preload.ts`, add after the Meetings section:
+
+      ```typescript
+      // Recording
+      startRecording: (meetingId: string) =>
+        ipcRenderer.invoke('recording:start', meetingId),
+      stopRecording: () => ipcRenderer.invoke('recording:stop'),
+      sendAudioChunk: (buffer: ArrayBuffer) =>
+        ipcRenderer.send('audio:chunk', Buffer.from(buffer)),
+      enableLoopbackAudio: () => ipcRenderer.invoke('enable-loopback-audio'),
+      disableLoopbackAudio: () => ipcRenderer.invoke('disable-loopback-audio'),
+      onRecordingState: (callback: (state: any) => void) => {
+        const handler = (_event: Electron.IpcRendererEvent, state: any) => {
+          callback(state);
+        };
+        ipcRenderer.on('recording:state-update', handler);
+        return () => {
+          ipcRenderer.removeListener('recording:state-update', handler);
+        };
+      },
+      onTranscriptSegment: (callback: (segment: any) => void) => {
+        const handler = (_event: Electron.IpcRendererEvent, segment: any) => {
+          callback(segment);
+        };
+        ipcRenderer.on('recording:transcript-segment', handler);
+        return () => {
+          ipcRenderer.removeListener('recording:transcript-segment', handler);
+        };
+      },
+      ```
+
+      Note: `enableLoopbackAudio` and `disableLoopbackAudio` invoke IPC handlers that are
+      auto-registered by electron-audio-loopback's `initMain()` — we do NOT need to create
+      these handlers ourselves.
+
+      Note: `sendAudioChunk` uses `ipcRenderer.send` (one-way), not `invoke` (request-response).
+      The `Buffer.from(buffer)` wraps the ArrayBuffer for IPC transport.
+
+      IMPORTANT: Verify that `Buffer` is available in the preload context. It should be
+      (preload has Node.js access), but if not, send the ArrayBuffer directly — Electron
+      can serialize it.
+
+      ## Step 6: Update stopRecording return type
+
+      The `stopRecording` IPC handler returns the audioPath string. Update the ElectronAPI
+      type if needed: `stopRecording: () => Promise<string>;`
+
+      Wait — the plan's type definition says `Promise<void>`. Let me keep it as `Promise<void>`
+      for simplicity since the renderer will update the meeting via meetingService separately.
+      If we need the path, we can change it later. The IPC handler can still return it — the
+      type just won't expose it.
+
+      Actually, let's return the path. Change the type to:
+      `stopRecording: () => Promise<string>;`
+      This is useful for the renderer to know where the WAV was saved.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify globals.css has both the @theme block AND the html.light override block
-      3. Verify html.light overrides have all 11 surface values (50 through 950)
-      4. Verify useTheme.ts exports useTheme function and ThemeMode type
-      5. Verify App.tsx imports and calls useTheme() in AppShell
-      6. Verify default theme is 'dark' when no setting exists
+      2. Verify audioProcessor.ts exports: setMainWindow, isRecording, startRecording, addChunk, stopRecording
+      3. Verify recording.ts registers 3 handlers: 'recording:start' (handle), 'recording:stop' (handle), 'audio:chunk' (on)
+      4. Verify ipc/index.ts imports and calls registerRecordingHandlers(mainWindow)
+      5. Verify preload.ts has: startRecording, stopRecording, sendAudioChunk, enableLoopbackAudio, disableLoopbackAudio, onRecordingState, onTranscriptSegment
+      6. Verify ElectronAPI interface has all 7 recording methods (uncommented)
+      7. Verify 'enable-loopback-audio' and 'disable-loopback-audio' are NOT manually registered (they're auto-registered by electron-audio-loopback)
     </verify>
     <done>
-      Theme CSS system created: light theme via html.light class overrides all
-      surface colors. useTheme hook reads from settings, applies CSS class,
-      and responds to OS theme changes. Integrated into App.tsx AppShell.
-      Default is dark mode. No existing component changes needed.
+      Audio processing service in main (accumulate, save WAV). Recording IPC handlers
+      (start, stop, chunk). Preload bridge extended with 7 recording methods including
+      loopback control. ElectronAPI interface fully typed. TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Tailwind CSS 4's @theme generates CSS custom properties on :root that
-        can be overridden by more specific selectors (html.light)
-      - Electron's Chromium supports matchMedia('prefers-color-scheme')
-      - classList.toggle with boolean argument works in Electron's Chromium
-      - Settings are loaded before useTheme runs (loadSettings called in SettingsPage
-        useEffect — need to ensure it runs early enough; AppShell runs useTheme
-        but settings may not be loaded yet on first render, which defaults to 'dark')
+      - electron-audio-loopback auto-registers 'enable-loopback-audio' and 'disable-loopback-audio' IPC handlers (confirmed in README)
+      - wavefile WaveFile constructor accepts Int16Array in fromScratch (verify import style)
+      - Buffer.from(arrayBuffer) works in preload context for IPC transport
+      - ipcMain.on (not handle) is correct for one-way audio:chunk streaming
+      - app.getPath('userData') returns writable directory on all platforms
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Add theme toggle to Sidebar and Appearance section to Settings page</n>
+    <n>Create audio capture bridge service in renderer</n>
     <files>
-      src/renderer/components/Sidebar.tsx (modify — add theme toggle button at bottom)
-      src/renderer/components/ThemeSelector.tsx (create — Appearance section component)
-      src/renderer/pages/SettingsPage.tsx (modify — add Appearance section + import)
+      src/renderer/services/audioCaptureService.ts (create — loopback + PCM extraction + IPC streaming)
     </files>
     <preconditions>
-      - Task 1 completed (useTheme hook exists, CSS overrides in place)
+      - Task 1 completed (recording IPC and preload methods available)
+      - electron-audio-loopback initialized in main process
     </preconditions>
     <action>
-      Add theme toggle UI in two places: a quick-cycle button at the bottom
-      of the Sidebar, and a full Appearance section on the Settings page.
+      Create the renderer-side audio capture service that handles the entire flow from system
+      audio to PCM chunks sent to main.
 
-      WHY: Users need quick access to switch themes (Sidebar button) and a
-      proper settings interface to choose between dark/light/system modes
-      (Settings page). Two touchpoints: quick and detailed.
+      WHY: The renderer is the only process with access to Web Audio API (AudioContext,
+      MediaStream, ScriptProcessorNode). It captures system audio via the patched getDisplayMedia,
+      extracts raw PCM, converts to Int16, and streams chunks to the main process. The renderer
+      is intentionally thin — just a bridge between Web Audio and IPC.
 
-      ## Component 1: Modify Sidebar.tsx
-
-      Add a theme toggle button at the bottom of the sidebar (below nav items).
-      The button cycles through: dark → light → system on each click.
-      Shows Moon icon for dark, Sun icon for light, Monitor icon for system.
-
-      Changes to Sidebar.tsx:
-      1. Add imports: `import { Sun, Moon, Monitor } from 'lucide-react';`
-         and `import { useTheme } from '../hooks/useTheme';`
-         and `import type { ThemeMode } from '../hooks/useTheme';`
-      2. Add theme icon map and cycle logic inside the component
-      3. Add a spacer div with `flex-1` to push the toggle to the bottom
-      4. Add the toggle button after the spacer
-
-      The updated Sidebar component should be:
+      ## Create src/renderer/services/audioCaptureService.ts
 
       ```typescript
       // === FILE PURPOSE ===
-      // Fixed-width icon sidebar for primary app navigation.
-      // Includes a theme toggle button at the bottom.
-
+      // Audio capture bridge — thin layer that captures system audio via
+      // electron-audio-loopback, extracts PCM via ScriptProcessorNode,
+      // and streams Int16 chunks to the main process via IPC.
+      //
       // === DEPENDENCIES ===
-      // react-router-dom (NavLink), lucide-react icons, useTheme hook
+      // Web Audio API (AudioContext, ScriptProcessorNode), window.electronAPI
+      //
+      // === LIMITATIONS ===
+      // - Uses deprecated ScriptProcessorNode (migrate to AudioWorklet in v2)
+      // - Single recording at a time
+      // - getDisplayMedia shows system picker dialog (user must select screen)
+      // - No audio level metering (future enhancement)
 
-      import { NavLink, useLocation } from 'react-router-dom';
-      import {
-        FolderKanban,
-        Mic,
-        Lightbulb,
-        Brain,
-        Settings,
-        Sun,
-        Moon,
-        Monitor,
-      } from 'lucide-react';
-      import { useTheme } from '../hooks/useTheme';
-      import type { ThemeMode } from '../hooks/useTheme';
+      const SAMPLE_RATE = 16000;     // 16kHz for Whisper
+      const BUFFER_SIZE = 4096;      // ScriptProcessorNode buffer size (samples per callback)
+      const INPUT_CHANNELS = 1;      // Mono (browser handles stereo→mono downmix)
+      const OUTPUT_CHANNELS = 1;     // Mono output
 
-      /** Navigation item configuration */
-      interface NavItem {
-        path: string;
-        label: string;
-        icon: React.ComponentType<{ size?: number }>;
+      let audioContext: AudioContext | null = null;
+      let mediaStream: MediaStream | null = null;
+      let sourceNode: MediaStreamAudioSourceNode | null = null;
+      let processorNode: ScriptProcessorNode | null = null;
+
+      /**
+       * Convert Float32 audio samples to Int16 PCM.
+       * Clamps values to [-1, 1] range before scaling.
+       */
+      function float32ToInt16(float32: Float32Array): Int16Array {
+        const int16 = new Int16Array(float32.length);
+        for (let i = 0; i < float32.length; i++) {
+          const s = Math.max(-1, Math.min(1, float32[i]));
+          int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        return int16;
       }
 
-      const navItems: NavItem[] = [
-        { path: '/', label: 'Projects', icon: FolderKanban },
-        { path: '/meetings', label: 'Meetings', icon: Mic },
-        { path: '/ideas', label: 'Ideas', icon: Lightbulb },
-        { path: '/brainstorm', label: 'Brainstorm', icon: Brain },
-        { path: '/settings', label: 'Settings', icon: Settings },
-      ];
+      /**
+       * Start capturing system audio.
+       *
+       * Flow:
+       * 1. Enable loopback audio (patches getDisplayMedia)
+       * 2. Call getDisplayMedia (shows system picker — user selects screen)
+       * 3. Remove video tracks (we only need audio)
+       * 4. Disable loopback (restore normal getDisplayMedia)
+       * 5. Create AudioContext at 16kHz (browser resamples automatically)
+       * 6. Connect: MediaStreamSource → ScriptProcessorNode
+       * 7. On each audio buffer: convert Float32→Int16, send to main via IPC
+       *
+       * @throws If user cancels the picker dialog or audio capture fails
+       */
+      export async function startCapture(): Promise<void> {
+        if (audioContext) {
+          throw new Error('Already capturing. Call stopCapture() first.');
+        }
 
-      const THEME_CYCLE: ThemeMode[] = ['dark', 'light', 'system'];
-      const THEME_ICONS: Record<ThemeMode, React.ComponentType<{ size?: number }>> = {
-        dark: Moon,
-        light: Sun,
-        system: Monitor,
-      };
-      const THEME_LABELS: Record<ThemeMode, string> = {
-        dark: 'Dark mode',
-        light: 'Light mode',
-        system: 'System theme',
-      };
+        // Step 1: Enable loopback (patches getDisplayMedia to include system audio)
+        await window.electronAPI.enableLoopbackAudio();
 
-      function Sidebar() {
-        const location = useLocation();
-        const { themeMode, setTheme } = useTheme();
+        try {
+          // Step 2: Get system audio via patched getDisplayMedia
+          // IMPORTANT: video: true is REQUIRED by the API even though we don't want video
+          mediaStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: true,
+          });
+        } catch (error) {
+          // User cancelled the picker dialog or permission denied
+          await window.electronAPI.disableLoopbackAudio();
+          throw error;
+        }
 
-        const cycleTheme = () => {
-          const idx = THEME_CYCLE.indexOf(themeMode);
-          const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
-          setTheme(next);
+        // Step 3: Remove video tracks (we only need audio)
+        mediaStream.getVideoTracks().forEach((track) => {
+          track.stop();
+          mediaStream!.removeTrack(track);
+        });
+
+        // Step 4: Disable loopback (restores normal getDisplayMedia behavior)
+        await window.electronAPI.disableLoopbackAudio();
+
+        // Verify we have audio tracks
+        const audioTracks = mediaStream.getAudioTracks();
+        if (audioTracks.length === 0) {
+          cleanup();
+          throw new Error('No audio tracks in captured stream.');
+        }
+
+        // Step 5: Create AudioContext at 16kHz — browser handles resampling from 48kHz
+        audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+
+        // Step 6: Connect audio pipeline
+        sourceNode = audioContext.createMediaStreamSource(mediaStream);
+        processorNode = audioContext.createScriptProcessor(
+          BUFFER_SIZE,
+          INPUT_CHANNELS,
+          OUTPUT_CHANNELS,
+        );
+
+        // Step 7: Extract PCM and send to main
+        processorNode.onaudioprocess = (event: AudioProcessingEvent) => {
+          const float32Data = event.inputBuffer.getChannelData(0);
+          const int16Data = float32ToInt16(float32Data);
+          // Send raw Int16 PCM bytes to main process (one-way, fire-and-forget)
+          window.electronAPI.sendAudioChunk(int16Data.buffer);
         };
 
-        const ThemeIcon = THEME_ICONS[themeMode] || Moon;
+        sourceNode.connect(processorNode);
+        // Connect to destination to keep the processor running
+        // (ScriptProcessorNode requires being connected to output)
+        processorNode.connect(audioContext.destination);
 
-        return (
-          <nav className="w-16 bg-surface-900 border-r border-surface-800 flex flex-col shrink-0">
-            {navItems.map(({ path, label, icon: Icon }) => {
-              // Projects item should also be active on /projects/:id routes
-              const isProjectsItem = path === '/';
-              const isProjectsActive = isProjectsItem
-                ? location.pathname === '/' || location.pathname.startsWith('/projects/')
-                : false;
-
-              return (
-                <NavLink
-                  key={path}
-                  to={path}
-                  end={isProjectsItem}
-                  title={label}
-                  className={({ isActive: navActive }) => {
-                    const active = isProjectsItem ? isProjectsActive : navActive;
-                    return [
-                      'w-full h-12 flex items-center justify-center transition-colors',
-                      active
-                        ? 'bg-primary-600/15 text-primary-400 border-l-2 border-primary-500'
-                        : 'text-surface-400 hover:bg-surface-800 hover:text-surface-200 border-l-2 border-transparent',
-                    ].join(' ');
-                  }}
-                >
-                  <Icon size={20} />
-                </NavLink>
-              );
-            })}
-
-            {/* Spacer pushes theme toggle to bottom */}
-            <div className="flex-1" />
-
-            {/* Theme toggle button */}
-            <button
-              onClick={cycleTheme}
-              title={THEME_LABELS[themeMode]}
-              className="w-full h-12 flex items-center justify-center text-surface-400 hover:bg-surface-800 hover:text-surface-200 transition-colors"
-            >
-              <ThemeIcon size={20} />
-            </button>
-          </nav>
-        );
+        console.log('[AudioCapture] Started — 16kHz mono Int16 PCM');
       }
 
-      export default Sidebar;
-      ```
+      /**
+       * Stop capturing audio and clean up all resources.
+       */
+      export async function stopCapture(): Promise<void> {
+        cleanup();
+        console.log('[AudioCapture] Stopped');
+      }
 
-      ## Component 2: Create ThemeSelector.tsx
+      /**
+       * Check if currently capturing.
+       */
+      export function isCapturing(): boolean {
+        return audioContext !== null;
+      }
 
-      Create src/renderer/components/ThemeSelector.tsx:
-
-      A settings section component that shows three theme options (Dark, Light, System)
-      as selectable cards. Used in the Appearance section of the Settings page.
-
-      ```typescript
-      // === FILE PURPOSE ===
-      // Theme selector component for the Appearance section of the Settings page.
-      // Shows three options: Dark, Light, System with visual indicators.
-
-      import { Sun, Moon, Monitor } from 'lucide-react';
-      import { useTheme } from '../hooks/useTheme';
-      import type { ThemeMode } from '../hooks/useTheme';
-
-      const THEME_OPTIONS: { mode: ThemeMode; label: string; description: string; icon: React.ComponentType<{ size?: number }> }[] = [
-        { mode: 'dark', label: 'Dark', description: 'Dark background with light text', icon: Moon },
-        { mode: 'light', label: 'Light', description: 'Light background with dark text', icon: Sun },
-        { mode: 'system', label: 'System', description: 'Follow your OS setting', icon: Monitor },
-      ];
-
-      export default function ThemeSelector() {
-        const { themeMode, setTheme } = useTheme();
-
-        return (
-          <div className="flex gap-3">
-            {THEME_OPTIONS.map(({ mode, label, description, icon: Icon }) => (
-              <button key={mode} onClick={() => setTheme(mode)}
-                className={`flex-1 p-3 rounded-lg border text-left transition-colors ${
-                  themeMode === mode
-                    ? 'border-primary-500 bg-primary-500/10 text-primary-400'
-                    : 'border-surface-700 bg-surface-800 text-surface-300 hover:border-surface-600'
-                }`}>
-                <Icon size={20} className="mb-1.5" />
-                <div className="text-sm font-medium">{label}</div>
-                <div className="text-xs text-surface-500 mt-0.5">{description}</div>
-              </button>
-            ))}
-          </div>
-        );
+      /**
+       * Internal cleanup — disconnect nodes, stop tracks, close context.
+       */
+      function cleanup(): void {
+        if (processorNode) {
+          processorNode.disconnect();
+          processorNode.onaudioprocess = null;
+          processorNode = null;
+        }
+        if (sourceNode) {
+          sourceNode.disconnect();
+          sourceNode = null;
+        }
+        if (mediaStream) {
+          mediaStream.getTracks().forEach((track) => track.stop());
+          mediaStream = null;
+        }
+        if (audioContext) {
+          audioContext.close().catch(() => {});
+          audioContext = null;
+        }
       }
       ```
 
-      ## Update SettingsPage.tsx
+      ## Key implementation notes:
 
-      Add the Appearance section as the FIRST section on the Settings page
-      (before AI Providers). This way the most visual setting is at the top.
+      - **AudioContext({ sampleRate: 16000 })**: This tells the browser to run the audio graph
+        at 16kHz. The MediaStreamSource input at 48kHz is automatically resampled to 16kHz by
+        the browser's audio engine. This means every chunk we get from the ScriptProcessorNode
+        is already at 16kHz — no manual resampling needed.
 
-      1. Add import at top (after existing imports):
-         ```typescript
-         import ThemeSelector from '../components/ThemeSelector';
-         ```
+      - **ScriptProcessorNode(4096, 1, 1)**: Buffer of 4096 samples at 16kHz = ~256ms per chunk.
+        Each callback fires every 256ms, sending ~8KB of Int16 data (4096 * 2 bytes). This is
+        ~32KB/s total, which is negligible IPC overhead.
 
-      2. Add the Appearance section BEFORE the AI Providers section
-         (right after the error banner div):
+      - **float32ToInt16**: Clamps to [-1, 1] to prevent distortion, then scales to Int16 range
+        (-32768 to +32767). This is the standard conversion formula.
 
-         ```tsx
-         {/* === Section: Appearance === */}
-         <section className="mb-10">
-           <div className="mb-4">
-             <h2 className="text-lg font-semibold text-surface-100">Appearance</h2>
-             <p className="text-sm text-surface-500">
-               Choose your preferred theme.
-             </p>
-           </div>
-           <ThemeSelector />
-         </section>
-         ```
+      - **cleanup()**: Comprehensive — disconnects nodes, stops all tracks, closes AudioContext.
+        Called on both normal stop and error paths.
 
-      Key design notes:
-      - Theme selector uses same button-group pattern as AddProviderForm provider type
-      - Selected state uses primary-500 border + bg-primary-500/10 (same as provider buttons)
-      - Sidebar toggle is for quick switching, Settings page for deliberate configuration
-      - Both use the same useTheme hook so they stay in sync
+      - **Error handling**: If the user cancels the picker dialog, `getDisplayMedia` throws
+        (NotAllowedError). We catch this, disable loopback, and re-throw so the caller
+        (recording store/UI) can show an appropriate message.
+
+      ## IMPORTANT VERIFICATION:
+      - Check that `new AudioContext({ sampleRate: 16000 })` is accepted in Electron 40.x
+        (Chromium supports arbitrary sample rates since ~v74). If it throws, fallback:
+        create AudioContext without sampleRate option and do manual resampling.
+      - Check that `processorNode.connect(audioContext.destination)` doesn't play the audio
+        through speakers (it shouldn't — we're connecting to a virtual destination, and the
+        ScriptProcessorNode doesn't modify the audio). If audio plays back, create a
+        GainNode with gain=0 as the destination instead.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify Sidebar.tsx has theme toggle button at bottom (after flex-1 spacer)
-      3. Verify Sidebar uses useTheme hook and cycles through dark → light → system
-      4. Verify ThemeSelector.tsx renders 3 options with correct icons (Moon, Sun, Monitor)
-      5. Verify SettingsPage.tsx has Appearance section BEFORE AI Providers section
-      6. Verify SettingsPage imports ThemeSelector component
+      2. Verify audioCaptureService.ts exports: startCapture, stopCapture, isCapturing
+      3. Verify the service uses window.electronAPI methods (enableLoopbackAudio, disableLoopbackAudio, sendAudioChunk)
+      4. Verify cleanup handles all resources (audioContext, mediaStream, sourceNode, processorNode)
+      5. Verify float32ToInt16 conversion clamps values correctly
+      6. Verify SAMPLE_RATE is 16000 (matches main process's WAV creation)
     </verify>
     <done>
-      Theme toggle added to Sidebar bottom (icon cycles dark/light/system).
-      ThemeSelector component created with 3 selectable cards.
-      Appearance section added as first section on Settings page.
-      Both UI elements use the same useTheme hook for consistent state.
+      Audio capture bridge in renderer. Handles full flow: loopback enable → getDisplayMedia
+      → PCM extraction at 16kHz mono → Int16 conversion → IPC streaming to main.
+      Proper cleanup on stop. TypeScript compiles clean.
     </done>
-    <confidence>HIGH</confidence>
+    <confidence>MEDIUM</confidence>
     <assumptions>
-      - Lucide React exports Sun, Moon, Monitor icons
-      - flex-1 spacer pushes the theme toggle button to the bottom of the sidebar
-      - useTheme hook can be called from multiple components (Sidebar + ThemeSelector)
-        without conflict since they share the same Zustand store
+      - AudioContext({ sampleRate: 16000 }) works in Electron 40.x Chromium (should — Chromium 74+)
+      - ScriptProcessorNode still works in Electron 40.x (deprecated but not removed)
+      - getDisplayMedia({ video: true, audio: true }) with loopback returns system audio track
+      - Connecting ScriptProcessorNode to destination doesn't play audio through speakers
+      - Float32 channel data from ScriptProcessorNode is in [-1, 1] range (standard)
+      - Browser handles 48kHz→16kHz resampling when AudioContext sampleRate is set
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Add AI usage tracking display and About section to Settings page</n>
+    <n>Create recording Zustand store and recording UI components</n>
     <files>
-      src/renderer/components/UsageSummary.tsx (create — token usage display component)
-      src/renderer/pages/SettingsPage.tsx (modify — add Usage and About sections)
+      src/renderer/stores/recordingStore.ts (create — Zustand store for recording state)
+      src/renderer/components/RecordingControls.tsx (create — start/stop/timer UI)
+      src/renderer/components/RecordingIndicator.tsx (create — sidebar recording badge)
+      src/renderer/components/Sidebar.tsx (modify — add RecordingIndicator)
     </files>
     <preconditions>
-      - Task 2 completed (SettingsPage has Appearance section — need to add after it)
-      - settingsStore exists with loadSettings
-      - ElectronAPI has getAIUsageSummary and getDatabaseStatus methods
+      - Task 1 completed (preload bridge has recording methods)
+      - Task 2 completed (audioCaptureService available)
+      - Meeting types available in shared/types.ts
     </preconditions>
     <action>
-      Create the AI usage tracking display and a small About/Info section.
+      Create the recording state management and UI components.
 
-      WHY: Users need visibility into their AI token usage and estimated costs
-      to manage API expenses. The About section provides at-a-glance system info
-      (version, DB status, encryption) — useful for troubleshooting.
+      WHY: Users need a way to start/stop recordings and see recording status. The Zustand
+      store coordinates between the audio capture service (renderer) and the recording
+      backend (main process). The RecordingIndicator in the sidebar provides always-visible
+      status so users know a recording is active regardless of which page they're on.
 
-      ## Component 1: Create UsageSummary.tsx
+      ## Step 1: Create recordingStore.ts
 
-      Create src/renderer/components/UsageSummary.tsx:
-
-      Displays AI token usage summary with totals and breakdowns.
-      Fetches data directly via window.electronAPI.getAIUsageSummary().
+      Create `src/renderer/stores/recordingStore.ts`:
 
       ```typescript
       // === FILE PURPOSE ===
-      // AI token usage summary display for the Settings page.
-      // Shows total tokens, estimated cost, and breakdowns by provider and task type.
-      // Fetches data directly from IPC (not via store — usage is read-only display).
+      // Zustand store for recording state management.
+      // Coordinates audio capture (renderer) with recording backend (main).
+
+      import { create } from 'zustand';
+      import * as audioCaptureService from '../services/audioCaptureService';
+      import type { RecordingState } from '../../shared/types';
+
+      interface RecordingStore {
+        // State
+        isRecording: boolean;
+        meetingId: string | null;
+        elapsed: number;
+        lastTranscript: string;
+        error: string | null;
+        starting: boolean;   // True while start flow is in progress
+
+        // Actions
+        startRecording: (title: string, projectId?: string) => Promise<void>;
+        stopRecording: () => Promise<void>;
+        initListener: () => () => void;  // Returns cleanup function
+      }
+
+      export const useRecordingStore = create<RecordingStore>((set, get) => ({
+        isRecording: false,
+        meetingId: null,
+        elapsed: 0,
+        lastTranscript: '',
+        error: null,
+        starting: false,
+
+        startRecording: async (title: string, projectId?: string) => {
+          set({ starting: true, error: null });
+          try {
+            // Step 1: Create meeting in DB
+            const meeting = await window.electronAPI.createMeeting({
+              title,
+              projectId,
+            });
+
+            // Step 2: Tell main process to start recording
+            await window.electronAPI.startRecording(meeting.id);
+
+            // Step 3: Start audio capture in renderer
+            await audioCaptureService.startCapture();
+
+            set({
+              isRecording: true,
+              meetingId: meeting.id,
+              elapsed: 0,
+              starting: false,
+            });
+          } catch (error) {
+            // Clean up if anything failed
+            const meetingId = get().meetingId;
+            if (meetingId) {
+              // If meeting was created but capture failed, delete it
+              try {
+                await window.electronAPI.stopRecording();
+              } catch { /* ignore */ }
+              try {
+                await window.electronAPI.deleteMeeting(meetingId);
+              } catch { /* ignore */ }
+            }
+            set({
+              isRecording: false,
+              meetingId: null,
+              starting: false,
+              error: error instanceof Error ? error.message : 'Failed to start recording',
+            });
+          }
+        },
+
+        stopRecording: async () => {
+          try {
+            // Step 1: Stop audio capture in renderer
+            await audioCaptureService.stopCapture();
+
+            // Step 2: Tell main process to stop recording (saves WAV)
+            const audioPath = await window.electronAPI.stopRecording();
+
+            // Step 3: Update meeting with audioPath and completion
+            const meetingId = get().meetingId;
+            if (meetingId) {
+              await window.electronAPI.updateMeeting(meetingId, {
+                endedAt: new Date().toISOString(),
+                audioPath,
+                status: 'completed',  // 'processing' when transcription is added in Plan 4.3
+              });
+            }
+
+            set({
+              isRecording: false,
+              meetingId: null,
+              elapsed: 0,
+              lastTranscript: '',
+            });
+          } catch (error) {
+            set({
+              error: error instanceof Error ? error.message : 'Failed to stop recording',
+            });
+          }
+        },
+
+        initListener: () => {
+          // Listen for recording state updates from main process
+          const cleanup = window.electronAPI.onRecordingState((state: RecordingState) => {
+            set({
+              isRecording: state.isRecording,
+              meetingId: state.meetingId,
+              elapsed: state.elapsed,
+              lastTranscript: state.lastTranscript,
+            });
+          });
+          return cleanup;
+        },
+      }));
+      ```
+
+      ## Step 2: Create RecordingControls.tsx
+
+      Create `src/renderer/components/RecordingControls.tsx`:
+
+      A floating panel component for starting/stopping recordings. Includes:
+      - Meeting title input (required)
+      - Optional project selector (dropdown of existing projects)
+      - Start/Stop button
+      - Elapsed time display (MM:SS format)
+      - Error message display
+
+      ```typescript
+      // === FILE PURPOSE ===
+      // Recording control panel — start/stop recording with meeting title input.
 
       import { useState, useEffect } from 'react';
-      import { BarChart3, RefreshCw } from 'lucide-react';
-      import type { AIUsageSummary as UsageSummaryType } from '../../shared/types';
+      import { Mic, Square, Loader2 } from 'lucide-react';
+      import { useRecordingStore } from '../stores/recordingStore';
 
-      /** Format large numbers with commas: 12345 → "12,345" */
-      function formatNumber(n: number): string {
-        return n.toLocaleString();
+      function formatElapsed(seconds: number): string {
+        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
       }
 
-      /** Format cost to 4 decimal places: 0.0012 → "$0.0012" */
-      function formatCost(cost: number): string {
-        if (cost === 0) return '$0.00';
-        return `$${cost.toFixed(4)}`;
-      }
+      export default function RecordingControls() {
+        const {
+          isRecording, elapsed, error, starting,
+          startRecording, stopRecording, initListener,
+        } = useRecordingStore();
+        const [title, setTitle] = useState('');
 
-      /** Format task type ID to human label: task_generation → Task Generation */
-      function formatTaskType(type: string): string {
-        return type
-          .split('_')
-          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(' ');
-      }
+        // Initialize recording state listener
+        useEffect(() => {
+          const cleanup = initListener();
+          return cleanup;
+        }, [initListener]);
 
-      export default function UsageSummary() {
-        const [summary, setSummary] = useState<UsageSummaryType | null>(null);
-        const [loading, setLoading] = useState(true);
-
-        const fetchUsage = async () => {
-          setLoading(true);
-          try {
-            const data = await window.electronAPI.getAIUsageSummary();
-            setSummary(data);
-          } catch (err) {
-            console.error('Failed to fetch usage summary:', err);
-          } finally {
-            setLoading(false);
-          }
+        const handleStart = async () => {
+          if (!title.trim()) return;
+          await startRecording(title.trim());
+          setTitle(''); // Reset for next recording
         };
 
-        useEffect(() => {
-          fetchUsage();
-        }, []);
-
-        if (loading) {
-          return (
-            <div className="text-sm text-surface-500 py-4">Loading usage data...</div>
-          );
-        }
-
-        if (!summary || summary.totalTokens === 0) {
-          return (
-            <div className="flex flex-col items-center justify-center text-surface-500 py-6">
-              <BarChart3 size={32} className="mb-2 text-surface-600" />
-              <p className="text-sm">No AI usage recorded yet</p>
-              <p className="text-xs text-surface-600 mt-1">
-                Usage data will appear here after using AI features
-              </p>
-            </div>
-          );
-        }
-
-        const providerEntries = Object.entries(summary.byProvider);
-        const taskEntries = Object.entries(summary.byTaskType);
+        const handleStop = async () => {
+          await stopRecording();
+        };
 
         return (
-          <div className="space-y-4">
-            {/* Totals row */}
-            <div className="flex items-center gap-6">
-              <div>
-                <div className="text-xs text-surface-500">Total Tokens</div>
-                <div className="text-lg font-semibold text-surface-100">
-                  {formatNumber(summary.totalTokens)}
+          <div className="bg-surface-800 rounded-xl border border-surface-700 p-4">
+            {!isRecording ? (
+              // Start recording form
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-surface-200">
+                  <Mic size={18} />
+                  <span className="text-sm font-medium">New Recording</span>
                 </div>
-              </div>
-              <div>
-                <div className="text-xs text-surface-500">Estimated Cost</div>
-                <div className="text-lg font-semibold text-surface-100">
-                  {formatCost(summary.totalCost)}
-                </div>
-              </div>
-              <div className="ml-auto">
-                <button onClick={fetchUsage}
-                  className="flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors">
-                  <RefreshCw size={14} />
-                  Refresh
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Meeting title..."
+                  className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2
+                             text-sm text-surface-100 placeholder:text-surface-500
+                             focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+                  disabled={starting}
+                />
+                <button
+                  onClick={handleStart}
+                  disabled={!title.trim() || starting}
+                  className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500
+                             disabled:bg-surface-700 disabled:text-surface-500
+                             text-white rounded-lg px-3 py-2 text-sm font-medium
+                             transition-colors"
+                >
+                  {starting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    <>
+                      <Mic size={16} />
+                      Start Recording
+                    </>
+                  )}
                 </button>
               </div>
-            </div>
-
-            {/* Breakdowns side by side */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* By Provider */}
-              {providerEntries.length > 0 && (
-                <div className="p-3 bg-surface-800 border border-surface-700 rounded-lg">
-                  <div className="text-xs font-medium text-surface-400 mb-2">By Provider</div>
-                  <div className="space-y-1.5">
-                    {providerEntries.map(([id, data]) => (
-                      <div key={id} className="flex items-center justify-between text-xs">
-                        <span className="text-surface-300">{id}</span>
-                        <span className="text-surface-400">
-                          {formatNumber(data.tokens)} tokens &middot; {formatCost(data.cost)}
-                        </span>
-                      </div>
-                    ))}
+            ) : (
+              // Recording in progress
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-sm font-medium text-red-400">Recording</span>
                   </div>
+                  <span className="text-lg font-mono text-surface-200">
+                    {formatElapsed(elapsed)}
+                  </span>
                 </div>
-              )}
-
-              {/* By Task Type */}
-              {taskEntries.length > 0 && (
-                <div className="p-3 bg-surface-800 border border-surface-700 rounded-lg">
-                  <div className="text-xs font-medium text-surface-400 mb-2">By Task Type</div>
-                  <div className="space-y-1.5">
-                    {taskEntries.map(([type, data]) => (
-                      <div key={type} className="flex items-center justify-between text-xs">
-                        <span className="text-surface-300">{formatTaskType(type)}</span>
-                        <span className="text-surface-400">
-                          {formatNumber(data.tokens)} tokens &middot; {formatCost(data.cost)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                <button
+                  onClick={handleStop}
+                  className="w-full flex items-center justify-center gap-2 bg-surface-700
+                             hover:bg-surface-600 text-surface-200 rounded-lg px-3 py-2
+                             text-sm font-medium transition-colors"
+                >
+                  <Square size={14} />
+                  Stop Recording
+                </button>
+              </div>
+            )}
+            {error && (
+              <p className="mt-2 text-xs text-red-400">{error}</p>
+            )}
           </div>
         );
       }
       ```
 
-      ## Update SettingsPage.tsx
+      ## Step 3: Create RecordingIndicator.tsx
 
-      Add two new sections after the existing ones:
+      Create `src/renderer/components/RecordingIndicator.tsx`:
 
-      1. Add imports at top:
-         ```typescript
-         import UsageSummary from '../components/UsageSummary';
-         import { Info } from 'lucide-react';
-         ```
-         Also add to the existing destructure from useSettingsStore:
-         ```typescript
-         const { providers, loading, error, encryptionAvailable, loadProviders, loadSettings, checkEncryption } =
-           useSettingsStore();
-         ```
+      A small badge for the sidebar that shows recording status.
 
-      2. Add "AI Usage" section AFTER the Model Assignments section:
-         ```tsx
-         {/* === Section: AI Usage === */}
-         <section className="mb-10">
-           <div className="mb-4">
-             <h2 className="text-lg font-semibold text-surface-100">AI Usage</h2>
-             <p className="text-sm text-surface-500">
-               Token usage and estimated costs across all providers.
-             </p>
-           </div>
-           <UsageSummary />
-         </section>
-         ```
+      ```typescript
+      // === FILE PURPOSE ===
+      // Compact recording indicator for sidebar — pulsing dot + elapsed time.
 
-      3. Add "About" section as the LAST section:
-         ```tsx
-         {/* === Section: About === */}
-         <section className="mb-10">
-           <div className="mb-4">
-             <h2 className="text-lg font-semibold text-surface-100">About</h2>
-           </div>
-           <div className="p-4 bg-surface-800 border border-surface-700 rounded-lg">
-             <div className="flex items-center gap-2 mb-3">
-               <Info size={16} className="text-primary-400" />
-               <span className="text-sm font-medium text-surface-200">Living Dashboard</span>
-             </div>
-             <div className="space-y-1.5 text-xs text-surface-400">
-               <div className="flex justify-between">
-                 <span>Version</span>
-                 <span className="text-surface-300">0.1.0</span>
-               </div>
-               <div className="flex justify-between">
-                 <span>Encryption</span>
-                 <span className={encryptionAvailable ? 'text-emerald-400' : 'text-surface-500'}>
-                   {encryptionAvailable === null ? 'Checking...' : encryptionAvailable ? 'Available' : 'Unavailable'}
-                 </span>
-               </div>
-               <div className="flex justify-between">
-                 <span>Platform</span>
-                 <span className="text-surface-300">{window.electronAPI.platform}</span>
-               </div>
-             </div>
-           </div>
-         </section>
-         ```
+      import { useRecordingStore } from '../stores/recordingStore';
 
-      Key design notes:
-      - UsageSummary fetches directly from IPC (not store) — read-only, no caching needed
-      - Refresh button lets user manually re-fetch without page reload
-      - Empty state when no usage data exists (clean messaging)
-      - About section shows version (hardcoded 0.1.0 for now), encryption status, platform
-      - formatCost uses 4 decimal places since AI costs can be very small
-      - Provider IDs are shown as-is in usage breakdown (UUIDs — could map to names later)
+      function formatElapsed(seconds: number): string {
+        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+      }
+
+      export default function RecordingIndicator() {
+        const { isRecording, elapsed } = useRecordingStore();
+
+        if (!isRecording) return null;
+
+        return (
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-500/20
+                          border border-red-500/30">
+            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-xs font-mono text-red-400">
+              {formatElapsed(elapsed)}
+            </span>
+          </div>
+        );
+      }
+      ```
+
+      ## Step 4: Add RecordingIndicator to Sidebar
+
+      In `src/renderer/components/Sidebar.tsx`, add the RecordingIndicator above the
+      theme toggle button (at the bottom of the sidebar). Import it:
+
+      ```typescript
+      import RecordingIndicator from './RecordingIndicator';
+      ```
+
+      Place `<RecordingIndicator />` in the bottom section of the sidebar (above the
+      theme cycle button), so it's always visible when recording is active.
+
+      Also wire up the `initListener` in the Sidebar or App.tsx — actually, the
+      RecordingControls component already calls `initListener()` in its useEffect. The
+      store state is shared, so the RecordingIndicator will automatically update.
+
+      IMPORTANT: Make sure `initListener()` is only called once. If RecordingControls
+      might unmount (e.g., when navigating away from the meetings page), consider calling
+      `initListener()` in App.tsx instead so the listener is always active.
+
+      The best approach: call `initListener()` in App.tsx (or the AppShell component).
+      This ensures recording state is always received regardless of which page is active.
+      The RecordingControls component just reads from the store.
+
+      ## Step 5: Initialize recording listener in App.tsx
+
+      In `src/renderer/App.tsx`, inside the AppShell component:
+
+      ```typescript
+      import { useRecordingStore } from './stores/recordingStore';
+
+      // Inside AppShell:
+      useEffect(() => {
+        const cleanup = useRecordingStore.getState().initListener();
+        return cleanup;
+      }, []);
+      ```
+
+      This ensures the main→renderer recording state updates are always received.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify UsageSummary.tsx exports component that fetches from getAIUsageSummary
-      3. Verify UsageSummary shows totals, by-provider, and by-task-type breakdowns
-      4. Verify UsageSummary has empty state for zero usage
-      5. Verify SettingsPage.tsx now has 5 sections in order:
-         Appearance, AI Providers, Model Assignments, AI Usage, About
-      6. Verify SettingsPage imports UsageSummary and Info icon
-      7. Verify About section shows encryption status from store
+      2. Verify recordingStore.ts exports useRecordingStore with: isRecording, meetingId, elapsed, startRecording, stopRecording, initListener
+      3. Verify RecordingControls.tsx renders start form (title input + button) when not recording
+      4. Verify RecordingControls.tsx renders stop button + elapsed timer when recording
+      5. Verify RecordingIndicator.tsx shows pulsing dot + time only when isRecording
+      6. Verify Sidebar.tsx imports and renders RecordingIndicator
+      7. Verify App.tsx (or AppShell) calls initListener() in useEffect
+      8. Verify recording state flows: main pushState → IPC → onRecordingState → store → UI
     </verify>
     <done>
-      UsageSummary component created with token totals, cost tracking,
-      and breakdowns by provider and task type. About section shows
-      app version, encryption status, and platform. Settings page now
-      has 5 complete sections: Appearance, AI Providers, Model Assignments,
-      AI Usage, and About.
+      Recording Zustand store managing full recording lifecycle (create meeting → start
+      capture → stream audio → stop → save). RecordingControls component with title input,
+      start/stop, and timer. RecordingIndicator in sidebar with pulsing dot. Listener
+      initialized at app root for always-on recording state. TypeScript compiles clean.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - window.electronAPI.getAIUsageSummary returns AIUsageSummary type correctly
-      - window.electronAPI.platform returns a valid string (available via preload bridge)
-      - toLocaleString works in Electron's Chromium for number formatting
-      - HTML entity &amp;middot; renders correctly in JSX (may need to use Unicode \u00B7 instead)
+      - Zustand store follows the same pattern as settingsStore.ts (confirmed)
+      - Tailwind classes match existing design system (surface-* colors, primary-500)
+      - lucide-react icons available (Mic, Square, Loader2 — verify they exist)
+      - App.tsx has an AppShell component where useEffect can run (check actual structure)
+      - The recording state listener (onRecordingState) works the same as onWindowMaximizeChange
     </assumptions>
   </task>
 </phase>

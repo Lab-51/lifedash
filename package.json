@@ -19,11 +19,13 @@
     "@ai-sdk/openai": "^3.0.28",
     "@atlaskit/pragmatic-drag-and-drop": "^1.7.7",
     "@fontsource-variable/inter": "^5.2.8",
+    "@fugood/whisper.node": "^1.0.16",
     "@tiptap/extension-placeholder": "^3.19.0",
     "@tiptap/react": "^3.19.0",
     "@tiptap/starter-kit": "^3.19.0",
     "ai": "^6.0.84",
     "drizzle-orm": "^0.45.1",
+    "electron-audio-loopback": "^1.0.6",
     "electron-squirrel-startup": "^1.0.1",
     "electron-window-state": "^5.0.3",
     "framer-motion": "^12.34.0",
@@ -33,6 +35,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.0",
+    "wavefile": "^11.0.0",
     "zustand": "^5.0.11"
   },
   "devDependencies": {

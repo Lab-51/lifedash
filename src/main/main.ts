@@ -5,7 +5,8 @@
 
 // === DEPENDENCIES ===
 // electron, electron-squirrel-startup, electron-window-state, node:path,
-// drizzle-orm, postgres (via ./db/connection and ./db/migrate)
+// drizzle-orm, postgres (via ./db/connection and ./db/migrate),
+// electron-audio-loopback (system audio capture)
 
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
@@ -15,11 +16,16 @@ import { registerIpcHandlers } from './ipc';
 import { createTray } from './tray';
 import { connectDatabase, disconnectDatabase } from './db/connection';
 import { runMigrations } from './db/migrate';
+import { initMain } from 'electron-audio-loopback';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
 }
+
+// Initialize electron-audio-loopback for system audio capture.
+// Must be called before app is ready.
+initMain();
 
 // --- Single instance lock ---
 // Prevent multiple instances of the app from running simultaneously.

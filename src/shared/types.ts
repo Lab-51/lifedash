@@ -186,6 +186,74 @@ export interface TaskModelConfig {
   maxTokens?: number;
 }
 
+// === MEETING TYPES ===
+
+export type MeetingStatus = 'recording' | 'processing' | 'completed';
+
+export interface Meeting {
+  id: string;
+  projectId: string | null;
+  title: string;
+  startedAt: string;    // ISO timestamp
+  endedAt: string | null;
+  audioPath: string | null;
+  status: MeetingStatus;
+  createdAt: string;
+}
+
+export interface TranscriptSegment {
+  id: string;
+  meetingId: string;
+  content: string;
+  startTime: number;    // milliseconds from recording start
+  endTime: number;
+  createdAt: string;
+}
+
+export interface MeetingBrief {
+  id: string;
+  meetingId: string;
+  summary: string;
+  createdAt: string;
+}
+
+export type ActionItemStatus = 'pending' | 'approved' | 'dismissed' | 'converted';
+
+export interface ActionItem {
+  id: string;
+  meetingId: string;
+  cardId: string | null;
+  description: string;
+  status: ActionItemStatus;
+  createdAt: string;
+}
+
+export interface CreateMeetingInput {
+  title: string;
+  projectId?: string;
+}
+
+export interface UpdateMeetingInput {
+  title?: string;
+  projectId?: string | null;
+  endedAt?: string;
+  audioPath?: string;
+  status?: MeetingStatus;
+}
+
+/** Meeting with its transcript segments (for detail view) */
+export interface MeetingWithTranscript extends Meeting {
+  segments: TranscriptSegment[];
+}
+
+/** Recording state pushed from main to renderer via events */
+export interface RecordingState {
+  isRecording: boolean;
+  meetingId: string | null;
+  elapsed: number;           // seconds since recording started
+  lastTranscript: string;    // most recent transcript text
+}
+
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
   platform: NodeJS.Platform;
@@ -253,6 +321,19 @@ export interface ElectronAPI {
   // AI Usage
   getAIUsage: () => Promise<AIUsageEntry[]>;
   getAIUsageSummary: () => Promise<AIUsageSummary>;
+
+  // Meetings
+  getMeetings: () => Promise<Meeting[]>;
+  getMeeting: (id: string) => Promise<MeetingWithTranscript | null>;
+  createMeeting: (data: CreateMeetingInput) => Promise<Meeting>;
+  updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<Meeting>;
+  deleteMeeting: (id: string) => Promise<void>;
+
+  // Meeting recording (Plans 4.2-4.3 will implement these)
+  // startRecording: (meetingId: string) => Promise<void>;
+  // stopRecording: () => Promise<void>;
+  // onRecordingState: (callback: (state: RecordingState) => void) => () => void;
+  // onTranscriptSegment: (callback: (segment: TranscriptSegment) => void) => () => void;
 }
 
 declare global {

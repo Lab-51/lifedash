@@ -9,6 +9,7 @@ import { registerProjectHandlers } from './projects';
 import { registerCardHandlers } from './cards';
 import { registerSettingsHandlers } from './settings';
 import { registerAIProviderHandlers } from './ai-providers';
+import { registerMeetingHandlers } from './meetings';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -21,4 +22,5 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerCardHandlers();
   registerSettingsHandlers();
   registerAIProviderHandlers();
+  registerMeetingHandlers();
 }

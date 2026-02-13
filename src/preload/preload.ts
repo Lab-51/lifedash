@@ -100,4 +100,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // AI Usage
   getAIUsage: () => ipcRenderer.invoke('ai:get-usage'),
   getAIUsageSummary: () => ipcRenderer.invoke('ai:get-usage-summary'),
+
+  // Meetings
+  getMeetings: () => ipcRenderer.invoke('meetings:list'),
+  getMeeting: (id: string) => ipcRenderer.invoke('meetings:get', id),
+  createMeeting: (data: any) => ipcRenderer.invoke('meetings:create', data),
+  updateMeeting: (id: string, data: any) =>
+    ipcRenderer.invoke('meetings:update', id, data),
+  deleteMeeting: (id: string) => ipcRenderer.invoke('meetings:delete', id),
 });
