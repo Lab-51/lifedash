@@ -241,7 +241,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as IdeaStatus)}
-                  className="bg-surface-800 border border-surface-700 rounded-lg text-sm text-surface-200 px-2 py-1.5 focus:outline-none focus:border-primary-500"
+                  className=""
                 >
                   {STATUS_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -255,7 +255,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                 <select
                   value={effort}
                   onChange={(e) => setEffort(e.target.value as EffortLevel | '')}
-                  className="bg-surface-800 border border-surface-700 rounded-lg text-sm text-surface-200 px-2 py-1.5 focus:outline-none focus:border-primary-500"
+                  className=""
                 >
                   <option value="">--</option>
                   {EFFORT_OPTIONS.map((opt) => (
@@ -270,7 +270,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                 <select
                   value={impact}
                   onChange={(e) => setImpact(e.target.value as ImpactLevel | '')}
-                  className="bg-surface-800 border border-surface-700 rounded-lg text-sm text-surface-200 px-2 py-1.5 focus:outline-none focus:border-primary-500"
+                  className=""
                 >
                   <option value="">--</option>
                   {IMPACT_OPTIONS.map((opt) => (

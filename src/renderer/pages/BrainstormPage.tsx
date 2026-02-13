@@ -153,7 +153,7 @@ export default function BrainstormPage() {
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="w-full bg-surface-800 border border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-200 focus:outline-none focus:border-primary-500"
+                className="w-full"
               >
                 <option value="">No project</option>
                 {projects.map((p) => (

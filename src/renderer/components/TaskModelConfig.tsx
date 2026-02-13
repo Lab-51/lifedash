@@ -165,7 +165,7 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
                 {/* Provider selector */}
                 <select value={entry.providerId}
                   onChange={e => updateDraft(type, 'providerId', e.target.value)}
-                  className="text-xs bg-surface-900 border border-surface-700 rounded px-2 py-1.5 text-surface-100 focus:outline-none focus:border-primary-500">
+                  className="text-xs">
                   <option value="">Select provider</option>
                   {enabledProviders.map(p => (
                     <option key={p.id} value={p.id}>
@@ -188,7 +188,7 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
                   ) : (
                     <select value={entry.model}
                       onChange={e => updateDraft(type, 'model', e.target.value)}
-                      className="text-xs bg-surface-900 border border-surface-700 rounded px-2 py-1.5 text-surface-100 focus:outline-none focus:border-primary-500">
+                      className="text-xs">
                       <option value="">Select model</option>
                       {models.map(m => (
                         <option key={m.id} value={m.id}>{m.label}</option>

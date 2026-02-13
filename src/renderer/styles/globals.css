@@ -70,6 +70,39 @@ html.light ::-webkit-scrollbar-thumb:hover {
   background: var(--color-surface-500);
 }
 
+/* Styled select dropdowns — consistent dark theme with custom chevron */
+select {
+  appearance: none;
+  background-color: var(--color-surface-800);
+  border: 1px solid var(--color-surface-700);
+  border-radius: 0.5rem;
+  padding: 0.375rem 2rem 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-surface-200);
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1.25rem 1.25rem;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+select:hover {
+  border-color: var(--color-surface-600);
+}
+select:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary-500) 50%, transparent);
+}
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+select option {
+  background-color: var(--color-surface-800);
+  color: var(--color-surface-200);
+}
+
 /* Keyboard focus rings — visible only on keyboard navigation */
 :focus-visible {
   outline: 2px solid var(--color-primary-500);

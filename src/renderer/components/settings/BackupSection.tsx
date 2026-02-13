@@ -307,7 +307,7 @@ export default function BackupSection() {
                   onChange={(e) =>
                     updateAutoSettings({ frequency: e.target.value as AutoBackupFrequency })
                   }
-                  className="bg-surface-700 border border-surface-600 text-surface-200 text-sm rounded-lg px-2 py-1 focus:ring-primary-500 focus:border-primary-500"
+                  className=""
                 >
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>

@@ -144,7 +144,7 @@ export default function NotificationSection() {
                     onChange={(e) =>
                       updatePreference({ dailyDigestHour: parseInt(e.target.value, 10) })
                     }
-                    className="bg-surface-700 border border-surface-600 text-surface-200 text-sm rounded-lg px-2 py-1 focus:ring-primary-500 focus:border-primary-500"
+                    className=""
                   >
                     {Array.from({ length: 24 }, (_, i) => (
                       <option key={i} value={i}>

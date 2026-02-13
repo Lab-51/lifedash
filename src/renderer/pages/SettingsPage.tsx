@@ -46,7 +46,7 @@ function SettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6 max-w-4xl mx-auto">
       {/* Page header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-surface-100">Settings</h1>

@@ -59,8 +59,7 @@ export default function RecordingControls() {
           <select
             value={selectedTemplate}
             onChange={(e) => setSelectedTemplate(e.target.value as MeetingTemplateType)}
-            className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2
-                       text-sm text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className="w-full"
             disabled={starting}
           >
             {MEETING_TEMPLATES.map((t) => (
