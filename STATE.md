@@ -7,8 +7,8 @@ Session focus: Plan 8.6 — Types Module Split, Test Coverage Expansion & BoardS
 ## Position
 Milestone: Post-Review Improvements
 Phase: 8 (Review Fixes)
-Plan: 8.6 of TBD (PLANNED — 0/3 tasks done)
-Task: 0 of 3
+Plan: 8.6 of TBD (COMPLETE — 3/3 tasks done)
+Task: 3 of 3
 
 ## Phase 1 — COMPLETE
 All 3 plans (8 tasks) delivered and pushed to GitHub.
@@ -524,12 +524,28 @@ Plan 8.4 execution: HIGH (all 3 tasks verified, TypeScript clean, 12/12 tests pa
 ## Confidence Levels
 Overall approach: HIGH
 Plan 8.5 execution: HIGH (all 3 tasks verified, TypeScript clean, 12/12 tests passing)
+Plan 8.6 execution: HIGH (all 3 tasks verified in parallel, TypeScript clean, 98/98 tests passing)
 
-### Plan 8.6: Types Module Split, Test Coverage Expansion & BoardStore Decomposition (3 tasks) — PLANNED
-1. Split shared/types.ts (847 lines) into 12-14 domain modules + barrel re-export — zero import changes needed
-2. Expand test coverage — Zod schema tests + IPC validator tests + date-utils tests (25-30 new tests)
-3. Decompose boardStore (375 lines) — extract cardDetailStore for comments/relationships/attachments/activities
+### Plan 8.6: Types Module Split, Test Coverage Expansion & BoardStore Decomposition (3 tasks) — COMPLETE
+1. Split shared/types.ts (847 lines) into 16 domain modules + barrel re-export — zero import changes — DONE
+2. Expand test coverage — 86 new tests (69 schema + 10 IPC validator + 7 date-utils) — 98 total — DONE
+3. Decompose boardStore (375 → 255 lines) — extracted cardDetailStore (133 lines) — DONE
+- Commit: c3ab9d8 on main
+- Executed in parallel (3 agents)
+
+## Plan 8.6 Execution Results
+- **Task 1**: Split types.ts into 16 domain files in src/shared/types/ (common, projects, cards, ai, meetings, intelligence, whisper, ideas, brainstorm, backup, tasks, notifications, transcription, diarization, analytics, electron-api) + barrel index.ts. Original deleted. All 55+ importers work without changes. electron-api.ts (224 lines) is the largest (full IPC API surface).
+- **Task 2**: Created 3 test files with 86 new tests. schemas.test.ts (69 tests covering 16 schemas), ipc-validator.test.ts (10 tests for validateInput), date-utils.test.ts (7 tests for getDueDateBadge with fake timers). Total: 98 tests across 5 files.
+- **Task 3**: Created cardDetailStore.ts (133 lines, Zustand). Moved 5 state fields + 10 actions from boardStore. Updated 5 consumer components (CardDetailModal, CommentsSection, RelationshipsSection, AttachmentsSection, ActivityLog). TaskBreakdownSection unchanged (uses taskStructuringStore only).
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors.
+- **Tests**: 98/98 passing.
+
+## Decisions Made (Plan 8.6)
+- 16 domain files (not 12-14): added whisper.ts, diarization.ts, analytics.ts for cleaner separation
+- electron-api.ts at 224 lines: accepted (single interface, can't meaningfully split)
+- meetings.ts at 116 lines: includes MEETING_TEMPLATES runtime const (~50 lines)
+- RelationshipsSection imports from both stores (needs `cards` from boardStore for picker)
+- TaskBreakdownSection: no changes needed (only uses taskStructuringStore + window.electronAPI)
 
 ## Next Steps
-1. `/nexus:execute --parallel` — Execute Plan 8.6 (all 3 tasks are independent, safe for parallel)
-2. Plan 8.7+: TBD based on review
+1. Plan 8.7+: TBD based on review
