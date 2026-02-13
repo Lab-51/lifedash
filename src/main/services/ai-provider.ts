@@ -64,11 +64,15 @@ function createFactory(
       return createAnthropic({ apiKey: apiKey || '' }) as unknown as ProviderFactory;
     case 'ollama':
       return createOllama({ baseURL: baseUrl || 'http://localhost:11434/api' }) as unknown as ProviderFactory;
-    case 'kimi':
-      return createOpenAI({
+    case 'kimi': {
+      // Moonshot API is OpenAI-compatible but only supports /chat/completions,
+      // not /responses (which @ai-sdk/openai v3 defaults to). Use .chat() explicitly.
+      const kimi = createOpenAI({
         apiKey: apiKey || '',
         baseURL: baseUrl || 'https://api.moonshot.ai/v1',
-      }) as unknown as ProviderFactory;
+      });
+      return ((modelId: string) => kimi.chat(modelId)) as unknown as ProviderFactory;
+    }
     default:
       throw new Error(`Unknown AI provider: ${name}`);
   }
