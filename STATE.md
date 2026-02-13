@@ -2,13 +2,13 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 7 — Plan 7.2 COMPLETE
+Session focus: Phase 7 — Plan 7.3 PLANNED
 
 ## Position
 Milestone: Phase 7 — v2 Features (Advanced)
 Phase: 7 of 7 (IN PROGRESS)
-Plan: 2 of 8 (COMPLETE — 3/3 tasks done)
-Task: 3 of 3 (all complete)
+Plan: 3 of 8 (PLANNED — 0/3 tasks done)
+Task: 0 of 3
 
 ## Phase 1 — COMPLETE
 All 3 plans (8 tasks) delivered and pushed to GitHub.
@@ -257,6 +257,11 @@ Planned as 8 sequential plans.
 - **Task 3**: Added 5 card templates (Bug Report, Feature Request, Meeting Action, Quick Note, Research Task) with template selector dropdown. applyTemplate fills TipTap + sets priority. Outside-click close.
 - **TypeScript**: `npx tsc --noEmit` passes with zero errors after all 3 tasks.
 
+### Plan 7.3: Database Backup/Restore & Data Export (3 tasks) — PLANNED
+1. Backup service + export service + types + IPC + preload — PENDING
+2. Backup management UI + export UI in Settings — PENDING
+3. Auto-backup scheduler + retention cleanup — PENDING
+
 ## Next Steps
-1. `/nexus:git` — Commit Plans 7.1 + 7.2 changes
-2. `/nexus:plan 7.3` — Database backup/restore, export UI
+1. `/nexus:git` — Commit Plans 7.1 + 7.2 changes (still pending from previous session)
+2. `/nexus:execute` — Execute Plan 7.3 tasks

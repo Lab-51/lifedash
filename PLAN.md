@@ -1,7 +1,8 @@
-# Plan 7.2: Advanced Card Features — Comments, Relationships & Activity UI
+# Plan 7.3 — Database Backup/Restore & Data Export
 
-## Coverage
-- **R16: Advanced Card Features** (UI) — Comments UI, relationships UI, activity log, card templates
+**Requirement:** R15 — Database Backup & Sync (5 points)
+**Scope:** pg_dump backup/restore via Docker, JSON/CSV data export, auto-backup scheduling, backup management UI
+**Deferred:** Cloud backup (S3/Google Drive) → ISSUES.md (adds significant scope: auth, SDK deps, config UI)
 
 ## Phase 7 Overview
 
@@ -11,561 +12,780 @@ Planned as 8 sequential plans:
 | Plan | Requirement | Focus |
 |------|-------------|-------|
 | 7.1 | R16 (backend) | Card comments, relationships, activity log — schema + services + IPC |
-| **7.2** | **R16 (UI)** | **Comments UI, relationships UI, activity log, card templates in CardDetailModal** |
-| 7.3 | R15 | Database backup/restore (pg_dump), JSON/CSV export, backup UI |
+| 7.2 | R16 (UI) | Comments UI, relationships UI, activity log, card templates in CardDetailModal |
+| **7.3** | **R15** | **Database backup/restore (pg_dump), JSON/CSV export, backup UI** |
 | 7.4 | R11 | Task structuring AI service — project planning, pillars, task breakdown |
 | 7.5 | R11 (UI) | Task structuring UI — planning wizard, templates, milestone view |
 | 7.6 | R14 | API transcription providers (Deepgram, AssemblyAI), fallback |
 | 7.7 | R13 | Meeting templates, analytics, speaker diarization |
 | 7.8 | R17 | Notifications service, desktop/tray notifications, reminders |
 
-## Plan 7.2 Overview
+## Architecture Decisions
 
-This plan builds the UI for R16's card features on top of Plan 7.1's backend:
-- **Task 1**: CommentsSection + ActivityLog standalone components
-- **Task 2**: RelationshipsSection + CardDetailModal integration (wire all sections,
-  load/clear card details, expand modal layout)
-- **Task 3**: Card template presets + template selector in CardDetailModal
+1. **Backup method: pg_dump/psql via Docker exec** — Uses `child_process.execFile('docker', ['exec', ...])` to run `pg_dump` and `psql` inside the PostgreSQL container. This is the cleanest approach for a Dockerized PostgreSQL: captures full schema including enums, constraints, indexes, and data. `execFile` (not `exec`) avoids shell injection risks.
 
-## Architecture Decisions for Plan 7.2
+2. **Backup format: Plain SQL (.sql)** — Human-readable, restorable with `psql`, includes `--clean --if-exists` flags for idempotent restore (DROP + CREATE statements).
 
-1. **Extract sections as standalone components** — CommentsSection, RelationshipsSection,
-   and ActivityLog are each their own files. This keeps CardDetailModal manageable
-   (currently 322 lines) and follows the pattern used in MeetingDetailModal (BriefSection,
-   ActionItemList are separate components).
+3. **Export method: Drizzle queries → JSON/CSV** — Queries all tables via Drizzle ORM, serializes to JSON (single file) or CSV (one file per table, zipped). No external dependencies needed.
 
-2. **Components use boardStore directly** — Each section component calls `useBoardStore()`
-   to access state and actions. This avoids prop-drilling and matches the existing pattern
-   where CardDetailModal already imports `useBoardStore`.
+4. **Storage: app.getPath('userData')/backups/** — Default location for automatic backups. Manual exports use Electron's `dialog.showSaveDialog` for user-chosen location.
 
-3. **Relationship card picker uses same-board cards** — The target card dropdown shows
-   all non-archived cards on the current board (from `boardStore.cards`). Cross-board
-   relationships are possible via IPC but we scope the picker to current board for simplicity.
+5. **Auto-backup: setInterval in main process** — Checks hourly whether a backup is due (daily/weekly). Simple and reliable with no cron library dependency. Settings stored in existing settings table.
 
-4. **Card templates as hardcoded presets** — 5 built-in templates (Bug Report, Feature
-   Request, Meeting Action, Quick Note, Research Task). Applied via TipTap `setContent()`.
-   No DB storage for templates — custom templates can be added later if needed.
+6. **Restore safety: Pre-restore backup** — Automatically creates a backup before any restore operation. Confirmation required in UI.
 
-5. **Relative timestamps everywhere** — Use a shared `timeAgo()` helper for comments,
-   activities, and relationships. Shows "2m ago", "3h ago", "5d ago" etc.
+7. **Security: API keys excluded from exports** — `aiProviders.apiKeyEncrypted` column is stripped from JSON/CSV exports. Backups via pg_dump include it (same machine, encrypted at rest).
+
+8. **Audio files NOT in backups** — Referenced by path in DB, potentially gigabytes. Noted in UI.
 
 ---
 
-<phase n="7.2" name="Advanced Card Features — Comments, Relationships & Activity UI">
+<phase n="7.3" name="Database Backup/Restore & Data Export">
   <context>
-    Plan 7.1 completed the backend: 3 DB tables, 8 IPC handlers, 8 preload bridge
-    methods, logCardActivity helper, and boardStore extensions (4 state fields + 7 actions).
-    This plan adds the renderer UI.
+    Phase 7, Plan 3 of 8. Implements R15: Database Backup & Sync.
+    PostgreSQL 16 runs in Docker container "living-dashboard-db" with user "dashboard",
+    database "living_dashboard".
 
     Existing infrastructure:
-    @src/renderer/components/CardDetailModal.tsx — 322 lines, has title editing, priority
-      selector, TipTap description editor, labels management, timestamps. Uses useBoardStore.
-    @src/renderer/stores/boardStore.ts — 308 lines, has selectedCardComments,
-      selectedCardRelationships, selectedCardActivities, loadingCardDetails state +
-      loadCardDetails, clearCardDetails, addComment, updateComment, deleteComment,
-      addRelationship, deleteRelationship actions.
-    @src/renderer/pages/BoardPage.tsx — 590 lines, manages selectedCardId state,
-      renders CardDetailModal with card + onUpdate + onClose props.
-    @src/shared/types.ts — CardComment, CardRelationship, CardActivity, CardRelationshipType,
-      CardActivityAction, CreateCardCommentInput, CreateCardRelationshipInput types.
+    - Service files in src/main/services/ (9 files, e.g. secure-storage.ts, ai-provider.ts)
+    - IPC handlers in src/main/ipc/ (12 files), registered via registerIpcHandlers(mainWindow)
+    - Types in src/shared/types.ts (ElectronAPI interface with ~60 methods)
+    - Preload bridge in src/preload/preload.ts (contextBridge.exposeInMainWorld)
+    - DB connection via src/main/db/connection.ts (getConnectionString, getDb, checkDatabaseHealth)
+    - Settings table: key-value store (key VARCHAR 255 PK, value text)
+    - Schema: 20 tables across 10 schema files in src/main/db/schema/
 
-    UI patterns established:
-    - Dark theme: bg-surface-900, border-surface-700, text-surface-100/400/500
-    - Section headers: text-sm text-surface-400 block mb-2
-    - Buttons: primary (bg-primary-600 hover:bg-primary-500) or ghost (text-surface-400 hover:text-surface-200)
-    - Icons: lucide-react, size 14-16 for inline, 20 for header actions
-    - Modal: z-50, max-w-2xl, bg-black/50 overlay, Escape + overlay click close
-
-    Relative time helper pattern (from MeetingDetailModal):
-    - Uses simple date math: seconds → "Xm ago", hours → "Xh ago", days → "Xd ago"
+    @docker-compose.yml (container name, credentials, port)
+    @src/main/db/connection.ts (getConnectionString, getDb)
+    @src/main/db/schema/index.ts (all table imports — barrel export)
+    @src/main/ipc/index.ts (handler registration pattern)
+    @src/main/ipc/settings.ts (simple handler example)
+    @src/preload/preload.ts (preload bridge pattern)
+    @src/shared/types.ts (type definitions + ElectronAPI)
+    @src/renderer/pages/SettingsPage.tsx (settings UI structure)
   </context>
 
   <task type="auto" n="1">
-    <n>CommentsSection + ActivityLog Components</n>
+    <n>Backup service, export service, types, IPC handlers, and preload bridge</n>
     <files>
-      src/renderer/components/CommentsSection.tsx (new, ~180 lines)
-      src/renderer/components/ActivityLog.tsx (new, ~140 lines)
+      src/main/services/backupService.ts (NEW ~280 lines)
+      src/main/services/exportService.ts (NEW ~200 lines)
+      src/main/ipc/backup.ts (NEW ~130 lines)
+      src/main/ipc/index.ts (MODIFY — add registerBackupHandlers import + call)
+      src/shared/types.ts (MODIFY — add backup/export types + 8 ElectronAPI methods)
+      src/preload/preload.ts (MODIFY — add 8 backup/export bridge methods)
     </files>
-    <preconditions>
-      - Plan 7.1 complete (boardStore has card detail state + actions)
-      - TypeScript compiles clean
-    </preconditions>
     <action>
       ## WHY
-      Comments and activity log are core card detail features that need dedicated UI
-      components. Extracting them keeps CardDetailModal at a manageable size.
+      R15 requires pg_dump backup/restore, manual backup/restore UI, and JSON/CSV export.
+      This task builds the complete backend infrastructure: service layer, IPC handlers,
+      types, and preload bridge. Separating backup (Docker/pg_dump) from export (Drizzle queries)
+      keeps concerns clean and failure modes isolated.
 
       ## WHAT
 
-      ### 0. timeAgo helper
+      ### 1a. Types — add to src/shared/types.ts
 
-      Both components need relative timestamps. Create a shared helper. Add this
-      function at the top of CommentsSection.tsx (and import/reuse in ActivityLog.tsx,
-      or duplicate — it's a small 10-line function):
+      Add these types before the ElectronAPI interface:
 
       ```typescript
-      function timeAgo(dateStr: string): string {
-        const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-        if (seconds &lt; 60) return 'just now';
-        const minutes = Math.floor(seconds / 60);
-        if (minutes &lt; 60) return `${minutes}m ago`;
-        const hours = Math.floor(minutes / 60);
-        if (hours &lt; 24) return `${hours}h ago`;
-        const days = Math.floor(hours / 24);
-        if (days &lt; 30) return `${days}d ago`;
-        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      // === BACKUP & EXPORT TYPES ===
+
+      export interface BackupInfo {
+        fileName: string;
+        filePath: string;
+        createdAt: string; // ISO timestamp
+        sizeBytes: number;
+      }
+
+      export interface BackupProgress {
+        phase: 'starting' | 'dumping' | 'saving' | 'restoring' | 'complete' | 'failed';
+        message: string;
+        error?: string;
+      }
+
+      export type ExportFormat = 'json' | 'csv';
+
+      export interface ExportOptions {
+        format: ExportFormat;
+        tables?: string[]; // if omitted, export all user-data tables
+      }
+
+      export interface ExportResult {
+        filePath: string;
+        format: ExportFormat;
+        tables: string[];
+        sizeBytes: number;
+      }
+
+      export type AutoBackupFrequency = 'daily' | 'weekly' | 'off';
+
+      export interface AutoBackupSettings {
+        enabled: boolean;
+        frequency: AutoBackupFrequency;
+        retention: number; // number of backups to keep
+        lastRun: string | null; // ISO timestamp or null
       }
       ```
 
-      ### 1. CommentsSection.tsx
-
-      Props: `cardId: string`
-
-      Uses `useBoardStore()` to get:
-      - `selectedCardComments` — the comments array (newest first)
-      - `addComment` — to create new comments
-      - `updateComment` — to edit existing comments
-      - `deleteComment` — to remove comments
-
-      UI structure:
-
-      ```
-      ┌─ Comments (3) ──────────────────────┐
-      │                                      │
-      │  [textarea: Write a comment...]      │
-      │  [Add Comment button]                │
-      │                                      │
-      │  ┌─ Comment ───────────────────────┐ │
-      │  │ Comment text content here...     │ │
-      │  │ 2h ago  · [Edit] [Delete]        │ │
-      │  └──────────────────────────────────┘ │
-      │                                      │
-      │  ┌─ Comment ───────────────────────┐ │
-      │  │ Earlier comment text...          │ │
-      │  │ 5d ago  · [Edit] [Delete]        │ │
-      │  └──────────────────────────────────┘ │
-      └──────────────────────────────────────┘
+      Add to ElectronAPI interface:
+      ```typescript
+      // Backup & Restore
+      backupCreate: () => Promise<BackupInfo>;
+      backupList: () => Promise<BackupInfo[]>;
+      backupRestore: (filePath: string) => Promise<void>;
+      backupRestoreFromFile: () => Promise<void>;
+      backupDelete: (fileName: string) => Promise<void>;
+      backupExport: (options: ExportOptions) => Promise<ExportResult | null>;
+      backupAutoSettingsGet: () => Promise<AutoBackupSettings>;
+      backupAutoSettingsUpdate: (settings: Partial<AutoBackupSettings>) => Promise<void>;
+      onBackupProgress: (callback: (progress: BackupProgress) => void) => () => void;
       ```
 
-      State:
-      - `newComment: string` — textarea value for adding
-      - `editingId: string | null` — which comment is being edited
-      - `editContent: string` — edit textarea value
+      ### 1b. Create src/main/services/backupService.ts
 
-      Behavior:
-      - **Add**: textarea + "Add Comment" button (disabled if empty). On submit, call
-        `addComment({ cardId, content: newComment })`, clear textarea.
-      - **Edit**: Click "Edit" → replace comment text with textarea pre-filled with
-        content. Save/Cancel buttons. On save, call `updateComment(id, editContent)`.
-        On cancel or Escape, exit edit mode.
-      - **Delete**: Click "Delete" → call `deleteComment(id)`. No confirmation needed
-        (single action, easily re-created).
-      - **Empty state**: "No comments yet" in muted text.
-
-      Styling:
-      - Section header: `text-sm text-surface-400` with count badge
-        `bg-surface-800 text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5`
-      - Textarea: `bg-surface-800 border border-surface-700 rounded-lg p-3 text-sm
-        text-surface-100 placeholder:text-surface-500 resize-none`
-      - Add button: `bg-primary-600 hover:bg-primary-500 text-white text-sm px-3 py-1.5
-        rounded-lg disabled:opacity-40`
-      - Comment card: `bg-surface-800/50 rounded-lg px-3 py-2.5` with content as
-        `text-sm text-surface-200` and footer as `text-xs text-surface-500`
-      - Edit/Delete buttons: `text-xs text-surface-500 hover:text-surface-300`
-      - Icons: MessageSquare for header (from lucide-react), Pencil for edit, Trash2 for delete
-
-      ### 2. ActivityLog.tsx
-
-      Props: `cardId: string`
-
-      Uses `useBoardStore()` to get:
-      - `selectedCardActivities` — the activities array (newest first, max 50)
-      - `loadingCardDetails` — for loading state
-
-      This is a **read-only** component. No add/edit/delete.
-
-      UI structure:
-
+      File header:
       ```
-      ┌─ Activity ─────────────────────────┐
-      │                                     │
-      │  ● Card created               2h ago│
-      │  ● Priority updated            1h ago│
-      │  ● Moved to "In Progress"     45m ago│
-      │  ● Comment added              30m ago│
-      │  ● Relationship added          5m ago│
-      │                                     │
-      └─────────────────────────────────────┘
+      // === FILE PURPOSE ===
+      // Database backup and restore via pg_dump/psql through Docker exec.
+      // Manages backup files in app.getPath('userData')/backups/.
+      //
+      // === DEPENDENCIES ===
+      // - Docker CLI on system PATH
+      // - PostgreSQL container "living-dashboard-db" running
+      //
+      // === LIMITATIONS ===
+      // - Audio files are NOT backed up (stored outside DB)
+      // - Requires Docker to be running
       ```
 
-      For each activity, render:
-      - **Icon** per action type (from lucide-react):
-        - `created` → PlusCircle (green)
-        - `updated` → Pencil (blue)
-        - `moved` → ArrowRight (amber)
-        - `commented` → MessageSquare (purple)
-        - `archived` → Archive (red)
-        - `restored` → RotateCcw (green)
-        - `relationship_added` → Link (blue)
-        - `relationship_removed` → Unlink (red)
-      - **Description text** from action + parsed details JSON:
-        - `created` → "Card created" (+ title from details if available)
-        - `updated` → "Updated " + fields list from details.fields
-        - `moved` → "Moved card" (details has columnId but we don't have column name easily, keep simple)
-        - `commented` → "Comment added"
-        - `archived` → "Card archived"
-        - `restored` → "Card restored"
-        - `relationship_added` → "Linked to card" (+ type from details)
-        - `relationship_removed` → "Unlinked from card"
-      - **Relative timestamp** from `timeAgo(activity.createdAt)`
+      Exports:
+      - `getBackupDir(): string` — Returns `path.join(app.getPath('userData'), 'backups')`.
+        Creates directory with `fs.mkdirSync({ recursive: true })` if it doesn't exist.
 
-      Styling:
-      - Section header: `text-sm text-surface-400` with Activity icon
-      - Each entry: flex row with icon (size 14, colored per type), description
-        `text-sm text-surface-300`, timestamp `text-xs text-surface-500 ml-auto`
-      - Timeline connector: `border-l-2 border-surface-700` left of entries
-      - Empty state: "No activity yet" in muted text
-      - Max display: show all (already limited to 50 by backend)
+      - `isDockerAvailable(): Promise<boolean>` — Runs `execFile('docker', ['info'])`
+        wrapped in try/catch. Returns true if exit code 0, false otherwise.
+
+      - `createBackup(mainWindow?: BrowserWindow): Promise<BackupInfo>` —
+        1. Emit progress: { phase: 'starting', message: 'Preparing backup...' }
+        2. Generate filename: `backup-${format(new Date(), 'yyyy-MM-dd-HHmmss')}.sql`
+           (use manual date formatting, no date-fns: `new Date().toISOString().replace(/[T:]/g, '-').slice(0, 19)` → `backup-2026-02-13-143022.sql`)
+        3. Emit progress: { phase: 'dumping', message: 'Dumping database...' }
+        4. Run: `execFile('docker', ['exec', 'living-dashboard-db', 'pg_dump', '-U', 'dashboard', '--clean', '--if-exists', 'living_dashboard'])`
+        5. Capture stdout (the SQL dump)
+        6. Emit progress: { phase: 'saving', message: 'Saving backup file...' }
+        7. Write stdout to `path.join(getBackupDir(), filename)` via `fs.promises.writeFile`
+        8. Get file stats for size
+        9. Emit progress: { phase: 'complete', message: 'Backup complete' }
+        10. Return BackupInfo
+
+        On error: emit { phase: 'failed', message: '...', error: err.message }, then throw.
+        Progress via `mainWindow?.webContents.send('backup:progress', progress)`.
+
+      - `listBackups(): Promise<BackupInfo[]>` —
+        1. Read backup dir with `fs.promises.readdir`
+        2. Filter files matching `/^backup-\d{4}-\d{2}-\d{2}-\d{6}\.sql$/`
+        3. For each: get stats (size, mtime)
+        4. Return sorted by createdAt descending
+        5. If dir doesn't exist, return empty array
+
+      - `restoreBackup(filePath: string, mainWindow?: BrowserWindow): Promise<void>` —
+        1. Verify file exists with `fs.promises.access`
+        2. Emit progress: { phase: 'starting', message: 'Creating safety backup...' }
+        3. Call `createBackup(mainWindow)` as safety net (catch and log errors, don't block)
+        4. Emit progress: { phase: 'restoring', message: 'Restoring database...' }
+        5. Read backup file content
+        6. Spawn: `spawn('docker', ['exec', '-i', 'living-dashboard-db', 'psql', '-U', 'dashboard', 'living_dashboard'])`
+        7. Pipe file content to stdin, wait for completion
+        8. Emit progress: { phase: 'complete', message: 'Restore complete' }
+        On error: emit failed progress, throw.
+
+      - `deleteBackup(fileName: string): Promise<void>` —
+        1. Validate fileName matches `/^backup-[\d-]+\.sql$/` (prevent path traversal)
+        2. Construct full path: `path.join(getBackupDir(), fileName)`
+        3. Delete with `fs.promises.unlink`
+
+      - `cleanOldBackups(retention: number): Promise<void>` —
+        1. List backups (sorted newest first)
+        2. If count > retention, delete the oldest ones
+        3. Log deletions
+
+      Implementation notes:
+      - Use `child_process.execFile` for pg_dump (captures stdout into buffer)
+      - Use `child_process.spawn` for psql restore (needs stdin piping)
+      - Wrap execFile in a Promise (use util.promisify or manual Promise wrapper)
+      - Set maxBuffer for execFile: 100MB (`100 * 1024 * 1024`) to handle large dumps
+      - All file operations use fs.promises (async)
+
+      ### 1c. Create src/main/services/exportService.ts
+
+      File header:
+      ```
+      // === FILE PURPOSE ===
+      // Export database data as JSON or CSV for external use.
+      // Queries all tables via Drizzle ORM, serializes, and writes to file.
+      //
+      // === DEPENDENCIES ===
+      // - Database connection (getDb from connection.ts)
+      //
+      // === LIMITATIONS ===
+      // - API keys (aiProviders.apiKeyEncrypted) excluded from exports
+      // - Audio files not included
+      // - CSV: one file per table (relational data doesn't flatten)
+      ```
+
+      Imports: All schema tables from `../db/schema`, getDb from `../db/connection`.
+
+      Table export list (map of tableName → drizzle table reference):
+      ```typescript
+      const EXPORT_TABLES: Record<string, any> = {
+        projects, boards, columns, cards, labels, cardLabels,
+        cardComments, cardRelationships, cardActivities,
+        meetings, transcripts, meetingBriefs, actionItems,
+        ideas, ideaTags,
+        brainstormSessions, brainstormMessages,
+        settings, aiProviders, aiUsage,
+      };
+      ```
+
+      Exports:
+      - `exportAllData(tables?: string[]): Promise<Record<string, any[]>>` —
+        1. Get db instance
+        2. For each table in EXPORT_TABLES (or filtered by `tables` param):
+           `const rows = await db.select().from(table)`
+        3. Special handling for aiProviders: map rows to exclude `apiKeyEncrypted` field
+        4. Return `{ [tableName]: rows[] }`
+
+      - `writeJSON(data: Record<string, any[]>, filePath: string): Promise<number>` —
+        1. `JSON.stringify(data, null, 2)`
+        2. Write to filePath
+        3. Return file size in bytes
+
+      - `writeCSV(data: Record<string, any[]>, filePath: string): Promise<number>` —
+        For JSON export: single .json file.
+        For CSV export: write a single .csv file with a section per table
+        (header row with table name, column headers, data rows, blank line separator).
+
+        OR simpler approach: if format is CSV and there are multiple tables,
+        create individual .csv files in a temp directory and the IPC handler
+        uses dialog.showOpenDialog({ properties: ['openDirectory'] }) to let user
+        pick a folder.
+
+        Actually, simplest approach: Write one CSV per table to user-selected directory.
+        Each file named `{tableName}.csv`.
+
+        CSV serialization helper:
+        ```typescript
+        function toCsvRow(values: any[]): string {
+          return values.map(v => {
+            if (v === null || v === undefined) return '';
+            const str = String(v);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+              return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+          }).join(',');
+        }
+
+        function tableToCsv(rows: any[]): string {
+          if (rows.length === 0) return '';
+          const headers = Object.keys(rows[0]);
+          const lines = [toCsvRow(headers)];
+          for (const row of rows) {
+            lines.push(toCsvRow(headers.map(h => row[h])));
+          }
+          return lines.join('\n');
+        }
+        ```
+
+      ### 1d. Create src/main/ipc/backup.ts
+
+      Follow existing handler pattern (export registerBackupHandlers function):
+
+      ```typescript
+      export function registerBackupHandlers(mainWindow: BrowserWindow): void {
+        ipcMain.handle('backup:create', async () => {
+          return createBackup(mainWindow);
+        });
+
+        ipcMain.handle('backup:list', async () => {
+          return listBackups();
+        });
+
+        ipcMain.handle('backup:restore', async (_event, filePath: string) => {
+          return restoreBackup(filePath, mainWindow);
+        });
+
+        ipcMain.handle('backup:restore-from-file', async () => {
+          const result = await dialog.showOpenDialog(mainWindow, {
+            title: 'Select Backup File',
+            filters: [{ name: 'SQL Backup', extensions: ['sql'] }],
+            properties: ['openFile'],
+          });
+          if (result.canceled || !result.filePaths[0]) return;
+          return restoreBackup(result.filePaths[0], mainWindow);
+        });
+
+        ipcMain.handle('backup:delete', async (_event, fileName: string) => {
+          return deleteBackup(fileName);
+        });
+
+        ipcMain.handle('backup:export', async (_event, options: ExportOptions) => {
+          const data = await exportAllData(options.tables);
+          const tables = Object.keys(data);
+
+          if (options.format === 'json') {
+            const result = await dialog.showSaveDialog(mainWindow, {
+              title: 'Export Data as JSON',
+              defaultPath: `living-dashboard-export-${Date.now()}.json`,
+              filters: [{ name: 'JSON', extensions: ['json'] }],
+            });
+            if (result.canceled || !result.filePath) return null;
+            const size = await writeJSON(data, result.filePath);
+            return { filePath: result.filePath, format: 'json', tables, sizeBytes: size };
+          } else {
+            // CSV: show folder picker, write one file per table
+            const result = await dialog.showOpenDialog(mainWindow, {
+              title: 'Select Export Folder for CSV Files',
+              properties: ['openDirectory', 'createDirectory'],
+            });
+            if (result.canceled || !result.filePaths[0]) return null;
+            const dir = result.filePaths[0];
+            let totalSize = 0;
+            for (const [name, rows] of Object.entries(data)) {
+              const csv = tableToCsv(rows);
+              const fp = path.join(dir, `${name}.csv`);
+              await fs.promises.writeFile(fp, csv, 'utf-8');
+              totalSize += Buffer.byteLength(csv);
+            }
+            return { filePath: dir, format: 'csv', tables, sizeBytes: totalSize };
+          }
+        });
+
+        // Auto-backup settings
+        ipcMain.handle('backup:auto-settings-get', async () => {
+          return getAutoBackupSettings();
+        });
+
+        ipcMain.handle('backup:auto-settings-update', async (_event, settings) => {
+          return updateAutoBackupSettings(settings);
+        });
+      }
+      ```
+
+      Import getAutoBackupSettings/updateAutoBackupSettings from autoBackupScheduler
+      (will be created in Task 3). For now, create simple stub functions that read/write
+      from the settings table directly within this file, OR better: define them in
+      backupService.ts so Task 3 can move/enhance them.
+
+      Actually, to avoid circular dependencies and keep Task 1 self-contained:
+      Define getAutoBackupSettings and updateAutoBackupSettings in backupService.ts
+      (they just read/write settings table). Task 3 will import and use them from there
+      when building the scheduler.
+
+      ```typescript
+      // In backupService.ts:
+      export async function getAutoBackupSettings(): Promise<AutoBackupSettings> {
+        const db = getDb();
+        const rows = await db.select().from(settings)
+          .where(sql`${settings.key} LIKE 'autoBackup.%'`);
+        const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+        return {
+          enabled: map['autoBackup.enabled'] === 'true',
+          frequency: (map['autoBackup.frequency'] as AutoBackupFrequency) || 'daily',
+          retention: parseInt(map['autoBackup.retention'] || '5', 10),
+          lastRun: map['autoBackup.lastRun'] || null,
+        };
+      }
+
+      export async function updateAutoBackupSettings(
+        updates: Partial<AutoBackupSettings>
+      ): Promise<void> {
+        const db = getDb();
+        const entries: [string, string][] = [];
+        if (updates.enabled !== undefined) entries.push(['autoBackup.enabled', String(updates.enabled)]);
+        if (updates.frequency !== undefined) entries.push(['autoBackup.frequency', updates.frequency]);
+        if (updates.retention !== undefined) entries.push(['autoBackup.retention', String(updates.retention)]);
+        if (updates.lastRun !== undefined) entries.push(['autoBackup.lastRun', updates.lastRun || '']);
+        for (const [key, value] of entries) {
+          await db.insert(settings).values({ key, value })
+            .onConflictDoUpdate({ target: settings.key, set: { value } });
+        }
+      }
+      ```
+
+      ### 1e. Register in src/main/ipc/index.ts
+
+      Add import: `import { registerBackupHandlers } from './backup';`
+      Add call: `registerBackupHandlers(mainWindow);` (in registerIpcHandlers)
+
+      ### 1f. Extend src/preload/preload.ts
+
+      Add to the electronAPI object:
+      ```typescript
+      // Backup & Restore
+      backupCreate: () => ipcRenderer.invoke('backup:create'),
+      backupList: () => ipcRenderer.invoke('backup:list'),
+      backupRestore: (filePath: string) => ipcRenderer.invoke('backup:restore', filePath),
+      backupRestoreFromFile: () => ipcRenderer.invoke('backup:restore-from-file'),
+      backupDelete: (fileName: string) => ipcRenderer.invoke('backup:delete', fileName),
+      backupExport: (options: ExportOptions) => ipcRenderer.invoke('backup:export', options),
+      backupAutoSettingsGet: () => ipcRenderer.invoke('backup:auto-settings-get'),
+      backupAutoSettingsUpdate: (settings: Partial<AutoBackupSettings>) =>
+        ipcRenderer.invoke('backup:auto-settings-update', settings),
+      onBackupProgress: (callback: (progress: BackupProgress) => void) => {
+        const handler = (_event: any, progress: BackupProgress) => callback(progress);
+        ipcRenderer.on('backup:progress', handler);
+        return () => { ipcRenderer.removeListener('backup:progress', handler); };
+      },
+      ```
+
+      Import types in preload if needed (ExportOptions, AutoBackupSettings, BackupProgress
+      are used as parameter types — import from '../shared/types').
     </action>
     <verify>
-      1. `npx tsc --noEmit` passes with zero errors
-      2. CommentsSection.tsx exists with: add textarea, comment list, edit mode, delete
-      3. ActivityLog.tsx exists with: icon per action type, description from details, relative timestamps
-      4. Both components import from useBoardStore (no prop-drilling of state)
-      5. timeAgo helper produces correct relative strings
+      1. `npx tsc --noEmit` — zero TypeScript errors
+      2. backupService.ts exports: getBackupDir, isDockerAvailable, createBackup, listBackups,
+         restoreBackup, deleteBackup, cleanOldBackups, getAutoBackupSettings, updateAutoBackupSettings
+      3. exportService.ts exports: exportAllData, writeJSON, writeCSV (or tableToCsv + writeCSV)
+      4. backup.ts IPC handlers: 8 channels registered
+      5. index.ts imports and calls registerBackupHandlers(mainWindow)
+      6. ElectronAPI has 9 new methods (8 invoke + 1 event listener)
+      7. preload.ts has 9 new bridge methods
     </verify>
-    <done>
-      CommentsSection (~180 lines) with add/edit/delete and ActivityLog (~140 lines)
-      with action-typed timeline. Both standalone, using boardStore state directly.
-      TypeScript compiles cleanly.
-    </done>
+    <done>Complete backend for backup/restore/export: two service files, IPC handlers, types, preload bridge. TypeScript compiles cleanly.</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - lucide-react has all named icons: MessageSquare, Pencil, Trash2, PlusCircle,
-        ArrowRight, Archive, RotateCcw, Link, Unlink (all standard lucide icons)
-      - boardStore actions handle IPC calls and local state updates (verified in Plan 7.1)
-      - selectedCardActivities.details is a JSON string or null (parse with try/catch)
+      - Docker CLI available on system PATH (standard for Docker Desktop on Windows/Mac)
+      - Container name "living-dashboard-db" matches docker-compose.yml (verified)
+      - pg_dump and psql available inside postgres:16-alpine container (standard)
+      - child_process.execFile works on Windows with Docker (standard Node.js behavior)
+      - app.getPath('userData') returns writable directory (guaranteed by Electron)
+      - maxBuffer of 100MB sufficient for pg_dump output (handles very large databases)
+      - Drizzle db.select().from(table) works for all schema tables (standard Drizzle API)
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>RelationshipsSection + CardDetailModal Integration</n>
+    <n>Backup management UI and data export in Settings page</n>
     <files>
-      src/renderer/components/RelationshipsSection.tsx (new, ~200 lines)
-      src/renderer/components/CardDetailModal.tsx (modify — add load/clear lifecycle, 3 sections, wider modal)
+      src/renderer/stores/backupStore.ts (NEW ~90 lines)
+      src/renderer/components/settings/BackupSection.tsx (NEW ~300 lines)
+      src/renderer/components/settings/ExportSection.tsx (NEW ~120 lines)
+      src/renderer/pages/SettingsPage.tsx (MODIFY — add backup/export sections + progress listener)
     </files>
-    <preconditions>
-      - Task 1 complete (CommentsSection + ActivityLog exist)
-      - boardStore has card detail state + actions (from Plan 7.1)
-    </preconditions>
     <action>
       ## WHY
-      The relationships section needs a card picker from the current board's cards,
-      making it slightly more complex than comments. The CardDetailModal integration
-      wires all 3 new sections into the existing modal and adds the load/clear lifecycle.
+      Users need a visual interface to manage backups (create, view, restore, delete)
+      and export their data. This integrates into the existing Settings page, which already
+      has section-based layout for Appearance, AI Providers, Model Assignments, etc.
 
       ## WHAT
 
-      ### 1. RelationshipsSection.tsx
+      ### 2a. Create src/renderer/stores/backupStore.ts
 
-      Props: `cardId: string`
+      Zustand store for backup state management:
 
-      Uses `useBoardStore()` to get:
-      - `cards` — all cards on current board (for the target picker)
-      - `selectedCardRelationships` — relationships array
-      - `addRelationship` — to create new relationships
-      - `deleteRelationship` — to remove relationships
+      ```typescript
+      interface BackupState {
+        backups: BackupInfo[];
+        loading: boolean;
+        error: string | null;
+        progress: BackupProgress | null;
+        autoSettings: AutoBackupSettings | null;
+        // Actions
+        loadBackups: () => Promise<void>;
+        createBackup: () => Promise<void>;
+        restoreBackup: (filePath: string) => Promise<void>;
+        restoreFromFile: () => Promise<void>;
+        deleteBackup: (fileName: string) => Promise<void>;
+        exportData: (options: ExportOptions) => Promise<ExportResult | null>;
+        loadAutoSettings: () => Promise<void>;
+        updateAutoSettings: (settings: Partial<AutoBackupSettings>) => Promise<void>;
+        setProgress: (progress: BackupProgress | null) => void;
+        clearError: () => void;
+      }
+      ```
 
-      UI structure:
+      Implementation:
+      - loadBackups: calls electronAPI.backupList(), sets backups + loading
+      - createBackup: sets loading, calls electronAPI.backupCreate(), reloads list
+      - restoreBackup: calls electronAPI.backupRestore(filePath), reloads list
+      - restoreFromFile: calls electronAPI.backupRestoreFromFile(), reloads list
+      - deleteBackup: calls electronAPI.backupDelete(fileName), reloads list
+      - exportData: calls electronAPI.backupExport(options), returns result
+      - loadAutoSettings: calls electronAPI.backupAutoSettingsGet()
+      - updateAutoSettings: calls electronAPI.backupAutoSettingsUpdate(), reloads settings
+      - Error handling: catch in each action, set error message
+      - Progress: setProgress called from onBackupProgress listener
+
+      ### 2b. Create src/renderer/components/settings/BackupSection.tsx
+
+      Component for backup management, rendered in SettingsPage.
+
+      Structure:
+      ```
+      ┌─ Database Backups ──────────────────────────────────────────┐
+      │                                                              │
+      │  [Create Backup]   [Restore from File...]                    │
+      │                                                              │
+      │  ┌─ Progress Bar (visible during backup/restore) ────────┐  │
+      │  │  ◐ Dumping database...                                 │  │
+      │  └────────────────────────────────────────────────────────┘  │
+      │                                                              │
+      │  ┌─ Error Banner (if error) ─────────────────────────────┐  │
+      │  │  ⚠ Error message here                          [×]    │  │
+      │  └────────────────────────────────────────────────────────┘  │
+      │                                                              │
+      │  ┌─ Backup List ─────────────────────────────────────────┐  │
+      │  │  backup-2026-02-13-143022.sql   Feb 13   1.2 MB       │  │
+      │  │                              [Restore] [Delete]        │  │
+      │  │                                                        │  │
+      │  │  backup-2026-02-12-090015.sql   Feb 12   1.1 MB       │  │
+      │  │                              [Restore] [Delete]        │  │
+      │  └────────────────────────────────────────────────────────┘  │
+      │                                                              │
+      │  ℹ Backups include all database data. Audio files are        │
+      │    stored separately and not included in backups.            │
+      │                                                              │
+      │  ── Auto-Backup ──                                           │
+      │  [Toggle: Automatic Backups]                                 │
+      │  Frequency: [Daily ▼]                                        │
+      │  Keep last: [5] backups                                      │
+      │  Last backup: Feb 13, 2026 at 2:30 PM                       │
+      └──────────────────────────────────────────────────────────────┘
+      ```
+
+      Props: none (uses backupStore directly)
+
+      State (local):
+      - `confirmRestore: string | null` — filePath of backup being confirmed for restore
+      - `confirmDelete: string | null` — fileName of backup being confirmed for delete
+
+      Behavior:
+      - **Create Backup**: Button with Database icon. On click, call backupStore.createBackup().
+        Disabled while loading or progress is active.
+      - **Restore from File**: Button with Upload icon. Opens file dialog via backupStore.restoreFromFile().
+      - **Backup List**: Load on mount via useEffect → backupStore.loadBackups().
+        Each row shows: fileName, formatted date (from createdAt), human-readable size.
+        "Restore" button → sets confirmRestore state.
+        "Delete" button → sets confirmDelete state.
+      - **Restore confirmation**: Inline banner below the backup row:
+        "This will replace ALL current data. A safety backup will be created first."
+        [Cancel] [Restore] (red button)
+      - **Delete confirmation**: Inline text: "Delete this backup?" [Cancel] [Delete]
+      - **Progress indicator**: When progress is not null, show phase message with spinner.
+        Blue for dumping/saving/restoring, green for complete, red for failed.
+      - **Error banner**: Red bg, error message, dismiss (×) button.
+      - **Empty state**: "No backups yet. Create your first backup to protect your data."
+
+      **Auto-backup controls** (bottom section):
+      - Toggle switch: "Automatic Backups" (styled like a checkbox/toggle)
+      - When enabled, show:
+        - Frequency: select dropdown (Daily / Weekly)
+        - Retention: number input (1-50, default 5) with label "Keep last N backups"
+        - Last backup time: formatted from autoSettings.lastRun
+      - Changes call backupStore.updateAutoSettings({ ... })
+      - Load on mount: backupStore.loadAutoSettings()
+
+      Size formatting helper:
+      ```typescript
+      function formatSize(bytes: number): string {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      }
+      ```
+
+      Styling — follow existing SettingsPage section pattern:
+      - Section wrapper: `bg-surface-900 rounded-xl p-6` (or matching existing sections)
+      - Section title: `text-lg font-semibold text-surface-100 mb-4`
+      - Buttons: primary (bg-primary-600 hover:bg-primary-500), destructive (bg-red-600/20 text-red-400 hover:bg-red-600/30)
+      - List items: `bg-surface-800/50 rounded-lg px-4 py-3`
+      - Info text: `text-xs text-surface-500 mt-4`
+      - Toggle: simple checkbox or custom toggle (keep it simple — a checkbox with label is fine)
+
+      ### 2c. Create src/renderer/components/settings/ExportSection.tsx
+
+      Separate component for data export (different user intent from backup):
 
       ```
-      ┌─ Relationships (2) ────────────────────┐
-      │                                         │
-      │  [Card picker dropdown ▼] [Type ▼] [+]  │
-      │                                         │
-      │  Blocks                                 │
-      │  ├── "Setup CI pipeline"          [×]   │
-      │                                         │
-      │  Depends on                             │
-      │  ├── "Design mockups"             [×]   │
-      │                                         │
-      │  Related to                             │
-      │  (none)                                 │
-      └─────────────────────────────────────────┘
+      ┌─ Export Data ────────────────────────────────────────────────┐
+      │                                                              │
+      │  Export your data for external use or migration.             │
+      │  API keys are excluded for security.                         │
+      │                                                              │
+      │  [Export as JSON]   [Export as CSV]                           │
+      │                                                              │
+      │  ✓ Exported to C:\Users\...\export.json (1.5 MB)            │
+      └──────────────────────────────────────────────────────────────┘
       ```
 
       State:
-      - `selectedTargetId: string` — selected card from dropdown (default '')
-      - `selectedType: CardRelationshipType` — relationship type (default 'related_to')
-      - `showAddForm: boolean` — whether the add row is expanded (default false)
+      - `exporting: boolean` — loading state
+      - `result: ExportResult | null` — last export result (shown as success message)
+      - `error: string | null`
 
-      **Relationship type display mapping:**
-      For this card as source:
-      - `blocks` → "Blocks" (shows targetCardTitle)
-      - `depends_on` → "Depends on" (shows targetCardTitle)
-      - `related_to` → "Related to" (shows targetCardTitle)
+      Behavior:
+      - "Export as JSON" → calls backupStore.exportData({ format: 'json' })
+      - "Export as CSV" → calls backupStore.exportData({ format: 'csv' })
+      - Shows success message with file path and size after export
+      - Shows error if export fails
+      - Both buttons disabled while exporting
 
-      For this card as target (inverse display):
-      - `blocks` → "Blocked by" (shows sourceCardTitle)
-      - `depends_on` → "Depended on by" (shows sourceCardTitle)
-      - `related_to` → "Related to" (shows sourceCardTitle)
+      Styling: same section pattern as BackupSection.
 
-      Group relationships for display:
-      1. Parse each relationship: if `sourceCardId === cardId`, it's "outgoing"
-         (use type as-is, show targetCardTitle). If `targetCardId === cardId`, it's
-         "incoming" (use inverse label, show sourceCardTitle).
-      2. Group into: Blocks, Blocked by, Depends on, Depended on by, Related to.
-      3. Only show groups that have entries.
+      ### 2d. Modify SettingsPage.tsx
 
-      **Add relationship:**
-      - "Add Relationship" button → toggles `showAddForm`
-      - Card picker: `&lt;select&gt;` dropdown listing `cards.filter(c => c.id !== cardId &amp;&amp; !c.archived)`
-        displaying card titles. Default option "Select a card..."
-      - Type selector: `&lt;select&gt;` with options: Blocks, Depends on, Related to
-      - Add button (Plus icon): calls `addRelationship({ sourceCardId: cardId, targetCardId: selectedTargetId, type: selectedType })`
-      - Reset form after adding
-
-      **Delete relationship:**
-      - Each relationship row has an X button → calls `deleteRelationship(id)`
-
-      **Empty state:** "No relationships" in muted text.
-
-      **Styling:**
-      - Section header: same pattern as CommentsSection with Link2 icon + count badge
-      - Add form: `bg-surface-800/50 rounded-lg p-3` with flex row of select + select + button
-      - Select inputs: `bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5
-        text-sm text-surface-100`
-      - Group labels: `text-xs uppercase tracking-wider text-surface-500 font-medium mt-3 mb-1`
-      - Relationship row: flex with card title `text-sm text-surface-200` + delete button
-      - Icons: Link2 for header, Plus for add, X for delete
-
-      ### 2. CardDetailModal.tsx modifications
-
-      **a) Add lifecycle hooks for card details:**
-
-      Add `useEffect` to call `loadCardDetails(card.id)` on mount and
-      `clearCardDetails()` on unmount:
-
-      ```typescript
-      const {
-        labels, createLabel, attachLabel, detachLabel,
-        loadCardDetails, clearCardDetails,
-        loadingCardDetails,
-      } = useBoardStore();
-
-      useEffect(() => {
-        loadCardDetails(card.id);
-        return () => clearCardDetails();
-      }, [card.id, loadCardDetails, clearCardDetails]);
-      ```
-
-      **b) Import and render new sections:**
-
-      Add imports:
-      ```typescript
-      import CommentsSection from './CommentsSection';
-      import RelationshipsSection from './RelationshipsSection';
-      import ActivityLog from './ActivityLog';
-      ```
-
-      Add between Labels section and Timestamps, in this order:
-      1. `&lt;CommentsSection cardId={card.id} /&gt;` — with mb-5
-      2. `&lt;RelationshipsSection cardId={card.id} /&gt;` — with mb-5
-      3. `&lt;ActivityLog cardId={card.id} /&gt;` — with mb-5
-
-      **c) Expand modal width:**
-
-      Change `max-w-2xl` to `max-w-3xl` to accommodate the extra sections.
-
-      **d) Add loading indicator:**
-
-      If `loadingCardDetails` is true, show a subtle spinner or "Loading..." text
-      in the area where the new sections will appear. Something like:
-      ```typescript
-      {loadingCardDetails ? (
-        &lt;div className="text-sm text-surface-500 py-4 text-center"&gt;Loading details...&lt;/div&gt;
-      ) : (
-        &lt;&gt;
-          &lt;CommentsSection cardId={card.id} /&gt;
-          &lt;RelationshipsSection cardId={card.id} /&gt;
-          &lt;ActivityLog cardId={card.id} /&gt;
-        &lt;/&gt;
-      )}
-      ```
-
-      **e) Update file header comment** to reflect new scope.
+      1. Import BackupSection and ExportSection
+      2. Add them as new sections. Place after the "About" section (or before it):
+         ```tsx
+         <BackupSection />
+         <ExportSection />
+         ```
+      3. Add useEffect to subscribe to backup progress events:
+         ```tsx
+         useEffect(() => {
+           const cleanup = window.electronAPI.onBackupProgress((progress) => {
+             useBackupStore.getState().setProgress(progress);
+           });
+           return cleanup;
+         }, []);
+         ```
     </action>
     <verify>
-      1. `npx tsc --noEmit` passes with zero errors
-      2. RelationshipsSection.tsx exists with: card picker dropdown, type selector, add/delete
-      3. Relationships display grouped by type with correct directional labels
-      4. CardDetailModal calls loadCardDetails on mount, clearCardDetails on unmount
-      5. Modal renders CommentsSection, RelationshipsSection, ActivityLog between labels and timestamps
-      6. Modal width is max-w-3xl
-      7. Loading state shown while card details are being fetched
+      1. `npx tsc --noEmit` — zero TypeScript errors
+      2. backupStore.ts exists with ~10 actions
+      3. BackupSection.tsx renders: create button, backup list, restore/delete per backup,
+         progress indicator, error banner, auto-backup controls
+      4. ExportSection.tsx renders: JSON/CSV export buttons, success/error messages
+      5. SettingsPage includes BackupSection and ExportSection
+      6. Progress events flow from main → renderer → store → UI
+      7. Restore confirmation dialog appears before restore executes
     </verify>
-    <done>
-      RelationshipsSection with card picker and grouped display. CardDetailModal
-      integrates all 3 sections with load/clear lifecycle and wider layout.
-      TypeScript compiles cleanly.
-    </done>
+    <done>Backup management UI (create, list, restore, delete, auto-backup settings) and export UI (JSON/CSV) integrated into Settings page. Users can fully manage backups and export data visually.</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - boardStore.cards contains all non-archived cards for current board (verified in boardStore.ts)
-      - CardRelationship type from backend includes sourceCardTitle and targetCardTitle (verified in Plan 7.1 IPC)
-      - Multiple useEffect hooks in CardDetailModal are fine (already has 2 for Escape + label dropdown)
-      - Expanding to max-w-3xl doesn't break the layout on standard screens (1280px+ displays)
+      - lucide-react has: Database, Upload, Download, Trash2, RotateCcw, AlertCircle, Check icons (standard lucide icons)
+      - SettingsPage section layout is consistent (white/dark bg sections with padding/rounded)
+      - Zustand store can be accessed both via hook (in components) and via getState() (in useEffect)
+      - electronAPI.onBackupProgress returns a cleanup function (standard preload pattern)
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Card Template Presets + Template Selector</n>
+    <n>Auto-backup scheduler with settings persistence and retention cleanup</n>
     <files>
-      src/renderer/components/CardDetailModal.tsx (modify — add template dropdown)
+      src/main/services/autoBackupScheduler.ts (NEW ~100 lines)
+      src/main/main.ts (MODIFY — init scheduler after DB connect, cleanup on quit)
     </files>
-    <preconditions>
-      - Task 2 complete (CardDetailModal has all 3 sections integrated)
-      - TipTap editor exists in CardDetailModal (for setContent)
-    </preconditions>
     <action>
       ## WHY
-      Card templates save time when creating common card types. Instead of writing
-      the same description structure repeatedly, users can apply a preset that fills
-      in a structured description and sets an appropriate priority.
+      R15 requires "scheduled automatic backups." This task adds a background scheduler
+      in the main process that periodically checks whether a backup is due based on
+      user settings, runs pg_dump, and cleans up old backups according to retention policy.
 
       ## WHAT
 
-      ### 1. Define template presets
+      ### 3a. Create src/main/services/autoBackupScheduler.ts
 
-      Add a `CARD_TEMPLATES` array near the top of CardDetailModal.tsx (after PRIORITY_OPTIONS):
+      File header:
+      ```
+      // === FILE PURPOSE ===
+      // Background scheduler for automatic database backups.
+      // Checks hourly if a backup is due based on user-configured frequency.
+      //
+      // === DEPENDENCIES ===
+      // - backupService (createBackup, cleanOldBackups, getAutoBackupSettings, updateAutoBackupSettings)
+      // - Database connection must be established before init
+      //
+      // === LIMITATIONS ===
+      // - Hourly check granularity (not second-precise)
+      // - Requires Docker running when backup triggers
+      ```
 
+      Module state:
       ```typescript
-      interface CardTemplate {
-        id: string;
-        name: string;
-        icon: string; // emoji for visual identification
-        priority: CardPriority;
-        description: string; // HTML for TipTap
-      }
-
-      const CARD_TEMPLATES: CardTemplate[] = [
-        {
-          id: 'bug',
-          name: 'Bug Report',
-          icon: '🐛',
-          priority: 'high',
-          description: '&lt;h2&gt;Steps to Reproduce&lt;/h2&gt;&lt;ol&gt;&lt;li&gt;&lt;/li&gt;&lt;/ol&gt;&lt;h2&gt;Expected Behavior&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;&lt;h2&gt;Actual Behavior&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;&lt;h2&gt;Environment&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;',
-        },
-        {
-          id: 'feature',
-          name: 'Feature Request',
-          icon: '✨',
-          priority: 'medium',
-          description: '&lt;h2&gt;User Story&lt;/h2&gt;&lt;p&gt;As a [user], I want [goal] so that [benefit].&lt;/p&gt;&lt;h2&gt;Acceptance Criteria&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;/li&gt;&lt;/ul&gt;&lt;h2&gt;Notes&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;',
-        },
-        {
-          id: 'action',
-          name: 'Meeting Action',
-          icon: '📋',
-          priority: 'medium',
-          description: '&lt;h2&gt;Meeting&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;&lt;h2&gt;Action Required&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;&lt;h2&gt;Assignee&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;&lt;h2&gt;Due Date&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;',
-        },
-        {
-          id: 'note',
-          name: 'Quick Note',
-          icon: '📝',
-          priority: 'low',
-          description: '&lt;p&gt;&lt;/p&gt;',
-        },
-        {
-          id: 'research',
-          name: 'Research Task',
-          icon: '🔍',
-          priority: 'medium',
-          description: '&lt;h2&gt;Topic&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;&lt;h2&gt;Key Questions&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;/li&gt;&lt;/ul&gt;&lt;h2&gt;Findings&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;&lt;h2&gt;Next Steps&lt;/h2&gt;&lt;p&gt;&lt;/p&gt;',
-        },
-      ];
+      let intervalId: ReturnType<typeof setInterval> | null = null;
+      let mainWindowRef: BrowserWindow | null = null;
       ```
 
-      **IMPORTANT**: The HTML in the description strings must be actual HTML, not
-      HTML entities. The &lt;/&gt; above are XML escapes for this plan document.
-      In the actual code, write real HTML tags: `<h2>Steps to Reproduce</h2>` etc.
+      Exports:
+      - `initAutoBackup(mainWindow: BrowserWindow): void` —
+        1. Store mainWindow reference
+        2. Set interval: every 1 hour (3_600_000 ms), call `checkAndRunBackup()`
+        3. Also run checkAndRunBackup() once immediately (debounced by 10 seconds
+           after startup to avoid blocking app launch)
 
-      ### 2. Add template selector UI
+      - `stopAutoBackup(): void` —
+        1. If intervalId exists, clearInterval
+        2. Set intervalId = null, mainWindowRef = null
 
-      Add a template dropdown between the Priority section and the Description section
-      in CardDetailModal. Use a relative-positioned button that toggles a dropdown:
+      - `checkAndRunBackup(): Promise<void>` —
+        1. Read auto-backup settings via `getAutoBackupSettings()`
+        2. If not enabled, return early
+        3. Determine if backup is due:
+           - If lastRun is null → due (first time)
+           - If frequency is 'daily' → due if lastRun > 24 hours ago
+           - If frequency is 'weekly' → due if lastRun > 7 days ago
+           - If frequency is 'off' → return (shouldn't happen if enabled, but guard)
+        4. If due:
+           a. Try `createBackup(mainWindowRef)` — wrap in try/catch, log errors
+           b. On success: update lastRun to new Date().toISOString()
+              via `updateAutoBackupSettings({ lastRun: new Date().toISOString() })`
+           c. Read retention setting, call `cleanOldBackups(retention)`
+        5. On any error: console.error, don't throw (background task shouldn't crash app)
 
-      State: `showTemplateDropdown: boolean` (default false)
+      All operations wrapped in try/catch with console.error logging.
+      This is a fire-and-forget background task — errors are logged, never thrown.
 
-      ```
-      ┌─ Apply Template ──────────────┐
-      │  🐛 Bug Report                │
-      │  ✨ Feature Request            │
-      │  📋 Meeting Action             │
-      │  📝 Quick Note                 │
-      │  🔍 Research Task              │
-      └───────────────────────────────┘
-      ```
+      ### 3b. Modify src/main/main.ts
 
-      - Button: `text-xs text-surface-400 hover:text-surface-200` with FileText icon
-        from lucide-react + "Apply Template" text
-      - Dropdown: `absolute top-full left-0 mt-1 bg-surface-800 border border-surface-700
-        rounded-lg shadow-lg py-1 min-w-[200px] z-40`
-      - Each option: `flex items-center gap-2 px-3 py-1.5 text-sm text-surface-200
-        hover:bg-surface-700 cursor-pointer` with emoji + name
-      - Close dropdown on outside click (use ref + useEffect, same pattern as label dropdown)
+      1. Import: `import { initAutoBackup, stopAutoBackup } from './services/autoBackupScheduler';`
 
-      ### 3. Apply template handler
+      2. After the mainWindow is created and database is connected (look for where
+         `registerIpcHandlers(mainWindow)` is called), add:
+         ```typescript
+         // Start auto-backup scheduler
+         initAutoBackup(mainWindow);
+         ```
 
-      ```typescript
-      const applyTemplate = (template: CardTemplate) => {
-        // Set description via TipTap
-        if (editor) {
-          editor.commands.setContent(template.description);
-          // Trigger save (same as blur)
-          const html = template.description;
-          onUpdate(card.id, { description: html });
-        }
-        // Set priority
-        if (template.priority !== card.priority) {
-          onUpdate(card.id, { priority: template.priority });
-        }
-        setShowTemplateDropdown(false);
-      };
-      ```
+      3. In the app 'before-quit' or 'will-quit' handler (or window close handler),
+         add: `stopAutoBackup();`
+         If no quit handler exists, add one:
+         ```typescript
+         app.on('before-quit', () => {
+           stopAutoBackup();
+         });
+         ```
 
-      If the description is not empty (not null and not just `<p></p>`), the template
-      still applies — it replaces the content. No confirmation dialog needed since
-      the user explicitly chose to apply a template, and Ctrl+Z in TipTap can undo.
+      ### Notes on integration
 
-      ### 4. Close template dropdown on outside click
-
-      Add a ref `templateDropdownRef` and a useEffect similar to the existing
-      `labelDropdownRef` pattern.
+      - The auto-backup settings are already readable/writable via backupService.ts
+        (getAutoBackupSettings/updateAutoBackupSettings added in Task 1).
+      - The IPC channels for settings get/update are already in backup.ts (Task 1).
+      - The BackupSection UI controls from Task 2 already call these IPC channels.
+      - This task just adds the background scheduler that reads those settings and acts.
+      - When the user changes auto-backup settings in the UI, the next hourly check
+        will pick up the new values (no restart needed).
     </action>
     <verify>
-      1. `npx tsc --noEmit` passes with zero errors
-      2. 5 card templates defined with correct HTML descriptions
-      3. "Apply Template" button visible between Priority and Description
-      4. Clicking a template fills TipTap editor with template HTML
-      5. Clicking a template also updates card priority
-      6. Dropdown closes on outside click
-      7. Template descriptions use proper HTML (h2, ol, ul, li, p tags from StarterKit)
+      1. `npx tsc --noEmit` — zero TypeScript errors
+      2. autoBackupScheduler.ts exports: initAutoBackup, stopAutoBackup, checkAndRunBackup
+      3. main.ts calls initAutoBackup(mainWindow) after DB connection
+      4. main.ts calls stopAutoBackup() on app quit
+      5. checkAndRunBackup correctly determines if backup is due (daily: >24h, weekly: >7d)
+      6. Errors in background backup are caught and logged (not thrown)
+      7. cleanOldBackups called after successful auto-backup
     </verify>
-    <done>
-      5 card template presets with template selector dropdown in CardDetailModal.
-      Applying a template fills description (via TipTap setContent) and sets priority.
-      TypeScript compiles cleanly.
-    </done>
+    <done>Auto-backup scheduler runs in background, checks hourly, respects user settings for frequency and retention, cleans up old backups. Integrated into app lifecycle (start on boot, stop on quit).</done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - TipTap editor.commands.setContent() is available (standard TipTap API, used by StarterKit)
-      - StarterKit includes heading, orderedList, bulletList, listItem, paragraph nodes
-        (all standard StarterKit extensions)
-      - Two onUpdate calls in sequence (description + priority) are fine — they're
-        independent database updates via IPC
-      - Emojis render correctly in Electron's Chromium (standard for modern browsers)
+      - setInterval persists for Electron main process lifetime (standard Node.js behavior)
+      - Hourly check interval is acceptable granularity (not second-precise scheduling)
+      - Docker container is running when auto-backup triggers (if not, backup fails gracefully)
+      - Settings table is available when scheduler first checks (migrations run before scheduler init)
+      - getAutoBackupSettings reads from settings table each check (picks up UI changes automatically)
     </assumptions>
   </task>
 </phase>
