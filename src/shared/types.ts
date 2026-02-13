@@ -329,11 +329,14 @@ export interface ElectronAPI {
   updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<Meeting>;
   deleteMeeting: (id: string) => Promise<void>;
 
-  // Meeting recording (Plans 4.2-4.3 will implement these)
-  // startRecording: (meetingId: string) => Promise<void>;
-  // stopRecording: () => Promise<void>;
-  // onRecordingState: (callback: (state: RecordingState) => void) => () => void;
-  // onTranscriptSegment: (callback: (segment: TranscriptSegment) => void) => () => void;
+  // Recording
+  startRecording: (meetingId: string) => Promise<void>;
+  stopRecording: () => Promise<string>;
+  sendAudioChunk: (buffer: ArrayBuffer) => void;
+  enableLoopbackAudio: () => Promise<void>;
+  disableLoopbackAudio: () => Promise<void>;
+  onRecordingState: (callback: (state: RecordingState) => void) => () => void;
+  onTranscriptSegment: (callback: (segment: TranscriptSegment) => void) => () => void;
 }
 
 declare global {

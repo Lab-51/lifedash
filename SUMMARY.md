@@ -1,51 +1,73 @@
-# Plan 4.1 Summary — Dependencies, Meeting CRUD, and IPC Foundation
+# Plan 4.2 Summary — Audio Capture Pipeline
 
 ## Date: 2026-02-13
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Installed Phase 4 audio/transcription dependencies, configured electron-audio-loopback in the main process, created meeting types, and built the full meeting CRUD backend (service + IPC + preload).
+Implemented the complete audio capture pipeline: from system audio loopback to WAV file storage, with recording state management and UI components.
 
-### Task 1: Install dependencies and configure electron-audio-loopback
-**Status:** COMPLETE | **Confidence:** HIGH (verified all packages on npm first)
-
-- Installed electron-audio-loopback (1.0.6), @fugood/whisper.node (1.0.16), wavefile (11.0.0)
-- Added `initMain()` call in main.ts (line 28) before `app.requestSingleInstanceLock()` (line 32)
-- No custom type declarations needed — packages ship their own `.d.ts`
-- Updated file header DEPENDENCIES comment
-
-### Task 2: Create shared meeting types and extend ElectronAPI
+### Task 1: Audio processor service + recording IPC + preload + types
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Added 10 types to shared/types.ts: MeetingStatus, Meeting, TranscriptSegment, MeetingBrief, ActionItemStatus, ActionItem, CreateMeetingInput, UpdateMeetingInput, MeetingWithTranscript, RecordingState
-- Extended ElectronAPI with 5 active meeting CRUD methods
-- 4 recording methods commented out as stubs for Plans 4.2-4.3
+- Created audioProcessor.ts: accumulates PCM chunks, saves WAV via wavefile, pushes recording state to renderer every 1s
+- Created recording.ts IPC handlers: recording:start (handle), recording:stop (handle), audio:chunk (on — one-way)
+- Extended preload.ts with 7 recording methods (start, stop, chunk, loopback enable/disable, 2 event listeners)
+- Uncommented + expanded ElectronAPI recording methods (7 total)
+- Registered recording handlers in ipc/index.ts
 
-### Task 3: Create meeting service, IPC handlers, and preload bridge
+### Task 2: Audio capture bridge service in renderer
+**Status:** COMPLETE | **Confidence:** MEDIUM (ScriptProcessorNode deprecated but functional)
+
+- Created audioCaptureService.ts: loopback enable → getDisplayMedia → strip video → disable loopback → AudioContext at 16kHz → ScriptProcessorNode → Float32→Int16 → IPC stream
+- Comprehensive cleanup on stop and error paths (4 resources: audioContext, mediaStream, sourceNode, processorNode)
+- Error recovery: disables loopback if user cancels picker dialog
+
+### Task 3: Recording Zustand store and UI components
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created meetingService.ts with 7 exported functions + 2 internal mappers
-- Created meetings.ts IPC handlers for 5 channels (meetings:list/get/create/update/delete)
-- Registered meetingHandlers in ipc/index.ts
-- Extended preload.ts with 5 meeting bridge methods
+- Created recordingStore.ts: coordinates meeting CRUD + capture service + recording IPC
+- Created RecordingControls.tsx: title input + start/stop button + elapsed timer + error display
+- Created RecordingIndicator.tsx: sidebar pulsing dot + MM:SS time
+- Added RecordingIndicator to Sidebar.tsx (above theme toggle)
+- Added initListener in App.tsx AppShell (always-on recording state listener)
 
-## Files Created (2)
-- `src/main/services/meetingService.ts` (131 lines)
-- `src/main/ipc/meetings.ts`
+## Files Created (5)
+- `src/main/services/audioProcessor.ts` (~130 lines)
+- `src/main/ipc/recording.ts` (~41 lines)
+- `src/renderer/services/audioCaptureService.ts` (~155 lines)
+- `src/renderer/stores/recordingStore.ts` (~95 lines)
+- `src/renderer/components/RecordingControls.tsx` (~90 lines)
+- `src/renderer/components/RecordingIndicator.tsx` (~25 lines)
 
-## Files Modified (5)
-- `package.json` — 3 new dependencies
-- `src/main/main.ts` — electron-audio-loopback import + initMain()
-- `src/shared/types.ts` — meeting types + ElectronAPI extension
-- `src/main/ipc/index.ts` — registerMeetingHandlers import + call
-- `src/preload/preload.ts` — 5 meeting bridge methods
+## Files Modified (4)
+- `src/shared/types.ts` — 7 recording methods in ElectronAPI (uncommented + expanded)
+- `src/main/ipc/index.ts` — registerRecordingHandlers import + call
+- `src/preload/preload.ts` — 7 recording bridge methods
+- `src/renderer/components/Sidebar.tsx` — RecordingIndicator
+- `src/renderer/App.tsx` — recording state listener init in AppShell
+
+## Audio Pipeline Architecture
+```
+Renderer                              Main Process
+┌──────────────────────┐       ┌──────────────────────┐
+│ RecordingControls    │       │                      │
+│ ↓ startRecording()   │       │                      │
+│ recordingStore       │──IPC──│ recording.ts handlers │
+│ ↓ startCapture()     │       │ ↓                    │
+│ audioCaptureService  │       │ audioProcessor.ts    │
+│ ↓ getDisplayMedia    │       │ ↓ accumulate chunks  │
+│ ScriptProcessorNode  │──IPC──│ ↓ save WAV           │
+│ Float32→Int16 chunks │ audio │ wavefile.fromScratch │
+│                      │       │ ↓ pushState()        │
+│ RecordingIndicator ←─│──IPC──│ state-update event   │
+└──────────────────────┘       └──────────────────────┘
+```
 
 ## Verification
-- `npx tsc --noEmit`: PASS (zero errors)
-- All 3 npm packages verified installed via `npm ls`
-- IPC channels match between handlers, preload, and ElectronAPI interface
-- Service follows existing patterns (getDb(), toMeeting mapper, Drizzle queries)
+- `npx tsc --noEmit`: PASS (zero errors across all 3 tasks)
+- Sequential execution: Task 2 depends on Task 1, Task 3 depends on both
 
 ## What's Next
-1. `/nexus:git` to commit Plan 4.1 changes
-2. `/nexus:plan` for Plan 4.2 (Audio capture pipeline)
+1. `/nexus:git` to commit Plan 4.2 changes
+2. `/nexus:plan 4.3` — Whisper transcription pipeline
+3. Plan 4.4 — Meetings UI page

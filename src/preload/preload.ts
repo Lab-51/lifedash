@@ -108,4 +108,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateMeeting: (id: string, data: any) =>
     ipcRenderer.invoke('meetings:update', id, data),
   deleteMeeting: (id: string) => ipcRenderer.invoke('meetings:delete', id),
+
+  // Recording
+  startRecording: (meetingId: string) =>
+    ipcRenderer.invoke('recording:start', meetingId),
+  stopRecording: () => ipcRenderer.invoke('recording:stop'),
+  sendAudioChunk: (buffer: ArrayBuffer) =>
+    ipcRenderer.send('audio:chunk', Buffer.from(buffer)),
+  enableLoopbackAudio: () => ipcRenderer.invoke('enable-loopback-audio'),
+  disableLoopbackAudio: () => ipcRenderer.invoke('disable-loopback-audio'),
+  onRecordingState: (callback: (state: any) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: any) => {
+      callback(state);
+    };
+    ipcRenderer.on('recording:state-update', handler);
+    return () => {
+      ipcRenderer.removeListener('recording:state-update', handler);
+    };
+  },
+  onTranscriptSegment: (callback: (segment: any) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, segment: any) => {
+      callback(segment);
+    };
+    ipcRenderer.on('recording:transcript-segment', handler);
+    return () => {
+      ipcRenderer.removeListener('recording:transcript-segment', handler);
+    };
+  },
 });

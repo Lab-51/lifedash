@@ -10,7 +10,7 @@
 // react (lazy), react-router-dom (HashRouter, Routes, Route, useNavigate),
 // TitleBar, AppLayout, StatusBar, useKeyboardShortcuts, lazy page components
 
-import { lazy } from 'react';
+import { lazy, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import TitleBar from './components/TitleBar';
@@ -18,6 +18,7 @@ import AppLayout from './components/AppLayout';
 import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { useTheme } from './hooks/useTheme';
+import { useRecordingStore } from './stores/recordingStore';
 
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
@@ -32,6 +33,13 @@ function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   useKeyboardShortcuts(navigate);
   useTheme();
+
+  // Initialize recording state listener (always active regardless of page)
+  useEffect(() => {
+    const cleanup = useRecordingStore.getState().initListener();
+    return cleanup;
+  }, []);
+
   return <>{children}</>;
 }
 

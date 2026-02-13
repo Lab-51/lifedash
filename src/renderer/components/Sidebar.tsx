@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeMode } from '../hooks/useTheme';
+import RecordingIndicator from './RecordingIndicator';
 
 /** Navigation item configuration */
 interface NavItem {
@@ -90,6 +91,11 @@ function Sidebar() {
 
       {/* Spacer pushes theme toggle to bottom */}
       <div className="flex-1" />
+
+      {/* Recording indicator */}
+      <div className="flex justify-center py-1">
+        <RecordingIndicator />
+      </div>
 
       {/* Theme toggle button */}
       <button
