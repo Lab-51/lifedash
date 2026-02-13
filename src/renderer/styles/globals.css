@@ -33,7 +33,22 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Custom scrollbar for dark theme */
+/* Light theme — inverts surface scale so all existing classes adapt */
+html.light {
+  --color-surface-50: #020617;
+  --color-surface-100: #0f172a;
+  --color-surface-200: #1e293b;
+  --color-surface-300: #334155;
+  --color-surface-400: #64748b;
+  --color-surface-500: #94a3b8;
+  --color-surface-600: #cbd5e1;
+  --color-surface-700: #e2e8f0;
+  --color-surface-800: #f1f5f9;
+  --color-surface-900: #f8fafc;
+  --color-surface-950: #ffffff;
+}
+
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -47,6 +62,12 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-surface-600);
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: var(--color-surface-400);
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-500);
 }
 
 /* Keyboard focus rings — visible only on keyboard navigation */

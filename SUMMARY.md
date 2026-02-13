@@ -1,56 +1,56 @@
-# Plan 3.2 Summary — Settings UI & AI Provider Management
+# Plan 3.3 Summary — Theme, Usage & App Settings
 
 ## Date: 2026-02-13
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Created the full Settings page UI with AI provider management (add, edit, test, enable/disable, delete) and per-task model assignment configuration.
+Created theme system (dark/light/system), added theme toggle to sidebar and settings page, built AI usage tracking display, and added About section.
 
-### Task 1: Create settings Zustand store
+### Task 1: Create theme system with CSS overrides and useTheme hook
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created `settingsStore.ts` — Zustand store for AI providers, settings, connection tests
-- Provider CRUD: loadProviders, createProvider, updateProvider, deleteProvider
-- Connection testing: per-provider loading/result state (parallel-safe)
-- Settings: loadSettings, setSetting (generic key-value)
-- Task models: getTaskModels (JSON parse from settings), setTaskModels (JSON serialize)
-- Encryption: checkEncryption (caches result from main process)
+- Modified `globals.css` — added `html.light` block inverting all 11 surface color values (50-950), updated scrollbar comment, added light-mode scrollbar overrides
+- Created `useTheme.ts` — hook reads `app.theme` from settingsStore, resolves `'system'` via matchMedia, toggles `light` class on `<html>`, listens for OS theme changes
+- Modified `App.tsx` — added `useTheme()` call in AppShell (runs at root level)
 
-### Task 2: Create settings page with AI provider management
+### Task 2: Add theme toggle to Sidebar and Appearance section
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Replaced placeholder SettingsPage.tsx with full sectioned layout
-- Created AddProviderForm.tsx — inline form with provider type buttons (OpenAI/Anthropic/Ollama), API key input with show/hide toggle, optional display name and base URL
-- Created ProviderCard.tsx — card with color-coded indicator, enable/disable toggle, API key status, inline key editing, connection test with latency display, delete with 2-step confirmation
-- Provider cards in responsive 1/2/3 column grid
-- Empty state with Bot icon when no providers configured
+- Modified `Sidebar.tsx` — added Sun/Moon/Monitor icons, theme cycle button at bottom (flex-1 spacer pushes it down), cycles dark → light → system
+- Created `ThemeSelector.tsx` — three selectable cards with icons, labels, descriptions; active state uses primary-500 border + bg
+- Modified `SettingsPage.tsx` — added Appearance section as first section (before AI Providers)
 
-### Task 3: Create per-task model configuration component
+### Task 3: Add AI usage tracking display and About section
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created TaskModelConfig.tsx — per-task-type provider and model assignment
-- Four task types: summarization, brainstorming, task_generation, idea_analysis
-- Known models per provider (GPT-4o, Claude Sonnet 4.5, Llama 3.2, etc.)
-- Ollama uses text input (local model names vary per installation)
-- Draft state with Save/Reset buttons, "Saved!" feedback
-- Empty state when no enabled providers exist
-- Wired into SettingsPage.tsx replacing placeholder, cleaned up unused import
+- Created `UsageSummary.tsx` — fetches from `getAIUsageSummary` IPC, shows totals + breakdowns by provider and task type, empty/loading states, refresh button
+- Modified `SettingsPage.tsx` — added AI Usage section (after Model Assignments) and About section (last), showing version, encryption status, platform
 
-## Files Created (4)
-- `src/renderer/stores/settingsStore.ts` — Zustand store (~140 lines)
-- `src/renderer/components/AddProviderForm.tsx` — Add provider form (~130 lines)
-- `src/renderer/components/ProviderCard.tsx` — Provider card with actions (~165 lines)
-- `src/renderer/components/TaskModelConfig.tsx` — Model assignment config (~170 lines)
+## Files Created (3)
+- `src/renderer/hooks/useTheme.ts` (~58 lines)
+- `src/renderer/components/ThemeSelector.tsx` (~34 lines)
+- `src/renderer/components/UsageSummary.tsx` (~133 lines)
 
-## Files Modified (1)
-- `src/renderer/pages/SettingsPage.tsx` — Replaced placeholder (~105 lines)
+## Files Modified (4)
+- `src/renderer/styles/globals.css` — light theme overrides + scrollbar
+- `src/renderer/App.tsx` — useTheme import and call
+- `src/renderer/components/Sidebar.tsx` — theme toggle button
+- `src/renderer/pages/SettingsPage.tsx` — 3 new sections (Appearance, AI Usage, About)
+
+## Settings Page Sections (final order)
+1. Appearance (theme selector)
+2. AI Providers (CRUD + connection test)
+3. Model Assignments (per-task model config)
+4. AI Usage (token tracking + costs)
+5. About (version, encryption, platform)
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors after each task and final)
-- All ElectronAPI method calls verified against interface
-- All Lucide React icons confirmed available
-- Component props types match shared types
+- All 11 surface color values correctly inverted in html.light
+- Theme toggle cycles through all 3 modes
+- UsageSummary handles zero-usage empty state
+- About section reads encryption status from store
 
 ## What's Next
-1. `/nexus:git` to commit Plan 3.2 changes
-2. `/nexus:plan 3.3` for Theme, Usage & App Settings
+1. `/nexus:git` to commit Plan 3.3 changes
+2. Phase 3 COMPLETE — proceed to Phase 4

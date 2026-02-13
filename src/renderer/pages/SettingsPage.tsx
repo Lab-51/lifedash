@@ -1,18 +1,19 @@
 // === FILE PURPOSE ===
 // Settings page — configures AI providers, model assignments, and app preferences.
-// Sections: AI Providers (CRUD + test), Model Assignments (Task 3).
-// Plan 3.3 will add: Appearance (theme), Usage tracking, DB connection.
+// Sections: Appearance, AI Providers, Model Assignments, AI Usage, About.
 
 import { useEffect, useState } from 'react';
-import { Plus, Bot } from 'lucide-react';
+import { Plus, Bot, Info } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProviderCard from '../components/ProviderCard';
 import AddProviderForm from '../components/AddProviderForm';
 import TaskModelConfig from '../components/TaskModelConfig';
+import ThemeSelector from '../components/ThemeSelector';
+import UsageSummary from '../components/UsageSummary';
 
 function SettingsPage() {
-  const { providers, loading, error, loadProviders, loadSettings, checkEncryption } =
+  const { providers, loading, error, encryptionAvailable, loadProviders, loadSettings, checkEncryption } =
     useSettingsStore();
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -46,6 +47,17 @@ function SettingsPage() {
           {error}
         </div>
       )}
+
+      {/* === Section: Appearance === */}
+      <section className="mb-10">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-surface-100">Appearance</h2>
+          <p className="text-sm text-surface-500">
+            Choose your preferred theme.
+          </p>
+        </div>
+        <ThemeSelector />
+      </section>
 
       {/* === Section: AI Providers === */}
       <section className="mb-10">
@@ -97,6 +109,46 @@ function SettingsPage() {
           </p>
         </div>
         <TaskModelConfig providers={providers} />
+      </section>
+
+      {/* === Section: AI Usage === */}
+      <section className="mb-10">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-surface-100">AI Usage</h2>
+          <p className="text-sm text-surface-500">
+            Token usage and estimated costs across all providers.
+          </p>
+        </div>
+        <UsageSummary />
+      </section>
+
+      {/* === Section: About === */}
+      <section className="mb-10">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-surface-100">About</h2>
+        </div>
+        <div className="p-4 bg-surface-800 border border-surface-700 rounded-lg">
+          <div className="flex items-center gap-2 mb-3">
+            <Info size={16} className="text-primary-400" />
+            <span className="text-sm font-medium text-surface-200">Living Dashboard</span>
+          </div>
+          <div className="space-y-1.5 text-xs text-surface-400">
+            <div className="flex justify-between">
+              <span>Version</span>
+              <span className="text-surface-300">0.1.0</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Encryption</span>
+              <span className={encryptionAvailable ? 'text-emerald-400' : 'text-surface-500'}>
+                {encryptionAvailable === null ? 'Checking...' : encryptionAvailable ? 'Available' : 'Unavailable'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Platform</span>
+              <span className="text-surface-300">{window.electronAPI.platform}</span>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   );

@@ -17,6 +17,7 @@ import TitleBar from './components/TitleBar';
 import AppLayout from './components/AppLayout';
 import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
+import { useTheme } from './hooks/useTheme';
 
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
@@ -30,6 +31,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   useKeyboardShortcuts(navigate);
+  useTheme();
   return <>{children}</>;
 }
 

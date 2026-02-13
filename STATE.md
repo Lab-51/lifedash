@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-13
-Session focus: Phase 3 Execution — Plan 3.2 Complete
+Session focus: Phase 3 Execution — Plan 3.3 Complete (Phase 3 DONE)
 
 ## Position
 Milestone: Phase 3 — AI Provider System
 Phase: 3 of 7
-Plan: 2 of 3 (COMPLETE)
+Plan: 3 of 3 (COMPLETE)
 Task: 3 of 3 (all complete)
 
 ## Phase 1 — COMPLETE
@@ -40,10 +40,11 @@ Total: 8 points, 9 tasks across 3 plans.
 3. Create per-task model configuration (TaskModelConfig) — DONE
 - Not yet committed
 
-### Plan 3.3: Theme, Usage & App Settings (3 tasks) — PLANNED
-1. Create theme system (CSS overrides + useTheme hook + App.tsx integration)
-2. Add theme toggle to Sidebar + Appearance section to Settings page
-3. Add AI usage tracking display + About section to Settings page
+### Plan 3.3: Theme, Usage & App Settings (3 tasks) — COMPLETE
+1. Create theme system (CSS overrides + useTheme hook + App.tsx integration) — DONE
+2. Add theme toggle to Sidebar + Appearance section to Settings page — DONE
+3. Add AI usage tracking display + About section to Settings page — DONE
+- Not yet committed
 
 ### Scope Deferrals
 - Whisper model download → Phase 4 (depends on whisper-node)
@@ -56,6 +57,12 @@ Total: 8 points, 9 tasks across 3 plans.
 - **Task 3**: TaskModelConfig component created. 4 task types with provider/model selectors. Known models for OpenAI/Anthropic, text input for Ollama. Draft state with Save/Reset. Wired into SettingsPage.
 - **TypeScript**: `npx tsc --noEmit` passes with zero errors.
 
+## Plan 3.3 Execution Results
+- **Task 1**: Theme system created. `html.light` CSS overrides invert all 11 surface colors. `useTheme` hook reads/writes `app.theme` setting, applies CSS class, listens for OS changes. Integrated into App.tsx AppShell.
+- **Task 2**: Theme toggle added to Sidebar bottom (Moon/Sun/Monitor icons, cycles dark→light→system). ThemeSelector component with 3 selectable cards. Appearance section added as first section on Settings page.
+- **Task 3**: UsageSummary component fetches token usage from IPC, shows totals + breakdowns by provider and task type. About section shows version 0.1.0, encryption status, platform. Settings page now has 5 sections.
+- **TypeScript**: `npx tsc --noEmit` passes with zero errors.
+
 ## AI SDK v6 Findings (Discovered During Plan 3.1 Execution)
 - `maxTokens` renamed to `maxOutputTokens` in generateText options
 - Token usage fields: `result.usage.inputTokens` / `.outputTokens` / `.totalTokens` (not promptTokens/completionTokens)
@@ -66,6 +73,7 @@ Total: 8 points, 9 tasks across 3 plans.
 Overall approach: HIGH
 Plan 3.1 execution: HIGH (all tasks verified, TypeScript clean)
 Plan 3.2 execution: HIGH (all tasks verified, TypeScript clean)
+Plan 3.3 execution: HIGH (all tasks verified, TypeScript clean)
 AI SDK integration: HIGH (imports and types verified at runtime)
 Electron safeStorage: HIGH (verified for Electron 40.x)
 
@@ -87,6 +95,5 @@ Electron safeStorage: HIGH (verified for Electron 40.x)
 - None
 
 ## Next Steps
-1. `/nexus:git` to commit Plan 3.2 changes
-2. `/nexus:execute` to execute Plan 3.3 (3 tasks)
-3. After Plan 3.3: Phase 3 COMPLETE → Phase 4
+1. `/nexus:git` to commit Plan 3.3 changes (Plan 3.2 also uncommitted)
+2. Phase 3 COMPLETE → Phase 4
