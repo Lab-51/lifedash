@@ -1,13 +1,13 @@
 # Current State
 
 ## Session Info
-Last updated: 2026-02-12
-Session focus: Phase 3 Execution — Plan 3.1 Complete
+Last updated: 2026-02-13
+Session focus: Phase 3 Execution — Plan 3.2 Complete
 
 ## Position
 Milestone: Phase 3 — AI Provider System
 Phase: 3 of 7
-Plan: 1 of 3 (COMPLETE)
+Plan: 2 of 3 (COMPLETE)
 Task: 3 of 3 (all complete)
 
 ## Phase 1 — COMPLETE
@@ -32,29 +32,31 @@ Total: 8 points, 9 tasks across 3 plans.
 1. Install AI SDK deps + create DB schema — DONE
 2. Create shared types + services — DONE
 3. Create IPC handlers + extend preload bridge — DONE
+- Commit: 81034b2 on origin/main
 
-### Plan 3.2: Settings UI — Provider Management (3 tasks) — NOT YET PLANNED
-- Settings store (Zustand) + settings page layout with sections
-- AI provider cards (add, configure, test, enable/disable)
-- Per-task model configuration UI
+### Plan 3.2: Settings UI & AI Provider Management (3 tasks) — COMPLETE
+1. Create settings Zustand store (settingsStore.ts) — DONE
+2. Create settings page + AI provider cards (SettingsPage, ProviderCard, AddProviderForm) — DONE
+3. Create per-task model configuration (TaskModelConfig) — DONE
+- Not yet committed
 
-### Plan 3.3: Theme, Usage & App Settings (3 tasks) — NOT YET PLANNED
-- Light/dark theme toggle
-- Token usage tracking display
-- DB connection settings + general settings
+### Plan 3.3: Theme, Usage & App Settings (3 tasks) — PLANNED
+1. Create theme system (CSS overrides + useTheme hook + App.tsx integration)
+2. Add theme toggle to Sidebar + Appearance section to Settings page
+3. Add AI usage tracking display + About section to Settings page
 
 ### Scope Deferrals
 - Whisper model download → Phase 4 (depends on whisper-node)
 - Audio device preferences → Phase 4 (depends on audio capture)
 - Data export/import → Phase 7 / R15 (v2 feature)
 
-## Plan 3.1 Execution Results
-- **Task 1**: AI SDK deps installed (ai v6.0.84, @ai-sdk/openai v3.0.28, @ai-sdk/anthropic v3.0.43, ollama-ai-provider v1.2.0). DB schema created for settings, ai_providers, ai_usage. Migration generated and applied.
-- **Task 2**: 9 AI types added to shared/types.ts. ElectronAPI extended with 12 new methods. secure-storage.ts and ai-provider.ts services created.
-- **Task 3**: 4 settings IPC handlers + 8 AI provider IPC handlers created. Preload bridge extended with 12 matching methods. All handlers registered in index.ts.
+## Plan 3.2 Execution Results
+- **Task 1**: Settings Zustand store created (settingsStore.ts). Provider CRUD, connection testing, settings management, task model helpers, encryption check.
+- **Task 2**: Settings page replaced with full UI. AddProviderForm (inline, 3 provider types), ProviderCard (test, toggle, edit key, delete), responsive grid, empty state.
+- **Task 3**: TaskModelConfig component created. 4 task types with provider/model selectors. Known models for OpenAI/Anthropic, text input for Ollama. Draft state with Save/Reset. Wired into SettingsPage.
 - **TypeScript**: `npx tsc --noEmit` passes with zero errors.
 
-## AI SDK v6 Findings (Discovered During Execution)
+## AI SDK v6 Findings (Discovered During Plan 3.1 Execution)
 - `maxTokens` renamed to `maxOutputTokens` in generateText options
 - Token usage fields: `result.usage.inputTokens` / `.outputTokens` / `.totalTokens` (not promptTokens/completionTokens)
 - ollama-ai-provider v1.2.0 returns LanguageModelV1 (not V3) — needs `as LanguageModel` cast for generateText
@@ -63,6 +65,7 @@ Total: 8 points, 9 tasks across 3 plans.
 ## Confidence Levels
 Overall approach: HIGH
 Plan 3.1 execution: HIGH (all tasks verified, TypeScript clean)
+Plan 3.2 execution: HIGH (all tasks verified, TypeScript clean)
 AI SDK integration: HIGH (imports and types verified at runtime)
 Electron safeStorage: HIGH (verified for Electron 40.x)
 
@@ -75,11 +78,15 @@ Electron safeStorage: HIGH (verified for Electron 40.x)
 - Provider cache in main process, invalidated on config changes
 - Connection test: minimal generateText call with cheapest model per provider
 - toAIProvider uses Drizzle `$inferSelect` type (not `any`) for type safety
+- Settings page: single scrollable page with sections (no tabs)
+- Provider cards: grid layout, inline add form (not modal)
+- Model assignments: hardcoded known models for v1, text input for Ollama
+- Delete confirmation: 2-step (click → "Confirm?" with 3s auto-reset)
 
 ## Blockers
 - None
 
 ## Next Steps
-1. `/nexus:git` to commit Plan 3.1 changes
-2. `/nexus:plan 3.2` to plan Settings UI
-3. After Plan 3.2: Plan 3.3 (Theme + polish)
+1. `/nexus:git` to commit Plan 3.2 changes
+2. `/nexus:execute` to execute Plan 3.3 (3 tasks)
+3. After Plan 3.3: Phase 3 COMPLETE → Phase 4

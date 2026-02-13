@@ -1,868 +1,753 @@
-# Phase 3 — Plan 1 of 3: AI Provider Backend & Settings Foundation
+# Phase 3 — Plan 3 of 3: Theme, Usage & App Settings
 
 ## Coverage
-- **R7: AI Provider System** (backend portion — schema, services, IPC)
-- **R9: Settings & Configuration** (backend portion — settings schema, IPC)
+- **R9: Settings & Configuration** (remaining — theme toggle, usage display, about/info)
+- **R7: AI Provider System** (token usage tracking UI)
 
 ## Plan Overview
 Phase 3 delivers the AI Provider System (R7) and Settings & Configuration (R9). It requires 3 plans:
 
-- **Plan 3.1** (this plan): Backend foundation — deps, DB schema, services, IPC handlers.
-- **Plan 3.2** (next): Settings UI — store, settings page, provider management, model config.
-- **Plan 3.3** (next): Theme toggle, token usage display, and general app settings.
-
-## Scope Notes
-
-Some R9 deliverables are deferred to later phases where they naturally belong:
-- **Whisper model selection/download** → Phase 4 (depends on whisper-node installation)
-- **Audio device/source preferences** → Phase 4 (depends on audio capture setup)
-- **Data export/import** → Phase 7 / R15 (v2 feature)
+- **Plan 3.1** (COMPLETE): Backend foundation — deps, DB schema, services, IPC handlers.
+- **Plan 3.2** (COMPLETE): Settings UI — store, settings page, provider cards, model config.
+- **Plan 3.3** (this plan): Theme system, token usage display, and app info section.
 
 ## Design Decisions for This Plan
 
-1. **Settings table** — generic key-value store (varchar key PK, text value).
-   Used for theme preference, task model assignments (as JSON), and misc app config.
-   Simple and extensible without schema changes for each new setting.
+1. **Theme system** — CSS custom property override approach.
+   Tailwind CSS 4's `@theme` sets `--color-surface-*` as CSS custom properties on `:root`.
+   Light mode overrides these via `html.light { --color-surface-*: ... }` selector,
+   inverting the surface scale so all existing classes work without any component changes.
+   Primary colors stay the same (blue works on both backgrounds).
 
-2. **ai_providers table** — dedicated table for configured AI providers.
-   Each row = one provider instance (e.g., OpenAI, Anthropic, Ollama).
-   API keys stored encrypted via Electron safeStorage (base64 of encrypted buffer).
-   Provider name is an enum-like varchar: 'openai' | 'anthropic' | 'ollama'.
+2. **Theme persistence** — Stored in settings table as `app.theme` key.
+   Values: `'dark'` | `'light'` | `'system'`. System follows `prefers-color-scheme`.
+   Applied early in App.tsx via a `useTheme` hook that reads from settingsStore
+   and sets the class on `document.documentElement`.
 
-3. **ai_usage table** — append-only log of AI API calls.
-   Tracks tokens (prompt, completion, total) and estimated cost per call.
-   No foreign key to ai_providers — keeps history even if provider is deleted.
+3. **Theme toggle location** — Sidebar bottom area (always accessible).
+   Small icon button below the nav items (Sun/Moon icon). Cycles: dark → light → system.
+   Full theme selector also available in the Appearance section on Settings page.
 
-4. **Secure storage** — Electron safeStorage API encrypts API keys at rest.
-   Keys are encrypted to Buffer, then stored as base64 strings in PostgreSQL.
-   Never send decrypted keys to the renderer process — only `hasApiKey: boolean`.
+4. **Usage display** — New section on Settings page below Model Assignments.
+   Shows total tokens, estimated cost, breakdowns by provider and task type.
+   Uses existing `getAIUsageSummary` IPC. Data loaded on mount.
+   Minimal UI — table layout, no charts for v1.
 
-5. **AI provider service** — thin wrapper around Vercel AI SDK providers.
-   Creates provider instances via createOpenAI/createAnthropic/createOllama.
-   Caches instances by provider DB id. Provides testConnection and generate methods.
-   Token usage logged automatically after each generation.
-
-6. **Task model assignments** — stored as JSON in the settings table
-   (key: `ai.taskModels`, value: JSON of TaskModelConfig per task type).
-   No separate table needed for v1 — simpler, fewer joins.
-
-7. **Ollama provider** — using `ollama-ai-provider` package (listed on Vercel AI SDK
-   community providers page). UNCERTAINTY: Multiple community packages exist
-   (`ollama-ai-provider`, `ai-sdk-ollama`). Executor should verify at install time.
+5. **About section** — Brief section at bottom of Settings page showing app version,
+   database status, and encryption status. Informational only.
 
 ---
 
-<phase n="3.1" name="AI Provider Backend & Settings Foundation">
+<phase n="3.3" name="Theme, Usage & App Settings">
   <context>
-    Phase 2 is complete. The app has:
-    - Electron 40 with frameless window, system tray, IPC bridge
-    - PostgreSQL 16 via Docker Compose, Drizzle ORM with migrations
-    - React 19 + TypeScript + Tailwind CSS 4 renderer
-    - Zustand stores (projectStore, boardStore), Kanban board with drag-and-drop
-    - Sidebar navigation, lazy-loaded routes, settings page placeholder
+    Plans 3.1 and 3.2 are complete. The app now has:
+    - Settings page with AI Providers section and Model Assignments section
+    - settingsStore with loadSettings, setSetting, and generic key-value persistence
+    - IPC handlers: getAIUsage (100 recent), getAIUsageSummary (aggregated)
+    - ElectronAPI: getAIUsage, getAIUsageSummary, getDatabaseStatus, isEncryptionAvailable
+    - Preload bridge: All methods wired
+    - Tailwind CSS 4 with @theme defining --color-surface-* and --color-primary-*
+    - Surface palette: 50 (#f8fafc) through 950 (#020617), used everywhere
+    - App layout: TitleBar + AppLayout (Sidebar + main) + StatusBar
+    - Sidebar: 5 nav items (Projects, Meetings, Ideas, Brainstorm, Settings)
 
-    Established patterns to follow:
-    - Schema: pgTable with UUID PKs, timestamps with timezone, in src/main/db/schema/
-    - IPC: registerXHandlers function per file, ipcMain.handle(), called from index.ts
-    - Preload: thin bridge methods via contextBridge, ipcRenderer.invoke()
-    - Types: shared types in src/shared/types.ts with ElectronAPI interface
-    - File naming: kebab-case for main process files, PascalCase for components
-    - Data params in preload use `any`, type safety via ElectronAPI interface
+    Theme approach: Tailwind CSS 4's @theme sets CSS custom properties on :root.
+    We add `html.light` overrides that invert the surface scale. This makes ALL
+    existing Tailwind classes (bg-surface-900, text-surface-100, etc.) automatically
+    adapt to the theme without touching any component files.
 
-    Verified AI SDK info (Feb 2026):
-    - Core: `ai` package v6.x, exports generateText, streamText
-    - OpenAI: `@ai-sdk/openai` — import { createOpenAI } from '@ai-sdk/openai'
-    - Anthropic: `@ai-sdk/anthropic` — import { createAnthropic } from '@ai-sdk/anthropic'
-    - Ollama: `ollama-ai-provider` — import { createOllama } from 'ollama-ai-provider'
-    - Pattern: createXXX({ apiKey }) returns factory fn, factory('model-name') returns LanguageModel
-    - Token usage: result.usage.promptTokens, .completionTokens, .totalTokens
-    - Electron safeStorage: encryptString(str) → Buffer, decryptString(buf) → string
-      Available after app ready event. Uses DPAPI on Windows, Keychain on macOS.
+    UI patterns (from Phase 2):
+    - Page layout: p-6 padding, h1 text-2xl font-bold
+    - Section: mb-10, h2 text-lg font-semibold, p text-sm text-surface-500
+    - Cards: p-4 bg-surface-800 border border-surface-700 rounded-lg
+    - Buttons: bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg
+    - Empty state: flex flex-col items-center justify-center text-surface-500
+    - Icons: Lucide React, size={16} inline, size={20} nav
 
-    @src/main/db/schema/index.ts
-    @src/main/db/schema/projects.ts (pattern reference)
-    @src/main/db/connection.ts
-    @src/main/ipc/index.ts
-    @src/main/ipc/projects.ts (pattern reference)
-    @src/preload/preload.ts
-    @src/shared/types.ts
+    @src/renderer/styles/globals.css (theme CSS — to be modified)
+    @src/renderer/stores/settingsStore.ts (settings store — reference)
+    @src/renderer/pages/SettingsPage.tsx (settings page — to be modified)
+    @src/renderer/components/Sidebar.tsx (sidebar — to be modified)
+    @src/renderer/App.tsx (root component — to add useTheme)
+    @src/shared/types.ts (AIUsageSummary type — reference)
   </context>
 
   <task type="auto" n="1">
-    <n>Install AI SDK dependencies and create database schema</n>
+    <n>Create theme system with CSS overrides and useTheme hook</n>
     <files>
-      package.json (modify — add AI SDK deps via npm install)
-      src/main/db/schema/settings.ts (create — settings key-value table)
-      src/main/db/schema/ai-providers.ts (create — ai_providers + ai_usage tables)
-      src/main/db/schema/index.ts (modify — export new tables)
+      src/renderer/styles/globals.css (modify — add light theme overrides + scrollbar theme)
+      src/renderer/hooks/useTheme.ts (create — hook that applies theme to document)
+      src/renderer/App.tsx (modify — add useTheme call in AppShell)
     </files>
     <action>
-      Install the Vercel AI SDK and provider packages, then create database tables
-      for settings, AI providers, and usage tracking.
+      Create the theme system that enables light/dark/system modes using CSS
+      custom property overrides and a React hook for persistence.
 
-      WHY: The AI provider system needs persistent storage for provider configs
-      (API keys, enabled state), app settings (theme, task model assignments),
-      and usage logs (token counts, costs). All deps installed upfront so
-      subsequent tasks can import immediately.
+      WHY: The app is currently dark-mode only. Users need a light theme option
+      for daytime use and accessibility. The CSS override approach means ZERO
+      changes to existing components — all surface-* classes adapt automatically.
 
-      Steps:
+      ## Step 1: Modify globals.css
 
-      1. Install dependencies:
-         ```
-         npm install ai @ai-sdk/openai @ai-sdk/anthropic ollama-ai-provider
-         ```
+      Add light theme CSS overrides AFTER the existing `@theme` block (before scrollbar styles).
+      The light theme inverts the surface scale so semantic usage stays correct:
+      - `bg-surface-900` (main background) → becomes light
+      - `text-surface-100` (primary text) → becomes dark
+      - `border-surface-700` (borders) → becomes proportionally appropriate
 
-         If `ollama-ai-provider` fails to install, try `ai-sdk-ollama` instead.
-         These are regular dependencies (not dev) — they run in Electron main process.
+      Add this block after the `@theme { ... }` closing brace:
 
-      2. Create src/main/db/schema/settings.ts:
+      ```css
+      /* Light theme — inverts surface scale so all existing classes adapt */
+      html.light {
+        --color-surface-50: #020617;
+        --color-surface-100: #0f172a;
+        --color-surface-200: #1e293b;
+        --color-surface-300: #334155;
+        --color-surface-400: #64748b;
+        --color-surface-500: #94a3b8;
+        --color-surface-600: #cbd5e1;
+        --color-surface-700: #e2e8f0;
+        --color-surface-800: #f1f5f9;
+        --color-surface-900: #f8fafc;
+        --color-surface-950: #ffffff;
+      }
+      ```
 
-         A generic key-value settings table for app configuration.
+      Also update the scrollbar comment to say "Custom scrollbar" instead of
+      "Custom scrollbar for dark theme" since it now works for both.
 
-         ```typescript
-         // === FILE PURPOSE ===
-         // Schema for the settings table — generic key-value store for app configuration.
-         // Used for theme preference, task model assignments (JSON), and other settings.
+      Also update the light theme scrollbar to use a lighter track for better visibility.
+      Add after the existing scrollbar styles:
+      ```css
+      html.light ::-webkit-scrollbar-thumb {
+        background: var(--color-surface-400);
+      }
+      html.light ::-webkit-scrollbar-thumb:hover {
+        background: var(--color-surface-500);
+      }
+      ```
 
-         import { pgTable, varchar, text, timestamp } from 'drizzle-orm/pg-core';
+      ## Step 2: Create useTheme hook
 
-         export const settings = pgTable('settings', {
-           key: varchar('key', { length: 255 }).primaryKey(),
-           value: text('value').notNull(),
-           updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-         });
-         ```
+      Create src/renderer/hooks/useTheme.ts:
 
-         Using varchar PK (not UUID) because settings are looked up by key name.
-         Value is text type to support JSON strings for complex settings.
+      ```typescript
+      // === FILE PURPOSE ===
+      // Hook that manages the app theme (dark/light/system).
+      // Reads theme preference from settingsStore, applies the correct CSS class
+      // to document.documentElement, and listens for system theme changes.
 
-      3. Create src/main/db/schema/ai-providers.ts:
+      import { useEffect } from 'react';
+      import { useSettingsStore } from '../stores/settingsStore';
 
-         Two tables: ai_providers (provider configurations) and ai_usage (token tracking).
+      export type ThemeMode = 'dark' | 'light' | 'system';
 
-         ```typescript
-         // === FILE PURPOSE ===
-         // Schema for AI provider configuration and usage tracking tables.
-         // ai_providers stores configured LLM providers with encrypted API keys.
-         // ai_usage is an append-only log of AI API calls for cost tracking.
+      /** Resolves 'system' to the actual theme based on OS preference */
+      function resolveTheme(mode: ThemeMode): 'dark' | 'light' {
+        if (mode === 'system') {
+          return window.matchMedia('(prefers-color-scheme: light)').matches
+            ? 'light'
+            : 'dark';
+        }
+        return mode;
+      }
 
-         import {
-           pgTable, uuid, varchar, text, boolean, integer, real, timestamp,
-         } from 'drizzle-orm/pg-core';
+      /** Apply the resolved theme class to the document root */
+      function applyTheme(mode: ThemeMode) {
+        const resolved = resolveTheme(mode);
+        document.documentElement.classList.toggle('light', resolved === 'light');
+      }
 
-         export const aiProviders = pgTable('ai_providers', {
-           id: uuid('id').defaultRandom().primaryKey(),
-           name: varchar('name', { length: 100 }).notNull(),       // 'openai' | 'anthropic' | 'ollama'
-           displayName: varchar('display_name', { length: 255 }),   // User-facing name
-           enabled: boolean('enabled').default(true).notNull(),
-           apiKeyEncrypted: text('api_key_encrypted'),              // base64(safeStorage.encryptString())
-           baseUrl: varchar('base_url', { length: 500 }),           // For Ollama or custom endpoints
-           createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-           updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-         });
+      /**
+       * Manages app theme. Call once at the app root level.
+       * Reads from settings store key 'app.theme' (default: 'dark').
+       * Applies CSS class to <html> and listens for system theme changes.
+       */
+      export function useTheme() {
+        const settings = useSettingsStore(s => s.settings);
+        const setSetting = useSettingsStore(s => s.setSetting);
 
-         export const aiUsage = pgTable('ai_usage', {
-           id: uuid('id').defaultRandom().primaryKey(),
-           providerId: uuid('provider_id'),                         // Nullable — keeps history if provider deleted
-           model: varchar('model', { length: 255 }).notNull(),
-           taskType: varchar('task_type', { length: 100 }).notNull(),
-           promptTokens: integer('prompt_tokens').notNull(),
-           completionTokens: integer('completion_tokens').notNull(),
-           totalTokens: integer('total_tokens').notNull(),
-           estimatedCost: real('estimated_cost'),                   // USD cents
-           createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-         });
-         ```
+        const themeMode = (settings['app.theme'] as ThemeMode) || 'dark';
 
-         Schema notes:
-         - name: enforced in app logic as AIProviderName union, not DB constraint
-         - apiKeyEncrypted: null for Ollama (no API key needed)
-         - baseUrl: primarily for Ollama (http://localhost:11434), also custom endpoints
-         - No FK from ai_usage.providerId to ai_providers.id — preserves history on delete
-         - estimatedCost uses real (4-byte float), sufficient precision for cents
+        // Apply theme whenever the setting changes
+        useEffect(() => {
+          applyTheme(themeMode);
+        }, [themeMode]);
 
-      4. Update src/main/db/schema/index.ts — add at end:
-         ```typescript
-         export * from './settings';
-         export * from './ai-providers';
-         ```
+        // Listen for OS theme changes when mode is 'system'
+        useEffect(() => {
+          if (themeMode !== 'system') return;
 
-      5. Generate and apply migration:
-         ```
-         npm run db:generate
-         npm run db:migrate
-         ```
-         Requires Docker PostgreSQL running (`npm run db:up` if not already).
+          const mq = window.matchMedia('(prefers-color-scheme: light)');
+          const handler = () => applyTheme('system');
+          mq.addEventListener('change', handler);
+          return () => mq.removeEventListener('change', handler);
+        }, [themeMode]);
+
+        const setTheme = (mode: ThemeMode) => {
+          setSetting('app.theme', mode);
+        };
+
+        return { themeMode, setTheme };
+      }
+      ```
+
+      ## Step 3: Modify App.tsx
+
+      Add `useTheme` call inside the `AppShell` component so theme is applied
+      on every render (including initial load). AppShell already lives inside
+      HashRouter and runs hooks.
+
+      Add import at top:
+      ```typescript
+      import { useTheme } from './hooks/useTheme';
+      ```
+
+      Add the hook call as the first line inside AppShell function body:
+      ```typescript
+      useTheme();
+      ```
+
+      The AppShell function should look like:
+      ```typescript
+      function AppShell({ children }: { children: ReactNode }) {
+        const navigate = useNavigate();
+        useKeyboardShortcuts(navigate);
+        useTheme();
+        return <>{children}</>;
+      }
+      ```
+
+      Key design notes:
+      - Default theme is 'dark' (matches current app appearance)
+      - 'system' mode follows OS prefers-color-scheme and reacts to changes
+      - applyTheme uses classList.toggle for clean add/remove
+      - No class on html = dark mode (backward compatible with current state)
+      - html.light class = light mode (CSS overrides kick in)
+      - Theme is applied in AppShell so it runs before any page renders
     </action>
     <verify>
-      1. Check node_modules/ai, node_modules/@ai-sdk/openai, node_modules/@ai-sdk/anthropic,
-         node_modules/ollama-ai-provider exist
-      2. Run `npx tsc --noEmit` — no TypeScript errors
-      3. Run `npm run db:generate` — migration file created in drizzle/ directory
-      4. Run `npm run db:migrate` — migration applied successfully
-      5. Inspect generated SQL: should contain CREATE TABLE settings, ai_providers, ai_usage
+      1. Run `npx tsc --noEmit` — no TypeScript errors
+      2. Verify globals.css has both the @theme block AND the html.light override block
+      3. Verify html.light overrides have all 11 surface values (50 through 950)
+      4. Verify useTheme.ts exports useTheme function and ThemeMode type
+      5. Verify App.tsx imports and calls useTheme() in AppShell
+      6. Verify default theme is 'dark' when no setting exists
     </verify>
     <done>
-      AI SDK packages (ai, @ai-sdk/openai, @ai-sdk/anthropic, ollama-ai-provider) installed.
-      Three new DB tables (settings, ai_providers, ai_usage) created via Drizzle schema.
-      Migration generated and applied to PostgreSQL.
+      Theme CSS system created: light theme via html.light class overrides all
+      surface colors. useTheme hook reads from settings, applies CSS class,
+      and responds to OS theme changes. Integrated into App.tsx AppShell.
+      Default is dark mode. No existing component changes needed.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - ollama-ai-provider installs without errors on npm
-      - Drizzle pg-core exports `real` and `integer` types
-      - Docker PostgreSQL container is running for migration
-      - drizzle-kit generate detects new schema files via barrel export in index.ts
+      - Tailwind CSS 4's @theme generates CSS custom properties on :root that
+        can be overridden by more specific selectors (html.light)
+      - Electron's Chromium supports matchMedia('prefers-color-scheme')
+      - classList.toggle with boolean argument works in Electron's Chromium
+      - Settings are loaded before useTheme runs (loadSettings called in SettingsPage
+        useEffect — need to ensure it runs early enough; AppShell runs useTheme
+        but settings may not be loaded yet on first render, which defaults to 'dark')
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Create shared types and main process services</n>
+    <n>Add theme toggle to Sidebar and Appearance section to Settings page</n>
     <files>
-      src/shared/types.ts (modify — add AI provider, settings, and usage types + ElectronAPI extensions)
-      src/main/services/secure-storage.ts (create — Electron safeStorage wrapper)
-      src/main/services/ai-provider.ts (create — AI SDK provider manager with caching and usage logging)
+      src/renderer/components/Sidebar.tsx (modify — add theme toggle button at bottom)
+      src/renderer/components/ThemeSelector.tsx (create — Appearance section component)
+      src/renderer/pages/SettingsPage.tsx (modify — add Appearance section + import)
     </files>
     <preconditions>
-      - Task 1 completed (AI SDK packages installed, DB schema created)
+      - Task 1 completed (useTheme hook exists, CSS overrides in place)
     </preconditions>
     <action>
-      Create the service layer for AI providers and secure storage, plus shared types
-      for cross-process communication.
+      Add theme toggle UI in two places: a quick-cycle button at the bottom
+      of the Sidebar, and a full Appearance section on the Settings page.
 
-      WHY: The main process needs services to manage AI provider instances (create,
-      cache, test, generate) and securely handle API keys. These services are consumed
-      by IPC handlers (Task 3). Types are shared so renderer gets full type safety.
+      WHY: Users need quick access to switch themes (Sidebar button) and a
+      proper settings interface to choose between dark/light/system modes
+      (Settings page). Two touchpoints: quick and detailed.
 
-      Steps:
+      ## Component 1: Modify Sidebar.tsx
 
-      1. Add AI/settings types to src/shared/types.ts (after existing label types):
+      Add a theme toggle button at the bottom of the sidebar (below nav items).
+      The button cycles through: dark → light → system on each click.
+      Shows Moon icon for dark, Sun icon for light, Monitor icon for system.
 
+      Changes to Sidebar.tsx:
+      1. Add imports: `import { Sun, Moon, Monitor } from 'lucide-react';`
+         and `import { useTheme } from '../hooks/useTheme';`
+         and `import type { ThemeMode } from '../hooks/useTheme';`
+      2. Add theme icon map and cycle logic inside the component
+      3. Add a spacer div with `flex-1` to push the toggle to the bottom
+      4. Add the toggle button after the spacer
+
+      The updated Sidebar component should be:
+
+      ```typescript
+      // === FILE PURPOSE ===
+      // Fixed-width icon sidebar for primary app navigation.
+      // Includes a theme toggle button at the bottom.
+
+      // === DEPENDENCIES ===
+      // react-router-dom (NavLink), lucide-react icons, useTheme hook
+
+      import { NavLink, useLocation } from 'react-router-dom';
+      import {
+        FolderKanban,
+        Mic,
+        Lightbulb,
+        Brain,
+        Settings,
+        Sun,
+        Moon,
+        Monitor,
+      } from 'lucide-react';
+      import { useTheme } from '../hooks/useTheme';
+      import type { ThemeMode } from '../hooks/useTheme';
+
+      /** Navigation item configuration */
+      interface NavItem {
+        path: string;
+        label: string;
+        icon: React.ComponentType<{ size?: number }>;
+      }
+
+      const navItems: NavItem[] = [
+        { path: '/', label: 'Projects', icon: FolderKanban },
+        { path: '/meetings', label: 'Meetings', icon: Mic },
+        { path: '/ideas', label: 'Ideas', icon: Lightbulb },
+        { path: '/brainstorm', label: 'Brainstorm', icon: Brain },
+        { path: '/settings', label: 'Settings', icon: Settings },
+      ];
+
+      const THEME_CYCLE: ThemeMode[] = ['dark', 'light', 'system'];
+      const THEME_ICONS: Record<ThemeMode, React.ComponentType<{ size?: number }>> = {
+        dark: Moon,
+        light: Sun,
+        system: Monitor,
+      };
+      const THEME_LABELS: Record<ThemeMode, string> = {
+        dark: 'Dark mode',
+        light: 'Light mode',
+        system: 'System theme',
+      };
+
+      function Sidebar() {
+        const location = useLocation();
+        const { themeMode, setTheme } = useTheme();
+
+        const cycleTheme = () => {
+          const idx = THEME_CYCLE.indexOf(themeMode);
+          const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
+          setTheme(next);
+        };
+
+        const ThemeIcon = THEME_ICONS[themeMode] || Moon;
+
+        return (
+          <nav className="w-16 bg-surface-900 border-r border-surface-800 flex flex-col shrink-0">
+            {navItems.map(({ path, label, icon: Icon }) => {
+              // Projects item should also be active on /projects/:id routes
+              const isProjectsItem = path === '/';
+              const isProjectsActive = isProjectsItem
+                ? location.pathname === '/' || location.pathname.startsWith('/projects/')
+                : false;
+
+              return (
+                <NavLink
+                  key={path}
+                  to={path}
+                  end={isProjectsItem}
+                  title={label}
+                  className={({ isActive: navActive }) => {
+                    const active = isProjectsItem ? isProjectsActive : navActive;
+                    return [
+                      'w-full h-12 flex items-center justify-center transition-colors',
+                      active
+                        ? 'bg-primary-600/15 text-primary-400 border-l-2 border-primary-500'
+                        : 'text-surface-400 hover:bg-surface-800 hover:text-surface-200 border-l-2 border-transparent',
+                    ].join(' ');
+                  }}
+                >
+                  <Icon size={20} />
+                </NavLink>
+              );
+            })}
+
+            {/* Spacer pushes theme toggle to bottom */}
+            <div className="flex-1" />
+
+            {/* Theme toggle button */}
+            <button
+              onClick={cycleTheme}
+              title={THEME_LABELS[themeMode]}
+              className="w-full h-12 flex items-center justify-center text-surface-400 hover:bg-surface-800 hover:text-surface-200 transition-colors"
+            >
+              <ThemeIcon size={20} />
+            </button>
+          </nav>
+        );
+      }
+
+      export default Sidebar;
+      ```
+
+      ## Component 2: Create ThemeSelector.tsx
+
+      Create src/renderer/components/ThemeSelector.tsx:
+
+      A settings section component that shows three theme options (Dark, Light, System)
+      as selectable cards. Used in the Appearance section of the Settings page.
+
+      ```typescript
+      // === FILE PURPOSE ===
+      // Theme selector component for the Appearance section of the Settings page.
+      // Shows three options: Dark, Light, System with visual indicators.
+
+      import { Sun, Moon, Monitor } from 'lucide-react';
+      import { useTheme } from '../hooks/useTheme';
+      import type { ThemeMode } from '../hooks/useTheme';
+
+      const THEME_OPTIONS: { mode: ThemeMode; label: string; description: string; icon: React.ComponentType<{ size?: number }> }[] = [
+        { mode: 'dark', label: 'Dark', description: 'Dark background with light text', icon: Moon },
+        { mode: 'light', label: 'Light', description: 'Light background with dark text', icon: Sun },
+        { mode: 'system', label: 'System', description: 'Follow your OS setting', icon: Monitor },
+      ];
+
+      export default function ThemeSelector() {
+        const { themeMode, setTheme } = useTheme();
+
+        return (
+          <div className="flex gap-3">
+            {THEME_OPTIONS.map(({ mode, label, description, icon: Icon }) => (
+              <button key={mode} onClick={() => setTheme(mode)}
+                className={`flex-1 p-3 rounded-lg border text-left transition-colors ${
+                  themeMode === mode
+                    ? 'border-primary-500 bg-primary-500/10 text-primary-400'
+                    : 'border-surface-700 bg-surface-800 text-surface-300 hover:border-surface-600'
+                }`}>
+                <Icon size={20} className="mb-1.5" />
+                <div className="text-sm font-medium">{label}</div>
+                <div className="text-xs text-surface-500 mt-0.5">{description}</div>
+              </button>
+            ))}
+          </div>
+        );
+      }
+      ```
+
+      ## Update SettingsPage.tsx
+
+      Add the Appearance section as the FIRST section on the Settings page
+      (before AI Providers). This way the most visual setting is at the top.
+
+      1. Add import at top (after existing imports):
          ```typescript
-         // === AI PROVIDER TYPES ===
-
-         export type AIProviderName = 'openai' | 'anthropic' | 'ollama';
-         export type AITaskType = 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis';
-
-         /** AI provider as seen by renderer (no decrypted keys — only hasApiKey boolean) */
-         export interface AIProvider {
-           id: string;
-           name: AIProviderName;
-           displayName: string | null;
-           enabled: boolean;
-           hasApiKey: boolean;
-           baseUrl: string | null;
-           createdAt: string;
-           updatedAt: string;
-         }
-
-         export interface CreateAIProviderInput {
-           name: AIProviderName;
-           displayName?: string;
-           apiKey?: string;       // Plain text — encrypted before storage in main process
-           baseUrl?: string;
-         }
-
-         export interface UpdateAIProviderInput {
-           displayName?: string;
-           apiKey?: string;       // Plain text — encrypted before storage
-           baseUrl?: string;
-           enabled?: boolean;
-         }
-
-         export interface AIConnectionTestResult {
-           success: boolean;
-           error?: string;
-           latencyMs?: number;
-         }
-
-         export interface AIUsageEntry {
-           id: string;
-           providerId: string | null;
-           model: string;
-           taskType: string;
-           promptTokens: number;
-           completionTokens: number;
-           totalTokens: number;
-           estimatedCost: number | null;
-           createdAt: string;
-         }
-
-         export interface AIUsageSummary {
-           totalTokens: number;
-           totalCost: number;
-           byProvider: Record<string, { tokens: number; cost: number }>;
-           byTaskType: Record<string, { tokens: number; cost: number }>;
-         }
-
-         /** Per-task model configuration (stored as JSON in settings table) */
-         export interface TaskModelConfig {
-           providerId: string;
-           model: string;
-           temperature?: number;
-           maxTokens?: number;
-         }
+         import ThemeSelector from '../components/ThemeSelector';
          ```
 
-         Extend ElectronAPI interface — add after existing Labels methods:
+      2. Add the Appearance section BEFORE the AI Providers section
+         (right after the error banner div):
 
-         ```typescript
-         // Settings
-         getSetting: (key: string) => Promise<string | null>;
-         setSetting: (key: string, value: string) => Promise<void>;
-         getAllSettings: () => Promise<Record<string, string>>;
-         deleteSetting: (key: string) => Promise<void>;
-
-         // AI Providers
-         getAIProviders: () => Promise<AIProvider[]>;
-         createAIProvider: (data: CreateAIProviderInput) => Promise<AIProvider>;
-         updateAIProvider: (id: string, data: UpdateAIProviderInput) => Promise<AIProvider>;
-         deleteAIProvider: (id: string) => Promise<void>;
-         testAIConnection: (id: string) => Promise<AIConnectionTestResult>;
-         isEncryptionAvailable: () => Promise<boolean>;
-
-         // AI Usage
-         getAIUsage: () => Promise<AIUsageEntry[]>;
-         getAIUsageSummary: () => Promise<AIUsageSummary>;
+         ```tsx
+         {/* === Section: Appearance === */}
+         <section className="mb-10">
+           <div className="mb-4">
+             <h2 className="text-lg font-semibold text-surface-100">Appearance</h2>
+             <p className="text-sm text-surface-500">
+               Choose your preferred theme.
+             </p>
+           </div>
+           <ThemeSelector />
+         </section>
          ```
 
-      2. Create src/main/services/secure-storage.ts:
-
-         Thin wrapper around Electron's safeStorage API. Converts encrypted Buffers
-         to/from base64 strings for database storage.
-
-         ```typescript
-         // === FILE PURPOSE ===
-         // Wraps Electron safeStorage API for secure API key encryption/decryption.
-         // Encrypts strings to base64 for DB storage, decrypts on demand.
-         // Uses OS-level encryption: DPAPI (Windows), Keychain (macOS), libsecret (Linux).
-         //
-         // === LIMITATIONS ===
-         // - Only usable in main process (not preload or renderer)
-         // - Must be called after app 'ready' event
-         // - On Windows, protects from other users but not other apps on same account
-
-         import { safeStorage } from 'electron';
-
-         export function isEncryptionAvailable(): boolean {
-           return safeStorage.isEncryptionAvailable();
-         }
-
-         export function encryptString(plaintext: string): string {
-           if (!safeStorage.isEncryptionAvailable()) {
-             throw new Error('Encryption is not available on this system');
-           }
-           const encrypted = safeStorage.encryptString(plaintext);
-           return encrypted.toString('base64');
-         }
-
-         export function decryptString(encryptedBase64: string): string {
-           if (!safeStorage.isEncryptionAvailable()) {
-             throw new Error('Encryption is not available on this system');
-           }
-           const buffer = Buffer.from(encryptedBase64, 'base64');
-           return safeStorage.decryptString(buffer);
-         }
-         ```
-
-      3. Create src/main/services/ai-provider.ts:
-
-         Manages AI SDK provider instances with caching, connection testing,
-         and text generation with automatic usage logging.
-
-         ```typescript
-         // === FILE PURPOSE ===
-         // AI provider manager — creates/caches provider instances, tests connections,
-         // and wraps generateText with automatic usage logging to ai_usage table.
-         //
-         // === DEPENDENCIES ===
-         // ai (generateText), @ai-sdk/openai, @ai-sdk/anthropic, ollama-ai-provider
-         //
-         // === VERIFICATION STATUS ===
-         // - createOpenAI/createAnthropic API: verified from AI SDK docs
-         // - createOllama API: UNVERIFIED — ollama-ai-provider import may differ
-         // - Token usage availability: verified (result.usage.promptTokens etc.)
-
-         import { generateText } from 'ai';
-         import { createOpenAI } from '@ai-sdk/openai';
-         import { createAnthropic } from '@ai-sdk/anthropic';
-         // TODO: Verify this import at runtime — package API may differ
-         import { createOllama } from 'ollama-ai-provider';
-         import { getDb } from '../db/connection';
-         import { aiUsage } from '../db/schema';
-         import { decryptString } from './secure-storage';
-         import type { AIProviderName } from '../../shared/types';
-
-         // Default models for connection testing (cheapest per provider)
-         const TEST_MODELS: Record<AIProviderName, string> = {
-           openai: 'gpt-4o-mini',
-           anthropic: 'claude-haiku-4-5-20251001',
-           ollama: 'llama3.2',
-         };
-
-         // Cache provider factories by DB id (invalidated on config change)
-         const providerCache = new Map<string, any>();
-
-         function createFactory(
-           name: AIProviderName,
-           apiKey?: string,
-           baseUrl?: string,
-         ): any {
-           switch (name) {
-             case 'openai':
-               return createOpenAI({ apiKey: apiKey || '' });
-             case 'anthropic':
-               return createAnthropic({ apiKey: apiKey || '' });
-             case 'ollama':
-               return createOllama({ baseURL: baseUrl || 'http://localhost:11434/api' });
-             default:
-               throw new Error(`Unknown AI provider: ${name}`);
-           }
-         }
-
-         /**
-          * Get or create a cached provider factory for the given DB provider row.
-          * Call clearProviderCache(id) when provider config changes.
-          */
-         export function getProvider(
-           id: string,
-           name: AIProviderName,
-           apiKeyEncrypted: string | null,
-           baseUrl: string | null,
-         ) {
-           if (providerCache.has(id)) return providerCache.get(id);
-           const apiKey = apiKeyEncrypted ? decryptString(apiKeyEncrypted) : undefined;
-           const factory = createFactory(name, apiKey, baseUrl ?? undefined);
-           providerCache.set(id, factory);
-           return factory;
-         }
-
-         /** Clear cached provider instance(s). Call when config changes. */
-         export function clearProviderCache(id?: string): void {
-           if (id) {
-             providerCache.delete(id);
-           } else {
-             providerCache.clear();
-           }
-         }
-
-         /**
-          * Test provider connectivity by generating a minimal completion.
-          * Uses the cheapest model per provider to minimize cost.
-          */
-         export async function testConnection(
-           name: AIProviderName,
-           apiKeyEncrypted: string | null,
-           baseUrl: string | null,
-         ): Promise<{ success: boolean; error?: string; latencyMs?: number }> {
-           const start = Date.now();
-           try {
-             const apiKey = apiKeyEncrypted ? decryptString(apiKeyEncrypted) : undefined;
-             const factory = createFactory(name, apiKey, baseUrl ?? undefined);
-             const model = factory(TEST_MODELS[name]);
-
-             await generateText({
-               model,
-               prompt: 'Say "ok".',
-               maxTokens: 5,
-             });
-
-             return { success: true, latencyMs: Date.now() - start };
-           } catch (error: any) {
-             return {
-               success: false,
-               error: error.message || 'Connection failed',
-               latencyMs: Date.now() - start,
-             };
-           }
-         }
-
-         /**
-          * Generate text using a configured provider + model.
-          * Automatically logs token usage to the ai_usage table.
-          */
-         export async function generate(options: {
-           providerId: string;
-           providerName: AIProviderName;
-           apiKeyEncrypted: string | null;
-           baseUrl: string | null;
-           model: string;
-           taskType: string;
-           prompt: string;
-           system?: string;
-           temperature?: number;
-           maxTokens?: number;
-         }) {
-           const factory = getProvider(
-             options.providerId,
-             options.providerName,
-             options.apiKeyEncrypted,
-             options.baseUrl,
-           );
-
-           const result = await generateText({
-             model: factory(options.model),
-             prompt: options.prompt,
-             system: options.system,
-             temperature: options.temperature,
-             maxTokens: options.maxTokens,
-           });
-
-           // Log usage (fire-and-forget — don't fail generation if logging fails)
-           try {
-             const db = getDb();
-             await db.insert(aiUsage).values({
-               providerId: options.providerId,
-               model: options.model,
-               taskType: options.taskType,
-               promptTokens: result.usage?.promptTokens ?? 0,
-               completionTokens: result.usage?.completionTokens ?? 0,
-               totalTokens: result.usage?.totalTokens ?? 0,
-               // Cost estimation added in Plan 3.3 (requires pricing table)
-             });
-           } catch (logError) {
-             console.error('[AI] Failed to log usage:', logError);
-           }
-
-           return {
-             text: result.text,
-             usage: result.usage,
-           };
-         }
-         ```
-
-         IMPORTANT notes for the executor:
-         - The `any` type for providerCache values is intentional — different provider
-           factories have different return types but all work as factory(modelName).
-         - If `ollama-ai-provider` doesn't export `createOllama`, check the package
-           README for the correct import. Alternative: `import { ollama } from 'ollama-ai-provider'`.
-         - The generate function is not used by IPC handlers in this plan — it will be
-           used starting in Phase 5 (meeting briefs) and Phase 6 (brainstorming).
-           Plan 3.1 exposes it for future use; the connection test validates it works.
+      Key design notes:
+      - Theme selector uses same button-group pattern as AddProviderForm provider type
+      - Selected state uses primary-500 border + bg-primary-500/10 (same as provider buttons)
+      - Sidebar toggle is for quick switching, Settings page for deliberate configuration
+      - Both use the same useTheme hook so they stay in sync
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify src/shared/types.ts has: AIProviderName, AITaskType, AIProvider,
-         CreateAIProviderInput, UpdateAIProviderInput, AIConnectionTestResult,
-         AIUsageEntry, AIUsageSummary, TaskModelConfig types
-      3. Verify ElectronAPI interface has 12 new methods (4 settings + 8 AI provider)
-      4. Verify src/main/services/secure-storage.ts exports: isEncryptionAvailable,
-         encryptString, decryptString
-      5. Verify src/main/services/ai-provider.ts exports: getProvider, clearProviderCache,
-         testConnection, generate
-      6. Verify imports in ai-provider.ts: ai, @ai-sdk/openai, @ai-sdk/anthropic,
-         ollama-ai-provider
+      2. Verify Sidebar.tsx has theme toggle button at bottom (after flex-1 spacer)
+      3. Verify Sidebar uses useTheme hook and cycles through dark → light → system
+      4. Verify ThemeSelector.tsx renders 3 options with correct icons (Moon, Sun, Monitor)
+      5. Verify SettingsPage.tsx has Appearance section BEFORE AI Providers section
+      6. Verify SettingsPage imports ThemeSelector component
     </verify>
     <done>
-      Shared types defined for AI providers, settings, and usage tracking.
-      ElectronAPI interface extended with 12 new methods.
-      Secure storage service wraps Electron safeStorage for API key encryption.
-      AI provider service manages provider instances with caching, connection testing,
-      and text generation with automatic usage logging.
+      Theme toggle added to Sidebar bottom (icon cycles dark/light/system).
+      ThemeSelector component created with 3 selectable cards.
+      Appearance section added as first section on Settings page.
+      Both UI elements use the same useTheme hook for consistent state.
     </done>
-    <confidence>MEDIUM</confidence>
+    <confidence>HIGH</confidence>
     <assumptions>
-      - ollama-ai-provider exports createOllama with { baseURL } config object
-      - createOpenAI/createAnthropic return callable factory functions (factory(modelName) → LanguageModel)
-      - safeStorage.encryptString/decryptString work correctly after Electron app ready event
-      - generateText returns { text, usage: { promptTokens, completionTokens, totalTokens } }
-      - result.usage is available for all three providers (OpenAI, Anthropic, Ollama)
-      - Buffer.from(base64, 'base64') correctly reverses Buffer.toString('base64')
+      - Lucide React exports Sun, Moon, Monitor icons
+      - flex-1 spacer pushes the theme toggle button to the bottom of the sidebar
+      - useTheme hook can be called from multiple components (Sidebar + ThemeSelector)
+        without conflict since they share the same Zustand store
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Create IPC handlers and extend preload bridge</n>
+    <n>Add AI usage tracking display and About section to Settings page</n>
     <files>
-      src/main/ipc/settings.ts (create — 4 settings CRUD handlers)
-      src/main/ipc/ai-providers.ts (create — 8 AI provider/usage handlers)
-      src/main/ipc/index.ts (modify — register new handlers)
-      src/preload/preload.ts (modify — add 12 new bridge methods)
+      src/renderer/components/UsageSummary.tsx (create — token usage display component)
+      src/renderer/pages/SettingsPage.tsx (modify — add Usage and About sections)
     </files>
     <preconditions>
-      - Task 1 completed (DB schema and migration applied)
-      - Task 2 completed (shared types and services created)
+      - Task 2 completed (SettingsPage has Appearance section — need to add after it)
+      - settingsStore exists with loadSettings
+      - ElectronAPI has getAIUsageSummary and getDatabaseStatus methods
     </preconditions>
     <action>
-      Create IPC handlers for settings and AI provider management, then extend
-      the preload bridge so the renderer can access these services.
+      Create the AI usage tracking display and a small About/Info section.
 
-      WHY: The renderer process cannot access the database or Electron safeStorage
-      directly. IPC handlers in the main process handle all data operations,
-      and the preload bridge provides a typed interface for the renderer.
+      WHY: Users need visibility into their AI token usage and estimated costs
+      to manage API expenses. The About section provides at-a-glance system info
+      (version, DB status, encryption) — useful for troubleshooting.
 
-      Steps:
+      ## Component 1: Create UsageSummary.tsx
 
-      1. Create src/main/ipc/settings.ts:
+      Create src/renderer/components/UsageSummary.tsx:
 
-         CRUD handlers for the generic key-value settings table.
+      Displays AI token usage summary with totals and breakdowns.
+      Fetches data directly via window.electronAPI.getAIUsageSummary().
 
+      ```typescript
+      // === FILE PURPOSE ===
+      // AI token usage summary display for the Settings page.
+      // Shows total tokens, estimated cost, and breakdowns by provider and task type.
+      // Fetches data directly from IPC (not via store — usage is read-only display).
+
+      import { useState, useEffect } from 'react';
+      import { BarChart3, RefreshCw } from 'lucide-react';
+      import type { AIUsageSummary as UsageSummaryType } from '../../shared/types';
+
+      /** Format large numbers with commas: 12345 → "12,345" */
+      function formatNumber(n: number): string {
+        return n.toLocaleString();
+      }
+
+      /** Format cost to 4 decimal places: 0.0012 → "$0.0012" */
+      function formatCost(cost: number): string {
+        if (cost === 0) return '$0.00';
+        return `$${cost.toFixed(4)}`;
+      }
+
+      /** Format task type ID to human label: task_generation → Task Generation */
+      function formatTaskType(type: string): string {
+        return type
+          .split('_')
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ');
+      }
+
+      export default function UsageSummary() {
+        const [summary, setSummary] = useState<UsageSummaryType | null>(null);
+        const [loading, setLoading] = useState(true);
+
+        const fetchUsage = async () => {
+          setLoading(true);
+          try {
+            const data = await window.electronAPI.getAIUsageSummary();
+            setSummary(data);
+          } catch (err) {
+            console.error('Failed to fetch usage summary:', err);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        useEffect(() => {
+          fetchUsage();
+        }, []);
+
+        if (loading) {
+          return (
+            <div className="text-sm text-surface-500 py-4">Loading usage data...</div>
+          );
+        }
+
+        if (!summary || summary.totalTokens === 0) {
+          return (
+            <div className="flex flex-col items-center justify-center text-surface-500 py-6">
+              <BarChart3 size={32} className="mb-2 text-surface-600" />
+              <p className="text-sm">No AI usage recorded yet</p>
+              <p className="text-xs text-surface-600 mt-1">
+                Usage data will appear here after using AI features
+              </p>
+            </div>
+          );
+        }
+
+        const providerEntries = Object.entries(summary.byProvider);
+        const taskEntries = Object.entries(summary.byTaskType);
+
+        return (
+          <div className="space-y-4">
+            {/* Totals row */}
+            <div className="flex items-center gap-6">
+              <div>
+                <div className="text-xs text-surface-500">Total Tokens</div>
+                <div className="text-lg font-semibold text-surface-100">
+                  {formatNumber(summary.totalTokens)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-surface-500">Estimated Cost</div>
+                <div className="text-lg font-semibold text-surface-100">
+                  {formatCost(summary.totalCost)}
+                </div>
+              </div>
+              <div className="ml-auto">
+                <button onClick={fetchUsage}
+                  className="flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors">
+                  <RefreshCw size={14} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {/* Breakdowns side by side */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* By Provider */}
+              {providerEntries.length > 0 && (
+                <div className="p-3 bg-surface-800 border border-surface-700 rounded-lg">
+                  <div className="text-xs font-medium text-surface-400 mb-2">By Provider</div>
+                  <div className="space-y-1.5">
+                    {providerEntries.map(([id, data]) => (
+                      <div key={id} className="flex items-center justify-between text-xs">
+                        <span className="text-surface-300">{id}</span>
+                        <span className="text-surface-400">
+                          {formatNumber(data.tokens)} tokens &middot; {formatCost(data.cost)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* By Task Type */}
+              {taskEntries.length > 0 && (
+                <div className="p-3 bg-surface-800 border border-surface-700 rounded-lg">
+                  <div className="text-xs font-medium text-surface-400 mb-2">By Task Type</div>
+                  <div className="space-y-1.5">
+                    {taskEntries.map(([type, data]) => (
+                      <div key={type} className="flex items-center justify-between text-xs">
+                        <span className="text-surface-300">{formatTaskType(type)}</span>
+                        <span className="text-surface-400">
+                          {formatNumber(data.tokens)} tokens &middot; {formatCost(data.cost)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      ```
+
+      ## Update SettingsPage.tsx
+
+      Add two new sections after the existing ones:
+
+      1. Add imports at top:
          ```typescript
-         // === FILE PURPOSE ===
-         // IPC handlers for app settings (key-value store).
-         // Supports get, set (upsert), get-all, and delete operations.
-
-         import { ipcMain } from 'electron';
-         import { eq } from 'drizzle-orm';
-         import { getDb } from '../db/connection';
-         import { settings } from '../db/schema';
-
-         export function registerSettingsHandlers(): void {
-           ipcMain.handle('settings:get', async (_event, key: string) => {
-             const db = getDb();
-             const rows = await db.select().from(settings).where(eq(settings.key, key));
-             return rows.length > 0 ? rows[0].value : null;
-           });
-
-           ipcMain.handle('settings:set', async (_event, key: string, value: string) => {
-             const db = getDb();
-             await db.insert(settings)
-               .values({ key, value })
-               .onConflictDoUpdate({
-                 target: settings.key,
-                 set: { value, updatedAt: new Date() },
-               });
-           });
-
-           ipcMain.handle('settings:get-all', async () => {
-             const db = getDb();
-             const rows = await db.select().from(settings);
-             return Object.fromEntries(rows.map(r => [r.key, r.value]));
-           });
-
-           ipcMain.handle('settings:delete', async (_event, key: string) => {
-             const db = getDb();
-             await db.delete(settings).where(eq(settings.key, key));
-           });
-         }
+         import UsageSummary from '../components/UsageSummary';
+         import { Info } from 'lucide-react';
+         ```
+         Also add to the existing destructure from useSettingsStore:
+         ```typescript
+         const { providers, loading, error, encryptionAvailable, loadProviders, loadSettings, checkEncryption } =
+           useSettingsStore();
          ```
 
-         Notes:
-         - settings:set uses onConflictDoUpdate (upsert) since key is the PK
-         - settings:get-all returns Record<string, string> for easy consumption
-         - Follows existing handler pattern (ipcMain.handle, getDb, return data)
-
-      2. Create src/main/ipc/ai-providers.ts:
-
-         Handlers for AI provider CRUD, connection testing, encryption check,
-         and usage queries.
-
-         ```typescript
-         // === FILE PURPOSE ===
-         // IPC handlers for AI provider management and usage tracking.
-         // Handles provider CRUD with encrypted API key storage,
-         // connection testing, and usage history queries.
-
-         import { ipcMain } from 'electron';
-         import { eq, desc } from 'drizzle-orm';
-         import { getDb } from '../db/connection';
-         import { aiProviders, aiUsage } from '../db/schema';
-         import {
-           encryptString,
-           isEncryptionAvailable,
-         } from '../services/secure-storage';
-         import { testConnection, clearProviderCache } from '../services/ai-provider';
-         import type { AIProviderName } from '../../shared/types';
-
-         /** Convert DB row to renderer-safe AIProvider (no raw API key) */
-         function toAIProvider(row: any) {
-           return {
-             id: row.id,
-             name: row.name,
-             displayName: row.displayName,
-             enabled: row.enabled,
-             hasApiKey: !!row.apiKeyEncrypted,
-             baseUrl: row.baseUrl,
-             createdAt: row.createdAt.toISOString(),
-             updatedAt: row.updatedAt.toISOString(),
-           };
-         }
-
-         export function registerAIProviderHandlers(): void {
-           // List all configured providers
-           ipcMain.handle('ai:list-providers', async () => {
-             const db = getDb();
-             const rows = await db.select().from(aiProviders);
-             return rows.map(toAIProvider);
-           });
-
-           // Create a new provider (encrypts API key if provided)
-           ipcMain.handle('ai:create-provider', async (_event, data: any) => {
-             const db = getDb();
-             const values: any = {
-               name: data.name,
-               displayName: data.displayName || null,
-               baseUrl: data.baseUrl || null,
-             };
-             if (data.apiKey) {
-               values.apiKeyEncrypted = encryptString(data.apiKey);
-             }
-             const [row] = await db.insert(aiProviders).values(values).returning();
-             return toAIProvider(row);
-           });
-
-           // Update a provider (re-encrypts API key if changed)
-           ipcMain.handle('ai:update-provider', async (_event, id: string, data: any) => {
-             const db = getDb();
-             const updates: any = { updatedAt: new Date() };
-             if (data.displayName !== undefined) updates.displayName = data.displayName;
-             if (data.baseUrl !== undefined) updates.baseUrl = data.baseUrl;
-             if (data.enabled !== undefined) updates.enabled = data.enabled;
-             if (data.apiKey !== undefined) {
-               updates.apiKeyEncrypted = data.apiKey ? encryptString(data.apiKey) : null;
-             }
-             const [row] = await db.update(aiProviders)
-               .set(updates)
-               .where(eq(aiProviders.id, id))
-               .returning();
-             clearProviderCache(id);
-             return toAIProvider(row);
-           });
-
-           // Delete a provider
-           ipcMain.handle('ai:delete-provider', async (_event, id: string) => {
-             const db = getDb();
-             await db.delete(aiProviders).where(eq(aiProviders.id, id));
-             clearProviderCache(id);
-           });
-
-           // Test provider connection (generates minimal completion)
-           ipcMain.handle('ai:test-connection', async (_event, id: string) => {
-             const db = getDb();
-             const [row] = await db.select().from(aiProviders)
-               .where(eq(aiProviders.id, id));
-             if (!row) throw new Error('Provider not found');
-             return testConnection(
-               row.name as AIProviderName,
-               row.apiKeyEncrypted,
-               row.baseUrl,
-             );
-           });
-
-           // Check if OS-level encryption is available
-           ipcMain.handle('ai:encryption-available', async () => {
-             return isEncryptionAvailable();
-           });
-
-           // Get recent usage entries (newest first, limit 100)
-           ipcMain.handle('ai:get-usage', async () => {
-             const db = getDb();
-             const rows = await db.select().from(aiUsage)
-               .orderBy(desc(aiUsage.createdAt))
-               .limit(100);
-             return rows.map(r => ({
-               ...r,
-               createdAt: r.createdAt.toISOString(),
-             }));
-           });
-
-           // Get aggregated usage summary
-           ipcMain.handle('ai:get-usage-summary', async () => {
-             const db = getDb();
-             const rows = await db.select().from(aiUsage);
-             const summary = {
-               totalTokens: 0,
-               totalCost: 0,
-               byProvider: {} as Record<string, { tokens: number; cost: number }>,
-               byTaskType: {} as Record<string, { tokens: number; cost: number }>,
-             };
-             for (const row of rows) {
-               summary.totalTokens += row.totalTokens;
-               summary.totalCost += row.estimatedCost ?? 0;
-
-               const pid = row.providerId ?? 'unknown';
-               if (!summary.byProvider[pid]) {
-                 summary.byProvider[pid] = { tokens: 0, cost: 0 };
-               }
-               summary.byProvider[pid].tokens += row.totalTokens;
-               summary.byProvider[pid].cost += row.estimatedCost ?? 0;
-
-               if (!summary.byTaskType[row.taskType]) {
-                 summary.byTaskType[row.taskType] = { tokens: 0, cost: 0 };
-               }
-               summary.byTaskType[row.taskType].tokens += row.totalTokens;
-               summary.byTaskType[row.taskType].cost += row.estimatedCost ?? 0;
-             }
-             return summary;
-           });
-         }
+      2. Add "AI Usage" section AFTER the Model Assignments section:
+         ```tsx
+         {/* === Section: AI Usage === */}
+         <section className="mb-10">
+           <div className="mb-4">
+             <h2 className="text-lg font-semibold text-surface-100">AI Usage</h2>
+             <p className="text-sm text-surface-500">
+               Token usage and estimated costs across all providers.
+             </p>
+           </div>
+           <UsageSummary />
+         </section>
          ```
 
-         Notes:
-         - toAIProvider maps DB rows to renderer-safe objects (hasApiKey boolean only)
-         - API keys encrypted before storage, NEVER sent to renderer process
-         - clearProviderCache called on update/delete to invalidate stale instances
-         - Usage summary computed in Node.js (acceptable for v1 single-user app)
-         - ai:get-usage limits to 100 entries (pagination can be added later)
-         - ai:get-usage converts timestamps to ISO strings for renderer
-
-      3. Modify src/main/ipc/index.ts:
-
-         Import and register the two new handler files:
-         ```typescript
-         import { registerSettingsHandlers } from './settings';
-         import { registerAIProviderHandlers } from './ai-providers';
-
-         // Add to registerIpcHandlers() body:
-         registerSettingsHandlers();
-         registerAIProviderHandlers();
+      3. Add "About" section as the LAST section:
+         ```tsx
+         {/* === Section: About === */}
+         <section className="mb-10">
+           <div className="mb-4">
+             <h2 className="text-lg font-semibold text-surface-100">About</h2>
+           </div>
+           <div className="p-4 bg-surface-800 border border-surface-700 rounded-lg">
+             <div className="flex items-center gap-2 mb-3">
+               <Info size={16} className="text-primary-400" />
+               <span className="text-sm font-medium text-surface-200">Living Dashboard</span>
+             </div>
+             <div className="space-y-1.5 text-xs text-surface-400">
+               <div className="flex justify-between">
+                 <span>Version</span>
+                 <span className="text-surface-300">0.1.0</span>
+               </div>
+               <div className="flex justify-between">
+                 <span>Encryption</span>
+                 <span className={encryptionAvailable ? 'text-emerald-400' : 'text-surface-500'}>
+                   {encryptionAvailable === null ? 'Checking...' : encryptionAvailable ? 'Available' : 'Unavailable'}
+                 </span>
+               </div>
+               <div className="flex justify-between">
+                 <span>Platform</span>
+                 <span className="text-surface-300">{window.electronAPI.platform}</span>
+               </div>
+             </div>
+           </div>
+         </section>
          ```
 
-      4. Modify src/preload/preload.ts:
-
-         Add bridge methods for settings and AI providers after the Labels section.
-         Follow existing pattern (thin wrappers around ipcRenderer.invoke).
-
-         ```typescript
-         // Settings
-         getSetting: (key: string) => ipcRenderer.invoke('settings:get', key),
-         setSetting: (key: string, value: string) =>
-           ipcRenderer.invoke('settings:set', key, value),
-         getAllSettings: () => ipcRenderer.invoke('settings:get-all'),
-         deleteSetting: (key: string) => ipcRenderer.invoke('settings:delete', key),
-
-         // AI Providers
-         getAIProviders: () => ipcRenderer.invoke('ai:list-providers'),
-         createAIProvider: (data: any) => ipcRenderer.invoke('ai:create-provider', data),
-         updateAIProvider: (id: string, data: any) =>
-           ipcRenderer.invoke('ai:update-provider', id, data),
-         deleteAIProvider: (id: string) =>
-           ipcRenderer.invoke('ai:delete-provider', id),
-         testAIConnection: (id: string) =>
-           ipcRenderer.invoke('ai:test-connection', id),
-         isEncryptionAvailable: () => ipcRenderer.invoke('ai:encryption-available'),
-         getAIUsage: () => ipcRenderer.invoke('ai:get-usage'),
-         getAIUsageSummary: () => ipcRenderer.invoke('ai:get-usage-summary'),
-         ```
-
-         Same `any` pattern for data params as existing bridge methods.
-         Type safety enforced by ElectronAPI interface in shared/types.ts.
+      Key design notes:
+      - UsageSummary fetches directly from IPC (not store) — read-only, no caching needed
+      - Refresh button lets user manually re-fetch without page reload
+      - Empty state when no usage data exists (clean messaging)
+      - About section shows version (hardcoded 0.1.0 for now), encryption status, platform
+      - formatCost uses 4 decimal places since AI costs can be very small
+      - Provider IDs are shown as-is in usage breakdown (UUIDs — could map to names later)
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — no TypeScript errors
-      2. Verify settings.ts has 4 handlers: settings:get, settings:set,
-         settings:get-all, settings:delete
-      3. Verify ai-providers.ts has 8 handlers: ai:list-providers, ai:create-provider,
-         ai:update-provider, ai:delete-provider, ai:test-connection,
-         ai:encryption-available, ai:get-usage, ai:get-usage-summary
-      4. Verify index.ts imports and calls registerSettingsHandlers and registerAIProviderHandlers
-      5. Verify preload.ts has 12 new methods (4 settings + 8 AI)
-      6. Cross-check: every ElectronAPI method in types.ts has a matching
-         preload bridge method AND a matching IPC handler
+      2. Verify UsageSummary.tsx exports component that fetches from getAIUsageSummary
+      3. Verify UsageSummary shows totals, by-provider, and by-task-type breakdowns
+      4. Verify UsageSummary has empty state for zero usage
+      5. Verify SettingsPage.tsx now has 5 sections in order:
+         Appearance, AI Providers, Model Assignments, AI Usage, About
+      6. Verify SettingsPage imports UsageSummary and Info icon
+      7. Verify About section shows encryption status from store
     </verify>
     <done>
-      Settings IPC handlers (4) provide key-value CRUD with upsert support.
-      AI provider IPC handlers (8) support provider CRUD with encrypted key storage,
-      connection testing, encryption availability check, and usage queries.
-      Preload bridge extended with 12 new methods matching ElectronAPI interface.
-      All handlers registered in index.ts.
+      UsageSummary component created with token totals, cost tracking,
+      and breakdowns by provider and task type. About section shows
+      app version, encryption status, and platform. Settings page now
+      has 5 complete sections: Appearance, AI Providers, Model Assignments,
+      AI Usage, and About.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Drizzle onConflictDoUpdate works with varchar PK (settings table)
-      - desc() from drizzle-orm works for ordering ai_usage by createdAt
-      - encryptString/decryptString are callable from IPC handlers (after app ready)
-      - ipcMain.handle IPC channel names don't conflict with existing handlers
+      - window.electronAPI.getAIUsageSummary returns AIUsageSummary type correctly
+      - window.electronAPI.platform returns a valid string (available via preload bridge)
+      - toLocaleString works in Electron's Chromium for number formatting
+      - HTML entity &amp;middot; renders correctly in JSX (may need to use Unicode \u00B7 instead)
     </assumptions>
   </task>
 </phase>

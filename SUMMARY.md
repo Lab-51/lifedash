@@ -1,63 +1,56 @@
-# Plan 3.1 Summary — AI Provider Backend & Settings Foundation
+# Plan 3.2 Summary — Settings UI & AI Provider Management
 
-## Date: 2026-02-12
+## Date: 2026-02-13
 ## Status: COMPLETE (3/3 tasks)
 
 ## What Changed
-Installed AI SDK dependencies, created database schema for settings/providers/usage, built service layer with secure storage and provider management, and wired everything through IPC handlers and preload bridge.
+Created the full Settings page UI with AI provider management (add, edit, test, enable/disable, delete) and per-task model assignment configuration.
 
-### Task 1: Install AI SDK dependencies and create database schema
+### Task 1: Create settings Zustand store
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Installed 4 packages: `ai` v6.0.84, `@ai-sdk/openai` v3.0.28, `@ai-sdk/anthropic` v3.0.43, `ollama-ai-provider` v1.2.0
-- Created `settings` table — generic key-value store (varchar PK, text value, updated_at)
-- Created `ai_providers` table — provider configs with encrypted API key storage
-- Created `ai_usage` table — append-only token usage log
-- Migration generated (0001_even_true_believers.sql) and applied to PostgreSQL
+- Created `settingsStore.ts` — Zustand store for AI providers, settings, connection tests
+- Provider CRUD: loadProviders, createProvider, updateProvider, deleteProvider
+- Connection testing: per-provider loading/result state (parallel-safe)
+- Settings: loadSettings, setSetting (generic key-value)
+- Task models: getTaskModels (JSON parse from settings), setTaskModels (JSON serialize)
+- Encryption: checkEncryption (caches result from main process)
 
-### Task 2: Create shared types and main process services
+### Task 2: Create settings page with AI provider management
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Added 9 AI types to shared/types.ts (AIProviderName, AITaskType, AIProvider, CreateAIProviderInput, UpdateAIProviderInput, AIConnectionTestResult, AIUsageEntry, AIUsageSummary, TaskModelConfig)
-- Extended ElectronAPI interface with 12 new methods (4 settings + 6 AI provider + 2 AI usage)
-- Created secure-storage.ts — Electron safeStorage wrapper (encrypt/decrypt API keys to/from base64)
-- Created ai-provider.ts — Provider manager with factory caching, connection testing, and text generation with automatic usage logging
+- Replaced placeholder SettingsPage.tsx with full sectioned layout
+- Created AddProviderForm.tsx — inline form with provider type buttons (OpenAI/Anthropic/Ollama), API key input with show/hide toggle, optional display name and base URL
+- Created ProviderCard.tsx — card with color-coded indicator, enable/disable toggle, API key status, inline key editing, connection test with latency display, delete with 2-step confirmation
+- Provider cards in responsive 1/2/3 column grid
+- Empty state with Bot icon when no providers configured
 
-### Task 3: Create IPC handlers and extend preload bridge
+### Task 3: Create per-task model configuration component
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- Created settings.ts — 4 IPC handlers (get, set/upsert, get-all, delete)
-- Created ai-providers.ts — 8 IPC handlers (provider CRUD, connection test, encryption check, usage queries)
-- Updated ipc/index.ts — registered both new handler files
-- Extended preload.ts — 12 new bridge methods matching ElectronAPI interface
+- Created TaskModelConfig.tsx — per-task-type provider and model assignment
+- Four task types: summarization, brainstorming, task_generation, idea_analysis
+- Known models per provider (GPT-4o, Claude Sonnet 4.5, Llama 3.2, etc.)
+- Ollama uses text input (local model names vary per installation)
+- Draft state with Save/Reset buttons, "Saved!" feedback
+- Empty state when no enabled providers exist
+- Wired into SettingsPage.tsx replacing placeholder, cleaned up unused import
 
-## Files Created (6)
-- `src/main/db/schema/settings.ts` — Settings table schema
-- `src/main/db/schema/ai-providers.ts` — AI providers + usage tables schema
-- `src/main/services/secure-storage.ts` — Electron safeStorage encryption wrapper
-- `src/main/services/ai-provider.ts` — AI provider manager (cache, test, generate)
-- `src/main/ipc/settings.ts` — 4 settings IPC handlers
-- `src/main/ipc/ai-providers.ts` — 8 AI provider/usage IPC handlers
+## Files Created (4)
+- `src/renderer/stores/settingsStore.ts` — Zustand store (~140 lines)
+- `src/renderer/components/AddProviderForm.tsx` — Add provider form (~130 lines)
+- `src/renderer/components/ProviderCard.tsx` — Provider card with actions (~165 lines)
+- `src/renderer/components/TaskModelConfig.tsx` — Model assignment config (~170 lines)
 
-## Files Modified (4)
-- `package.json` — 4 new dependencies (ai, @ai-sdk/openai, @ai-sdk/anthropic, ollama-ai-provider)
-- `src/main/db/schema/index.ts` — Added barrel exports for settings + ai-providers
-- `src/shared/types.ts` — 9 new types + 12 new ElectronAPI methods
-- `src/main/ipc/index.ts` — Registered settings and AI provider handlers
-- `src/preload/preload.ts` — 12 new bridge methods
-
-## Deviations from Plan
-1. **AI SDK v6 API**: `maxTokens` → `maxOutputTokens`, token usage uses `inputTokens`/`outputTokens` (not `promptTokens`/`completionTokens`)
-2. **Type safety**: `toAIProvider` uses Drizzle `$inferSelect` type instead of `any`
-3. **LanguageModel cast**: ollama-ai-provider v1.2.0 returns LanguageModelV1, requires `as LanguageModel` cast
+## Files Modified (1)
+- `src/renderer/pages/SettingsPage.tsx` — Replaced placeholder (~105 lines)
 
 ## Verification
-- `npx tsc --noEmit`: PASS (zero errors)
-- Migration: PASS (generated and applied)
-- All 12 ElectronAPI methods fully wired (type → handler → bridge)
-- Runtime test: PENDING
+- `npx tsc --noEmit`: PASS (zero errors after each task and final)
+- All ElectronAPI method calls verified against interface
+- All Lucide React icons confirmed available
+- Component props types match shared types
 
 ## What's Next
-1. `/nexus:git` to commit Plan 3.1 changes
-2. `/nexus:plan 3.2` for Settings UI
-3. After Plan 3.2: Plan 3.3 (Theme + polish)
+1. `/nexus:git` to commit Plan 3.2 changes
+2. `/nexus:plan 3.3` for Theme, Usage & App Settings
