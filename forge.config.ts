@@ -3,6 +3,7 @@
 
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
+import { MakerWix } from '@electron-forge/maker-wix';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
@@ -61,6 +62,14 @@ const config: ForgeConfig = {
         : {},
     ),
     new MakerZIP({}, ['darwin']),
+    new MakerWix({
+      name: 'Living Dashboard',
+      manufacturer: 'Living Dashboard',
+      upgradeCode: '570d3454-6859-4ff3-9f24-385a00bcc551',
+      ui: {
+        chooseDirectory: true,
+      },
+    }),
   ],
   plugins: [
     new VitePlugin({
