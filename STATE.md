@@ -2,14 +2,15 @@
 
 ## Session Info
 Last updated: 2026-02-14
-Session focus: Plan 9.2 execution — post-recording UX
+Session focus: Custom recordings save folder (ad-hoc feature)
+Checkpoint reason: Feature complete, pushed to GitHub, learnings synced
 
 ## Position
 Milestone: Standalone Distribution
 Phase: 9 (Distribution Readiness)
 Plan: 9.2 — COMPLETE (3/3 tasks executed)
 Ad-hoc: Custom Recordings Save Folder — COMPLETE (2/2 tasks)
-Latest commit: 73d8895 on main (pushed to origin)
+Latest commit: d42efbe on main (pushed to origin)
 
 ## Ad-Hoc Features (this session)
 
@@ -67,7 +68,7 @@ Plans 8.1-8.7 + 4 ad-hoc features delivered.
 
 ## Confidence Levels
 Overall approach: HIGH
-Ad-hoc (recordings folder): HIGH — follows existing patterns exactly (AudioDeviceSection, backup dialog)
+All ad-hoc features: HIGH — verified with tsc + 99/99 tests
 
 ## Decisions Made (Phase 9)
 - PGlite over embedded-postgres: smaller bundle, WASM arch-independent

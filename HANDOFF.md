@@ -1,54 +1,55 @@
 # Session Handoff — 2026-02-14
 
-## What Was Done
+## What Happened This Session
 
-Plan 9.1 executed: replaced Docker PostgreSQL with PGlite (embedded WASM PostgreSQL). The app is now fully standalone — no Docker, no external database.
+### Executed: Custom Recordings Save Folder (Plan 9.ad-hoc)
 
-### 1. PGlite Migration (dc47fb7)
-Replaced `postgres` driver with `@electric-sql/pglite`. Database runs in-process as WASM with filesystem persistence in `userData/pg-data/`. All 50+ files using `getDb()` work unchanged.
-- **Files:** connection.ts (rewrite), migrate.ts, main.ts, package.json
+**Commit:** `d42efbe` — pushed to origin/main
 
-### 2. Backup Service Rewrite (dc47fb7)
-Replaced Docker `pg_dump`/`psql` with Drizzle-based JSON backup/restore. 21 tables queried in FK-safe order. API keys stripped from backups.
-- **Files:** backupService.ts (rewrite), exportService.ts (added cardAttachments)
+Task 1 — Settings-aware recordings path + IPC plumbing (5 files):
+- `audioProcessor.ts`: `getRecordingsDir()` now async, reads `recordings:savePath` from settings DB with try/catch fallback
+- `settings.ts`: Added `settings:pick-recordings-folder` (native dialog) + `settings:get-default-recordings-path` handlers, now takes `mainWindow` param
+- `index.ts`: Passes `mainWindow` to `registerSettingsHandlers()`
+- `preload/settings.ts`: Added `pickRecordingsFolder` + `getDefaultRecordingsPath` to bridge
+- `electron-api.ts`: Extended ElectronAPI interface
 
-### 3. Packaging + Config Cleanup (dc47fb7)
-Updated forge.config.ts (extraResource for migrations), vite.main.config.ts (externalize PGlite), README (removed Docker prereq), docker-compose.yml + .env.example (marked optional).
-- **Files:** forge.config.ts, vite.main.config.ts, drizzle.config.ts, README.md, docker-compose.yml, .env.example
+Task 2 — Recordings Folder settings UI (1 new + 1 modified):
+- `RecordingsSavePathSection.tsx` (NEW): Settings section with Browse/Reset, follows AudioDeviceSection pattern
+- `SettingsPage.tsx`: Renders new section after Audio Devices
 
-### 4. Packaging Fixes (d706bf3)
-Fixed two issues discovered during `npm run package` testing:
-- **PGlite not found in asar:** Added `packageAfterCopy` hook to copy externalized `@electric-sql/pglite` into the staging directory before asar creation.
-- **Renderer HTML missing:** Same hook copies renderer build from `src/renderer/.vite/renderer/` to `.vite/renderer/` (Vite `root` config causes misplaced output).
-- **Orphaned processes:** Close button now quits the app on Windows/Linux instead of hiding to tray.
-- **Files:** forge.config.ts, src/main/main.ts
+### Learnings Captured
+3 learnings captured, reviewed, approved, and synced to GitHub (`~/.nexus`):
+1. Main-process settings async fallback pattern (Technical)
+2. IPC handler mainWindow for dialog parenting (Technical)
+3. Consistent settings UI section pattern (Pattern)
 
-### 5. Documentation (ef26657)
-Updated ARCHITECTURE.md and DEVELOPMENT.md to reflect PGlite, simplified setup, packaging details.
-- **Files:** docs/ARCHITECTURE.md, docs/DEVELOPMENT.md
+## Verification Status
 
-## Verification
-- `npx tsc --noEmit` — zero errors
-- `npx vitest run` — 99/99 tests pass
-- `npm run start` — app boots with PGlite (tested)
-- `npm run package` — packaged app boots, DB connects, migrations apply, renderer loads (tested)
-- Close button terminates all processes on Windows (tested)
+- TypeScript: zero errors
+- Tests: 99/99 pass
+- Git: clean working tree, up to date with origin
+
+### Pending Manual Testing
+- [ ] Settings > Recordings Folder section visible
+- [ ] Browse picks folder, "(custom)" badge appears
+- [ ] Custom path persists across Settings close/reopen
+- [ ] Reset reverts to default
+- [ ] Recording saves WAV to custom folder
+- [ ] Recording saves WAV to default after reset
+- [ ] Audio level meter, silence detection, mic selection (from prior session)
 
 ## Resume Context
-- **Branch:** main (clean, all pushed to origin)
-- **Latest commit:** ef26657
-- **Test suite:** 99 tests across 5 files
-- **Phase 9:** Plan 9.1 COMPLETE, Plan 9.2+ not yet planned
 
-## Next Actions
-1. Manual testing: CRUD operations in the packaged app (projects, boards, cards, meetings, ideas, brainstorm, settings)
-2. Manual testing: backup create/restore with new JSON format
-3. `npm run make` — test building the actual Squirrel installer
-4. Plan 9.2: auto-updates, installer signing, or other distribution tasks
-5. Or: return to Phase 8 backlog (pagination, CI/CD, remaining review items)
+**Next action:** User testing of the recordings folder feature, then decide on next ad-hoc feature or Plan 9.3.
 
-## Key Architecture Notes for Next Session
-- **Forge packaging hook** (`forge.config.ts` lines 26-45): Any new externalized Vite dependency must be added to `EXTERNAL_PACKAGES` array, or it won't be in the packaged app.
-- **PGlite data location:** `app.getPath('userData')/pg-data/` — survives app updates.
-- **Backup format:** JSON with `{ version: 1, createdAt, tableCount, tables }` structure. Old `.sql` backups still listed but can't be restored.
-- **Close behavior:** macOS hides to tray; Windows/Linux quits. Controlled in `main.ts` line 136.
+**No blockers.** All code compiles, all tests pass, everything pushed.
+
+**Possible next steps:**
+- User testing of recording features (mic selection, level meter, silence detection, custom save path)
+- Plan 9.3 or additional ad-hoc features
+- Packaging a new build for end-to-end testing
+
+## Key Files
+- `STATE.md` — Full current position
+- `PLAN.md` — Last executed plan (9.ad-hoc)
+- `ROADMAP.md` — Phase overview
