@@ -6,14 +6,14 @@
 // react (useEffect, useState, useRef), lucide-react (Mic),
 // meetingStore, recordingStore, projectStore, RecordingControls, MeetingCard, LoadingSpinner
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { Mic, Info, Search, X } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useProjectStore } from '../stores/projectStore';
 import RecordingControls from '../components/RecordingControls';
 import MeetingCard from '../components/MeetingCard';
-import MeetingDetailModal from '../components/MeetingDetailModal';
+const MeetingDetailModal = lazy(() => import('../components/MeetingDetailModal'));
 import LoadingSpinner from '../components/LoadingSpinner';
 
 type FilterTab = 'all' | 'recording' | 'completed';
@@ -273,16 +273,18 @@ function MeetingsPage() {
       )}
 
       {/* Meeting detail modal */}
-      {selectedMeetingId && (
-        <MeetingDetailModal
-          autoGenerate={selectedMeetingId === autoOpenedMeetingId}
-          onClose={() => {
-            setSelectedMeetingId(null);
-            setAutoOpenedMeetingId(null);
-            loadMeetings(); // Refresh list after viewing/editing
-          }}
-        />
-      )}
+      <Suspense fallback={null}>
+        {selectedMeetingId && (
+          <MeetingDetailModal
+            autoGenerate={selectedMeetingId === autoOpenedMeetingId}
+            onClose={() => {
+              setSelectedMeetingId(null);
+              setAutoOpenedMeetingId(null);
+              loadMeetings(); // Refresh list after viewing/editing
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

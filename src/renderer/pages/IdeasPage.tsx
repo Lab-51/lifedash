@@ -6,13 +6,13 @@
 // react (useEffect, useState), react-router-dom (useNavigate),
 // lucide-react icons, ideaStore, shared types
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lightbulb, Plus, Search, X, Zap, Target, Loader2 } from 'lucide-react';
 import { useIdeaStore } from '../stores/ideaStore';
 import type { IdeaStatus } from '../../shared/types';
 
-import IdeaDetailModal from '../components/IdeaDetailModal';
+const IdeaDetailModal = lazy(() => import('../components/IdeaDetailModal'));
 
 const FILTER_TABS: { label: string; value: IdeaStatus | 'all' }[] = [
   { label: 'All', value: 'all' },
@@ -260,13 +260,15 @@ function IdeasPage() {
         </div>
       )}
 
-      {selectedIdeaId && (
-        <IdeaDetailModal
-          ideaId={selectedIdeaId}
-          onClose={() => { setSelectedIdeaId(null); loadIdeas(); }}
-          onNavigate={(path) => navigate(path)}
-        />
-      )}
+      <Suspense fallback={null}>
+        {selectedIdeaId && (
+          <IdeaDetailModal
+            ideaId={selectedIdeaId}
+            onClose={() => { setSelectedIdeaId(null); loadIdeas(); }}
+            onNavigate={(path) => navigate(path)}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

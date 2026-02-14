@@ -10,7 +10,7 @@
 // @atlaskit/pragmatic-drag-and-drop (monitorForElements), closest-edge
 
 import { useParams, Link } from 'react-router-dom';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, lazy, Suspense } from 'react';
 import { ArrowLeft, Plus, X, Search, ChevronDown } from 'lucide-react';
 import {
   monitorForElements,
@@ -18,7 +18,7 @@ import {
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import { useBoardStore, getCardsByColumn } from '../stores/boardStore';
 import LoadingSpinner from '../components/LoadingSpinner';
-import CardDetailModal from '../components/CardDetailModal';
+const CardDetailModal = lazy(() => import('../components/CardDetailModal'));
 import BoardColumn from '../components/BoardColumn';
 import type { CardPriority } from '../../shared/types';
 
@@ -467,13 +467,15 @@ function BoardPage() {
       </div>
 
       {/* Card detail modal */}
-      {selectedCard && (
-        <CardDetailModal
-          card={selectedCard}
-          onUpdate={updateCard}
-          onClose={() => setSelectedCardId(null)}
-        />
-      )}
+      <Suspense fallback={null}>
+        {selectedCard && (
+          <CardDetailModal
+            card={selectedCard}
+            onUpdate={updateCard}
+            onClose={() => setSelectedCardId(null)}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

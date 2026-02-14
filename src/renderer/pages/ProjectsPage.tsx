@@ -8,12 +8,12 @@
 // lucide-react (FolderKanban, Plus, Archive, Sparkles), projectStore, LoadingSpinner,
 // ProjectPlanningModal, shared types (CreateProjectInput)
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FolderKanban, Plus, Archive, Sparkles } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import LoadingSpinner from '../components/LoadingSpinner';
-import ProjectPlanningModal from '../components/ProjectPlanningModal';
+const ProjectPlanningModal = lazy(() => import('../components/ProjectPlanningModal'));
 import type { CreateProjectInput } from '../../shared/types';
 
 const PRESET_COLORS = [
@@ -232,17 +232,19 @@ function ProjectsPage() {
         </div>
       )}
       {/* AI Planning Modal */}
-      {planningProjectId && (
-        <ProjectPlanningModal
-          projectId={planningProjectId}
-          projectName={projects.find(p => p.id === planningProjectId)?.name || ''}
-          onClose={() => setPlanningProjectId(null)}
-          onApplied={(pid) => {
-            setPlanningProjectId(null);
-            navigate(`/projects/${pid}`);
-          }}
-        />
-      )}
+      <Suspense fallback={null}>
+        {planningProjectId && (
+          <ProjectPlanningModal
+            projectId={planningProjectId}
+            projectName={projects.find(p => p.id === planningProjectId)?.name || ''}
+            onClose={() => setPlanningProjectId(null)}
+            onApplied={(pid) => {
+              setPlanningProjectId(null);
+              navigate(`/projects/${pid}`);
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }
