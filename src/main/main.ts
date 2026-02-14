@@ -130,11 +130,14 @@ const createWindow = async () => {
     log.error('DB connection failed:', error);
   }
 
-  // --- Close-to-tray behavior ---
-  // Instead of quitting, hide to tray. Only actually close when
-  // app.isQuitting is set (from tray "Quit" or before-quit event).
+  // --- Close behavior ---
+  // On macOS, hide to tray (standard macOS behavior — red button hides, Cmd+Q quits).
+  // On Windows/Linux, close button quits the app to prevent orphaned processes.
   mainWindow.on('close', (event) => {
-    if (!(app as unknown as { isQuitting: boolean }).isQuitting) {
+    if (
+      process.platform === 'darwin' &&
+      !(app as unknown as { isQuitting: boolean }).isQuitting
+    ) {
       event.preventDefault();
       mainWindow?.hide();
     }

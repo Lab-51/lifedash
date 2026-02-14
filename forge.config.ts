@@ -7,13 +7,46 @@ import { MakerZIP } from '@electron-forge/maker-zip';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
+// Packages that Vite externalizes (not bundled) and must be copied
+// into the packaged app manually, since the Forge Vite plugin only
+// includes .vite/build/ output — not node_modules.
+const EXTERNAL_PACKAGES = ['@electric-sql/pglite'];
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    // Extract PGlite from the asar so its WASM binary loads as a real file
+    asarUnpack: ['**/node_modules/@electric-sql/pglite/**'],
     extraResource: ['./drizzle'],
   },
   rebuildConfig: {},
+  hooks: {
+    // Copy externalized packages into the staging directory before asar creation.
+    // The Forge Vite plugin bundles all code into .vite/build/ but excludes
+    // packages listed in rollupOptions.external — those need node_modules.
+    packageAfterCopy: async (_config, buildPath) => {
+      // 1. Copy externalized packages (Vite keeps require() calls but
+      //    Forge Vite plugin doesn't include node_modules in the asar)
+      for (const dep of EXTERNAL_PACKAGES) {
+        const src = path.join(__dirname, 'node_modules', dep);
+        const dest = path.join(buildPath, 'node_modules', dep);
+        fs.cpSync(src, dest, { recursive: true });
+      }
+
+      // 2. Copy renderer build output. The Forge Vite plugin outputs
+      //    renderer files under src/renderer/.vite/ (because the renderer
+      //    config sets root: 'src/renderer'), but the packager expects
+      //    them at .vite/renderer/ relative to the app root.
+      const rendererSrc = path.join(__dirname, 'src', 'renderer', '.vite', 'renderer');
+      const rendererDest = path.join(buildPath, '.vite', 'renderer');
+      if (fs.existsSync(rendererSrc)) {
+        fs.cpSync(rendererSrc, rendererDest, { recursive: true });
+      }
+    },
+  },
   makers: [
     new MakerSquirrel({}),
     new MakerZIP({}, ['darwin']),
