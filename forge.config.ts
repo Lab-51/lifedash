@@ -13,7 +13,11 @@ import * as path from 'node:path';
 // Packages that Vite externalizes (not bundled) and must be copied
 // into the packaged app manually, since the Forge Vite plugin only
 // includes .vite/build/ output — not node_modules.
-const EXTERNAL_PACKAGES = ['@electric-sql/pglite'];
+const EXTERNAL_PACKAGES = [
+  '@electric-sql/pglite',
+  '@fugood/whisper.node',
+  '@fugood/node-whisper-win32-x64',
+];
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -60,10 +64,8 @@ const config: ForgeConfig = {
           config: 'vite.main.config.ts',
           target: 'main',
         },
-        {
-          entry: 'src/main/workers/transcriptionWorker.ts',
-          config: 'vite.main.config.ts',
-        },
+        // transcriptionWorker removed — whisper now runs in-process
+        // via native Napi::AsyncWorker (non-blocking)
         {
           entry: 'src/preload/preload.ts',
           config: 'vite.preload.config.ts',

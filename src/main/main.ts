@@ -152,8 +152,8 @@ const createWindow = async () => {
     );
   }
 
-  // Open DevTools in development
-  if (process.env.NODE_ENV !== 'production') {
+  // Open DevTools in development only
+  if (!app.isPackaged) {
     mainWindow.webContents.openDevTools();
   }
 };

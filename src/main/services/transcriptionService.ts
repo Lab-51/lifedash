@@ -1,21 +1,25 @@
 // === FILE PURPOSE ===
 // Transcription service — accumulates PCM chunks into 10-second segments,
-// dispatches them to the whisper worker thread (local) or cloud API
+// dispatches them to local Whisper (in-process) or cloud API
 // (Deepgram/AssemblyAI), saves results to DB, and pushes segments to the renderer.
 //
 // === DEPENDENCIES ===
-// worker_threads (Worker), whisperModelManager, meetingService, electron (BrowserWindow),
-// transcriptionProviderService, deepgramTranscriber, assemblyaiTranscriber
+// @fugood/whisper.node (initWhisper), whisperModelManager, meetingService,
+// electron (BrowserWindow), transcriptionProviderService,
+// deepgramTranscriber, assemblyaiTranscriber
 //
 // === LIMITATIONS ===
 // - Sequential transcription (one segment at a time)
 // - Fixed 10-second segments (no VAD-based splitting)
 // - English-only for v1 (language is hardcoded)
 // - API providers add network latency per segment
+//
+// === NOTES ===
+// Whisper runs in-process (no Worker thread). The native module's
+// transcribeData() is non-blocking — it queues work on a background
+// C++ thread via Napi::AsyncWorker and returns a Promise.
 
-import { Worker } from 'worker_threads';
 import { BrowserWindow } from 'electron';
-import path from 'node:path';
 import * as meetingService from './meetingService';
 import * as whisperModelManager from './whisperModelManager';
 import * as transcriptionProviderService from './transcriptionProviderService';
@@ -28,38 +32,15 @@ import type { TranscriptionProviderType } from '../../shared/types';
 
 const log = createLogger('Transcription');
 
-// --- Worker message types ---
-
-/** Messages sent from the transcription worker back to the main process */
-interface WorkerReadyMessage {
-  type: 'ready';
-}
-
-interface WorkerResultMessage {
-  type: 'result';
-  text: string;
-  segments: Array<{ text: string; t0: number; t1: number }>;
-  segmentIndex: number;
-  startTimeMs: number;
-}
-
-interface WorkerErrorMessage {
-  type: 'error';
-  message: string;
-}
-
-interface WorkerStoppedMessage {
-  type: 'stopped';
-}
-
-type WorkerMessage = WorkerReadyMessage | WorkerResultMessage | WorkerErrorMessage | WorkerStoppedMessage;
+// Whisper context type — imported as type-only to avoid eager native module loading
+import type { WhisperContext } from '@fugood/whisper.node';
 
 const SAMPLE_RATE = 16000;
 const SEGMENT_DURATION_SEC = 10;
 const SAMPLES_PER_SEGMENT = SAMPLE_RATE * SEGMENT_DURATION_SEC; // 160,000
 const BYTES_PER_SEGMENT = SAMPLES_PER_SEGMENT * 2; // 320,000 (Int16 = 2 bytes)
 
-let worker: Worker | null = null;
+let whisperContext: WhisperContext | null = null;
 let mainWindow: BrowserWindow | null = null;
 let currentMeetingId: string | null = null;
 let accumulatorBuffer: Buffer = Buffer.alloc(0);
@@ -79,7 +60,7 @@ export function getLastTranscript(): string {
 
 /**
  * Start the transcription pipeline for a recording session.
- * Resolves the configured provider, then either spawns a local Whisper worker
+ * Resolves the configured provider, then either initializes local Whisper
  * or prepares for cloud API dispatching.
  */
 export async function start(meetingId: string): Promise<void> {
@@ -104,34 +85,25 @@ export async function start(meetingId: string): Promise<void> {
       return;
     }
 
-    // Spawn worker — the transcriptionWorker.ts is built as a separate entry
-    // by Electron Forge/Vite and placed alongside the main process bundle.
-    const workerPath = path.join(__dirname, 'transcriptionWorker.js');
-    worker = new Worker(workerPath);
+    // Initialize whisper context directly in the main process.
+    // transcribeData() is non-blocking — the native module runs heavy
+    // computation on a background C++ thread via Napi::AsyncWorker.
+    try {
+      const { initWhisper } = await import('@fugood/whisper.node');
 
-    // Handle worker errors
-    worker.on('error', (err) => {
-      log.error('Worker error:', err);
-    });
+      // Release any existing context before creating a new one
+      if (whisperContext) {
+        try { await whisperContext.release(); } catch { /* ignore */ }
+        whisperContext = null;
+      }
 
-    // Initialize whisper in the worker
-    await new Promise<void>((resolve, reject) => {
-      const onMessage = (msg: WorkerMessage) => {
-        if (msg.type === 'ready') {
-          worker?.off('message', onMessage);
-          resolve();
-        } else if (msg.type === 'error') {
-          worker?.off('message', onMessage);
-          reject(new Error(msg.message));
-        }
-      };
-      worker!.on('message', onMessage);
-      worker!.postMessage({ type: 'init', modelPath });
-    });
-
-    // Attach the main message handler for transcription results
-    worker.on('message', handleWorkerMessage);
-    log.info(`Started (local) with model: ${path.basename(modelPath)}`);
+      whisperContext = await initWhisper({ filePath: modelPath });
+      log.info(`Started (local) with model: ${require('path').basename(modelPath)}`);
+    } catch (err) {
+      log.error('Failed to initialize Whisper:', err);
+      currentMeetingId = null;
+      return;
+    }
   } else {
     // Cloud API provider — verify key is configured
     const key = await transcriptionProviderService.getDecryptedKey(
@@ -149,11 +121,11 @@ export async function start(meetingId: string): Promise<void> {
 
 /**
  * Feed a PCM chunk into the transcription pipeline.
- * Accumulates chunks and dispatches 10-second segments to worker or API.
+ * Accumulates chunks and dispatches 10-second segments to Whisper or API.
  */
 export function addChunk(chunk: Buffer): void {
   if (!currentMeetingId) return;
-  if (activeProvider === 'local' && !worker) return;
+  if (activeProvider === 'local' && !whisperContext) return;
 
   accumulatorBuffer = Buffer.concat([accumulatorBuffer, chunk]);
 
@@ -170,8 +142,8 @@ export function addChunk(chunk: Buffer): void {
  * Stop the transcription pipeline. Transcribes any remaining audio, then terminates.
  */
 export async function stop(): Promise<void> {
-  // Allow stop for both local (worker) and API modes
-  if (activeProvider === 'local' && !worker) return;
+  // Allow stop for both local and API modes
+  if (activeProvider === 'local' && !whisperContext) return;
   if (activeProvider !== 'local' && !currentMeetingId) return;
 
   // Transcribe remaining accumulated audio (partial segment)
@@ -184,11 +156,10 @@ export async function stop(): Promise<void> {
   // Wait for pending transcriptions to finish
   await waitForPending();
 
-  // Terminate local worker if it exists
-  if (worker) {
-    worker.postMessage({ type: 'stop' });
-    await worker.terminate();
-    worker = null;
+  // Release whisper context
+  if (whisperContext) {
+    try { await whisperContext.release(); } catch { /* ignore */ }
+    whisperContext = null;
   }
 
   currentMeetingId = null;
@@ -196,12 +167,12 @@ export async function stop(): Promise<void> {
   log.info('Stopped');
 }
 
-/** Dispatch the next pending segment to the worker or cloud API */
+/** Dispatch the next pending segment to Whisper or cloud API */
 function dispatchNext(): void {
   if (transcribing || pendingSegments.length === 0) return;
 
-  // For local mode, need worker to be available
-  if (activeProvider === 'local' && !worker) return;
+  // For local mode, need whisper context to be available
+  if (activeProvider === 'local' && !whisperContext) return;
 
   transcribing = true;
   const segment = pendingSegments.shift()!;
@@ -209,33 +180,69 @@ function dispatchNext(): void {
   segmentIndex++;
 
   if (activeProvider === 'local') {
-    // Local Whisper: dispatch to worker thread
-    dispatchToWorker(segment, startTimeMs);
+    // Local Whisper: transcribe directly (non-blocking via native async worker)
+    dispatchToWhisper(segment, startTimeMs);
   } else {
     // Cloud API: dispatch async
     dispatchToApi(segment, startTimeMs);
   }
 }
 
-/** Dispatch a segment to the local Whisper worker thread */
-function dispatchToWorker(segment: Buffer, startTimeMs: number): void {
-  // Convert Buffer to ArrayBuffer for transfer.
-  // Buffer.from() always creates ArrayBuffer-backed buffers (not SharedArrayBuffer),
-  // so the cast is safe here.
-  const arrayBuffer = segment.buffer.slice(
-    segment.byteOffset,
-    segment.byteOffset + segment.byteLength,
-  ) as ArrayBuffer;
+/** Dispatch a segment to the local Whisper context for transcription */
+async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<void> {
+  try {
+    // Convert Buffer to ArrayBuffer for the native module
+    const arrayBuffer = segment.buffer.slice(
+      segment.byteOffset,
+      segment.byteOffset + segment.byteLength,
+    ) as ArrayBuffer;
 
-  worker!.postMessage(
-    {
-      type: 'transcribe',
-      audioData: arrayBuffer,
-      segmentIndex: segmentIndex - 1,
-      startTimeMs,
-    },
-    [arrayBuffer], // Transfer ownership (zero-copy)
-  );
+    // transcribeData returns { promise, stop }. The promise resolves when
+    // the native Napi::AsyncWorker finishes on its background thread.
+    const { promise } = whisperContext!.transcribeData(arrayBuffer, {
+      language: 'en',
+    });
+
+    const result = await promise;
+
+    transcribing = false;
+
+    if (result.result && result.result.trim() && currentMeetingId) {
+      lastTranscriptText = result.result.trim();
+
+      // Save each segment to the database
+      for (const seg of result.segments) {
+        if (!seg.text.trim()) continue;
+        // Sanitize timestamps — whisper.cpp may return denormalized floats
+        const t0 = Number.isFinite(seg.t0) ? Math.round(seg.t0) : 0;
+        const t1 = Number.isFinite(seg.t1) ? Math.round(seg.t1) : 0;
+        const segStartMs = Math.max(0, Math.round(startTimeMs + t0));
+        const segEndMs = Math.max(0, Math.round(startTimeMs + t1));
+
+        try {
+          const saved = await meetingService.addTranscriptSegment(
+            currentMeetingId,
+            seg.text.trim(),
+            segStartMs,
+            segEndMs,
+          );
+
+          // Push segment to renderer
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('recording:transcript-segment', saved);
+          }
+        } catch (err) {
+          log.error('Failed to save segment:', err);
+        }
+      }
+    }
+  } catch (err) {
+    log.error('Whisper transcription failed:', err);
+    transcribing = false;
+  }
+
+  // Process next pending segment
+  dispatchNext();
 }
 
 /** Dispatch a segment to the configured cloud API (Deepgram or AssemblyAI) */
@@ -248,7 +255,7 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
       result = await assemblyaiTranscriber.transcribeSegment(segment, startTimeMs);
     }
 
-    // Process result — save to DB and push to renderer (same as worker result path)
+    // Process result — save to DB and push to renderer
     if (result.text && result.text.trim() && currentMeetingId) {
       lastTranscriptText = result.text.trim();
 
@@ -270,7 +277,6 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
       }
 
       // Log API usage (fire-and-forget)
-      // Use direct DB insert since providerId is UUID-typed and we have no ai_providers row
       try {
         const durationSec = segment.byteLength / (SAMPLE_RATE * 2);
         await getDb().insert(aiUsage).values({
@@ -286,23 +292,11 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
   } catch (err) {
     log.error(`API (${activeProvider}) failed:`, err);
 
-    // FALLBACK: try local Whisper if worker exists
-    if (worker) {
+    // FALLBACK: try local Whisper if context exists
+    if (whisperContext) {
       log.debug('Falling back to local Whisper');
-      const arrayBuffer = segment.buffer.slice(
-        segment.byteOffset,
-        segment.byteOffset + segment.byteLength,
-      ) as ArrayBuffer;
-      worker.postMessage(
-        {
-          type: 'transcribe',
-          audioData: arrayBuffer,
-          segmentIndex: segmentIndex - 1,
-          startTimeMs,
-        },
-        [arrayBuffer],
-      );
-      return; // Worker message handler will set transcribing = false
+      await dispatchToWhisper(segment, startTimeMs);
+      return; // dispatchToWhisper handles transcribing flag and dispatchNext
     }
 
     log.error('No fallback available. Skipping segment.');
@@ -310,48 +304,6 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
 
   transcribing = false;
   dispatchNext();
-}
-
-/** Handle messages from the transcription worker */
-async function handleWorkerMessage(msg: WorkerMessage): Promise<void> {
-  if (msg.type === 'result') {
-    transcribing = false;
-
-    if (msg.text && msg.text.trim() && currentMeetingId) {
-      const text = msg.text.trim();
-      lastTranscriptText = text;
-
-      // Save each segment to the database
-      for (const seg of msg.segments) {
-        if (!seg.text.trim()) continue;
-        const segStartMs = Math.max(0, Math.round(msg.startTimeMs + seg.t0));
-        const segEndMs = Math.max(0, Math.round(msg.startTimeMs + seg.t1));
-
-        try {
-          const saved = await meetingService.addTranscriptSegment(
-            currentMeetingId,
-            seg.text.trim(),
-            segStartMs,
-            segEndMs,
-          );
-
-          // Push segment to renderer
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('recording:transcript-segment', saved);
-          }
-        } catch (err) {
-          log.error('Failed to save segment:', err);
-        }
-      }
-    }
-
-    // Process next pending segment
-    dispatchNext();
-  } else if (msg.type === 'error') {
-    log.error('Worker error:', msg.message);
-    transcribing = false;
-    dispatchNext(); // Try next segment
-  }
 }
 
 /** Wait for all pending transcriptions to complete */

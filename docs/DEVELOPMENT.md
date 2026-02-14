@@ -58,8 +58,7 @@ src/
       logger.ts                  # Structured logger with scoped prefixes
       backupService.ts           # Database backup/restore (JSON format, Drizzle queries)
       ...
-    workers/
-      transcriptionWorker.ts     # Background Whisper transcription
+    workers/                     # (reserved for future workers)
   preload/                       # Electron preload bridge
     preload.ts                   # contextBridge.exposeInMainWorld('electronAPI', {...})
   renderer/                      # React 19 frontend

@@ -139,7 +139,7 @@ System Audio (electron-audio-loopback, init before app ready)
   -> audioCaptureService.ts (renderer, captures chunks)
   -> ipcRenderer.send('audio:chunk', buffer)
   -> audioProcessor.ts (main, buffers PCM, writes WAV)
-  -> transcriptionWorker.ts (worker thread, Whisper inference)
+  -> transcriptionService.ts (main process, Whisper via Napi::AsyncWorker)
   -> segments stored in DB + pushed to renderer via IPC
   -> Cloud fallback: deepgramTranscriber.ts / assemblyaiTranscriber.ts
 ```
