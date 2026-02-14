@@ -1,38 +1,54 @@
-# Session Handoff — 2026-02-13
+# Session Handoff — 2026-02-14
 
 ## What Was Done
 
-Four features implemented, committed, and pushed to `origin/main`:
+Plan 9.1 executed: replaced Docker PostgreSQL with PGlite (embedded WASM PostgreSQL). The app is now fully standalone — no Docker, no external database.
 
-### 1. Microphone Capture (0c244a6)
-Added mic input to the meeting recording pipeline. System audio + mic are mixed via Web Audio API GainNodes into the existing ScriptProcessorNode. Mic failure is non-fatal (falls back to system-only). UI toggle in RecordingControls.
-- **Files:** audioCaptureService.ts, recordingStore.ts, RecordingControls.tsx
+### 1. PGlite Migration (dc47fb7)
+Replaced `postgres` driver with `@electric-sql/pglite`. Database runs in-process as WASM with filesystem persistence in `userData/pg-data/`. All 50+ files using `getDb()` work unchanged.
+- **Files:** connection.ts (rewrite), migrate.ts, main.ts, package.json
 
-### 2. Mic Toggle Button (0c69761)
-Replaced the plain checkbox with a styled full-width toggle button matching the other recording controls.
-- **Files:** RecordingControls.tsx
+### 2. Backup Service Rewrite (dc47fb7)
+Replaced Docker `pg_dump`/`psql` with Drizzle-based JSON backup/restore. 21 tables queried in FK-safe order. API keys stripped from backups.
+- **Files:** backupService.ts (rewrite), exportService.ts (added cardAttachments)
 
-### 3. Settings Centering + Dropdown Unification (dc91edf)
-Centered SettingsPage content with `mx-auto`. Added global CSS for all `<select>` elements: `appearance-none`, custom SVG chevron, consistent dark theme colors, hover/focus/disabled states. Stripped redundant inline classes from 12 selects across 8 components.
-- **Files:** globals.css, SettingsPage.tsx, RecordingControls.tsx, IdeaDetailModal.tsx, MeetingDetailModal.tsx, BrainstormPage.tsx, RelationshipsSection.tsx, TaskModelConfig.tsx, NotificationSection.tsx, BackupSection.tsx
+### 3. Packaging + Config Cleanup (dc47fb7)
+Updated forge.config.ts (extraResource for migrations), vite.main.config.ts (externalize PGlite), README (removed Docker prereq), docker-compose.yml + .env.example (marked optional).
+- **Files:** forge.config.ts, vite.main.config.ts, drizzle.config.ts, README.md, docker-compose.yml, .env.example
 
-### 4. Column Drag-and-Drop Reordering (8547fa8)
-Made Kanban columns draggable by their header. Uses pragmatic-drag-and-drop with left/right edge detection. Blue vertical indicator lines show drop position. Backend was already fully wired (reorderColumns in store, IPC, preload) — this adds the UI trigger.
-- **Files:** BoardColumn.tsx, BoardPage.tsx
+### 4. Packaging Fixes (d706bf3)
+Fixed two issues discovered during `npm run package` testing:
+- **PGlite not found in asar:** Added `packageAfterCopy` hook to copy externalized `@electric-sql/pglite` into the staging directory before asar creation.
+- **Renderer HTML missing:** Same hook copies renderer build from `src/renderer/.vite/renderer/` to `.vite/renderer/` (Vite `root` config causes misplaced output).
+- **Orphaned processes:** Close button now quits the app on Windows/Linux instead of hiding to tray.
+- **Files:** forge.config.ts, src/main/main.ts
+
+### 5. Documentation (ef26657)
+Updated ARCHITECTURE.md and DEVELOPMENT.md to reflect PGlite, simplified setup, packaging details.
+- **Files:** docs/ARCHITECTURE.md, docs/DEVELOPMENT.md
 
 ## Verification
 - `npx tsc --noEmit` — zero errors
 - `npx vitest run` — 99/99 tests pass
+- `npm run start` — app boots with PGlite (tested)
+- `npm run package` — packaged app boots, DB connects, migrations apply, renderer loads (tested)
+- Close button terminates all processes on Windows (tested)
 
 ## Resume Context
-- **Branch:** main (clean, pushed to origin)
+- **Branch:** main (clean, all pushed to origin)
+- **Latest commit:** ef26657
 - **Test suite:** 99 tests across 5 files
-- **Phase 8:** Plans 8.1-8.7 complete + 4 ad-hoc features
-- **Next action:** Plan 8.8+ (remaining review items: pagination, CI/CD, etc.) or manual testing
+- **Phase 9:** Plan 9.1 COMPLETE, Plan 9.2+ not yet planned
 
-## Pending Manual Testing
-1. Start recording with mic enabled → speak + play audio → WAV should contain both
-2. Uncheck mic toggle → record → WAV should contain system audio only
-3. Deny mic permission → recording should proceed with system audio only
-4. Drag a column by its header → should reorder and persist after page refresh
-5. Verify dropdowns look consistent across Settings, Meetings, Ideas, Brainstorm pages
+## Next Actions
+1. Manual testing: CRUD operations in the packaged app (projects, boards, cards, meetings, ideas, brainstorm, settings)
+2. Manual testing: backup create/restore with new JSON format
+3. `npm run make` — test building the actual Squirrel installer
+4. Plan 9.2: auto-updates, installer signing, or other distribution tasks
+5. Or: return to Phase 8 backlog (pagination, CI/CD, remaining review items)
+
+## Key Architecture Notes for Next Session
+- **Forge packaging hook** (`forge.config.ts` lines 26-45): Any new externalized Vite dependency must be added to `EXTERNAL_PACKAGES` array, or it won't be in the packaged app.
+- **PGlite data location:** `app.getPath('userData')/pg-data/` — survives app updates.
+- **Backup format:** JSON with `{ version: 1, createdAt, tableCount, tables }` structure. Old `.sql` backups still listed but can't be restored.
+- **Close behavior:** macOS hides to tray; Windows/Linux quits. Controlled in `main.ts` line 136.
