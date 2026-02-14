@@ -25,6 +25,8 @@ interface BoardColumnProps {
   deleteColumn: (id: string) => Promise<void>;
   onCardClick: (cardId: string) => void;
   justDroppedCardId: string | null;
+  blockedCardIds?: Set<string>;
+  dependencyCountMap?: Map<string, number>;
 }
 
 const BoardColumn = memo(function BoardColumn({
@@ -38,6 +40,8 @@ const BoardColumn = memo(function BoardColumn({
   deleteColumn,
   onCardClick,
   justDroppedCardId,
+  blockedCardIds,
+  dependencyCountMap,
 }: BoardColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -202,6 +206,8 @@ const BoardColumn = memo(function BoardColumn({
             onDelete={deleteCard}
             onClick={() => onCardClick(card.id)}
             justDropped={card.id === justDroppedCardId}
+            isBlocked={blockedCardIds?.has(card.id)}
+            dependencyCount={dependencyCountMap?.get(card.id) ?? 0}
           />
         ))}
       </div>

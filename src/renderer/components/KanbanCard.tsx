@@ -9,7 +9,7 @@
 // @atlaskit/pragmatic-drag-and-drop-hitbox (attachClosestEdge, extractClosestEdge)
 
 import { memo, useState, useRef, useEffect } from 'react';
-import { Pencil, Trash2, Clock } from 'lucide-react';
+import { Pencil, Trash2, Clock, Link2 } from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -22,6 +22,8 @@ interface KanbanCardProps {
   onDelete: (id: string) => Promise<void>;
   onClick?: () => void;
   justDropped?: boolean;
+  isBlocked?: boolean;
+  dependencyCount?: number;
 }
 
 const PRIORITY_CONFIG = {
@@ -31,7 +33,7 @@ const PRIORITY_CONFIG = {
   urgent: { border: 'border-l-red-500',     badge: 'bg-red-500/20 text-red-400',         label: 'URG' },
 } as const;
 
-const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick, justDropped }: KanbanCardProps) {
+const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick, justDropped, isBlocked, dependencyCount }: KanbanCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
@@ -147,7 +149,7 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
     <div
       ref={cardRef}
       onClick={onClick}
-      className={`group relative bg-surface-800 rounded-md p-3 border-l-2 cursor-pointer hover:bg-surface-700/50 transition-colors ${priority.border}`}
+      className={`group relative bg-surface-800 rounded-md p-3 border-l-2 cursor-pointer hover:bg-surface-700/50 transition-colors ${priority.border}${isBlocked ? ' opacity-75' : ''}`}
       style={
         isDragging
           ? { animation: 'card-grab 400ms ease-out forwards' }
@@ -189,12 +191,19 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
           )}
         </div>
 
-        {/* Priority badge */}
-        <span
-          className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${priority.badge}`}
-        >
-          {priority.label}
-        </span>
+        {/* Priority + blocked badges */}
+        <div className="flex items-center gap-1 shrink-0">
+          {isBlocked && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">
+              BLOCKED
+            </span>
+          )}
+          <span
+            className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${priority.badge}`}
+          >
+            {priority.label}
+          </span>
+        </div>
       </div>
 
       {/* Bottom row: labels + actions */}
@@ -213,6 +222,12 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
             <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${getDueDateBadge(card.dueDate).classes}`}>
               <Clock size={10} />
               {getDueDateBadge(card.dueDate).label}
+            </span>
+          )}
+          {(dependencyCount ?? 0) > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] text-surface-500">
+              <Link2 size={10} />
+              {dependencyCount}
             </span>
           )}
         </div>

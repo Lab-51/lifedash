@@ -14,6 +14,8 @@ export const cardDetailsBridge = {
   // Relationships
   getCardRelationships: (cardId: string) =>
     ipcRenderer.invoke('card:getRelationships', cardId),
+  getRelationshipsByBoard: (boardId: string) =>
+    ipcRenderer.invoke('cards:getRelationshipsByBoard', boardId),
   addCardRelationship: (input: CreateCardRelationshipInput) =>
     ipcRenderer.invoke('card:addRelationship', input),
   deleteCardRelationship: (id: string) =>

@@ -15,6 +15,7 @@ import type {
   Column,
   Card,
   Label,
+  CardRelationship,
   CreateColumnInput,
   UpdateColumnInput,
   CreateCardInput,
@@ -28,6 +29,7 @@ interface BoardStore {
   columns: Column[];
   cards: Card[];
   labels: Label[];
+  relationships: CardRelationship[];
   loading: boolean;
   error: string | null;
 
@@ -54,6 +56,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   columns: [],
   cards: [],
   labels: [],
+  relationships: [],
   loading: false,
   error: null,
 
@@ -77,12 +80,13 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         board = boards[0];
       }
 
-      // Load columns, cards, and labels
+      // Load columns, cards, labels, and relationships
       const columns = await window.electronAPI.getColumns(board.id);
       const cards = await window.electronAPI.getCardsByBoard(board.id);
       const labels = await window.electronAPI.getLabels(projectId);
+      const relationships = await window.electronAPI.getRelationshipsByBoard(board.id);
 
-      set({ project, board, columns, cards, labels, loading: false });
+      set({ project, board, columns, cards, labels, relationships, loading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to load board',

@@ -439,6 +439,46 @@ export function registerCardHandlers(): void {
     }
   });
 
+  // --- Board-level Relationships (for Kanban badge display) ---
+
+  ipcMain.handle('cards:getRelationshipsByBoard', async (_event, boardId: unknown) => {
+    const validBoardId = validateInput(idParamSchema, boardId);
+    const db = getDb();
+
+    // Get all column IDs for this board
+    const boardColumns = await db
+      .select({ id: columns.id })
+      .from(columns)
+      .where(eq(columns.boardId, validBoardId));
+    const columnIds = boardColumns.map(c => c.id);
+    if (columnIds.length === 0) return [];
+
+    // Get all non-archived card IDs in these columns
+    const boardCards = await db
+      .select({ id: cards.id })
+      .from(cards)
+      .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false)));
+    const cardIds = boardCards.map(c => c.id);
+    if (cardIds.length === 0) return [];
+
+    // Get all relationships where EITHER source or target is in this board's cards
+    const asSource = await db
+      .select()
+      .from(cardRelationships)
+      .where(inArray(cardRelationships.sourceCardId, cardIds));
+    const asTarget = await db
+      .select()
+      .from(cardRelationships)
+      .where(inArray(cardRelationships.targetCardId, cardIds));
+
+    // Deduplicate (a relationship might have both source and target in this board)
+    const relMap = new Map<string, typeof asSource[0]>();
+    for (const r of [...asSource, ...asTarget]) {
+      relMap.set(r.id, r);
+    }
+    return Array.from(relMap.values());
+  });
+
   // --- Card Activities ---
 
   ipcMain.handle('card:getActivities', async (_event, cardId: unknown) => {

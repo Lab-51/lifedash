@@ -96,6 +96,7 @@ export interface ElectronAPI {
   deleteCardComment: (id: string) => Promise<void>;
   // Card relationships
   getCardRelationships: (cardId: string) => Promise<CardRelationship[]>;
+  getRelationshipsByBoard: (boardId: string) => Promise<CardRelationship[]>;
   addCardRelationship: (input: CreateCardRelationshipInput) => Promise<CardRelationship>;
   deleteCardRelationship: (id: string) => Promise<void>;
   // Card activity log

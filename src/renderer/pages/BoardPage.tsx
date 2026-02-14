@@ -10,7 +10,7 @@
 // @atlaskit/pragmatic-drag-and-drop (monitorForElements), closest-edge
 
 import { useParams, Link } from 'react-router-dom';
-import { useEffect, useState, useRef, useCallback, lazy, Suspense } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { ArrowLeft, Plus, X, Search, ChevronDown } from 'lucide-react';
 import {
   monitorForElements,
@@ -30,6 +30,7 @@ function BoardPage() {
   const columns = useBoardStore(s => s.columns);
   const cards = useBoardStore(s => s.cards);
   const labels = useBoardStore(s => s.labels);
+  const relationships = useBoardStore(s => s.relationships);
   const loading = useBoardStore(s => s.loading);
   const error = useBoardStore(s => s.error);
   const loadBoard = useBoardStore(s => s.loadBoard);
@@ -63,6 +64,31 @@ function BoardPage() {
   const labelDropdownRef = useRef<HTMLDivElement>(null);
 
   const hasActiveFilters = searchQuery !== '' || priorityFilter.length > 0 || labelFilter.length > 0;
+
+  // A card is "blocked" if:
+  // - It is the TARGET of a 'blocks' relationship (someone blocks it)
+  // - It is the SOURCE of a 'depends_on' relationship (it depends on something)
+  const blockedCardIds = useMemo(() => {
+    const blocked = new Set<string>();
+    for (const rel of relationships) {
+      if (rel.type === 'blocks') {
+        blocked.add(rel.targetCardId);
+      } else if (rel.type === 'depends_on') {
+        blocked.add(rel.sourceCardId);
+      }
+    }
+    return blocked;
+  }, [relationships]);
+
+  // Count relationships per card
+  const dependencyCountMap = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const rel of relationships) {
+      counts.set(rel.sourceCardId, (counts.get(rel.sourceCardId) ?? 0) + 1);
+      counts.set(rel.targetCardId, (counts.get(rel.targetCardId) ?? 0) + 1);
+    }
+    return counts;
+  }, [relationships]);
 
   // Compute filtered cards
   const filteredCards = cards.filter(card => {
@@ -436,6 +462,8 @@ function BoardPage() {
             deleteColumn={deleteColumn}
             onCardClick={(cardId) => setSelectedCardId(cardId)}
             justDroppedCardId={justDroppedCardId}
+            blockedCardIds={blockedCardIds}
+            dependencyCountMap={dependencyCountMap}
           />
         ))}
 
