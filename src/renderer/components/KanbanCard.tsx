@@ -8,7 +8,7 @@
 // @atlaskit/pragmatic-drag-and-drop (draggable, dropTargetForElements),
 // @atlaskit/pragmatic-drag-and-drop-hitbox (attachClosestEdge, extractClosestEdge)
 
-import { useState, useRef, useEffect } from 'react';
+import { memo, useState, useRef, useEffect } from 'react';
 import { Pencil, Trash2, Clock } from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -30,7 +30,7 @@ const PRIORITY_CONFIG = {
   urgent: { border: 'border-l-red-500',     badge: 'bg-red-500/20 text-red-400',         label: 'URG' },
 } as const;
 
-function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
+const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
@@ -241,6 +241,6 @@ function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
       </div>
     </div>
   );
-}
+});
 
 export default KanbanCard;

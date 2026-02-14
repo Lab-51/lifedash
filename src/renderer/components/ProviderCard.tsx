@@ -2,7 +2,7 @@
 // Card component for a configured AI provider on the Settings page.
 // Shows provider status and provides actions: test, enable/disable, edit, delete.
 
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import {
   CheckCircle, XCircle, Loader2, Trash2, Eye, EyeOff,
   Power, Zap, Key, Globe,
@@ -22,7 +22,7 @@ interface ProviderCardProps {
   provider: AIProvider;
 }
 
-export default function ProviderCard({ provider }: ProviderCardProps) {
+const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps) {
   const updateProvider = useSettingsStore(s => s.updateProvider);
   const deleteProvider = useSettingsStore(s => s.deleteProvider);
   const testConnection = useSettingsStore(s => s.testConnection);
@@ -164,4 +164,6 @@ export default function ProviderCard({ provider }: ProviderCardProps) {
       </div>
     </div>
   );
-}
+});
+
+export default ProviderCard;

@@ -2,6 +2,7 @@
 // Meeting card component — displays a single meeting in the meetings list.
 // Shows title, date, duration, status badge, and optional project name.
 
+import { memo } from 'react';
 import { Mic, Clock, CheckCircle2, Loader2 } from 'lucide-react';
 import type { Meeting } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
@@ -52,7 +53,7 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
   return `${min}m ${sec}s`;
 }
 
-export default function MeetingCard({ meeting, projectName, onClick }: MeetingCardProps) {
+const MeetingCard = memo(function MeetingCard({ meeting, projectName, onClick }: MeetingCardProps) {
   const status = STATUS_STYLES[meeting.status] || STATUS_STYLES.completed;
   const StatusIcon = status.icon;
 
@@ -97,4 +98,6 @@ export default function MeetingCard({ meeting, projectName, onClick }: MeetingCa
       )}
     </button>
   );
-}
+});
+
+export default MeetingCard;

@@ -7,7 +7,7 @@
 // === DEPENDENCIES ===
 // react, lucide-react icons, ActionItem + ActionItemStatus types
 
-import { useState, useMemo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import {
   Check,
   X,
@@ -52,7 +52,7 @@ function statusIcon(status: ActionItemStatus) {
   }
 }
 
-function ActionItemRow({
+const ActionItemRow = memo(function ActionItemRow({
   item,
   onUpdateStatus,
   onConvert,
@@ -137,7 +137,7 @@ function ActionItemRow({
       </div>
     </div>
   );
-}
+});
 
 export default function ActionItemList({
   actionItems,

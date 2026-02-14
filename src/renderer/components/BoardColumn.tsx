@@ -6,7 +6,7 @@
 // react, lucide-react, @atlaskit/pragmatic-drag-and-drop, @atlaskit/pragmatic-drag-and-drop-hitbox,
 // KanbanCard, shared types
 
-import { useRef, useState, useEffect } from 'react';
+import { memo, useRef, useState, useEffect } from 'react';
 import { Plus, X, GripVertical } from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -26,7 +26,7 @@ interface BoardColumnProps {
   onCardClick: (cardId: string) => void;
 }
 
-function BoardColumn({
+const BoardColumn = memo(function BoardColumn({
   column,
   columnCards,
   isDragOver,
@@ -246,6 +246,6 @@ function BoardColumn({
       </div>
     </div>
   );
-}
+});
 
 export default BoardColumn;
