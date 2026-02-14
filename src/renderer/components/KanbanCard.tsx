@@ -160,7 +160,7 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick 
       className={`group relative bg-surface-800 rounded-md p-3 border-l-2 cursor-pointer hover:bg-surface-700/50 transition-colors ${priority.border}`}
       style={
         isDragging
-          ? { animation: 'card-grab 200ms ease-out forwards' }
+          ? { animation: 'card-grab 400ms ease-out forwards' }
           : justDropped
             ? { animation: 'card-drop 300ms ease-out' }
             : undefined
