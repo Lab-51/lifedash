@@ -1,328 +1,252 @@
-# Plan 9.1: Standalone Database — Replace Docker PostgreSQL with PGlite
+# Plan 9.2: Post-Recording UX — Processing State, Auto-Intelligence, Project-Aware Action Items
 
-## Approach: PGlite (WASM PostgreSQL)
+## Problem
 
-Replace Docker + PostgreSQL 16 container with **PGlite** (`@electric-sql/pglite`) — a WASM-compiled
-PostgreSQL that runs entirely in-process. No external binaries, no Docker, no port management.
+Three UX gaps after stopping a recording:
 
-**Why PGlite:**
-- Same PostgreSQL dialect — all 10 `pg-core` schema files, 11 enums, 7 migrations work unchanged
-- All 15+ IPC handler files and 10+ service files continue using `getDb()` untouched
-- Runs in-process as WASM — invisible to antivirus/corporate security, no license concerns
-- ~3-4MB package size (vs ~100-150MB for embedded-postgres)
-- Architecture-independent WASM — works on x64, ARM, Apple Silicon without per-platform builds
-- Drizzle adapter verified: `drizzle-orm/pglite` + `drizzle-orm/pglite/migrator`
-- Enables future auto-update distribution (Squirrel) — data in userData survives app updates
+1. **Dead UI after Stop**: Clicking Stop immediately resets the RecordingControls to idle ("New Recording" form). The user sees no feedback that audio is being saved and transcription is finalizing. It feels like nothing happened.
 
-**What changes (6 files):**
-- `connection.ts` — PGlite with filesystem persistence in `userData/pg-data/`
-- `migrate.ts` — PGlite migrator import
-- `backupService.ts` — Drizzle-based JSON dump/restore (removes last Docker dependency)
-- `package.json` — add `@electric-sql/pglite`, remove `postgres`
-- `forge.config.ts` — include `drizzle/` migrations as extraResource
-- `README.md` — remove Docker prerequisite
+2. **Brief & Action Items invisible**: The AI brief and action items only generate when the user manually clicks buttons deep in the MeetingDetailModal. Most users never discover these features.
 
-**What stays the same (50+ files):**
-- All 10 schema files (same `pg-core` definitions)
-- All 15+ IPC handler files (use `getDb()` unchanged)
-- All 10+ service files (use Drizzle query API unchanged)
-- All renderer/store code (IPC bridge unchanged)
-- `exportService.ts` (uses `PgTable` from `drizzle-orm/pg-core` — still valid, PGlite uses pg-core schemas)
+3. **Action Items disconnected from Projects**: Converting an action item to a project card requires a 3-step wizard (pick project → pick board → pick column) every time, even when the meeting is already linked to a project. There's no way to batch-push multiple items.
 
-**Docker/postgres references in codebase (verified via grep — only 2 active files):**
-- `connection.ts:15` — `import postgres from 'postgres'` → replaced in Task 1
-- `backupService.ts` — 6 Docker references (exec, pg_dump, psql) → replaced in Task 2
+## Solution
 
-<phase n="9.1" name="Standalone Database — PGlite Migration">
+1. Add a **"Processing..."** state in RecordingControls after Stop, then auto-open the MeetingDetailModal.
+2. **Auto-generate** brief and action items when the modal opens for a freshly-completed meeting.
+3. When a meeting has a linked project, **pre-select that project** in the convert flow and add a **batch push** option.
+
+<phase n="9.2" name="Post-Recording UX — Processing, Auto-Intelligence, Project Push">
   <context>
-    The app currently requires Docker Desktop + PostgreSQL 16 container to function.
-    Docker is a distribution killer: 500MB install, WSL2 required on Windows, paid license
-    for enterprise, must be running before app launches, impossible for Mac App Store.
+    After clicking Stop, the recording UI immediately resets to idle while the main process
+    is still saving the WAV file and flushing transcription. The user gets no feedback.
 
-    This plan replaces Docker PostgreSQL with PGlite, making the app fully standalone.
+    Brief generation and action item extraction exist but are manual-only (button click in
+    MeetingDetailModal). Users don't know these features exist.
 
-    Key files (read before executing):
-    @src/main/db/connection.ts (71 lines — postgres driver + pool + health check)
-    @src/main/db/migrate.ts (30 lines — postgres-js migrator + path resolution)
-    @src/main/main.ts (195 lines — app lifecycle, connectDatabase + runMigrations at line 120)
-    @src/main/services/backupService.ts (277 lines — Docker exec pg_dump/psql + auto-backup settings)
-    @src/main/services/exportService.ts (111 lines — reference for Drizzle table query pattern)
-    @forge.config.ts (61 lines — asar: true, no extraResource yet)
-    @vite.main.config.ts (13 lines — currently externalizes @fugood/whisper.node only)
-    @package.json (67 lines — "postgres": "^3.4.8" to remove)
-    @drizzle.config.ts (14 lines — dialect: postgresql, Docker connection URL)
+    The ConvertActionModal is a 3-step wizard (project → board → column) that ignores
+    the meeting's linked project. When a meeting already has a projectId, the flow should
+    be streamlined.
 
-    Database inventory (from schema exploration):
-    - 20 tables across 9 schema files
-    - 11 pgEnums (card_priority, meeting_status, idea_status, etc.)
-    - 7 migrations (0000-0006)
-    - 40+ UUID columns with gen_random_uuid() default
-    - 15+ foreign keys with CASCADE delete
-    - 2 composite primary keys (card_labels, idea_tags)
-    - 3 upsert patterns (onConflictDoUpdate)
-    - 1 raw SQL use (LIKE pattern in backup settings)
-    - No advanced PG features (no CTEs, window functions, JSONB operators, LISTEN/NOTIFY)
-
-    FK-safe table ordering (parents → children, for backup restore):
-    INSERT ORDER: projects → settings → aiProviders → boards → labels → columns →
-      meetings → ideas → brainstormSessions → cards → aiUsage → transcripts →
-      meetingBriefs → actionItems → cardLabels → cardComments → cardRelationships →
-      cardActivities → cardAttachments → ideaTags → brainstormMessages
-    DELETE ORDER: reverse of above
+    Key files to read:
+    @src/renderer/stores/recordingStore.ts (133 lines — stop clears state immediately)
+    @src/renderer/stores/meetingStore.ts (229 lines — generateBrief, generateActionItems)
+    @src/renderer/components/RecordingControls.tsx (191 lines — 2 states: idle vs recording)
+    @src/renderer/pages/MeetingsPage.tsx (269 lines — refreshes list on recording stop)
+    @src/renderer/components/MeetingDetailModal.tsx (352 lines — brief/action sections)
+    @src/renderer/components/ActionItemList.tsx (178 lines — per-item approve/dismiss/convert)
+    @src/renderer/components/ConvertActionModal.tsx (317 lines — 3-step wizard)
+    @src/renderer/components/BriefSection.tsx (brief display + generate button)
+    @src/main/services/meetingIntelligenceService.ts (brief + action generation logic)
   </context>
 
   <task type="auto" n="1">
-    <n>Replace postgres driver with PGlite + update connection and migration</n>
+    <n>Add post-recording processing state and auto-open meeting detail</n>
     <files>
-      package.json (add @electric-sql/pglite, remove postgres)
-      src/main/db/connection.ts (rewrite: PGlite with filesystem persistence)
-      src/main/db/migrate.ts (update import: drizzle-orm/pglite/migrator)
-      src/main/main.ts (update comment on line 116, no functional changes needed)
+      src/renderer/stores/recordingStore.ts (add isProcessing + completedMeetingId)
+      src/renderer/components/RecordingControls.tsx (third visual state: "Processing...")
+      src/renderer/pages/MeetingsPage.tsx (auto-open modal when processing completes)
     </files>
-    <preconditions>
-      - Node.js 18+ installed
-      - npm available
-      - Current working directory is project root
-    </preconditions>
     <action>
-      1. Install PGlite and remove old driver:
-         - `npm install @electric-sql/pglite`
-         - `npm uninstall postgres`
-         - Keep all other dependencies unchanged
+      **recordingStore.ts changes:**
+      1. Add two new state fields:
+         - `isProcessing: boolean` (true between clicking Stop and meeting reaching 'completed')
+         - `completedMeetingId: string | null` (set when processing finishes, consumed by MeetingsPage)
+      2. Add action: `clearCompletedMeetingId: () => void` (resets completedMeetingId to null)
+      3. Modify `stopRecording()`:
+         - At the start: capture `meetingId` from state, then set `isRecording: false, isProcessing: true`
+           (keep meetingId in state — DON'T clear it yet)
+         - Stop audio capture
+         - Stop recording in main process (get audioPath)
+         - Update meeting to 'completed'
+         - Set: `isProcessing: false, meetingId: null, completedMeetingId: meetingId, elapsed: 0, lastTranscript: ''`
+         - In catch: set `isProcessing: false, error: ...`
 
-      2. Rewrite `connection.ts` (71 lines → ~65 lines):
-         - Replace: `import postgres from 'postgres'` → `import { PGlite } from '@electric-sql/pglite'`
-         - Replace: `import { drizzle } from 'drizzle-orm/postgres-js'` → `import { drizzle } from 'drizzle-orm/pglite'`
-         - Add: `import path from 'node:path'` and `import { app } from 'electron'`
-         - Data directory: `path.join(app.getPath('userData'), 'pg-data')`
-         - Module state: replace `sql` (postgres client) + `db` (drizzle) with `pglite` (PGlite) + `db` (drizzle)
-         - `connectDatabase()`: `pglite = new PGlite(dataDir)`, then `db = drizzle(pglite, { schema })`
-         - `getDb()`: unchanged (returns drizzle instance)
-         - Add `getPglite()`: export for health check and direct access
-         - `disconnectDatabase()`: call `await pglite.close()` instead of `await sql.end()`
-         - `checkDatabaseHealth()`: use `await pglite.query('SELECT 1')` instead of `await sql\`SELECT 1\``
-         - Remove: `getConnectionString()` (no longer needed — no connection string)
-         - Remove: `DEFAULT_CONNECTION_STRING` constant
-         - Remove: pool configuration (max, idle_timeout, connect_timeout)
+      **RecordingControls.tsx changes:**
+      1. Import `isProcessing` from recordingStore
+      2. Add a third UI state: when `isProcessing` is true:
+         - Show amber pulsing dot (not red) + "Processing recording..."
+         - Show a spinner (Loader2 from lucide-react)
+         - Show "Saving audio and finalizing transcript..." text
+         - No buttons (user just waits)
+      3. Change the conditional rendering:
+         - `isProcessing` → processing state
+         - `isRecording` → recording state (red dot, stop button)
+         - else → idle state (new recording form)
 
-      3. Update `migrate.ts` (30 lines → ~30 lines):
-         - Replace: `import { migrate } from 'drizzle-orm/postgres-js/migrator'`
-         - With: `import { migrate } from 'drizzle-orm/pglite/migrator'`
-         - Keep the same migrationsFolder logic (app.isPackaged → resourcesPath, else appPath)
-         - Keep `getDb()` call unchanged
+      **MeetingsPage.tsx changes:**
+      1. Import `completedMeetingId` and `clearCompletedMeetingId` from recordingStore
+      2. Add useEffect: when `completedMeetingId` changes from null to a value:
+         - Refresh the meetings list (loadMeetings)
+         - Set `selectedMeetingId` to the completed meeting ID (opens the modal)
+         - Call `clearCompletedMeetingId()` to consume the event
+      3. This auto-opens the MeetingDetailModal for the freshly-completed meeting
 
-      4. Update `main.ts` comment (line 116):
-         - Change "Connect to PostgreSQL" comment to "Initialize embedded database"
-         - No functional changes — connectDatabase() + runMigrations() + disconnectDatabase()
-           lifecycle already works correctly. PGlite just runs in-process instead of connecting
-           to Docker.
-
-      WHY: PGlite eliminates the Docker dependency entirely. The Drizzle query API is
-      identical — getDb() returns the same drizzle instance type, so all 15+ IPC handler
-      files and 10+ service files continue working without any changes.
+      WHY: The user needs visual feedback that the system is actively working after they
+      click Stop. The processing state bridges the gap between "recording" and "ready to review".
+      Auto-opening the modal ensures the user sees the brief/action items being generated.
     </action>
     <verify>
-      1. `npx tsc --noEmit` — zero errors (type compatibility between drizzle-orm/pglite and pg-core schemas)
-      2. `npx vitest run` — all 99 tests pass (no test changes needed — tests don't import connection.ts)
-      3. `npm run start` — app boots, creates pg-data/ directory in userData, runs migrations, loads UI
-      4. Create a project → add a board → add columns → add cards with labels → verify CRUD works
-      5. Navigate to Meetings, Ideas, Brainstorm, Settings pages → verify no errors
+      1. `npx tsc --noEmit` — zero type errors
+      2. `npx vitest run` — all existing tests pass
+      3. Manual: Start a recording → Stop → verify "Processing recording..." appears with spinner
+      4. Manual: After processing completes → verify MeetingDetailModal opens automatically
+      5. Manual: Verify the idle "New Recording" form returns after modal is dismissed
     </verify>
     <done>
-      App boots with PGlite instead of Docker PostgreSQL.
-      All existing features work (projects, boards, cards, meetings, ideas, brainstorm, settings).
-      pg-data/ directory created in userData with persistent database files.
-      No Docker or external database required.
+      After clicking Stop, the user sees "Processing recording..." with a spinner.
+      When processing completes, the MeetingDetailModal opens automatically for the completed meeting.
+      The idle recording form only appears after processing is fully complete.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - drizzle-orm v0.45.1 includes the pglite adapter (drizzle-orm/pglite export)
-      - PGlite supports all PostgreSQL features used: pgEnum, uuid with gen_random_uuid(),
-        timestamp with timezone, varchar, boolean, integer, text, real, composite PKs,
-        foreign keys with CASCADE, onConflictDoUpdate, LIKE pattern in sql template
-      - PGlite works in Electron main process Node.js context (WASM in Node.js is supported)
-      - PGlite filesystem persistence: new PGlite(dirPath) creates/opens database at that path
-      - All service files use getDb() and Drizzle query API — no raw postgres driver calls
-        exist outside connection.ts (verified via grep: only connection.ts:15 imports postgres)
+      - stopRecording() in main process takes 1-3 seconds (WAV save + transcription flush)
+      - The existing initListener (onRecordingState) doesn't interfere — it only pushes
+        isRecording/elapsed/lastTranscript, not isProcessing
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Rewrite backup service without Docker dependency</n>
+    <n>Auto-generate brief and action items when meeting detail opens post-recording</n>
     <files>
-      src/main/services/backupService.ts (rewrite: Drizzle-based JSON backup/restore)
-      src/main/services/exportService.ts (add missing cardAttachments to EXPORT_TABLES)
+      src/renderer/components/MeetingDetailModal.tsx (auto-trigger generation)
     </files>
-    <preconditions>
-      - Task 1 complete (PGlite connection working)
-      - App can connect to database and query tables
-    </preconditions>
     <action>
-      1. Rewrite `createBackup()`:
-         - Remove Docker exec pg_dump — replace with Drizzle table queries
-         - Import all 21 tables from schema (20 tables + cardAttachments which is missing from exportService)
-         - Query each table via `db.select().from(table)` in FK-safe order (parents first):
-           projects, settings, aiProviders, boards, labels, columns, meetings, ideas,
-           brainstormSessions, cards, aiUsage, transcripts, meetingBriefs, actionItems,
-           cardLabels, cardComments, cardRelationships, cardActivities, cardAttachments,
-           ideaTags, brainstormMessages
-         - Strip apiKeyEncrypted from aiProviders rows (same pattern as exportService)
-         - Serialize as JSON with metadata header: { version: 1, createdAt, tableCount, tables: {...} }
-         - Save as `backup-YYYY-MM-DD-HHmmss.json` (changed from .sql)
-         - Keep same BackupInfo return type and progress events
+      **MeetingDetailModal.tsx changes:**
+      1. Add a new prop: `autoGenerate?: boolean` (defaults to false)
+      2. Add a useEffect that runs when the modal opens:
+         - Guard: only run if `autoGenerate` is true
+         - Guard: only run if `meeting.status === 'completed'`
+         - Guard: only run if `meeting.segments.length > 0` (has transcript data)
+         - Guard: only run if `!meeting.brief` (brief not already generated)
+         - Guard: only run if `!generatingBrief && !generatingActions` (not already in progress)
+         - Call `generateBrief(meeting.id)` — this sets `generatingBrief: true` and shows spinner
+         - Use a flag (useRef) to prevent double-triggering on re-renders
+      3. Add a second useEffect that chains action items after brief completes:
+         - Guard: `autoGenerate` is true
+         - Guard: brief exists (just generated) AND `meeting.actionItems.length === 0`
+         - Guard: `!generatingActions`
+         - Call `generateActionItems(meeting.id)`
+         - Use a flag (useRef) to prevent double-triggering
+      4. If no AI provider is configured, the existing error handling in meetingStore will
+         set the error message. Add a small info banner in the modal:
+         - Check if there's an error after generation attempt
+         - Show: "Configure an AI provider in Settings to generate meeting intelligence"
 
-      2. Rewrite `restoreBackup()`:
-         - Read and parse JSON backup file
-         - Validate version field and table structure
-         - Create safety backup first (existing pattern, now calls the rewritten createBackup)
-         - DELETE all data in reverse FK order (children first):
-           brainstormMessages, ideaTags, cardAttachments, cardActivities, cardRelationships,
-           cardComments, cardLabels, actionItems, meetingBriefs, transcripts, aiUsage,
-           cards, brainstormSessions, ideas, meetings, columns, labels, boards,
-           aiProviders, settings, projects
-         - INSERT data in forward FK order (parents first) — same order as createBackup
-         - Use `db.insert(table).values(rows)` for each non-empty table
-         - Keep progress events throughout
+      **MeetingsPage.tsx changes:**
+      1. Track whether the modal was auto-opened (vs manually clicked):
+         - Add state: `autoOpenedMeetingId: string | null`
+         - When completedMeetingId triggers the auto-open, also set autoOpenedMeetingId
+         - Pass `autoGenerate={selectedMeetingId === autoOpenedMeetingId}` to MeetingDetailModal
+         - Clear autoOpenedMeetingId when modal closes
 
-      3. Update `listBackups()`:
-         - Change regex to accept BOTH .sql and .json files:
-           `/^backup-\d{4}-\d{2}-\d{2}-\d{6}\.(sql|json)$/`
-         - This provides backward compatibility — old .sql backups still show up (read-only,
-           can be deleted but not restored since we no longer have pg_dump/psql)
-
-      4. Update `deleteBackup()`:
-         - Update filename validation regex to accept both .sql and .json:
-           `/^backup-[\d-]+\.(sql|json)$/`
-
-      5. Remove Docker dependencies:
-         - Remove `import { execFile, spawn } from 'node:child_process'`
-         - Remove `import { promisify } from 'node:util'`
-         - Remove `const execFileAsync = promisify(execFile)`
-         - Remove `isDockerAvailable()` function entirely
-         - Remove `import { sql } from 'drizzle-orm'` if no longer needed
-           (check: getAutoBackupSettings still uses `sql` template for LIKE query — KEEP IT)
-         - Update file header comments
-
-      6. Fix exportService.ts gap:
-         - Add `cardAttachments: schema.cardAttachments` to EXPORT_TABLES
-         - This table was added in Plan 7.8 but never added to the export list
-
-      7. Keep unchanged:
-         - `getBackupDir()` — same logic
-         - `emitProgress()` — same logic
-         - `cleanOldBackups()` — same logic (uses listBackups + unlink)
-         - `getAutoBackupSettings()` — same logic (Drizzle query with sql LIKE)
-         - `updateAutoBackupSettings()` — same logic (Drizzle upsert)
-
-      WHY: The backup service is the ONLY remaining Docker dependency in the entire codebase.
-      Rewriting it to use Drizzle queries (same pattern as exportService) makes the app
-      100% standalone. JSON backups are human-readable, portable, and version-tagged.
+      WHY: Users expect the app to automatically process the recording after it stops.
+      The brief and action items are the core value proposition of meeting intelligence.
+      Making them auto-generate removes a hidden manual step that most users never discover.
+      The sequential generation (brief first, then actions) avoids overloading the AI provider.
     </action>
     <verify>
-      1. `npx tsc --noEmit` — zero errors
-      2. `npx vitest run` — all 99 tests pass
-      3. Manual: Settings → Backup → Create Backup → verify .json file appears in list
-      4. Manual: Open the .json file — verify it contains all 21 tables with data
-      5. Manual: Create some test data → Backup → Delete test data → Restore → verify data is back
-      6. Manual: Verify auto-backup settings toggle still works
+      1. `npx tsc --noEmit` — zero type errors
+      2. `npx vitest run` — all existing tests pass
+      3. Manual (with AI provider configured): Stop recording → modal opens → brief auto-generates
+         → after brief completes, action items auto-generate
+      4. Manual (no AI provider): Stop recording → modal opens → error message about configuring AI
+      5. Manual (empty transcript): Stop recording with no audio → modal opens → no generation attempted
+      6. Manual (re-open existing meeting): Click a completed meeting card → modal opens →
+         no auto-generation (brief already exists or autoGenerate is false)
     </verify>
     <done>
-      Backup/restore works without Docker. Creates versioned .json backup files.
-      Restore deletes all data then reinserts in FK-safe order.
-      Old .sql backups still visible in list (for manual deletion).
-      cardAttachments now included in both backup and export.
+      When the MeetingDetailModal auto-opens after recording, it automatically generates
+      the AI brief (with spinner), then chains action item extraction. Manual opens of
+      existing meetings do NOT trigger auto-generation. Missing AI provider shows a helpful message.
     </done>
-    <confidence>HIGH</confidence>
+    <confidence>MEDIUM</confidence>
     <assumptions>
-      - FK-safe table ordering is correct (derived from schema foreign key definitions)
-      - Drizzle bulk insert handles all column types: UUIDs as strings, timestamps as ISO strings,
-        enums as string values — which is how Drizzle serializes them from select()
-      - Drizzle delete().from(table) without WHERE deletes all rows (verified: standard SQL)
-      - JSON file size is manageable — for a single-user desktop app, backup should be < 10MB
+      - At least one AI provider is configured (OpenAI/Anthropic/Ollama) for generation to work
+      - The existing generateBrief and generateActionItems store actions handle errors gracefully
+      - Brief generation takes 5-15 seconds depending on transcript length and AI provider
+      - The sequential chain (brief → actions) won't cause race conditions because
+        meetingStore uses separate boolean flags (generatingBrief, generatingActions)
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Packaging config, Docker cleanup, and documentation update</n>
+    <n>Project-aware action item conversion with batch push</n>
     <files>
-      forge.config.ts (add extraResource for drizzle/ migrations)
-      vite.main.config.ts (externalize @electric-sql/pglite if needed for WASM)
-      drizzle.config.ts (add comment about PGlite — keep Docker URL for drizzle-kit studio)
-      docker-compose.yml (add OPTIONAL header comment)
-      .env.example (simplify — mark DATABASE_URL as optional)
-      README.md (remove Docker prerequisite, update setup instructions)
-      package.json (update db:up/db:down script descriptions if possible)
+      src/renderer/components/ActionItemList.tsx (add batch select + "Push to Project" button)
+      src/renderer/components/ConvertActionModal.tsx (accept preselectedProjectId prop)
+      src/renderer/components/MeetingDetailModal.tsx (pass projectId to ActionItemList + ConvertActionModal)
     </files>
-    <preconditions>
-      - Tasks 1 and 2 complete (PGlite working, backup rewritten)
-      - `npx tsc --noEmit` passes
-      - `npx vitest run` passes
-    </preconditions>
     <action>
-      1. Update `forge.config.ts`:
-         - Add `extraResource: ['./drizzle']` to `packagerConfig`
-         - This copies the drizzle/ migrations folder alongside the asar in the packaged app
-         - The existing migrate.ts already resolves: `path.join(process.resourcesPath, 'drizzle')`
+      **ConvertActionModal.tsx changes:**
+      1. Add optional prop: `preselectedProjectId?: string`
+      2. When `preselectedProjectId` is provided:
+         - Set `selectedProjectId` to it on mount
+         - This triggers the existing useEffect that loads boards for that project
+         - If exactly 1 board exists, auto-skips to column selection (existing logic)
+         - Show a "Project: [name]" header so user knows which project is pre-selected
+         - Still allow "Change project" link to go back to step 1 if they want a different project
+      3. To support batch conversion, add optional props:
+         - `actionItems?: ActionItem[]` (multiple items to convert)
+         - When provided, show a summary "Converting X action items" instead of single description
+         - On convert: loop through all items calling `onConvert(item.id, columnId)` sequentially
+         - Show progress: "Converting 2 of 5..."
 
-      2. Check `vite.main.config.ts`:
-         - PGlite is a WASM package. Vite may try to bundle its WASM binary inline.
-         - Add `'@electric-sql/pglite'` to the external array alongside '@fugood/whisper.node'
-         - This ensures PGlite is loaded from node_modules at runtime, not bundled by Vite
+      **ActionItemList.tsx changes:**
+      1. Add optional prop: `meetingProjectId?: string` (the meeting's linked project ID)
+      2. Add optional prop: `meetingProjectName?: string`
+      3. When `meetingProjectId` is set AND there are pending/approved items:
+         - Show a "Push to [Project Name]" section below the items
+         - Add checkboxes to each pending/approved action item row (not dismissed/converted)
+         - Track selected items in local state: `selectedIds: Set<string>`
+         - "Select All" / "Deselect All" toggle
+         - "Push X items to [Project Name]" button (disabled when none selected)
+         - Clicking this button calls `onBatchConvert(selectedItems)` (new callback prop)
+      4. Keep existing individual Convert button (arrow icon) for one-off conversions
 
-      3. Update `drizzle.config.ts`:
-         - Add comment explaining: "This config is used by drizzle-kit CLI only.
-           The app uses PGlite at runtime (see connection.ts).
-           Keep Docker URL here for optional drizzle-kit studio/migrate usage."
-         - Keep `dialect: 'postgresql'` (PGlite IS PostgreSQL)
-         - Keep `dbCredentials.url` pointing to Docker (only needed for `db:studio`)
+      **MeetingDetailModal.tsx changes:**
+      1. Pass `meetingProjectId={meeting.projectId}` to ActionItemList
+      2. Resolve project name from the projects list for `meetingProjectName`
+      3. Add `onBatchConvert` handler that opens ConvertActionModal with:
+         - `preselectedProjectId={meeting.projectId}`
+         - `actionItems={selectedItems}` (the batch)
+      4. Pass `preselectedProjectId={meeting.projectId}` to ConvertActionModal when converting
+         individual items too (so even single converts skip project selection when linked)
 
-      4. Update Docker files:
-         - `docker-compose.yml`: Add comment at top:
-           "# OPTIONAL: Only needed for drizzle-kit studio or direct SQL access during development.
-            # The app uses an embedded database (PGlite) — Docker is NOT required to run."
-         - `.env.example`: Mark both variables as optional, add note:
-           "# These are only needed if using Docker for development database access."
-
-      5. Update `README.md`:
-         - Remove Docker Desktop from Prerequisites section
-         - Remove `docker compose up -d` from Quick Start
-         - Simplify Quick Start to: git clone → npm install → npm start
-         - Add note: "The database is embedded — no external setup needed."
-         - Move `db:up`, `db:down` to an "Optional: Docker Development Database" section
-         - Update Tech Stack table: change "PostgreSQL (Docker) | 16" to "PGlite (embedded) | 0.3.x"
-
-      6. Verify no stale Docker references in active code:
-         - autoBackupScheduler.ts — uses backupService functions only (no Docker refs) ✓
-         - SettingsPage.tsx — no Docker status check ✓
-         - No IPC handlers reference Docker directly ✓
-         - Only backupService.ts had Docker refs → already removed in Task 2
-
-      WHY: The packaged app must include migration SQL files and work without any external
-      dependencies. Docker becomes optional (for devs who want drizzle-kit studio).
-      README must reflect the simplified "install and run" experience.
+      WHY: Meetings are often linked to projects. When a user records a planning meeting for
+      "Project Alpha", they want to push action items directly to that project's board without
+      re-selecting the project each time. Batch push handles the common case of 5-10 action
+      items from a single meeting.
     </action>
     <verify>
-      1. `npx tsc --noEmit` — zero errors
-      2. `npx vitest run` — all 99 tests pass
-      3. `npm run start` — app boots correctly (development mode)
-      4. `npm run package` — completes without errors
-      5. Run packaged app from `out/` folder — boots, creates database, all features work
-      6. Verify drizzle/ folder exists in packaged app's resources directory
+      1. `npx tsc --noEmit` — zero type errors
+      2. `npx vitest run` — all existing tests pass
+      3. Manual: Create a meeting linked to a project → generate action items →
+         verify checkboxes appear on pending items
+      4. Manual: Select 3 items → click "Push to [Project]" → verify ConvertActionModal
+         opens at board/column step (skips project selection)
+      5. Manual: Verify batch converts all selected items and marks them as 'converted'
+      6. Manual: Test individual Convert button → still works, pre-selects linked project
+      7. Manual: Meeting with NO linked project → verify old behavior (no checkboxes,
+         convert wizard starts at project selection)
+      8. Manual: In ConvertActionModal with pre-selected project → click "Change project" →
+         verify can go back to project selection
     </verify>
     <done>
-      Packaged app is fully standalone. No Docker, no external database.
-      User installs and runs immediately. Migrations auto-apply on first launch.
-      README reflects the simplified setup.
-      Docker remains available as optional dev tool for drizzle-kit studio.
+      When a meeting is linked to a project:
+      - Action items show checkboxes for batch selection
+      - "Push to [Project Name]" button batch-converts selected items
+      - ConvertActionModal pre-selects the linked project (skips step 1)
+      - Individual convert still works, also pre-selecting the linked project
+      When no project is linked: behavior unchanged (no checkboxes, full 3-step wizard).
     </done>
     <confidence>MEDIUM</confidence>
     <assumptions>
-      - PGlite WASM loads correctly when externalized by Vite (not bundled inline)
-      - Drizzle migrate() can read SQL files from extraResource path in packaged app
-        (migrate.ts already has this path logic: process.resourcesPath + '/drizzle')
-      - Electron Forge's extraResource copies the entire drizzle/ folder correctly
-      - If WASM loading from asar fails, fallback: add '@electric-sql/pglite' to
-        packagerConfig.asar.unpack or asarUnpack glob
+      - The existing convertActionToCard IPC handler can be called multiple times sequentially
+        without issues (it creates one card per call with correct position ordering)
+      - Projects always have at least one board (created by default when project is created)
+      - Batch conversion of 10+ items won't timeout (each convert is a quick DB insert)
+      - The project name can be resolved from the projects already loaded in useProjectStore
     </assumptions>
   </task>
 </phase>

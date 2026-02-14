@@ -2,10 +2,12 @@
 // Displays a list of AI-extracted action items for a meeting.
 // Each item shows its status, description, and contextual action buttons
 // (approve, dismiss, convert to card). Supports loading state and generate button.
+// When a meeting is linked to a project, shows batch "Push to Project" controls.
 //
 // === DEPENDENCIES ===
 // react, lucide-react icons, ActionItem + ActionItemStatus types
 
+import { useState, useMemo } from 'react';
 import {
   Check,
   X,
@@ -16,6 +18,7 @@ import {
   XCircle,
   ArrowRightCircle,
   Circle,
+  Send,
 } from 'lucide-react';
 import type { ActionItem, ActionItemStatus } from '../../shared/types';
 
@@ -27,6 +30,12 @@ interface ActionItemListProps {
   onGenerate: () => void;
   onUpdateStatus: (id: string, status: ActionItemStatus) => void;
   onConvert: (actionItem: ActionItem) => void;
+  /** Linked project ID — enables batch push UI */
+  meetingProjectId?: string;
+  /** Linked project name — shown in batch push button */
+  meetingProjectName?: string;
+  /** Called with selected action items for batch conversion */
+  onBatchConvert?: (items: Array<{ id: string; text: string }>) => void;
 }
 
 /** Status icon mapping — returns the icon component and its Tailwind color class. */
@@ -47,16 +56,32 @@ function ActionItemRow({
   item,
   onUpdateStatus,
   onConvert,
+  showCheckbox,
+  checked,
+  onCheckChange,
 }: {
   item: ActionItem;
   onUpdateStatus: (id: string, status: ActionItemStatus) => void;
   onConvert: (actionItem: ActionItem) => void;
+  showCheckbox?: boolean;
+  checked?: boolean;
+  onCheckChange?: (id: string, checked: boolean) => void;
 }) {
   const { Icon, className: iconClass } = statusIcon(item.status);
   const isDismissed = item.status === 'dismissed';
 
   return (
     <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-3 flex items-start gap-3">
+      {/* Batch selection checkbox */}
+      {showCheckbox && (
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onCheckChange?.(item.id, e.target.checked)}
+          className="mt-0.5 shrink-0 accent-primary-500 w-3.5 h-3.5 cursor-pointer"
+        />
+      )}
+
       {/* Status indicator */}
       <Icon size={18} className={`shrink-0 mt-0.5 ${iconClass}`} />
 
@@ -121,7 +146,53 @@ export default function ActionItemList({
   onGenerate,
   onUpdateStatus,
   onConvert,
+  meetingProjectId,
+  meetingProjectName,
+  onBatchConvert,
 }: ActionItemListProps) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Items eligible for batch push (pending or approved — not dismissed or converted)
+  const pushableItems = useMemo(
+    () => actionItems.filter((a) => a.status === 'pending' || a.status === 'approved'),
+    [actionItems],
+  );
+
+  const showBatchPush = !!meetingProjectId && pushableItems.length > 0 && !!onBatchConvert;
+
+  const handleCheckChange = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === pushableItems.length) {
+      // Deselect all
+      setSelectedIds(new Set());
+    } else {
+      // Select all pushable
+      setSelectedIds(new Set(pushableItems.map((a) => a.id)));
+    }
+  };
+
+  const handleBatchPush = () => {
+    if (!onBatchConvert) return;
+    const items = pushableItems
+      .filter((a) => selectedIds.has(a.id))
+      .map((a) => ({ id: a.id, text: a.description }));
+    if (items.length > 0) {
+      onBatchConvert(items);
+    }
+  };
+
+  // Count of actually selected items (intersect with current pushable items)
+  const selectedCount = pushableItems.filter((a) => selectedIds.has(a.id)).length;
+  const allSelected = pushableItems.length > 0 && selectedCount === pushableItems.length;
+
   return (
     <div>
       {/* Header with optional count badge */}
@@ -151,8 +222,33 @@ export default function ActionItemList({
               item={item}
               onUpdateStatus={onUpdateStatus}
               onConvert={onConvert}
+              showCheckbox={showBatchPush && (item.status === 'pending' || item.status === 'approved')}
+              checked={selectedIds.has(item.id)}
+              onCheckChange={handleCheckChange}
             />
           ))}
+        </div>
+      )}
+
+      {/* Batch push section */}
+      {showBatchPush && !generatingActions && (
+        <div className="mt-3 pt-3 border-t border-surface-700">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleSelectAll}
+              className="text-xs text-surface-400 hover:text-surface-200 transition-colors"
+            >
+              {allSelected ? 'Deselect All' : 'Select All'}
+            </button>
+            <button
+              onClick={handleBatchPush}
+              disabled={selectedCount === 0}
+              className="flex items-center gap-1.5 text-sm bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <Send size={14} />
+              Push {selectedCount} item{selectedCount !== 1 ? 's' : ''} to {meetingProjectName || 'Project'}
+            </button>
+          </div>
         </div>
       )}
 

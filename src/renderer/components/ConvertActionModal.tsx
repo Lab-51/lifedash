@@ -1,47 +1,71 @@
 // === FILE PURPOSE ===
-// 3-step wizard modal for converting an action item into a board card.
-// Step 1: Select project, Step 2: Select board (auto-skipped if only 1),
+// 3-step wizard modal for converting action item(s) into board card(s).
+// Step 1: Select project (skipped if preselectedProjectId provided),
+// Step 2: Select board (auto-skipped if only 1),
 // Step 3: Select column. Calls onConvert with actionItemId + columnId.
+// Supports batch conversion via actionItems prop.
 //
 // === DEPENDENCIES ===
 // react, lucide-react (X, Loader2, ChevronLeft), shared types,
 // window.electronAPI (getProjects, getBoards, getColumns)
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Loader2, ChevronLeft } from 'lucide-react';
 import type { Project, Board, Column, ActionItem } from '../../shared/types';
 
 interface ConvertActionModalProps {
-  actionItem: ActionItem;
+  /** Single action item for one-off conversion */
+  actionItem?: ActionItem;
+  /** Multiple action items for batch conversion */
+  actionItems?: Array<{ id: string; text: string }>;
+  /** Pre-select a project, skipping step 1 */
+  preselectedProjectId?: string;
+  /** Pre-selected project name (shown in header) */
+  preselectedProjectName?: string;
   onConvert: (actionItemId: string, columnId: string) => Promise<string>;
   onClose: () => void;
 }
 
 export default function ConvertActionModal({
   actionItem,
+  actionItems,
+  preselectedProjectId,
+  preselectedProjectName,
   onConvert,
   onClose,
 }: ConvertActionModalProps) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  // Determine initial step: skip step 1 when project is preselected
+  const [step, setStep] = useState<1 | 2 | 3>(preselectedProjectId ? 2 : 1);
   const [projects, setProjects] = useState<Project[]>([]);
   const [boards, setBoards] = useState<Board[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    preselectedProjectId ?? null,
+  );
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [converting, setConverting] = useState(false);
 
+  // Batch conversion progress state
+  const [batchProgress, setBatchProgress] = useState(0);
+  const [batchTotal, setBatchTotal] = useState(0);
+
+  // Whether the user explicitly changed from the preselected project
+  const [projectOverridden, setProjectOverridden] = useState(false);
+
+  const isBatch = actionItems && actionItems.length > 0;
+
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !converting) onClose();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, converting]);
 
-  // Load projects on mount
+  // Load projects on mount (only needed if step 1 may be shown)
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -89,8 +113,9 @@ export default function ConvertActionModal({
     return () => { cancelled = true; };
   }, [selectedBoardId]);
 
-  const handleConvert = async () => {
-    if (!selectedColumnId) return;
+  // Single-item conversion
+  const handleConvertSingle = useCallback(async () => {
+    if (!selectedColumnId || !actionItem) return;
     setConverting(true);
     try {
       await onConvert(actionItem.id, selectedColumnId);
@@ -100,7 +125,28 @@ export default function ConvertActionModal({
     } finally {
       setConverting(false);
     }
-  };
+  }, [selectedColumnId, actionItem, onConvert, onClose]);
+
+  // Batch conversion
+  const handleConvertBatch = useCallback(async () => {
+    if (!selectedColumnId || !actionItems || actionItems.length === 0) return;
+    setConverting(true);
+    setBatchTotal(actionItems.length);
+    setBatchProgress(0);
+    try {
+      for (let i = 0; i < actionItems.length; i++) {
+        setBatchProgress(i + 1);
+        await onConvert(actionItems[i].id, selectedColumnId);
+      }
+      onClose();
+    } catch {
+      // Error handled by meetingStore — stop batch on first failure
+    } finally {
+      setConverting(false);
+    }
+  }, [selectedColumnId, actionItems, onConvert, onClose]);
+
+  const handleConvert = isBatch ? handleConvertBatch : handleConvertSingle;
 
   const handleNext = () => {
     if (step === 1 && selectedProjectId) {
@@ -121,6 +167,7 @@ export default function ConvertActionModal({
         setSelectedColumnId(null);
         setBoards([]);
         setColumns([]);
+        setProjectOverridden(true);
         setStep(1);
       } else {
         setSelectedBoardId(null);
@@ -132,12 +179,23 @@ export default function ConvertActionModal({
       setSelectedProjectId(null);
       setSelectedBoardId(null);
       setBoards([]);
+      setProjectOverridden(true);
       setStep(1);
     }
   };
 
+  const handleChangeProject = () => {
+    setSelectedProjectId(null);
+    setSelectedBoardId(null);
+    setSelectedColumnId(null);
+    setBoards([]);
+    setColumns([]);
+    setProjectOverridden(true);
+    setStep(1);
+  };
+
   const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose();
+    if (e.target === e.currentTarget && !converting) onClose();
   };
 
   const canAdvance =
@@ -152,6 +210,13 @@ export default function ConvertActionModal({
     return 'bg-surface-700';
   });
 
+  // Determine the project name for the header when preselected
+  const resolvedProjectName =
+    preselectedProjectName ||
+    (preselectedProjectId
+      ? projects.find((p) => p.id === preselectedProjectId)?.name
+      : null);
+
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
@@ -160,19 +225,42 @@ export default function ConvertActionModal({
       <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-md mx-4 p-5">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-semibold text-surface-100">Convert to Card</h3>
+          <h3 className="text-lg font-semibold text-surface-100">
+            {isBatch ? 'Convert to Cards' : 'Convert to Card'}
+          </h3>
           <button
             onClick={onClose}
-            className="text-surface-500 hover:text-surface-300 p-1 transition-colors"
+            disabled={converting}
+            className="text-surface-500 hover:text-surface-300 p-1 transition-colors disabled:opacity-40"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Action item description preview */}
-        <p className="text-sm text-surface-400 line-clamp-2 mb-4">
-          {actionItem.description}
-        </p>
+        {/* Description / batch summary */}
+        {isBatch ? (
+          <p className="text-sm text-surface-400 mb-2">
+            Converting {actionItems.length} action item{actionItems.length !== 1 ? 's' : ''}
+          </p>
+        ) : actionItem ? (
+          <p className="text-sm text-surface-400 line-clamp-2 mb-2">
+            {actionItem.description}
+          </p>
+        ) : null}
+
+        {/* Pre-selected project indicator */}
+        {preselectedProjectId && !projectOverridden && resolvedProjectName && step !== 1 && (
+          <div className="flex items-center gap-2 mb-3 text-sm">
+            <span className="text-surface-400">Project:</span>
+            <span className="text-surface-200 font-medium">{resolvedProjectName}</span>
+            <button
+              onClick={handleChangeProject}
+              className="text-primary-400 hover:text-primary-300 text-xs underline transition-colors"
+            >
+              Change project
+            </button>
+          </div>
+        )}
 
         {/* Step indicator */}
         <div className="flex items-center justify-center gap-2 my-4">
@@ -271,10 +359,17 @@ export default function ConvertActionModal({
           )}
         </div>
 
+        {/* Batch progress indicator */}
+        {converting && isBatch && batchTotal > 0 && (
+          <div className="text-sm text-surface-400 text-center mt-2">
+            Converting {batchProgress} of {batchTotal}...
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-surface-700">
           <div>
-            {step > 1 && (
+            {step > 1 && !converting && (
               <button
                 onClick={handleBack}
                 className="text-sm text-surface-400 hover:text-surface-200 flex items-center gap-1 transition-colors"
@@ -287,7 +382,8 @@ export default function ConvertActionModal({
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="text-sm text-surface-400 hover:text-surface-200 transition-colors"
+              disabled={converting}
+              className="text-sm text-surface-400 hover:text-surface-200 transition-colors disabled:opacity-40"
             >
               Cancel
             </button>
@@ -306,7 +402,9 @@ export default function ConvertActionModal({
                 className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
               >
                 {converting && <Loader2 size={14} className="animate-spin" />}
-                Convert
+                {isBatch
+                  ? `Convert ${actionItems.length} item${actionItems.length !== 1 ? 's' : ''}`
+                  : 'Convert'}
               </button>
             )}
           </div>

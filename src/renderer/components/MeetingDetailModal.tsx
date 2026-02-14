@@ -7,7 +7,7 @@
 // react, lucide-react, meetingStore
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Clock, Trash2 } from 'lucide-react';
+import { X, Clock, Trash2, Info } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
 import BriefSection from './BriefSection';
@@ -20,6 +20,8 @@ import { MEETING_TEMPLATES } from '../../shared/types';
 
 interface MeetingDetailModalProps {
   onClose: () => void;
+  /** When true, auto-generate brief + action items on open (post-recording) */
+  autoGenerate?: boolean;
 }
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
@@ -57,11 +59,12 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
   return `${min}m ${sec}s`;
 }
 
-export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps) {
+export default function MeetingDetailModal({ onClose, autoGenerate = false }: MeetingDetailModalProps) {
   const {
     selectedMeeting, updateMeeting, deleteMeeting, clearSelectedMeeting,
     generateBrief, generateActionItems,
     generatingBrief, generatingActions,
+    error,
     updateActionItemStatus, convertActionToCard,
     loadAnalytics, clearAnalytics,
   } = useMeetingStore();
@@ -70,8 +73,11 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
   const [editTitle, setEditTitle] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [convertingAction, setConvertingAction] = useState<ActionItem | null>(null);
+  const [batchConvertItems, setBatchConvertItems] = useState<Array<{ id: string; text: string }> | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const prevSegmentCount = useRef(0);
+  const autoGenerateBriefTriggered = useRef(false);
+  const autoGenerateActionsTriggered = useRef(false);
 
   // Close on Escape key
   useEffect(() => {
@@ -104,10 +110,43 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
     prevSegmentCount.current = count;
   }, [selectedMeeting?.segments.length, selectedMeeting?.status]);
 
+  // Auto-generate brief when modal opens post-recording
+  useEffect(() => {
+    if (!autoGenerate) return;
+    if (autoGenerateBriefTriggered.current) return;
+    if (!selectedMeeting) return;
+    if (selectedMeeting.status !== 'completed') return;
+    if (selectedMeeting.segments.length === 0) return;
+    if (selectedMeeting.brief) return;
+    if (generatingBrief || generatingActions) return;
+
+    autoGenerateBriefTriggered.current = true;
+    generateBrief(selectedMeeting.id);
+  }, [autoGenerate, selectedMeeting, generatingBrief, generatingActions, generateBrief]);
+
+  // Auto-generate action items after brief completes
+  useEffect(() => {
+    if (!autoGenerate) return;
+    if (autoGenerateActionsTriggered.current) return;
+    if (!selectedMeeting) return;
+    if (!selectedMeeting.brief) return;
+    if (selectedMeeting.actionItems.length > 0) return;
+    if (generatingActions) return;
+
+    autoGenerateActionsTriggered.current = true;
+    generateActionItems(selectedMeeting.id);
+  }, [autoGenerate, selectedMeeting, generatingActions, generateActionItems]);
+
   if (!selectedMeeting) return null;
 
   const meeting = selectedMeeting;
   const status = STATUS_STYLES[meeting.status] || STATUS_STYLES.completed;
+
+  // Resolve linked project name for batch push
+  const linkedProject = meeting.projectId
+    ? projects.find((p) => p.id === meeting.projectId)
+    : null;
+  const linkedProjectName = linkedProject?.name ?? undefined;
 
   // Title editing
   const startEditingTitle = () => {
@@ -242,6 +281,18 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
           />
         </div>
 
+        {/* AI provider error hint (shown when auto-generate fails) */}
+        {autoGenerate && error && !meeting.brief && !generatingBrief && (
+          <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <div className="flex items-start gap-2">
+              <Info size={14} className="text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-amber-300">
+                Configure an AI provider in Settings to generate meeting intelligence.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* AI Brief */}
         <div className="mb-5">
           <BriefSection
@@ -263,6 +314,9 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
             onGenerate={() => generateActionItems(meeting.id)}
             onUpdateStatus={updateActionItemStatus}
             onConvert={(item) => setConvertingAction(item)}
+            meetingProjectId={meeting.projectId ?? undefined}
+            meetingProjectName={linkedProjectName}
+            onBatchConvert={(items) => setBatchConvertItems(items)}
           />
         </div>
 
@@ -343,8 +397,19 @@ export default function MeetingDetailModal({ onClose }: MeetingDetailModalProps)
     {convertingAction && (
       <ConvertActionModal
         actionItem={convertingAction}
+        preselectedProjectId={meeting.projectId ?? undefined}
+        preselectedProjectName={linkedProjectName}
         onConvert={convertActionToCard}
         onClose={() => setConvertingAction(null)}
+      />
+    )}
+    {batchConvertItems && batchConvertItems.length > 0 && (
+      <ConvertActionModal
+        actionItems={batchConvertItems}
+        preselectedProjectId={meeting.projectId ?? undefined}
+        preselectedProjectName={linkedProjectName}
+        onConvert={convertActionToCard}
+        onClose={() => setBatchConvertItems(null)}
       />
     )}
     </>

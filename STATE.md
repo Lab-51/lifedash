@@ -2,14 +2,13 @@
 
 ## Session Info
 Last updated: 2026-02-14
-Session focus: Audio device selection + level monitoring + silence detection
-Checkpoint reason: Three recording improvements implemented, ready for user testing
+Session focus: Plan 9.2 execution — post-recording UX
 
 ## Position
 Milestone: Standalone Distribution
 Phase: 9 (Distribution Readiness)
-Plan: 9.1 — COMPLETE + ad-hoc recording improvements
-Latest commit: 903432a on main (pushed to origin)
+Plan: 9.2 — COMPLETE (3/3 tasks executed)
+Latest commit: pending (Plan 9.2 changes staged)
 
 ## Ad-Hoc Features (this session)
 
@@ -57,13 +56,15 @@ Plans 8.1-8.7 + 4 ad-hoc features delivered.
 ## Phase 9 — IN PROGRESS
 - Plan 9.1: COMPLETE (PGlite migration + packaging)
 - Ad-hoc: DevTools fix + recording crash fix + audio device selection + level meter + silence detection
-- Plan 9.2+: Not yet planned
+- Plan 9.2: COMPLETE — Post-recording UX (3 tasks)
+  - Task 1: Processing state in RecordingControls + auto-open MeetingDetailModal ✓
+  - Task 2: Auto-generate brief + action items on meeting completion ✓
+  - Task 3: Project-aware batch push for action items ✓
+- Next: Plan 9.3 (TBD) or user testing
 
 ## Confidence Levels
 Overall approach: HIGH
-Audio device selection: HIGH (standard Web APIs)
-Audio level meter: HIGH (RMS from ScriptProcessorNode callback)
-Silence detection: HIGH (simple RMS threshold, well-understood)
+Plan 9.2: HIGH — all 3 tasks implemented and verified (tsc + 99/99 tests pass)
 
 ## Decisions Made (Phase 9)
 - PGlite over embedded-postgres: smaller bundle, WASM arch-independent

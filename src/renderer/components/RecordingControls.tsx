@@ -66,7 +66,7 @@ function AudioLevelMeter() {
 
 export default function RecordingControls() {
   const {
-    isRecording, elapsed, error, starting, includeMic,
+    isRecording, isProcessing, elapsed, error, starting, includeMic,
     startRecording, stopRecording, setIncludeMic,
   } = useRecordingStore();
   const [title, setTitle] = useState('');
@@ -85,7 +85,18 @@ export default function RecordingControls() {
 
   return (
     <div className="bg-surface-800 rounded-xl border border-surface-700 p-4">
-      {!isRecording ? (
+      {isProcessing ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
+            <span className="text-sm font-medium text-amber-400">Processing recording...</span>
+          </div>
+          <div className="flex items-center gap-2 text-surface-400">
+            <Loader2 size={16} className="animate-spin" />
+            <span className="text-sm">Saving audio and finalizing transcript...</span>
+          </div>
+        </div>
+      ) : !isRecording ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-surface-200">
             <Mic size={18} />

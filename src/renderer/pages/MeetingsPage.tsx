@@ -26,11 +26,12 @@ const FILTER_TABS: { value: FilterTab; label: string }[] = [
 
 function MeetingsPage() {
   const { meetings, loading, error, loadMeetings, loadMeeting, addTranscriptSegment } = useMeetingStore();
-  const { isRecording } = useRecordingStore();
+  const { isRecording, completedMeetingId, clearCompletedMeetingId } = useRecordingStore();
   const { projects, loadProjects } = useProjectStore();
   const [filter, setFilter] = useState<FilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
+  const [autoOpenedMeetingId, setAutoOpenedMeetingId] = useState<string | null>(null);
   const prevIsRecording = useRef(isRecording);
   const [hasModel, setHasModel] = useState<boolean | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -54,6 +55,16 @@ function MeetingsPage() {
     }
     prevIsRecording.current = isRecording;
   }, [isRecording, loadMeetings]);
+
+  // Auto-open meeting detail when a recording finishes processing
+  useEffect(() => {
+    if (completedMeetingId) {
+      loadMeetings();
+      setSelectedMeetingId(completedMeetingId);
+      setAutoOpenedMeetingId(completedMeetingId);
+      clearCompletedMeetingId();
+    }
+  }, [completedMeetingId, loadMeetings, clearCompletedMeetingId]);
 
   // Load selected meeting detail
   useEffect(() => {
@@ -256,8 +267,10 @@ function MeetingsPage() {
       {/* Meeting detail modal */}
       {selectedMeetingId && (
         <MeetingDetailModal
+          autoGenerate={selectedMeetingId === autoOpenedMeetingId}
           onClose={() => {
             setSelectedMeetingId(null);
+            setAutoOpenedMeetingId(null);
             loadMeetings(); // Refresh list after viewing/editing
           }}
         />

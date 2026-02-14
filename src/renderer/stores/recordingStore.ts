@@ -16,7 +16,9 @@ import type { RecordingState, MeetingTemplateType } from '../../shared/types';
 interface RecordingStore {
   // State
   isRecording: boolean;
+  isProcessing: boolean;
   meetingId: string | null;
+  completedMeetingId: string | null;
   elapsed: number;
   lastTranscript: string;
   error: string | null;
@@ -27,12 +29,15 @@ interface RecordingStore {
   setIncludeMic: (value: boolean) => void;
   startRecording: (title: string, projectId?: string, template?: MeetingTemplateType) => Promise<void>;
   stopRecording: () => Promise<void>;
+  clearCompletedMeetingId: () => void;
   initListener: () => () => void;
 }
 
 export const useRecordingStore = create<RecordingStore>((set, get) => ({
   isRecording: false,
+  isProcessing: false,
   meetingId: null,
+  completedMeetingId: null,
   elapsed: 0,
   lastTranscript: '',
   error: null,
@@ -89,6 +94,9 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   },
 
   stopRecording: async () => {
+    const meetingId = get().meetingId;
+    set({ isRecording: false, isProcessing: true });
+
     try {
       // Step 1: Stop audio capture in renderer
       await audioCaptureService.stopCapture();
@@ -97,7 +105,6 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       const audioPath = await window.electronAPI.stopRecording();
 
       // Step 3: Update meeting with audioPath and completion
-      const meetingId = get().meetingId;
       if (meetingId) {
         await window.electronAPI.updateMeeting(meetingId, {
           endedAt: new Date().toISOString(),
@@ -107,17 +114,21 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       }
 
       set({
-        isRecording: false,
+        isProcessing: false,
         meetingId: null,
+        completedMeetingId: meetingId,
         elapsed: 0,
         lastTranscript: '',
       });
     } catch (error) {
       set({
+        isProcessing: false,
         error: error instanceof Error ? error.message : 'Failed to stop recording',
       });
     }
   },
+
+  clearCompletedMeetingId: () => set({ completedMeetingId: null }),
 
   initListener: () => {
     const cleanup = window.electronAPI.onRecordingState((state: RecordingState) => {
