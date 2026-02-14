@@ -21,6 +21,7 @@ interface KanbanCardProps {
   onUpdate: (id: string, data: UpdateCardInput) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onClick?: () => void;
+  justDropped?: boolean;
 }
 
 const PRIORITY_CONFIG = {
@@ -30,10 +31,9 @@ const PRIORITY_CONFIG = {
   urgent: { border: 'border-l-red-500',     badge: 'bg-red-500/20 text-red-400',         label: 'URG' },
 } as const;
 
-const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
+const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick, justDropped }: KanbanCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [justDropped, setJustDropped] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(card.title);
@@ -57,13 +57,6 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick 
     return () => clearTimeout(timer);
   }, [confirmingDelete]);
 
-  // Clear drop-bounce animation after it completes
-  useEffect(() => {
-    if (!justDropped) return;
-    const timer = setTimeout(() => setJustDropped(false), 300);
-    return () => clearTimeout(timer);
-  }, [justDropped]);
-
   // Set up drag behavior
   useEffect(() => {
     const el = cardRef.current;
@@ -78,10 +71,7 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick 
         sourcePosition: card.position,
       }),
       onDragStart: () => setIsDragging(true),
-      onDrop: () => {
-        setIsDragging(false);
-        setJustDropped(true);
-      },
+      onDrop: () => setIsDragging(false),
     });
   }, [card.id, card.columnId, card.position]);
 

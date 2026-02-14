@@ -24,6 +24,7 @@ interface BoardColumnProps {
   deleteCard: (id: string) => Promise<void>;
   deleteColumn: (id: string) => Promise<void>;
   onCardClick: (cardId: string) => void;
+  justDroppedCardId: string | null;
 }
 
 const BoardColumn = memo(function BoardColumn({
@@ -36,6 +37,7 @@ const BoardColumn = memo(function BoardColumn({
   deleteCard,
   deleteColumn,
   onCardClick,
+  justDroppedCardId,
 }: BoardColumnProps) {
   const columnRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -199,6 +201,7 @@ const BoardColumn = memo(function BoardColumn({
             onUpdate={updateCard}
             onDelete={deleteCard}
             onClick={() => onCardClick(card.id)}
+            justDropped={card.id === justDroppedCardId}
           />
         ))}
       </div>

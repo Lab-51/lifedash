@@ -45,6 +45,7 @@ function BoardPage() {
   const [addingColumn, setAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState('');
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
+  const [justDroppedCardId, setJustDroppedCardId] = useState<string | null>(null);
 
   const columnInputRef = useRef<HTMLInputElement>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -113,6 +114,13 @@ function BoardPage() {
     }
   }, [addingColumn]);
 
+  // Clear drop animation after it completes
+  useEffect(() => {
+    if (!justDroppedCardId) return;
+    const timer = setTimeout(() => setJustDroppedCardId(null), 300);
+    return () => clearTimeout(timer);
+  }, [justDroppedCardId]);
+
   // Close filter dropdowns on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -180,6 +188,11 @@ function BoardPage() {
         }
 
         setDragOverColumnId(null);
+
+        // Track dropped card for bounce-settle animation
+        if (cardId) {
+          setJustDroppedCardId(cardId);
+        }
       },
     });
   }, [cards, moveCard]);
@@ -422,6 +435,7 @@ function BoardPage() {
             deleteCard={deleteCard}
             deleteColumn={deleteColumn}
             onCardClick={(cardId) => setSelectedCardId(cardId)}
+            justDroppedCardId={justDroppedCardId}
           />
         ))}
 
