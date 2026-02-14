@@ -12,14 +12,14 @@ Living Dashboard is an Electron desktop app with three isolated processes commun
 +-------------------+                             +--------+----------+
                                                            |
                                                   +--------v----------+
-                                                  |  PostgreSQL 16    |
-                                                  |  (Docker)         |
+                                                  |  PGlite (WASM)   |
+                                                  |  (embedded)       |
                                                   +-------------------+
 ```
 
 ## Process Model
 
-**Main Process** (`src/main/main.ts`) -- Node.js process managing the app lifecycle: frameless window creation with state persistence, system tray (close-to-tray), single instance lock, database connection/migration on startup, IPC handler registration (17 modules, 100+ channels), CSP enforcement, and audio loopback init.
+**Main Process** (`src/main/main.ts`) -- Node.js process managing the app lifecycle: frameless window creation with state persistence, system tray, single instance lock, embedded database (PGlite) connection/migration on startup, IPC handler registration (17 modules, 100+ channels), CSP enforcement, and audio loopback init. On Windows/Linux, closing the window quits the app. On macOS, it hides to tray (standard convention).
 
 **Preload** (`src/preload/preload.ts`) -- Bridge script exposing `window.electronAPI` via `contextBridge.exposeInMainWorld()`. Wraps every IPC channel in a typed method. Provides event subscription methods (e.g., `onRecordingState`) that return cleanup functions. Keeps `contextIsolation: true` and `nodeIntegration: false`.
 
@@ -73,7 +73,7 @@ ipcMain.handle('projects:create', async (_event, data: unknown) => {
 
 ## Database Layer
 
-**Connection:** `src/main/db/connection.ts` -- pool via `porsager/postgres` + Drizzle ORM. Default: `postgresql://dashboard:localdev@localhost:5432/living_dashboard`.
+**Connection:** `src/main/db/connection.ts` -- PGlite (WASM PostgreSQL) with filesystem persistence in `app.getPath('userData')/pg-data/`. Wrapped with Drizzle ORM. No external database server required.
 
 **Schema files** in `src/main/db/schema/` (9 files, barrel-exported from `index.ts`):
 
@@ -89,7 +89,7 @@ ipcMain.handle('projects:create', async (_event, data: unknown) => {
 | `settings.ts` | settings (key-value), ai_usage |
 | `ai-providers.ts` | ai_providers |
 
-**Migrations:** Drizzle Kit generates SQL into `./drizzle/` (config: `drizzle.config.ts`). Migrations run automatically on startup via `src/main/db/migrate.ts`.
+**Migrations:** Drizzle Kit generates SQL into `./drizzle/` (config: `drizzle.config.ts`). Migrations run automatically on startup via `src/main/db/migrate.ts`. In packaged builds, `drizzle/` is shipped as an `extraResource` and resolved from `process.resourcesPath`.
 
 ## State Management
 
@@ -151,4 +151,5 @@ System Audio (electron-audio-loopback, init before app ready)
 - **Type organization:** 16 domain modules in `src/shared/types/`, barrel-exported from `index.ts`. `ElectronAPI` interface in `electron-api.ts` imports all domain types.
 - **Validation schemas:** Zod schemas in `src/shared/validation/schemas.ts` mirror type definitions, used at IPC boundary via `validateInput()`.
 - **Logger:** `createLogger(prefix)` from `src/main/services/logger.ts` returns scoped `debug/info/warn/error` methods.
-- **Build:** Electron Forge + Vite plugin builds main, preload, renderer, and worker targets. Installers: Squirrel (Windows), ZIP (macOS).
+- **Backup:** `src/main/services/backupService.ts` -- Drizzle-based JSON backup/restore. Queries all 21 tables in FK-safe order, serializes to versioned JSON. Restores by deleting all data (children first) then inserting (parents first).
+- **Build:** Electron Forge + Vite plugin builds main, preload, renderer, and worker targets. Installers: Squirrel (Windows), ZIP (macOS). A `packageAfterCopy` hook in `forge.config.ts` copies externalized packages (`@electric-sql/pglite`) and renderer output into the asar.
