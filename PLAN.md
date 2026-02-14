@@ -1,382 +1,328 @@
-# Plan 8.7 — Preload Bridge Namespacing, `any` Elimination & Developer Documentation
+# Plan 9.1: Standalone Database — Replace Docker PostgreSQL with PGlite
 
-**Source:** REVIEW.md findings. Plans 8.1-8.6 addressed 12 of 14 short-term items (N+1 fix, test framework, README, IPC validation, card reordering, structured logging, CSP, types split, IdeaDetailModal/BoardColumn/boardStore decomposition). Remaining high-impact items: monolithic preload bridge (274 lines, 80+ flat methods, arch concern #1), 80 `any` type occurrences (code quality concern #7), and missing developer/architecture documentation (documentation review: "SPARSE").
-**Scope:** 3 tasks — all independent (different file domains), safe for parallel execution.
-**Approach:** Task 1 splits preload.ts into domain modules and replaces 29 `any` params with proper types. Task 2 eliminates remaining ~51 `any` occurrences across 13 service/component files. Task 3 creates DEVELOPMENT.md and ARCHITECTURE.md developer documentation.
+## Approach: PGlite (WASM PostgreSQL)
 
-## Scope Rationale
+Replace Docker + PostgreSQL 16 container with **PGlite** (`@electric-sql/pglite`) — a WASM-compiled
+PostgreSQL that runs entirely in-process. No external binaries, no Docker, no port management.
 
-`preload.ts` at 274 lines with 80+ flat methods is the #1 architecture concern: "Every new feature requires modifying this file." At 2x features it would exceed 500 lines. Domain-scoped modules follow the same pattern used for types.ts (Plan 8.6) and IPC handlers (existing architecture). The 29 `any` params in preload account for 36% of all `any` occurrences — fixing them during the restructure is efficient.
+**Why PGlite:**
+- Same PostgreSQL dialect — all 10 `pg-core` schema files, 11 enums, 7 migrations work unchanged
+- All 15+ IPC handler files and 10+ service files continue using `getDb()` untouched
+- Runs in-process as WASM — invisible to antivirus/corporate security, no license concerns
+- ~3-4MB package size (vs ~100-150MB for embedded-postgres)
+- Architecture-independent WASM — works on x64, ARM, Apple Silicon without per-platform builds
+- Drizzle adapter verified: `drizzle-orm/pglite` + `drizzle-orm/pglite/migrator`
+- Enables future auto-update distribution (Squirrel) — data in userData survives app updates
 
-The remaining 51 `any` types are concentrated in API response parsing (assemblyaiTranscriber: 17, deepgramTranscriber: 7, exportService: 8) where proper response interfaces add type safety to external API boundaries.
+**What changes (6 files):**
+- `connection.ts` — PGlite with filesystem persistence in `userData/pg-data/`
+- `migrate.ts` — PGlite migrator import
+- `backupService.ts` — Drizzle-based JSON dump/restore (removes last Docker dependency)
+- `package.json` — add `@electric-sql/pglite`, remove `postgres`
+- `forge.config.ts` — include `drizzle/` migrations as extraResource
+- `README.md` — remove Docker prerequisite
 
-Developer documentation was rated "SPARSE / NEEDS WORK" in the review. README.md exists (Plan 8.2) but new developers still have no guide for setup workflow, project structure explanation, adding features, or understanding the architecture (process model, IPC patterns, data flow).
+**What stays the same (50+ files):**
+- All 10 schema files (same `pg-core` definitions)
+- All 15+ IPC handler files (use `getDb()` unchanged)
+- All 10+ service files (use Drizzle query API unchanged)
+- All renderer/store code (IPC bridge unchanged)
+- `exportService.ts` (uses `PgTable` from `drizzle-orm/pg-core` — still valid, PGlite uses pg-core schemas)
 
----
+**Docker/postgres references in codebase (verified via grep — only 2 active files):**
+- `connection.ts:15` — `import postgres from 'postgres'` → replaced in Task 1
+- `backupService.ts` — 6 Docker references (exec, pg_dump, psql) → replaced in Task 2
 
-<phase n="8.7" name="Preload Bridge Namespacing, any Elimination & Developer Documentation">
+<phase n="9.1" name="Standalone Database — PGlite Migration">
   <context>
-    Plans 8.1-8.6 completed. Remaining high-impact review items:
-    - preload.ts: 274 lines, 80+ flat methods, 29 `any` params (architecture concern #1)
-    - 80 `any` type occurrences across 14 files (code quality concern #7)
-    - No DEVELOPMENT.md or ARCHITECTURE.md (documentation: "SPARSE")
+    The app currently requires Docker Desktop + PostgreSQL 16 container to function.
+    Docker is a distribution killer: 500MB install, WSL2 required on Windows, paid license
+    for enterprise, must be running before app launches, impossible for Mac App Store.
 
-    Key reference files:
-    @src/preload/preload.ts — 274 lines, monolithic preload bridge to split
-    @src/shared/types/electron-api.ts — ElectronAPI interface (typed contract)
-    @src/main/services/assemblyaiTranscriber.ts — 17 `any` occurrences
-    @src/main/services/deepgramTranscriber.ts — 7 `any` occurrences
-    @src/main/services/exportService.ts — 8 `any` occurrences
-    @src/main/services/transcriptionService.ts — 5 `any` occurrences
-    @src/main/services/ai-provider.ts — 3 `any` occurrences
-    @src/main/services/taskStructuringService.ts — 2 `any` occurrences
-    @README.md — existing project overview for doc reference
-    @PROJECT.md — vision and architecture overview
+    This plan replaces Docker PostgreSQL with PGlite, making the app fully standalone.
+
+    Key files (read before executing):
+    @src/main/db/connection.ts (71 lines — postgres driver + pool + health check)
+    @src/main/db/migrate.ts (30 lines — postgres-js migrator + path resolution)
+    @src/main/main.ts (195 lines — app lifecycle, connectDatabase + runMigrations at line 120)
+    @src/main/services/backupService.ts (277 lines — Docker exec pg_dump/psql + auto-backup settings)
+    @src/main/services/exportService.ts (111 lines — reference for Drizzle table query pattern)
+    @forge.config.ts (61 lines — asar: true, no extraResource yet)
+    @vite.main.config.ts (13 lines — currently externalizes @fugood/whisper.node only)
+    @package.json (67 lines — "postgres": "^3.4.8" to remove)
+    @drizzle.config.ts (14 lines — dialect: postgresql, Docker connection URL)
+
+    Database inventory (from schema exploration):
+    - 20 tables across 9 schema files
+    - 11 pgEnums (card_priority, meeting_status, idea_status, etc.)
+    - 7 migrations (0000-0006)
+    - 40+ UUID columns with gen_random_uuid() default
+    - 15+ foreign keys with CASCADE delete
+    - 2 composite primary keys (card_labels, idea_tags)
+    - 3 upsert patterns (onConflictDoUpdate)
+    - 1 raw SQL use (LIKE pattern in backup settings)
+    - No advanced PG features (no CTEs, window functions, JSONB operators, LISTEN/NOTIFY)
+
+    FK-safe table ordering (parents → children, for backup restore):
+    INSERT ORDER: projects → settings → aiProviders → boards → labels → columns →
+      meetings → ideas → brainstormSessions → cards → aiUsage → transcripts →
+      meetingBriefs → actionItems → cardLabels → cardComments → cardRelationships →
+      cardActivities → cardAttachments → ideaTags → brainstormMessages
+    DELETE ORDER: reverse of above
   </context>
 
   <task type="auto" n="1">
-    <n>Namespace preload bridge into domain modules with typed parameters</n>
+    <n>Replace postgres driver with PGlite + update connection and migration</n>
     <files>
-      src/preload/preload.ts (MODIFY — 274 → ~40 lines, orchestrator)
-      src/preload/domains/window.ts (CREATE — window controls)
-      src/preload/domains/database.ts (CREATE — DB status)
-      src/preload/domains/projects.ts (CREATE — projects, boards, columns, cards, labels)
-      src/preload/domains/card-details.ts (CREATE — comments, relationships, activities, attachments)
-      src/preload/domains/settings.ts (CREATE — settings, AI providers, AI usage)
-      src/preload/domains/meetings.ts (CREATE — meetings, recording, whisper, intelligence, diarization, analytics)
-      src/preload/domains/ideas.ts (CREATE — ideas, idea analysis)
-      src/preload/domains/brainstorm.ts (CREATE — brainstorm sessions, streaming)
-      src/preload/domains/backup.ts (CREATE — backup, restore, export, auto-settings)
-      src/preload/domains/task-structuring.ts (CREATE — task structuring)
-      src/preload/domains/notifications.ts (CREATE — notification preferences)
-      src/preload/domains/transcription.ts (CREATE — transcription provider config)
+      package.json (add @electric-sql/pglite, remove postgres)
+      src/main/db/connection.ts (rewrite: PGlite with filesystem persistence)
+      src/main/db/migrate.ts (update import: drizzle-orm/pglite/migrator)
+      src/main/main.ts (update comment on line 116, no functional changes needed)
     </files>
+    <preconditions>
+      - Node.js 18+ installed
+      - npm available
+      - Current working directory is project root
+    </preconditions>
     <action>
-      ## WHY
-      preload.ts at 274 lines with 80+ flat methods is architecture concern #1.
-      The review says: "Every new feature requires modifying this file. Uses `any`
-      for parameters at runtime." At 2x features it would exceed 500 lines. The
-      29 `any` params also break type safety at the IPC boundary.
+      1. Install PGlite and remove old driver:
+         - `npm install @electric-sql/pglite`
+         - `npm uninstall postgres`
+         - Keep all other dependencies unchanged
 
-      ## WHAT
+      2. Rewrite `connection.ts` (71 lines → ~65 lines):
+         - Replace: `import postgres from 'postgres'` → `import { PGlite } from '@electric-sql/pglite'`
+         - Replace: `import { drizzle } from 'drizzle-orm/postgres-js'` → `import { drizzle } from 'drizzle-orm/pglite'`
+         - Add: `import path from 'node:path'` and `import { app } from 'electron'`
+         - Data directory: `path.join(app.getPath('userData'), 'pg-data')`
+         - Module state: replace `sql` (postgres client) + `db` (drizzle) with `pglite` (PGlite) + `db` (drizzle)
+         - `connectDatabase()`: `pglite = new PGlite(dataDir)`, then `db = drizzle(pglite, { schema })`
+         - `getDb()`: unchanged (returns drizzle instance)
+         - Add `getPglite()`: export for health check and direct access
+         - `disconnectDatabase()`: call `await pglite.close()` instead of `await sql.end()`
+         - `checkDatabaseHealth()`: use `await pglite.query('SELECT 1')` instead of `await sql\`SELECT 1\``
+         - Remove: `getConnectionString()` (no longer needed — no connection string)
+         - Remove: `DEFAULT_CONNECTION_STRING` constant
+         - Remove: pool configuration (max, idle_timeout, connect_timeout)
 
-      1. READ src/preload/preload.ts FULLY. Identify all domain sections by the
-         existing `// Comments`, `// Cards`, `// Meetings` etc. comments.
+      3. Update `migrate.ts` (30 lines → ~30 lines):
+         - Replace: `import { migrate } from 'drizzle-orm/postgres-js/migrator'`
+         - With: `import { migrate } from 'drizzle-orm/pglite/migrator'`
+         - Keep the same migrationsFolder logic (app.isPackaged → resourcesPath, else appPath)
+         - Keep `getDb()` call unchanged
 
-      2. READ src/shared/types/electron-api.ts to understand the typed contract.
-         The domain files should match the ElectronAPI interface signatures.
+      4. Update `main.ts` comment (line 116):
+         - Change "Connect to PostgreSQL" comment to "Initialize embedded database"
+         - No functional changes — connectDatabase() + runMigrations() + disconnectDatabase()
+           lifecycle already works correctly. PGlite just runs in-process instead of connecting
+           to Docker.
 
-      3. Create directory: src/preload/domains/
-
-      4. Create domain files. Each file:
-         - Imports `ipcRenderer` from 'electron'
-         - Imports relevant types from '../../shared/types' for parameter typing
-         - Exports an object with the domain's methods
-         - Replaces `any` params with proper types (e.g., `data: any` → `data: CreateProjectInput`)
-
-      Domain mapping (verify against actual preload.ts):
-
-      | File | Methods | `any` params to type |
-      |------|---------|---------------------|
-      | window.ts | windowMinimize, windowMaximize, windowClose, windowIsMaximized, onWindowMaximizeChange | 0 |
-      | database.ts | getDatabaseStatus | 0 |
-      | projects.ts | getProjects, createProject, updateProject, deleteProject, getBoards, createBoard, updateBoard, deleteBoard, getColumns, createColumn, updateColumn, deleteColumn, reorderColumns, getCardsByBoard, createCard, updateCard, deleteCard, moveCard, getLabels, createLabel, updateLabel, deleteLabel, attachLabel, detachLabel | ~12 (create/update params) |
-      | card-details.ts | getCardComments, addCardComment, updateCardComment, deleteCardComment, getCardRelationships, addCardRelationship, deleteCardRelationship, getCardActivities, getCardAttachments, addCardAttachment, deleteCardAttachment, openCardAttachment | 0 (already typed) |
-      | settings.ts | getSetting, setSetting, getAllSettings, deleteSetting, getAIProviders, createAIProvider, updateAIProvider, deleteAIProvider, testAIConnection, isEncryptionAvailable, getAIUsage, getAIUsageSummary | ~4 |
-      | meetings.ts | getMeetings, getMeeting, createMeeting, updateMeeting, deleteMeeting, startRecording, stopRecording, sendAudioChunk, enableLoopbackAudio, disableLoopbackAudio, onRecordingState, onTranscriptSegment, getWhisperModels, downloadWhisperModel, hasWhisperModel, onWhisperDownloadProgress, generateBrief, generateActionItems, getMeetingBrief, getMeetingActionItems, updateActionItemStatus, convertActionToCard, diarizeMeeting, getMeetingAnalytics | ~6 (callbacks + create) |
-      | ideas.ts | getIdeas, getIdea, createIdea, updateIdea, deleteIdea, convertIdeaToProject, convertIdeaToCard, analyzeIdea | ~2 |
-      | brainstorm.ts | getBrainstormSessions, getBrainstormSession, createBrainstormSession, updateBrainstormSession, deleteBrainstormSession, sendBrainstormMessage, onBrainstormChunk, exportBrainstormToIdea | ~2 |
-      | backup.ts | backupCreate, backupList, backupRestore, backupRestoreFromFile, backupDelete, backupExport, backupAutoSettingsGet, backupAutoSettingsUpdate, onBackupProgress | ~3 |
-      | task-structuring.ts | taskStructuringGeneratePlan, taskStructuringBreakdown, taskStructuringQuickPlan | 0 |
-      | notifications.ts | notificationGetPreferences, notificationUpdatePreferences, notificationSendTest | ~1 |
-      | transcription.ts | transcriptionGetConfig, transcriptionSetProvider, transcriptionSetApiKey, transcriptionTestProvider | 0 |
-
-      5. Rewrite preload.ts as an orchestrator:
-         ```typescript
-         import { contextBridge } from 'electron';
-         import { windowBridge } from './domains/window';
-         import { databaseBridge } from './domains/database';
-         import { projectsBridge } from './domains/projects';
-         // ... all domain imports
-
-         contextBridge.exposeInMainWorld('electronAPI', {
-           platform: process.platform,
-           ...windowBridge,
-           ...databaseBridge,
-           ...projectsBridge,
-           ...cardDetailsBridge,
-           ...settingsBridge,
-           ...meetingsBridge,
-           ...ideasBridge,
-           ...brainstormBridge,
-           ...backupBridge,
-           ...taskStructuringBridge,
-           ...notificationsBridge,
-           ...transcriptionBridge,
-         });
-         ```
-
-      6. Verify the exported API is identical — same method names, same behavior.
-
-      IMPORTANT:
-      - DO NOT change the ElectronAPI interface (shared/types/electron-api.ts)
-      - DO NOT change any renderer code — the API surface is identical
-      - The `ipcRenderer.on()` listener patterns (onRecordingState, onBrainstormChunk,
-        etc.) need `ipcRenderer` imported in each domain file
-      - `sendAudioChunk` uses `ipcRenderer.send()` (not invoke) — preserve this
-      - `Buffer.from(buffer)` in sendAudioChunk is OK in preload context (Node APIs available)
-      - Type imports should use `import type { ... }` for types-only imports
-      - Each domain file should be 15-40 lines
+      WHY: PGlite eliminates the Docker dependency entirely. The Drizzle query API is
+      identical — getDb() returns the same drizzle instance type, so all 15+ IPC handler
+      files and 10+ service files continue working without any changes.
     </action>
     <verify>
-      1. `npx tsc --noEmit` — zero TypeScript errors
-      2. `npm test` — all 98 tests pass
-      3. preload.ts is under 50 lines (orchestrator only)
-      4. 12 domain files exist in src/preload/domains/
-      5. Zero `any` occurrences in preload.ts and all domain files:
-         `grep -r "any" src/preload/ --include="*.ts" | grep -v "import type" | grep -v "node_modules"`
-      6. All domain files export a named bridge object
+      1. `npx tsc --noEmit` — zero errors (type compatibility between drizzle-orm/pglite and pg-core schemas)
+      2. `npx vitest run` — all 99 tests pass (no test changes needed — tests don't import connection.ts)
+      3. `npm run start` — app boots, creates pg-data/ directory in userData, runs migrations, loads UI
+      4. Create a project → add a board → add columns → add cards with labels → verify CRUD works
+      5. Navigate to Meetings, Ideas, Brainstorm, Settings pages → verify no errors
     </verify>
     <done>
-      preload.ts reduced from 274 to ~40 lines. 12 domain modules in
-      src/preload/domains/. All 29 `any` params replaced with proper types.
-      API surface unchanged — zero renderer changes needed.
+      App boots with PGlite instead of Docker PostgreSQL.
+      All existing features work (projects, boards, cards, meetings, ideas, brainstorm, settings).
+      pg-data/ directory created in userData with persistent database files.
+      No Docker or external database required.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Object spread in contextBridge.exposeInMainWorld works correctly
-      - ipcRenderer can be imported in each domain file independently
-      - Type imports from shared/types resolve in preload context (same as current)
-      - No method name collisions across domains (each domain has unique prefixes)
+      - drizzle-orm v0.45.1 includes the pglite adapter (drizzle-orm/pglite export)
+      - PGlite supports all PostgreSQL features used: pgEnum, uuid with gen_random_uuid(),
+        timestamp with timezone, varchar, boolean, integer, text, real, composite PKs,
+        foreign keys with CASCADE, onConflictDoUpdate, LIKE pattern in sql template
+      - PGlite works in Electron main process Node.js context (WASM in Node.js is supported)
+      - PGlite filesystem persistence: new PGlite(dirPath) creates/opens database at that path
+      - All service files use getDb() and Drizzle query API — no raw postgres driver calls
+        exist outside connection.ts (verified via grep: only connection.ts:15 imports postgres)
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Eliminate all remaining `any` types across source files</n>
+    <n>Rewrite backup service without Docker dependency</n>
     <files>
-      src/main/services/assemblyaiTranscriber.ts (MODIFY — replace 9 `any` types)
-      src/main/services/deepgramTranscriber.ts (MODIFY — replace 4 `any` types)
-      src/main/services/exportService.ts (MODIFY — replace 8 `any` types)
-      src/main/services/transcriptionService.ts (MODIFY — replace 3 `any` types)
-      src/main/services/ai-provider.ts (MODIFY — replace 2 `any` types)
-      src/main/services/taskStructuringService.ts (MODIFY — replace 1 `any` type)
-      src/main/services/ideaService.ts (MODIFY — replace 1 `any` type)
-      src/main/services/whisperModelManager.ts (MODIFY — replace 1 `any` type)
-      src/main/workers/transcriptionWorker.ts (MODIFY — replace 1 `any` type)
-      src/renderer/stores/settingsStore.ts (MODIFY — replace 1 `any` type)
-      src/renderer/components/ProjectPlanningModal.tsx (MODIFY — replace 1 `any` type)
-      src/renderer/components/settings/BackupSection.tsx (MODIFY — replace 1 `any` type)
+      src/main/services/backupService.ts (rewrite: Drizzle-based JSON backup/restore)
+      src/main/services/exportService.ts (add missing cardAttachments to EXPORT_TABLES)
     </files>
+    <preconditions>
+      - Task 1 complete (PGlite connection working)
+      - App can connect to database and query tables
+    </preconditions>
     <action>
-      ## WHY
-      87 `any` type occurrences were flagged as MEDIUM severity in the code quality
-      review. After Task 1 removes 29 from preload, ~51 remain across 12+ files.
-      Most are in API response parsing (assemblyai: 17 grep matches, deepgram: 7)
-      where typed interfaces catch breaking API changes at compile time.
+      1. Rewrite `createBackup()`:
+         - Remove Docker exec pg_dump — replace with Drizzle table queries
+         - Import all 21 tables from schema (20 tables + cardAttachments which is missing from exportService)
+         - Query each table via `db.select().from(table)` in FK-safe order (parents first):
+           projects, settings, aiProviders, boards, labels, columns, meetings, ideas,
+           brainstormSessions, cards, aiUsage, transcripts, meetingBriefs, actionItems,
+           cardLabels, cardComments, cardRelationships, cardActivities, cardAttachments,
+           ideaTags, brainstormMessages
+         - Strip apiKeyEncrypted from aiProviders rows (same pattern as exportService)
+         - Serialize as JSON with metadata header: { version: 1, createdAt, tableCount, tables: {...} }
+         - Save as `backup-YYYY-MM-DD-HHmmss.json` (changed from .sql)
+         - Keep same BackupInfo return type and progress events
 
-      Note: grep counts include `eslint-disable-next-line @typescript-eslint/no-explicit-any`
-      comments. The actual `any` TYPE occurrences are fewer. When you replace the `any`
-      with a proper type, also remove the corresponding eslint-disable comment.
+      2. Rewrite `restoreBackup()`:
+         - Read and parse JSON backup file
+         - Validate version field and table structure
+         - Create safety backup first (existing pattern, now calls the rewritten createBackup)
+         - DELETE all data in reverse FK order (children first):
+           brainstormMessages, ideaTags, cardAttachments, cardActivities, cardRelationships,
+           cardComments, cardLabels, actionItems, meetingBriefs, transcripts, aiUsage,
+           cards, brainstormSessions, ideas, meetings, columns, labels, boards,
+           aiProviders, settings, projects
+         - INSERT data in forward FK order (parents first) — same order as createBackup
+         - Use `db.insert(table).values(rows)` for each non-empty table
+         - Keep progress events throughout
 
-      ## WHAT
+      3. Update `listBackups()`:
+         - Change regex to accept BOTH .sql and .json files:
+           `/^backup-\d{4}-\d{2}-\d{2}-\d{6}\.(sql|json)$/`
+         - This provides backward compatibility — old .sql backups still show up (read-only,
+           can be deleted but not restored since we no longer have pg_dump/psql)
 
-      READ each file before modifying. For each `any`, determine the correct type.
+      4. Update `deleteBackup()`:
+         - Update filename validation regex to accept both .sql and .json:
+           `/^backup-[\d-]+\.(sql|json)$/`
 
-      ### 1. assemblyaiTranscriber.ts (highest count — ~9 actual `any` types)
+      5. Remove Docker dependencies:
+         - Remove `import { execFile, spawn } from 'node:child_process'`
+         - Remove `import { promisify } from 'node:util'`
+         - Remove `const execFileAsync = promisify(execFile)`
+         - Remove `isDockerAvailable()` function entirely
+         - Remove `import { sql } from 'drizzle-orm'` if no longer needed
+           (check: getAutoBackupSettings still uses `sql` template for LIKE query — KEEP IT)
+         - Update file header comments
 
-      Create response interfaces for AssemblyAI API responses:
-      ```typescript
-      interface AssemblyAIUploadResponse { upload_url: string }
-      interface AssemblyAITranscript {
-        id: string;
-        status: 'queued' | 'processing' | 'completed' | 'error';
-        text?: string;
-        error?: string;
-        words?: Array<{ text: string; start: number; end: number; speaker?: string }>;
-      }
-      ```
-      Replace `const uploadData: any` → `const uploadData: AssemblyAIUploadResponse`
-      Replace `const transcriptData: any` → `const transcriptData: AssemblyAITranscript`
-      Replace `const result: any` in poll loops → `const result: AssemblyAITranscript`
-      Replace `(w: any)` in word mapping → `(w: AssemblyAITranscript['words'][number])`
-      Similar for `transcribeFileWithDiarization` function.
-      Remove all `eslint-disable-next-line @typescript-eslint/no-explicit-any` comments.
+      6. Fix exportService.ts gap:
+         - Add `cardAttachments: schema.cardAttachments` to EXPORT_TABLES
+         - This table was added in Plan 7.8 but never added to the export list
 
-      ### 2. deepgramTranscriber.ts (~4 actual `any` types)
+      7. Keep unchanged:
+         - `getBackupDir()` — same logic
+         - `emitProgress()` — same logic
+         - `cleanOldBackups()` — same logic (uses listBackups + unlink)
+         - `getAutoBackupSettings()` — same logic (Drizzle query with sql LIKE)
+         - `updateAutoBackupSettings()` — same logic (Drizzle upsert)
 
-      Create response interface:
-      ```typescript
-      interface DeepgramResponse {
-        results?: {
-          channels?: Array<{
-            alternatives?: Array<{
-              transcript?: string;
-              words?: Array<{ word: string; start: number; end: number; speaker?: number }>;
-            }>;
-          }>;
-        };
-      }
-      ```
-      Replace all `any` response types. Remove eslint-disable comments.
-
-      ### 3. exportService.ts (8 `any` types)
-
-      - `EXPORT_TABLES: Record<string, any>` → `Record<string, PgTable>` (import from drizzle-orm/pg-core or use a more specific type). If PgTable is not available, use `Record<string, { [key: string]: unknown }>` or the actual Drizzle table type.
-      - `Record<string, any[]>` → `Record<string, Record<string, unknown>[]>`
-      - `(row: any)` → `(row: Record<string, unknown>)`
-      - `toCsvRow(values: any[])` → `toCsvRow(values: unknown[])`
-      - `tableToCsv(rows: any[])` → `tableToCsv(rows: Record<string, unknown>[])`
-
-      READ the Drizzle schema imports to determine the most accurate types.
-
-      ### 4. transcriptionService.ts (~3 actual `any` types)
-
-      READ the file first. Replace `any` with specific types (likely worker message
-      types or transcription result types).
-
-      ### 5. ai-provider.ts (~2 actual `any` types)
-
-      Likely in error handling or response parsing. Replace with `unknown` or
-      specific SDK types from `ai` package.
-
-      ### 6. Remaining files (1 each)
-
-      - taskStructuringService.ts: likely JSON parse result → use `unknown` + type guard
-      - ideaService.ts: likely JSON parse result → use `unknown` + type guard
-      - whisperModelManager.ts: likely HTTP response or error → use `unknown`
-      - transcriptionWorker.ts: likely message handler → type the message protocol
-      - settingsStore.ts: likely settings value → use `string | null`
-      - ProjectPlanningModal.tsx: likely event handler or API response → specific type
-      - BackupSection.tsx: likely event handler → specific type
-
-      IMPORTANT:
-      - Prefer specific types over `unknown` when the shape is known
-      - Use `unknown` over `any` when the shape is truly unknown, with type guards
-      - Remove all `eslint-disable-next-line @typescript-eslint/no-explicit-any` comments
-        when the underlying `any` is fixed
-      - Do NOT change behavior — only types
-      - Each file's interfaces should be defined locally (near usage), not in shared/types
-        (these are internal implementation details, not public API)
+      WHY: The backup service is the ONLY remaining Docker dependency in the entire codebase.
+      Rewriting it to use Drizzle queries (same pattern as exportService) makes the app
+      100% standalone. JSON backups are human-readable, portable, and version-tagged.
     </action>
     <verify>
-      1. `npx tsc --noEmit` — zero TypeScript errors
-      2. `npm test` — all 98 tests pass
-      3. Zero `any` type annotations in source files (excluding test files, node_modules):
-         Run: `grep -rn "\bany\b" src/ --include="*.ts" --include="*.tsx" | grep -v "node_modules" | grep -v "__tests__" | grep -v "eslint-disable" | grep -v "\/\/" | grep -v "string literal"`
-         Verify count is 0 (or only in string literals like "any blockers")
-      4. All eslint-disable comments for `no-explicit-any` removed
+      1. `npx tsc --noEmit` — zero errors
+      2. `npx vitest run` — all 99 tests pass
+      3. Manual: Settings → Backup → Create Backup → verify .json file appears in list
+      4. Manual: Open the .json file — verify it contains all 21 tables with data
+      5. Manual: Create some test data → Backup → Delete test data → Restore → verify data is back
+      6. Manual: Verify auto-backup settings toggle still works
     </verify>
     <done>
-      All `any` type annotations eliminated from source files. API response
-      interfaces created for AssemblyAI, Deepgram, and export service. Type
-      safety at all external API boundaries. Zero eslint-disable-any comments.
+      Backup/restore works without Docker. Creates versioned .json backup files.
+      Restore deletes all data then reinserts in FK-safe order.
+      Old .sql backups still visible in list (for manual deletion).
+      cardAttachments now included in both backup and export.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - AssemblyAI and Deepgram API response shapes are stable (typed from observed usage)
-      - Drizzle ORM provides adequate table types for exportService
-      - JSON.parse results can use `unknown` with type assertions after validation
-      - `any` in string literals (e.g., "any blockers" in meeting prompts) are false positives
+      - FK-safe table ordering is correct (derived from schema foreign key definitions)
+      - Drizzle bulk insert handles all column types: UUIDs as strings, timestamps as ISO strings,
+        enums as string values — which is how Drizzle serializes them from select()
+      - Drizzle delete().from(table) without WHERE deletes all rows (verified: standard SQL)
+      - JSON file size is manageable — for a single-user desktop app, backup should be < 10MB
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Create developer documentation — DEVELOPMENT.md and ARCHITECTURE.md</n>
+    <n>Packaging config, Docker cleanup, and documentation update</n>
     <files>
-      docs/DEVELOPMENT.md (CREATE — ~150 lines)
-      docs/ARCHITECTURE.md (CREATE — ~200 lines)
+      forge.config.ts (add extraResource for drizzle/ migrations)
+      vite.main.config.ts (externalize @electric-sql/pglite if needed for WASM)
+      drizzle.config.ts (add comment about PGlite — keep Docker URL for drizzle-kit studio)
+      docker-compose.yml (add OPTIONAL header comment)
+      .env.example (simplify — mark DATABASE_URL as optional)
+      README.md (remove Docker prerequisite, update setup instructions)
+      package.json (update db:up/db:down script descriptions if possible)
     </files>
+    <preconditions>
+      - Tasks 1 and 2 complete (PGlite working, backup rewritten)
+      - `npx tsc --noEmit` passes
+      - `npx vitest run` passes
+    </preconditions>
     <action>
-      ## WHY
-      The documentation review rated coverage as "SPARSE" and onboarding as "NEEDS WORK."
-      README.md exists (Plan 8.2) but provides only a quick start. New developers have
-      no guide for daily workflow, project structure, adding features, debugging, or
-      understanding the architecture. The review estimates onboarding time drops from
-      2-4 hours to under 15 minutes with proper dev + architecture docs.
+      1. Update `forge.config.ts`:
+         - Add `extraResource: ['./drizzle']` to `packagerConfig`
+         - This copies the drizzle/ migrations folder alongside the asar in the packaged app
+         - The existing migrate.ts already resolves: `path.join(process.resourcesPath, 'drizzle')`
 
-      ## WHAT
+      2. Check `vite.main.config.ts`:
+         - PGlite is a WASM package. Vite may try to bundle its WASM binary inline.
+         - Add `'@electric-sql/pglite'` to the external array alongside '@fugood/whisper.node'
+         - This ensures PGlite is loaded from node_modules at runtime, not bundled by Vite
 
-      READ these files before writing docs to ensure accuracy:
-      - README.md — existing overview (don't duplicate, reference it)
-      - PROJECT.md — vision and tech stack
-      - package.json — all scripts
-      - src/ directory structure (use `ls -R` or glob to map it)
-      - src/main/main.ts — app lifecycle
-      - src/main/ipc/index.ts — IPC registration pattern
-      - src/main/db/connection.ts — DB connection
-      - src/main/db/schema/ — schema files
-      - src/preload/preload.ts — preload bridge (will be refactored by Task 1 but doc the pattern)
-      - src/renderer/App.tsx — React app entry
-      - src/renderer/stores/ — Zustand stores
-      - vitest.config.ts — test configuration
-      - forge.config.ts — Electron Forge config
-      - docker-compose.yml — Docker setup
+      3. Update `drizzle.config.ts`:
+         - Add comment explaining: "This config is used by drizzle-kit CLI only.
+           The app uses PGlite at runtime (see connection.ts).
+           Keep Docker URL here for optional drizzle-kit studio/migrate usage."
+         - Keep `dialect: 'postgresql'` (PGlite IS PostgreSQL)
+         - Keep `dbCredentials.url` pointing to Docker (only needed for `db:studio`)
 
-      ### 1. DEVELOPMENT.md (~150 lines)
+      4. Update Docker files:
+         - `docker-compose.yml`: Add comment at top:
+           "# OPTIONAL: Only needed for drizzle-kit studio or direct SQL access during development.
+            # The app uses an embedded database (PGlite) — Docker is NOT required to run."
+         - `.env.example`: Mark both variables as optional, add note:
+           "# These are only needed if using Docker for development database access."
 
-      Sections:
-      - **Prerequisites** — Node.js, Docker, Git (with version requirements from package.json engines)
-      - **First-Time Setup** — step-by-step (clone, install, docker compose up, env, start)
-      - **Daily Development** — `npm start`, hot reload behavior, what runs where
-      - **Project Structure** — tree diagram of src/ with one-line descriptions per directory
-      - **NPM Scripts** — table of all scripts from package.json with descriptions
-      - **Adding a New Feature** — the standard flow:
-        1. Add types to src/shared/types/ (create domain file or extend existing)
-        2. Create/extend service in src/main/services/
-        3. Add IPC handler in src/main/ipc/
-        4. Register handler in src/main/ipc/index.ts
-        5. Add preload bridge method in src/preload/domains/
-        6. Extend ElectronAPI interface in src/shared/types/electron-api.ts
-        7. Create/extend Zustand store in src/renderer/stores/
-        8. Build UI components in src/renderer/components/
-      - **Database** — running migrations, creating new migrations, schema location
-      - **Testing** — running tests, writing tests, test file location conventions
-      - **Debugging** — DevTools access, main process logging, common issues
-      - **Common Issues** — Docker not running, port conflicts, Whisper model not found
+      5. Update `README.md`:
+         - Remove Docker Desktop from Prerequisites section
+         - Remove `docker compose up -d` from Quick Start
+         - Simplify Quick Start to: git clone → npm install → npm start
+         - Add note: "The database is embedded — no external setup needed."
+         - Move `db:up`, `db:down` to an "Optional: Docker Development Database" section
+         - Update Tech Stack table: change "PostgreSQL (Docker) | 16" to "PGlite (embedded) | 0.3.x"
 
-      ### 2. ARCHITECTURE.md (~200 lines)
+      6. Verify no stale Docker references in active code:
+         - autoBackupScheduler.ts — uses backupService functions only (no Docker refs) ✓
+         - SettingsPage.tsx — no Docker status check ✓
+         - No IPC handlers reference Docker directly ✓
+         - Only backupService.ts had Docker refs → already removed in Task 2
 
-      Sections:
-      - **Overview** — high-level diagram (text-based) of the 3-process model
-      - **Process Model** — main process, preload, renderer (what runs where, why)
-      - **Data Flow** — unidirectional: UI → Store → IPC → Service → DB → IPC → Store → UI
-      - **IPC Communication** — how channels work, naming conventions, handler registration
-      - **Database Layer** — PostgreSQL via Docker, Drizzle ORM, migration system, schema organization
-      - **State Management** — Zustand stores pattern, 9 stores listed with responsibility
-      - **AI Provider System** — provider abstraction, per-task model routing, usage logging
-      - **Security Model** — context isolation, API key encryption, CSP, IPC validation (Zod)
-      - **Audio Pipeline** — capture → chunking → transcription → storage → display
-      - **Key Patterns** — service layer pattern, store pattern, IPC handler pattern, type organization
-
-      IMPORTANT:
-      - All content MUST be verified against actual source code — DO NOT fabricate
-      - Reference specific file paths so developers can find things
-      - Keep it practical and scannable (tables, code blocks, bullet points)
-      - Do NOT duplicate README.md content — reference it instead
-      - Use actual npm script names, actual file paths, actual patterns from the codebase
-      - Create the docs/ directory if it doesn't exist
+      WHY: The packaged app must include migration SQL files and work without any external
+      dependencies. Docker becomes optional (for devs who want drizzle-kit studio).
+      README must reflect the simplified "install and run" experience.
     </action>
     <verify>
-      1. docs/DEVELOPMENT.md exists and is 100-200 lines
-      2. docs/ARCHITECTURE.md exists and is 150-250 lines
-      3. All file paths referenced in docs actually exist (spot-check 5+)
-      4. All npm scripts referenced match package.json
-      5. Architecture descriptions match actual code patterns
-      6. `npx tsc --noEmit` — still passes (docs don't affect compilation)
+      1. `npx tsc --noEmit` — zero errors
+      2. `npx vitest run` — all 99 tests pass
+      3. `npm run start` — app boots correctly (development mode)
+      4. `npm run package` — completes without errors
+      5. Run packaged app from `out/` folder — boots, creates database, all features work
+      6. Verify drizzle/ folder exists in packaged app's resources directory
     </verify>
     <done>
-      DEVELOPMENT.md (setup guide, project structure, adding features, debugging)
-      and ARCHITECTURE.md (process model, data flow, IPC, stores, AI, security)
-      created in docs/ directory. All content verified against actual codebase.
-      New developer onboarding time estimated to drop from 2-4 hours to under 15 minutes.
+      Packaged app is fully standalone. No Docker, no external database.
+      User installs and runs immediately. Migrations auto-apply on first launch.
+      README reflects the simplified setup.
+      Docker remains available as optional dev tool for drizzle-kit studio.
     </done>
-    <confidence>HIGH</confidence>
+    <confidence>MEDIUM</confidence>
     <assumptions>
-      - docs/ directory can be created at project root
-      - Text-based architecture diagrams are sufficient (no image tooling)
-      - Doc content can reference Task 1's preload namespacing pattern (if Task 1 runs first)
-        OR the current flat pattern (if docs run first) — either is valid
-      - README.md linking to docs/ is optional (can be added separately)
+      - PGlite WASM loads correctly when externalized by Vite (not bundled inline)
+      - Drizzle migrate() can read SQL files from extraResource path in packaged app
+        (migrate.ts already has this path logic: process.resourcesPath + '/drizzle')
+      - Electron Forge's extraResource copies the entire drizzle/ folder correctly
+      - If WASM loading from asar fails, fallback: add '@electric-sql/pglite' to
+        packagerConfig.asar.unpack or asarUnpack glob
     </assumptions>
   </task>
 </phase>

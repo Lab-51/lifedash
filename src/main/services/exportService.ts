@@ -26,6 +26,7 @@ const EXPORT_TABLES: Record<string, PgTable> = {
   cardComments: schema.cardComments,
   cardRelationships: schema.cardRelationships,
   cardActivities: schema.cardActivities,
+  cardAttachments: schema.cardAttachments,
   meetings: schema.meetings,
   transcripts: schema.transcripts,
   meetingBriefs: schema.meetingBriefs,

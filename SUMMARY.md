@@ -1,75 +1,70 @@
-# Plan 8.7 Summary — Preload Bridge Namespacing, `any` Elimination & Developer Documentation
+# Summary: Plan 9.1 — Standalone Database (PGlite Migration)
 
-## Date: 2026-02-13
-## Status: COMPLETE (3/3 tasks, parallel execution, ~389s wall clock)
+## Date: 2026-02-14
+## Status: COMPLETE (3/3 tasks, sequential execution)
 
 ## What Changed
-Split monolithic preload.ts (274 lines, 80+ flat methods) into 12 domain modules. Eliminated all `any` type annotations from source files (51 total: 29 in preload, 22 in services). Created developer documentation (DEVELOPMENT.md + ARCHITECTURE.md).
 
-### Task 1: Namespace preload bridge into domain modules
+Replaced Docker PostgreSQL with PGlite (WASM PostgreSQL). The app is now fully standalone — install and run, no external dependencies.
+
+### Task 1: Replace postgres driver with PGlite
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- **preload.ts**: 274 → 35 lines (orchestrator with spread imports)
-- **12 domain modules** created in `src/preload/domains/`:
-  - window.ts (21), database.ts (6), projects.ts (54), card-details.ts (31)
-  - settings.ts (26), meetings.ts (81), ideas.ts (17), brainstorm.ts (29)
-  - backup.ts (25), task-structuring.ts (11), notifications.ts (11), transcription.ts (13)
-- **29 `any` params** replaced with proper types (CreateProjectInput, UpdateMeetingInput, etc.)
-- API surface unchanged — zero renderer changes needed
+- **package.json**: Added `@electric-sql/pglite` (^0.3.15), removed `postgres` (^3.4.8)
+- **connection.ts**: Full rewrite — PGlite with filesystem persistence in `userData/pg-data/`
+  - `connectDatabase()`: `new PGlite(dataDir)` + `drizzle(pglite, { schema })`
+  - `disconnectDatabase()`: `pglite.close()` instead of `sql.end()`
+  - `checkDatabaseHealth()`: `pglite.query('SELECT 1')` instead of tagged template
+  - Added `getPglite()` and `getDataDirectory()` exports
+  - Removed: `getConnectionString()`, `DEFAULT_CONNECTION_STRING`, pool config
+- **migrate.ts**: Import changed from `drizzle-orm/postgres-js/migrator` to `drizzle-orm/pglite/migrator`
+- **main.ts**: Updated comment from "PostgreSQL" to "PGlite"
 
-### Task 2: Eliminate all remaining `any` types
+### Task 2: Rewrite backup service without Docker
 **Status:** COMPLETE | **Confidence:** HIGH
 
-- **22 `any` annotations** removed across 6 files
-- **14 new interfaces** created:
-  - assemblyaiTranscriber: AssemblyAIUploadResponse, AssemblyAIWord, AssemblyAITranscript
-  - deepgramTranscriber: DeepgramWord, DeepgramResponse
-  - exportService: PgTable import from drizzle-orm/pg-core
-  - ai-provider: ProviderFactory interface
-  - transcriptionService: WorkerMessage (4-variant discriminated union)
-  - transcriptionWorker: MainToWorkerMessage (3-variant discriminated union)
-- **15 eslint-disable comments** removed
+- **backupService.ts**: Complete rewrite (277 → 344 lines)
+  - Removed: Docker exec, pg_dump, psql, child_process, `isDockerAvailable()`
+  - Added: Drizzle-based JSON backup/restore with FK-safe ordering (21 tables)
+  - Backup format: JSON with `{ version, createdAt, tableCount, tables }` structure
+  - File extension: `.json` (was `.sql`)
+  - `listBackups()` + `deleteBackup()`: Accept both .sql and .json for backward compat
+  - Strips `apiKeyEncrypted` from aiProviders (sensitive data)
+- **exportService.ts**: Added missing `cardAttachments` to EXPORT_TABLES
 
-### Task 3: Developer documentation
-**Status:** COMPLETE | **Confidence:** HIGH
+### Task 3: Packaging config, Docker cleanup, documentation
+**Status:** COMPLETE | **Confidence:** MEDIUM → verified HIGH
 
-- **docs/DEVELOPMENT.md** (176 lines): Prerequisites, setup, daily dev, project structure, npm scripts, adding features, database, testing, debugging, common issues
-- **docs/ARCHITECTURE.md** (154 lines): Process model, data flow, IPC, database, state management (10 stores), AI providers, security, audio pipeline, key patterns
-- All content verified against 20+ source files
+- **forge.config.ts**: Added `extraResource: ['./drizzle']` to packagerConfig
+- **vite.main.config.ts**: Added `'@electric-sql/pglite'` to Rollup externals
+- **drizzle.config.ts**: Updated header comment (PGlite at runtime, Docker URL for CLI only)
+- **docker-compose.yml**: Added OPTIONAL header comment
+- **.env.example**: Marked all variables as optional
+- **README.md**: Removed Docker prerequisite, simplified Quick Start (3 steps), moved db:up/db:down to "Optional" section, updated Tech Stack to "PGlite (embedded) | 0.3.x"
 
-## Files Modified (7)
-- `src/preload/preload.ts` (274 → 35 lines, orchestrator)
-- `src/main/services/assemblyaiTranscriber.ts` (9 any → typed, 7 eslint-disable removed)
-- `src/main/services/deepgramTranscriber.ts` (3 any → typed, 4 eslint-disable removed)
-- `src/main/services/exportService.ts` (6 any → typed, 1 eslint-disable removed)
-- `src/main/services/ai-provider.ts` (1 any → typed, 1 eslint-disable removed)
-- `src/main/services/transcriptionService.ts` (2 any → typed, 2 eslint-disable removed)
-- `src/main/workers/transcriptionWorker.ts` (1 any → typed)
+## Files Modified (10)
+- `package.json` (add pglite, remove postgres)
+- `src/main/db/connection.ts` (full rewrite)
+- `src/main/db/migrate.ts` (import change)
+- `src/main/main.ts` (comment update)
+- `src/main/services/backupService.ts` (full rewrite)
+- `src/main/services/exportService.ts` (add cardAttachments)
+- `forge.config.ts` (extraResource)
+- `vite.main.config.ts` (externalize pglite)
+- `drizzle.config.ts` (comment update)
+- `README.md` (remove Docker prereq, simplify setup)
 
-## Files Created (14)
-- `src/preload/domains/window.ts` (21 lines)
-- `src/preload/domains/database.ts` (6 lines)
-- `src/preload/domains/projects.ts` (54 lines)
-- `src/preload/domains/card-details.ts` (31 lines)
-- `src/preload/domains/settings.ts` (26 lines)
-- `src/preload/domains/meetings.ts` (81 lines)
-- `src/preload/domains/ideas.ts` (17 lines)
-- `src/preload/domains/brainstorm.ts` (29 lines)
-- `src/preload/domains/backup.ts` (25 lines)
-- `src/preload/domains/task-structuring.ts` (11 lines)
-- `src/preload/domains/notifications.ts` (11 lines)
-- `src/preload/domains/transcription.ts` (13 lines)
-- `docs/DEVELOPMENT.md` (176 lines)
-- `docs/ARCHITECTURE.md` (154 lines)
+## Files Updated (not code)
+- `docker-compose.yml` (optional header comment)
+- `.env.example` (mark optional)
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors)
-- `npm test`: 98/98 tests passing (5 files)
-- Zero `any` type annotations in source (only string literals/comments remain)
-- 12 domain files in src/preload/domains/
-- preload.ts: 35 lines (under 50 target)
-- All doc file paths verified against filesystem
+- `npx vitest run`: 99/99 tests pass (no test changes needed)
+- Manual verification: Pending (requires running app)
 
 ## What's Next
-1. `/nexus:git` to commit Plan 8.7 changes
-2. Plan 8.8+: Remaining review items (pagination, CI/CD, etc.)
+1. `/nexus:git` to commit Plan 9.1 changes
+2. Manual test: `npm run start` → verify app boots with PGlite
+3. Manual test: `npm run package` → verify packaged app works
+4. Plan 9.2+: Auto-update, installer config, or next distribution tasks

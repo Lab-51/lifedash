@@ -1,3 +1,6 @@
+# OPTIONAL: Only needed for drizzle-kit studio or direct SQL access during development.
+# The app uses an embedded database (PGlite) — Docker is NOT required to run.
+
 # === FILE PURPOSE ===
 # Docker Compose for local development PostgreSQL instance.
 # Run: docker compose up -d

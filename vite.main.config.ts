@@ -7,7 +7,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   build: {
     rollupOptions: {
-      external: ['@fugood/whisper.node'],
+      external: ['@fugood/whisper.node', '@electric-sql/pglite'],
     },
   },
 });

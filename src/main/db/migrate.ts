@@ -3,7 +3,7 @@
 // Called during app startup after the database connection is established.
 
 // === DEPENDENCIES ===
-// drizzle-orm/postgres-js/migrator
+// drizzle-orm/pglite/migrator
 
 // === LIMITATIONS ===
 // - In development, migrations are read from the project root ./drizzle/ folder.
@@ -11,7 +11,7 @@
 //   Options include: extracting from asar at runtime, shipping as extraResource,
 //   or bundling migration SQL as embedded strings. This is a Phase 7 concern.
 
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { migrate } from 'drizzle-orm/pglite/migrator';
 import { getDb } from './connection';
 import path from 'node:path';
 import { app } from 'electron';

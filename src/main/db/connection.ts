@@ -1,41 +1,38 @@
 // === FILE PURPOSE ===
 // Database connection management for the Electron main process.
-// Creates and manages a PostgreSQL connection pool using porsager/postgres
-// and wraps it with Drizzle ORM for type-safe queries.
+// Creates and manages a PGlite (WASM PostgreSQL) instance with filesystem
+// persistence and wraps it with Drizzle ORM for type-safe queries.
 
 // === DEPENDENCIES ===
-// drizzle-orm, postgres (porsager/postgres driver)
+// @electric-sql/pglite, drizzle-orm/pglite
 
 // === LIMITATIONS ===
-// - Connection string defaults to local Docker PostgreSQL.
-// - No SSL configuration yet (not needed for local dev).
-// - Pool size and timeouts are hardcoded for development.
+// - PGlite runs PostgreSQL in-process via WASM -- no external server needed.
+// - Data is persisted to the Electron userData directory.
+// - Single-connection (no pool), which is fine for a desktop app.
 
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { PGlite } from '@electric-sql/pglite';
+import { drizzle } from 'drizzle-orm/pglite';
+import { app } from 'electron';
+import path from 'node:path';
 import * as schema from './schema';
 
 // Module-level state
-let sql: ReturnType<typeof postgres> | null = null;
+let pglite: PGlite | null = null;
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
-const DEFAULT_CONNECTION_STRING =
-  'postgresql://dashboard:localdev@localhost:5432/living_dashboard';
-
-export function getConnectionString(): string {
-  return process.env.DATABASE_URL || DEFAULT_CONNECTION_STRING;
+/**
+ * Returns the filesystem path where PGlite stores its data.
+ * Located inside the Electron userData directory so it persists across app restarts.
+ */
+export function getDataDirectory(): string {
+  return path.join(app.getPath('userData'), 'pg-data');
 }
 
 export async function connectDatabase(): Promise<void> {
-  const connectionString = getConnectionString();
-
-  sql = postgres(connectionString, {
-    max: 10, // Connection pool size
-    idle_timeout: 20, // Close idle connections after 20s
-    connect_timeout: 10, // 10s connection timeout
-  });
-
-  db = drizzle(sql, { schema });
+  const dataDir = getDataDirectory();
+  pglite = new PGlite(dataDir);
+  db = drizzle(pglite, { schema });
 }
 
 export function getDb() {
@@ -45,10 +42,21 @@ export function getDb() {
   return db;
 }
 
+/**
+ * Returns the raw PGlite instance for direct access (health checks, backups, etc.).
+ * Throws if the database has not been connected yet.
+ */
+export function getPglite(): PGlite {
+  if (!pglite) {
+    throw new Error('Database not connected. Call connectDatabase() first.');
+  }
+  return pglite;
+}
+
 export async function disconnectDatabase(): Promise<void> {
-  if (sql) {
-    await sql.end();
-    sql = null;
+  if (pglite) {
+    await pglite.close();
+    pglite = null;
     db = null;
   }
 }
@@ -58,8 +66,8 @@ export async function checkDatabaseHealth(): Promise<{
   message: string;
 }> {
   try {
-    if (!sql) return { connected: false, message: 'Not connected' };
-    await sql`SELECT 1`;
+    if (!pglite) return { connected: false, message: 'Not connected' };
+    await pglite.query('SELECT 1');
     return { connected: true, message: 'Connected' };
   } catch (error) {
     return {

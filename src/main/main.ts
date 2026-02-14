@@ -113,7 +113,7 @@ const createWindow = async () => {
   createTray(mainWindow);
 
   // --- Database startup ---
-  // Connect to PostgreSQL and run migrations. Non-fatal on failure:
+  // Connect to PGlite and run migrations. Non-fatal on failure:
   // the app can still function without a database connection, and
   // the renderer can check db:status to show connection state.
   try {

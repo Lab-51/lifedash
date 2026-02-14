@@ -1,22 +1,23 @@
 // === FILE PURPOSE ===
-// Database backup and restore via pg_dump/psql through Docker exec.
+// Database backup and restore using Drizzle ORM queries.
+// Serializes all tables to JSON, restores by deleting and re-inserting.
 // Manages backup files in app.getPath('userData')/backups/.
 //
 // === DEPENDENCIES ===
-// - Docker CLI on system PATH
-// - PostgreSQL container "living-dashboard-db" running
+// - Database connection (getDb from connection.ts)
+// - Drizzle ORM + schema tables
 //
 // === LIMITATIONS ===
 // - Audio files are NOT backed up (stored outside DB)
-// - Requires Docker to be running
+// - API keys (aiProviders.apiKeyEncrypted) excluded from backups
 
 import { app, BrowserWindow } from 'electron';
-import { execFile, spawn } from 'node:child_process';
-import { promisify } from 'node:util';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { sql } from 'drizzle-orm';
+import { PgTable } from 'drizzle-orm/pg-core';
 import { getDb } from '../db/connection';
+import * as schema from '../db/schema';
 import { settings } from '../db/schema';
 import { createLogger } from './logger';
 import type {
@@ -28,21 +29,58 @@ import type {
 
 const log = createLogger('Backup');
 
-const execFileAsync = promisify(execFile);
+// --- Table maps in FK-safe order ---
+
+// INSERT order: parents first, children last
+const BACKUP_TABLES_INSERT_ORDER: [string, PgTable][] = [
+  ['projects', schema.projects],
+  ['settings', schema.settings],
+  ['aiProviders', schema.aiProviders],
+  ['boards', schema.boards],
+  ['labels', schema.labels],
+  ['columns', schema.columns],
+  ['meetings', schema.meetings],
+  ['ideas', schema.ideas],
+  ['brainstormSessions', schema.brainstormSessions],
+  ['cards', schema.cards],
+  ['aiUsage', schema.aiUsage],
+  ['transcripts', schema.transcripts],
+  ['meetingBriefs', schema.meetingBriefs],
+  ['actionItems', schema.actionItems],
+  ['cardLabels', schema.cardLabels],
+  ['cardComments', schema.cardComments],
+  ['cardRelationships', schema.cardRelationships],
+  ['cardActivities', schema.cardActivities],
+  ['cardAttachments', schema.cardAttachments],
+  ['ideaTags', schema.ideaTags],
+  ['brainstormMessages', schema.brainstormMessages],
+];
+
+// DELETE order: children first, parents last (reverse of insert)
+const BACKUP_TABLES_DELETE_ORDER: [string, PgTable][] = [
+  ...BACKUP_TABLES_INSERT_ORDER,
+].reverse();
+
+// Columns to strip from backups (sensitive data)
+const SENSITIVE_COLUMNS: Record<string, string[]> = {
+  aiProviders: ['apiKeyEncrypted'],
+};
+
+// --- Backup JSON format ---
+
+interface BackupData {
+  version: number;
+  createdAt: string;
+  tableCount: number;
+  tables: Record<string, Record<string, unknown>[]>;
+}
+
+// --- Utility functions ---
 
 export function getBackupDir(): string {
   const dir = path.join(app.getPath('userData'), 'backups');
   fs.mkdirSync(dir, { recursive: true });
   return dir;
-}
-
-export async function isDockerAvailable(): Promise<boolean> {
-  try {
-    await execFileAsync('docker', ['info']);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function emitProgress(
@@ -51,6 +89,8 @@ function emitProgress(
 ): void {
   mainWindow?.webContents.send('backup:progress', progress);
 }
+
+// --- Core backup/restore functions ---
 
 export async function createBackup(
   mainWindow?: BrowserWindow | null,
@@ -61,30 +101,45 @@ export async function createBackup(
       message: 'Preparing backup...',
     });
 
-    // Generate filename: backup-YYYY-MM-DD-HHmmss.sql
+    const db = getDb();
+
+    // Generate filename: backup-YYYY-MM-DD-HHmmss.json
     const now = new Date();
     const ts = now.toISOString().replace(/[T:]/g, '-').slice(0, 19);
-    const fileName = `backup-${ts}.sql`;
+    const fileName = `backup-${ts}.json`;
 
     emitProgress(mainWindow, {
       phase: 'dumping',
-      message: 'Dumping database...',
+      message: 'Reading database tables...',
     });
 
-    const { stdout } = await execFileAsync(
-      'docker',
-      [
-        'exec',
-        'living-dashboard-db',
-        'pg_dump',
-        '-U',
-        'dashboard',
-        '--clean',
-        '--if-exists',
-        'living_dashboard',
-      ],
-      { maxBuffer: 100 * 1024 * 1024 }, // 100MB
-    );
+    // Query all tables in FK-safe insert order
+    const tables: Record<string, Record<string, unknown>[]> = {};
+
+    for (const [name, table] of BACKUP_TABLES_INSERT_ORDER) {
+      const rows = await db.select().from(table);
+
+      // Strip sensitive columns
+      const sensitiveKeys = SENSITIVE_COLUMNS[name];
+      if (sensitiveKeys) {
+        tables[name] = rows.map((row: Record<string, unknown>) => {
+          const cleaned = { ...row };
+          for (const key of sensitiveKeys) {
+            delete cleaned[key];
+          }
+          return cleaned;
+        });
+      } else {
+        tables[name] = rows;
+      }
+    }
+
+    const backupData: BackupData = {
+      version: 1,
+      createdAt: now.toISOString(),
+      tableCount: BACKUP_TABLES_INSERT_ORDER.length,
+      tables,
+    };
 
     emitProgress(mainWindow, {
       phase: 'saving',
@@ -92,7 +147,8 @@ export async function createBackup(
     });
 
     const filePath = path.join(getBackupDir(), fileName);
-    await fs.promises.writeFile(filePath, stdout, 'utf-8');
+    const json = JSON.stringify(backupData, null, 2);
+    await fs.promises.writeFile(filePath, json, 'utf-8');
     const stat = await fs.promises.stat(filePath);
 
     emitProgress(mainWindow, { phase: 'complete', message: 'Backup complete' });
@@ -119,7 +175,7 @@ export async function listBackups(): Promise<BackupInfo[]> {
   try {
     const files = await fs.promises.readdir(dir);
     const backupFiles = files.filter((f) =>
-      /^backup-\d{4}-\d{2}-\d{2}-\d{6}\.sql$/.test(f),
+      /^backup-\d{4}-\d{2}-\d{2}-\d{6}\.(sql|json)$/.test(f),
     );
 
     const results: BackupInfo[] = [];
@@ -151,6 +207,21 @@ export async function restoreBackup(
 
     emitProgress(mainWindow, {
       phase: 'starting',
+      message: 'Reading backup file...',
+    });
+
+    const content = await fs.promises.readFile(filePath, 'utf-8');
+    const backupData: BackupData = JSON.parse(content);
+
+    // Validate backup format
+    if (!backupData.version || typeof backupData.tables !== 'object') {
+      throw new Error(
+        'Invalid backup file: missing version or tables field',
+      );
+    }
+
+    emitProgress(mainWindow, {
+      phase: 'starting',
       message: 'Creating safety backup...',
     });
 
@@ -166,32 +237,28 @@ export async function restoreBackup(
       message: 'Restoring database...',
     });
 
-    const content = await fs.promises.readFile(filePath, 'utf-8');
+    const db = getDb();
 
-    await new Promise<void>((resolve, reject) => {
-      const proc = spawn('docker', [
-        'exec',
-        '-i',
-        'living-dashboard-db',
-        'psql',
-        '-U',
-        'dashboard',
-        'living_dashboard',
-      ]);
+    // Delete all data in reverse FK order (children first)
+    for (const [name, table] of BACKUP_TABLES_DELETE_ORDER) {
+      try {
+        await db.delete(table);
+      } catch (err) {
+        log.error(`Failed to clear table ${name}:`, err);
+      }
+    }
 
-      let stderr = '';
-      proc.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString();
-      });
-      proc.on('close', (code) => {
-        if (code === 0) resolve();
-        else reject(new Error(`psql exited with code ${code}: ${stderr}`));
-      });
-      proc.on('error', reject);
-
-      proc.stdin.write(content);
-      proc.stdin.end();
-    });
+    // Insert data in forward FK order (parents first)
+    for (const [name, table] of BACKUP_TABLES_INSERT_ORDER) {
+      const rows = backupData.tables[name];
+      if (rows && rows.length > 0) {
+        try {
+          await db.insert(table).values(rows);
+        } catch (err) {
+          log.error(`Failed to restore table ${name}:`, err);
+        }
+      }
+    }
 
     emitProgress(mainWindow, {
       phase: 'complete',
@@ -210,7 +277,7 @@ export async function restoreBackup(
 
 export async function deleteBackup(fileName: string): Promise<void> {
   // Validate filename to prevent path traversal
-  if (!/^backup-[\d-]+\.sql$/.test(fileName)) {
+  if (!/^backup-[\d-]+\.(sql|json)$/.test(fileName)) {
     throw new Error('Invalid backup file name');
   }
   const filePath = path.join(getBackupDir(), fileName);

@@ -19,7 +19,6 @@ AI-powered desktop dashboard for meeting intelligence, project management, brain
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) 18+
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for PostgreSQL 16)
 - [Git](https://git-scm.com/)
 
 ## Quick Start
@@ -28,15 +27,14 @@ AI-powered desktop dashboard for meeting intelligence, project management, brain
 git clone <repository-url>
 cd living-dashboard
 npm install
-docker compose up -d     # Start PostgreSQL
 npm start                # Launch in development mode
 ```
 
-On first launch, the app will run database migrations automatically.
+The database is embedded (PGlite) — no external setup needed. On first launch, the app runs migrations automatically.
 
 ## Environment Variables
 
-Copy the example environment file and adjust as needed:
+Environment variables are only needed for development with drizzle-kit. Copy `.env.example` if using Docker for schema tools:
 
 ```bash
 cp .env.example .env
@@ -45,7 +43,7 @@ cp .env.example .env
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DB_PASSWORD` | `localdev` | PostgreSQL password for Docker Compose |
-| `DATABASE_URL` | *(auto-derived)* | Full connection string override |
+| `DATABASE_URL` | *(auto-derived)* | Connection string for drizzle-kit CLI |
 
 ## Available Scripts
 
@@ -61,6 +59,13 @@ cp .env.example .env
 | `npm run db:generate` | `drizzle-kit generate` | Generate database migration files |
 | `npm run db:migrate` | `drizzle-kit migrate` | Apply database migrations |
 | `npm run db:studio` | `drizzle-kit studio` | Open Drizzle Studio (database GUI) |
+
+### Optional: Docker Development Database
+
+These commands require [Docker Desktop](https://www.docker.com/products/docker-desktop/) and are only needed for drizzle-kit studio or direct SQL access during development:
+
+| Script | Command | Description |
+|--------|---------|-------------|
 | `npm run db:up` | `docker compose up -d` | Start the PostgreSQL container |
 | `npm run db:down` | `docker compose down` | Stop the PostgreSQL container |
 
@@ -72,7 +77,7 @@ cp .env.example .env
 | Frontend | React | 19.x |
 | Language | TypeScript | 5.9 |
 | Styling | Tailwind CSS | 4.x |
-| Database | PostgreSQL (Docker) | 16 |
+| Database | PGlite (embedded) | 0.3.x |
 | ORM | Drizzle ORM | 0.45 |
 | AI SDK | Vercel AI SDK (`ai`) | 6.x |
 | AI - OpenAI | @ai-sdk/openai | 3.x |
