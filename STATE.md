@@ -8,7 +8,8 @@ Session focus: Plan 9.2 execution — post-recording UX
 Milestone: Standalone Distribution
 Phase: 9 (Distribution Readiness)
 Plan: 9.2 — COMPLETE (3/3 tasks executed)
-Latest commit: pending (Plan 9.2 changes staged)
+Ad-hoc: Custom Recordings Save Folder — COMPLETE (2/2 tasks)
+Latest commit: 73d8895 on main (pushed to origin)
 
 ## Ad-Hoc Features (this session)
 
@@ -60,11 +61,13 @@ Plans 8.1-8.7 + 4 ad-hoc features delivered.
   - Task 1: Processing state in RecordingControls + auto-open MeetingDetailModal ✓
   - Task 2: Auto-generate brief + action items on meeting completion ✓
   - Task 3: Project-aware batch push for action items ✓
-- Next: Plan 9.3 (TBD) or user testing
+- Ad-hoc: Custom recordings save folder — COMPLETE (2/2 tasks)
+  - Task 1: Settings-aware recordings path + IPC plumbing (5 files) ✓
+  - Task 2: RecordingsSavePathSection UI + SettingsPage wiring (2 files, 1 new) ✓
 
 ## Confidence Levels
 Overall approach: HIGH
-Plan 9.2: HIGH — all 3 tasks implemented and verified (tsc + 99/99 tests pass)
+Ad-hoc (recordings folder): HIGH — follows existing patterns exactly (AudioDeviceSection, backup dialog)
 
 ## Decisions Made (Phase 9)
 - PGlite over embedded-postgres: smaller bundle, WASM arch-independent

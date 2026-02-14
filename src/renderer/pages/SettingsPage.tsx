@@ -18,6 +18,7 @@ import ExportSection from '../components/settings/ExportSection';
 import NotificationSection from '../components/settings/NotificationSection';
 import TranscriptionProviderSection from '../components/settings/TranscriptionProviderSection';
 import AudioDeviceSection from '../components/settings/AudioDeviceSection';
+import RecordingsSavePathSection from '../components/settings/RecordingsSavePathSection';
 
 function SettingsPage() {
   const { providers, loading, error, encryptionAvailable, loadProviders, loadSettings, checkEncryption } =
@@ -76,6 +77,9 @@ function SettingsPage() {
 
       {/* === Section: Audio Devices === */}
       <AudioDeviceSection />
+
+      {/* === Section: Recordings Folder === */}
+      <RecordingsSavePathSection />
 
       {/* === Section: Transcription Provider === */}
       <TranscriptionProviderSection />

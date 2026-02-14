@@ -9,6 +9,8 @@ export const settingsBridge = {
     ipcRenderer.invoke('settings:set', key, value),
   getAllSettings: () => ipcRenderer.invoke('settings:get-all'),
   deleteSetting: (key: string) => ipcRenderer.invoke('settings:delete', key),
+  pickRecordingsFolder: () => ipcRenderer.invoke('settings:pick-recordings-folder'),
+  getDefaultRecordingsPath: () => ipcRenderer.invoke('settings:get-default-recordings-path'),
 
   // AI Providers
   getAIProviders: () => ipcRenderer.invoke('ai:list-providers'),

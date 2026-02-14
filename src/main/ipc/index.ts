@@ -30,7 +30,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerDatabaseHandlers();
   registerProjectHandlers();
   registerCardHandlers();
-  registerSettingsHandlers();
+  registerSettingsHandlers(mainWindow);
   registerAIProviderHandlers();
   registerMeetingHandlers();
   registerRecordingHandlers(mainWindow);

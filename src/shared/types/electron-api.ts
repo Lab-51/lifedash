@@ -120,6 +120,8 @@ export interface ElectronAPI {
   setSetting: (key: string, value: string) => Promise<void>;
   getAllSettings: () => Promise<Record<string, string>>;
   deleteSetting: (key: string) => Promise<void>;
+  pickRecordingsFolder: () => Promise<string | null>;
+  getDefaultRecordingsPath: () => Promise<string>;
 
   // AI Providers
   getAIProviders: () => Promise<AIProvider[]>;

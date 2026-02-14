@@ -18,8 +18,11 @@ import { app, BrowserWindow } from 'electron';
 import { WaveFile } from 'wavefile';
 import fs from 'node:fs';
 import path from 'node:path';
+import { eq } from 'drizzle-orm';
 import type { RecordingState } from '../../shared/types';
 import * as transcriptionService from './transcriptionService';
+import { getDb } from '../db/connection';
+import { settings } from '../db/schema';
 import { createLogger } from './logger';
 
 const log = createLogger('Audio');
@@ -30,8 +33,24 @@ let startTime = 0;
 let stateTimer: ReturnType<typeof setInterval> | null = null;
 let mainWindow: BrowserWindow | null = null;
 
-function getRecordingsDir(): string {
+function getDefaultRecordingsDir(): string {
   return path.join(app.getPath('userData'), 'recordings');
+}
+
+async function getRecordingsDir(): Promise<string> {
+  try {
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(settings)
+      .where(eq(settings.key, 'recordings:savePath'));
+    if (rows.length > 0 && rows[0].value) {
+      return rows[0].value;
+    }
+  } catch (err) {
+    log.error('Failed to read recordings:savePath from settings, using default:', err);
+  }
+  return getDefaultRecordingsDir();
 }
 
 export function setMainWindow(win: BrowserWindow): void {
@@ -102,7 +121,7 @@ export async function stopRecording(): Promise<string> {
 }
 
 async function saveWav(meetingId: string, pcmBuffer: Buffer): Promise<string> {
-  const dir = getRecordingsDir();
+  const dir = await getRecordingsDir();
   fs.mkdirSync(dir, { recursive: true });
 
   const filePath = path.join(dir, `${meetingId}.wav`);

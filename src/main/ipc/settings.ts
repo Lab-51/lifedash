@@ -9,14 +9,15 @@
 // - No validation on key/value contents (caller responsibility)
 // - Values are stored as plain text strings (use JSON.stringify for objects)
 
-import { ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { settingKeySchema, settingValueSchema } from '../../shared/validation/schemas';
 
-export function registerSettingsHandlers(): void {
+export function registerSettingsHandlers(mainWindow: BrowserWindow): void {
   // Get a single setting by key; returns null if not found
   ipcMain.handle('settings:get', async (_event, key: unknown) => {
     const validKey = validateInput(settingKeySchema, key);
@@ -57,5 +58,22 @@ export function registerSettingsHandlers(): void {
     const validKey = validateInput(settingKeySchema, key);
     const db = getDb();
     await db.delete(settings).where(eq(settings.key, validKey));
+  });
+
+  // Open a folder picker dialog for choosing the recordings save path
+  ipcMain.handle('settings:pick-recordings-folder', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose Recordings Folder',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    return result.filePaths[0];
+  });
+
+  // Return the default recordings directory path
+  ipcMain.handle('settings:get-default-recordings-path', async () => {
+    return path.join(app.getPath('userData'), 'recordings');
   });
 }
