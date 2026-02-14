@@ -8,7 +8,7 @@
 // drizzle-orm, postgres (via ./db/connection and ./db/migrate),
 // electron-audio-loopback (system audio capture)
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, globalShortcut } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import windowStateKeeper from 'electron-window-state';
@@ -160,6 +160,15 @@ const createWindow = async () => {
   if (!app.isPackaged) {
     mainWindow.webContents.openDevTools();
   }
+
+  // Register global hotkey to open command palette from anywhere
+  globalShortcut.register('CommandOrControl+Shift+Space', () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('app:show-command-palette');
+    }
+  });
 };
 
 // Ensure the isQuitting flag is set when the app is about to quit
@@ -167,9 +176,15 @@ const createWindow = async () => {
 // Also gracefully close the database connection pool.
 app.on('before-quit', async () => {
   (app as unknown as { isQuitting: boolean }).isQuitting = true;
+  globalShortcut.unregisterAll();
   stopAutoBackup();
   stopNotificationScheduler();
   await disconnectDatabase();
+});
+
+// Ensure global shortcuts are cleaned up when the app quits
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 // Create window when Electron is ready

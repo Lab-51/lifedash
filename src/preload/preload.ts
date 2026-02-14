@@ -17,6 +17,7 @@ import { backupBridge } from './domains/backup';
 import { taskStructuringBridge } from './domains/task-structuring';
 import { notificationsBridge } from './domains/notifications';
 import { transcriptionBridge } from './domains/transcription';
+import { appBridge } from './domains/app';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -32,4 +33,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...taskStructuringBridge,
   ...notificationsBridge,
   ...transcriptionBridge,
+  ...appBridge,
 });

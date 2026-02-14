@@ -10,7 +10,7 @@
 // react (lazy), react-router-dom (HashRouter, Routes, Route, useNavigate),
 // TitleBar, AppLayout, StatusBar, useKeyboardShortcuts, lazy page components
 
-import { lazy, useEffect } from 'react';
+import { lazy, useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import TitleBar from './components/TitleBar';
@@ -19,6 +19,7 @@ import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { useTheme } from './hooks/useTheme';
 import { useRecordingStore } from './stores/recordingStore';
+import CommandPalette from './components/CommandPalette';
 
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
@@ -31,7 +32,17 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 /** Wrapper that lives inside HashRouter to enable useNavigate for shortcuts */
 function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  useKeyboardShortcuts(navigate);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+
+  const toggleCommandPalette = useCallback(() => {
+    setShowCommandPalette(prev => !prev);
+  }, []);
+
+  const closeCommandPalette = useCallback(() => {
+    setShowCommandPalette(false);
+  }, []);
+
+  useKeyboardShortcuts(navigate, toggleCommandPalette);
   useTheme();
 
   // Initialize recording state listener (always active regardless of page)
@@ -40,7 +51,25 @@ function AppShell({ children }: { children: ReactNode }) {
     return cleanup;
   }, []);
 
-  return <>{children}</>;
+  // Listen for global hotkey IPC event (Ctrl+Shift+Space from main process)
+  useEffect(() => {
+    if (!window.electronAPI?.onShowCommandPalette) return;
+    const cleanup = window.electronAPI.onShowCommandPalette(() => {
+      setShowCommandPalette(true);
+    });
+    return cleanup;
+  }, []);
+
+  return (
+    <>
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={closeCommandPalette}
+        navigate={navigate}
+      />
+      {children}
+    </>
+  );
 }
 
 function App() {

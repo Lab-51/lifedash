@@ -18,11 +18,21 @@ const SHORTCUT_MAP: Record<string, string> = {
   '5': '/settings',
 };
 
-function useKeyboardShortcuts(navigate: NavigateFunction): void {
+function useKeyboardShortcuts(
+  navigate: NavigateFunction,
+  onToggleCommandPalette?: () => void,
+): void {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // Require Ctrl (Windows/Linux) or Cmd (macOS)
       if (!e.ctrlKey && !e.metaKey) return;
+
+      // Ctrl+K / Cmd+K — toggle command palette
+      if (e.key === 'k' && onToggleCommandPalette) {
+        e.preventDefault();
+        onToggleCommandPalette();
+        return;
+      }
 
       const route = SHORTCUT_MAP[e.key];
       if (route) {
@@ -36,7 +46,7 @@ function useKeyboardShortcuts(navigate: NavigateFunction): void {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [navigate]);
+  }, [navigate, onToggleCommandPalette]);
 }
 
 export default useKeyboardShortcuts;

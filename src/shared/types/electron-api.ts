@@ -219,6 +219,9 @@ export interface ElectronAPI {
 
   // Meeting Analytics
   getMeetingAnalytics: (meetingId: string) => Promise<MeetingAnalytics>;
+
+  // App-level events
+  onShowCommandPalette: (callback: () => void) => () => void;
 }
 
 declare global {
