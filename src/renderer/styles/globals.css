@@ -171,3 +171,17 @@ html, body {
   background: none;
   padding: 0;
 }
+
+/* Kanban card drag-and-drop animations */
+@keyframes card-grab {
+  0%   { transform: scale(1); box-shadow: 0 0 0 rgba(0,0,0,0); }
+  40%  { transform: scale(1.03) rotate(0.5deg); box-shadow: 0 8px 25px rgba(0,0,0,0.25); }
+  100% { transform: scale(1.02); box-shadow: 0 4px 12px rgba(0,0,0,0.15); opacity: 0.4; }
+}
+
+@keyframes card-drop {
+  0%   { transform: scale(1.04); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  50%  { transform: scale(0.98); }
+  75%  { transform: scale(1.01); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(0,0,0,0); }
+}

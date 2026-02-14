@@ -33,6 +33,7 @@ const PRIORITY_CONFIG = {
 const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick }: KanbanCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [justDropped, setJustDropped] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(card.title);
@@ -56,6 +57,13 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick 
     return () => clearTimeout(timer);
   }, [confirmingDelete]);
 
+  // Clear drop-bounce animation after it completes
+  useEffect(() => {
+    if (!justDropped) return;
+    const timer = setTimeout(() => setJustDropped(false), 300);
+    return () => clearTimeout(timer);
+  }, [justDropped]);
+
   // Set up drag behavior
   useEffect(() => {
     const el = cardRef.current;
@@ -70,7 +78,10 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick 
         sourcePosition: card.position,
       }),
       onDragStart: () => setIsDragging(true),
-      onDrop: () => setIsDragging(false),
+      onDrop: () => {
+        setIsDragging(false);
+        setJustDropped(true);
+      },
     });
   }, [card.id, card.columnId, card.position]);
 
@@ -146,7 +157,14 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick 
     <div
       ref={cardRef}
       onClick={onClick}
-      className={`group relative bg-surface-800 rounded-md p-3 border-l-2 cursor-pointer hover:bg-surface-700/50 transition-colors ${priority.border} ${isDragging ? 'opacity-40' : ''}`}
+      className={`group relative bg-surface-800 rounded-md p-3 border-l-2 cursor-pointer hover:bg-surface-700/50 transition-colors ${priority.border}`}
+      style={
+        isDragging
+          ? { animation: 'card-grab 200ms ease-out forwards' }
+          : justDropped
+            ? { animation: 'card-drop 300ms ease-out' }
+            : undefined
+      }
     >
       {/* Drop edge indicators */}
       {closestEdge === 'top' && (
