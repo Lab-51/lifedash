@@ -1,14 +1,15 @@
 // === FILE PURPOSE ===
 // Recording control panel -- start/stop recording with meeting title input.
 // Shows a title input + start button when idle, or a stop button + elapsed
-// timer when recording is active.
+// timer + audio level meter when recording is active.
 //
 // === DEPENDENCIES ===
-// react, lucide-react (Mic, Square, Loader2), recordingStore
+// react, lucide-react (Mic, Square, Loader2), recordingStore, audioCaptureService
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Square, Loader2 } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
+import { onAudioLevel } from '../services/audioCaptureService';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
 
@@ -16,6 +17,51 @@ function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
   const s = (seconds % 60).toString().padStart(2, '0');
   return `${m}:${s}`;
+}
+
+/** Real-time audio level bar shown during recording */
+function AudioLevelMeter() {
+  const [level, setLevel] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  const latestLevel = useRef(0);
+
+  useEffect(() => {
+    // Throttle UI updates to animation frames for smooth rendering
+    const updateUI = () => {
+      setLevel(latestLevel.current);
+      rafRef.current = requestAnimationFrame(updateUI);
+    };
+    rafRef.current = requestAnimationFrame(updateUI);
+
+    onAudioLevel((l) => { latestLevel.current = l; });
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      onAudioLevel(null);
+    };
+  }, []);
+
+  const isSilent = level < 0.01;
+  const barWidth = Math.round(level * 100);
+  // Green when audio detected, yellow when loud, red warning when silent
+  const barColor = isSilent ? 'bg-surface-600' : level > 0.7 ? 'bg-amber-500' : 'bg-emerald-500';
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-surface-400">Audio Level</span>
+        {isSilent && (
+          <span className="text-xs text-amber-400">No audio detected</span>
+        )}
+      </div>
+      <div className="h-2 bg-surface-900 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-[width] duration-75 ${barColor}`}
+          style={{ width: `${barWidth}%` }}
+        />
+      </div>
+    </div>
+  );
 }
 
 export default function RecordingControls() {
@@ -125,6 +171,7 @@ export default function RecordingControls() {
               {formatElapsed(elapsed)}
             </span>
           </div>
+          <AudioLevelMeter />
           <button
             onClick={handleStop}
             className="w-full flex items-center justify-center gap-2 bg-surface-700

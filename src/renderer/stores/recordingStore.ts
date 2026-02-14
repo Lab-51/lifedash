@@ -54,8 +54,17 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       // Step 2: Tell main process to start recording
       await window.electronAPI.startRecording(meeting.id);
 
-      // Step 3: Start audio capture in renderer (with optional mic mixing)
-      await audioCaptureService.startCapture(get().includeMic);
+      // Step 3: Load selected mic device from settings (if configured)
+      let micDeviceId: string | undefined;
+      try {
+        const savedMicId = await window.electronAPI.getSetting('audio:inputDeviceId');
+        if (savedMicId) micDeviceId = savedMicId;
+      } catch {
+        // Settings unavailable — use default device
+      }
+
+      // Step 4: Start audio capture in renderer (with optional mic mixing)
+      await audioCaptureService.startCapture(get().includeMic, micDeviceId);
 
       set({
         isRecording: true,

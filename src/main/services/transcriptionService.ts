@@ -40,6 +40,11 @@ const SEGMENT_DURATION_SEC = 10;
 const SAMPLES_PER_SEGMENT = SAMPLE_RATE * SEGMENT_DURATION_SEC; // 160,000
 const BYTES_PER_SEGMENT = SAMPLES_PER_SEGMENT * 2; // 320,000 (Int16 = 2 bytes)
 
+// Silence detection: RMS threshold below which a segment is skipped.
+// Int16 range is -32768 to 32767. An RMS of 50 corresponds to ~0.15% of max,
+// which is effectively silence or very faint background noise.
+const SILENCE_RMS_THRESHOLD = 50;
+
 let whisperContext: WhisperContext | null = null;
 let mainWindow: BrowserWindow | null = null;
 let currentMeetingId: string | null = null;
@@ -167,6 +172,21 @@ export async function stop(): Promise<void> {
   log.info('Stopped');
 }
 
+/**
+ * Calculate RMS (root-mean-square) of Int16 PCM samples.
+ * Returns a value in Int16 amplitude range (0 to ~32768).
+ */
+function calculateInt16RMS(buffer: Buffer): number {
+  const samples = new Int16Array(
+    buffer.buffer, buffer.byteOffset, buffer.byteLength / 2,
+  );
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) {
+    sum += samples[i] * samples[i];
+  }
+  return Math.sqrt(sum / samples.length);
+}
+
 /** Dispatch the next pending segment to Whisper or cloud API */
 function dispatchNext(): void {
   if (transcribing || pendingSegments.length === 0) return;
@@ -174,10 +194,19 @@ function dispatchNext(): void {
   // For local mode, need whisper context to be available
   if (activeProvider === 'local' && !whisperContext) return;
 
-  transcribing = true;
   const segment = pendingSegments.shift()!;
   const startTimeMs = segmentIndex * SEGMENT_DURATION_SEC * 1000;
   segmentIndex++;
+
+  // Skip silent segments to avoid Whisper hallucinations and save CPU
+  const rms = calculateInt16RMS(segment);
+  if (rms < SILENCE_RMS_THRESHOLD) {
+    log.debug(`Skipping silent segment #${segmentIndex - 1} (RMS: ${rms.toFixed(0)})`);
+    dispatchNext(); // Try next segment
+    return;
+  }
+
+  transcribing = true;
 
   if (activeProvider === 'local') {
     // Local Whisper: transcribe directly (non-blocking via native async worker)

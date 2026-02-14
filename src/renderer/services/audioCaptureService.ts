@@ -13,6 +13,13 @@
 // - getDisplayMedia shows system picker dialog (user must select screen)
 // - Mic failure is non-fatal (falls back to system-only)
 
+/** Minimal info about an audio device for UI display. */
+export interface AudioDeviceInfo {
+  deviceId: string;
+  label: string;
+  kind: 'audioinput' | 'audiooutput';
+}
+
 const SAMPLE_RATE = 16000; // 16kHz for Whisper
 const BUFFER_SIZE = 4096; // ScriptProcessorNode buffer size (samples per callback)
 const INPUT_CHANNELS = 1; // Mono (browser handles stereo->mono downmix)
@@ -30,6 +37,22 @@ let micStream: MediaStream | null = null;
 let micSourceNode: MediaStreamAudioSourceNode | null = null;
 let micGainNode: GainNode | null = null;
 
+// Audio level monitoring
+let currentAudioLevel = 0; // 0.0 (silence) to 1.0 (max)
+let audioLevelCallback: ((level: number) => void) | null = null;
+
+/**
+ * Calculate RMS (root-mean-square) level of Float32 audio samples.
+ * Returns a value between 0.0 (silence) and 1.0 (max).
+ */
+function calculateRMS(samples: Float32Array): number {
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) {
+    sum += samples[i] * samples[i];
+  }
+  return Math.sqrt(sum / samples.length);
+}
+
 /**
  * Convert Float32 audio samples to Int16 PCM.
  * Clamps values to [-1, 1] range before scaling.
@@ -44,13 +67,40 @@ function float32ToInt16(float32: Float32Array): Int16Array {
 }
 
 /**
+ * Enumerate available audio devices (inputs and outputs).
+ * Requests mic permission first so device labels are populated (browsers hide
+ * labels until permission is granted).
+ */
+export async function enumerateAudioDevices(): Promise<AudioDeviceInfo[]> {
+  // Request mic permission so labels are available
+  try {
+    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    tempStream.getTracks().forEach((t) => t.stop());
+  } catch {
+    // Permission denied — labels may be empty but deviceIds still work
+  }
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  return devices
+    .filter((d): d is MediaDeviceInfo & { kind: 'audioinput' | 'audiooutput' } =>
+      d.kind === 'audioinput' || d.kind === 'audiooutput')
+    .map((d) => ({
+      deviceId: d.deviceId,
+      label: d.label || `${d.kind === 'audioinput' ? 'Microphone' : 'Speaker'} (${d.deviceId.slice(0, 8)})`,
+      kind: d.kind,
+    }));
+}
+
+/**
  * Attempt to acquire the user's microphone stream.
  * Returns null on failure (permission denied, no hardware, etc.) — non-fatal.
+ *
+ * @param deviceId Optional specific microphone device ID to use
  */
-async function acquireMicStream(): Promise<MediaStream | null> {
+async function acquireMicStream(deviceId?: string): Promise<MediaStream | null> {
   try {
     return await navigator.mediaDevices.getUserMedia({
       audio: {
+        ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
@@ -74,9 +124,10 @@ async function acquireMicStream(): Promise<MediaStream | null> {
  * Web Audio API automatically sums signals connected to the same input node.
  *
  * @param includeMic Whether to also capture the user's microphone (default: true)
+ * @param micDeviceId Optional specific microphone device ID to use
  * @throws If user cancels the picker dialog or system audio capture fails
  */
-export async function startCapture(includeMic: boolean = true): Promise<void> {
+export async function startCapture(includeMic: boolean = true, micDeviceId?: string): Promise<void> {
   if (audioContext) {
     throw new Error('Already capturing. Call stopCapture() first.');
   }
@@ -133,7 +184,7 @@ export async function startCapture(includeMic: boolean = true): Promise<void> {
 
   // Step 7: Optionally add microphone input
   if (includeMic) {
-    micStream = await acquireMicStream();
+    micStream = await acquireMicStream(micDeviceId);
     if (micStream) {
       micSourceNode = audioContext.createMediaStreamSource(micStream);
       micGainNode = audioContext.createGain();
@@ -144,9 +195,16 @@ export async function startCapture(includeMic: boolean = true): Promise<void> {
     }
   }
 
-  // Step 8: Extract PCM and send to main
+  // Step 8: Extract PCM, calculate level, and send to main
   processorNode.onaudioprocess = (event: AudioProcessingEvent) => {
     const float32Data = event.inputBuffer.getChannelData(0);
+
+    // Calculate audio level for UI meter (scale RMS to 0-1 range)
+    // Multiply by ~5 to make the meter more visually responsive
+    const rms = calculateRMS(float32Data);
+    currentAudioLevel = Math.min(1, rms * 5);
+    if (audioLevelCallback) audioLevelCallback(currentAudioLevel);
+
     const int16Data = float32ToInt16(float32Data);
     // Send raw Int16 PCM bytes to main process (one-way, fire-and-forget)
     // Cast is safe: Int16Array created via `new Int16Array(n)` always uses ArrayBuffer
@@ -173,9 +231,28 @@ export function isCapturing(): boolean {
 }
 
 /**
+ * Get the current audio level (0.0 = silence, 1.0 = loud).
+ * Updated ~4 times per second during capture.
+ */
+export function getAudioLevel(): number {
+  return currentAudioLevel;
+}
+
+/**
+ * Set a callback to receive audio level updates during capture.
+ * Callback fires ~4 times per second. Pass null to remove.
+ */
+export function onAudioLevel(callback: ((level: number) => void) | null): void {
+  audioLevelCallback = callback;
+}
+
+/**
  * Internal cleanup -- disconnect nodes, stop tracks, close context.
  */
 function cleanup(): void {
+  currentAudioLevel = 0;
+  audioLevelCallback = null;
+
   if (processorNode) {
     processorNode.disconnect();
     processorNode.onaudioprocess = null;

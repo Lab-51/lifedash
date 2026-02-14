@@ -17,6 +17,7 @@ import BackupSection from '../components/settings/BackupSection';
 import ExportSection from '../components/settings/ExportSection';
 import NotificationSection from '../components/settings/NotificationSection';
 import TranscriptionProviderSection from '../components/settings/TranscriptionProviderSection';
+import AudioDeviceSection from '../components/settings/AudioDeviceSection';
 
 function SettingsPage() {
   const { providers, loading, error, encryptionAvailable, loadProviders, loadSettings, checkEncryption } =
@@ -72,6 +73,9 @@ function SettingsPage() {
         </div>
         <ThemeSelector />
       </section>
+
+      {/* === Section: Audio Devices === */}
+      <AudioDeviceSection />
 
       {/* === Section: Transcription Provider === */}
       <TranscriptionProviderSection />
