@@ -1,175 +1,192 @@
-# Plan: Custom Recordings Save Folder (Ad-hoc Feature)
+# Plan 10.1 — Enterprise Distribution Readiness (Tier 1)
 
-## Problem
-
-Audio recordings save to a hard-coded path (`userData/recordings/`) buried in AppData. Users want
-to choose a visible, backed-up location (e.g., `D:\My Recordings\`) and have recordings survive
-app reinstalls.
-
-## Solution
-
-Add a "Recordings Folder" section to Settings. The main-process `getRecordingsDir()` reads from
-the settings DB with a fallback to the default path. Follows existing patterns: `AudioDeviceSection`
-for UI, `backup.ts` for dialog, direct DB reads from main-process services.
-
-<phase n="9.ad-hoc" name="Custom Recordings Save Folder">
+<phase n="10.1" name="Enterprise Distribution Readiness">
   <context>
-    Currently `getRecordingsDir()` in audioProcessor.ts is hard-coded to
-    `app.getPath('userData') + '/recordings'`. The returned absolute path is stored in
-    `meetings.audio_path` in the database, so old recordings remain accessible regardless
-    of future path changes.
+    Living Dashboard is being prepared for enterprise internal distribution.
+    Enterprise laptops enforce AppLocker/WDAC policies, EDR monitoring, and
+    proxy-gated internet access. The current build is unsigned, uses a
+    user-space Squirrel installer, and makes direct HTTP calls to AI APIs.
 
-    The settings system (key-value store) already supports get/set/delete via IPC.
-    Example: `AudioDeviceSection.tsx` uses key `audio:inputDeviceId`.
+    This plan addresses the three Tier 1 blockers:
+    1. Code signing — unsigned apps are blocked by AppLocker + SmartScreen
+    2. MSI installer — enterprise IT deploys via SCCM/Intune (not Squirrel)
+    3. Proxy support — AI API calls fail behind corporate proxies
 
-    The folder picker dialog pattern already exists in `src/main/ipc/backup.ts`
-    (`dialog.showOpenDialog` with `openDirectory`).
-
-    `registerSettingsHandlers()` currently takes no args. Other handlers like
-    `registerRecordingHandlers(mainWindow)` and `registerBackupHandlers(mainWindow)`
-    already receive mainWindow for dialog parenting.
-
-    Key files to read:
-    @src/main/services/audioProcessor.ts (143 lines — getRecordingsDir + saveWav)
-    @src/main/ipc/settings.ts (61 lines — existing settings IPC handlers)
-    @src/main/ipc/index.ts (46 lines — handler registration)
-    @src/preload/domains/settings.ts (26 lines — preload bridge)
-    @src/shared/types/electron-api.ts (ElectronAPI interface — settings section at lines 118-122)
-    @src/renderer/components/settings/AudioDeviceSection.tsx (147 lines — pattern to follow)
-    @src/renderer/pages/SettingsPage.tsx (187 lines — renders setting sections)
+    @PROJECT.md @STATE.md @forge.config.ts @src/main/services/ai-provider.ts
   </context>
 
   <task type="auto" n="1">
-    <n>Add settings-aware recordings path + IPC plumbing</n>
+    <n>Self-signed code signing + Squirrel signing config</n>
     <files>
-      src/main/services/audioProcessor.ts (make getRecordingsDir async, read from settings DB)
-      src/main/ipc/settings.ts (add folder picker + default path handlers, accept mainWindow)
-      src/main/ipc/index.ts (pass mainWindow to registerSettingsHandlers)
-      src/preload/domains/settings.ts (add pickRecordingsFolder + getDefaultRecordingsPath)
-      src/shared/types/electron-api.ts (extend ElectronAPI interface)
+      forge.config.ts
+      scripts/generate-cert.ps1 (new)
+      .gitignore
     </files>
     <action>
-      **audioProcessor.ts changes:**
-      1. Add imports: `getDb` from `../db/connection`, `settings` from `../db/schema`, `eq` from `drizzle-orm`
-      2. Rename current `getRecordingsDir()` to `getDefaultRecordingsDir()` (keep sync, same body)
-      3. Add new async `getRecordingsDir()`:
-         - Query settings table for key `recordings:savePath`
-         - If found and non-empty, return that value
-         - On error or missing, return `getDefaultRecordingsDir()`
-         - Wrap DB access in try/catch so recording never fails due to a settings read error
-      4. In `saveWav()` line 105: change `const dir = getRecordingsDir()` to `const dir = await getRecordingsDir()`
-         (saveWav is already async, so this is a trivial change)
+      Enterprise IT will push our signing certificate as a Trusted Publisher
+      via Group Policy, so a self-signed cert is sufficient (no EV purchase).
 
-      WHY: The main process needs to read the setting directly from the DB because
-      there's no IPC path from main→main. This is the established pattern — other services
-      like transcriptionProviderService.ts read settings the same way.
+      1. Create `scripts/generate-cert.ps1` — PowerShell script that:
+         - Generates a self-signed code signing certificate using
+           `New-SelfSignedCertificate -Type CodeSigningCert`
+         - Exports it to `certs/living-dashboard.pfx` with password from env var
+         - Includes instructions for IT to import into GPO Trusted Publishers
+         - Subject: "CN=Living Dashboard, O=Living Dashboard"
 
-      **settings.ts changes:**
-      1. Change import to include `BrowserWindow, dialog` from electron and `app` from electron
-      2. Change signature: `registerSettingsHandlers(mainWindow: BrowserWindow)`
-      3. Add handler `settings:pick-recordings-folder`:
-         - Calls `dialog.showOpenDialog(mainWindow, { title: 'Choose Recordings Folder', properties: ['openDirectory', 'createDirectory'] })`
-         - Returns selected path or null if cancelled
-      4. Add handler `settings:get-default-recordings-path`:
-         - Returns `path.join(app.getPath('userData'), 'recordings')`
-         - WHY: Renderer needs to display the default path without hardcoding it
+      2. Update `forge.config.ts`:
+         - Add signing config to `MakerSquirrel`:
+           `certificateFile: './certs/living-dashboard.pfx'`
+           `certificatePassword: process.env.CERT_PASSWORD`
+         - Only sign when CERT_PASSWORD env var is set (dev builds skip signing)
 
-      **index.ts changes:**
-      1. Line 33: `registerSettingsHandlers()` → `registerSettingsHandlers(mainWindow)`
+      3. Update `.gitignore`:
+         - Add `certs/` directory (PFX files must never be committed)
 
-      **preload/domains/settings.ts changes:**
-      1. Add to settingsBridge object:
-         - `pickRecordingsFolder: () => ipcRenderer.invoke('settings:pick-recordings-folder')`
-         - `getDefaultRecordingsPath: () => ipcRenderer.invoke('settings:get-default-recordings-path')`
-
-      **electron-api.ts changes:**
-      1. After line 122 (deleteSetting), add:
-         - `pickRecordingsFolder: () => Promise<string | null>`
-         - `getDefaultRecordingsPath: () => Promise<string>`
+      WHY: Without signing, AppLocker rejects the executable and SmartScreen
+      shows a scary warning. Self-signed + GPO trust is the standard free
+      path for internal enterprise tools.
     </action>
     <verify>
-      1. `npx tsc --noEmit` — zero type errors
-      2. `npx vitest run` — all existing tests pass
-      3. The app should still record and save audio to the default path (no regression)
+      - `scripts/generate-cert.ps1` exists and has clear comments
+      - `forge.config.ts` conditionally applies signing when CERT_PASSWORD is set
+      - `certs/` is in `.gitignore`
+      - `npx tsc --noEmit` passes
+      - `npm run package` succeeds without CERT_PASSWORD set (signing skipped)
     </verify>
     <done>
-      getRecordingsDir() reads from settings DB with fallback to default.
-      Two new IPC handlers registered. Preload bridge and TypeScript interface updated.
-      All existing functionality unchanged.
+      Signing infrastructure in place. Dev builds work without cert.
+      With cert + password, MakerSquirrel produces a signed installer.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - getDb() is available when stopRecording runs (DB initialized before recording starts)
-      - The settings table schema (`key`, `value`) is unchanged
-      - `path` module is already imported in audioProcessor.ts
+      - PowerShell 5.1+ available on Windows build machines
+      - signtool.exe available via Windows SDK (MakerSquirrel invokes it)
+      - Self-signed cert is acceptable for internal distribution (IT pushes trust via GPO)
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Create Recordings Folder settings UI</n>
+    <n>Add WiX MSI installer for enterprise deployment</n>
     <files>
-      src/renderer/components/settings/RecordingsSavePathSection.tsx (NEW — settings component)
-      src/renderer/pages/SettingsPage.tsx (import + render new section)
+      package.json
+      forge.config.ts
     </files>
+    <preconditions>
+      - Task 1 complete (signing config available)
+      - WiX Toolset v3 installed on build machine (external dependency)
+    </preconditions>
     <action>
-      **RecordingsSavePathSection.tsx — NEW FILE:**
-      Follow the AudioDeviceSection.tsx pattern exactly.
+      Enterprise IT deploys software via SCCM/Intune using MSI packages.
+      The current Squirrel installer writes to %LOCALAPPDATA% which some
+      AppLocker policies block. MSI installs to Program Files.
 
-      Component structure:
-      1. Settings key constant: `recordings:savePath`
-      2. State: `currentPath`, `defaultPath`, `isCustom`, `loading`
-      3. On mount useEffect:
-         - Load saved setting via `window.electronAPI.getSetting(SETTINGS_KEY)`
-         - Load default path via `window.electronAPI.getDefaultRecordingsPath()`
-         - If saved setting exists → `isCustom: true`, show saved path
-         - Otherwise → show default path
-      4. `handleBrowse`:
-         - Call `window.electronAPI.pickRecordingsFolder()`
-         - If user picks a folder → `window.electronAPI.setSetting(key, folder)`
-         - Update local state
-      5. `handleReset`:
-         - Call `window.electronAPI.deleteSetting(key)`
-         - Revert to default path display
+      1. Install `@electron-forge/maker-wix` as a devDependency:
+         `npm install --save-dev @electron-forge/maker-wix`
 
-      UI layout (matching AudioDeviceSection styling):
-      - Section header: FolderOpen icon + "Recordings Folder" title
-      - Subtitle: "Choose where audio recordings are saved on disk."
-      - Card container (bg-surface-800 rounded-lg border):
-        - Label: "Save Location" with "(custom)" badge when custom
-        - Row: `code` element showing path (truncated) + "Browse..." button + "Reset" button (only when custom)
-        - Info text: "Changing this folder only affects new recordings. Existing recordings remain accessible at their original paths."
+      2. Update `forge.config.ts`:
+         - Import `MakerWix` from `@electron-forge/maker-wix`
+         - Add MakerWix to the `makers` array with config:
+           name, manufacturer, upgradeCode (stable GUID), ui.chooseDirectory
+         - Keep MakerSquirrel as default (for dev/personal use)
+         - MSI is the enterprise distribution target
 
-      WHY: Users need a discoverable way to control where recordings go.
-      The section sits right after Audio Devices since both are recording-related settings.
+      3. The `upgradeCode` GUID must be stable across versions — generate once
+         and hardcode. This allows MSI upgrades to replace previous installs.
 
-      **SettingsPage.tsx changes:**
-      1. Import `RecordingsSavePathSection`
-      2. Render it right after `<AudioDeviceSection />` (after line 78):
-         ```
-         {/* === Section: Recordings Folder === */}
-         <RecordingsSavePathSection />
-         ```
+      WHY: MSI is the standard enterprise deployment format. It supports
+      silent install (msiexec /i app.msi /quiet), GPO deployment,
+      SCCM/Intune distribution, and Program Files installation.
     </action>
     <verify>
-      1. `npx tsc --noEmit` — zero type errors
-      2. `npx vitest run` — all existing tests pass
-      3. Manual: Open Settings → "Recordings Folder" section visible after Audio Devices
-      4. Manual: Shows default path (userData/recordings)
-      5. Manual: Click Browse → pick folder → path updates, "(custom)" badge appears, Reset button visible
-      6. Manual: Close and reopen Settings → custom path persists
-      7. Manual: Click Reset → path reverts to default, Reset button disappears
-      8. Manual: Record a meeting → stop → verify WAV saved to custom folder
-      9. Manual: Reset → record again → verify WAV saved to default folder
+      - `@electron-forge/maker-wix` is in devDependencies
+      - `forge.config.ts` imports and configures MakerWix
+      - `npx tsc --noEmit` passes
+      - `npm run make` produces an MSI file (requires WiX Toolset installed)
     </verify>
     <done>
-      "Recordings Folder" section appears in Settings after Audio Devices.
-      Users can browse for a custom folder, see the current path, and reset to default.
-      New recordings save to the selected folder. Old recordings remain accessible.
+      Running `npm run make` produces both Squirrel .exe and WiX .msi installers.
+      MSI supports silent install and installs to Program Files.
     </done>
-    <confidence>HIGH</confidence>
+    <confidence>MEDIUM</confidence>
     <assumptions>
-      - FolderOpen and RotateCcw icons are available in lucide-react (both are standard icons)
-      - The settings page has room for another section (it scrolls, so this is fine)
+      - @electron-forge/maker-wix package exists and is compatible with Forge v7
+      - WiX Toolset v3 is installed on the build machine (not bundled)
+      - MSI maker supports the options listed (chooseDirectory, upgradeCode)
+      - VERIFY: Check @electron-forge/maker-wix docs/npm before implementing
+    </assumptions>
+  </task>
+
+  <task type="auto" n="3">
+    <n>Proxy-aware networking for AI API calls</n>
+    <files>
+      src/main/services/proxyService.ts (new)
+      src/main/services/ai-provider.ts (modify)
+      src/main/main.ts (modify)
+      src/renderer/components/settings/ProxySettingsSection.tsx (new)
+      src/renderer/pages/SettingsPage.tsx (modify)
+      src/main/ipc/settings.ts (modify — add proxy IPC handlers)
+      src/preload/domains/settings.ts (modify — add proxy bridge)
+      src/shared/types/electron-api.ts (modify — extend interface)
+    </files>
+    <preconditions>
+      - No dependency on tasks 1 or 2 (independent)
+    </preconditions>
+    <action>
+      AI API calls use Node.js fetch in the main process, which does NOT
+      respect system proxy settings. Enterprise networks route all traffic
+      through a proxy — without this, all AI features silently fail.
+
+      1. Create `src/main/services/proxyService.ts`:
+         - Detect proxy from environment (HTTP_PROXY, HTTPS_PROXY, NO_PROXY)
+         - Fallback: read from settings DB (proxy:url, proxy:noProxy)
+         - Export `getProxyUrl()` and `applyGlobalProxy()`
+         - Use undici ProxyAgent + setGlobalDispatcher to intercept
+           all Node.js fetch calls in the main process
+           (Electron 40 / Node 22 uses undici for built-in fetch)
+
+      2. Update `src/main/main.ts`:
+         - Call `applyGlobalProxy()` early in app startup (before any AI calls)
+
+      3. Update `src/main/services/ai-provider.ts`:
+         - No changes needed IF global dispatcher approach works
+         - If undici global dispatcher does not cover the SDK's fetch,
+           pass a custom fetch option to each provider's create function
+
+      4. Create `src/renderer/components/settings/ProxySettingsSection.tsx`:
+         - Text input for proxy URL (e.g. http://proxy.corp.com:8080)
+         - Text input for no-proxy list (comma-separated domains)
+         - "Use system proxy" checkbox (reads env vars)
+         - Save to settings DB via IPC
+
+      5. Wire up IPC in `src/main/ipc/settings.ts`:
+         - settings:getProxy — returns current proxy config
+         - settings:setProxy — saves and re-applies proxy
+
+      6. Add to `src/renderer/pages/SettingsPage.tsx`:
+         - New "Network / Proxy" section using ProxySettingsSection
+
+      WHY: Without proxy support, all AI features (brainstorming, meeting
+      intelligence, connection testing) fail silently on enterprise networks.
+      This is a hard blocker for any corporate deployment.
+    </action>
+    <verify>
+      - `npx tsc --noEmit` passes
+      - `npx vitest run` — all 99 tests still pass
+      - Proxy settings UI renders in Settings page
+      - Setting a proxy URL saves to DB and persists across restarts
+      - With HTTP_PROXY env var set, AI provider connection test routes through proxy
+    </verify>
+    <done>
+      AI API calls respect proxy configuration. Users can set proxy via
+      Settings UI or environment variables. System proxy auto-detected.
+    </done>
+    <confidence>MEDIUM</confidence>
+    <assumptions>
+      - Electron 40 uses Node 22 with undici-backed fetch
+      - undici is available in Electron's Node.js runtime (no extra install needed)
+      - setGlobalDispatcher(new ProxyAgent(...)) intercepts all fetch calls
+      - VERIFY: Test that undici global dispatcher affects AI SDK's internal fetch
+      - VERIFY: Check if @ai-sdk/openai and @ai-sdk/anthropic accept a custom fetch option
     </assumptions>
   </task>
 </phase>

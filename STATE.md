@@ -2,15 +2,14 @@
 
 ## Session Info
 Last updated: 2026-02-14
-Session focus: Custom recordings save folder (ad-hoc feature)
-Checkpoint reason: Feature complete, pushed to GitHub, learnings synced
+Session focus: Enterprise Distribution Readiness (Phase 10)
+Current task: Plan 10.1 COMPLETE (3/3 tasks executed)
 
 ## Position
-Milestone: Standalone Distribution
-Phase: 9 (Distribution Readiness)
-Plan: 9.2 — COMPLETE (3/3 tasks executed)
-Ad-hoc: Custom Recordings Save Folder — COMPLETE (2/2 tasks)
-Latest commit: d42efbe on main (pushed to origin)
+Milestone: Enterprise Distribution
+Phase: 10 (Enterprise Distribution Readiness)
+Plan: 10.1 — COMPLETE (3/3 tasks executed)
+Latest commit: d1ecce5 on main (not pushed)
 
 ## Ad-Hoc Features (this session)
 
@@ -54,6 +53,13 @@ All requirements R1-R17 delivered (99 points).
 
 ## Phase 8 — COMPLETE
 Plans 8.1-8.7 + 4 ad-hoc features delivered.
+
+## Phase 10 — IN PROGRESS (Enterprise Distribution)
+- Plan 10.1: COMPLETE — Enterprise Distribution Readiness (Tier 1)
+  - Task 1: Self-signed code signing + Squirrel signing config ✓ (b8e6041)
+  - Task 2: WiX MSI installer for enterprise deployment ✓ (1d845e7)
+  - Task 3: Proxy-aware networking for AI API calls ✓ (d1ecce5)
+- Ad-hoc: Retro equalizer audio level meter (cf173f3) ✓
 
 ## Phase 9 — IN PROGRESS
 - Plan 9.1: COMPLETE (PGlite migration + packaging)

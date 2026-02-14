@@ -1,50 +1,64 @@
-# Summary: Plan 9.2 — Post-Recording UX
+# Summary: Plan 10.1 — Enterprise Distribution Readiness (Tier 1)
 
 ## Date: 2026-02-14
 ## Status: COMPLETE (3/3 tasks, sequential execution)
 
 ## What Changed
 
-Three UX improvements to the post-recording flow: processing feedback, auto-intelligence, and project-aware batch push.
+Three enterprise distribution blockers resolved: code signing, MSI installer, and proxy support.
 
-### Task 1: Post-recording processing state + auto-open meeting detail
-**Status:** COMPLETE | **Confidence:** HIGH
+### Task 1: Self-signed code signing + Squirrel signing config
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** b8e6041
 
-- **recordingStore.ts**: Added `isProcessing` and `completedMeetingId` state fields. `stopRecording()` transitions through `isProcessing: true` while saving audio/updating meeting, then sets `completedMeetingId` for MeetingsPage to consume.
-- **RecordingControls.tsx**: Third UI state — amber pulsing dot + Loader2 spinner + "Processing recording..." text. No buttons shown during processing.
-- **MeetingsPage.tsx**: useEffect watches `completedMeetingId` — refreshes meeting list, auto-opens MeetingDetailModal, clears the flag.
+- **scripts/generate-cert.ps1** (new): PowerShell script generating self-signed code signing cert via `New-SelfSignedCertificate -Type CodeSigningCert`. Exports to `certs/living-dashboard.pfx`. Includes IT instructions for GPO Trusted Publishers import.
+- **forge.config.ts**: MakerSquirrel conditionally signs when `CERT_PASSWORD` env var is set. Dev builds skip signing.
+- **.gitignore**: Added `certs/` (PFX files never committed).
 
-### Task 2: Auto-generate brief + action items post-recording
-**Status:** COMPLETE | **Confidence:** HIGH (was MEDIUM)
+### Task 2: WiX MSI installer for enterprise deployment
+**Status:** COMPLETE | **Confidence:** HIGH (was MEDIUM) | **Commit:** 1d845e7
 
-- **MeetingDetailModal.tsx**: New `autoGenerate` prop (defaults false). Two useEffects with useRef guards:
-  1. Auto-calls `generateBrief()` when modal opens post-recording (guarded by status, segments, existing brief, generation state)
-  2. Chains `generateActionItems()` after brief completes (guarded by brief existence, no existing items)
-  - Shows amber info banner if AI provider not configured
-- **MeetingsPage.tsx**: Tracks `autoOpenedMeetingId` separately from `selectedMeetingId`. Passes `autoGenerate={selectedMeetingId === autoOpenedMeetingId}` to modal.
+- **package.json**: Added `@electron-forge/maker-wix` devDependency.
+- **forge.config.ts**: MakerWix configured with stable upgradeCode GUID (`570d3454-6859-4ff3-9f24-385a00bcc551`), manufacturer metadata, and directory chooser UI. MakerSquirrel + MakerZIP unchanged.
+- Requires WiX Toolset v3 on build machine (external, not bundled).
 
-### Task 3: Project-aware action item conversion with batch push
-**Status:** COMPLETE | **Confidence:** HIGH (was MEDIUM)
+### Task 3: Proxy-aware networking for AI API calls
+**Status:** COMPLETE | **Confidence:** HIGH (was MEDIUM) | **Commit:** d1ecce5
 
-- **ConvertActionModal.tsx**: New `preselectedProjectId`, `preselectedProjectName`, and `actionItems` (batch) props. Starts at step 2 when project pre-selected. "Change project" link to override. Batch mode with progress display.
-- **ActionItemList.tsx**: New `meetingProjectId`, `meetingProjectName`, `onBatchConvert` props. Checkboxes on pushable items, Select All toggle, "Push N items to [Project]" button.
-- **MeetingDetailModal.tsx**: Resolves linked project name from useProjectStore. Passes project context to ActionItemList and ConvertActionModal for both single and batch conversions.
+- **src/main/services/proxyService.ts** (new): undici ProxyAgent + setGlobalDispatcher. Env vars (HTTPS_PROXY/HTTP_PROXY) take priority over DB settings.
+- **src/main/main.ts**: Dynamic import of `applyGlobalProxy()` after DB connect, before AI features.
+- **src/main/ipc/settings.ts**: `settings:getProxy` and `settings:applyProxy` handlers.
+- **src/preload/domains/settings.ts**: `getProxy` and `applyProxy` bridge methods.
+- **src/shared/types/electron-api.ts**: Extended ElectronAPI interface.
+- **src/renderer/components/settings/ProxySettingsSection.tsx** (new): Proxy URL input, no-proxy list, "use system proxy" toggle.
+- **src/renderer/pages/SettingsPage.tsx**: Added ProxySettingsSection between Transcription and AI Providers.
 
-## Files Modified (6)
-- `src/renderer/stores/recordingStore.ts` (isProcessing + completedMeetingId state)
-- `src/renderer/components/RecordingControls.tsx` (processing state UI)
-- `src/renderer/pages/MeetingsPage.tsx` (auto-open + autoGenerate tracking)
-- `src/renderer/components/MeetingDetailModal.tsx` (autoGenerate + project-aware props)
-- `src/renderer/components/ActionItemList.tsx` (batch push UI)
-- `src/renderer/components/ConvertActionModal.tsx` (preselection + batch conversion)
+## Files Created (3)
+- `scripts/generate-cert.ps1`
+- `src/main/services/proxyService.ts`
+- `src/renderer/components/settings/ProxySettingsSection.tsx`
+
+## Files Modified (8)
+- `forge.config.ts`
+- `.gitignore`
+- `package.json` + `package-lock.json`
+- `src/main/main.ts`
+- `src/main/ipc/settings.ts`
+- `src/preload/domains/settings.ts`
+- `src/shared/types/electron-api.ts`
+- `src/renderer/pages/SettingsPage.tsx`
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors)
 - `npx vitest run`: 99/99 tests pass
-- Manual testing required for full UX flow
+- 3 atomic commits on main (not pushed)
+
+## Decisions Made
+- Self-signed cert over purchased EV (IT pushes trust via GPO)
+- undici installed as npm dependency (Electron doesn't expose internal undici)
+- Env vars take priority over DB proxy config (enterprise convention)
+- Dynamic import for proxy service (non-blocking startup)
+- upgradeCode GUID is permanent — never change across releases
 
 ## What's Next
-1. Git commit Plan 9.2 changes
-2. Manual test: Stop recording → verify processing state → auto-open → auto-generation
-3. Manual test: Batch push action items to linked project
-4. Plan 9.3 or user testing
+1. Push 3 commits to origin
+2. Plan 10.2: Tier 2 enterprise features (auto-update, telemetry opt-out, etc.)
