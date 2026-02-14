@@ -1,64 +1,69 @@
-# Summary: Plan 10.1 — Enterprise Distribution Readiness (Tier 1)
+# Summary: Plan 10.3 — Power User UX & Smart Board
 
-## Date: 2026-02-14
+## Date: 2026-02-15
 ## Status: COMPLETE (3/3 tasks, sequential execution)
 
 ## What Changed
 
-Three enterprise distribution blockers resolved: code signing, MSI installer, and proxy support.
+Three high-impact UX features that make the app feel like a premium productivity tool.
 
-### Task 1: Self-signed code signing + Squirrel signing config
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** b8e6041
+### Task 1: Command Palette with universal search and global hotkey
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 811633b
 
-- **scripts/generate-cert.ps1** (new): PowerShell script generating self-signed code signing cert via `New-SelfSignedCertificate -Type CodeSigningCert`. Exports to `certs/living-dashboard.pfx`. Includes IT instructions for GPO Trusted Publishers import.
-- **forge.config.ts**: MakerSquirrel conditionally signs when `CERT_PASSWORD` env var is set. Dev builds skip signing.
-- **.gitignore**: Added `certs/` (PFX files never committed).
+- New `CommandPalette.tsx` component (204 lines) — full-screen overlay with search
+- Searches across all data types: projects, meetings, ideas, brainstorm sessions, cards
+- Quick actions: New Idea, New Project, Start Recording, Open Settings
+- Page navigation shortcuts shown when search is empty
+- Recent items (5 most recent across all types) shown by default
+- Keyboard navigation: Arrow Up/Down, Enter to select, Esc to close
+- **Ctrl+K / Cmd+K** — in-app toggle via `useKeyboardShortcuts.ts`
+- **Ctrl+Shift+Space** — system-wide global hotkey via Electron `globalShortcut`
+- Global hotkey shows/focuses app window + sends IPC event to open palette
+- New preload bridge: `src/preload/domains/app.ts` for app-level IPC events
+- 7 files changed, 280 insertions
 
-### Task 2: WiX MSI installer for enterprise deployment
-**Status:** COMPLETE | **Confidence:** HIGH (was MEDIUM) | **Commit:** 1d845e7
+### Task 2: Transcript search with highlighting and copy buttons
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 605c103
 
-- **package.json**: Added `@electron-forge/maker-wix` devDependency.
-- **forge.config.ts**: MakerWix configured with stable upgradeCode GUID (`570d3454-6859-4ff3-9f24-385a00bcc551`), manufacturer metadata, and directory chooser UI. MakerSquirrel + MakerZIP unchanged.
-- Requires WiX Toolset v3 on build machine (external, not bundled).
+- Inline search input in transcript header — filters segments by content
+- Match highlighting with `<mark>` tags (yellow highlight styling)
+- Result count: "X of Y segments" when filtering
+- Three copy-to-clipboard buttons:
+  - **Copy Transcript** — formats as `[MM:SS] [Speaker] content`
+  - **Copy Summary** — copies the AI brief summary text
+  - **Copy Action Items** — formats as `- [x]` / `- [ ]` checklist
+- "Copied!" feedback with icon swap (Copy → Check) for 1.5 seconds
+- Buttons disabled when no content available
+- 1 file changed, 106 insertions
 
-### Task 3: Proxy-aware networking for AI API calls
-**Status:** COMPLETE | **Confidence:** HIGH (was MEDIUM) | **Commit:** d1ecce5
+### Task 3: Dependency badges and blocked status on Kanban cards
+**Status:** COMPLETE | **Confidence:** MEDIUM→HIGH | **Commit:** eeee870
 
-- **src/main/services/proxyService.ts** (new): undici ProxyAgent + setGlobalDispatcher. Env vars (HTTPS_PROXY/HTTP_PROXY) take priority over DB settings.
-- **src/main/main.ts**: Dynamic import of `applyGlobalProxy()` after DB connect, before AI features.
-- **src/main/ipc/settings.ts**: `settings:getProxy` and `settings:applyProxy` handlers.
-- **src/preload/domains/settings.ts**: `getProxy` and `applyProxy` bridge methods.
-- **src/shared/types/electron-api.ts**: Extended ElectronAPI interface.
-- **src/renderer/components/settings/ProxySettingsSection.tsx** (new): Proxy URL input, no-proxy list, "use system proxy" toggle.
-- **src/renderer/pages/SettingsPage.tsx**: Added ProxySettingsSection between Transcription and AI Providers.
+- New IPC handler `cards:getRelationshipsByBoard` — fetches all relationships for a board
+- Board store now loads relationships alongside cards/columns/labels
+- Computed blocked status: cards targeted by `blocks` or sourcing `depends_on`
+- **BLOCKED badge** — red pill badge next to priority badge
+- **Reduced opacity** (75%) on blocked cards for visual de-emphasis
+- **Dependency count** — Link2 icon with count in bottom row
+- Blocked cards remain fully draggable (no functional restriction)
+- 7 files changed, 108 insertions
 
-## Files Created (3)
-- `scripts/generate-cert.ps1`
-- `src/main/services/proxyService.ts`
-- `src/renderer/components/settings/ProxySettingsSection.tsx`
+## Files Modified (15 total)
 
-## Files Modified (8)
-- `forge.config.ts`
-- `.gitignore`
-- `package.json` + `package-lock.json`
-- `src/main/main.ts`
-- `src/main/ipc/settings.ts`
-- `src/preload/domains/settings.ts`
-- `src/shared/types/electron-api.ts`
-- `src/renderer/pages/SettingsPage.tsx`
+**Task 1 — 7 files:**
+- NEW: `src/renderer/components/CommandPalette.tsx`, `src/preload/domains/app.ts`
+- MOD: `App.tsx`, `useKeyboardShortcuts.ts`, `main.ts`, `preload.ts`, `electron-api.ts`
+
+**Task 2 — 1 file:**
+- MOD: `MeetingDetailModal.tsx`
+
+**Task 3 — 7 files:**
+- MOD: `cards.ts` (IPC), `card-details.ts` (preload), `electron-api.ts`, `boardStore.ts`, `BoardPage.tsx`, `BoardColumn.tsx`, `KanbanCard.tsx`
 
 ## Verification
-- `npx tsc --noEmit`: PASS (zero errors)
-- `npx vitest run`: 99/99 tests pass
-- 3 atomic commits on main (not pushed)
-
-## Decisions Made
-- Self-signed cert over purchased EV (IT pushes trust via GPO)
-- undici installed as npm dependency (Electron doesn't expose internal undici)
-- Env vars take priority over DB proxy config (enterprise convention)
-- Dynamic import for proxy service (non-blocking startup)
-- upgradeCode GUID is permanent — never change across releases
+- `npx tsc --noEmit`: PASS (zero errors, verified after each task)
+- `npx vitest run`: 99/99 tests pass (verified after each task)
 
 ## What's Next
-1. Push 3 commits to origin
-2. Plan 10.2: Tier 2 enterprise features (auto-update, telemetry opt-out, etc.)
+- User testing of command palette, transcript features, and dependency badges
+- Plan 10.4 or additional polish based on user feedback
