@@ -52,7 +52,14 @@ const config: ForgeConfig = {
     },
   },
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel(
+      process.env.CERT_PASSWORD
+        ? {
+            certificateFile: './certs/living-dashboard.pfx',
+            certificatePassword: process.env.CERT_PASSWORD,
+          }
+        : {},
+    ),
     new MakerZIP({}, ['darwin']),
   ],
   plugins: [

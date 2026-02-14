@@ -52,6 +52,9 @@ temp/
 # NEXUS planning (keep tracked separately)
 # .planning/ is tracked
 
+# Code signing certificates
+certs/
+
 # Database
 *.sql.bak
 pgdata/
