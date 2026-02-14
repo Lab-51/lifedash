@@ -121,6 +121,10 @@ const createWindow = async () => {
     await runMigrations();
     log.info('DB connected and migrations applied');
 
+    // Apply proxy settings for enterprise networks (before any AI calls)
+    const { applyGlobalProxy } = await import('./services/proxyService');
+    await applyGlobalProxy();
+
     // Start auto-backup scheduler (after DB is ready)
     initAutoBackup(mainWindow);
 

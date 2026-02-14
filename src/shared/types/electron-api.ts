@@ -122,6 +122,8 @@ export interface ElectronAPI {
   deleteSetting: (key: string) => Promise<void>;
   pickRecordingsFolder: () => Promise<string | null>;
   getDefaultRecordingsPath: () => Promise<string>;
+  getProxy: () => Promise<{ url: string; noProxy: string } | null>;
+  applyProxy: () => Promise<void>;
 
   // AI Providers
   getAIProviders: () => Promise<AIProvider[]>;

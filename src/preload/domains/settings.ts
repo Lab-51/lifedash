@@ -11,6 +11,8 @@ export const settingsBridge = {
   deleteSetting: (key: string) => ipcRenderer.invoke('settings:delete', key),
   pickRecordingsFolder: () => ipcRenderer.invoke('settings:pick-recordings-folder'),
   getDefaultRecordingsPath: () => ipcRenderer.invoke('settings:get-default-recordings-path'),
+  getProxy: () => ipcRenderer.invoke('settings:getProxy'),
+  applyProxy: () => ipcRenderer.invoke('settings:applyProxy'),
 
   // AI Providers
   getAIProviders: () => ipcRenderer.invoke('ai:list-providers'),

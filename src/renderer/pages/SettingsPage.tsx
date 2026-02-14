@@ -19,6 +19,7 @@ import NotificationSection from '../components/settings/NotificationSection';
 import TranscriptionProviderSection from '../components/settings/TranscriptionProviderSection';
 import AudioDeviceSection from '../components/settings/AudioDeviceSection';
 import RecordingsSavePathSection from '../components/settings/RecordingsSavePathSection';
+import ProxySettingsSection from '../components/settings/ProxySettingsSection';
 
 function SettingsPage() {
   const { providers, loading, error, encryptionAvailable, loadProviders, loadSettings, checkEncryption } =
@@ -83,6 +84,9 @@ function SettingsPage() {
 
       {/* === Section: Transcription Provider === */}
       <TranscriptionProviderSection />
+
+      {/* === Section: Network / Proxy === */}
+      <ProxySettingsSection />
 
       {/* === Section: AI Providers === */}
       <section className="mb-10">

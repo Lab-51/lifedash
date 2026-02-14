@@ -76,4 +76,16 @@ export function registerSettingsHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('settings:get-default-recordings-path', async () => {
     return path.join(app.getPath('userData'), 'recordings');
   });
+
+  // Get current proxy configuration (env + DB)
+  ipcMain.handle('settings:getProxy', async () => {
+    const { getProxyConfig } = await import('../services/proxyService');
+    return await getProxyConfig();
+  });
+
+  // Apply proxy after settings change
+  ipcMain.handle('settings:applyProxy', async () => {
+    const { applyGlobalProxy } = await import('../services/proxyService');
+    await applyGlobalProxy();
+  });
 }
