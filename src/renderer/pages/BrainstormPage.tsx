@@ -27,13 +27,23 @@ function formatRelativeTime(isoDate: string): string {
 }
 
 export default function BrainstormPage() {
-  const {
-    sessions, activeSession, loadingSessions, loadingSession,
-    streaming, streamingText, error,
-    loadSessions, loadSession, createSession, updateSession,
-    deleteSession, sendMessage, clearActiveSession, exportToIdea,
-  } = useBrainstormStore();
-  const { projects, loadProjects } = useProjectStore();
+  const sessions = useBrainstormStore(s => s.sessions);
+  const activeSession = useBrainstormStore(s => s.activeSession);
+  const loadingSessions = useBrainstormStore(s => s.loadingSessions);
+  const loadingSession = useBrainstormStore(s => s.loadingSession);
+  const streaming = useBrainstormStore(s => s.streaming);
+  const streamingText = useBrainstormStore(s => s.streamingText);
+  const error = useBrainstormStore(s => s.error);
+  const loadSessions = useBrainstormStore(s => s.loadSessions);
+  const loadSession = useBrainstormStore(s => s.loadSession);
+  const createSession = useBrainstormStore(s => s.createSession);
+  const updateSession = useBrainstormStore(s => s.updateSession);
+  const deleteSession = useBrainstormStore(s => s.deleteSession);
+  const sendMessage = useBrainstormStore(s => s.sendMessage);
+  const clearActiveSession = useBrainstormStore(s => s.clearActiveSession);
+  const exportToIdea = useBrainstormStore(s => s.exportToIdea);
+  const projects = useProjectStore(s => s.projects);
+  const loadProjects = useProjectStore(s => s.loadProjects);
   const [input, setInput] = useState('');
   const [newSessionTitle, setNewSessionTitle] = useState('');
   const [showNewSession, setShowNewSession] = useState(false);

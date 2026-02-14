@@ -27,8 +27,12 @@ const PRESET_COLORS = [
 
 function ProjectsPage() {
   const navigate = useNavigate();
-  const { projects, loading, error, loadProjects, createProject, updateProject } =
-    useProjectStore();
+  const projects = useProjectStore(s => s.projects);
+  const loading = useProjectStore(s => s.loading);
+  const error = useProjectStore(s => s.error);
+  const loadProjects = useProjectStore(s => s.loadProjects);
+  const createProject = useProjectStore(s => s.createProject);
+  const updateProject = useProjectStore(s => s.updateProject);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [planningProjectId, setPlanningProjectId] = useState<string | null>(null);
   const [formData, setFormData] = useState<CreateProjectInput>({

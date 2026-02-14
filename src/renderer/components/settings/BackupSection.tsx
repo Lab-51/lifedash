@@ -40,21 +40,19 @@ function formatDate(iso: string): string {
 }
 
 export default function BackupSection() {
-  const {
-    backups,
-    loading,
-    error,
-    progress,
-    autoSettings,
-    loadBackups,
-    createBackup,
-    restoreBackup,
-    restoreFromFile,
-    deleteBackup,
-    loadAutoSettings,
-    updateAutoSettings,
-    clearError,
-  } = useBackupStore();
+  const backups = useBackupStore(s => s.backups);
+  const loading = useBackupStore(s => s.loading);
+  const error = useBackupStore(s => s.error);
+  const progress = useBackupStore(s => s.progress);
+  const autoSettings = useBackupStore(s => s.autoSettings);
+  const loadBackups = useBackupStore(s => s.loadBackups);
+  const createBackup = useBackupStore(s => s.createBackup);
+  const restoreBackup = useBackupStore(s => s.restoreBackup);
+  const restoreFromFile = useBackupStore(s => s.restoreFromFile);
+  const deleteBackup = useBackupStore(s => s.deleteBackup);
+  const loadAutoSettings = useBackupStore(s => s.loadAutoSettings);
+  const updateAutoSettings = useBackupStore(s => s.updateAutoSettings);
+  const clearError = useBackupStore(s => s.clearError);
 
   // Inline confirmation state
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);

@@ -26,10 +26,20 @@ import type { CardPriority } from '../../shared/types';
 
 function BoardPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const {
-    project, columns, cards, labels, loading, error,
-    loadBoard, addColumn, deleteColumn, addCard, updateCard, deleteCard, moveCard, reorderColumns,
-  } = useBoardStore();
+  const project = useBoardStore(s => s.project);
+  const columns = useBoardStore(s => s.columns);
+  const cards = useBoardStore(s => s.cards);
+  const labels = useBoardStore(s => s.labels);
+  const loading = useBoardStore(s => s.loading);
+  const error = useBoardStore(s => s.error);
+  const loadBoard = useBoardStore(s => s.loadBoard);
+  const addColumn = useBoardStore(s => s.addColumn);
+  const deleteColumn = useBoardStore(s => s.deleteColumn);
+  const addCard = useBoardStore(s => s.addCard);
+  const updateCard = useBoardStore(s => s.updateCard);
+  const deleteCard = useBoardStore(s => s.deleteCard);
+  const moveCard = useBoardStore(s => s.moveCard);
+  const reorderColumns = useBoardStore(s => s.reorderColumns);
 
   // Local UI state for add-column form
   const [addingColumn, setAddingColumn] = useState(false);

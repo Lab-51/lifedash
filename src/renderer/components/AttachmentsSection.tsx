@@ -45,7 +45,10 @@ interface AttachmentsSectionProps {
 }
 
 function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
-  const { selectedCardAttachments, addAttachment, deleteAttachment, openAttachment } = useCardDetailStore();
+  const selectedCardAttachments = useCardDetailStore(s => s.selectedCardAttachments);
+  const addAttachment = useCardDetailStore(s => s.addAttachment);
+  const deleteAttachment = useCardDetailStore(s => s.deleteAttachment);
+  const openAttachment = useCardDetailStore(s => s.openAttachment);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handleAdd = async () => {

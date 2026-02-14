@@ -21,7 +21,7 @@ interface IdeaConvertWizardProps {
 }
 
 export default function IdeaConvertWizard({ ideaId, onComplete, onCancel }: IdeaConvertWizardProps) {
-  const { convertToCard } = useIdeaStore();
+  const convertToCard = useIdeaStore(s => s.convertToCard);
 
   // Wizard internal state
   const [convertStep, setConvertStep] = useState<1 | 2 | 3>(1);

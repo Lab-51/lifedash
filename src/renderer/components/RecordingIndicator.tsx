@@ -14,7 +14,8 @@ function formatElapsed(seconds: number): string {
 }
 
 export default function RecordingIndicator() {
-  const { isRecording, elapsed } = useRecordingStore();
+  const isRecording = useRecordingStore(s => s.isRecording);
+  const elapsed = useRecordingStore(s => s.elapsed);
 
   if (!isRecording) return null;
 

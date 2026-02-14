@@ -19,7 +19,7 @@ interface AddProviderFormProps {
 }
 
 export default function AddProviderForm({ onClose }: AddProviderFormProps) {
-  const { createProvider } = useSettingsStore();
+  const createProvider = useSettingsStore(s => s.createProvider);
   const [name, setName] = useState<AIProviderName>('openai');
   const [displayName, setDisplayName] = useState('');
   const [apiKey, setApiKey] = useState('');

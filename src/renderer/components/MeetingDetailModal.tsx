@@ -60,15 +60,21 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
 }
 
 export default function MeetingDetailModal({ onClose, autoGenerate = false }: MeetingDetailModalProps) {
-  const {
-    selectedMeeting, updateMeeting, deleteMeeting, clearSelectedMeeting,
-    generateBrief, generateActionItems,
-    generatingBrief, generatingActions,
-    error,
-    updateActionItemStatus, convertActionToCard,
-    loadAnalytics, clearAnalytics,
-  } = useMeetingStore();
-  const { projects, loadProjects } = useProjectStore();
+  const selectedMeeting = useMeetingStore(s => s.selectedMeeting);
+  const updateMeeting = useMeetingStore(s => s.updateMeeting);
+  const deleteMeeting = useMeetingStore(s => s.deleteMeeting);
+  const clearSelectedMeeting = useMeetingStore(s => s.clearSelectedMeeting);
+  const generateBrief = useMeetingStore(s => s.generateBrief);
+  const generateActionItems = useMeetingStore(s => s.generateActionItems);
+  const generatingBrief = useMeetingStore(s => s.generatingBrief);
+  const generatingActions = useMeetingStore(s => s.generatingActions);
+  const error = useMeetingStore(s => s.error);
+  const updateActionItemStatus = useMeetingStore(s => s.updateActionItemStatus);
+  const convertActionToCard = useMeetingStore(s => s.convertActionToCard);
+  const loadAnalytics = useMeetingStore(s => s.loadAnalytics);
+  const clearAnalytics = useMeetingStore(s => s.clearAnalytics);
+  const projects = useProjectStore(s => s.projects);
+  const loadProjects = useProjectStore(s => s.loadProjects);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);

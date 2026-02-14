@@ -92,7 +92,8 @@ interface ActivityLogProps {
 }
 
 function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
-  const { selectedCardActivities, loadingCardDetails } = useCardDetailStore();
+  const selectedCardActivities = useCardDetailStore(s => s.selectedCardActivities);
+  const loadingCardDetails = useCardDetailStore(s => s.loadingCardDetails);
 
   return (
     <div>

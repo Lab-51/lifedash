@@ -23,8 +23,10 @@ interface ProviderCardProps {
 }
 
 export default function ProviderCard({ provider }: ProviderCardProps) {
-  const { updateProvider, deleteProvider, testConnection, connectionTests } =
-    useSettingsStore();
+  const updateProvider = useSettingsStore(s => s.updateProvider);
+  const deleteProvider = useSettingsStore(s => s.deleteProvider);
+  const testConnection = useSettingsStore(s => s.testConnection);
+  const connectionTests = useSettingsStore(s => s.connectionTests);
   const [editingKey, setEditingKey] = useState(false);
   const [newApiKey, setNewApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);

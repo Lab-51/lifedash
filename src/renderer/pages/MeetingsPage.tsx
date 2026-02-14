@@ -25,9 +25,17 @@ const FILTER_TABS: { value: FilterTab; label: string }[] = [
 ];
 
 function MeetingsPage() {
-  const { meetings, loading, error, loadMeetings, loadMeeting, addTranscriptSegment } = useMeetingStore();
-  const { isRecording, completedMeetingId, clearCompletedMeetingId } = useRecordingStore();
-  const { projects, loadProjects } = useProjectStore();
+  const meetings = useMeetingStore(s => s.meetings);
+  const loading = useMeetingStore(s => s.loading);
+  const error = useMeetingStore(s => s.error);
+  const loadMeetings = useMeetingStore(s => s.loadMeetings);
+  const loadMeeting = useMeetingStore(s => s.loadMeeting);
+  const addTranscriptSegment = useMeetingStore(s => s.addTranscriptSegment);
+  const isRecording = useRecordingStore(s => s.isRecording);
+  const completedMeetingId = useRecordingStore(s => s.completedMeetingId);
+  const clearCompletedMeetingId = useRecordingStore(s => s.clearCompletedMeetingId);
+  const projects = useProjectStore(s => s.projects);
+  const loadProjects = useProjectStore(s => s.loadProjects);
   const [filter, setFilter] = useState<FilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);

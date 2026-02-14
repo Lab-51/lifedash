@@ -157,10 +157,15 @@ function AudioLevelMeter() {
 }
 
 export default function RecordingControls() {
-  const {
-    isRecording, isProcessing, elapsed, error, starting, includeMic,
-    startRecording, stopRecording, setIncludeMic,
-  } = useRecordingStore();
+  const isRecording = useRecordingStore(s => s.isRecording);
+  const isProcessing = useRecordingStore(s => s.isProcessing);
+  const elapsed = useRecordingStore(s => s.elapsed);
+  const error = useRecordingStore(s => s.error);
+  const starting = useRecordingStore(s => s.starting);
+  const includeMic = useRecordingStore(s => s.includeMic);
+  const startRecording = useRecordingStore(s => s.startRecording);
+  const stopRecording = useRecordingStore(s => s.stopRecording);
+  const setIncludeMic = useRecordingStore(s => s.setIncludeMic);
   const [title, setTitle] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<MeetingTemplateType>('none');
 

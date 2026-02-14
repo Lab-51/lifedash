@@ -115,8 +115,13 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const templateDropdownRef = useRef<HTMLDivElement>(null);
 
-  const { labels, createLabel, attachLabel, detachLabel } = useBoardStore();
-  const { loadCardDetails, clearCardDetails, loadingCardDetails } = useCardDetailStore();
+  const labels = useBoardStore(s => s.labels);
+  const createLabel = useBoardStore(s => s.createLabel);
+  const attachLabel = useBoardStore(s => s.attachLabel);
+  const detachLabel = useBoardStore(s => s.detachLabel);
+  const loadCardDetails = useCardDetailStore(s => s.loadCardDetails);
+  const clearCardDetails = useCardDetailStore(s => s.clearCardDetails);
+  const loadingCardDetails = useCardDetailStore(s => s.loadingCardDetails);
   const clearBreakdown = useTaskStructuringStore(s => s.clearBreakdown);
 
   // TipTap editor setup

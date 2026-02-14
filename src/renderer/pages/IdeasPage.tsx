@@ -31,7 +31,11 @@ const STATUS_COLORS: Record<IdeaStatus, string> = {
 
 function IdeasPage() {
   const navigate = useNavigate();
-  const { ideas, loading, error, loadIdeas, createIdea } = useIdeaStore();
+  const ideas = useIdeaStore(s => s.ideas);
+  const loading = useIdeaStore(s => s.loading);
+  const error = useIdeaStore(s => s.error);
+  const loadIdeas = useIdeaStore(s => s.loadIdeas);
+  const createIdea = useIdeaStore(s => s.createIdea);
   const [filter, setFilter] = useState<IdeaStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [newTitle, setNewTitle] = useState('');

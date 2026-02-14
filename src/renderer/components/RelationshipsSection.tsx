@@ -40,9 +40,10 @@ interface RelationshipsSectionProps {
 }
 
 function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
-  const { cards } = useBoardStore();
-  const { selectedCardRelationships, addRelationship, deleteRelationship } =
-    useCardDetailStore();
+  const cards = useBoardStore(s => s.cards);
+  const selectedCardRelationships = useCardDetailStore(s => s.selectedCardRelationships);
+  const addRelationship = useCardDetailStore(s => s.addRelationship);
+  const deleteRelationship = useCardDetailStore(s => s.deleteRelationship);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState('');

@@ -45,7 +45,8 @@ interface TaskModelConfigProps {
 type DraftConfig = Record<AITaskType, { providerId: string; model: string }>;
 
 export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
-  const { getTaskModels, setTaskModels } = useSettingsStore();
+  const getTaskModels = useSettingsStore(s => s.getTaskModels);
+  const setTaskModels = useSettingsStore(s => s.setTaskModels);
   const [draft, setDraft] = useState<DraftConfig>({} as DraftConfig);
   const [customModel, setCustomModel] = useState<Record<AITaskType, string>>({} as Record<AITaskType, string>);
   const [saving, setSaving] = useState(false);

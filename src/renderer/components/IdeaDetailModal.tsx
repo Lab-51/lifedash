@@ -60,19 +60,17 @@ interface IdeaDetailModalProps {
 }
 
 export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDetailModalProps) {
-  const {
-    selectedIdea,
-    loadIdea,
-    updateIdea,
-    deleteIdea,
-    clearSelectedIdea,
-    convertToProject,
-    analysis,
-    analyzing,
-    analysisError,
-    analyzeIdea,
-    clearAnalysis,
-  } = useIdeaStore();
+  const selectedIdea = useIdeaStore(s => s.selectedIdea);
+  const loadIdea = useIdeaStore(s => s.loadIdea);
+  const updateIdea = useIdeaStore(s => s.updateIdea);
+  const deleteIdea = useIdeaStore(s => s.deleteIdea);
+  const clearSelectedIdea = useIdeaStore(s => s.clearSelectedIdea);
+  const convertToProject = useIdeaStore(s => s.convertToProject);
+  const analysis = useIdeaStore(s => s.analysis);
+  const analyzing = useIdeaStore(s => s.analyzing);
+  const analysisError = useIdeaStore(s => s.analysisError);
+  const analyzeIdea = useIdeaStore(s => s.analyzeIdea);
+  const clearAnalysis = useIdeaStore(s => s.clearAnalysis);
 
   // Local edit state
   const [title, setTitle] = useState('');

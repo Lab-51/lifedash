@@ -40,8 +40,11 @@ const EFFORT_LABEL: Record<SubtaskSuggestion['effort'], string> = {
 };
 
 function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
-  const { breakdown, breakdownLoading, breakdownError, generateBreakdown, clearBreakdown } =
-    useTaskStructuringStore();
+  const breakdown = useTaskStructuringStore(s => s.breakdown);
+  const breakdownLoading = useTaskStructuringStore(s => s.breakdownLoading);
+  const breakdownError = useTaskStructuringStore(s => s.breakdownError);
+  const generateBreakdown = useTaskStructuringStore(s => s.generateBreakdown);
+  const clearBreakdown = useTaskStructuringStore(s => s.clearBreakdown);
 
   const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(new Set());
   const [applying, setApplying] = useState(false);

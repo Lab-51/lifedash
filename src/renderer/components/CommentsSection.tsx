@@ -26,8 +26,10 @@ interface CommentsSectionProps {
 }
 
 function CommentsSection({ cardId }: CommentsSectionProps) {
-  const { selectedCardComments, addComment, updateComment, deleteComment } =
-    useCardDetailStore();
+  const selectedCardComments = useCardDetailStore(s => s.selectedCardComments);
+  const addComment = useCardDetailStore(s => s.addComment);
+  const updateComment = useCardDetailStore(s => s.updateComment);
+  const deleteComment = useCardDetailStore(s => s.deleteComment);
 
   const [newComment, setNewComment] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);

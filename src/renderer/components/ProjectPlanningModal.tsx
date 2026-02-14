@@ -100,8 +100,11 @@ export default function ProjectPlanningModal({
   onClose,
   onApplied,
 }: ProjectPlanningModalProps) {
-  const { plan, planLoading, planError, generatePlan, clearPlan } =
-    useTaskStructuringStore();
+  const plan = useTaskStructuringStore(s => s.plan);
+  const planLoading = useTaskStructuringStore(s => s.planLoading);
+  const planError = useTaskStructuringStore(s => s.planError);
+  const generatePlan = useTaskStructuringStore(s => s.generatePlan);
+  const clearPlan = useTaskStructuringStore(s => s.clearPlan);
 
   // Local state
   const [additionalContext, setAdditionalContext] = useState('');

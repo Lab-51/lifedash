@@ -22,8 +22,13 @@ import RecordingsSavePathSection from '../components/settings/RecordingsSavePath
 import ProxySettingsSection from '../components/settings/ProxySettingsSection';
 
 function SettingsPage() {
-  const { providers, loading, error, encryptionAvailable, loadProviders, loadSettings, checkEncryption } =
-    useSettingsStore();
+  const providers = useSettingsStore(s => s.providers);
+  const loading = useSettingsStore(s => s.loading);
+  const error = useSettingsStore(s => s.error);
+  const encryptionAvailable = useSettingsStore(s => s.encryptionAvailable);
+  const loadProviders = useSettingsStore(s => s.loadProviders);
+  const loadSettings = useSettingsStore(s => s.loadSettings);
+  const checkEncryption = useSettingsStore(s => s.checkEncryption);
   const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {

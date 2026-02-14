@@ -48,14 +48,12 @@ export default function MeetingAnalyticsSection({
   meetingId,
   isCompleted,
 }: MeetingAnalyticsSectionProps) {
-  const {
-    analytics,
-    analyticsLoading,
-    diarizing,
-    diarizationError,
-    loadAnalytics,
-    diarizeMeeting,
-  } = useMeetingStore();
+  const analytics = useMeetingStore(s => s.analytics);
+  const analyticsLoading = useMeetingStore(s => s.analyticsLoading);
+  const diarizing = useMeetingStore(s => s.diarizing);
+  const diarizationError = useMeetingStore(s => s.diarizationError);
+  const loadAnalytics = useMeetingStore(s => s.loadAnalytics);
+  const diarizeMeeting = useMeetingStore(s => s.diarizeMeeting);
 
   // Load analytics on mount
   useEffect(() => {
