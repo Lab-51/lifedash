@@ -7,7 +7,7 @@
 // react, lucide-react, meetingStore
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Clock, Trash2, Info } from 'lucide-react';
+import { X, Clock, Trash2, Info, Search, Copy, Check } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
 import BriefSection from './BriefSection';
@@ -80,6 +80,8 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false }: Me
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [convertingAction, setConvertingAction] = useState<ActionItem | null>(null);
   const [batchConvertItems, setBatchConvertItems] = useState<Array<{ id: string; text: string }> | null>(null);
+  const [transcriptSearch, setTranscriptSearch] = useState('');
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const prevSegmentCount = useRef(0);
   const autoGenerateBriefTriggered = useRef(false);
@@ -193,6 +195,66 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false }: Me
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) handleClose();
   };
+
+  // --- Transcript search & copy helpers ---
+
+  const searchQuery = transcriptSearch.trim().toLowerCase();
+  const filteredSegments = searchQuery
+    ? meeting.segments.filter(s => s.content.toLowerCase().includes(searchQuery))
+    : meeting.segments;
+
+  function highlightText(text: string, query: string): React.ReactNode {
+    if (!query) return text;
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escaped})`, 'gi');
+    const parts = text.split(regex);
+    return parts.map((part, i) =>
+      regex.test(part)
+        ? <mark key={i} className="bg-yellow-500/30 text-yellow-200 rounded-sm px-0.5">{part}</mark>
+        : part
+    );
+  }
+
+  const handleCopy = (field: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 1500);
+  };
+
+  const copyTranscript = () => {
+    const text = meeting.segments.map(s => {
+      const ts = `[${formatTimestamp(s.startTime)}]`;
+      const speaker = s.speaker ? ` [${s.speaker}]` : '';
+      return `${ts}${speaker} ${s.content}`;
+    }).join('\n');
+    handleCopy('transcript', text);
+  };
+
+  const copySummary = () => {
+    if (meeting.brief) handleCopy('summary', meeting.brief.summary);
+  };
+
+  const copyActionItems = () => {
+    const text = meeting.actionItems.map(item => {
+      const checkbox = item.status === 'approved' ? '[x]' : '[ ]';
+      return `- ${checkbox} ${item.description}`;
+    }).join('\n');
+    handleCopy('actions', text);
+  };
+
+  const CopyBtn = ({ field, label, onClick, disabled }: {
+    field: string; label: string; onClick: () => void; disabled?: boolean;
+  }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="flex items-center gap-1 text-xs text-surface-400 hover:text-surface-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      title={label}
+    >
+      {copiedField === field ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+      <span className="hidden sm:inline">{copiedField === field ? 'Copied!' : label}</span>
+    </button>
+  );
 
   return (
     <>
@@ -328,15 +390,49 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false }: Me
 
         {/* Transcript section */}
         <div className="mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-surface-300">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h3 className="text-sm font-medium text-surface-300 shrink-0">
               Transcript
               {meeting.segments.length > 0 && (
                 <span className="ml-2 text-surface-500">
-                  ({meeting.segments.length} segment{meeting.segments.length !== 1 ? 's' : ''})
+                  {searchQuery
+                    ? `(${filteredSegments.length} of ${meeting.segments.length})`
+                    : `(${meeting.segments.length} segment${meeting.segments.length !== 1 ? 's' : ''})`
+                  }
                 </span>
               )}
             </h3>
+            <div className="flex items-center gap-3">
+              {/* Copy buttons */}
+              {meeting.segments.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <CopyBtn field="transcript" label="Transcript" onClick={copyTranscript} />
+                  <CopyBtn field="summary" label="Summary" onClick={copySummary} disabled={!meeting.brief} />
+                  <CopyBtn field="actions" label="Actions" onClick={copyActionItems} disabled={meeting.actionItems.length === 0} />
+                </div>
+              )}
+              {/* Search input */}
+              {meeting.segments.length > 0 && (
+                <div className="relative">
+                  <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={transcriptSearch}
+                    onChange={e => setTranscriptSearch(e.target.value)}
+                    placeholder="Search..."
+                    className="bg-surface-800 border border-surface-700 rounded text-sm text-surface-200 pl-7 pr-7 py-1 max-w-48 focus:outline-none focus:border-primary-500 placeholder:text-surface-600"
+                  />
+                  {transcriptSearch && (
+                    <button
+                      onClick={() => setTranscriptSearch('')}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {meeting.segments.length === 0 ? (
@@ -345,9 +441,13 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false }: Me
                 ? 'Transcription in progress...'
                 : 'No transcript available'}
             </div>
+          ) : filteredSegments.length === 0 ? (
+            <div className="text-center py-6 text-surface-500 text-sm">
+              No segments match &ldquo;{transcriptSearch}&rdquo;
+            </div>
           ) : (
             <div className="max-h-64 overflow-y-auto rounded-lg bg-surface-800/50 border border-surface-700 p-3 space-y-2">
-              {meeting.segments.map(segment => {
+              {filteredSegments.map(segment => {
                 const speakerColor = segment.speaker ? getSpeakerColor(segment.speaker) : null;
                 return (
                   <div key={segment.id} className="flex gap-3 text-sm">
@@ -360,7 +460,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false }: Me
                           [{segment.speaker}]
                         </span>
                       )}
-                      {segment.content}
+                      {searchQuery ? highlightText(segment.content, transcriptSearch) : segment.content}
                     </p>
                   </div>
                 );
