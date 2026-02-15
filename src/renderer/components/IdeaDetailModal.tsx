@@ -72,7 +72,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
   const analyzeIdea = useIdeaStore(s => s.analyzeIdea);
   const clearAnalysis = useIdeaStore(s => s.clearAnalysis);
 
-  // Local edit state
+  // Local edit state — local for responsive UI, persisted on blur/change
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<IdeaStatus>('new');
@@ -80,7 +80,6 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
   const [impact, setImpact] = useState<ImpactLevel | ''>('');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -117,33 +116,22 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
   // === HANDLERS ===
 
-  const handleSave = async () => {
-    if (!selectedIdea || saving) return;
-    setSaving(true);
-    try {
-      await updateIdea(selectedIdea.id, {
-        title: title.trim() || selectedIdea.title,
-        description: description.trim() || null,
-        status,
-        effort: effort || null,
-        impact: impact || null,
-        tags,
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const addTag = () => {
+    if (!selectedIdea) return;
     const tag = tagInput.trim().toLowerCase();
     if (tag && !tags.includes(tag)) {
-      setTags([...tags, tag]);
+      const newTags = [...tags, tag];
+      setTags(newTags);
+      updateIdea(selectedIdea.id, { tags: newTags });
     }
     setTagInput('');
   };
 
   const removeTag = (tagToRemove: string) => {
-    setTags(tags.filter((t) => t !== tagToRemove));
+    if (!selectedIdea) return;
+    const newTags = tags.filter((t) => t !== tagToRemove);
+    setTags(newTags);
+    updateIdea(selectedIdea.id, { tags: newTags });
   };
 
   const handleTagKeyDown = (e: React.KeyboardEvent) => {
@@ -211,6 +199,11 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            onBlur={() => {
+              if (selectedIdea && title.trim() && title.trim() !== selectedIdea.title) {
+                updateIdea(selectedIdea.id, { title: title.trim() });
+              }
+            }}
             placeholder="Idea title..."
             className="flex-1 bg-transparent text-lg font-semibold text-surface-100 focus:outline-none border-b border-transparent focus:border-primary-500 pb-1"
           />
@@ -238,7 +231,11 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                 <label className="text-xs text-surface-400 mb-1 block">Status</label>
                 <select
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as IdeaStatus)}
+                  onChange={(e) => {
+                    const newStatus = e.target.value as IdeaStatus;
+                    setStatus(newStatus);
+                    if (selectedIdea) updateIdea(selectedIdea.id, { status: newStatus });
+                  }}
                   className=""
                 >
                   {STATUS_OPTIONS.map((opt) => (
@@ -252,7 +249,11 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                 <label className="text-xs text-surface-400 mb-1 block">Effort</label>
                 <select
                   value={effort}
-                  onChange={(e) => setEffort(e.target.value as EffortLevel | '')}
+                  onChange={(e) => {
+                    const newEffort = e.target.value as EffortLevel | '';
+                    setEffort(newEffort);
+                    if (selectedIdea) updateIdea(selectedIdea.id, { effort: newEffort || null });
+                  }}
                   className=""
                 >
                   <option value="">--</option>
@@ -267,7 +268,11 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                 <label className="text-xs text-surface-400 mb-1 block">Impact</label>
                 <select
                   value={impact}
-                  onChange={(e) => setImpact(e.target.value as ImpactLevel | '')}
+                  onChange={(e) => {
+                    const newImpact = e.target.value as ImpactLevel | '';
+                    setImpact(newImpact);
+                    if (selectedIdea) updateIdea(selectedIdea.id, { impact: newImpact || null });
+                  }}
                   className=""
                 >
                   <option value="">--</option>
@@ -288,6 +293,11 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                onBlur={() => {
+                  if (selectedIdea && description !== (selectedIdea.description ?? '')) {
+                    updateIdea(selectedIdea.id, { description: description.trim() || null });
+                  }
+                }}
                 placeholder="Add a description..."
                 className="bg-surface-800 border border-surface-700 rounded-lg p-3 text-sm text-surface-200 placeholder:text-surface-500 w-full min-h-[80px] resize-y focus:outline-none focus:border-primary-500"
               />
@@ -300,8 +310,14 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
               analysis={analysis}
               onAnalyze={() => analyzeIdea(selectedIdea.id)}
               onClearAnalysis={clearAnalysis}
-              onApplyEffort={setEffort}
-              onApplyImpact={setImpact}
+              onApplyEffort={(newEffort) => {
+                setEffort(newEffort);
+                if (selectedIdea) updateIdea(selectedIdea.id, { effort: newEffort });
+              }}
+              onApplyImpact={(newImpact) => {
+                setImpact(newImpact);
+                if (selectedIdea) updateIdea(selectedIdea.id, { impact: newImpact });
+              }}
             />
 
             {/* Tags */}
@@ -417,19 +433,8 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
             {/* Divider */}
             <div className="border-t border-surface-700 mt-4 pt-4">
-              {/* Footer: Save + Delete */}
-              <div className="flex items-center justify-between">
-                {/* Save */}
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-                >
-                  {saving && <Loader2 size={14} className="animate-spin" />}
-                  {saving ? 'Saving...' : 'Save'}
-                </button>
-
-                {/* Delete */}
+              {/* Footer: Delete */}
+              <div className="flex items-center justify-end">
                 <div className="flex items-center gap-2">
                   {!confirmDelete ? (
                     <button
