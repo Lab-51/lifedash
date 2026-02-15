@@ -1,309 +1,257 @@
-# Plan 11.2 — Extract & Test Critical Business Logic
+# Plan 11.3 — UX Quick Wins & Documentation Reconciliation
 
-<phase n="11.2" name="Extract & Test Critical Business Logic">
+<phase n="11.3" name="UX Quick Wins & Documentation Reconciliation">
   <context>
-    The project review (REVIEW.md) identified test coverage as the #1 priority:
-    99 tests across 5 files, estimated 5-10% coverage, marked CRITICAL.
+    Plans 11.1 and 11.2 addressed the top 4 review priorities (close-during-recording
+    guard, markdown rendering, command palette loading, test extraction). This plan
+    tackles the remaining "Immediate" quick wins and review priority #5 (outdated docs).
 
-    Existing tests cover only pure utilities (card-utils, date-utils, schemas,
-    ipc-validator, types). Zero tests exist for services, IPC handlers, or stores.
+    From REVIEW.md "Quick Wins" — already done:
+    - Card count badges on columns (already in BoardColumn.tsx:177)
+    - Textarea auto-resize in brainstorm (already in BrainstormPage.tsx:442-450)
+    - Close-during-recording guard (Plan 11.1)
+    - Command palette loading (Plan 11.1)
+    - Brainstorm markdown rendering (Plan 11.1)
 
-    The two highest-risk untested codepaths are:
-    1. **Card-move algorithm** (cards.ts:182-235) — position clamping, array
-       reordering, and sibling update logic embedded in an ipcMain.handle callback.
-       Bug here = corrupted Kanban board.
-    2. **Action item parsing** (meetingIntelligenceService.ts:207-228) — JSON
-       parse with bullet-point regex fallback, embedded in generateActionItems().
-       Bug here = lost action items after meetings.
+    Remaining quick wins addressed in this plan:
+    - "Show Archived" toggle on ProjectsPage (REVIEW.md quick win #5)
+    - Sorting on IdeasPage and MeetingsPage (REVIEW.md quick win #4)
 
-    Both are currently untestable because the logic is embedded inside IPC
-    handlers / service functions that require DB + AI provider. Strategy:
-    extract the pure logic into standalone functions, then test exhaustively.
+    Plus review priority #5: Reconcile outdated documentation.
 
-    Current test setup:
-    - Vitest 4.0.18, environment: node, globals: true
-    - Pattern: src/**/\__tests__/*.test.ts
-    - No mocks used yet (all tests are pure functions)
-    - No test setup file
+    Key patterns to follow:
+    - BrainstormPage has the archive toggle pattern: useState(false), checkbox UI,
+      sessions.filter(s => s.status === 'active'), conditional render when archived exist
+    - ProjectsPage currently does: `projects.filter(p => !p.archived)` with no toggle
+    - Projects use `archived: boolean` field (not status enum)
+    - IdeasPage and MeetingsPage have status filter tabs + search, but no sort controls
 
-    @src/main/ipc/cards.ts
-    @src/main/services/meetingIntelligenceService.ts
-    @vitest.config.ts
-    @src/shared/utils/__tests__/card-utils.test.ts (pattern reference)
+    @src/renderer/pages/ProjectsPage.tsx
+    @src/renderer/pages/IdeasPage.tsx
+    @src/renderer/pages/MeetingsPage.tsx
+    @src/renderer/pages/BrainstormPage.tsx (pattern reference for archive toggle)
+    @PROJECT.md
+    @REQUIREMENTS.md
+    @ROADMAP.md
+    @CHEATSHEET.md
   </context>
 
   <task type="auto" n="1">
-    <n>Extract card-move reordering logic into a pure testable function</n>
+    <n>Add "Show Archived" toggle to ProjectsPage</n>
     <files>
-      src/main/ipc/cards.ts
-      src/shared/utils/card-move.ts (new)
+      src/renderer/pages/ProjectsPage.tsx
     </files>
     <action>
-      Extract the pure reordering logic from the `cards:move` IPC handler
-      (cards.ts:182-235) into a standalone, side-effect-free function.
+      Add a toggle to show/hide archived projects on the ProjectsPage, following
+      the BrainstormPage pattern.
 
-      **Create `src/shared/utils/card-move.ts`:**
+      **Changes to ProjectsPage.tsx:**
 
-      ```ts
-      /**
-       * Pure function: compute the new positions after moving a card.
-       * No DB access — takes siblings list, returns update instructions.
-       */
-      export interface CardSibling {
-        id: string;
-        position: number;
-      }
+      1. Add state: `const [showArchived, setShowArchived] = useState(false);`
 
-      export interface MoveResult {
-        /** The clamped position the card ended up at */
-        clampedPosition: number;
-        /** Updates to apply: [cardId, newPosition][] — includes moved card */
-        updates: Array<{ id: string; position: number }>;
-      }
+      2. Change the filter logic from:
+         ```ts
+         const activeProjects = projects.filter(p => !p.archived);
+         ```
+         to:
+         ```ts
+         const filteredProjects = showArchived ? projects : projects.filter(p => !p.archived);
+         const hasArchivedProjects = projects.some(p => p.archived);
+         ```
 
-      export function computeCardMove(
-        movedCardId: string,
-        targetPosition: number,
-        siblingsInTarget: CardSibling[],
-      ): MoveResult {
-        // Remove the moved card from siblings (may already be in column for same-column reorder)
-        const filtered = siblingsInTarget.filter(c => c.id !== movedCardId);
+      3. Add a checkbox toggle near the page header (next to the "New Project" button
+         or in the filter area), conditionally shown only when archived projects exist.
+         Follow BrainstormPage style:
+         ```tsx
+         {hasArchivedProjects && (
+           <label className="flex items-center gap-2 text-xs text-surface-400 cursor-pointer">
+             <input
+               type="checkbox"
+               checked={showArchived}
+               onChange={(e) => setShowArchived(e.target.checked)}
+               className="rounded border-surface-600"
+             />
+             Show archived
+           </label>
+         )}
+         ```
 
-        // Clamp position to valid range
-        const clampedPosition = Math.max(0, Math.min(targetPosition, filtered.length));
+      4. In the project grid rendering, use `filteredProjects` instead of `activeProjects`.
 
-        // Insert at clamped position
-        const reordered = [...filtered];
-        reordered.splice(clampedPosition, 0, { id: movedCardId, position: -1 });
+      5. Add visual distinction for archived projects — apply `opacity-50` class to
+         archived project cards (same as BrainstormPage line 257).
 
-        // Compute updates — only cards whose position actually changed
-        const updates: MoveResult['updates'] = [];
-        for (let i = 0; i < reordered.length; i++) {
-          if (reordered[i].id === movedCardId || reordered[i].position !== i) {
-            updates.push({ id: reordered[i].id, position: i });
-          }
-        }
+      6. For archived projects shown in the list, add an "Unarchive" button (or replace
+         the Archive button with Unarchive). Use the existing `updateProject` function:
+         `await updateProject(id, { archived: false })`.
 
-        return { clampedPosition, updates };
-      }
-      ```
-
-      **Refactor `cards.ts`** to use the extracted function:
-      - Import `computeCardMove` from `../../shared/utils/card-move`
-      - Replace lines 201-227 with:
-        ```ts
-        const siblings = siblingsInTarget.map(c => ({ id: c.id, position: c.position }));
-        const { clampedPosition, updates } = computeCardMove(validId, moveData.position, siblings);
-
-        for (const upd of updates) {
-          if (upd.id === validId) {
-            await db.update(cards).set({ columnId: moveData.columnId, position: upd.position, updatedAt: new Date() }).where(eq(cards.id, validId));
-          } else {
-            await db.update(cards).set({ position: upd.position }).where(eq(cards.id, upd.id));
-          }
-        }
-        ```
-      - Update the logCardActivity call to use `clampedPosition`
-
-      **WHY:** The card-move algorithm is the highest-risk untested code in the app.
-      Extracting it as a pure function makes it testable without any DB mocking,
-      while keeping the IPC handler thin (fetch → compute → apply → log).
+      **WHY:** Archiving is currently one-way with no recovery path. Users who
+      accidentally archive a project have no way to get it back without DB access.
+      The BrainstormPage already has this pattern, so ProjectsPage should match.
     </action>
     <verify>
       - `npx tsc --noEmit` passes with zero errors
-      - `npx vitest run` — all 99 existing tests still pass
-      - The new `card-move.ts` file exports `computeCardMove`, `CardSibling`, `MoveResult`
-      - `cards.ts` imports and uses `computeCardMove` (no duplicate logic)
+      - `npx vitest run` — all 150 existing tests still pass
+      - Visually: when no projects are archived, no checkbox appears
+      - Visually: when a project is archived, checkbox appears and toggles visibility
+      - Archived projects show with reduced opacity
+      - Unarchive action restores the project to full visibility
     </verify>
     <done>
-      Card-move reordering logic extracted to src/shared/utils/card-move.ts as a
-      pure function. cards.ts IPC handler refactored to use it. Zero behavior change.
+      ProjectsPage has a "Show archived" checkbox that reveals archived projects
+      with reduced opacity and an unarchive action. Pattern matches BrainstormPage.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - The card-move handler logic at lines 182-235 hasn't changed since the review
-      - The extracted function's interface (CardSibling[]) is sufficient to represent
-        the data needed from the DB query
+      - Projects use `archived: boolean` field (confirmed in ProjectsPage filter)
+      - The existing `updateProject(id, { archived: false })` call works for unarchiving
+      - useState import is already present in ProjectsPage
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Extract action-item parsing into a pure testable function</n>
+    <n>Add sort controls to IdeasPage and MeetingsPage</n>
     <files>
-      src/main/services/meetingIntelligenceService.ts
-      src/shared/utils/action-item-parser.ts (new)
+      src/renderer/pages/IdeasPage.tsx
+      src/renderer/pages/MeetingsPage.tsx
     </files>
-    <preconditions>
-      - Task 1 complete (establishes the extraction pattern)
-    </preconditions>
     <action>
-      Extract the AI response parsing logic from `generateActionItems()`
-      (meetingIntelligenceService.ts:207-228) into a standalone pure function.
+      Add a sort dropdown to both IdeasPage and MeetingsPage. Both pages currently
+      render items in database order with no sort option.
 
-      **Create `src/shared/utils/action-item-parser.ts`:**
+      **For IdeasPage:**
 
-      ```ts
-      /**
-       * Parse action item descriptions from an AI response.
-       * Strategy: try JSON array first, fall back to bullet/numbered line extraction.
-       * Pure function — no AI or DB dependencies.
-       */
-      export function parseActionItems(aiResponseText: string): string[] {
-        // Strategy 1: Try JSON array
-        try {
-          const parsed = JSON.parse(aiResponseText);
-          if (Array.isArray(parsed)) {
-            const descriptions = parsed
-              .filter((item: unknown) => {
-                const obj = item as Record<string, unknown>;
-                return obj.description && typeof obj.description === 'string';
-              })
-              .map((item: unknown) => (item as Record<string, string>).description);
-            if (descriptions.length > 0) return descriptions;
-          }
-        } catch {
-          // Not valid JSON — fall through to Strategy 2
-        }
+      1. Add state: `const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');`
 
-        // Strategy 2: Extract from bullet/numbered lines
-        return aiResponseText
-          .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => /^[-*]|\d+[.)]/.test(line))
-          .map((line) => line.replace(/^[-*]\s*|\d+[.)]\s*/, '').trim())
-          .filter((line) => line.length > 0);
-      }
-      ```
+      2. Add sort logic after the existing filter:
+         ```ts
+         const sortedIdeas = [...filteredIdeas].sort((a, b) => {
+           if (sortBy === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+           if (sortBy === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+           return a.title.localeCompare(b.title);
+         });
+         ```
 
-      **Refactor `meetingIntelligenceService.ts`:**
-      - Import `parseActionItems` from `../../shared/utils/action-item-parser`
-      - Replace lines 207-228 with:
-        ```ts
-        const descriptions = parseActionItems(result.text);
-        ```
+      3. Add a sort dropdown in the filter bar area (next to the search box):
+         ```tsx
+         <select
+           value={sortBy}
+           onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+           className="bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
+         >
+           <option value="newest">Newest first</option>
+           <option value="oldest">Oldest first</option>
+           <option value="title">Title A-Z</option>
+         </select>
+         ```
 
-      **Subtle improvement:** The current code has a bug — if JSON parses successfully
-      as an array but all items lack `.description`, it returns an empty array instead
-      of falling through to the bullet extraction. The extracted version fixes this by
-      checking `descriptions.length > 0` before returning.
+      4. Use `sortedIdeas` instead of `filteredIdeas` in the grid rendering.
 
-      **WHY:** Action item parsing is the second-highest-risk untested code. AI models
-      return unpredictable formats — sometimes valid JSON, sometimes markdown bullets,
-      sometimes mixed. The regex fallback needs thorough edge-case testing.
+      **For MeetingsPage:**
+
+      Same pattern but with meeting-appropriate sort options:
+
+      1. Add state: `const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');`
+
+      2. Add sort logic after filter (meetings have `createdAt` and `title`):
+         ```ts
+         const sortedMeetings = [...filteredMeetings].sort((a, b) => {
+           if (sortBy === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+           if (sortBy === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+           return a.title.localeCompare(b.title);
+         });
+         ```
+
+      3. Add dropdown in the filter area (same styling as IdeasPage).
+
+      4. Use `sortedMeetings` in the grid rendering.
+
+      **Styling note:** Use the same select styling on both pages for consistency.
+      The dark-theme select styling (`bg-surface-800 border border-surface-700`) matches
+      the existing search input styling.
+
+      **WHY:** Sorting is a basic UX expectation for any list view. Both pages have
+      50+ potential items but no way to find recent or alphabetical entries. The review
+      called this out as quick win #4.
     </action>
     <verify>
       - `npx tsc --noEmit` passes with zero errors
-      - `npx vitest run` — all 99 existing tests still pass
-      - The new `action-item-parser.ts` exports `parseActionItems`
-      - `meetingIntelligenceService.ts` imports and uses `parseActionItems`
+      - `npx vitest run` — all 150 tests still pass
+      - IdeasPage: sort dropdown appears, "Newest first" is default, all 3 options work
+      - MeetingsPage: sort dropdown appears, "Newest first" is default, all 3 options work
+      - Sort persists while filtering (sort + search work together)
     </verify>
     <done>
-      Action item parsing logic extracted to src/shared/utils/action-item-parser.ts.
-      meetingIntelligenceService.ts refactored to use it. Bug fix: empty JSON array
-      now falls through to bullet extraction.
+      Both IdeasPage and MeetingsPage have a sort dropdown with newest/oldest/title
+      options. Default is "Newest first". Sort works in combination with existing
+      status filters and search.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - The parsing logic at lines 207-228 is self-contained (no closure over
-        external variables except `result.text`)
-      - The bug fix (fallthrough on empty descriptions) is correct behavior
+      - Both pages have `createdAt` (string ISO date) and `title` fields on their entities
+      - The existing `filteredIdeas` / `filteredMeetings` variables are arrays that can
+        be spread and sorted without side effects
+      - The select element styling matches the dark theme without additional CSS
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Add comprehensive tests for card-move and action-item parsing</n>
+    <n>Reconcile outdated documentation</n>
     <files>
-      src/shared/utils/__tests__/card-move.test.ts (new)
-      src/shared/utils/__tests__/action-item-parser.test.ts (new)
+      PROJECT.md
+      REQUIREMENTS.md
+      ROADMAP.md
+      CHEATSHEET.md
     </files>
-    <preconditions>
-      - Tasks 1 and 2 complete (functions extracted and available for import)
-    </preconditions>
     <action>
-      Write exhaustive unit tests for both extracted functions. Follow the
-      existing test pattern (describe/it blocks, no mocks needed since both
-      are pure functions).
+      Fix the 5 specific outdated references identified in REVIEW.md:
 
-      **card-move.test.ts — Test cases for `computeCardMove()`:**
+      **1. PROJECT.md line 29:** Change
+         `"Database: PostgreSQL (local via Docker)"`
+         → `"Database: PGlite (embedded WASM PostgreSQL — no Docker required)"`
 
-      1. **Basic scenarios:**
-         - Move card to position 0 (beginning) in a column with existing cards
-         - Move card to last position in a column
-         - Move card to middle position
-         - Move card to empty column (no siblings)
+      **2. PROJECT.md line 38:** Change
+         `"Docker required for PostgreSQL"`
+         → `"Fully standalone — no Docker or external services required"`
 
-      2. **Same-column reorder:**
-         - Move card from position 0 to position 2 (forward)
-         - Move card from position 3 to position 1 (backward)
-         - Move card to its current position (no-op — should produce minimal updates)
+      **3. PROJECT.md Constraints section:** Also update the constraint
+         `"Privacy-conscious — local PostgreSQL, local Whisper option"`
+         → `"Privacy-conscious — embedded PGlite database, local Whisper option"`
 
-      3. **Cross-column move:**
-         - Card ID not in siblings list (new column) — should insert at requested position
-         - Siblings should be renumbered starting from 0
+      **4. REQUIREMENTS.md:** Find the reference to `@kutalia/whisper-node-addon`
+         and change to `@fugood/whisper.node v1.0.16 (NAPI native addon)`
 
-      4. **Edge cases:**
-         - Position -1 (out of bounds low) → clamped to 0
-         - Position 999 (out of bounds high) → clamped to end
-         - Single card in column, move it to position 0 (trivial case)
-         - Only the moved card changes when no siblings shift
+      **5. ROADMAP.md:** Mark all Phase 1-9 deliverable checkboxes as `[x]` (complete).
+         Phases 10-11 are in progress / not in the roadmap yet, which is fine.
 
-      5. **Position correctness:**
-         - After every move, positions form a contiguous 0..N-1 sequence
-         - Updates array only includes cards whose position actually changed
+      **6. CHEATSHEET.md line ~116:** Find the architecture diagram that mentions
+         "Framer Motion" and remove it (removed in Plan 10.2, commit d32a112).
 
-      **action-item-parser.test.ts — Test cases for `parseActionItems()`:**
-
-      1. **JSON strategy:**
-         - Valid JSON array of `{ description: "..." }` objects
-         - JSON array with mixed valid/invalid items (some missing description)
-         - JSON array with non-string descriptions (number, null) → filtered out
-         - Valid JSON but not an array (object) → falls through to bullet extraction
-         - Empty JSON array → falls through to bullet extraction
-
-      2. **Bullet extraction strategy:**
-         - Lines starting with `- ` (dash bullet)
-         - Lines starting with `* ` (star bullet)
-         - Lines starting with `1. `, `2) `, `3. ` (numbered)
-         - Mixed bullet styles in same response
-         - Indented bullets (leading whitespace before `-`)
-         - Lines with extra whitespace after bullet marker
-
-      3. **Edge cases:**
-         - Empty string → returns []
-         - Only whitespace/blank lines → returns []
-         - Malformed JSON (partial, truncated) → falls through to bullets
-         - Response with no bullets and no JSON → returns []
-         - Very long descriptions (should not be truncated by parser)
-         - Lines that look like bullets but inside code blocks (edge case, may not handle)
-
-      4. **Real-world AI response formats:**
-         - OpenAI-style: numbered list with descriptions
-         - Anthropic-style: markdown with headers + bullets
-         - Mixed: JSON with some markdown
-
-      Target: **~40-50 tests** across both files, bringing total from 99 to ~140-150.
-
-      **WHY:** These two functions guard the most critical data paths in the app.
-      Card-move corruption makes the Kanban board unusable. Action item parsing
-      failures mean users lose meeting insights. Exhaustive testing here catches
-      regressions before users do.
+      **WHY:** Outdated docs mislead future contributors and the user themselves.
+      PROJECT.md saying "Docker required" is actively wrong — the app has been
+      fully standalone since Phase 9's PGlite migration. These are small text fixes
+      but high-impact for accuracy.
     </action>
     <verify>
-      - `npx vitest run` — all tests pass (old 99 + new ~40-50)
-      - card-move tests cover: basic, same-column, cross-column, edge cases, position correctness
-      - action-item-parser tests cover: JSON strategy, bullet strategy, edge cases, real-world formats
-      - No flaky tests (all deterministic, no timers or async)
+      - PROJECT.md no longer mentions Docker as a requirement
+      - PROJECT.md mentions PGlite as the database
+      - REQUIREMENTS.md references @fugood/whisper.node (not @kutalia)
+      - ROADMAP.md Phase 1-7 checkboxes are all [x]
+      - CHEATSHEET.md no longer mentions Framer Motion
+      - `grep -r "Docker required" PROJECT.md` returns nothing
+      - `grep -r "kutalia" REQUIREMENTS.md` returns nothing
+      - `grep -r "Framer Motion" CHEATSHEET.md` returns nothing
     </verify>
     <done>
-      Two new test files with ~40-50 tests total. computeCardMove and parseActionItems
-      are thoroughly tested with edge cases, real-world scenarios, and invariant checks.
-      Total test count: ~140-150.
+      All 5 outdated documentation references fixed. PROJECT.md reflects PGlite
+      and standalone operation. REQUIREMENTS.md has correct Whisper package.
+      ROADMAP.md checkboxes marked complete. CHEATSHEET.md architecture updated.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Both functions are pure and synchronous (no async, no side effects)
-      - The existing vitest config (environment: node) is sufficient for these tests
-      - Real-world AI response formats can be approximated from the prompt templates
+      - The specific line numbers from the review are approximate (files may have
+        shifted slightly) — search for content, not line numbers
+      - No other outdated Docker references exist beyond the 2 in PROJECT.md
     </assumptions>
   </task>
 </phase>

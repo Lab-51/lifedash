@@ -1,76 +1,58 @@
-# Summary: Plan 11.2 — Extract & Test Critical Business Logic
+# Summary — Plan 11.3: UX Quick Wins & Documentation Reconciliation
 
 ## Date: 2026-02-15
 ## Status: COMPLETE (3/3 tasks, sequential execution)
 
 ## What Changed
 
-Extracted the two highest-risk untested codepaths into pure, testable functions, then added 51 comprehensive tests. This addresses the #1 priority from the project review (REVIEW.md): test coverage.
+Completed the remaining "Immediate" quick wins from the project review plus documentation reconciliation (review priority #5). This wraps up Phase 11 (Review Remediation).
 
-### Task 1: Extract card-move reordering logic
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** f55bb97
+### Task 1: Show Archived toggle on ProjectsPage
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 7662047
 
-- New `src/shared/utils/card-move.ts` — pure `computeCardMove()` function
-  - Takes: movedCardId, targetPosition, siblingsInTarget array
-  - Returns: clampedPosition + minimal update instructions (only changed cards)
-  - Exports: `computeCardMove`, `CardSibling`, `MoveResult` interfaces
-- Refactored `src/main/ipc/cards.ts` — replaced 19 lines of inline logic with:
-  - `const siblings = siblingsInTarget.map(c => ({ id: c.id, position: c.position }));`
-  - `const { clampedPosition, updates } = computeCardMove(validId, moveData.position, siblings);`
-  - DB update loop applies the computed instructions
-- Zero behavior change — IPC handler is now fetch → compute → apply → log
+- Added `showArchived` state + `hasArchivedProjects` derived check
+- Checkbox conditionally shown when archived projects exist (BrainstormPage pattern)
+- Archived project cards render with `opacity-50` styling
+- Archive button switches to "Unarchive" for archived cards
+- 1 file modified: `src/renderer/pages/ProjectsPage.tsx` (+48, -18)
 
-### Task 2: Extract action-item parsing
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 16d4792
+### Task 2: Sort controls on IdeasPage + MeetingsPage
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 03f5d5d
 
-- New `src/shared/utils/action-item-parser.ts` — pure `parseActionItems()` function
-  - Strategy 1: Try JSON array of `{ description: string }` objects
-  - Strategy 2: Fall back to bullet/numbered line extraction via regex
-  - Bug fix: empty JSON arrays (or arrays with no valid descriptions) now fall through to bullet extraction instead of returning empty
-- Refactored `src/main/services/meetingIntelligenceService.ts` — replaced 22-line parsing block with single call: `const descriptions = parseActionItems(result.text);`
+- Sort dropdown with 3 options: Newest first (default), Oldest first, Title A-Z
+- Applied after existing filter/search — fully composable
+- Consistent dark-theme styling on both pages
+- 2 files modified: `IdeasPage.tsx`, `MeetingsPage.tsx` (+49, -9)
 
-### Task 3: Comprehensive tests
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 331836f
+### Task 3: Documentation reconciliation
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 23b784d
 
-**card-move.test.ts (22 tests):**
-- Basic scenarios: move to beginning, end, middle, empty column
-- Same-column reorder: forward, backward, same position
-- Cross-column move: new column insertion + renumbering
-- Edge cases: negative position clamping, oversized position clamping, single card
-- Position invariants: 8 parameterized contiguity checks + update minimality
-
-**action-item-parser.test.ts (29 tests):**
-- JSON strategy: valid arrays, missing/non-string descriptions, non-array JSON, empty array fallthrough
-- Bullet extraction: dash, star, numbered (dot/paren), mixed styles, indented, extra whitespace
-- Edge cases: empty string, whitespace only, malformed JSON, no bullets/no JSON, long descriptions
-- Real-world AI formats: OpenAI-style numbered lists, markdown headers + bullets, JSON with whitespace
-
-## Metrics
-| Metric | Before | After |
-|--------|--------|-------|
-| Test count | 99 | 150 |
-| Test files | 5 | 7 |
-| Test duration | ~300ms | ~360ms |
-
-## Files Changed (6 total, 4 new)
-
-**Task 1 — 2 files (1 new):**
-- NEW: `src/shared/utils/card-move.ts`
-- MOD: `src/main/ipc/cards.ts`
-
-**Task 2 — 2 files (1 new):**
-- NEW: `src/shared/utils/action-item-parser.ts`
-- MOD: `src/main/services/meetingIntelligenceService.ts`
-
-**Task 3 — 2 files (both new):**
-- NEW: `src/shared/utils/__tests__/card-move.test.ts`
-- NEW: `src/shared/utils/__tests__/action-item-parser.test.ts`
+- PROJECT.md: Docker→PGlite, standalone operation (3 changes)
+- REQUIREMENTS.md: @kutalia→@fugood/whisper.node, Docker refs, tech stack table (5 changes)
+- ROADMAP.md: Phase 1-7 checkboxes marked complete, PostgreSQL→PGlite refs (4 changes)
+- CHEATSHEET.md: Removed Framer Motion from architecture diagram (1 change)
+- 4 files modified (+66, -67)
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors)
-- `npx vitest run`: 150/150 tests pass (all 7 files green)
+- `npx vitest run`: 150/150 tests pass (no regressions)
+
+## Phase 11 Complete
+
+All 3 plans in the Review Remediation phase are done:
+
+| Plan | Focus | Tasks |
+|------|-------|-------|
+| 11.1 | Close-during-recording guard, command palette, markdown | 3/3 ✓ |
+| 11.2 | Extract business logic, 51 new tests | 3/3 ✓ |
+| 11.3 | Archive toggle, sort controls, docs reconciliation | 3/3 ✓ |
+
+**Total:** 9 tasks, 9 commits, 0 regressions
+
+## Remaining Items
+- README.md Framer Motion reference (line ~90) — minor, noted for future cleanup
+- See ISSUES.md for full deferred list
 
 ## What's Next
-- Plan 11.2 is complete
-- Remaining review items from REVIEW.md: architecture documentation, further test expansion
-- Next step: Plan 11.3 or user-directed work
+- Phase 11 (Review Remediation) is fully complete
+- Next: user-directed work, or plan next milestone
