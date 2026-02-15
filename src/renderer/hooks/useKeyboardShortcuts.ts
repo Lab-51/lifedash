@@ -21,6 +21,7 @@ const SHORTCUT_MAP: Record<string, string> = {
 function useKeyboardShortcuts(
   navigate: NavigateFunction,
   onToggleCommandPalette?: () => void,
+  onToggleShortcutsHelp?: () => void,
 ): void {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -31,6 +32,13 @@ function useKeyboardShortcuts(
       if (e.key === 'k' && onToggleCommandPalette) {
         e.preventDefault();
         onToggleCommandPalette();
+        return;
+      }
+
+      // Ctrl+? (Ctrl+Shift+/) — toggle shortcuts help
+      if (e.key === '?' && onToggleShortcutsHelp) {
+        e.preventDefault();
+        onToggleShortcutsHelp();
         return;
       }
 
@@ -46,7 +54,7 @@ function useKeyboardShortcuts(
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [navigate, onToggleCommandPalette]);
+  }, [navigate, onToggleCommandPalette, onToggleShortcutsHelp]);
 }
 
 export default useKeyboardShortcuts;

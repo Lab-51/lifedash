@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
-import { Search, Folder, Mic, Lightbulb, MessageSquare, LayoutGrid, Settings, Plus, Play } from 'lucide-react';
+import { Search, Folder, Mic, Lightbulb, MessageSquare, LayoutGrid, Settings, Plus, Play, Keyboard } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useIdeaStore } from '../stores/ideaStore';
@@ -24,6 +24,7 @@ interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
   navigate: NavigateFunction;
+  onShowShortcuts?: () => void;
 }
 
 const MAX_PER_CATEGORY = 5;
@@ -37,7 +38,7 @@ function matchScore(query: string, title: string, description?: string | null): 
   return -1;
 }
 
-function CommandPalette({ isOpen, onClose, navigate }: CommandPaletteProps) {
+function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,7 +73,8 @@ function CommandPalette({ isOpen, onClose, navigate }: CommandPaletteProps) {
     { id: 'a-proj', label: 'New Project...', icon: Plus, category: 'Actions', action: () => go('/?action=create') },
     { id: 'a-rec', label: 'Start Recording', icon: Play, category: 'Actions', action: () => go('/meetings?action=record') },
     { id: 'a-set', label: 'Open Settings', icon: Settings, category: 'Actions', action: () => go('/settings') },
-  ], [go]);
+    ...(onShowShortcuts ? [{ id: 'a-keys', label: 'Keyboard Shortcuts', icon: Keyboard, category: 'Actions', action: () => onShowShortcuts() }] : []),
+  ], [go, onShowShortcuts]);
 
   const dataItems: CommandItem[] = useMemo(() => {
     const items: CommandItem[] = [];

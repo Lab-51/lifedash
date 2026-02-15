@@ -20,6 +20,7 @@ import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { useTheme } from './hooks/useTheme';
 import { useRecordingStore } from './stores/recordingStore';
 import CommandPalette from './components/CommandPalette';
+import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
@@ -33,6 +34,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
 
   const toggleCommandPalette = useCallback(() => {
     setShowCommandPalette(prev => !prev);
@@ -42,7 +44,20 @@ function AppShell({ children }: { children: ReactNode }) {
     setShowCommandPalette(false);
   }, []);
 
-  useKeyboardShortcuts(navigate, toggleCommandPalette);
+  const toggleShortcutsHelp = useCallback(() => {
+    setShowShortcutsHelp(prev => !prev);
+  }, []);
+
+  const closeShortcutsHelp = useCallback(() => {
+    setShowShortcutsHelp(false);
+  }, []);
+
+  const openShortcutsHelp = useCallback(() => {
+    setShowCommandPalette(false);
+    setShowShortcutsHelp(true);
+  }, []);
+
+  useKeyboardShortcuts(navigate, toggleCommandPalette, toggleShortcutsHelp);
   useTheme();
 
   // Initialize recording state listener (always active regardless of page)
@@ -66,6 +81,11 @@ function AppShell({ children }: { children: ReactNode }) {
         isOpen={showCommandPalette}
         onClose={closeCommandPalette}
         navigate={navigate}
+        onShowShortcuts={openShortcutsHelp}
+      />
+      <KeyboardShortcutsModal
+        isOpen={showShortcutsHelp}
+        onClose={closeShortcutsHelp}
       />
       {children}
     </>
