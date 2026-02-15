@@ -12,11 +12,12 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Brain, Plus, Send, Loader2, Trash2, Archive,
-  MessageSquare, Bot,
+  MessageSquare, Bot, Sparkles, Lightbulb, Search, Layers, ListChecks,
 } from 'lucide-react';
 import { useBrainstormStore } from '../stores/brainstormStore';
 import { useProjectStore } from '../stores/projectStore';
 import ChatMessage from '../components/ChatMessage';
+import { BRAINSTORM_TEMPLATES } from '../../shared/types/brainstorm';
 
 function formatRelativeTime(isoDate: string): string {
   const seconds = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
@@ -48,6 +49,7 @@ export default function BrainstormPage() {
   const [newSessionTitle, setNewSessionTitle] = useState('');
   const [showNewSession, setShowNewSession] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState('freeform');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState('');
@@ -74,8 +76,13 @@ export default function BrainstormPage() {
       title: newSessionTitle.trim(),
       projectId: selectedProjectId || undefined,
     });
+    const template = BRAINSTORM_TEMPLATES.find(t => t.id === selectedTemplateId);
+    if (template?.starterPrompt) {
+      setInput(template.starterPrompt);
+    }
     setNewSessionTitle('');
     setSelectedProjectId('');
+    setSelectedTemplateId('freeform');
     setShowNewSession(false);
     loadSession(session.id);
   };
@@ -105,6 +112,14 @@ export default function BrainstormPage() {
   const handleDeleteSession = async (id: string) => {
     await deleteSession(id);
     setConfirmDeleteId(null);
+  };
+
+  const templateIcons: Record<string, React.ReactNode> = {
+    Sparkles: <Sparkles size={16} />,
+    Lightbulb: <Lightbulb size={16} />,
+    Search: <Search size={16} />,
+    Layers: <Layers size={16} />,
+    ListChecks: <ListChecks size={16} />,
   };
 
   return (
@@ -170,6 +185,36 @@ export default function BrainstormPage() {
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+              {/* Template picker */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-surface-500">Template</label>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {BRAINSTORM_TEMPLATES.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => setSelectedTemplateId(template.id)}
+                      className={`flex items-start gap-2 p-2 rounded-lg border text-left transition-colors ${
+                        selectedTemplateId === template.id
+                          ? 'border-primary-500 bg-primary-600/10'
+                          : 'border-surface-700 bg-surface-800 hover:border-surface-600'
+                      }`}
+                    >
+                      <span className={`mt-0.5 flex-shrink-0 ${
+                        selectedTemplateId === template.id ? 'text-primary-400' : 'text-surface-500'
+                      }`}>
+                        {templateIcons[template.icon]}
+                      </span>
+                      <div className="min-w-0">
+                        <p className={`text-xs font-medium ${
+                          selectedTemplateId === template.id ? 'text-primary-300' : 'text-surface-300'
+                        }`}>{template.name}</p>
+                        <p className="text-xs text-surface-500 truncate">{template.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex gap-2">
                 <button
                   onClick={handleCreateSession}
