@@ -8,10 +8,11 @@
 // lucide-react (FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2), projectStore, LoadingSpinner,
 // ProjectPlanningModal, shared types (CreateProjectInput)
 
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useEffect, useState, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2 } from 'lucide-react';
+import { FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2, LayoutList } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
+import { useBoardStore } from '../stores/boardStore';
 import LoadingSpinner from '../components/LoadingSpinner';
 const ProjectPlanningModal = lazy(() => import('../components/ProjectPlanningModal'));
 import type { CreateProjectInput } from '../../shared/types';
@@ -34,6 +35,7 @@ function ProjectsPage() {
   const createProject = useProjectStore(s => s.createProject);
   const updateProject = useProjectStore(s => s.updateProject);
   const deleteProject = useProjectStore(s => s.deleteProject);
+  const allCards = useBoardStore(s => s.allCards);
   const [showArchived, setShowArchived] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -51,6 +53,14 @@ function ProjectsPage() {
 
   const filteredProjects = showArchived ? projects : projects.filter(p => !p.archived);
   const hasArchivedProjects = projects.some(p => p.archived);
+
+  const cardCountByProject = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const card of allCards) {
+      map[card.projectId] = (map[card.projectId] || 0) + 1;
+    }
+    return map;
+  }, [allCards]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -308,9 +318,13 @@ function ProjectsPage() {
                   {project.description}
                 </p>
               )}
-              <p className="mt-3 text-xs text-surface-500">
-                Created {formatDate(project.createdAt)}
-              </p>
+              <div className="mt-3 flex items-center justify-between text-xs text-surface-500">
+                <span>Created {formatDate(project.createdAt)}</span>
+                <span className="flex items-center gap-1 text-surface-400">
+                  <LayoutList size={12} />
+                  {cardCountByProject[project.id] || 0} cards
+                </span>
+              </div>
             </div>
           ))}
         </div>
