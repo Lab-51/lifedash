@@ -30,6 +30,7 @@ import {
 import * as attachmentService from '../services/attachmentService';
 import type { Card, Label } from '../../shared/types';
 import { buildCardLabelMap } from '../../shared/utils/card-utils';
+import { computeCardMove } from '../../shared/utils/card-move';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import {
   idParamSchema,
@@ -198,31 +199,22 @@ export function registerCardHandlers(): void {
         )
         .orderBy(asc(cards.position));
 
-      // Remove the moved card from the list (it may already be in this column for same-column reorder)
-      const filtered = siblingsInTarget.filter(c => c.id !== validId);
+      // Compute new positions using pure function
+      const siblings = siblingsInTarget.map(c => ({ id: c.id, position: c.position }));
+      const { clampedPosition, updates } = computeCardMove(validId, moveData.position, siblings);
 
-      // Clamp position to valid range
-      const clampedPosition = Math.max(0, Math.min(moveData.position, filtered.length));
-
-      // Insert the moved card at the requested position
-      const reordered = [...filtered];
-      // Use a minimal placeholder — we only need the id for the update loop
-      reordered.splice(clampedPosition, 0, { id: validId } as typeof cards.$inferSelect);
-
-      // Update all positions in one pass
-      for (let i = 0; i < reordered.length; i++) {
-        if (reordered[i].id === validId) {
-          // Update the moved card: set column, position, and timestamp
+      // Apply updates to DB
+      for (const upd of updates) {
+        if (upd.id === validId) {
           await db
             .update(cards)
-            .set({ columnId: moveData.columnId, position: i, updatedAt: new Date() })
+            .set({ columnId: moveData.columnId, position: upd.position, updatedAt: new Date() })
             .where(eq(cards.id, validId));
-        } else if (reordered[i].position !== i) {
-          // Only update siblings whose position actually changed
+        } else {
           await db
             .update(cards)
-            .set({ position: i })
-            .where(eq(cards.id, reordered[i].id));
+            .set({ position: upd.position })
+            .where(eq(cards.id, upd.id));
         }
       }
 
