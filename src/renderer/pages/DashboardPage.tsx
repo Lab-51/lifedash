@@ -144,149 +144,188 @@ function DashboardPage() {
         ))}
       </div>
 
-      {/* Active Projects */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-surface-100">Active Projects</h2>
-          {totalActiveProjects > MAX_PROJECTS && (
-            <button
-              onClick={() => navigate('/projects')}
-              className="flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 transition-colors"
-            >
-              View all {totalActiveProjects} projects
-              <ArrowRight size={14} />
-            </button>
-          )}
-        </div>
-
-        {activeProjects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-surface-500">
-            <FolderKanban size={32} className="mb-2 text-surface-600" />
-            <p className="text-sm">No active projects yet</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {activeProjects.map(project => (
-              <div
-                key={project.id}
-                onClick={() => navigate(`/projects/${project.id}`)}
-                className="bg-surface-800 border border-surface-700 rounded-xl p-4 hover:border-surface-600 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div
-                    className="w-3 h-3 rounded-full shrink-0"
-                    style={{ backgroundColor: project.color || '#3b82f6' }}
-                  />
-                  <h3 className="font-medium text-surface-100 truncate">{project.name}</h3>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1 text-xs text-surface-400">
-                    <LayoutList size={12} />
-                    {cardCountByProject[project.id] || 0} cards
-                  </span>
-                  <span className="text-xs text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                    Open <ArrowRight size={12} />
-                  </span>
-                </div>
+      {projects.length === 0 && meetings.length === 0 && ideas.length === 0 ? (
+        /* Empty dashboard onboarding CTA */
+        <div className="bg-surface-800 border border-surface-700 rounded-xl p-6 max-w-lg mx-auto">
+          <h2 className="text-lg font-semibold text-surface-100 mb-1">Welcome to Living Dashboard</h2>
+          <p className="text-sm text-surface-400 mb-5">Set up in 3 quick steps:</p>
+          <div className="space-y-4">
+            {/* Step 1 */}
+            <div className="flex items-start gap-3">
+              <span className="shrink-0 w-6 h-6 rounded-full bg-primary-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-surface-200">Configure an AI provider</p>
+                <p className="text-xs text-surface-500">Add your OpenAI, Anthropic, or Ollama API key</p>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Bottom row: Recent Meetings + Recent Ideas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Meetings */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-surface-100">Recent Meetings</h2>
-            {meetings.length > MAX_RECENT && (
-              <button
-                onClick={() => navigate('/meetings')}
-                className="flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 transition-colors"
-              >
-                View all
-                <ArrowRight size={14} />
-              </button>
-            )}
-          </div>
-
-          {recentMeetings.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-surface-500">
-              <Mic size={32} className="mb-2 text-surface-600" />
-              <p className="text-sm">No meetings yet</p>
+              <button onClick={() => navigate('/settings')} className="text-xs text-primary-400 hover:text-primary-300 shrink-0">Open Settings</button>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {recentMeetings.map(meeting => (
+            {/* Step 2 */}
+            <div className="flex items-start gap-3">
+              <span className="shrink-0 w-6 h-6 rounded-full bg-primary-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-surface-200">Download a Whisper model</p>
+                <p className="text-xs text-surface-500">Required for meeting transcription</p>
+              </div>
+              <button onClick={() => navigate('/settings')} className="text-xs text-primary-400 hover:text-primary-300 shrink-0">Open Settings</button>
+            </div>
+            {/* Step 3 */}
+            <div className="flex items-start gap-3">
+              <span className="shrink-0 w-6 h-6 rounded-full bg-primary-600 text-white text-xs font-bold flex items-center justify-center">3</span>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-surface-200">Create your first project</p>
+                <p className="text-xs text-surface-500">Start managing tasks with a Kanban board</p>
+              </div>
+              <button onClick={() => navigate('/projects?action=create')} className="text-xs text-primary-400 hover:text-primary-300 shrink-0">Create Project</button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Active Projects */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-surface-100">Active Projects</h2>
+              {totalActiveProjects > MAX_PROJECTS && (
                 <button
-                  key={meeting.id}
-                  onClick={() => navigate(`/meetings?openMeeting=${meeting.id}`)}
-                  className="w-full text-left bg-surface-800 border border-surface-700 rounded-xl p-3 hover:border-surface-600 transition-colors"
+                  onClick={() => navigate('/projects')}
+                  className="flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 transition-colors"
                 >
-                  <p className="text-sm font-medium text-surface-100 truncate">
-                    {meeting.title}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-surface-400">
-                    <span className="flex items-center gap-1">
-                      <Calendar size={11} />
-                      {formatDate(meeting.createdAt)}
-                    </span>
-                    {meeting.endedAt && (
-                      <span className="flex items-center gap-1">
-                        <Clock size={11} />
-                        {formatDuration(meeting.startedAt, meeting.endedAt)}
-                      </span>
-                    )}
-                  </div>
+                  View all {totalActiveProjects} projects
+                  <ArrowRight size={14} />
                 </button>
-              ))}
+              )}
             </div>
-          )}
-        </section>
 
-        {/* Recent Ideas */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-surface-100">Recent Ideas</h2>
-            {ideas.length > MAX_RECENT && (
-              <button
-                onClick={() => navigate('/ideas')}
-                className="flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 transition-colors"
-              >
-                View all
-                <ArrowRight size={14} />
-              </button>
-            )}
-          </div>
-
-          {recentIdeas.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-surface-500">
-              <Lightbulb size={32} className="mb-2 text-surface-600" />
-              <p className="text-sm">No ideas yet</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {recentIdeas.map(idea => (
-                <button
-                  key={idea.id}
-                  onClick={() => navigate(`/ideas?openIdea=${idea.id}`)}
-                  className="w-full text-left bg-surface-800 border border-surface-700 rounded-xl p-3 hover:border-surface-600 transition-colors flex items-center justify-between gap-3"
-                >
-                  <p className="text-sm font-medium text-surface-100 truncate">
-                    {idea.title}
-                  </p>
-                  <span
-                    className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[idea.status]}`}
+            {activeProjects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-surface-500">
+                <FolderKanban size={32} className="mb-2 text-surface-600" />
+                <p className="text-sm">No active projects yet</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {activeProjects.map(project => (
+                  <div
+                    key={project.id}
+                    onClick={() => navigate(`/projects/${project.id}`)}
+                    className="bg-surface-800 border border-surface-700 rounded-xl p-4 hover:border-surface-600 transition-colors cursor-pointer group"
                   >
-                    {idea.status}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: project.color || '#3b82f6' }}
+                      />
+                      <h3 className="font-medium text-surface-100 truncate">{project.name}</h3>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1 text-xs text-surface-400">
+                        <LayoutList size={12} />
+                        {cardCountByProject[project.id] || 0} cards
+                      </span>
+                      <span className="text-xs text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        Open <ArrowRight size={12} />
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Bottom row: Recent Meetings + Recent Ideas */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Recent Meetings */}
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-surface-100">Recent Meetings</h2>
+                {meetings.length > MAX_RECENT && (
+                  <button
+                    onClick={() => navigate('/meetings')}
+                    className="flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                  >
+                    View all
+                    <ArrowRight size={14} />
+                  </button>
+                )}
+              </div>
+
+              {recentMeetings.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-surface-500">
+                  <Mic size={32} className="mb-2 text-surface-600" />
+                  <p className="text-sm">No meetings yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {recentMeetings.map(meeting => (
+                    <button
+                      key={meeting.id}
+                      onClick={() => navigate(`/meetings?openMeeting=${meeting.id}`)}
+                      className="w-full text-left bg-surface-800 border border-surface-700 rounded-xl p-3 hover:border-surface-600 transition-colors"
+                    >
+                      <p className="text-sm font-medium text-surface-100 truncate">
+                        {meeting.title}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-surface-400">
+                        <span className="flex items-center gap-1">
+                          <Calendar size={11} />
+                          {formatDate(meeting.createdAt)}
+                        </span>
+                        {meeting.endedAt && (
+                          <span className="flex items-center gap-1">
+                            <Clock size={11} />
+                            {formatDuration(meeting.startedAt, meeting.endedAt)}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Recent Ideas */}
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-surface-100">Recent Ideas</h2>
+                {ideas.length > MAX_RECENT && (
+                  <button
+                    onClick={() => navigate('/ideas')}
+                    className="flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                  >
+                    View all
+                    <ArrowRight size={14} />
+                  </button>
+                )}
+              </div>
+
+              {recentIdeas.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-surface-500">
+                  <Lightbulb size={32} className="mb-2 text-surface-600" />
+                  <p className="text-sm">No ideas yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {recentIdeas.map(idea => (
+                    <button
+                      key={idea.id}
+                      onClick={() => navigate(`/ideas?openIdea=${idea.id}`)}
+                      className="w-full text-left bg-surface-800 border border-surface-700 rounded-xl p-3 hover:border-surface-600 transition-colors flex items-center justify-between gap-3"
+                    >
+                      <p className="text-sm font-medium text-surface-100 truncate">
+                        {idea.title}
+                      </p>
+                      <span
+                        className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[idea.status]}`}
+                      >
+                        {idea.status}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        </>
+      )}
     </div>
   );
 }

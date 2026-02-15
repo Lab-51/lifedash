@@ -6,7 +6,7 @@
 // react, lucide-react, @atlaskit/pragmatic-drag-and-drop, @atlaskit/pragmatic-drag-and-drop-hitbox,
 // KanbanCard, shared types
 
-import { memo, useRef, useState, useEffect } from 'react';
+import { memo, useRef, useState, useEffect, useCallback } from 'react';
 import { Plus, X, GripVertical } from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -23,6 +23,7 @@ interface BoardColumnProps {
   updateCard: (id: string, data: UpdateCardInput) => Promise<void>;
   deleteCard: (id: string) => Promise<void>;
   deleteColumn: (id: string) => Promise<void>;
+  renameColumn: (id: string, name: string) => Promise<void>;
   onCardClick: (cardId: string) => void;
   justDroppedCardId: string | null;
   blockedCardIds?: Set<string>;
@@ -38,6 +39,7 @@ const BoardColumn = memo(function BoardColumn({
   updateCard,
   deleteCard,
   deleteColumn,
+  renameColumn,
   onCardClick,
   justDroppedCardId,
   blockedCardIds,
@@ -51,6 +53,9 @@ const BoardColumn = memo(function BoardColumn({
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [closestColumnEdge, setClosestColumnEdge] = useState<Edge | null>(null);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameName, setRenameName] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   // Combined drag-and-drop setup: card drop target + column drop target + column draggable
   useEffect(() => {
@@ -126,6 +131,19 @@ const BoardColumn = memo(function BoardColumn({
     return () => clearTimeout(timer);
   }, [deleteConfirm]);
 
+  // Focus the rename input when entering rename mode
+  useEffect(() => {
+    if (isRenaming) renameInputRef.current?.focus();
+  }, [isRenaming]);
+
+  const handleRenameSave = useCallback(async () => {
+    const trimmed = renameName.trim();
+    if (trimmed && trimmed !== column.name) {
+      await renameColumn(column.id, trimmed);
+    }
+    setIsRenaming(false);
+  }, [renameName, column.name, column.id, renameColumn]);
+
   const handleAddCard = async () => {
     const title = newCardTitle.trim();
     if (!title) return;
@@ -170,9 +188,32 @@ const BoardColumn = memo(function BoardColumn({
       <div ref={headerRef} className="group px-3 py-3 flex items-center justify-between cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-2">
           <GripVertical size={14} className="text-surface-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-          <span className="font-semibold text-sm text-surface-200">
-            {column.name}
-          </span>
+          {isRenaming ? (
+            <input
+              ref={renameInputRef}
+              type="text"
+              value={renameName}
+              onChange={(e) => setRenameName(e.target.value)}
+              onBlur={handleRenameSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameSave();
+                else if (e.key === 'Escape') setIsRenaming(false);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="font-semibold text-sm text-surface-100 bg-surface-700 rounded px-1 -mx-1 w-full outline-none focus:ring-1 focus:ring-primary-500"
+            />
+          ) : (
+            <span
+              className="font-semibold text-sm text-surface-200 cursor-text"
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setIsRenaming(true);
+                setRenameName(column.name);
+              }}
+            >
+              {column.name}
+            </span>
+          )}
           <span className="text-xs text-surface-500 bg-surface-700 px-1.5 py-0.5 rounded">
             {columnCards.length}
           </span>
@@ -184,7 +225,7 @@ const BoardColumn = memo(function BoardColumn({
             onClick={handleDeleteColumn}
             className="text-xs text-red-400 hover:text-red-300 transition-colors"
           >
-            Delete?
+            {columnCards.length > 0 ? `Delete ${columnCards.length} cards?` : 'Delete?'}
           </button>
         ) : (
           <button

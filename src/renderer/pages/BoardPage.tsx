@@ -40,6 +40,7 @@ function BoardPage() {
   const updateCard = useBoardStore(s => s.updateCard);
   const deleteCard = useBoardStore(s => s.deleteCard);
   const moveCard = useBoardStore(s => s.moveCard);
+  const updateColumn = useBoardStore(s => s.updateColumn);
   const reorderColumns = useBoardStore(s => s.reorderColumns);
 
   // Local UI state for add-column form
@@ -472,6 +473,7 @@ function BoardPage() {
             updateCard={updateCard}
             deleteCard={deleteCard}
             deleteColumn={deleteColumn}
+            renameColumn={(id, name) => updateColumn(id, { name })}
             onCardClick={(cardId) => setSelectedCardId(cardId)}
             justDroppedCardId={justDroppedCardId}
             blockedCardIds={blockedCardIds}
