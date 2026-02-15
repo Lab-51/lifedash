@@ -20,4 +20,15 @@ export const windowBridge = {
       ipcRenderer.removeListener('window:maximize-change', handler);
     };
   },
+  recordingSetState: (isRecording: boolean) =>
+    ipcRenderer.invoke('recording:set-state', isRecording),
+  onRecordingForceStop: (callback: () => void) => {
+    const handler = () => {
+      callback();
+    };
+    ipcRenderer.on('recording:force-stop', handler);
+    return () => {
+      ipcRenderer.removeListener('recording:force-stop', handler);
+    };
+  },
 };

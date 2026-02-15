@@ -4,6 +4,7 @@
 // All handlers are parameterless — no input validation needed
 
 import { BrowserWindow, ipcMain } from 'electron';
+import { setIsRecording } from '../services/recordingState';
 
 /**
  * Register IPC handlers for window controls.
@@ -40,6 +41,12 @@ export function registerWindowControlHandlers(
 
   ipcMain.handle('window:is-always-on-top', () => {
     return mainWindow.isAlwaysOnTop();
+  });
+
+  // Recording state — lets the renderer notify the main process
+  // when a recording starts/stops so the close guard can check it.
+  ipcMain.handle('recording:set-state', (_event, value: boolean) => {
+    setIsRecording(value);
   });
 
   // Forward maximize/unmaximize events to the renderer so the

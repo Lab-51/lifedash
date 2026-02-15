@@ -61,6 +61,8 @@ export interface ElectronAPI {
   onWindowMaximizeChange: (
     callback: (isMaximized: boolean) => void,
   ) => () => void;
+  recordingSetState: (isRecording: boolean) => Promise<void>;
+  onRecordingForceStop: (callback: () => void) => () => void;
 
   // Database
   getDatabaseStatus: () => Promise<DatabaseStatus>;

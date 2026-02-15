@@ -8,7 +8,7 @@
 // drizzle-orm, postgres (via ./db/connection and ./db/migrate),
 // electron-audio-loopback (system audio capture)
 
-import { app, BrowserWindow, globalShortcut } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import windowStateKeeper from 'electron-window-state';
@@ -20,6 +20,7 @@ import { initMain } from 'electron-audio-loopback';
 import { initAutoBackup, stopAutoBackup } from './services/autoBackupScheduler';
 import { initNotificationScheduler, stopNotificationScheduler } from './services/notificationScheduler';
 import { createLogger } from './services/logger';
+import { getIsRecording, setIsRecording } from './services/recordingState';
 
 const log = createLogger('App');
 
@@ -135,10 +136,29 @@ const createWindow = async () => {
   }
 
   // --- Close behavior ---
+  // Guard against closing during an active recording (data loss prevention).
   // On macOS, hide to tray (standard macOS behavior — red button hides, Cmd+Q quits).
   // On Windows/Linux, close button quits the app to prevent orphaned processes.
-  mainWindow.on('close', (event) => {
-    if (
+  mainWindow.on('close', async (event) => {
+    if (getIsRecording()) {
+      event.preventDefault();
+      const { response } = await dialog.showMessageBox(mainWindow!, {
+        type: 'warning',
+        buttons: ['Keep Recording', 'Stop & Close'],
+        defaultId: 0,
+        cancelId: 0,
+        title: 'Recording in Progress',
+        message: 'A meeting recording is currently active.',
+        detail: 'Closing the app will stop the recording. The recorded audio up to this point will be saved.',
+      });
+      if (response === 1) {
+        mainWindow?.webContents.send('recording:force-stop');
+        setTimeout(() => {
+          setIsRecording(false);
+          mainWindow?.close();
+        }, 2000);
+      }
+    } else if (
       process.platform === 'darwin' &&
       !(app as unknown as { isQuitting: boolean }).isQuitting
     ) {

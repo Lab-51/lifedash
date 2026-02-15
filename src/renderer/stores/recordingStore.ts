@@ -71,6 +71,9 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       // Step 4: Start audio capture in renderer (with optional mic mixing)
       await audioCaptureService.startCapture(get().includeMic, micDeviceId);
 
+      // Notify main process that recording is active (close guard)
+      window.electronAPI.recordingSetState(true);
+
       set({
         isRecording: true,
         meetingId: meeting.id,
@@ -96,6 +99,9 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   stopRecording: async () => {
     const meetingId = get().meetingId;
     set({ isRecording: false, isProcessing: true });
+
+    // Notify main process that recording has stopped (close guard)
+    window.electronAPI.recordingSetState(false);
 
     try {
       // Step 1: Stop audio capture in renderer
@@ -131,7 +137,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   clearCompletedMeetingId: () => set({ completedMeetingId: null }),
 
   initListener: () => {
-    const cleanup = window.electronAPI.onRecordingState((state: RecordingState) => {
+    const cleanupState = window.electronAPI.onRecordingState((state: RecordingState) => {
       set({
         isRecording: state.isRecording,
         meetingId: state.meetingId,
@@ -139,6 +145,17 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         lastTranscript: state.lastTranscript,
       });
     });
-    return cleanup;
+
+    // Listen for force-stop from main process (user confirmed close during recording)
+    const cleanupForceStop = window.electronAPI.onRecordingForceStop(() => {
+      if (get().isRecording) {
+        get().stopRecording();
+      }
+    });
+
+    return () => {
+      cleanupState();
+      cleanupForceStop();
+    };
   },
 }));
