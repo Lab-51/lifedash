@@ -29,6 +29,11 @@ interface CommandPaletteProps {
 
 const MAX_PER_CATEGORY = 5;
 
+/** Strip HTML tags from TipTap-generated content for plain-text display */
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '').trim();
+}
+
 /** Returns match priority: 0=exact, 1=title contains, 2=description contains, -1=no match */
 function matchScore(query: string, title: string, description?: string | null): number {
   const q = query.toLowerCase(), t = title.toLowerCase();
@@ -80,15 +85,15 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
   const dataItems: CommandItem[] = useMemo(() => {
     const items: CommandItem[] = [];
     for (const p of projects)
-      items.push({ id: `proj-${p.id}`, label: p.name, sublabel: p.description ?? undefined, icon: Folder, category: 'Projects', action: () => go(`/projects/${p.id}`), timestamp: p.updatedAt });
+      items.push({ id: `proj-${p.id}`, label: p.name, sublabel: p.description ? stripHtml(p.description) : undefined, icon: Folder, category: 'Projects', action: () => go(`/projects/${p.id}`), timestamp: p.updatedAt });
     for (const m of meetings)
       items.push({ id: `meet-${m.id}`, label: m.title, sublabel: `${m.status}`, icon: Mic, category: 'Meetings', action: () => go('/meetings'), timestamp: m.createdAt });
     for (const i of ideas)
-      items.push({ id: `idea-${i.id}`, label: i.title, sublabel: i.description ?? undefined, icon: Lightbulb, category: 'Ideas', action: () => go('/ideas'), timestamp: i.updatedAt });
+      items.push({ id: `idea-${i.id}`, label: i.title, sublabel: i.description ? stripHtml(i.description) : undefined, icon: Lightbulb, category: 'Ideas', action: () => go('/ideas'), timestamp: i.updatedAt });
     for (const s of sessions)
       items.push({ id: `bs-${s.id}`, label: s.title, sublabel: s.status, icon: MessageSquare, category: 'Brainstorm', action: () => go('/brainstorm'), timestamp: s.updatedAt });
     for (const c of allCards)
-      items.push({ id: `card-${c.id}`, label: c.title, sublabel: c.description ?? undefined, icon: LayoutGrid, category: 'Cards', action: () => go(`/projects/${c.projectId}?openCard=${c.id}`), timestamp: c.updatedAt });
+      items.push({ id: `card-${c.id}`, label: c.title, sublabel: c.description ? stripHtml(c.description) : undefined, icon: LayoutGrid, category: 'Cards', action: () => go(`/projects/${c.projectId}?openCard=${c.id}`), timestamp: c.updatedAt });
     return items;
   }, [projects, meetings, ideas, sessions, allCards, go]);
 

@@ -50,6 +50,7 @@ function BoardPage() {
   const [justDroppedCardId, setJustDroppedCardId] = useState<string | null>(null);
 
   const columnInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const selectedCard = selectedCardId
@@ -172,6 +173,25 @@ function BoardPage() {
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Global keyboard shortcuts: "/" to focus search, Escape to close dropdowns
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      if (e.key === 'Escape') {
+        setShowPriorityDropdown(false);
+        setShowLabelDropdown(false);
+        searchInputRef.current?.blur();
+      }
+    };
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
   // Board-level drag monitor — handles card moves (cross-column and within-column reorder)
@@ -338,6 +358,7 @@ function BoardPage() {
           <div className="relative flex-shrink-0">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-500" />
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
@@ -458,6 +479,16 @@ function BoardPage() {
           </div>
         )}
       </div>
+
+      {/* Empty filter state */}
+      {hasActiveFilters && filteredCards.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-surface-400 text-sm">No cards match your filters.</p>
+          <button onClick={clearFilters} className="text-xs text-primary-400 hover:text-primary-300 mt-2">
+            Clear filters
+          </button>
+        </div>
+      )}
 
       {/* Column container */}
       <div className="flex-1 flex gap-4 overflow-x-auto px-6 pb-6">

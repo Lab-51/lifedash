@@ -189,6 +189,11 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
               {card.title}
             </p>
           )}
+          {card.description && !isEditing && (
+            <p className="text-xs text-surface-500 line-clamp-1 mt-0.5">
+              {card.description.replace(/<[^>]*>/g, '').trim()}
+            </p>
+          )}
         </div>
 
         {/* Priority + blocked badges */}
