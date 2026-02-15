@@ -56,6 +56,8 @@ export interface ElectronAPI {
   windowMaximize: () => void;
   windowClose: () => void;
   windowIsMaximized: () => Promise<boolean>;
+  windowSetAlwaysOnTop: (value: boolean) => Promise<boolean>;
+  windowIsAlwaysOnTop: () => Promise<boolean>;
   onWindowMaximizeChange: (
     callback: (isMaximized: boolean) => void,
   ) => () => void;

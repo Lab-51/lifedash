@@ -6,6 +6,8 @@ export const windowBridge = {
   windowMaximize: () => ipcRenderer.invoke('window:maximize'),
   windowClose: () => ipcRenderer.invoke('window:close'),
   windowIsMaximized: () => ipcRenderer.invoke('window:is-maximized'),
+  windowSetAlwaysOnTop: (value: boolean) => ipcRenderer.invoke('window:set-always-on-top', value),
+  windowIsAlwaysOnTop: () => ipcRenderer.invoke('window:is-always-on-top'),
   onWindowMaximizeChange: (callback: (isMaximized: boolean) => void) => {
     const handler = (
       _event: Electron.IpcRendererEvent,

@@ -6,7 +6,7 @@
 // React, lucide-react (Minus, Square, Copy, X icons)
 
 import { useEffect, useState } from 'react';
-import { Minus, Square, Copy, X } from 'lucide-react';
+import { Minus, Square, Copy, X, Pin, PinOff } from 'lucide-react';
 
 /**
  * Custom title bar for the frameless Electron window.
@@ -19,15 +19,22 @@ import { Minus, Square, Copy, X } from 'lucide-react';
  */
 function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
 
   useEffect(() => {
     // Get initial maximize state
     window.electronAPI.windowIsMaximized().then(setIsMaximized);
+    window.electronAPI.windowIsAlwaysOnTop().then(setIsAlwaysOnTop);
 
     // Subscribe to maximize/unmaximize events (e.g. from Windows snap)
     const cleanup = window.electronAPI.onWindowMaximizeChange(setIsMaximized);
     return cleanup;
   }, []);
+
+  const toggleAlwaysOnTop = async () => {
+    const result = await window.electronAPI.windowSetAlwaysOnTop(!isAlwaysOnTop);
+    setIsAlwaysOnTop(result);
+  };
 
   return (
     <div
@@ -44,6 +51,21 @@ function TitleBar() {
         className="flex"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
+        {/* Pin on top */}
+        <button
+          type="button"
+          onClick={toggleAlwaysOnTop}
+          className={`w-10 h-9 inline-flex items-center justify-center transition-colors ${
+            isAlwaysOnTop
+              ? 'text-primary-400 hover:bg-surface-700'
+              : 'text-surface-400 hover:bg-surface-700 hover:text-surface-200'
+          }`}
+          aria-label={isAlwaysOnTop ? 'Unpin from top' : 'Pin on top'}
+          title={isAlwaysOnTop ? 'Unpin' : 'Pin on top'}
+        >
+          {isAlwaysOnTop ? <Pin size={14} /> : <PinOff size={14} />}
+        </button>
+
         {/* Minimize */}
         <button
           type="button"

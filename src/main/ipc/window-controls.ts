@@ -33,6 +33,15 @@ export function registerWindowControlHandlers(
     return mainWindow.isMaximized();
   });
 
+  ipcMain.handle('window:set-always-on-top', (_event, value: boolean) => {
+    mainWindow.setAlwaysOnTop(value);
+    return mainWindow.isAlwaysOnTop();
+  });
+
+  ipcMain.handle('window:is-always-on-top', () => {
+    return mainWindow.isAlwaysOnTop();
+  });
+
   // Forward maximize/unmaximize events to the renderer so the
   // title bar can update its icon (e.g. after Windows snap).
   mainWindow.on('maximize', () => {
