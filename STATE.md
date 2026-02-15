@@ -8,8 +8,24 @@ Session focus: Phase 13 — Self-Improve #2 Remediation
 Milestone: Self-Improve #2 Remediation
 Phase: 13 (Dashboard Launch Pad + Recording Preflight + Column Rename)
 Plan: 13.1 — COMPLETE (3/3 tasks)
-Latest commit: 25e95bb on main
+Plan: 13.2 — COMPLETE (3/3 tasks)
+Latest commit: fb408e7 on main
 Test suite: 150 tests across 7 files
+
+## Plan 13.2 Results (SELF-IMPROVE-2.md remaining 10)
+- Task 1: Board UX quick wins + command palette HTML fix ✓ (501b0e7)
+  - stripHtml helper strips HTML from card/project/idea descriptions in CommandPalette
+  - Empty filter state: "No cards match your filters" + Clear Filters button
+  - `/` keyboard shortcut focuses board search (GitHub/Gmail convention)
+  - Escape closes priority/label filter dropdowns and blurs search
+  - 1-line description preview on KanbanCard (line-clamp-1, HTML stripped)
+- Task 2: Brainstorm streaming markdown, auto-select, textarea resize ✓ (f40ed59)
+  - Streaming responses render with ReactMarkdown + remark-gfm (matches ChatMessage)
+  - Last active session persisted to localStorage and auto-loaded on revisit
+  - Textarea auto-resizes with content up to ~6 lines, resets after send
+- Task 3: Board CSV export + meeting card project color ✓ (fb408e7)
+  - Export CSV button in board toolbar — downloads all cards with metadata
+  - Meeting cards show project color dot next to project name badge
 
 ## Plan 13.1 Results (SELF-IMPROVE-2.md top 5)
 - Task 1: Dashboard deep-links + quick action triggers + board back arrow fix ✓ (4f73670)

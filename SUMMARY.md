@@ -1,49 +1,42 @@
-# Summary — Plan 12.3: Home Dashboard & Project Health
+# Plan 13.2 Summary — Board UX, Brainstorm Polish, CSV Export
 
-## Date: 2026-02-15
+## Date: 2026-02-16
 ## Status: COMPLETE (3/3 tasks, sequential execution)
 
 ## What Changed
 
-Addressed 6 items from SELF-IMPROVE.md — adding the app's missing dashboard, project health indicators, and quick workflow improvements.
+Addressed 10 remaining proposals from SELF-IMPROVE-2.md — board UX quick wins, brainstorm streaming/UX improvements, CSV export, and meeting card polish.
 
-### Task 1: Home Dashboard as default route
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 068d58f
+### Task 1: Board UX quick wins + command palette HTML fix
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 501b0e7
 
-- New DashboardPage.tsx (294 lines) — greeting, quick actions, active projects, recent meetings, recent ideas
-- ProjectsPage moved from `/` to `/projects`
-- Sidebar: Home icon (LayoutDashboard) added as first item
-- Keyboard shortcuts renumbered: Ctrl+1=Home through Ctrl+6=Settings
-- CommandPalette updated with Home entry and `/projects` navigation
-- 5 files modified + 1 created: DashboardPage.tsx, App.tsx, Sidebar.tsx, CommandPalette.tsx, KeyboardShortcutsModal.tsx, useKeyboardShortcuts.ts
+- Q1: `stripHtml()` helper strips HTML tags from card/project/idea descriptions in CommandPalette
+- F5: Empty filter state shows "No cards match your filters" with Clear Filters button
+- Q3: `/` keyboard shortcut focuses board search input (skips when in input/textarea)
+- Q4: Escape key closes priority and label filter dropdowns, blurs search
+- Q5: 1-line description preview on KanbanCard using `line-clamp-1` with HTML stripped
+- 3 files modified: CommandPalette.tsx, BoardPage.tsx, KanbanCard.tsx
 
-### Task 2: Card count badges on ProjectsPage
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 81a9ac5
+### Task 2: Brainstorm streaming markdown, auto-select, textarea resize
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** f40ed59
 
-- LayoutList icon + "N cards" badge on each project card
-- Uses allCards from boardStore grouped by projectId (no extra IPC calls)
-- DashboardPage already had card counts from Task 1
-- 1 file modified: ProjectsPage.tsx
+- F4: Streaming brainstorm responses render with ReactMarkdown + remark-gfm (matches ChatMessage)
+- E5: Last active brainstorm session persisted to localStorage and auto-loaded on revisit
+- F9: Textarea auto-resizes with content up to ~6 lines, resets after send
+- 1 file modified: BrainstormPage.tsx
 
-### Task 3: Quick keyboard/workflow wins
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** addb102
+### Task 3: Board CSV export + meeting card project color
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** fb408e7
 
-- Enter-to-create project: already worked (form onSubmit)
-- Ctrl+Enter brainstorm: already worked (Enter sends, Shift+Enter for newline)
-- Auto-suggest meeting title: "Meeting - Feb 15, 2:30 PM" pre-filled via suggestMeetingTitle()
-- Discard recording: "Discard last recording" button with window.confirm + deleteMeeting
-- 1 file modified: RecordingControls.tsx
+- Q6: Export CSV button in board toolbar downloads all cards with metadata
+- Q7: Meeting cards show project color dot next to project name badge
+- 3 files modified: BoardPage.tsx, MeetingCard.tsx, MeetingsPage.tsx
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors) — all 3 tasks
 - `npx vitest run`: 150/150 tests pass — all 3 tasks
 
-## Self-Improve Items Addressed
-| Item | Category | Description |
-|------|----------|-------------|
-| E2 | Engagement | Home Dashboard page at "/" |
-| F3 | Feature | Project health indicators (card counts) |
-| Q8 | Quality | Enter to create project |
-| Q9 | Quality | Ctrl+Enter to send brainstorm |
-| F10 | Feature | Auto-suggest meeting title |
-| F7 | Feature | Cancel/discard recording |
+## SELF-IMPROVE-2.md Status
+All 15 proposals now addressed:
+- Plan 13.1: Top 5 "Do First" items (3 tasks, 5 items)
+- Plan 13.2: Remaining 10 items (3 tasks, 10 items)
