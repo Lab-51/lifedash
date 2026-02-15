@@ -1,9 +1,9 @@
 # Project Review: Living Dashboard
 
-**Reviewed:** 2026-02-13
+**Reviewed:** 2026-02-15
 **Scope:** Full review (all 5 domains)
 **NEXUS Version:** v3.0
-**Agents deployed:** 5 (Code Quality, Architecture, Documentation, Test Coverage, Features)
+**Previous Review:** 2026-02-13 (replaced)
 
 ---
 
@@ -13,19 +13,19 @@
 
 | Domain | Status | Key Finding |
 |--------|--------|-------------|
-| Code Quality | NEEDS CHANGES | Zero test coverage is a critical risk; N+1 queries degrade board performance |
-| Architecture | CLEAN | Well-structured 3-layer Electron architecture; monolithic types.ts and preload.ts need splitting |
-| Documentation | SPARSE | Excellent strategic/planning docs and inline comments; no README, no setup guide, no architecture docs |
-| Test Coverage | CRITICAL | 0% automated test coverage across 112 source files; no test framework configured |
-| Features | GROWING | All 17 requirements (99 pts) delivered; missing within-column card reordering and global search |
+| Code Quality | B | 8 files exceed 500-line limit; deprecated ScriptProcessorNode; N+1 queries in cards |
+| Architecture | A- | Clean 4-layer Electron architecture; exemplary security; cards.ts monolith needs extraction |
+| Documentation | B+ | Excellent planning docs + inline headers; missing CHANGELOG, troubleshooting, API reference |
+| Test Coverage | D | 99 tests (5 files) cover only validation/utils; 0% on services, IPC, stores, components |
+| Features | B+ | All 17 requirements delivered (99 pts); 12 quick wins for polish; brainstorm markdown is most visible gap |
 
 ### Top 5 Priorities
 
-1. **Add automated test coverage** -- Zero tests across 112 files is the single highest risk. Start with critical-path integration tests (meeting pipeline, backup/restore, AI provider routing).
-2. **Fix N+1 query in board loading** -- `cards:list-by-board` generates 300-600+ sequential DB queries for a medium board. Replace with batch queries using `inArray` for 10-50x improvement.
-3. **Create README.md and developer setup guide** -- No entry-point documentation exists. A developer cloning this repo has no guidance on prerequisites, setup, or how to run.
-4. **Add IPC input validation** -- 60+ IPC channels accept unvalidated data from the renderer. Add Zod schemas for defense-in-depth.
-5. **Add within-column card reordering** -- The most visibly missing Kanban feature. Same-column drops are explicitly skipped in BoardPage.tsx.
+1. **Build test infrastructure and add critical-path tests** -- 5-10% coverage is dangerously low for an app handling recordings and AI operations. Services, stores, and IPC handlers are completely untested.
+2. **Extract `cardService.ts`** -- The 531-line `cards.ts` IPC handler is the largest monolith, embedding the card-move algorithm, N+1 relationship queries, and activity logging. Extract to a testable service layer.
+3. **Brainstorm markdown rendering** -- AI responses display raw markdown characters (`#`, `*`, `-`). This is the most visible polish gap and makes the flagship AI feature look broken. One dependency, one wrapper component.
+4. **Close-during-recording guard** -- Closing the app during recording silently discards the session. A single `dialog.showMessageBox()` call prevents data loss.
+5. **Reconcile outdated documentation** -- PROJECT.md still says "Docker required," REQUIREMENTS.md references wrong Whisper package, ROADMAP.md checkboxes are all unchecked despite Phases 1-9 being complete.
 
 ---
 
@@ -33,288 +33,225 @@
 
 ### Code Quality
 
-**Reviewer:** nexus-code-reviewer | **Overall: NEEDS CHANGES (Grade B-)**
+**Overall health: NEEDS ATTENTION**
+**Files reviewed:** 161 | **Code smells:** 23 | **Technical debt items:** 7
 
-| Severity | Count |
-|----------|-------|
-| CRITICAL | 1 (zero test coverage) |
-| HIGH | 4 |
-| MEDIUM | 6 |
-| LOW | 3 |
+#### Critical Findings
 
-**Critical Findings:**
+| Finding | Severity | Location |
+|---------|----------|----------|
+| Deprecated `ScriptProcessorNode` | HIGH | `src/renderer/services/audioCaptureService.ts:11` |
+| 8 files exceed 500 lines | HIGH | ProjectPlanningModal (744), cards.ts (531), BoardPage (525), MeetingDetailModal (523), CardDetailModal (509) |
+| 17 `any` type usages across 11 files | MEDIUM | ideaService, main.ts, taskStructuringService, transcriptionService, others |
+| N+1 query in card relationships | MEDIUM | `src/main/ipc/cards.ts:367-401` (2N queries for N relationships) |
+| 15 files use `console.log` instead of logger | MEDIUM | Renderer components and stores |
+| Deep nesting (4+ levels) in 9 files | MEDIUM | CommandPalette, BoardPage, ProjectPlanningModal, others |
+| Duplicated date formatting + priority color maps | LOW | MeetingDetailModal, CardDetailModal, BoardPage |
 
-1. **[CRITICAL] Zero Test Coverage** -- No test files exist anywhere in src/. No test framework is configured. All 112 source files are untested beyond `tsc --noEmit` type checking. This means no safety net for refactoring, no regression detection, and no confidence in error handling paths.
+#### Technical Debt Register
 
-2. **[HIGH] N+1 Query in `cards:list-by-board`** (`src/main/ipc/cards.ts:62-100`) -- Nested loops fetch cards per column, then labels per card, producing 300-600+ sequential database queries for a board with 100 cards. Fix: batch fetch with `inArray` (3 queries total).
+| Item | Location | Severity | Effort |
+|------|----------|----------|--------|
+| ScriptProcessorNode -> AudioWorklet migration | audioCaptureService.ts | HIGH | 16-24h |
+| N+1 query in card relationships | cards.ts:386-398 | MEDIUM | 2-4h |
+| No pagination on list queries | cards.ts, meetings.ts, ideas.ts | MEDIUM | 4-8h |
+| Migration path TODO for packaged app | migrate.ts:10,24 | MEDIUM | 4-8h |
+| Hardcoded prompt templates | meetingIntelligenceService.ts | LOW | 8-12h |
+| Whisper process isolation risk | transcriptionService.ts | LOW | 8-12h |
+| No full-text search for ideas | ideaService.ts | LOW | 8-12h |
 
-3. **[HIGH] Silent Error Handling** -- Multiple catch blocks with no error handling or logging across `transcriptionService.ts`, `cards.ts`, and stores. Silent failures mask DB connection loss, schema mismatches, or disk full conditions.
+#### Positive Observations
 
-4. **[HIGH] Oversized Components** -- `IdeaDetailModal.tsx` (815 lines), `BoardPage.tsx` (590 lines), `CardDetailModal.tsx` (523 lines) exceed the 500-line guideline. High cognitive load, hard to test in isolation.
-
-5. **[HIGH] Production Migration Bundling Untested** (`src/main/db/migrate.ts`) -- TODO comment acknowledges ASAR packaging for production builds is not validated. App may fail to start in packaged builds if migrations are not correctly bundled.
-
-6. **[MEDIUM] No Structured Logging** -- 67 console.log/error/warn calls scattered across 23 files. No log levels, categories, or ability to disable debug logs in production.
-
-7. **[MEDIUM] 87 `any` Type Occurrences** across 18 files -- Especially in API response parsing (`assemblyaiTranscriber.ts`: 17, `deepgramTranscriber.ts`: 7) and worker message handling.
-
-8. **[MEDIUM] Missing IPC Input Validation** -- All 18 IPC handler files accept data from the renderer without runtime validation. No Zod, Joi, or manual checks.
-
-9. **[MEDIUM] Potential Memory Leak in Drag Monitor** (`BoardPage.tsx:300-324`) -- Drag monitor re-registers on every card change. Could leak event listeners.
-
-10. **[MEDIUM] Context Building Performance** (`brainstormService.ts:182-278`) -- Sequential queries in loops add 500ms-2s latency to every brainstorm message.
-
-**Positive Observations:**
-- Excellent architecture with clean separation of main/renderer/shared
-- Security-conscious (API keys encrypted via Electron safeStorage, `contextIsolation: true`)
-- Modern React 19 patterns throughout (hooks, proper dependency arrays, Zustand)
-- Consistent file header documentation format across all files
-- Strong typing foundation (848-line shared types file)
+- Excellent structured file headers on all 161 source files (`=== FILE PURPOSE ===`, `=== DEPENDENCIES ===`, `=== LIMITATIONS ===`)
+- Strong TypeScript usage (only 17 `any` in 161 files = 89% type safety)
+- Zero empty catch blocks
+- All IPC inputs validated with Zod schemas
+- SQL injection risk: zero (Drizzle ORM with parameterized queries)
+- API keys encrypted via Electron safeStorage
+- User-facing error messages are descriptive
 
 ---
 
 ### Architecture
 
-**Reviewer:** Opus agent | **Overall: CLEAN**
+**Architecture style:** Layered Electron with domain-driven IPC
+**Coupling level:** LOW to MEDIUM
+**Overall structure: CLEAN**
 
-**Architecture style:** Three-process Electron (main/preload/renderer) with layered service architecture, IPC message-bus coupling, and unidirectional data flow (renderer -> store -> IPC -> service -> DB)
+#### Strengths
 
-**Coupling level:** MEDIUM
+1. **Exemplary Electron security** -- `contextIsolation: true`, `nodeIntegration: false`, CSP headers, Electron Fuses locked down (`RunAsNode: false`, `OnlyLoadAppFromAsar: true`), safeStorage for API keys
+2. **Fully typed IPC boundary** -- `ElectronAPI` interface (228 lines) serves as single source of truth; `declare global { interface Window { electronAPI: ElectronAPI } }` gives full autocomplete
+3. **Consistent IPC handler pattern** -- Every handler accepts `unknown`, validates with Zod, calls service/DB, returns typed result
+4. **Clean preload decomposition** -- 13 domain bridges with cleanup functions for event listeners
+5. **Zero inter-store coupling** -- All 10 Zustand stores are independent, no shared middleware
+6. **Strong AI provider abstraction** -- Factory pattern with caching, per-task model routing, provider-specific quirk handling
+7. **Proper Drizzle schema design** -- UUID PKs, FK cascades, composite PKs for junctions, enum types
+8. **Well-configured build pipeline** -- 3 separate Vite configs, native modules properly externalized, lazy-loaded routes
 
-**Strengths (10 identified):**
+#### Concerns
 
-1. Clean three-layer architecture in main process (IPC handlers -> services -> DB schema) consistent across all 16 domains
-2. Secure IPC bridge with `contextIsolation: true`, `nodeIntegration: false`, API keys never exposed to renderer
-3. Consistent `// === FILE PURPOSE ===` / `DEPENDENCIES` / `LIMITATIONS` / `VERIFICATION STATUS` header comments on every file
-4. Strong typing with centralized type definitions and compile-time IPC contract checking
-5. All 9 Zustand stores follow identical pattern (loading/error states, `window.electronAPI.*` calls)
-6. AI provider abstraction (`generate()`/`streamGenerate()`) with per-task model routing and automatic usage logging
-7. Graceful degradation (DB failure non-fatal, Whisper absence skips transcription, API transcription falls back to local)
-8. Security fuses properly configured (`RunAsNode: false`, `EnableCookieEncryption: true`, `OnlyLoadAppFromAsar: true`)
-9. Central IPC registration via `registerIpcHandlers()` in `ipc/index.ts`
-10. Proper Electron lifecycle management (single instance lock, close-to-tray, clean shutdown)
+| Concern | Impact | Details |
+|---------|--------|---------|
+| `cards.ts` IPC handler monolith (531 lines) | MEDIUM | Embeds 6 sub-domains; card-move algorithm untestable without mocking ipcMain |
+| Older handlers embed DB queries directly | MEDIUM | `projects.ts` (211 lines), `cards.ts` (531 lines) vs newer thin handlers like `ideas.ts` (54 lines) |
+| IPC channel naming inconsistency | LOW | Mix of `cards:list-by-board` and `card:getComments` and `cards:getRelationshipsByBoard` |
+| Flat component directory (35+ files) | LOW-MEDIUM | Only `settings/` subdirectory exists; at tipping point for navigability |
+| Single board per project assumption | LOW | `boardStore` always takes `boards[0]`; schema supports multiple boards |
+| No `getProject(id)` endpoint | LOW | `boardStore` loads all projects to find one by ID |
 
-**Concerns (9 identified, by impact):**
+#### Scalability Assessment
 
-1. **Monolithic Preload Bridge** (`preload.ts`: 274 lines, 80+ flat methods) -- Every new feature requires modifying this file. Uses `any` for parameters at runtime.
-2. **Single Shared Types File** (`types.ts`: 848 lines) -- Merge conflict magnet. Mixes runtime values with type definitions. Exceeds 500-line guideline by 70%.
-3. **N+1 Query Patterns** -- `cards:list-by-board` (405+ queries for medium board), `card:getRelationships` (N+1 for titles), `brainstormService.buildContext()` (nested loops).
-4. **Module-Level Mutable State** -- `transcriptionService.ts` has 8 mutable module-level variables, `audioProcessor.ts` has 5. Prevents testing and concurrent operations.
-5. **No Input Validation Layer** -- IPC handlers pass data directly to DB without runtime checks.
-6. **Board Store Bloat** (`boardStore.ts`: 341 lines, 26 methods, 7 entity types) -- 2-6x more complex than other stores.
-7. **Hardcoded Default Connection String** -- Includes credentials (`localdev`) in source code.
-8. **Missing Stream Error/Completion Signaling** -- Brainstorm streaming has no explicit end-of-stream or error signal to renderer.
-9. **Production Migration Handling Incomplete** -- TODO in migrate.ts for ASAR packaging.
+**Will hold up:** 4-layer architecture, typed IPC contract, independent Zustand stores, Zod validation layer, AI provider abstraction, Drizzle + PGlite, lazy-loaded routes.
 
-**Scalability Assessment:**
+**Will NOT hold up:** Flat `window.electronAPI` object (~80 methods), `cards.ts` monolith, no pagination on list queries, sequential DB updates for position changes, flat component directory.
 
-What holds up:
-- IPC handler registration pattern (scales to 50+ domains)
-- Database schema design (normalized, UUID PKs, cascade behavior)
-- Service layer isolation (minimal cross-domain dependencies)
-- Lazy-loaded pages (bundle size scales well)
-- AI provider abstraction (new AI features only need a task type string)
-- Zustand store pattern (easily replicable)
+#### Dependency Flow (No Circular Dependencies)
 
-What breaks at 2x scale:
-- Preload bridge (500+ lines at 2x features)
-- Shared types file (1500+ lines at 2x features)
-- N+1 queries (300+ queries for 100+ card boards)
-- Board store (adding subtasks/time tracking pushes past maintainability)
-- No pagination on list queries (1000+ meetings/ideas degrades performance)
-- Module-level mutable state (prevents concurrent operations)
+```
+Renderer (React) --> Zustand Stores --> window.electronAPI (typed)
+       |
+Preload (contextBridge) -- 13 domain bridges --> ipcRenderer.invoke
+       |
+Main Process -- IPC Handlers --> Services --> DB (Drizzle + PGlite)
+                                          --> AI Provider
+                                          --> Secure Storage
+       |
+Shared Layer (cross-process) -- Types, Validation (Zod), Utils
+```
 
-**Top 5 Architecture Recommendations:**
-1. Split `shared/types.ts` into domain-specific type modules with barrel re-export
-2. Namespace the preload bridge into domain-scoped modules
-3. Fix N+1 card loading with batch queries or Drizzle relational API
-4. Add runtime validation at IPC boundary with Zod
-5. Decompose boardStore into focused stores (board, card, cardDetail)
+Import direction is strictly layered. Shared imports from nothing project-internal.
 
 ---
 
 ### Documentation
 
-**Reviewer:** Sonnet agent | **Coverage: SPARSE | Onboarding: NEEDS WORK**
+**Coverage: ADEQUATE (B+)**
+**Onboarding readiness: NEEDS WORK (achievable in 15-30 min)**
 
-**What Exists (Good Quality):**
+#### What Exists (21 docs)
 
-| Document | Quality | Notes |
-|----------|---------|-------|
-| PROJECT.md | Excellent | Vision, problem statement, tech stack, constraints, success metrics |
-| ROADMAP.md | Excellent | 7 phases with deliverables, complexity points, traceability matrix |
-| REQUIREMENTS.md | Excellent | 17 requirements with priority, complexity, explicit out-of-scope |
-| STATE.md | Good | 400 lines of detailed session history and decisions |
-| ISSUES.md | Good | 2 deferred items, 1 enhancement idea |
-| 5 research docs | Good | Technology decision rationale in `.planning/research/` |
-| Inline code docs | Consistently Good | Every file has standardized header comments |
-| .env.example | Present | Documents DB_PASSWORD and optional DATABASE_URL |
-| docker-compose.yml | Present | Includes healthcheck, has header comment |
+| Category | Files | Quality |
+|----------|-------|---------|
+| Strategic/Planning | PROJECT.md, REQUIREMENTS.md, ROADMAP.md, COMPETITIVE-ANALYSIS.md | Excellent |
+| Technical Reference | CHEATSHEET.md (383 lines), docs/ARCHITECTURE.md (155 lines), docs/DEVELOPMENT.md (208 lines) | Good-Excellent |
+| Session Management | STATE.md, PLAN.md, SUMMARY.md, HANDOFF.md, ISSUES.md | Good |
+| Research | 5 docs in .planning/research/ | Good |
+| Inline Code | Structured headers on all 161 source files | Excellent |
 
-**Critical Gaps:**
+#### Gaps (ordered by impact)
 
-| Gap | Impact |
-|-----|--------|
-| No README.md | Developer cloning repo has no entry point |
-| No setup/installation guide | Prerequisites, first-run steps undocumented |
-| No development workflow docs | How to run, debug, create migrations undocumented |
-| No architecture documentation | Process model, data flow, IPC patterns undocumented |
-| No API/IPC reference | 60+ IPC channels documented only in source code |
-| No testing documentation | No test files, no test guide, no manual testing checklist |
-| No troubleshooting guide | Common failures (Docker down, no Whisper model) undocumented |
-| No user documentation | Features, keyboard shortcuts, AI setup undocumented |
-| No CHANGELOG.md | 7 completed phases with no aggregated change history |
-| No CONTRIBUTING.md | Code style, git workflow, PR process undocumented |
-| No LICENSE file | Neither file nor package.json field |
-| No CI/CD pipeline | No `.github/workflows/` directory |
+| Gap | Impact | Fix Effort |
+|-----|--------|------------|
+| No CHANGELOG.md (10 phases, 50+ commits, no change history) | HIGH | 2-3h |
+| No IPC/API reference (100+ channels documented only in source) | HIGH | 4-6h |
+| No troubleshooting guide (runtime issues not covered) | MEDIUM-HIGH | 2-3h |
+| No user guide (6 feature areas with no workflow docs) | MEDIUM | 4-6h |
+| No CONTRIBUTING.md | MEDIUM | 1-2h |
+| No LICENSE file | MEDIUM | 5 min |
+| Limited JSDoc on ElectronAPI interface (100+ methods, no descriptions) | MEDIUM | 6-8h |
+| No CI/CD documentation | LOW-MEDIUM | 2-3h |
 
-**Onboarding Time Estimate:**
+#### Outdated Information
 
-| Scenario | Time to First Run | Time to First Contribution |
-|----------|-------------------|---------------------------|
-| Current state | 2-4 hours | 4-8 hours |
-| With README.md | 30-60 minutes | 2-4 hours |
-| With README + Dev Guide + Architecture doc | < 15 minutes | 1-2 hours |
-
-**Top 5 Documentation Recommendations:**
-1. Create README.md (project overview, prerequisites, quick start, scripts)
-2. Create docs/DEVELOPMENT.md (setup, project structure, adding features, debugging)
-3. Create docs/ARCHITECTURE.md (process model, data flow, IPC patterns, store patterns)
-4. Create IPC/API reference document (60+ channels grouped by domain)
-5. Create CONTRIBUTING.md and CHANGELOG.md
+| File | Issue | Fix |
+|------|-------|-----|
+| PROJECT.md:38 | "Docker required for PostgreSQL" | Update to "PGlite (embedded WASM)" |
+| PROJECT.md:29 | "Database: PostgreSQL (local via Docker)" | Update to "PGlite" |
+| REQUIREMENTS.md:51 | References `@kutalia/whisper-node-addon` | Change to `@fugood/whisper.node` |
+| ROADMAP.md | All phase checkboxes unchecked | Mark Phases 1-9 as `[x]` |
+| CHEATSHEET.md:116 | Architecture shows "Framer Motion" | Removed in Plan 10.2 (d32a112) |
 
 ---
 
 ### Test Coverage
 
-**Reviewer:** nexus-test-runner | **Coverage: 0% | Health: CRITICAL**
+**Tests: 99 across 5 files | Framework: Vitest | Estimated coverage: 5-10%**
+**Test health: CRITICAL**
 
-**Infrastructure Analysis:**
+#### Coverage Map
 
-| Tool | Status |
-|------|--------|
-| Test framework | NONE configured |
-| ESLint | Not configured |
-| Prettier | Not configured |
-| CI/CD | No workflows |
-| Pre-commit hooks | None |
-| Code coverage | None |
+| Module/Area | Files | Unit | Integration | E2E |
+|-------------|-------|------|-------------|-----|
+| Utilities (date-utils, card-utils) | 2 | 100% | - | - |
+| Validation (schemas, ipc-validator) | 2 | 100% | - | - |
+| Types (MEETING_TEMPLATES) | 1 | Partial | - | - |
+| IPC Handlers | 18 | 0% | 0% | 0% |
+| Services (Main) | 23 | 0% | 0% | 0% |
+| Zustand Stores | 10 | 0% | 0% | 0% |
+| React Components | 42 | 0% | 0% | 0% |
+| React Pages | 7 | 0% | 0% | 0% |
+| Database Schema | 10 | 0% | 0% | 0% |
 
-**The project relies exclusively on:**
-1. TypeScript compiler (`tsc --noEmit`)
-2. Manual testing during development
-3. Developer discipline
+#### Test Quality (Where Tests Exist)
 
-**Critical Untested Areas (by risk):**
+The existing 99 tests are **excellent quality:**
+- `schemas.test.ts` (91 tests): Exhaustive validation with parameterized tests, boundary conditions, nullability checks
+- `date-utils.test.ts` (7 tests): Fake timers, edge cases (overdue by 1ms), both label text and CSS class assertions
+- `ipc-validator.test.ts` (13 tests): Valid/invalid paths, multi-error formatting, nested validation
+- Zero flaky tests, sub-1s execution time
 
-| Area | Risk | Files |
-|------|------|-------|
-| Audio capture & transcription pipeline | CRITICAL | audioProcessor.ts, transcriptionService.ts, whisperModelManager.ts |
-| AI provider system & multi-provider orchestration | CRITICAL | ai-provider.ts, secure-storage.ts |
-| Database backup/restore | CRITICAL | backupService.ts, exportService.ts |
-| IPC channel security & validation | CRITICAL | All 18 ipc/*.ts files |
-| Zustand state management & real-time updates | CRITICAL | boardStore.ts, meetingStore.ts, recordingStore.ts |
-| Cross-feature integration workflows | CRITICAL | Meeting -> Cards, Idea -> Project, Backup -> Restore |
-| Edge cases & error handling | CRITICAL | Recording stopped mid-transcription, API rate limits, disk full |
-| Performance & scalability | HIGH | Board with 500+ cards, 10,000+ transcript segments |
+#### Critical Untested Risks
 
-**Recommended Test Framework Stack:**
+| Risk | Area | Impact if Bug |
+|------|------|---------------|
+| Recording failure / silent data loss | audioProcessor.ts, transcriptionService.ts | Users lose meeting recordings permanently |
+| AI parsing failures | meetingIntelligenceService.ts, brainstormService.ts | Core AI features stop working |
+| Card position corruption | cards.ts card-move algorithm | Kanban board becomes unusable |
+| Database migration failures | migrate.ts | App won't start after upgrade |
+| Optimistic update bugs | boardStore.ts moveCard() | UI out of sync with backend |
 
-| Test Type | Framework | Rationale |
-|-----------|-----------|-----------|
-| Unit tests | Vitest | Fast, native ESM, TypeScript-first, Vite ecosystem |
-| Integration tests | Vitest + Testcontainers | Docker test DB |
-| E2E tests | Playwright | Best Electron support, reliable |
-| Component tests | Vitest + React Testing Library | Lightweight |
+#### Missing Infrastructure
 
-**Estimated Effort to Full Coverage:**
-
-| Priority | Scope | Duration (1 dev) |
-|----------|-------|-------------------|
-| P1: Critical path integration tests | 4 suites | 2 weeks |
-| P2: High-risk service unit tests | 4 suites | 2 weeks |
-| P3: E2E user workflows | 10+ workflows | 2 weeks |
-| P4: Performance & stress tests | 2 suites | 1 week |
-| P5: CI/CD setup | GitHub Actions + hooks | 1 week |
-| **Total** | | **8 weeks** |
-
-**Immediate Next Steps (This Week):**
-1. Install Vitest: `npm install -D vitest @vitest/ui c8`
-2. Create `vitest.config.ts`
-3. Write 5 critical integration tests
-4. Add `"test": "vitest"` to package.json
-5. Document testing guidelines
+- Test environment is `node` (cannot render React components -- needs `happy-dom`)
+- No coverage collection configured
+- No React Testing Library installed
+- No Playwright for E2E tests
+- No Electron API mocks for store testing
+- No test setup file with global mocks
 
 ---
 
 ### Features & Improvements
 
-**Reviewer:** Opus agent | **Maturity: GROWING**
+**Features assessed:** 17 | **Improvement opportunities:** 28 | **Quick wins:** 12
+**Overall maturity: GROWING**
 
-**Feature Health:**
+#### Quick Wins (High Value, Low Effort)
 
-| Feature | Status | Polish Level |
-|---------|--------|-------------|
-| R1: Electron App Shell | Complete | High |
-| R2: PostgreSQL Database Layer | Complete | Medium |
-| R3: Project Dashboard / Kanban | Complete | High |
-| R4: Audio Capture | Complete | Medium |
-| R5: Transcription | Complete | Medium |
-| R6: AI Brief & Actions | Complete | High |
-| R7: AI Provider System | Complete | High |
-| R8: Navigation & Layout | Complete | High |
-| R9: Settings | Complete | High |
-| R10: AI Brainstorming | Complete | Medium |
-| R11: Task Structuring | Complete | Medium |
-| R12: Idea Repository | Complete | Medium |
-| R13: Advanced Meetings | Complete | Medium |
-| R14: API Transcription | Complete | Medium |
-| R15: Backup/Restore | Complete | High |
-| R16: Advanced Cards | Complete | High |
-| R17: Desktop Notifications | Complete | Medium |
+| # | Improvement | Impact | Effort |
+|---|------------|--------|--------|
+| 1 | **Brainstorm markdown rendering** -- AI responses display raw `#`, `*`, `-` | Highest visual impact | 1-2h |
+| 2 | **Command palette data loading** -- entities not loaded until page visited | Ctrl+K appears broken | 30min |
+| 3 | **Close-during-recording guard** -- no warning, recording silently lost | Data loss prevention | 30min |
+| 4 | **Idea/Meeting sorting** -- no sort by date, name, or priority | Basic UX expectation | 1-2h |
+| 5 | **Unarchive projects UI** -- archiving is one-way, no recovery path | Copy existing pattern from BrainstormPage | 30min |
+| 6 | **Select element styling** -- browser defaults clash with dark theme | Visual consistency | 30min |
+| 7 | **Status bar recording indicator** -- always-visible area underutilized | Better awareness | 1h |
+| 8 | **Card count on board columns** -- standard Kanban expectation | Every Kanban tool has this | 15min |
+| 9 | **Textarea auto-resize in brainstorm** -- fixed 1-row input for multi-line prompts | Better chat UX | 15min |
+| 10 | **User-friendly error messages** -- raw `error.message` strings shown to users | Professional feel | 1-2h |
+| 11 | **Consistent delete confirmations** -- 4 different patterns across app | UX consistency | 2-3h |
+| 12 | **List pagination/virtual scrolling** -- unbounded queries for meetings, ideas | Performance at scale | 4-6h |
 
-**Quick Wins (12 identified):**
+#### Strategic Improvements (Higher Effort)
 
-1. Add granular React error boundaries per-feature section (not just per-page)
-2. Fix N+1 query in `cards:list-by-board` (batch with `inArray`)
-3. Extract shared `getDueDateBadge` utility (duplicated in KanbanCard + CardDetailModal)
-4. Standardize loading/error states on all AI generation buttons
-5. Fix inconsistent padding on BrainstormPage (`space-y-4` vs `p-6`)
-6. Make brainstorm session rename discoverable (add pencil icon on hover)
-7. Add IPC input validation across all handlers
-8. Add "No AI provider configured" guidance with link to Settings
-9. Add card count badge to project cards on ProjectsPage
-10. Add confirmation dialog before database restore
-11. Persist active brainstorm session across page navigation
-12. Add Ctrl+N / Ctrl+Enter keyboard shortcuts
+| Improvement | Value | Effort |
+|-------------|-------|--------|
+| AI health monitoring + offline error recovery | Reduces silent failures | 8-12h |
+| Per-entity data export (meeting as Markdown, board as CSV) | Workflow integration | 6-8h |
+| Multi-language transcription (Whisper supports 99 languages) | Non-English users | 4-6h |
+| Brainstorm context management (pin cards/ideas as context) | More effective AI | 8-12h |
+| Dashboard / home overview page | Cohesive "what needs attention" view | 12-16h |
+| Keyboard accessibility + ARIA compliance | Accessibility | 8-12h |
+| Streaming for meeting brief generation | Eliminates "is it working?" | 4-6h |
+| Recording pause/resume | Standard recorder expectation | 4-6h |
 
-**Strategic Improvements (10 identified):**
+#### Security Posture
 
-1. **Automated testing** -- Highest risk gap across the entire project
-2. **Pagination on list queries** -- All list endpoints return all records, will degrade at scale
-3. **Database connection retry with exponential backoff** -- Currently fails silently if Docker isn't running
-4. **Global command palette (Ctrl+K)** -- Cross-section search, matches modern productivity tool UX
-5. **Within-column card reordering** -- Most visibly missing Kanban feature (same-column drops explicitly skipped)
-6. **Undo/redo capability** -- Toast-based soft-delete with timer for destructive operations
-7. **First-run experience / onboarding wizard** -- New users see empty pages with no guidance
-8. **Column drag-and-drop reordering** -- `reorderColumns` exists in boardStore but has no UI trigger
-9. **Refactor oversized components** -- IdeaDetailModal (815 lines), CardDetailModal (523 lines), ProjectPlanningModal (462 lines)
-10. **AI usage cost estimation** -- Placeholder comment in ai-provider.ts line 162 was never implemented
-
-**Security Posture:**
-
-| Area | Status | Notes |
-|------|--------|-------|
-| API Key Storage | Good | Electron safeStorage (OS-level encryption) |
-| Context Isolation | Good | `contextIsolation: true`, `nodeIntegration: false` |
-| IPC Input Validation | Weak | No runtime validation on any IPC channel |
-| SQL Injection | Protected | Drizzle ORM parameterized queries |
-| File Path Traversal | Partial | deleteBackup has regex validation; card:openAttachment does not validate paths |
-| Docker DB Password | Weak | Default `localdev` hardcoded |
-| Export API Key Exclusion | Good | exportService strips encrypted keys |
-| Content Security Policy | Missing | No CSP headers configured |
-| Electron Fuses | Good | RunAsNode disabled, cookie encryption enabled |
-| Dependency Freshness | Good | All packages are recent (Feb 2026) |
+- **Strong:** CSP, contextIsolation, safeStorage encryption, Zod input validation, backup path traversal prevention, no nodeIntegration
+- **Minor concern:** Proxy credentials stored in plaintext in settings table
+- **Minor concern:** Non-transactional database restore (partial state risk on failure)
 
 ---
 
@@ -322,44 +259,41 @@ What breaks at 2x scale:
 
 ### Immediate (This Sprint)
 
-- [ ] **Install Vitest** and write 5 critical-path integration tests (meeting pipeline, AI provider, backup/restore, IPC validation, card drag)
-- [ ] **Fix N+1 query** in `cards:list-by-board` -- replace nested loops with batch `inArray` queries
-- [ ] **Create README.md** -- project overview, prerequisites, quick start, npm scripts
-- [ ] **Add restore confirmation dialog** -- prevent accidental database overwrites
-- [ ] **Fix BrainstormPage padding** -- use `p-6` to match all other pages
-- [ ] **Extract `getDueDateBadge`** to shared utility (currently duplicated)
+- [ ] Install test infrastructure: `@testing-library/react`, `happy-dom`, `@vitest/coverage-v8`
+- [ ] Configure vitest for React testing (environment: `happy-dom`, setup file with Electron API mocks)
+- [ ] Add tests for card-move algorithm and AI response parsing (highest-risk untested code)
+- [ ] Add `dialog.showMessageBox()` guard for closing during active recording
+- [ ] Fix brainstorm markdown rendering (add `react-markdown` or similar)
+- [ ] Fix command palette to load entity lists on app mount
+- [ ] Add "Show Archived" toggle to ProjectsPage (copy pattern from BrainstormPage)
+- [ ] Add card count badges to board column headers
 
 ### Short-term (Next 2-4 Weeks)
 
-- [ ] **Add Zod validation** to all IPC handlers (defense-in-depth)
-- [ ] **Split `shared/types.ts`** into domain-specific modules with barrel re-export
-- [ ] **Namespace preload bridge** into domain-scoped modules
-- [ ] **Create docs/DEVELOPMENT.md** -- setup, project structure, debugging, adding features
-- [ ] **Create docs/ARCHITECTURE.md** -- process model, data flow, IPC patterns
-- [ ] **Add structured logging utility** (categories, log levels, production filtering)
-- [ ] **Refactor IdeaDetailModal** (815 lines -> 3-4 sub-components)
-- [ ] **Decompose boardStore** (341 lines, 26 methods -> 3 focused stores)
-- [ ] **Add within-column card reordering** via drag-and-drop
-- [ ] **Validate file paths** in `card:openAttachment` (restrict to attachments directory)
-- [ ] **Add Content Security Policy** to BrowserWindow
-- [ ] **Improve AI error messages** -- add "configure provider" guidance with Settings link
+- [ ] Extract `cardService.ts` from `cards.ts` IPC handler (follow ideaService pattern)
+- [ ] Extract `projectService.ts` from `projects.ts`
+- [ ] Add sorting dropdowns to IdeasPage and MeetingsPage
+- [ ] Add tests for audioProcessor, transcriptionService, AI provider, Zustand stores
+- [ ] Standardize `<select>` element styling across all dark-theme pages
+- [ ] Reconcile outdated docs: PROJECT.md Docker refs, REQUIREMENTS.md Whisper package, ROADMAP.md checkboxes
+- [ ] Create CHANGELOG.md from git history
+- [ ] Normalize IPC channel naming to `plural-domain:kebab-case-verb`
+- [ ] Migrate `console.log` to logger in 15 renderer files
+- [ ] Fix N+1 query in card relationship enrichment (batch with `inArray`)
+- [ ] Organize components into feature subdirectories (board/, meetings/, ideas/, brainstorm/, layout/, shared/)
 
 ### Long-term (Future Planning)
 
-- [ ] **Achieve 60%+ test coverage** (8 weeks estimated)
-- [ ] **Set up CI/CD pipeline** (GitHub Actions: lint, test, build)
-- [ ] **Add pagination** to all list queries (projects, cards, meetings, ideas, sessions)
-- [ ] **Implement global command palette** (Ctrl+K cross-section search)
-- [ ] **Add database connection retry** with exponential backoff and user-facing banner
-- [ ] **Implement undo/redo** for destructive operations
-- [ ] **Add first-run onboarding wizard** for new users
-- [ ] **Add column drag-and-drop reordering** (boardStore.reorderColumns exists, needs UI)
-- [ ] **Implement AI usage cost estimation** (per-model pricing table)
-- [ ] **Test and validate production ASAR packaging** for migrations
-- [ ] **Add CHANGELOG.md**, CONTRIBUTING.md, LICENSE file
-- [ ] **Utilize framer-motion** (installed but unused) for card/column animations
-- [ ] **Add meeting transcript export** (individual meeting as text/markdown)
-- [ ] **Add card archive view** on board page (filter/restore archived cards)
+- [ ] Migrate ScriptProcessorNode to AudioWorklet (16-24h)
+- [ ] Add pagination to list queries (meetings, ideas, brainstorm sessions)
+- [ ] Achieve 60% test coverage with service + store + component tests
+- [ ] Add Playwright E2E tests for critical user flows
+- [ ] Set up CI/CD with GitHub Actions (test + coverage on push)
+- [ ] Create docs/TROUBLESHOOTING.md and docs/API.md
+- [ ] Add streaming to meeting brief generation
+- [ ] Add recording pause/resume
+- [ ] Implement dashboard/home overview page
+- [ ] Eliminate all 17 `any` type usages
 
 ---
 
@@ -367,43 +301,47 @@ What breaks at 2x scale:
 
 | Metric | Value |
 |--------|-------|
-| Source files | 112 |
-| Test files | 0 |
-| Doc files (project) | 10 |
-| TODO/FIXME count | 2 |
-| Dependencies | 19 production, 12 dev |
-| `any` type occurrences | 87 |
-| console.log occurrences | 67 |
-| IPC channels | 60+ |
-| Zustand stores | 9 |
-| React pages | 7 |
-| React components | 32 |
-| DB schema tables | ~15 |
-| Test pass rate | N/A (no tests) |
-| Estimated test coverage | 0% |
+| Source files | 161 (.ts/.tsx) |
+| Test files | 5 |
+| Tests passing | 99/99 |
+| Doc files | 21 |
+| TODO/FIXME count | 2 (both in migrate.ts) |
+| Dependencies (prod) | 24 |
+| Dependencies (dev) | 16 |
+| `any` type usages | 17 |
+| Files > 500 lines | 5 |
+| Files > 400 lines | 8+ |
+| Console.log files | 15 |
+| IPC channels | ~100 |
+| Zustand stores | 10 |
+| DB tables | 18+ |
+| Test coverage (est.) | 5-10% |
+| Empty catch blocks | 0 |
+| SQL injection risk | 0 |
 
 ---
 
-## Production Readiness Assessment
+## Previous Review Comparison (Feb 13 -> Feb 15)
 
-| Dimension | Status | Notes |
-|-----------|--------|-------|
-| Feature Completeness | EXCELLENT | All 17 requirements (99 pts) delivered |
-| Code Quality | GOOD | Clean architecture, strong types, consistent patterns |
-| Performance | NEEDS ATTENTION | N+1 queries, no pagination, sequential context building |
-| Error Handling | NEEDS ATTENTION | Empty catch blocks, no structured logging |
-| Test Coverage | CRITICAL | Zero automated tests |
-| Documentation | NEEDS WORK | No README, no setup guide, no architecture docs |
-| Security | GOOD (with gaps) | Encrypted secrets, context isolation; missing CSP, IPC validation |
+Since the last review (2026-02-13), the following items have been addressed:
+- README.md created (126 lines)
+- docs/ARCHITECTURE.md created (155 lines)
+- docs/DEVELOPMENT.md created (208 lines)
+- CHEATSHEET.md created (383 lines)
+- IPC input validation added (Zod schemas on all handlers)
+- Structured logging added (logger service)
+- Monolithic preload.ts split into 13 domain modules
+- Single shared types file split into 17 domain type modules
+- Content Security Policy enforced
+- Command palette added (Ctrl+K)
+- 99 tests added (from 0)
 
-**Recommended Timeline to Production:**
-1. **Week 1-2:** Critical path tests + N+1 fix + README
-2. **Week 3-4:** IPC validation + structured logging + component refactoring
-3. **Week 5-6:** E2E test suite + documentation suite
-4. **Week 7-8:** Production build testing + CI/CD + final hardening
-
-**Overall Grade: B-** -- Excellent feature delivery and clean architecture. Needs testing, documentation, and performance hardening before production release.
+Items still outstanding from previous review:
+- Test coverage remains critically low (5-10% vs recommended 60%+)
+- Large file refactoring not yet done
+- CHANGELOG.md still missing
+- AudioWorklet migration still pending
 
 ---
 
-Reviewed by NEXUS Project Review Agent
+Reviewed by NEXUS Project Review (5 parallel agents: code-reviewer, architecture/Opus, documentation/Sonnet, test-runner, features/Opus)

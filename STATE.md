@@ -2,18 +2,23 @@
 
 ## Session Info
 Last updated: 2026-02-15
-Session focus: Plan 10.3 executed + Plan 10.4 planned
-Checkpoint reason: Session handoff — Plan 10.3 complete, 10.4 ready
+Session focus: Plan 11.1 EXECUTED — Critical UX Fixes & Data Loss Prevention
 
 ## Position
-Milestone: Final UX Polish
-Phase: 10 (Enterprise Distribution + UX Polish)
-Plan: 10.4 — READY (3 tasks planned, not yet executed)
-Latest commit: eeee870 on main (pushed)
+Milestone: Review Remediation
+Phase: 11 (Review Remediation)
+Plan: 11.1 — COMPLETE (3/3 tasks)
+Latest commit: 4c9e1c6 on main (unpushed)
 
-## Resume Context
-Next action: Run `/nexus:execute` to execute Plan 10.4
-Prerequisites: PLAN.md contains Plan 10.4 with 3 tasks (brainstorm templates, always-on-top, shortcuts cheat sheet)
+## Plan 11.1 Results
+- Task 1: Close-during-recording guard ✓ (baaf733)
+  - New: src/main/services/recordingState.ts (shared state module)
+  - Modified: main.ts, window-controls.ts, window preload, recordingStore, electron-api types
+- Task 2: Eager entity loading for command palette ✓ (6d982ee)
+  - Modified: App.tsx — useEffect loads all stores on mount
+- Task 3: react-markdown + remark-gfm for brainstorm chat ✓ (4c9e1c6)
+  - Modified: ChatMessage.tsx — removed ~110 lines of regex, added ReactMarkdown with 13 styled overrides
+  - Added: react-markdown, remark-gfm dependencies
 
 ## Ad-Hoc Features (this session)
 
@@ -72,6 +77,10 @@ Plans 8.1-8.7 + 4 ad-hoc features delivered.
   - Task 1: Command palette with universal search + global hotkey ✓ (811633b)
   - Task 2: Transcript search with highlighting + copy buttons ✓ (605c103)
   - Task 3: Dependency badges and blocked status on Kanban cards ✓ (eeee870)
+- Plan 10.4: COMPLETE — Final UX Polish & Discoverability (3 tasks)
+  - Task 1: Brainstorm session templates with starter prompts ✓ (ab29df1)
+  - Task 2: Always-on-top toggle with pin button in title bar ✓ (ff4e0ca)
+  - Task 3: Keyboard shortcuts cheat sheet overlay ✓ (da1246d)
 
 ## Phase 9 — IN PROGRESS
 - Plan 9.1: COMPLETE (PGlite migration + packaging)
