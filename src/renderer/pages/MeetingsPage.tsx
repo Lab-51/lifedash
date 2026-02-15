@@ -171,11 +171,6 @@ function MeetingsPage() {
         </p>
       </div>
 
-      {/* Recording Controls */}
-      <div className="mb-6">
-        <RecordingControls />
-      </div>
-
       {/* Whisper model notice */}
       {hasModel === false && (
         <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
@@ -205,6 +200,11 @@ function MeetingsPage() {
           </div>
         </div>
       )}
+
+      {/* Recording Controls */}
+      <div className="mb-6">
+        <RecordingControls hasModel={hasModel} />
+      </div>
 
       {/* Error state */}
       {error && (

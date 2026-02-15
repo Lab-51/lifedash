@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Square, Loader2, Trash2 } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useMeetingStore } from '../stores/meetingStore';
+import { useProjectStore } from '../stores/projectStore';
 import { onAudioLevel } from '../services/audioCaptureService';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
@@ -165,7 +166,11 @@ function AudioLevelMeter() {
   );
 }
 
-export default function RecordingControls() {
+interface RecordingControlsProps {
+  hasModel?: boolean | null;
+}
+
+export default function RecordingControls({ hasModel }: RecordingControlsProps) {
   const isRecording = useRecordingStore(s => s.isRecording);
   const isProcessing = useRecordingStore(s => s.isProcessing);
   const elapsed = useRecordingStore(s => s.elapsed);
@@ -178,14 +183,18 @@ export default function RecordingControls() {
   const stopRecording = useRecordingStore(s => s.stopRecording);
   const setIncludeMic = useRecordingStore(s => s.setIncludeMic);
   const deleteMeeting = useMeetingStore(s => s.deleteMeeting);
+  const projects = useProjectStore(s => s.projects);
+  const activeProjects = projects.filter(p => !p.archived);
   const [title, setTitle] = useState(suggestMeetingTitle);
   const [selectedTemplate, setSelectedTemplate] = useState<MeetingTemplateType>('none');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
 
   const handleStart = async () => {
     if (!title.trim()) return;
-    await startRecording(title.trim(), undefined, selectedTemplate);
+    await startRecording(title.trim(), selectedProjectId || undefined, selectedTemplate);
     setTitle(suggestMeetingTitle());
     setSelectedTemplate('none');
+    setSelectedProjectId('');
   };
 
   const handleDiscard = async () => {
@@ -230,6 +239,17 @@ export default function RecordingControls() {
             disabled={starting}
             autoFocus
           />
+          <select
+            value={selectedProjectId}
+            onChange={(e) => setSelectedProjectId(e.target.value)}
+            className="w-full"
+            disabled={starting}
+          >
+            <option value="">No project (link later)</option>
+            {activeProjects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
           <select
             value={selectedTemplate}
             onChange={(e) => setSelectedTemplate(e.target.value as MeetingTemplateType)}
@@ -287,6 +307,11 @@ export default function RecordingControls() {
               </>
             )}
           </button>
+          {hasModel === false && (
+            <p className="text-xs text-amber-400">
+              No Whisper model — recordings won't have transcription.
+            </p>
+          )}
           {completedMeetingId && (
             <button
               onClick={handleDiscard}
