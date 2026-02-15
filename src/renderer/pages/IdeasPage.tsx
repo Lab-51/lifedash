@@ -38,6 +38,7 @@ function IdeasPage() {
   const createIdea = useIdeaStore(s => s.createIdea);
   const [filter, setFilter] = useState<IdeaStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [selectedIdeaId, setSelectedIdeaId] = useState<string | null>(null);
@@ -70,6 +71,13 @@ function IdeasPage() {
       if (!matchesTitle && !matchesTags) return false;
     }
     return true;
+  });
+
+  // Sort filtered ideas
+  const sortedIdeas = [...filteredIdeas].sort((a, b) => {
+    if (sortBy === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (sortBy === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    return a.title.localeCompare(b.title);
   });
 
   // Full-page loading state when no ideas have been loaded yet
@@ -142,6 +150,17 @@ function IdeasPage() {
         {/* Spacer */}
         <div className="flex-1" />
 
+        {/* Sort dropdown */}
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+          className="bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
+        >
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="title">Title A-Z</option>
+        </select>
+
         {/* Search input */}
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-500" />
@@ -164,14 +183,14 @@ function IdeasPage() {
       </div>
 
       {/* Result count when searching */}
-      {searchQuery.trim() && filteredIdeas.length > 0 && (
+      {searchQuery.trim() && sortedIdeas.length > 0 && (
         <p className="text-xs text-surface-500 mb-2">
-          {filteredIdeas.length} result{filteredIdeas.length !== 1 ? 's' : ''}
+          {sortedIdeas.length} result{sortedIdeas.length !== 1 ? 's' : ''}
         </p>
       )}
 
       {/* Idea cards grid or empty state */}
-      {filteredIdeas.length === 0 ? (
+      {sortedIdeas.length === 0 ? (
         <div className="mt-12 flex flex-col items-center justify-center text-surface-500">
           {searchQuery.trim() ? (
             <>
@@ -201,7 +220,7 @@ function IdeasPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filteredIdeas.map(idea => (
+          {sortedIdeas.map(idea => (
             <div
               key={idea.id}
               onClick={() => setSelectedIdeaId(idea.id)}

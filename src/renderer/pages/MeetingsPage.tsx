@@ -38,6 +38,7 @@ function MeetingsPage() {
   const loadProjects = useProjectStore(s => s.loadProjects);
   const [filter, setFilter] = useState<FilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
   const [autoOpenedMeetingId, setAutoOpenedMeetingId] = useState<string | null>(null);
   const prevIsRecording = useRef(isRecording);
@@ -124,6 +125,13 @@ function MeetingsPage() {
     return true;
   });
 
+  // Sort filtered meetings
+  const sortedMeetings = [...filteredMeetings].sort((a, b) => {
+    if (sortBy === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (sortBy === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    return a.title.localeCompare(b.title);
+  });
+
   // Full-page loading state when no meetings have been loaded yet
   if (loading && meetings.length === 0) {
     return (
@@ -203,8 +211,21 @@ function MeetingsPage() {
           ))}
         </div>
 
-        {/* Search input */}
+        {/* Spacer */}
         <div className="flex-1" />
+
+        {/* Sort dropdown */}
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+          className="bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
+        >
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="title">Title A-Z</option>
+        </select>
+
+        {/* Search input */}
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-500" />
           <input
@@ -228,14 +249,14 @@ function MeetingsPage() {
       </div>
 
       {/* Result count when searching */}
-      {searchQuery.trim() && filteredMeetings.length > 0 && (
+      {searchQuery.trim() && sortedMeetings.length > 0 && (
         <p className="text-xs text-surface-500 mb-2">
-          {filteredMeetings.length} result{filteredMeetings.length !== 1 ? 's' : ''}
+          {sortedMeetings.length} result{sortedMeetings.length !== 1 ? 's' : ''}
         </p>
       )}
 
       {/* Meeting cards grid or empty state */}
-      {filteredMeetings.length === 0 ? (
+      {sortedMeetings.length === 0 ? (
         <div className="mt-12 flex flex-col items-center justify-center text-surface-500">
           {searchQuery.trim() ? (
             <>
@@ -261,7 +282,7 @@ function MeetingsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredMeetings.map(meeting => (
+          {sortedMeetings.map(meeting => (
             <MeetingCard
               key={meeting.id}
               meeting={meeting}
