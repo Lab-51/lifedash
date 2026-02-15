@@ -10,6 +10,7 @@
 // - Session rename via double-click (may not be immediately discoverable)
 
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Brain, Plus, Send, Loader2, Trash2, Archive,
   MessageSquare, Bot, Sparkles, Lightbulb, Search, Layers, ListChecks, Square,
@@ -56,6 +57,16 @@ export default function BrainstormPage() {
   const [renameTitle, setRenameTitle] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Handle ?action=create — auto-open the new session form
+  useEffect(() => {
+    if (searchParams.get('action') === 'create') {
+      setShowNewSession(true);
+      searchParams.delete('action');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Derived state: filter sessions by archive status
   const filteredSessions = showArchived ? sessions : sessions.filter(s => s.status === 'active');

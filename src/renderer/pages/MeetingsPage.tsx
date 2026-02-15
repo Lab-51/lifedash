@@ -7,6 +7,7 @@
 // meetingStore, recordingStore, projectStore, RecordingControls, MeetingCard, LoadingSpinner
 
 import { useEffect, useState, useRef, lazy, Suspense } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Mic, Info, Search, X } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useRecordingStore } from '../stores/recordingStore';
@@ -45,6 +46,25 @@ function MeetingsPage() {
   const [hasModel, setHasModel] = useState<boolean | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Open meeting from URL search param (e.g. ?openMeeting=<id> from dashboard deep-link)
+  useEffect(() => {
+    const openMeetingId = searchParams.get('openMeeting');
+    if (openMeetingId && !loading && meetings.length > 0) {
+      setSelectedMeetingId(openMeetingId);
+      searchParams.delete('openMeeting');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, loading, meetings.length]);
+
+  // Handle ?action=record — just clear the param (recording controls are always visible)
+  useEffect(() => {
+    if (searchParams.get('action') === 'record') {
+      searchParams.delete('action');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Load meetings and projects on mount
   useEffect(() => {

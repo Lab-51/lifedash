@@ -9,7 +9,7 @@
 // ProjectPlanningModal, shared types (CreateProjectInput)
 
 import { useEffect, useState, useMemo, lazy, Suspense } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2, LayoutList } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useBoardStore } from '../stores/boardStore';
@@ -46,6 +46,16 @@ function ProjectsPage() {
     description: '',
     color: PRESET_COLORS[0],
   });
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Handle ?action=create — auto-open the create form
+  useEffect(() => {
+    if (searchParams.get('action') === 'create') {
+      setShowCreateForm(true);
+      searchParams.delete('action');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     loadProjects();

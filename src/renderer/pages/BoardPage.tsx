@@ -324,7 +324,7 @@ function BoardPage() {
       <div className="px-6 pt-6 pb-4 shrink-0 space-y-3">
         <div className="flex items-center gap-3">
           <Link
-            to="/"
+            to="/projects"
             className="text-surface-400 hover:text-surface-200 transition-colors"
           >
             <ArrowLeft size={20} />

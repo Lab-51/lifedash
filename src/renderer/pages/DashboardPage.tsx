@@ -70,10 +70,10 @@ function formatDuration(startedAt: string, endedAt: string): string {
 }
 
 const QUICK_ACTIONS = [
-  { label: 'New Recording', icon: Mic, path: '/meetings' },
-  { label: 'New Project', icon: Plus, path: '/projects' },
-  { label: 'New Brainstorm', icon: Brain, path: '/brainstorm' },
-  { label: 'New Idea', icon: Lightbulb, path: '/ideas' },
+  { label: 'New Recording', icon: Mic, path: '/meetings?action=record' },
+  { label: 'New Project', icon: Plus, path: '/projects?action=create' },
+  { label: 'New Brainstorm', icon: Brain, path: '/brainstorm?action=create' },
+  { label: 'New Idea', icon: Lightbulb, path: '/ideas?action=create' },
 ] as const;
 
 const MAX_PROJECTS = 6;
@@ -221,7 +221,7 @@ function DashboardPage() {
               {recentMeetings.map(meeting => (
                 <button
                   key={meeting.id}
-                  onClick={() => navigate('/meetings')}
+                  onClick={() => navigate(`/meetings?openMeeting=${meeting.id}`)}
                   className="w-full text-left bg-surface-800 border border-surface-700 rounded-xl p-3 hover:border-surface-600 transition-colors"
                 >
                   <p className="text-sm font-medium text-surface-100 truncate">
@@ -270,7 +270,7 @@ function DashboardPage() {
               {recentIdeas.map(idea => (
                 <button
                   key={idea.id}
-                  onClick={() => navigate('/ideas')}
+                  onClick={() => navigate(`/ideas?openIdea=${idea.id}`)}
                   className="w-full text-left bg-surface-800 border border-surface-700 rounded-xl p-3 hover:border-surface-600 transition-colors flex items-center justify-between gap-3"
                 >
                   <p className="text-sm font-medium text-surface-100 truncate">

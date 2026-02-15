@@ -6,8 +6,8 @@
 // react (useEffect, useState), react-router-dom (useNavigate),
 // lucide-react icons, ideaStore, shared types
 
-import { useState, useEffect, lazy, Suspense } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lightbulb, Plus, Search, X, Zap, Target, Loader2 } from 'lucide-react';
 import { useIdeaStore } from '../stores/ideaStore';
 import type { IdeaStatus } from '../../shared/types';
@@ -42,6 +42,28 @@ function IdeasPage() {
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [selectedIdeaId, setSelectedIdeaId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const quickAddInputRef = useRef<HTMLInputElement>(null);
+
+  // Open idea from URL search param (e.g. ?openIdea=<id> from dashboard deep-link)
+  useEffect(() => {
+    const openIdeaId = searchParams.get('openIdea');
+    if (openIdeaId && !loading && ideas.length > 0) {
+      setSelectedIdeaId(openIdeaId);
+      searchParams.delete('openIdea');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, loading, ideas.length]);
+
+  // Handle ?action=create — auto-focus the quick-add input
+  useEffect(() => {
+    if (searchParams.get('action') === 'create') {
+      searchParams.delete('action');
+      setSearchParams(searchParams, { replace: true });
+      // Focus with a short delay to ensure the input is rendered
+      setTimeout(() => quickAddInputRef.current?.focus(), 50);
+    }
+  }, [searchParams, setSearchParams]);
 
   // Load ideas on mount
   useEffect(() => {
@@ -102,6 +124,7 @@ function IdeasPage() {
       {/* Quick-add form */}
       <form onSubmit={handleQuickAdd} className="flex items-center gap-2 mb-6">
         <input
+          ref={quickAddInputRef}
           type="text"
           placeholder="What's your idea?"
           value={newTitle}
