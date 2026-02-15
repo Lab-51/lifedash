@@ -1,17 +1,29 @@
 # Current State
 
 ## Session Info
-Last updated: 2026-02-15
-Session focus: Phase 12 — Self-Improve Remediation
+Last updated: 2026-02-16
+Session focus: Phase 13 — Self-Improve #2 Remediation
 
 ## Position
-Milestone: Self-Improve Remediation
-Phase: 12 (Critical Fixes & Data Safety)
-Plan: 12.1 — COMPLETE (3/3 tasks)
-Plan: 12.2 — COMPLETE (3/3 tasks)
-Plan: 12.3 — COMPLETE (3/3 tasks)
-Latest commit: addb102 on main
+Milestone: Self-Improve #2 Remediation
+Phase: 13 (Dashboard Launch Pad + Recording Preflight + Column Rename)
+Plan: 13.1 — COMPLETE (3/3 tasks)
+Latest commit: 25e95bb on main
 Test suite: 150 tests across 7 files
+
+## Plan 13.1 Results (SELF-IMPROVE-2.md top 5)
+- Task 1: Dashboard deep-links + quick action triggers + board back arrow fix ✓ (4f73670)
+  - Recent meeting/idea clicks deep-link to detail modals via ?openMeeting=/openIdea= params
+  - Quick actions trigger creation flows via ?action=create/record params
+  - Board back arrow → /projects instead of /
+- Task 2: Recording preflight check + project selector ✓ (37f8360)
+  - Whisper warning moved above recording controls
+  - Inline amber preflight warning in RecordingControls when no model
+  - Project selector dropdown pre-links meetings to projects at recording time
+- Task 3: Column rename + empty dashboard onboarding CTA ✓ (25e95bb)
+  - Double-click column name → inline rename input (Enter/blur saves, Escape cancels)
+  - Column delete shows "Delete N cards?" when cards exist
+  - Empty dashboard shows 3-step onboarding CTA (AI provider, Whisper, first project)
 
 ## Plan 12.3 Results
 Home Dashboard & Project Health (SELF-IMPROVE.md items E2, F3, Q8, Q9, F10, F7):
