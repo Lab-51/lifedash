@@ -31,7 +31,10 @@ function MeetingsPage() {
   const error = useMeetingStore(s => s.error);
   const loadMeetings = useMeetingStore(s => s.loadMeetings);
   const loadMeeting = useMeetingStore(s => s.loadMeeting);
+  const deleteMeeting = useMeetingStore(s => s.deleteMeeting);
   const addTranscriptSegment = useMeetingStore(s => s.addTranscriptSegment);
+  const actionItemCounts = useMeetingStore(s => s.actionItemCounts);
+  const loadActionItemCounts = useMeetingStore(s => s.loadActionItemCounts);
   const isRecording = useRecordingStore(s => s.isRecording);
   const completedMeetingId = useRecordingStore(s => s.completedMeetingId);
   const clearCompletedMeetingId = useRecordingStore(s => s.clearCompletedMeetingId);
@@ -71,6 +74,13 @@ function MeetingsPage() {
     loadMeetings();
     loadProjects();
   }, [loadMeetings, loadProjects]);
+
+  // Load action item counts once meetings are available
+  useEffect(() => {
+    if (meetings.length > 0) {
+      loadActionItemCounts();
+    }
+  }, [meetings.length, loadActionItemCounts]);
 
   // Check if whisper model is available
   useEffect(() => {
@@ -313,7 +323,13 @@ function MeetingsPage() {
               meeting={meeting}
               projectName={meeting.projectId ? projectNameMap.get(meeting.projectId) : undefined}
               projectColor={meeting.projectId ? projectColorMap.get(meeting.projectId) : undefined}
+              actionItemCount={actionItemCounts[meeting.id] || 0}
               onClick={() => setSelectedMeetingId(meeting.id)}
+              onDelete={() => {
+                if (window.confirm(`Delete "${meeting.title}"? This cannot be undone.`)) {
+                  deleteMeeting(meeting.id);
+                }
+              }}
             />
           ))}
         </div>

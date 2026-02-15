@@ -3,7 +3,7 @@
 // Shows title, date, duration, status badge, and optional project name.
 
 import { memo } from 'react';
-import { Mic, Clock, CheckCircle2, Loader2 } from 'lucide-react';
+import { Mic, Clock, CheckCircle2, Loader2, ListChecks, Trash2 } from 'lucide-react';
 import type { Meeting } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 
@@ -11,7 +11,9 @@ interface MeetingCardProps {
   meeting: Meeting;
   projectName?: string;
   projectColor?: string;
+  actionItemCount?: number;
   onClick: () => void;
+  onDelete?: () => void;
 }
 
 const STATUS_STYLES: Record<string, { label: string; className: string; icon: typeof Mic }> = {
@@ -54,24 +56,46 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
   return `${min}m ${sec}s`;
 }
 
-const MeetingCard = memo(function MeetingCard({ meeting, projectName, projectColor, onClick }: MeetingCardProps) {
+const MeetingCard = memo(function MeetingCard({ meeting, projectName, projectColor, actionItemCount, onClick, onDelete }: MeetingCardProps) {
   const status = STATUS_STYLES[meeting.status] || STATUS_STYLES.completed;
   const StatusIcon = status.icon;
 
   return (
-    <button
+    <div
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
       className="w-full text-left p-4 bg-surface-800 border border-surface-700 rounded-lg
-                 hover:border-surface-600 transition-colors group"
+                 hover:border-surface-600 transition-colors group relative cursor-pointer"
     >
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-700
+                     text-surface-500 hover:text-red-400 transition-all"
+          title="Delete meeting"
+        >
+          <Trash2 size={14} />
+        </button>
+      )}
+
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-semibold text-surface-100 truncate">
           {meeting.title}
         </h3>
-        <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full shrink-0 ${status.className}`}>
-          <StatusIcon size={12} className={meeting.status === 'recording' ? 'animate-pulse' : ''} />
-          {status.label}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          {actionItemCount != null && actionItemCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs text-surface-400">
+              <ListChecks size={12} />
+              {actionItemCount}
+            </span>
+          )}
+          <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${status.className}`}>
+            <StatusIcon size={12} className={meeting.status === 'recording' ? 'animate-pulse' : ''} />
+            {status.label}
+          </span>
+        </div>
       </div>
 
       <div className="mt-2 flex items-center gap-3 text-xs text-surface-400">
@@ -103,7 +127,7 @@ const MeetingCard = memo(function MeetingCard({ meeting, projectName, projectCol
           )}
         </div>
       )}
-    </button>
+    </div>
   );
 });
 

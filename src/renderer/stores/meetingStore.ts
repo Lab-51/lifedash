@@ -21,6 +21,7 @@ interface MeetingStore {
   selectedMeeting: MeetingWithTranscript | null;
   loading: boolean;
   error: string | null;
+  actionItemCounts: Record<string, number>;
 
   // Intelligence generation state
   generatingBrief: boolean;
@@ -36,6 +37,7 @@ interface MeetingStore {
   // Actions
   loadMeetings: () => Promise<void>;
   loadMeeting: (id: string) => Promise<void>;
+  loadActionItemCounts: () => Promise<void>;
   updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<void>;
   deleteMeeting: (id: string) => Promise<void>;
   clearSelectedMeeting: () => void;
@@ -58,6 +60,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   selectedMeeting: null,
   loading: false,
   error: null,
+  actionItemCounts: {},
   generatingBrief: false,
   generatingActions: false,
   diarizing: false,
@@ -86,6 +89,17 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       set({
         error: error instanceof Error ? error.message : 'Failed to load meeting',
       });
+    }
+  },
+
+  loadActionItemCounts: async () => {
+    const meetingIds = get().meetings.map(m => m.id);
+    if (meetingIds.length === 0) return;
+    try {
+      const counts = await window.electronAPI.getActionItemCounts(meetingIds);
+      set({ actionItemCounts: counts });
+    } catch {
+      // Non-critical — silently ignore
     }
   },
 

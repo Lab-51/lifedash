@@ -6,6 +6,7 @@
 // electron (ipcMain), ../services/meetingService
 
 import { ipcMain } from 'electron';
+import { z } from 'zod';
 import * as meetingService from '../services/meetingService';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import {
@@ -13,6 +14,8 @@ import {
   createMeetingInputSchema,
   updateMeetingInputSchema,
 } from '../../shared/validation/schemas';
+
+const meetingIdsSchema = z.array(z.string().uuid());
 
 export function registerMeetingHandlers(): void {
   ipcMain.handle('meetings:list', async () => {
@@ -41,5 +44,10 @@ export function registerMeetingHandlers(): void {
   ipcMain.handle('meetings:delete', async (_event, id: unknown) => {
     const validId = validateInput(idParamSchema, id);
     return meetingService.deleteMeeting(validId);
+  });
+
+  ipcMain.handle('meetings:action-item-counts', async (_event, ids: unknown) => {
+    const validIds = validateInput(meetingIdsSchema, ids);
+    return meetingService.getActionItemCounts(validIds);
   });
 }

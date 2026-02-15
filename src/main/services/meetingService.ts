@@ -9,7 +9,7 @@
 // - No pagination on list queries yet.
 // - No recording/transcription logic (that's Plans 4.2-4.3).
 
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, desc, asc, count, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { meetings, transcripts, meetingBriefs, actionItems } from '../db/schema';
 import type {
@@ -68,6 +68,23 @@ function toActionItem(row: typeof actionItems.$inferSelect): ActionItem {
     status: row.status,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+/** Get action item counts for a batch of meetings (meetingId -> count) */
+export async function getActionItemCounts(meetingIds: string[]): Promise<Record<string, number>> {
+  if (meetingIds.length === 0) return {};
+  const db = getDb();
+  const rows = await db
+    .select({ meetingId: actionItems.meetingId, value: count() })
+    .from(actionItems)
+    .where(inArray(actionItems.meetingId, meetingIds))
+    .groupBy(actionItems.meetingId);
+
+  const result: Record<string, number> = {};
+  for (const row of rows) {
+    result[row.meetingId] = row.value;
+  }
+  return result;
 }
 
 export async function getMeetings(): Promise<Meeting[]> {
