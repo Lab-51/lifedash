@@ -1,48 +1,53 @@
-# Summary — Plan 12.1: Critical Fixes & Data Safety
+# Summary — Plan 12.2: Workflow Speed & UX Polish
 
 ## Date: 2026-02-15
 ## Status: COMPLETE (3/3 tasks, sequential execution)
 
 ## What Changed
 
-Addressed the top 3 HIGH-impact items from the SELF-IMPROVE.md analysis (43 total proposals). These fix broken functionality and prevent data loss — the foundation before building new features.
+Addressed 6 items from the SELF-IMPROVE.md analysis targeting workflow speed and engagement — making existing features faster and more discoverable.
 
-### Task 1: Fix command palette card navigation
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** ceb5f3c
+### Task 1: One-click push all approved action items
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 74f0eb0
 
-- New `cards:list-all` IPC endpoint joining cards→columns→boards for cross-project card data
-- `allCards` field in boardStore, eager-loaded on app startup
-- CommandPalette navigates to `/projects/{projectId}?openCard={cardId}`
-- BoardPage reads `openCard` URL param and auto-opens CardDetailModal
-- 7 files modified: cards.ts, projects.ts (preload), electron-api.ts, boardStore.ts, App.tsx, CommandPalette.tsx, BoardPage.tsx
+- "Push N approved to [Project Name]" button with Zap icon in ActionItemList
+- Bypasses 3-step ConvertActionModal for the common case (linked project)
+- Creates cards in first column of first board automatically
+- Shows inline success message with count and column name (auto-clears after 4s)
+- Existing checkbox + modal flow preserved for specific column selection
+- 2 files modified: ActionItemList.tsx, MeetingDetailModal.tsx
 
-### Task 2: Auto-save idea edits
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 6d1e20c
+### Task 2: Brainstorm starter prompts + stop generating
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 089e62f
 
-- Title/description: auto-save on blur (matches CardDetailModal pattern)
-- Status/effort/impact/tags: save immediately on change
-- Removed manual Save button and `handleSave` function
-- 1 file modified: IdeaDetailModal.tsx (+44, -39)
+- Empty brainstorm sessions show 4 clickable starter prompts in 2-column grid
+- "Stop generating" button (Square icon) appears during AI streaming
+- AbortController pattern via new `brainstorm:abort` IPC handler
+- Partial responses preserved when user stops mid-generation
+- 6 files modified: ai-provider.ts, brainstorm.ts, brainstorm preload, BrainstormPage.tsx, brainstormStore.ts, electron-api.ts
 
-### Task 3: Project rename and delete
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 258bba9
+### Task 3: Quick polish — auto-focus, project link
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** aa50215
 
-- Inline rename: Pencil icon → input field, Enter/blur saves, Escape cancels
-- Delete with confirmation: Trash2 icon → `window.confirm` dialog
-- Both actions available on active and archived project cards
-- 1 file modified: ProjectsPage.tsx (+59, -5)
+- Auto-focus on meeting title input in RecordingControls (zero-click recording start)
+- "Open board" button in MeetingDetailModal navigates to linked project
+- Card count badges already existed in BoardColumn.tsx (no work needed)
+- 2 files modified: RecordingControls.tsx, MeetingDetailModal.tsx
 
 ## Verification
-- `npx tsc --noEmit`: PASS (zero errors)
-- `npx vitest run`: 150/150 tests pass (no regressions)
+- `npx tsc --noEmit`: PASS (zero errors) — all 3 tasks
+- `npx vitest run`: 150/150 tests pass (no regressions) — all 3 tasks
 
 ## Self-Improve Items Addressed
 | Item | Category | Description |
 |------|----------|-------------|
-| F4 | Broken | Command palette card click does nothing |
-| F2 | Data Loss | IdeaDetailModal silently discards edits |
-| F1 | Missing CRUD | No project rename or delete |
+| E4 | Engagement | One-click push all action items to board |
+| F5 | Feature | Starter prompts for brainstorm |
+| Q5 | Quality | Stop generating button |
+| Q1 | Quality | Auto-focus meeting title |
+| Q10 | Quality | Jump-to-project link |
+| Q23 | Quality | Card count badges (already existed) |
 
 ## What's Next
-- 40 remaining proposals in SELF-IMPROVE.md
-- Plan 12.2: Next batch of improvements (user-directed)
+- ~34 remaining proposals in SELF-IMPROVE.md
+- Plan 12.3: Next batch of improvements (user-directed)

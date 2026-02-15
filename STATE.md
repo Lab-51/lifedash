@@ -2,14 +2,32 @@
 
 ## Session Info
 Last updated: 2026-02-15
-Session focus: Phase 12 — Critical Fixes & Data Safety
+Session focus: Phase 12 — Self-Improve Remediation
 
 ## Position
 Milestone: Self-Improve Remediation
 Phase: 12 (Critical Fixes & Data Safety)
 Plan: 12.1 — COMPLETE (3/3 tasks)
-Latest commit: 258bba9 on main
+Plan: 12.2 — COMPLETE (3/3 tasks)
+Latest commit: aa50215 on main
 Test suite: 150 tests across 7 files
+
+## Plan 12.2 Results
+Workflow speed & UX polish (SELF-IMPROVE.md items E4, F5, Q5, Q1, Q10, Q23):
+- Task 1: One-click push all approved action items ✓ (74f0eb0)
+  - "Push N approved to [Project]" button in ActionItemList
+  - Skips 3-step ConvertActionModal, creates cards in first column
+  - Uses existing getBoards/getColumns/convertActionToCard IPC
+  - Existing batch flow preserved as alternative
+- Task 2: Brainstorm starter prompts + stop generating ✓ (089e62f)
+  - 4 clickable starter prompts in empty sessions (2-column grid)
+  - AbortController-based stream cancellation via brainstorm:abort IPC
+  - Stop button with Square icon during streaming
+  - Partial responses preserved on abort
+- Task 3: Quick polish — auto-focus, project link ✓ (aa50215)
+  - RecordingControls title input auto-focuses on mount
+  - MeetingDetailModal "Open board" button navigates to linked project
+  - Card count badges already existed in BoardColumn.tsx (no change needed)
 
 ## Plan 12.1 Results
 Based on SELF-IMPROVE.md analysis (43 proposals). Top 3 HIGH-impact items:
