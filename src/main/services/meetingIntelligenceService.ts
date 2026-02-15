@@ -26,6 +26,7 @@ import type {
   MeetingTemplateType,
 } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
+import { parseActionItems } from '../../shared/utils/action-item-parser';
 
 // ---------------------------------------------------------------------------
 // Prompt Templates
@@ -204,28 +205,8 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
     maxTokens: provider.maxTokens,
   });
 
-  // Parse AI response — try JSON first, fall back to bullet extraction
-  let descriptions: string[] = [];
-
-  try {
-    const parsed = JSON.parse(result.text);
-    if (Array.isArray(parsed)) {
-      descriptions = parsed
-        .filter((item: unknown) => {
-          const obj = item as Record<string, unknown>;
-          return obj.description && typeof obj.description === 'string';
-        })
-        .map((item: unknown) => (item as Record<string, string>).description);
-    }
-  } catch {
-    // Fallback: extract from bullet/numbered lines
-    descriptions = result.text
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => /^[-*]|\d+[.)]/.test(line))
-      .map((line) => line.replace(/^[-*]\s*|\d+[.)]\s*/, '').trim())
-      .filter((line) => line.length > 0);
-  }
+  // Parse AI response using extracted pure function
+  const descriptions = parseActionItems(result.text);
 
   // Insert into DB
   const db = getDb();
