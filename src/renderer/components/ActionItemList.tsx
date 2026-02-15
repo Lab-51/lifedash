@@ -19,6 +19,7 @@ import {
   ArrowRightCircle,
   Circle,
   Send,
+  Zap,
 } from 'lucide-react';
 import type { ActionItem, ActionItemStatus } from '../../shared/types';
 
@@ -36,6 +37,10 @@ interface ActionItemListProps {
   meetingProjectName?: string;
   /** Called with selected action items for batch conversion */
   onBatchConvert?: (items: Array<{ id: string; text: string }>) => void;
+  /** Called to quick-push all approved items to the linked project's first column */
+  onQuickPush?: () => Promise<{ pushedCount: number; columnName: string }>;
+  /** Whether a quick-push is currently in progress */
+  quickPushing?: boolean;
 }
 
 /** Status icon mapping — returns the icon component and its Tailwind color class. */
@@ -149,14 +154,25 @@ export default function ActionItemList({
   meetingProjectId,
   meetingProjectName,
   onBatchConvert,
+  onQuickPush,
+  quickPushing,
 }: ActionItemListProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [quickPushResult, setQuickPushResult] = useState<string | null>(null);
 
   // Items eligible for batch push (pending or approved — not dismissed or converted)
   const pushableItems = useMemo(
     () => actionItems.filter((a) => a.status === 'pending' || a.status === 'approved'),
     [actionItems],
   );
+
+  // Items eligible for quick push (approved only — ready to go)
+  const approvedItems = useMemo(
+    () => actionItems.filter((a) => a.status === 'approved'),
+    [actionItems],
+  );
+
+  const showQuickPush = !!meetingProjectId && approvedItems.length > 0 && !!onQuickPush;
 
   const showBatchPush = !!meetingProjectId && pushableItems.length > 0 && !!onBatchConvert;
 
@@ -186,6 +202,20 @@ export default function ActionItemList({
       .map((a) => ({ id: a.id, text: a.description }));
     if (items.length > 0) {
       onBatchConvert(items);
+    }
+  };
+
+  const handleQuickPush = async () => {
+    if (!onQuickPush) return;
+    setQuickPushResult(null);
+    try {
+      const result = await onQuickPush();
+      setQuickPushResult(`Pushed ${result.pushedCount} item${result.pushedCount !== 1 ? 's' : ''} to ${result.columnName}`);
+      // Clear the result message after 4 seconds
+      setTimeout(() => setQuickPushResult(null), 4000);
+    } catch {
+      setQuickPushResult('Failed to push items');
+      setTimeout(() => setQuickPushResult(null), 4000);
     }
   };
 
@@ -227,6 +257,37 @@ export default function ActionItemList({
               onCheckChange={handleCheckChange}
             />
           ))}
+        </div>
+      )}
+
+      {/* Quick push — one-click push all approved items to linked project */}
+      {showQuickPush && !generatingActions && (
+        <div className="mt-3 pt-3 border-t border-surface-700">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              {quickPushResult && (
+                <p className="text-xs text-emerald-400 truncate">{quickPushResult}</p>
+              )}
+              {quickPushing && !quickPushResult && (
+                <p className="text-xs text-surface-400 flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" />
+                  Pushing to board...
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleQuickPush}
+              disabled={quickPushing}
+              className="flex items-center gap-1.5 text-sm bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg transition-colors shrink-0"
+            >
+              {quickPushing ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Zap size={14} />
+              )}
+              Push {approvedItems.length} approved to {meetingProjectName || 'Project'}
+            </button>
+          </div>
         </div>
       )}
 

@@ -80,6 +80,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false }: Me
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [convertingAction, setConvertingAction] = useState<ActionItem | null>(null);
   const [batchConvertItems, setBatchConvertItems] = useState<Array<{ id: string; text: string }> | null>(null);
+  const [quickPushing, setQuickPushing] = useState(false);
   const [transcriptSearch, setTranscriptSearch] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -242,6 +243,40 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false }: Me
     handleCopy('actions', text);
   };
 
+  // Quick-push: convert all approved action items to cards in the linked project's first column
+  const handleQuickPush = async (): Promise<{ pushedCount: number; columnName: string }> => {
+    if (!meeting.projectId) throw new Error('No linked project');
+
+    setQuickPushing(true);
+    try {
+      // 1. Get boards for the linked project
+      const boards = await window.electronAPI.getBoards(meeting.projectId);
+      if (boards.length === 0) throw new Error('No board found for this project');
+
+      // 2. Get columns for the first board
+      const board = boards[0];
+      const columns = await window.electronAPI.getColumns(board.id);
+      if (columns.length === 0) throw new Error('No columns found on this board');
+
+      // 3. Pick the leftmost column (lowest position)
+      const sortedColumns = [...columns].sort((a, b) => a.position - b.position);
+      const targetColumn = sortedColumns[0];
+
+      // 4. Get all approved action items
+      const approvedItems = meeting.actionItems.filter((a) => a.status === 'approved');
+      if (approvedItems.length === 0) throw new Error('No approved items to push');
+
+      // 5. Convert each approved item to a card in the target column
+      for (const item of approvedItems) {
+        await convertActionToCard(item.id, targetColumn.id);
+      }
+
+      return { pushedCount: approvedItems.length, columnName: targetColumn.name };
+    } finally {
+      setQuickPushing(false);
+    }
+  };
+
   const CopyBtn = ({ field, label, onClick, disabled }: {
     field: string; label: string; onClick: () => void; disabled?: boolean;
   }) => (
@@ -385,6 +420,8 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false }: Me
             meetingProjectId={meeting.projectId ?? undefined}
             meetingProjectName={linkedProjectName}
             onBatchConvert={(items) => setBatchConvertItems(items)}
+            onQuickPush={meeting.projectId ? handleQuickPush : undefined}
+            quickPushing={quickPushing}
           />
         </div>
 
