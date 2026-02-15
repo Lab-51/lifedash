@@ -2,16 +2,30 @@
 
 ## Session Info
 Last updated: 2026-02-15
-Session focus: Plan 11.3 EXECUTED — UX Quick Wins & Documentation Reconciliation
+Session focus: Phase 12 — Critical Fixes & Data Safety
 
 ## Position
-Milestone: Review Remediation — COMPLETE
-Phase: 11 (Review Remediation) — ALL PLANS COMPLETE
-Plan: 11.1 — COMPLETE (3/3 tasks)
-Plan: 11.2 — COMPLETE (3/3 tasks)
-Plan: 11.3 — COMPLETE (3/3 tasks)
-Latest commit: 23b784d on main
+Milestone: Self-Improve Remediation
+Phase: 12 (Critical Fixes & Data Safety)
+Plan: 12.1 — COMPLETE (3/3 tasks)
+Latest commit: 258bba9 on main
 Test suite: 150 tests across 7 files
+
+## Plan 12.1 Results
+Based on SELF-IMPROVE.md analysis (43 proposals). Top 3 HIGH-impact items:
+- Task 1: Fix command palette card navigation ✓ (ceb5f3c)
+  - New `cards:list-all` IPC endpoint (cards→columns→boards join for projectId)
+  - allCards in boardStore, eager-loaded in App.tsx
+  - CommandPalette navigates to `/projects/{id}?openCard={cardId}`
+  - BoardPage reads openCard param → auto-opens CardDetailModal
+- Task 2: Auto-save idea edits ✓ (6d1e20c)
+  - IdeaDetailModal: title/description save on blur, status/effort/impact/tags save immediately
+  - Removed manual Save button and handleSave function
+  - Matches CardDetailModal auto-save pattern
+- Task 3: Project rename + delete ✓ (258bba9)
+  - Inline rename: click Pencil → input replaces h3, Enter/blur saves, Escape cancels
+  - Delete with confirmation: Trash2 icon, window.confirm with warning text
+  - Both available on active and archived project cards
 
 ## Plan 11.3 Results
 - Task 1: Show Archived toggle on ProjectsPage ✓ (7662047)

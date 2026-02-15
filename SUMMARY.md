@@ -1,58 +1,48 @@
-# Summary — Plan 11.3: UX Quick Wins & Documentation Reconciliation
+# Summary — Plan 12.1: Critical Fixes & Data Safety
 
 ## Date: 2026-02-15
 ## Status: COMPLETE (3/3 tasks, sequential execution)
 
 ## What Changed
 
-Completed the remaining "Immediate" quick wins from the project review plus documentation reconciliation (review priority #5). This wraps up Phase 11 (Review Remediation).
+Addressed the top 3 HIGH-impact items from the SELF-IMPROVE.md analysis (43 total proposals). These fix broken functionality and prevent data loss — the foundation before building new features.
 
-### Task 1: Show Archived toggle on ProjectsPage
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 7662047
+### Task 1: Fix command palette card navigation
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** ceb5f3c
 
-- Added `showArchived` state + `hasArchivedProjects` derived check
-- Checkbox conditionally shown when archived projects exist (BrainstormPage pattern)
-- Archived project cards render with `opacity-50` styling
-- Archive button switches to "Unarchive" for archived cards
-- 1 file modified: `src/renderer/pages/ProjectsPage.tsx` (+48, -18)
+- New `cards:list-all` IPC endpoint joining cards→columns→boards for cross-project card data
+- `allCards` field in boardStore, eager-loaded on app startup
+- CommandPalette navigates to `/projects/{projectId}?openCard={cardId}`
+- BoardPage reads `openCard` URL param and auto-opens CardDetailModal
+- 7 files modified: cards.ts, projects.ts (preload), electron-api.ts, boardStore.ts, App.tsx, CommandPalette.tsx, BoardPage.tsx
 
-### Task 2: Sort controls on IdeasPage + MeetingsPage
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 03f5d5d
+### Task 2: Auto-save idea edits
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 6d1e20c
 
-- Sort dropdown with 3 options: Newest first (default), Oldest first, Title A-Z
-- Applied after existing filter/search — fully composable
-- Consistent dark-theme styling on both pages
-- 2 files modified: `IdeasPage.tsx`, `MeetingsPage.tsx` (+49, -9)
+- Title/description: auto-save on blur (matches CardDetailModal pattern)
+- Status/effort/impact/tags: save immediately on change
+- Removed manual Save button and `handleSave` function
+- 1 file modified: IdeaDetailModal.tsx (+44, -39)
 
-### Task 3: Documentation reconciliation
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 23b784d
+### Task 3: Project rename and delete
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 258bba9
 
-- PROJECT.md: Docker→PGlite, standalone operation (3 changes)
-- REQUIREMENTS.md: @kutalia→@fugood/whisper.node, Docker refs, tech stack table (5 changes)
-- ROADMAP.md: Phase 1-7 checkboxes marked complete, PostgreSQL→PGlite refs (4 changes)
-- CHEATSHEET.md: Removed Framer Motion from architecture diagram (1 change)
-- 4 files modified (+66, -67)
+- Inline rename: Pencil icon → input field, Enter/blur saves, Escape cancels
+- Delete with confirmation: Trash2 icon → `window.confirm` dialog
+- Both actions available on active and archived project cards
+- 1 file modified: ProjectsPage.tsx (+59, -5)
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors)
 - `npx vitest run`: 150/150 tests pass (no regressions)
 
-## Phase 11 Complete
-
-All 3 plans in the Review Remediation phase are done:
-
-| Plan | Focus | Tasks |
-|------|-------|-------|
-| 11.1 | Close-during-recording guard, command palette, markdown | 3/3 ✓ |
-| 11.2 | Extract business logic, 51 new tests | 3/3 ✓ |
-| 11.3 | Archive toggle, sort controls, docs reconciliation | 3/3 ✓ |
-
-**Total:** 9 tasks, 9 commits, 0 regressions
-
-## Remaining Items
-- README.md Framer Motion reference (line ~90) — minor, noted for future cleanup
-- See ISSUES.md for full deferred list
+## Self-Improve Items Addressed
+| Item | Category | Description |
+|------|----------|-------------|
+| F4 | Broken | Command palette card click does nothing |
+| F2 | Data Loss | IdeaDetailModal silently discards edits |
+| F1 | Missing CRUD | No project rename or delete |
 
 ## What's Next
-- Phase 11 (Review Remediation) is fully complete
-- Next: user-directed work, or plan next milestone
+- 40 remaining proposals in SELF-IMPROVE.md
+- Plan 12.2: Next batch of improvements (user-directed)
