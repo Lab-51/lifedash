@@ -7,11 +7,20 @@
 // react, lucide-react (Mic, Square, Loader2), recordingStore, audioCaptureService
 
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Square, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Square, Loader2, Trash2 } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
+import { useMeetingStore } from '../stores/meetingStore';
 import { onAudioLevel } from '../services/audioCaptureService';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
+
+/** Generate a default meeting title with the current date and time. */
+function suggestMeetingTitle(): string {
+  const now = new Date();
+  const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return `Meeting - ${date}, ${time}`;
+}
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -163,17 +172,27 @@ export default function RecordingControls() {
   const error = useRecordingStore(s => s.error);
   const starting = useRecordingStore(s => s.starting);
   const includeMic = useRecordingStore(s => s.includeMic);
+  const completedMeetingId = useRecordingStore(s => s.completedMeetingId);
+  const clearCompletedMeetingId = useRecordingStore(s => s.clearCompletedMeetingId);
   const startRecording = useRecordingStore(s => s.startRecording);
   const stopRecording = useRecordingStore(s => s.stopRecording);
   const setIncludeMic = useRecordingStore(s => s.setIncludeMic);
-  const [title, setTitle] = useState('');
+  const deleteMeeting = useMeetingStore(s => s.deleteMeeting);
+  const [title, setTitle] = useState(suggestMeetingTitle);
   const [selectedTemplate, setSelectedTemplate] = useState<MeetingTemplateType>('none');
 
   const handleStart = async () => {
     if (!title.trim()) return;
     await startRecording(title.trim(), undefined, selectedTemplate);
-    setTitle('');
+    setTitle(suggestMeetingTitle());
     setSelectedTemplate('none');
+  };
+
+  const handleDiscard = async () => {
+    if (!completedMeetingId) return;
+    if (!window.confirm('Discard this recording? The meeting and audio will be permanently deleted.')) return;
+    await deleteMeeting(completedMeetingId);
+    clearCompletedMeetingId();
   };
 
   const handleStop = async () => {
@@ -268,6 +287,16 @@ export default function RecordingControls() {
               </>
             )}
           </button>
+          {completedMeetingId && (
+            <button
+              onClick={handleDiscard}
+              className="w-full flex items-center justify-center gap-2 text-surface-500
+                         hover:text-red-400 text-xs py-1 transition-colors"
+            >
+              <Trash2 size={12} />
+              Discard last recording
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
