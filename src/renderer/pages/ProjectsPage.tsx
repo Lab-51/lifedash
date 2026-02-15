@@ -5,12 +5,12 @@
 
 // === DEPENDENCIES ===
 // react (useEffect, useState), react-router-dom (useNavigate),
-// lucide-react (FolderKanban, Plus, Archive, Sparkles), projectStore, LoadingSpinner,
+// lucide-react (FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2), projectStore, LoadingSpinner,
 // ProjectPlanningModal, shared types (CreateProjectInput)
 
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderKanban, Plus, Archive, Sparkles } from 'lucide-react';
+import { FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2 } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import LoadingSpinner from '../components/LoadingSpinner';
 const ProjectPlanningModal = lazy(() => import('../components/ProjectPlanningModal'));
@@ -33,7 +33,10 @@ function ProjectsPage() {
   const loadProjects = useProjectStore(s => s.loadProjects);
   const createProject = useProjectStore(s => s.createProject);
   const updateProject = useProjectStore(s => s.updateProject);
+  const deleteProject = useProjectStore(s => s.deleteProject);
   const [showArchived, setShowArchived] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [planningProjectId, setPlanningProjectId] = useState<string | null>(null);
   const [formData, setFormData] = useState<CreateProjectInput>({
@@ -70,6 +73,27 @@ function ProjectsPage() {
   const handleUnarchive = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     await updateProject(id, { archived: false });
+  };
+
+  const handleStartRename = (e: React.MouseEvent, project: { id: string; name: string }) => {
+    e.stopPropagation();
+    setEditingProjectId(project.id);
+    setEditName(project.name);
+  };
+
+  const handleSaveRename = async (id: string) => {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== projects.find(p => p.id === id)?.name) {
+      await updateProject(id, { name: trimmed });
+    }
+    setEditingProjectId(null);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation();
+    if (window.confirm(`Delete project "${name}"? This will permanently remove the project and all its boards, columns, and cards. This cannot be undone.`)) {
+      await deleteProject(id);
+    }
   };
 
   /** Format date as "Jan 15, 2026" */
@@ -218,11 +242,34 @@ function ProjectsPage() {
                     className="w-3 h-3 rounded-full shrink-0"
                     style={{ backgroundColor: project.color || '#3b82f6' }}
                   />
-                  <h3 className="font-semibold text-surface-100 truncate">
-                    {project.name}
-                  </h3>
+                  {editingProjectId === project.id ? (
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onBlur={() => handleSaveRename(project.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveRename(project.id);
+                        if (e.key === 'Escape') setEditingProjectId(null);
+                      }}
+                      autoFocus
+                      className="font-semibold text-surface-100 bg-surface-700 rounded px-1 -mx-1 w-full outline-none focus:ring-1 focus:ring-primary-500"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <h3 className="font-semibold text-surface-100 truncate">
+                      {project.name}
+                    </h3>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0 ml-2">
+                  <button
+                    onClick={e => handleStartRename(e, project)}
+                    className="text-surface-500 hover:text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    title="Rename project"
+                  >
+                    <Pencil size={16} />
+                  </button>
                   <button
                     onClick={e => { e.stopPropagation(); setPlanningProjectId(project.id); }}
                     className="text-surface-500 hover:text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
@@ -247,6 +294,13 @@ function ProjectsPage() {
                       <Archive size={16} />
                     </button>
                   )}
+                  <button
+                    onClick={e => handleDelete(e, project.id, project.name)}
+                    className="text-surface-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    title="Delete project"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
               {project.description && (
