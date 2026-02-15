@@ -19,6 +19,10 @@ import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { useTheme } from './hooks/useTheme';
 import { useRecordingStore } from './stores/recordingStore';
+import { useProjectStore } from './stores/projectStore';
+import { useMeetingStore } from './stores/meetingStore';
+import { useIdeaStore } from './stores/ideaStore';
+import { useBrainstormStore } from './stores/brainstormStore';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 
@@ -64,6 +68,15 @@ function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     const cleanup = useRecordingStore.getState().initListener();
     return cleanup;
+  }, []);
+
+  // Pre-load entity data so command palette (Ctrl+K) always has results,
+  // even before the user visits the corresponding pages.
+  useEffect(() => {
+    useProjectStore.getState().loadProjects();
+    useMeetingStore.getState().loadMeetings();
+    useIdeaStore.getState().loadIdeas();
+    useBrainstormStore.getState().loadSessions();
   }, []);
 
   // Listen for global hotkey IPC event (Ctrl+Shift+Space from main process)
