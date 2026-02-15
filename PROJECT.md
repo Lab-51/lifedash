@@ -24,7 +24,7 @@ A "living" dashboard that:
 ## Tech Stack
 - **Shell:** Electron (system audio access, desktop integration)
 - **Frontend:** React + TypeScript + Tailwind CSS
-- **Database:** PostgreSQL (local via Docker)
+- **Database:** PGlite (embedded WASM PostgreSQL — no Docker required)
 - **AI Layer:** Provider-agnostic adapter system (user-configurable per task)
   - Transcription: Whisper (local) or API-based
   - Reasoning: OpenAI, Anthropic, Ollama, Kimi, and others via pluggable adapters
@@ -33,9 +33,9 @@ A "living" dashboard that:
 ## Constraints
 - Desktop-only (Electron) — not a web app
 - Personal tool first — single user, no auth initially
-- Privacy-conscious — local PostgreSQL, local Whisper option
+- Privacy-conscious — embedded PGlite database, local Whisper option
 - AI costs configurable — user controls which models are used and when
-- Docker required for PostgreSQL
+- Fully standalone — no Docker or external services required
 
 ## Target User
 Developer/professional who attends meetings, manages projects, and wants AI assistance without scattered tools.

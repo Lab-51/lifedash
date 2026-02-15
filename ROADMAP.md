@@ -1,20 +1,20 @@
 # Living Dashboard — Roadmap
 
 ## Phase 1: Foundation & App Shell
-**Goal:** Working Electron app with PostgreSQL, navigation, and design system.
+**Goal:** Working Electron app with PGlite, navigation, and design system.
 **Requirements:** R1 (Electron Shell), R2 (Database Layer), R8 (Navigation & Layout)
 **Complexity:** 15 points
 **Estimated Tasks:** 8-10
 
 ### Deliverables
-- [ ] Electron app boots with custom frameless window
-- [ ] PostgreSQL running via Docker Compose
-- [ ] Drizzle ORM connected with initial schema + migrations
-- [ ] Sidebar navigation between views (Projects, Meetings, Ideas, Settings)
-- [ ] React Router routing between views
-- [ ] Tailwind CSS design system foundation (colors, typography, spacing)
-- [ ] IPC bridge between main and renderer process
-- [ ] System tray integration
+- [x] Electron app boots with custom frameless window
+- [x] PGlite embedded database (no Docker required)
+- [x] Drizzle ORM connected with initial schema + migrations
+- [x] Sidebar navigation between views (Projects, Meetings, Ideas, Settings)
+- [x] React Router routing between views
+- [x] Tailwind CSS design system foundation (colors, typography, spacing)
+- [x] IPC bridge between main and renderer process
+- [x] System tray integration
 
 ### Key Decisions
 - Electron Forge vs electron-builder for packaging
@@ -30,13 +30,13 @@
 **Estimated Tasks:** 6-8
 
 ### Deliverables
-- [ ] Create, edit, delete, archive projects
-- [ ] Kanban board with customizable columns
-- [ ] Card CRUD with drag-and-drop between columns
-- [ ] Card detail view with TipTap rich text editor
-- [ ] Labels/tags system
-- [ ] Search and filter cards across projects
-- [ ] Board sidebar with project list
+- [x] Create, edit, delete, archive projects
+- [x] Kanban board with customizable columns
+- [x] Card CRUD with drag-and-drop between columns
+- [x] Card detail view with TipTap rich text editor
+- [x] Labels/tags system
+- [x] Search and filter cards across projects
+- [x] Board sidebar with project list
 
 ### Key Decisions
 - Card data model (what fields, what's extensible)
@@ -52,14 +52,14 @@
 **Estimated Tasks:** 5-7
 
 ### Deliverables
-- [ ] Vercel AI SDK integration with OpenAI + Anthropic + Ollama adapters
-- [ ] Settings page: API key management (secure storage)
-- [ ] Per-task model configuration UI
-- [ ] Provider connectivity test
-- [ ] Token usage tracking
-- [ ] Whisper model download manager
-- [ ] Theme toggle (light/dark)
-- [ ] Docker/DB connection settings
+- [x] Vercel AI SDK integration with OpenAI + Anthropic + Ollama adapters
+- [x] Settings page: API key management (secure storage)
+- [x] Per-task model configuration UI
+- [x] Provider connectivity test
+- [x] Token usage tracking
+- [x] Whisper model download manager
+- [x] Theme toggle (light/dark)
+- [x] Database settings
 
 ### Key Decisions
 - Secure storage approach (Electron safeStorage API)
@@ -75,15 +75,15 @@
 **Estimated Tasks:** 8-10
 
 ### Deliverables
-- [ ] System audio capture via desktopCapturer
-- [ ] Audio source selector
-- [ ] Start/pause/stop recording controls
-- [ ] Recording indicator in status bar
-- [ ] Audio chunking pipeline (10s segments)
-- [ ] Whisper transcription in worker thread
-- [ ] Live transcript display during recording
-- [ ] Transcript storage in database
-- [ ] Background recording (tray mode)
+- [x] System audio capture via desktopCapturer
+- [x] Audio source selector
+- [x] Start/pause/stop recording controls
+- [x] Recording indicator in status bar
+- [x] Audio chunking pipeline (10s segments)
+- [x] Whisper transcription in worker thread
+- [x] Live transcript display during recording
+- [x] Transcript storage in database
+- [x] Background recording (tray mode)
 
 ### Key Decisions
 - Audio format (WAV vs WebM vs PCM)
@@ -100,13 +100,13 @@
 **Estimated Tasks:** 5-7
 
 ### Deliverables
-- [ ] Post-meeting AI summary generation
-- [ ] Action item extraction from transcript
-- [ ] Review/edit/approve suggested actions UI
-- [ ] Convert approved actions → project cards
-- [ ] Meeting ↔ Project linking
-- [ ] Meeting history view with search
-- [ ] Prompt templates for summarization
+- [x] Post-meeting AI summary generation
+- [x] Action item extraction from transcript
+- [x] Review/edit/approve suggested actions UI
+- [x] Convert approved actions → project cards
+- [x] Meeting ↔ Project linking
+- [x] Meeting history view with search
+- [x] Prompt templates for summarization
 
 ### Key Decisions
 - Summary format (bullet points vs narrative)
@@ -122,13 +122,13 @@
 **Estimated Tasks:** 8-10
 
 ### Deliverables
-- [ ] Conversational AI brainstorming interface
-- [ ] Context injection (project data, cards, meetings)
-- [ ] Brainstorm session management
-- [ ] Idea capture interface (quick-add)
-- [ ] Idea tagging and categorization
-- [ ] Convert idea → project or feature card
-- [ ] Idea analysis (AI-assisted feasibility/effort)
+- [x] Conversational AI brainstorming interface
+- [x] Context injection (project data, cards, meetings)
+- [x] Brainstorm session management
+- [x] Idea capture interface (quick-add)
+- [x] Idea tagging and categorization
+- [x] Convert idea → project or feature card
+- [x] Idea analysis (AI-assisted feasibility/effort)
 
 ---
 
@@ -139,13 +139,13 @@
 **Estimated Tasks:** 15-20
 
 ### Deliverables
-- [ ] AI project planning assistant
-- [ ] Production-focused pillars generator
-- [ ] Advanced card features (comments, attachments, due dates)
-- [ ] API transcription providers (Deepgram, AssemblyAI)
-- [ ] Database backup/restore UI
-- [ ] Desktop notifications
-- [ ] Meeting templates
+- [x] AI project planning assistant
+- [x] Production-focused pillars generator
+- [x] Advanced card features (comments, attachments, due dates)
+- [x] API transcription providers (Deepgram, AssemblyAI)
+- [x] Database backup/restore UI
+- [x] Desktop notifications
+- [x] Meeting templates
 
 ---
 

@@ -15,7 +15,7 @@
 ### R2: PostgreSQL Database Layer
 - **Priority:** Critical
 - **Complexity:** Medium (5 pts)
-- Docker Compose setup for local PostgreSQL 16
+- PGlite embedded WASM PostgreSQL (no Docker required)
 - Drizzle ORM integration with TypeScript schema
 - Database migration system (drizzle-kit)
 - Connection management (health checks, reconnection)
@@ -48,7 +48,7 @@
 ### R5: Meeting Intelligence — Transcription
 - **Priority:** Critical
 - **Complexity:** High (8 pts)
-- Local transcription via `@kutalia/whisper-node-addon` (whisper.cpp with GPU support)
+- Local transcription via `@fugood/whisper.node` v1.0.16 (NAPI native addon)
 - Audio chunking system (10-second segments with overlap)
 - Real-time transcript display during meeting
 - Transcript storage in PostgreSQL
@@ -91,7 +91,7 @@
 - Whisper model selection and download
 - Audio device/source preferences
 - Theme preference (light/dark)
-- Docker/PostgreSQL connection settings
+- Database settings
 - Data export/import
 
 ---
@@ -220,9 +220,8 @@
 | Drag & Drop | pragmatic-drag-and-drop | 4.7kB, headless, by Atlassian |
 | Rich Text | TipTap | Extension-based, ProseMirror core |
 | Routing | React Router 7 | Standard for React SPAs |
-| Animation | Framer Motion | Smooth card transitions |
-| Database | PostgreSQL 16 (Docker) | Powerful, local, reliable |
+| Database | PGlite (embedded WASM PostgreSQL) | Zero-setup, local, reliable |
 | ORM | Drizzle ORM | Lightweight, SQL-first, TypeScript |
 | AI SDK | Vercel AI SDK 5+ | Multi-provider, type-safe, streaming |
-| Transcription | @kutalia/whisper-node-addon (local) | GPU support, prebuilt binaries, PCM streaming |
+| Transcription | @fugood/whisper.node v1.0.16 (local) | NAPI native addon, prebuilt binaries, PCM streaming |
 | Icons | Lucide React | Consistent, tree-shakeable |
