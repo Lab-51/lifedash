@@ -9,8 +9,27 @@ Milestone: Self-Improve Remediation
 Phase: 12 (Critical Fixes & Data Safety)
 Plan: 12.1 — COMPLETE (3/3 tasks)
 Plan: 12.2 — COMPLETE (3/3 tasks)
-Latest commit: aa50215 on main
+Plan: 12.3 — COMPLETE (3/3 tasks)
+Latest commit: addb102 on main
 Test suite: 150 tests across 7 files
+
+## Plan 12.3 Results
+Home Dashboard & Project Health (SELF-IMPROVE.md items E2, F3, Q8, Q9, F10, F7):
+- Task 1: Home Dashboard as default route ✓ (068d58f)
+  - New DashboardPage with greeting, quick actions, active projects, recent meetings, recent ideas
+  - ProjectsPage moved to /projects route
+  - Sidebar updated: Home (LayoutDashboard) icon first, Projects at /projects
+  - Keyboard shortcuts shifted: Ctrl+1=Home, Ctrl+2=Projects, etc.
+  - CommandPalette updated with Home entry and /projects navigation
+- Task 2: Card count badges on ProjectsPage ✓ (81a9ac5)
+  - LayoutList icon + "N cards" badge per project card
+  - Uses allCards from boardStore grouped by projectId (no extra IPC)
+  - DashboardPage already had card counts from Task 1
+- Task 3: Quick keyboard/workflow wins ✓ (addb102)
+  - Enter-to-create project: already worked (form onSubmit)
+  - Ctrl+Enter brainstorm: already worked (Enter sends, Shift+Enter for newline)
+  - Auto-suggest meeting title: "Meeting - Feb 15, 2:30 PM" pre-filled
+  - Discard recording: "Discard last recording" button with confirmation
 
 ## Plan 12.2 Results
 Workflow speed & UX polish (SELF-IMPROVE.md items E4, F5, Q5, Q1, Q10, Q23):
