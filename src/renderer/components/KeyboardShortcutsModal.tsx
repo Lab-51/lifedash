@@ -14,11 +14,12 @@ const SHORTCUT_GROUPS = [
   {
     label: 'Navigation',
     shortcuts: [
-      { keys: 'Ctrl+1', description: 'Projects' },
-      { keys: 'Ctrl+2', description: 'Meetings' },
-      { keys: 'Ctrl+3', description: 'Ideas' },
-      { keys: 'Ctrl+4', description: 'Brainstorm' },
-      { keys: 'Ctrl+5', description: 'Settings' },
+      { keys: 'Ctrl+1', description: 'Home' },
+      { keys: 'Ctrl+2', description: 'Projects' },
+      { keys: 'Ctrl+3', description: 'Meetings' },
+      { keys: 'Ctrl+4', description: 'Ideas' },
+      { keys: 'Ctrl+5', description: 'Brainstorm' },
+      { keys: 'Ctrl+6', description: 'Settings' },
     ],
   },
   {

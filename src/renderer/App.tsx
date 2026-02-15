@@ -27,6 +27,7 @@ import { useBoardStore } from './stores/boardStore';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
 const IdeasPage = lazy(() => import('./pages/IdeasPage'));
@@ -115,7 +116,8 @@ function App() {
           <TitleBar />
           <Routes>
             <Route element={<AppLayout />}>
-              <Route index element={<ProjectsPage />} />
+              <Route index element={<DashboardPage />} />
+              <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/meetings" element={<MeetingsPage />} />
               <Route path="/ideas" element={<IdeasPage />} />
               <Route path="/brainstorm" element={<BrainstormPage />} />

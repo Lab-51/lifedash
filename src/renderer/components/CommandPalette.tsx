@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
-import { Search, Folder, Mic, Lightbulb, MessageSquare, LayoutGrid, Settings, Plus, Play, Keyboard } from 'lucide-react';
+import { Search, Folder, Mic, Lightbulb, MessageSquare, LayoutGrid, LayoutDashboard, Settings, Plus, Play, Keyboard } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useIdeaStore } from '../stores/ideaStore';
@@ -61,7 +61,8 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
   const go = useCallback((path: string) => { navigate(path); onClose(); }, [navigate, onClose]);
 
   const pageItems: CommandItem[] = useMemo(() => [
-    { id: 'p-proj', label: 'Projects', icon: Folder, category: 'Pages', action: () => go('/') },
+    { id: 'p-home', label: 'Home', icon: LayoutDashboard, category: 'Pages', action: () => go('/') },
+    { id: 'p-proj', label: 'Projects', icon: Folder, category: 'Pages', action: () => go('/projects') },
     { id: 'p-meet', label: 'Meetings', icon: Mic, category: 'Pages', action: () => go('/meetings') },
     { id: 'p-idea', label: 'Ideas', icon: Lightbulb, category: 'Pages', action: () => go('/ideas') },
     { id: 'p-brain', label: 'Brainstorm', icon: MessageSquare, category: 'Pages', action: () => go('/brainstorm') },
@@ -70,7 +71,7 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
 
   const actionItems: CommandItem[] = useMemo(() => [
     { id: 'a-idea', label: 'New Idea...', icon: Plus, category: 'Actions', action: () => go('/ideas?action=create') },
-    { id: 'a-proj', label: 'New Project...', icon: Plus, category: 'Actions', action: () => go('/?action=create') },
+    { id: 'a-proj', label: 'New Project...', icon: Plus, category: 'Actions', action: () => go('/projects?action=create') },
     { id: 'a-rec', label: 'Start Recording', icon: Play, category: 'Actions', action: () => go('/meetings?action=record') },
     { id: 'a-set', label: 'Open Settings', icon: Settings, category: 'Actions', action: () => go('/settings') },
     ...(onShowShortcuts ? [{ id: 'a-keys', label: 'Keyboard Shortcuts', icon: Keyboard, category: 'Actions', action: () => onShowShortcuts() }] : []),

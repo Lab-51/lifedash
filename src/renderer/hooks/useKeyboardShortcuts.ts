@@ -1,6 +1,6 @@
 // === FILE PURPOSE ===
 // Global keyboard shortcut handler for navigation.
-// Ctrl+1 through Ctrl+5 navigate to the five main pages.
+// Ctrl+1 through Ctrl+6 navigate to the six main pages.
 // Supports both Ctrl (Windows/Linux) and Cmd (macOS) modifiers.
 
 // === DEPENDENCIES ===
@@ -12,10 +12,11 @@ import type { NavigateFunction } from 'react-router-dom';
 /** Map of digit keys to route paths */
 const SHORTCUT_MAP: Record<string, string> = {
   '1': '/',
-  '2': '/meetings',
-  '3': '/ideas',
-  '4': '/brainstorm',
-  '5': '/settings',
+  '2': '/projects',
+  '3': '/meetings',
+  '4': '/ideas',
+  '5': '/brainstorm',
+  '6': '/settings',
 };
 
 function useKeyboardShortcuts(

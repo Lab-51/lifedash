@@ -7,6 +7,7 @@
 
 import { NavLink, useLocation } from 'react-router-dom';
 import {
+  LayoutDashboard,
   FolderKanban,
   Mic,
   Lightbulb,
@@ -28,7 +29,8 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/', label: 'Projects', icon: FolderKanban },
+  { path: '/', label: 'Home', icon: LayoutDashboard },
+  { path: '/projects', label: 'Projects', icon: FolderKanban },
   { path: '/meetings', label: 'Meetings', icon: Mic },
   { path: '/ideas', label: 'Ideas', icon: Lightbulb },
   { path: '/brainstorm', label: 'Brainstorm', icon: Brain },
@@ -62,20 +64,22 @@ function Sidebar() {
   return (
     <nav className="w-16 bg-surface-900 border-r border-surface-800 flex flex-col shrink-0">
       {navItems.map(({ path, label, icon: Icon }) => {
+        const isHomeItem = path === '/';
+        const isProjectsItem = path === '/projects';
         // Projects item should also be active on /projects/:id routes
-        const isProjectsItem = path === '/';
         const isProjectsActive = isProjectsItem
-          ? location.pathname === '/' || location.pathname.startsWith('/projects/')
+          ? location.pathname === '/projects' || location.pathname.startsWith('/projects/')
           : false;
+        const isHomeActive = isHomeItem ? location.pathname === '/' : false;
 
         return (
           <NavLink
             key={path}
             to={path}
-            end={isProjectsItem}
+            end={isHomeItem}
             title={label}
             className={({ isActive: navActive }) => {
-              const active = isProjectsItem ? isProjectsActive : navActive;
+              const active = isHomeItem ? isHomeActive : isProjectsItem ? isProjectsActive : navActive;
               return [
                 'w-full h-12 flex items-center justify-center transition-colors',
                 active
