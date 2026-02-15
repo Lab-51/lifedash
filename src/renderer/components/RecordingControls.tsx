@@ -209,6 +209,7 @@ export default function RecordingControls() {
                        focus:outline-none focus:ring-1 focus:ring-primary-500"
             onKeyDown={(e) => e.key === 'Enter' && handleStart()}
             disabled={starting}
+            autoFocus
           />
           <select
             value={selectedTemplate}

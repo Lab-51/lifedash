@@ -7,7 +7,8 @@
 // react, lucide-react, meetingStore
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Clock, Trash2, Info, Search, Copy, Check } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, Clock, Trash2, Info, Search, Copy, Check, ArrowRight } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
 import BriefSection from './BriefSection';
@@ -60,6 +61,7 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
 }
 
 export default function MeetingDetailModal({ onClose, autoGenerate = false }: MeetingDetailModalProps) {
+  const navigate = useNavigate();
   const selectedMeeting = useMeetingStore(s => s.selectedMeeting);
   const updateMeeting = useMeetingStore(s => s.updateMeeting);
   const deleteMeeting = useMeetingStore(s => s.deleteMeeting);
@@ -374,6 +376,19 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false }: Me
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+          {meeting.projectId && (
+            <button
+              onClick={() => {
+                navigate(`/projects/${meeting.projectId}`);
+                handleClose();
+              }}
+              className="flex items-center gap-1 text-xs text-primary-400 hover:text-primary-300 transition-colors"
+              title="Go to project board"
+            >
+              Open board
+              <ArrowRight size={13} />
+            </button>
+          )}
         </div>
 
         {/* Meeting Analytics */}
