@@ -12,7 +12,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Brain, Plus, Send, Loader2, Trash2, Archive,
-  MessageSquare, Bot, Sparkles, Lightbulb, Search, Layers, ListChecks,
+  MessageSquare, Bot, Sparkles, Lightbulb, Search, Layers, ListChecks, Square,
 } from 'lucide-react';
 import { useBrainstormStore } from '../stores/brainstormStore';
 import { useProjectStore } from '../stores/projectStore';
@@ -41,6 +41,7 @@ export default function BrainstormPage() {
   const updateSession = useBrainstormStore(s => s.updateSession);
   const deleteSession = useBrainstormStore(s => s.deleteSession);
   const sendMessage = useBrainstormStore(s => s.sendMessage);
+  const abortStream = useBrainstormStore(s => s.abortStream);
   const clearActiveSession = useBrainstormStore(s => s.clearActiveSession);
   const exportToIdea = useBrainstormStore(s => s.exportToIdea);
   const projects = useProjectStore(s => s.projects);
@@ -87,10 +88,10 @@ export default function BrainstormPage() {
     loadSession(session.id);
   };
 
-  const handleSendMessage = async () => {
-    if (!input.trim() || streaming) return;
-    const content = input.trim();
-    setInput('');
+  const handleSendMessage = async (overrideContent?: string) => {
+    const content = overrideContent ?? input.trim();
+    if (!content || streaming) return;
+    if (!overrideContent) setInput('');
     await sendMessage(content);
   };
 
@@ -385,12 +386,30 @@ export default function BrainstormPage() {
               {/* Messages area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {activeSession.messages.length === 0 && !streaming && (
-                  <div className="text-center py-12 text-surface-500">
-                    <MessageSquare size={32} className="mx-auto mb-2 text-surface-600" />
-                    <p className="text-sm">Start the conversation</p>
-                    <p className="text-xs text-surface-600 mt-1">
-                      Type a message below to brainstorm with AI
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <MessageSquare size={32} className="mb-3 text-surface-600" />
+                    <p className="text-sm font-medium text-surface-300 mb-1">
+                      Start a conversation
                     </p>
+                    <p className="text-xs text-surface-500 mb-6">
+                      Try one of these prompts or type your own below
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full px-4">
+                      {[
+                        'Help me brainstorm features for my project',
+                        'What are the pros and cons of [technology]?',
+                        'Help me plan a sprint for this week',
+                        'Review my architecture and suggest improvements',
+                      ].map((prompt) => (
+                        <button
+                          key={prompt}
+                          onClick={() => handleSendMessage(prompt)}
+                          className="text-left px-3 py-2.5 rounded-lg bg-surface-700 text-sm text-surface-300 hover:bg-surface-600 hover:text-surface-100 transition-colors border border-surface-600 hover:border-surface-500"
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -430,6 +449,19 @@ export default function BrainstormPage() {
                   </div>
                 )}
 
+                {/* Stop generating button */}
+                {streaming && (
+                  <div className="flex justify-center py-1">
+                    <button
+                      onClick={() => abortStream()}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-700 hover:bg-surface-600 border border-surface-600 hover:border-surface-500 text-surface-300 hover:text-surface-100 text-xs transition-colors"
+                    >
+                      <Square size={12} fill="currentColor" />
+                      Stop generating
+                    </button>
+                  </div>
+                )}
+
                 <div ref={messagesEndRef} />
               </div>
 
@@ -449,7 +481,7 @@ export default function BrainstormPage() {
                     style={{ minHeight: '42px' }}
                   />
                   <button
-                    onClick={handleSendMessage}
+                    onClick={() => handleSendMessage()}
                     disabled={!input.trim() || streaming}
                     className="bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white p-2.5 rounded-xl transition-colors flex-shrink-0"
                   >

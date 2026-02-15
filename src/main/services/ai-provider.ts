@@ -323,6 +323,7 @@ export function streamGenerate(options: {
   system?: string;
   temperature?: number;
   maxTokens?: number;
+  abortSignal?: AbortSignal;
 }) {
   const factory = getProvider(
     options.providerId,
@@ -337,5 +338,6 @@ export function streamGenerate(options: {
     system: options.system,
     temperature: sanitizeTemperature(options.providerName, options.temperature),
     maxOutputTokens: options.maxTokens,
+    abortSignal: options.abortSignal,
   });
 }

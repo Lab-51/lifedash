@@ -41,6 +41,7 @@ interface BrainstormStore {
 
   // Chat actions
   sendMessage: (content: string) => Promise<void>;
+  abortStream: () => Promise<void>;
 
   // Export actions
   exportToIdea: (messageId: string) => Promise<Idea>;
@@ -159,6 +160,16 @@ export const useBrainstormStore = create<BrainstormStore>((set, get) => ({
     } finally {
       cleanup();
     }
+  },
+
+  abortStream: async () => {
+    if (!get().streaming) return;
+    try {
+      await window.electronAPI.abortBrainstorm();
+    } catch {
+      // Abort is best-effort — stream may have already finished
+    }
+    set({ streaming: false, streamingText: '' });
   },
 
   exportToIdea: async (messageId: string) => {

@@ -17,6 +17,9 @@ import {
 
 const log = createLogger('Brainstorm');
 
+// Active stream abort controller — allows renderer to cancel in-progress generation
+let activeAbortController: AbortController | null = null;
+
 export function registerBrainstormHandlers(): void {
   ipcMain.handle('brainstorm:list-sessions', async () => {
     return brainstormService.getSessions();
@@ -60,7 +63,10 @@ export function registerBrainstormHandlers(): void {
       throw new Error('No AI provider configured. Go to Settings to add one.');
     }
 
-    // 4. Stream AI response
+    // 4. Stream AI response with abort support
+    const abortController = new AbortController();
+    activeAbortController = abortController;
+
     const result = streamGenerate({
       providerId: provider.providerId,
       providerName: provider.providerName,
@@ -74,36 +80,62 @@ export function registerBrainstormHandlers(): void {
       system: context,
       temperature: provider.temperature ?? 0.7,
       maxTokens: provider.maxTokens ?? 2048,
+      abortSignal: abortController.signal,
     });
 
     let fullText = '';
+    let aborted = false;
     try {
       for await (const chunk of result.textStream) {
         fullText += chunk;
         event.sender.send('brainstorm:stream-chunk', { sessionId: validSessionId, chunk });
       }
     } catch (streamErr) {
-      // Some providers don't send proper finish signals, causing NoOutputGeneratedError
-      // If we already received text, treat the stream as successful
-      if (!fullText) throw streamErr;
-      log.warn('Stream ended with error but text was received:', streamErr instanceof Error ? streamErr.message : streamErr);
+      // Check if the stream was aborted by the user
+      if (abortController.signal.aborted) {
+        aborted = true;
+        log.info('Brainstorm stream aborted by user');
+      } else if (!fullText) {
+        // Some providers don't send proper finish signals, causing NoOutputGeneratedError
+        throw streamErr;
+      } else {
+        log.warn('Stream ended with error but text was received:', streamErr instanceof Error ? streamErr.message : streamErr);
+      }
+    } finally {
+      activeAbortController = null;
     }
 
-    if (!fullText.trim()) {
+    // If aborted with no text, return null (no assistant message to save)
+    if (aborted && !fullText.trim()) {
+      return null;
+    }
+
+    if (!aborted && !fullText.trim()) {
       throw new Error('AI provider returned an empty response. Try again or check your provider settings.');
     }
 
     // 5. Log usage (fire-and-forget — some providers omit usage in streams)
-    try {
-      const usage = await result.usage;
-      await logUsage(provider.providerId, provider.model, 'brainstorming', usage);
-    } catch {
-      log.debug('Usage data unavailable for this stream (provider may not support it)');
+    if (!aborted) {
+      try {
+        const usage = await result.usage;
+        await logUsage(provider.providerId, provider.model, 'brainstorming', usage);
+      } catch {
+        log.debug('Usage data unavailable for this stream (provider may not support it)');
+      }
     }
 
-    // 6. Save and return assistant message
+    // 6. Save and return assistant message (save partial text if aborted with content)
     const assistantMsg = await brainstormService.addMessage(validSessionId, 'assistant', fullText);
     return assistantMsg;
+  });
+
+  // Abort active brainstorm stream
+  ipcMain.handle('brainstorm:abort', async () => {
+    if (activeAbortController) {
+      activeAbortController.abort();
+      activeAbortController = null;
+      log.info('Brainstorm stream abort requested');
+    }
   });
 
   ipcMain.handle('brainstorm:export-to-idea', async (_event, sessionId: unknown, messageId: unknown) => {
