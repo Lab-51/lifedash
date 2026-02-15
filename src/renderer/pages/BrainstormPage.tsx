@@ -9,12 +9,14 @@
 // - No message editing/deletion
 // - Session rename via double-click (may not be immediately discoverable)
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Brain, Plus, Send, Loader2, Trash2, Archive,
   MessageSquare, Bot, Sparkles, Lightbulb, Search, Layers, ListChecks, Square,
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useBrainstormStore } from '../stores/brainstormStore';
 import { useProjectStore } from '../stores/projectStore';
 import ChatMessage from '../components/ChatMessage';
@@ -57,6 +59,7 @@ export default function BrainstormPage() {
   const [renameTitle, setRenameTitle] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Handle ?action=create — auto-open the new session form
@@ -82,6 +85,25 @@ export default function BrainstormPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeSession?.messages, streamingText]);
 
+  // Auto-select last active brainstorm session on mount
+  useEffect(() => {
+    if (sessions.length > 0 && !activeSession && !loadingSession) {
+      const lastId = localStorage.getItem('lastBrainstormSessionId');
+      if (lastId && sessions.some(s => s.id === lastId)) {
+        loadSession(lastId);
+      }
+    }
+  }, [sessions, activeSession, loadingSession, loadSession]);
+
+  // Textarea auto-resize helper
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 160) + 'px'; // max ~6 lines
+    }
+  }, []);
+
   const handleCreateSession = async () => {
     if (!newSessionTitle.trim()) return;
     const session = await createSession({
@@ -97,12 +119,19 @@ export default function BrainstormPage() {
     setSelectedTemplateId('freeform');
     setShowNewSession(false);
     loadSession(session.id);
+    localStorage.setItem('lastBrainstormSessionId', session.id);
   };
 
   const handleSendMessage = async (overrideContent?: string) => {
     const content = overrideContent ?? input.trim();
     if (!content || streaming) return;
-    if (!overrideContent) setInput('');
+    if (!overrideContent) {
+      setInput('');
+      // Reset textarea height after sending
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+    }
     await sendMessage(content);
   };
 
@@ -261,7 +290,10 @@ export default function BrainstormPage() {
               filteredSessions.map((session) => (
                 <div
                   key={session.id}
-                  onClick={() => loadSession(session.id)}
+                  onClick={() => {
+                    loadSession(session.id);
+                    localStorage.setItem('lastBrainstormSessionId', session.id);
+                  }}
                   className={`group flex items-center justify-between px-3 py-2.5 cursor-pointer border-l-2 transition-colors ${
                     activeSession?.id === session.id
                       ? 'bg-surface-700/50 border-primary-500'
@@ -440,8 +472,34 @@ export default function BrainstormPage() {
                         <Bot size={14} className="text-primary-400" />
                         <span className="text-xs text-surface-500">AI</span>
                       </div>
-                      <div className="whitespace-pre-wrap text-sm text-surface-200">
-                        {streamingText}
+                      <div className="text-sm text-surface-200">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            h1: ({ children }) => <h1 className="text-lg font-bold mt-3 mb-1">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-base font-semibold mt-2 mb-1">{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-sm font-semibold mt-2 mb-1">{children}</h3>,
+                            p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                            ul: ({ children }) => <ul className="list-disc pl-4 mb-2">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-4 mb-2">{children}</ol>,
+                            li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                            code: ({ className, children, ...props }) => {
+                              const isInline = !className;
+                              return isInline
+                                ? <code className="bg-surface-700 px-1 py-0.5 rounded text-xs font-mono">{children}</code>
+                                : <code className={`${className} block bg-surface-800 p-3 rounded-lg text-xs font-mono overflow-x-auto my-2`} {...props}>{children}</code>;
+                            },
+                            pre: ({ children }) => <pre className="bg-surface-950 border border-surface-700 rounded-lg overflow-x-auto my-2">{children}</pre>,
+                            a: ({ href, children }) => <a href={href} className="text-primary-400 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                            table: ({ children }) => <table className="border-collapse border border-surface-700 my-2 text-xs">{children}</table>,
+                            th: ({ children }) => <th className="border border-surface-700 px-2 py-1 bg-surface-800 font-semibold">{children}</th>,
+                            td: ({ children }) => <td className="border border-surface-700 px-2 py-1">{children}</td>,
+                            blockquote: ({ children }) => <blockquote className="border-l-2 border-primary-500 pl-3 italic text-surface-400 my-2">{children}</blockquote>,
+                            hr: () => <hr className="border-surface-700 my-3" />,
+                          }}
+                        >
+                          {streamingText}
+                        </ReactMarkdown>
                         <span className="animate-pulse text-primary-400">|</span>
                       </div>
                     </div>
@@ -483,12 +541,16 @@ export default function BrainstormPage() {
                 )}
                 <div className="flex items-end gap-2">
                   <textarea
+                    ref={textareaRef}
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      autoResize();
+                    }}
                     onKeyDown={handleKeyDown}
                     placeholder="Type your message... (Shift+Enter for new line)"
                     rows={1}
-                    className="flex-1 bg-surface-800 border border-surface-700 rounded-xl px-4 py-2.5 text-sm text-surface-200 placeholder-surface-500 resize-none focus:outline-none focus:border-primary-500 max-h-32"
+                    className="flex-1 bg-surface-800 border border-surface-700 rounded-xl px-4 py-2.5 text-sm text-surface-200 placeholder-surface-500 resize-none overflow-hidden focus:outline-none focus:border-primary-500"
                     style={{ minHeight: '42px' }}
                   />
                   <button
