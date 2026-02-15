@@ -33,6 +33,7 @@ function ProjectsPage() {
   const loadProjects = useProjectStore(s => s.loadProjects);
   const createProject = useProjectStore(s => s.createProject);
   const updateProject = useProjectStore(s => s.updateProject);
+  const [showArchived, setShowArchived] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [planningProjectId, setPlanningProjectId] = useState<string | null>(null);
   const [formData, setFormData] = useState<CreateProjectInput>({
@@ -45,7 +46,8 @@ function ProjectsPage() {
     loadProjects();
   }, [loadProjects]);
 
-  const activeProjects = projects.filter(p => !p.archived);
+  const filteredProjects = showArchived ? projects : projects.filter(p => !p.archived);
+  const hasArchivedProjects = projects.some(p => p.archived);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +65,11 @@ function ProjectsPage() {
   const handleArchive = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation(); // Don't navigate when clicking archive
     await updateProject(id, { archived: true });
+  };
+
+  const handleUnarchive = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    await updateProject(id, { archived: false });
   };
 
   /** Format date as "Jan 15, 2026" */
@@ -93,13 +100,26 @@ function ProjectsPage() {
             Manage your project boards and tasks.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-        >
-          <Plus size={16} />
-          New Project
-        </button>
+        <div className="flex items-center gap-4">
+          {hasArchivedProjects && (
+            <label className="flex items-center gap-2 text-xs text-surface-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                className="rounded border-surface-600"
+              />
+              Show archived
+            </label>
+          )}
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+          >
+            <Plus size={16} />
+            New Project
+          </button>
+        </div>
       </div>
 
       {/* Error state */}
@@ -176,7 +196,7 @@ function ProjectsPage() {
       )}
 
       {/* Project grid or empty state */}
-      {activeProjects.length === 0 ? (
+      {filteredProjects.length === 0 ? (
         <div className="mt-12 flex flex-col items-center justify-center text-surface-500">
           <FolderKanban size={48} className="mb-4 text-surface-600" />
           <p className="text-lg">No projects yet</p>
@@ -186,11 +206,11 @@ function ProjectsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {activeProjects.map(project => (
+          {filteredProjects.map(project => (
             <div
               key={project.id}
               onClick={() => navigate(`/projects/${project.id}`)}
-              className="text-left p-4 bg-surface-800 border border-surface-700 rounded-lg hover:border-surface-600 transition-colors group cursor-pointer"
+              className={`text-left p-4 bg-surface-800 border border-surface-700 rounded-lg hover:border-surface-600 transition-colors group cursor-pointer${project.archived ? ' opacity-50' : ''}`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2 min-w-0">
@@ -210,13 +230,23 @@ function ProjectsPage() {
                   >
                     <Sparkles size={16} />
                   </button>
-                  <button
-                    onClick={e => handleArchive(e, project.id)}
-                    className="text-surface-500 hover:text-surface-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                    title="Archive project"
-                  >
-                    <Archive size={16} />
-                  </button>
+                  {project.archived ? (
+                    <button
+                      onClick={e => handleUnarchive(e, project.id)}
+                      className="text-surface-500 hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                      title="Unarchive project"
+                    >
+                      <Archive size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={e => handleArchive(e, project.id)}
+                      className="text-surface-500 hover:text-surface-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                      title="Archive project"
+                    >
+                      <Archive size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
               {project.description && (
