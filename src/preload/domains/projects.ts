@@ -33,6 +33,7 @@ export const projectsBridge = {
     ipcRenderer.invoke('columns:reorder', boardId, columnIds),
 
   // Cards
+  getAllCards: () => ipcRenderer.invoke('cards:list-all'),
   getCardsByBoard: (boardId: string) => ipcRenderer.invoke('cards:list-by-board', boardId),
   createCard: (data: CreateCardInput) => ipcRenderer.invoke('cards:create', data),
   updateCard: (id: string, data: UpdateCardInput) =>

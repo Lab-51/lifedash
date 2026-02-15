@@ -22,12 +22,25 @@ import type {
   UpdateCardInput,
 } from '../../shared/types';
 
+/** Lightweight card data from cards:list-all (includes projectId for navigation). */
+interface AllCardsItem {
+  id: string;
+  columnId: string;
+  title: string;
+  description: string | null;
+  priority: string;
+  archived: boolean;
+  updatedAt: string;
+  projectId: string;
+}
+
 interface BoardStore {
   // State
   project: Project | null;
   board: Board | null;
   columns: Column[];
   cards: Card[];
+  allCards: AllCardsItem[];
   labels: Label[];
   relationships: CardRelationship[];
   loading: boolean;
@@ -35,6 +48,7 @@ interface BoardStore {
 
   // Actions
   loadBoard: (projectId: string) => Promise<void>;
+  loadAllCards: () => Promise<void>;
   addColumn: (name: string) => Promise<void>;
   updateColumn: (id: string, data: UpdateColumnInput) => Promise<void>;
   deleteColumn: (id: string) => Promise<void>;
@@ -55,6 +69,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   board: null,
   columns: [],
   cards: [],
+  allCards: [],
   labels: [],
   relationships: [],
   loading: false,
@@ -92,6 +107,15 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to load board',
         loading: false,
       });
+    }
+  },
+
+  loadAllCards: async () => {
+    try {
+      const allCards = await window.electronAPI.getAllCards();
+      set({ allCards });
+    } catch {
+      // Non-critical — silently ignore so command palette still works with empty list
     }
   },
 

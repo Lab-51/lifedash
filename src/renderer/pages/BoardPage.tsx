@@ -9,7 +9,7 @@
 // BoardColumn, CardDetailModal,
 // @atlaskit/pragmatic-drag-and-drop (monitorForElements), closest-edge
 
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useEffect, useState, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { ArrowLeft, Plus, X, Search, ChevronDown } from 'lucide-react';
 import {
@@ -49,6 +49,7 @@ function BoardPage() {
   const [justDroppedCardId, setJustDroppedCardId] = useState<string | null>(null);
 
   const columnInputRef = useRef<HTMLInputElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const selectedCard = selectedCardId
     ? cards.find(c => c.id === selectedCardId) ?? null
@@ -132,6 +133,17 @@ function BoardPage() {
       loadBoard(projectId);
     }
   }, [projectId, loadBoard]);
+
+  // Open card from URL search param (e.g. ?openCard=<id> from command palette)
+  useEffect(() => {
+    const openCardId = searchParams.get('openCard');
+    if (openCardId && !loading && cards.length > 0) {
+      setSelectedCardId(openCardId);
+      // Clean up the URL param so it doesn't re-open on re-render
+      searchParams.delete('openCard');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, loading, cards.length]);
 
   // Focus column input when adding
   useEffect(() => {

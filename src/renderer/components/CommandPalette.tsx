@@ -48,7 +48,7 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
   const meetings = useMeetingStore(s => s.meetings);
   const ideas = useIdeaStore(s => s.ideas);
   const sessions = useBrainstormStore(s => s.sessions);
-  const cards = useBoardStore(s => s.cards);
+  const allCards = useBoardStore(s => s.allCards);
 
   useEffect(() => {
     if (isOpen) {
@@ -86,10 +86,10 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
       items.push({ id: `idea-${i.id}`, label: i.title, sublabel: i.description ?? undefined, icon: Lightbulb, category: 'Ideas', action: () => go('/ideas'), timestamp: i.updatedAt });
     for (const s of sessions)
       items.push({ id: `bs-${s.id}`, label: s.title, sublabel: s.status, icon: MessageSquare, category: 'Brainstorm', action: () => go('/brainstorm'), timestamp: s.updatedAt });
-    for (const c of cards)
-      items.push({ id: `card-${c.id}`, label: c.title, sublabel: c.description ?? undefined, icon: LayoutGrid, category: 'Cards', action: () => onClose(), timestamp: c.updatedAt });
+    for (const c of allCards)
+      items.push({ id: `card-${c.id}`, label: c.title, sublabel: c.description ?? undefined, icon: LayoutGrid, category: 'Cards', action: () => go(`/projects/${c.projectId}?openCard=${c.id}`), timestamp: c.updatedAt });
     return items;
-  }, [projects, meetings, ideas, sessions, cards, go, onClose]);
+  }, [projects, meetings, ideas, sessions, allCards, go]);
 
   const results: CommandItem[] = useMemo(() => {
     const trimmed = query.trim();

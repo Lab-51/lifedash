@@ -87,6 +87,16 @@ export interface ElectronAPI {
   reorderColumns: (boardId: string, columnIds: string[]) => Promise<void>;
 
   // Cards
+  getAllCards: () => Promise<Array<{
+    id: string;
+    columnId: string;
+    title: string;
+    description: string | null;
+    priority: string;
+    archived: boolean;
+    updatedAt: string;
+    projectId: string;
+  }>>;
   getCardsByBoard: (boardId: string) => Promise<Card[]>;
   createCard: (data: CreateCardInput) => Promise<Card>;
   updateCard: (id: string, data: UpdateCardInput) => Promise<Card>;

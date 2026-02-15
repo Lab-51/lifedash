@@ -23,6 +23,7 @@ import { useProjectStore } from './stores/projectStore';
 import { useMeetingStore } from './stores/meetingStore';
 import { useIdeaStore } from './stores/ideaStore';
 import { useBrainstormStore } from './stores/brainstormStore';
+import { useBoardStore } from './stores/boardStore';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 
@@ -77,6 +78,7 @@ function AppShell({ children }: { children: ReactNode }) {
     useMeetingStore.getState().loadMeetings();
     useIdeaStore.getState().loadIdeas();
     useBrainstormStore.getState().loadSessions();
+    useBoardStore.getState().loadAllCards();
   }, []);
 
   // Listen for global hotkey IPC event (Ctrl+Shift+Space from main process)

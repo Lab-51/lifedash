@@ -20,6 +20,7 @@ import {
   cardLabels,
   labels,
   columns,
+  boards,
   cardComments,
   cardRelationships,
   cardRelationshipTypeEnum,
@@ -114,6 +115,27 @@ export function registerCardHandlers(): void {
       ...(card as unknown as Card),
       labels: cardLabelMap.get(card.id) ?? [],
     }));
+  });
+
+  ipcMain.handle('cards:list-all', async () => {
+    const db = getDb();
+    const rows = await db
+      .select({
+        id: cards.id,
+        columnId: cards.columnId,
+        title: cards.title,
+        description: cards.description,
+        priority: cards.priority,
+        archived: cards.archived,
+        updatedAt: cards.updatedAt,
+        projectId: boards.projectId,
+      })
+      .from(cards)
+      .innerJoin(columns, eq(cards.columnId, columns.id))
+      .innerJoin(boards, eq(columns.boardId, boards.id))
+      .where(eq(cards.archived, false))
+      .orderBy(desc(cards.updatedAt));
+    return rows;
   });
 
   ipcMain.handle(
