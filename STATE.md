@@ -2,13 +2,28 @@
 
 ## Session Info
 Last updated: 2026-02-15
-Session focus: Plan 11.1 EXECUTED — Critical UX Fixes & Data Loss Prevention
+Session focus: Plan 11.2 EXECUTED — Extract & Test Critical Business Logic
 
 ## Position
 Milestone: Review Remediation
 Phase: 11 (Review Remediation)
 Plan: 11.1 — COMPLETE (3/3 tasks)
-Latest commit: 4c9e1c6 on main (unpushed)
+Plan: 11.2 — COMPLETE (3/3 tasks)
+Latest commit: 331836f on main
+Test suite: 150 tests across 7 files
+
+## Plan 11.2 Results
+- Task 1: Extract card-move reordering logic ✓ (f55bb97)
+  - New: src/shared/utils/card-move.ts (computeCardMove pure function)
+  - Modified: src/main/ipc/cards.ts — replaced inline logic with function call
+- Task 2: Extract action-item parsing ✓ (16d4792)
+  - New: src/shared/utils/action-item-parser.ts (parseActionItems pure function)
+  - Modified: src/main/services/meetingIntelligenceService.ts — replaced 22-line block with single call
+  - Bug fix: empty JSON array now falls through to bullet extraction
+- Task 3: Comprehensive tests ✓ (331836f)
+  - New: src/shared/utils/__tests__/card-move.test.ts (22 tests)
+  - New: src/shared/utils/__tests__/action-item-parser.test.ts (29 tests)
+  - Total: 99 → 150 tests (+51)
 
 ## Plan 11.1 Results
 - Task 1: Close-during-recording guard ✓ (baaf733)
@@ -95,7 +110,7 @@ Plans 8.1-8.7 + 4 ad-hoc features delivered.
 
 ## Confidence Levels
 Overall approach: HIGH
-All ad-hoc features: HIGH — verified with tsc + 99/99 tests
+All ad-hoc features: HIGH — verified with tsc + 150/150 tests
 
 ## Decisions Made (Phase 9)
 - PGlite over embedded-postgres: smaller bundle, WASM arch-independent

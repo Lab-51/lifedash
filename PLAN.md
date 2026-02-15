@@ -1,346 +1,309 @@
-# Plan 11.1 — Critical UX Fixes & Data Loss Prevention
+# Plan 11.2 — Extract & Test Critical Business Logic
 
-<phase n="11.1" name="Critical UX Fixes & Data Loss Prevention">
+<phase n="11.2" name="Extract & Test Critical Business Logic">
   <context>
-    Full project review (REVIEW.md, 2026-02-15) identified 5 top priorities.
-    This plan addresses the 3 highest-impact user-facing issues:
+    The project review (REVIEW.md) identified test coverage as the #1 priority:
+    99 tests across 5 files, estimated 5-10% coverage, marked CRITICAL.
 
-    1. **Close-during-recording guard** — Closing the app during an active recording
-       silently discards the session. This is a data loss bug.
-    2. **Command palette data loading** — Ctrl+K shows no results for entities
-       (meetings, ideas, brainstorm sessions) until the user has visited each page.
-       This makes the flagship Ctrl+K feature appear broken.
-    3. **Brainstorm markdown rendering** — The existing regex-based renderMarkdown()
-       in ChatMessage.tsx handles basic formatting but the review flagged it as
-       displaying raw markdown characters. Need to upgrade to a proper markdown
-       library (react-markdown) for reliable rendering of tables, links, nested
-       lists, and edge cases the regex misses.
+    Existing tests cover only pure utilities (card-utils, date-utils, schemas,
+    ipc-validator, types). Zero tests exist for services, IPC handlers, or stores.
 
-    Card count badges were already implemented (confirmed in BoardColumn.tsx).
+    The two highest-risk untested codepaths are:
+    1. **Card-move algorithm** (cards.ts:182-235) — position clamping, array
+       reordering, and sibling update logic embedded in an ipcMain.handle callback.
+       Bug here = corrupted Kanban board.
+    2. **Action item parsing** (meetingIntelligenceService.ts:207-228) — JSON
+       parse with bullet-point regex fallback, embedded in generateActionItems().
+       Bug here = lost action items after meetings.
 
-    Key codebase facts:
-    - Window close: src/main/main.ts lines 137-148 (macOS hides, Windows/Linux quits)
-    - IPC window close: src/main/ipc/window-controls.ts — `window:close` handler
-    - Recording state: src/renderer/stores/recordingStore.ts — `isRecording: boolean`
-    - CommandPalette: src/renderer/components/CommandPalette.tsx — reads from Zustand
-      stores (projectStore, meetingStore, ideaStore, brainstormStore, boardStore) but
-      never calls load functions
-    - ChatMessage: src/renderer/components/ChatMessage.tsx — has renderMarkdown()
-      regex-based renderer (lines 71-176) that handles headings, bullets, code blocks,
-      bold/italic but NOT tables, links, images, nested lists
-    - BrainstormPage: src/renderer/pages/BrainstormPage.tsx — renders messages via
-      ChatMessage component
+    Both are currently untestable because the logic is embedded inside IPC
+    handlers / service functions that require DB + AI provider. Strategy:
+    extract the pure logic into standalone functions, then test exhaustively.
 
-    @src/main/main.ts
-    @src/main/ipc/window-controls.ts
-    @src/renderer/stores/recordingStore.ts
-    @src/renderer/components/CommandPalette.tsx
-    @src/renderer/components/ChatMessage.tsx
-    @src/renderer/pages/BrainstormPage.tsx
-    @src/preload/domains/window.ts
-    @src/shared/types/electron-api.ts
+    Current test setup:
+    - Vitest 4.0.18, environment: node, globals: true
+    - Pattern: src/**/\__tests__/*.test.ts
+    - No mocks used yet (all tests are pure functions)
+    - No test setup file
+
+    @src/main/ipc/cards.ts
+    @src/main/services/meetingIntelligenceService.ts
+    @vitest.config.ts
+    @src/shared/utils/__tests__/card-utils.test.ts (pattern reference)
   </context>
 
   <task type="auto" n="1">
-    <n>Add close-during-recording guard to prevent data loss</n>
+    <n>Extract card-move reordering logic into a pure testable function</n>
     <files>
-      src/main/main.ts
-      src/main/ipc/window-controls.ts
-      src/preload/domains/window.ts
-      src/shared/types/electron-api.ts
+      src/main/ipc/cards.ts
+      src/shared/utils/card-move.ts (new)
     </files>
     <action>
-      When the user closes the app during an active recording, show a confirmation
-      dialog instead of silently discarding the recording. This prevents accidental
-      data loss — one of the review's top 5 priorities.
+      Extract the pure reordering logic from the `cards:move` IPC handler
+      (cards.ts:182-235) into a standalone, side-effect-free function.
 
-      **Approach:** The recording state lives in the renderer (Zustand store). The
-      main process doesn't know if a recording is active. Two strategies:
+      **Create `src/shared/utils/card-move.ts`:**
 
-      **Strategy A (recommended):** Track recording state in the main process.
-      - Add a simple boolean `isRecording` in main.ts (module-level variable)
-      - Add IPC handler `recording:set-state` that sets this boolean
-      - Call this from the renderer whenever recording starts/stops
-      - In the window 'close' event handler, check `isRecording` and show
-        `dialog.showMessageBox()` if true
+      ```ts
+      /**
+       * Pure function: compute the new positions after moving a card.
+       * No DB access — takes siblings list, returns update instructions.
+       */
+      export interface CardSibling {
+        id: string;
+        position: number;
+      }
 
-      **Strategy B:** Ask the renderer on close. This requires async IPC which
-      is more complex for a synchronous 'close' event. Strategy A is simpler.
+      export interface MoveResult {
+        /** The clamped position the card ended up at */
+        clampedPosition: number;
+        /** Updates to apply: [cardId, newPosition][] — includes moved card */
+        updates: Array<{ id: string; position: number }>;
+      }
 
-      **Implementation (Strategy A):**
+      export function computeCardMove(
+        movedCardId: string,
+        targetPosition: number,
+        siblingsInTarget: CardSibling[],
+      ): MoveResult {
+        // Remove the moved card from siblings (may already be in column for same-column reorder)
+        const filtered = siblingsInTarget.filter(c => c.id !== movedCardId);
 
-      1. **src/main/main.ts** or a new lightweight module:
-         - Add module-level: `let isRecording = false;`
-         - Export getter/setter: `getIsRecording()`, `setIsRecording(value)`
-         - In the `mainWindow.on('close', ...)` handler:
-           ```ts
-           mainWindow.on('close', async (event) => {
-             if (isRecording) {
-               event.preventDefault();
-               const { response } = await dialog.showMessageBox(mainWindow, {
-                 type: 'warning',
-                 buttons: ['Keep Recording', 'Stop & Close'],
-                 defaultId: 0,
-                 cancelId: 0,
-                 title: 'Recording in Progress',
-                 message: 'A meeting recording is currently active.',
-                 detail: 'Closing the app will stop the recording. The recorded audio up to this point will be saved.',
-               });
-               if (response === 1) {
-                 // User chose to stop & close — send stop signal to renderer first
-                 mainWindow?.webContents.send('recording:force-stop');
-                 // Give renderer a moment to save, then close
-                 setTimeout(() => {
-                   isRecording = false;
-                   mainWindow?.close();
-                 }, 2000);
-               }
-             } else if (process.platform === 'darwin' && !(app as any).isQuitting) {
-               event.preventDefault();
-               mainWindow?.hide();
-             }
-           });
-           ```
+        // Clamp position to valid range
+        const clampedPosition = Math.max(0, Math.min(targetPosition, filtered.length));
 
-      2. **src/main/ipc/window-controls.ts** (or wherever window IPC lives):
-         - Add handler: `ipcMain.handle('recording:set-state', (_e, value: boolean) => { setIsRecording(value); })`
-         - Import setIsRecording from main.ts or the recording state module
+        // Insert at clamped position
+        const reordered = [...filtered];
+        reordered.splice(clampedPosition, 0, { id: movedCardId, position: -1 });
 
-      3. **src/preload/domains/window.ts**:
-         - Add to the bridge: `recordingSetState: (isRecording: boolean) => ipcRenderer.invoke('recording:set-state', isRecording)`
-         - Add listener: `onRecordingForceStop: (callback: () => void) => { ipcRenderer.on('recording:force-stop', callback); return () => { ipcRenderer.removeListener('recording:force-stop', callback); }; }`
+        // Compute updates — only cards whose position actually changed
+        const updates: MoveResult['updates'] = [];
+        for (let i = 0; i < reordered.length; i++) {
+          if (reordered[i].id === movedCardId || reordered[i].position !== i) {
+            updates.push({ id: reordered[i].id, position: i });
+          }
+        }
 
-      4. **src/shared/types/electron-api.ts**:
-         - Add to ElectronAPI: `recordingSetState: (isRecording: boolean) => Promise<void>;`
-         - Add: `onRecordingForceStop: (callback: () => void) => () => void;`
+        return { clampedPosition, updates };
+      }
+      ```
 
-      5. **src/renderer/stores/recordingStore.ts**:
-         - In `startRecording()`: after successful start, call `window.electronAPI.recordingSetState(true)`
-         - In `stopRecording()`: call `window.electronAPI.recordingSetState(false)`
-         - Add a listener for `onRecordingForceStop` that calls `stopRecording()`
-           (set up in a `useEffect` or in the store's init)
+      **Refactor `cards.ts`** to use the extracted function:
+      - Import `computeCardMove` from `../../shared/utils/card-move`
+      - Replace lines 201-227 with:
+        ```ts
+        const siblings = siblingsInTarget.map(c => ({ id: c.id, position: c.position }));
+        const { clampedPosition, updates } = computeCardMove(validId, moveData.position, siblings);
 
-      **WHY:** The review identified this as priority #4. A single dialog call
-      prevents users from accidentally losing meeting recordings. The approach is
-      minimal — one boolean in main process, one dialog check, one IPC channel.
+        for (const upd of updates) {
+          if (upd.id === validId) {
+            await db.update(cards).set({ columnId: moveData.columnId, position: upd.position, updatedAt: new Date() }).where(eq(cards.id, validId));
+          } else {
+            await db.update(cards).set({ position: upd.position }).where(eq(cards.id, upd.id));
+          }
+        }
+        ```
+      - Update the logCardActivity call to use `clampedPosition`
 
-      **Edge cases:**
-      - If the app crashes, the recording is already lost (can't prevent this)
-      - If the user closes from the tray icon, the same 'close' event fires
-      - The 2-second timeout for force-close ensures the app doesn't hang
+      **WHY:** The card-move algorithm is the highest-risk untested code in the app.
+      Extracting it as a pure function makes it testable without any DB mocking,
+      while keeping the IPC handler thin (fetch → compute → apply → log).
     </action>
     <verify>
       - `npx tsc --noEmit` passes with zero errors
-      - `npx vitest run` — all existing tests pass
-      - Start a recording, then close the app → dialog appears
-      - Choose "Keep Recording" → dialog closes, recording continues
-      - Choose "Stop &amp; Close" → recording stops, app closes
-      - Close the app with no recording → normal close behavior (no dialog)
-      - macOS hide-to-tray behavior still works when not recording
+      - `npx vitest run` — all 99 existing tests still pass
+      - The new `card-move.ts` file exports `computeCardMove`, `CardSibling`, `MoveResult`
+      - `cards.ts` imports and uses `computeCardMove` (no duplicate logic)
     </verify>
     <done>
-      Closing the app during an active recording shows a warning dialog with
-      "Keep Recording" and "Stop &amp; Close" options. Recording state is tracked
-      in the main process via a simple IPC channel.
+      Card-move reordering logic extracted to src/shared/utils/card-move.ts as a
+      pure function. cards.ts IPC handler refactored to use it. Zero behavior change.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - dialog.showMessageBox works with async/await in the close event handler
-        when event.preventDefault() is called first (standard Electron pattern)
-      - 2-second timeout is sufficient for the renderer to stop recording and save
-      - The window 'close' event handler in main.ts is the correct interception point
+      - The card-move handler logic at lines 182-235 hasn't changed since the review
+      - The extracted function's interface (CardSibling[]) is sufficient to represent
+        the data needed from the DB query
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Load all entity data for command palette on app mount</n>
+    <n>Extract action-item parsing into a pure testable function</n>
     <files>
-      src/renderer/components/CommandPalette.tsx
-      src/renderer/App.tsx
+      src/main/services/meetingIntelligenceService.ts
+      src/shared/utils/action-item-parser.ts (new)
     </files>
     <preconditions>
-      - Task 1 complete
+      - Task 1 complete (establishes the extraction pattern)
     </preconditions>
     <action>
-      The command palette (Ctrl+K) reads from Zustand stores but those stores
-      are only populated when the user visits the corresponding page. If the user
-      opens the palette before visiting Meetings, Ideas, or Brainstorm pages, those
-      sections show no results — making the feature appear broken.
+      Extract the AI response parsing logic from `generateActionItems()`
+      (meetingIntelligenceService.ts:207-228) into a standalone pure function.
 
-      **Fix:** Eagerly load entity lists on app mount so the command palette always
-      has data to search.
+      **Create `src/shared/utils/action-item-parser.ts`:**
 
-      **Option A (recommended):** Add a `useEffect` in App.tsx that loads all
-      entity lists on mount:
-      ```tsx
-      // In App.tsx, near the top of the component
-      useEffect(() => {
-        // Pre-load entity data for command palette search
-        const projectStore = useProjectStore.getState();
-        const meetingStore = useMeetingStore.getState();
-        const ideaStore = useIdeaStore.getState();
-        const brainstormStore = useBrainstormStore.getState();
+      ```ts
+      /**
+       * Parse action item descriptions from an AI response.
+       * Strategy: try JSON array first, fall back to bullet/numbered line extraction.
+       * Pure function — no AI or DB dependencies.
+       */
+      export function parseActionItems(aiResponseText: string): string[] {
+        // Strategy 1: Try JSON array
+        try {
+          const parsed = JSON.parse(aiResponseText);
+          if (Array.isArray(parsed)) {
+            const descriptions = parsed
+              .filter((item: unknown) => {
+                const obj = item as Record<string, unknown>;
+                return obj.description && typeof obj.description === 'string';
+              })
+              .map((item: unknown) => (item as Record<string, string>).description);
+            if (descriptions.length > 0) return descriptions;
+          }
+        } catch {
+          // Not valid JSON — fall through to Strategy 2
+        }
 
-        projectStore.loadProjects();
-        meetingStore.loadMeetings();
-        ideaStore.loadIdeas();
-        brainstormStore.loadSessions();
-      }, []);
+        // Strategy 2: Extract from bullet/numbered lines
+        return aiResponseText
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => /^[-*]|\d+[.)]/.test(line))
+          .map((line) => line.replace(/^[-*]\s*|\d+[.)]\s*/, '').trim())
+          .filter((line) => line.length > 0);
+      }
       ```
 
-      Note: Use `getState()` outside of React render cycle to avoid unnecessary
-      re-renders. The stores will update internally and the CommandPalette (which
-      subscribes via hooks) will pick up the data.
+      **Refactor `meetingIntelligenceService.ts`:**
+      - Import `parseActionItems` from `../../shared/utils/action-item-parser`
+      - Replace lines 207-228 with:
+        ```ts
+        const descriptions = parseActionItems(result.text);
+        ```
 
-      **Option B:** Load inside CommandPalette when it opens. This is lazier but
-      adds a loading delay when the user presses Ctrl+K. Option A is better UX.
+      **Subtle improvement:** The current code has a bug — if JSON parses successfully
+      as an array but all items lack `.description`, it returns an empty array instead
+      of falling through to the bullet extraction. The extracted version fixes this by
+      checking `descriptions.length > 0` before returning.
 
-      **Additional improvement (while we're here):**
-      If CommandPalette doesn't already handle the "no results" state gracefully,
-      add a brief message like "No results found" or "Start typing to search..."
-      when the search yields nothing. This is already likely handled but verify.
-
-      **WHY:** The command palette is a flagship feature (Plan 10.3). If it shows
-      no results on first use, users will think it's broken and never use it again.
-      Loading ~100 entities on mount is negligible (< 50ms from PGlite).
-
-      **Performance note:** These are lightweight list queries (no relations loaded).
-      PGlite responds in < 10ms for these. Loading 4 lists adds < 40ms to app start.
+      **WHY:** Action item parsing is the second-highest-risk untested code. AI models
+      return unpredictable formats — sometimes valid JSON, sometimes markdown bullets,
+      sometimes mixed. The regex fallback needs thorough edge-case testing.
     </action>
     <verify>
       - `npx tsc --noEmit` passes with zero errors
-      - `npx vitest run` — all existing tests pass
-      - Fresh app start → immediately open Ctrl+K → projects, meetings, ideas,
-        brainstorm sessions all appear in search results
-      - No visible delay or loading state when opening the palette
-      - Individual page visits still work normally (no double-loading issues)
+      - `npx vitest run` — all 99 existing tests still pass
+      - The new `action-item-parser.ts` exports `parseActionItems`
+      - `meetingIntelligenceService.ts` imports and uses `parseActionItems`
     </verify>
     <done>
-      App.tsx loads all entity lists (projects, meetings, ideas, brainstorm sessions)
-      on mount. Command palette shows results immediately without requiring page visits.
+      Action item parsing logic extracted to src/shared/utils/action-item-parser.ts.
+      meetingIntelligenceService.ts refactored to use it. Bug fix: empty JSON array
+      now falls through to bullet extraction.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - useProjectStore/useMeetingStore/useIdeaStore/useBrainstormStore all have
-        loadProjects/loadMeetings/loadIdeas/loadSessions methods
-      - Loading all entities on mount is fast enough (< 50ms) for PGlite
-      - No circular dependency issues from importing all stores in App.tsx
+      - The parsing logic at lines 207-228 is self-contained (no closure over
+        external variables except `result.text`)
+      - The bug fix (fallthrough on empty descriptions) is correct behavior
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Upgrade brainstorm chat to proper markdown rendering</n>
+    <n>Add comprehensive tests for card-move and action-item parsing</n>
     <files>
-      src/renderer/components/ChatMessage.tsx
-      package.json (add react-markdown + remark-gfm)
+      src/shared/utils/__tests__/card-move.test.ts (new)
+      src/shared/utils/__tests__/action-item-parser.test.ts (new)
     </files>
     <preconditions>
-      - Tasks 1 and 2 complete
+      - Tasks 1 and 2 complete (functions extracted and available for import)
     </preconditions>
     <action>
-      Replace the regex-based renderMarkdown() in ChatMessage.tsx with
-      react-markdown for reliable, standards-compliant markdown rendering.
-      The current regex renderer handles basic cases but misses tables, links,
-      images, nested lists, and complex formatting that AI models frequently
-      produce. This was identified as the review's #1 visual polish gap.
+      Write exhaustive unit tests for both extracted functions. Follow the
+      existing test pattern (describe/it blocks, no mocks needed since both
+      are pure functions).
 
-      **Install dependencies:**
-      ```bash
-      npm install react-markdown remark-gfm
-      ```
-      - `react-markdown`: React component for rendering markdown (uses unified/remark)
-      - `remark-gfm`: GitHub Flavored Markdown support (tables, strikethrough,
-        task lists, autolinks)
+      **card-move.test.ts — Test cases for `computeCardMove()`:**
 
-      **ChatMessage.tsx changes:**
+      1. **Basic scenarios:**
+         - Move card to position 0 (beginning) in a column with existing cards
+         - Move card to last position in a column
+         - Move card to middle position
+         - Move card to empty column (no siblings)
 
-      1. Import:
-         ```tsx
-         import ReactMarkdown from 'react-markdown';
-         import remarkGfm from 'remark-gfm';
-         ```
+      2. **Same-column reorder:**
+         - Move card from position 0 to position 2 (forward)
+         - Move card from position 3 to position 1 (backward)
+         - Move card to its current position (no-op — should produce minimal updates)
 
-      2. Remove the entire `renderMarkdown()` function (lines ~71-176) and its
-         helper functions. This deletes ~100 lines of fragile regex parsing.
+      3. **Cross-column move:**
+         - Card ID not in siblings list (new column) — should insert at requested position
+         - Siblings should be renumbered starting from 0
 
-      3. Replace the AI message rendering (where renderMarkdown is called) with:
-         ```tsx
-         <ReactMarkdown
-           remarkPlugins={[remarkGfm]}
-           components={{
-             // Custom component overrides for Tailwind styling
-             h1: ({ children }) => <h1 className="text-lg font-bold mt-3 mb-1">{children}</h1>,
-             h2: ({ children }) => <h2 className="text-base font-semibold mt-2 mb-1">{children}</h2>,
-             h3: ({ children }) => <h3 className="text-sm font-semibold mt-2 mb-1">{children}</h3>,
-             p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-             ul: ({ children }) => <ul className="list-disc pl-4 mb-2">{children}</ul>,
-             ol: ({ children }) => <ol className="list-decimal pl-4 mb-2">{children}</ol>,
-             li: ({ children }) => <li className="mb-0.5">{children}</li>,
-             code: ({ className, children, ...props }) => {
-               const isInline = !className;
-               return isInline
-                 ? <code className="bg-surface-700 px-1 py-0.5 rounded text-xs font-mono">{children}</code>
-                 : <code className={`${className} block bg-surface-800 p-3 rounded-lg text-xs font-mono overflow-x-auto my-2`} {...props}>{children}</code>;
-             },
-             pre: ({ children }) => <pre className="bg-surface-800 rounded-lg overflow-x-auto my-2">{children}</pre>,
-             a: ({ href, children }) => <a href={href} className="text-primary-400 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
-             table: ({ children }) => <table className="border-collapse border border-surface-700 my-2 text-xs">{children}</table>,
-             th: ({ children }) => <th className="border border-surface-700 px-2 py-1 bg-surface-800 font-semibold">{children}</th>,
-             td: ({ children }) => <td className="border border-surface-700 px-2 py-1">{children}</td>,
-             blockquote: ({ children }) => <blockquote className="border-l-2 border-primary-500 pl-3 italic text-surface-400 my-2">{children}</blockquote>,
-             hr: () => <hr className="border-surface-700 my-3" />,
-           }}
-         >
-           {message.content}
-         </ReactMarkdown>
-         ```
+      4. **Edge cases:**
+         - Position -1 (out of bounds low) → clamped to 0
+         - Position 999 (out of bounds high) → clamped to end
+         - Single card in column, move it to position 0 (trivial case)
+         - Only the moved card changes when no siblings shift
 
-      4. Preserve the existing `text-sm text-surface-200` wrapper div around
-         the ReactMarkdown component so font size and color remain consistent.
+      5. **Position correctness:**
+         - After every move, positions form a contiguous 0..N-1 sequence
+         - Updates array only includes cards whose position actually changed
 
-      5. User messages should remain as plain text with `whitespace-pre-wrap`
-         (no markdown rendering for user input — keeps it authentic).
+      **action-item-parser.test.ts — Test cases for `parseActionItems()`:**
 
-      **WHY:** The review identified brainstorm markdown rendering as the #1
-      visual polish gap ("most visible gap that makes the flagship AI feature
-      look broken"). AI models produce rich markdown including tables, nested
-      lists, links, and code blocks. The regex renderer handles ~60% of cases
-      but breaks on the rest. react-markdown is the standard solution (~4M
-      weekly npm downloads), well-maintained, and tree-shakeable.
+      1. **JSON strategy:**
+         - Valid JSON array of `{ description: "..." }` objects
+         - JSON array with mixed valid/invalid items (some missing description)
+         - JSON array with non-string descriptions (number, null) → filtered out
+         - Valid JSON but not an array (object) → falls through to bullet extraction
+         - Empty JSON array → falls through to bullet extraction
 
-      **Styling consistency:** The component overrides ensure markdown renders
-      with the same Tailwind classes used throughout the app (surface colors,
-      primary accents, consistent spacing).
+      2. **Bullet extraction strategy:**
+         - Lines starting with `- ` (dash bullet)
+         - Lines starting with `* ` (star bullet)
+         - Lines starting with `1. `, `2) `, `3. ` (numbered)
+         - Mixed bullet styles in same response
+         - Indented bullets (leading whitespace before `-`)
+         - Lines with extra whitespace after bullet marker
 
-      **Bundle impact:** react-markdown + remark-gfm add ~40KB gzipped.
-      Acceptable for an Electron app.
+      3. **Edge cases:**
+         - Empty string → returns []
+         - Only whitespace/blank lines → returns []
+         - Malformed JSON (partial, truncated) → falls through to bullets
+         - Response with no bullets and no JSON → returns []
+         - Very long descriptions (should not be truncated by parser)
+         - Lines that look like bullets but inside code blocks (edge case, may not handle)
+
+      4. **Real-world AI response formats:**
+         - OpenAI-style: numbered list with descriptions
+         - Anthropic-style: markdown with headers + bullets
+         - Mixed: JSON with some markdown
+
+      Target: **~40-50 tests** across both files, bringing total from 99 to ~140-150.
+
+      **WHY:** These two functions guard the most critical data paths in the app.
+      Card-move corruption makes the Kanban board unusable. Action item parsing
+      failures mean users lose meeting insights. Exhaustive testing here catches
+      regressions before users do.
     </action>
     <verify>
-      - `npx tsc --noEmit` passes with zero errors
-      - `npx vitest run` — all existing tests pass
-      - Open a brainstorm session and send a prompt that generates markdown
-        (e.g., "List 5 tips for better code reviews with examples")
-      - AI response renders with proper formatting:
-        - Headings are styled (larger, bold)
-        - Bullet lists have proper bullets and indentation
-        - Code blocks have dark background and monospace font
-        - Inline code has subtle background
-        - Bold/italic text renders correctly
-        - Links are clickable (if AI generates any)
-      - No raw markdown characters visible (#, *, -, ```)
-      - User messages still display as plain text (no markdown processing)
+      - `npx vitest run` — all tests pass (old 99 + new ~40-50)
+      - card-move tests cover: basic, same-column, cross-column, edge cases, position correctness
+      - action-item-parser tests cover: JSON strategy, bullet strategy, edge cases, real-world formats
+      - No flaky tests (all deterministic, no timers or async)
     </verify>
     <done>
-      ChatMessage.tsx uses react-markdown + remark-gfm for AI response rendering.
-      All markdown elements (headings, lists, code, tables, links, blockquotes)
-      render with proper Tailwind styling. The ~100-line regex renderer is removed.
+      Two new test files with ~40-50 tests total. computeCardMove and parseActionItems
+      are thoroughly tested with edge cases, real-world scenarios, and invariant checks.
+      Total test count: ~140-150.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - react-markdown v9+ supports ESM imports in Vite (it does — pure ESM since v9)
-      - remark-gfm is compatible with react-markdown v9 (verified — same ecosystem)
-      - The existing dark theme surface colors work well for markdown elements
-      - No CSP issues with react-markdown in Electron (it doesn't use eval/innerHTML)
+      - Both functions are pure and synchronous (no async, no side effects)
+      - The existing vitest config (environment: node) is sufficient for these tests
+      - Real-world AI response formats can be approximated from the prompt templates
     </assumptions>
   </task>
 </phase>
