@@ -11,7 +11,7 @@
 
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useEffect, useState, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
-import { ArrowLeft, Plus, X, Search, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Plus, X, Search, ChevronDown, Download } from 'lucide-react';
 import {
   monitorForElements,
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
@@ -20,7 +20,37 @@ import { useBoardStore, getCardsByColumn } from '../stores/boardStore';
 import LoadingSpinner from '../components/LoadingSpinner';
 const CardDetailModal = lazy(() => import('../components/CardDetailModal'));
 import BoardColumn from '../components/BoardColumn';
-import type { CardPriority } from '../../shared/types';
+import type { CardPriority, Column, Card, Label } from '../../shared/types';
+
+// === CSV Export utility ===
+
+function exportBoardAsCsv(columns: Column[], cards: Card[], labels: Label[]) {
+  const headers = ['Column', 'Title', 'Description', 'Priority', 'Due Date', 'Labels', 'Created', 'Updated'];
+  const rows = cards.map(card => {
+    const col = columns.find(c => c.id === card.columnId);
+    const cardLabels = card.labels?.map(l => l.name).join('; ') ?? '';
+    const desc = card.description?.replace(/<[^>]*>/g, '').replace(/"/g, '""').trim() ?? '';
+    return [
+      col?.name ?? '',
+      card.title.replace(/"/g, '""'),
+      desc,
+      card.priority,
+      card.dueDate ?? '',
+      cardLabels,
+      new Date(card.createdAt).toLocaleDateString(),
+      new Date(card.updatedAt).toLocaleDateString(),
+    ].map(v => `"${v}"`).join(',');
+  });
+  const csv = [headers.join(','), ...rows].join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `board-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // === BoardPage — main board layout with drag monitor ===
 
@@ -462,6 +492,16 @@ function BoardPage() {
               </div>
             )}
           </div>
+
+          {/* Export CSV */}
+          <button
+            onClick={() => exportBoardAsCsv(columns, cards, labels)}
+            className="flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 px-2 py-1 rounded hover:bg-surface-700"
+            title="Export board as CSV"
+          >
+            <Download size={14} />
+            Export CSV
+          </button>
         </div>
 
         {/* Active filter indicator */}

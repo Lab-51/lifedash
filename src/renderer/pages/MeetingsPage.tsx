@@ -6,7 +6,7 @@
 // react (useEffect, useState, useRef), lucide-react (Mic),
 // meetingStore, recordingStore, projectStore, RecordingControls, MeetingCard, LoadingSpinner
 
-import { useEffect, useState, useRef, lazy, Suspense } from 'react';
+import { useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Mic, Info, Search, X } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -127,8 +127,13 @@ function MeetingsPage() {
     }
   };
 
-  // Build project name lookup map
+  // Build project name and color lookup maps
   const projectNameMap = new Map(projects.map(p => [p.id, p.name]));
+  const projectColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    projects.forEach(p => map.set(p.id, p.color ?? '#6366f1'));
+    return map;
+  }, [projects]);
 
   // Filter meetings by status and search query
   const filteredMeetings = meetings.filter(m => {
@@ -307,6 +312,7 @@ function MeetingsPage() {
               key={meeting.id}
               meeting={meeting}
               projectName={meeting.projectId ? projectNameMap.get(meeting.projectId) : undefined}
+              projectColor={meeting.projectId ? projectColorMap.get(meeting.projectId) : undefined}
               onClick={() => setSelectedMeetingId(meeting.id)}
             />
           ))}

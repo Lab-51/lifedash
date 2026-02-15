@@ -10,6 +10,7 @@ import { MEETING_TEMPLATES } from '../../shared/types';
 interface MeetingCardProps {
   meeting: Meeting;
   projectName?: string;
+  projectColor?: string;
   onClick: () => void;
 }
 
@@ -53,7 +54,7 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
   return `${min}m ${sec}s`;
 }
 
-const MeetingCard = memo(function MeetingCard({ meeting, projectName, onClick }: MeetingCardProps) {
+const MeetingCard = memo(function MeetingCard({ meeting, projectName, projectColor, onClick }: MeetingCardProps) {
   const status = STATUS_STYLES[meeting.status] || STATUS_STYLES.completed;
   const StatusIcon = status.icon;
 
@@ -85,7 +86,13 @@ const MeetingCard = memo(function MeetingCard({ meeting, projectName, onClick }:
       {(projectName || (meeting.template && meeting.template !== 'none')) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {projectName && (
-            <span className="text-xs bg-primary-600/10 text-primary-400 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-primary-600/10 text-primary-400 px-2 py-0.5 rounded-full flex items-center gap-1.5">
+              {projectColor && (
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: projectColor }}
+                />
+              )}
               {projectName}
             </span>
           )}
