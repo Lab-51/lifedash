@@ -37,6 +37,16 @@ const navItems: NavItem[] = [
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
+/** Keyboard shortcut hints for sidebar navigation tooltips */
+const SHORTCUT_KEYS: Record<string, string> = {
+  '/': 'Ctrl+1',
+  '/projects': 'Ctrl+2',
+  '/meetings': 'Ctrl+3',
+  '/ideas': 'Ctrl+4',
+  '/brainstorm': 'Ctrl+5',
+  '/settings': 'Ctrl+6',
+};
+
 const THEME_CYCLE: ThemeMode[] = ['dark', 'light', 'system'];
 const THEME_ICONS: Record<ThemeMode, React.ComponentType<{ size?: number }>> = {
   dark: Moon,
@@ -77,7 +87,7 @@ function Sidebar() {
             key={path}
             to={path}
             end={isHomeItem}
-            title={label}
+            title={SHORTCUT_KEYS[path] ? `${label} (${SHORTCUT_KEYS[path]})` : label}
             className={({ isActive: navActive }) => {
               const active = isHomeItem ? isHomeActive : isProjectsItem ? isProjectsActive : navActive;
               return [

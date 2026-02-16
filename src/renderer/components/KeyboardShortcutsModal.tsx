@@ -31,6 +31,14 @@ const SHORTCUT_GROUPS = [
       { keys: 'Esc', description: 'Close modal / overlay' },
     ],
   },
+  {
+    label: 'Page Shortcuts',
+    shortcuts: [
+      { keys: '/', description: 'Focus board search (on Board page)' },
+      { keys: 'Ctrl+N', description: 'New brainstorm session (on Brainstorm page)' },
+      { keys: 'Esc', description: 'Close filters / blur search (on Board page)' },
+    ],
+  },
 ];
 
 function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps) {
