@@ -8,7 +8,7 @@
 // relationship state, shared types (CardRelationshipType)
 
 import { useState } from 'react';
-import { Link2, Plus, X } from 'lucide-react';
+import { Link2, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useBoardStore } from '../stores/boardStore';
 import { useCardDetailStore } from '../stores/cardDetailStore';
 import type { CardRelationshipType } from '../../shared/types';
@@ -48,6 +48,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState('');
   const [selectedType, setSelectedType] = useState<CardRelationshipType>('related_to');
+  const [expanded, setExpanded] = useState(false);
 
   // --- Parse relationships into display groups ---
   const parsed: ParsedRelationship[] = selectedCardRelationships.map(rel => {
@@ -157,34 +158,66 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
         <p className="text-sm text-surface-500 italic">No relationships</p>
       ) : (
         <div>
-          {GROUP_ORDER.map(groupLabel => {
-            const items = groups.get(groupLabel);
-            if (!items || items.length === 0) return null;
+          {(() => {
+            const COLLAPSED_COUNT = 3;
+            let remaining = expanded ? Infinity : COLLAPSED_COUNT;
 
             return (
-              <div key={groupLabel}>
-                <span className="text-xs uppercase tracking-wider text-surface-500 font-medium mt-3 mb-1 block">
-                  {groupLabel}
-                </span>
-                {items.map(item => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between py-1 group"
+              <>
+                {GROUP_ORDER.map(groupLabel => {
+                  const items = groups.get(groupLabel);
+                  if (!items || items.length === 0 || remaining <= 0) return null;
+
+                  const visibleItems = items.slice(0, remaining);
+                  remaining -= visibleItems.length;
+
+                  return (
+                    <div key={groupLabel}>
+                      <span className="text-xs uppercase tracking-wider text-surface-500 font-medium mt-3 mb-1 block">
+                        {groupLabel}
+                      </span>
+                      {visibleItems.map(item => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between py-1 group"
+                        >
+                          <span className="text-sm text-surface-200 truncate">
+                            {item.linkedCardTitle}
+                          </span>
+                          <button
+                            onClick={() => deleteRelationship(item.id)}
+                            className="text-surface-500 hover:text-surface-300 opacity-0 group-hover:opacity-100 transition-all p-0.5"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+
+                {/* Expand/collapse toggle */}
+                {parsed.length > COLLAPSED_COUNT && (
+                  <button
+                    onClick={() => setExpanded(prev => !prev)}
+                    className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
                   >
-                    <span className="text-sm text-surface-200 truncate">
-                      {item.linkedCardTitle}
-                    </span>
-                    <button
-                      onClick={() => deleteRelationship(item.id)}
-                      className="text-surface-500 hover:text-surface-300 opacity-0 group-hover:opacity-100 transition-all p-0.5"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                    {expanded ? (
+                      <>
+                        <ChevronUp size={12} />
+                        Show less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={12} />
+                        Show all {parsed.length} relationships
+                      </>
+                    )}
+                  </button>
+                )}
+              </>
             );
-          })}
+          })()}
         </div>
       )}
     </div>
