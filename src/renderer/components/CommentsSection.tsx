@@ -6,7 +6,7 @@
 // react, lucide-react, cardDetailStore (Zustand)
 
 import { useState } from 'react';
-import { MessageSquare, Pencil, Trash2 } from 'lucide-react';
+import { MessageSquare, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCardDetailStore } from '../stores/cardDetailStore';
 
 function timeAgo(dateStr: string): string {
@@ -34,6 +34,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
   const [newComment, setNewComment] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [expanded, setExpanded] = useState(false);
 
   // --- Add comment ---
   const handleAddComment = async () => {
@@ -122,69 +123,91 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
       {selectedCardComments.length === 0 ? (
         <p className="text-sm text-surface-500 italic">No comments yet</p>
       ) : (
-        <div className="space-y-2">
-          {selectedCardComments.map(comment => (
-            <div
-              key={comment.id}
-              className="bg-surface-800/50 rounded-lg px-3 py-2.5"
+        <div>
+          <div className="space-y-2">
+            {(expanded ? selectedCardComments : selectedCardComments.slice(0, 3)).map(comment => (
+              <div
+                key={comment.id}
+                className="bg-surface-800/50 rounded-lg px-3 py-2.5"
+              >
+                {editingId === comment.id ? (
+                  /* Edit mode */
+                  <div>
+                    <textarea
+                      value={editContent}
+                      onChange={e => setEditContent(e.target.value)}
+                      onKeyDown={handleEditKeyDown}
+                      rows={3}
+                      autoFocus
+                      className="bg-surface-800 border border-surface-700 rounded-lg p-3 text-sm text-surface-100 placeholder:text-surface-500 resize-none w-full focus:outline-none focus:border-primary-500 transition-colors"
+                    />
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={saveEdit}
+                        disabled={!editContent.trim()}
+                        className="bg-primary-600 hover:bg-primary-500 text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEditing}
+                        className="text-xs text-surface-400 hover:text-surface-200 px-2 py-1.5 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Display mode */
+                  <div>
+                    <p className="text-sm text-surface-200 whitespace-pre-wrap">
+                      {comment.content}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-xs text-surface-500">
+                        {timeAgo(comment.createdAt)}
+                      </span>
+                      <span className="text-xs text-surface-600">·</span>
+                      <button
+                        onClick={() => startEditing(comment.id, comment.content)}
+                        className="inline-flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
+                      >
+                        <Pencil size={12} />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(comment.id)}
+                        className="inline-flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
+                      >
+                        <Trash2 size={12} />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Expand/collapse toggle */}
+          {selectedCardComments.length > 3 && (
+            <button
+              onClick={() => setExpanded(prev => !prev)}
+              className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
             >
-              {editingId === comment.id ? (
-                /* Edit mode */
-                <div>
-                  <textarea
-                    value={editContent}
-                    onChange={e => setEditContent(e.target.value)}
-                    onKeyDown={handleEditKeyDown}
-                    rows={3}
-                    autoFocus
-                    className="bg-surface-800 border border-surface-700 rounded-lg p-3 text-sm text-surface-100 placeholder:text-surface-500 resize-none w-full focus:outline-none focus:border-primary-500 transition-colors"
-                  />
-                  <div className="flex items-center gap-2 mt-2">
-                    <button
-                      onClick={saveEdit}
-                      disabled={!editContent.trim()}
-                      className="bg-primary-600 hover:bg-primary-500 text-white text-xs px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={cancelEditing}
-                      className="text-xs text-surface-400 hover:text-surface-200 px-2 py-1.5 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
+              {expanded ? (
+                <>
+                  <ChevronUp size={12} />
+                  Show less
+                </>
               ) : (
-                /* Display mode */
-                <div>
-                  <p className="text-sm text-surface-200 whitespace-pre-wrap">
-                    {comment.content}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-xs text-surface-500">
-                      {timeAgo(comment.createdAt)}
-                    </span>
-                    <span className="text-xs text-surface-600">·</span>
-                    <button
-                      onClick={() => startEditing(comment.id, comment.content)}
-                      className="inline-flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
-                    >
-                      <Pencil size={12} />
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(comment.id)}
-                      className="inline-flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
-                    >
-                      <Trash2 size={12} />
-                      Delete
-                    </button>
-                  </div>
-                </div>
+                <>
+                  <ChevronDown size={12} />
+                  Show all {selectedCardComments.length} comments
+                </>
               )}
-            </div>
-          ))}
+            </button>
+          )}
         </div>
       )}
     </div>
