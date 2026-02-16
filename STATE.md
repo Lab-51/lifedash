@@ -7,7 +7,7 @@ Session focus: Ad-hoc bug fixes and UX polish
 ## Position
 Milestone: Post-SELF-IMPROVE-2 ad-hoc improvements
 Phase: 15+ (Ad-hoc fixes and polish)
-Latest commit: 5b6fb8e on main
+Latest commit: c4142ad on main
 Test suite: 150 tests across 7 files
 SELF-IMPROVE-2.md: 32 of 32 proposals completed
 
@@ -17,6 +17,11 @@ SELF-IMPROVE-2.md: 32 of 32 proposals completed
 - Feat: Collapse activity log to 4 latest with expand toggle (24842fe)
 - Feat: Collapse comments to 3 latest with expand toggle (3d4748b)
 - Feat: Collapse relationships to 3 latest with expand toggle (5b6fb8e)
+- Feat: "Save audio recordings" toggle in Settings (c4142ad)
+  - Toggle in Recordings section: when off, WAV files are not saved to disk
+  - Transcripts still captured live during recording regardless of setting
+  - Folder picker hidden when saving is disabled
+  - audioProcessor reads `audio:saveRecordings` setting, defaults to true
 
 ## Plan 15.2 Results (SELF-IMPROVE-2.md final 3 proposals)
 - Task 1: "Since last visit" context on dashboard ✓ (05d3292)
