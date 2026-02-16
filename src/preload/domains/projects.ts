@@ -15,6 +15,7 @@ export const projectsBridge = {
   updateProject: (id: string, data: UpdateProjectInput) =>
     ipcRenderer.invoke('projects:update', id, data),
   deleteProject: (id: string) => ipcRenderer.invoke('projects:delete', id),
+  duplicateProject: (id: string) => ipcRenderer.invoke('projects:duplicate', id),
 
   // Boards
   getBoards: (projectId: string) => ipcRenderer.invoke('boards:list', projectId),

@@ -20,6 +20,7 @@ interface ProjectStore {
   createProject: (data: CreateProjectInput) => Promise<Project>;
   updateProject: (id: string, data: UpdateProjectInput) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  duplicateProject: (id: string) => Promise<Project>;
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -58,5 +59,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({
       projects: get().projects.filter(p => p.id !== id),
     });
+  },
+
+  duplicateProject: async (id) => {
+    const project = await window.electronAPI.duplicateProject(id);
+    set({ projects: [...get().projects, project] });
+    return project;
   },
 }));

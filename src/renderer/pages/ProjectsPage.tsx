@@ -10,7 +10,7 @@
 
 import { useEffect, useState, useMemo, lazy, Suspense } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2, LayoutList } from 'lucide-react';
+import { FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2, LayoutList, Copy } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useBoardStore } from '../stores/boardStore';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -36,6 +36,7 @@ function ProjectsPage() {
   const createProject = useProjectStore(s => s.createProject);
   const updateProject = useProjectStore(s => s.updateProject);
   const deleteProject = useProjectStore(s => s.deleteProject);
+  const duplicateProject = useProjectStore(s => s.duplicateProject);
   const allCards = useBoardStore(s => s.allCards);
   const [showArchived, setShowArchived] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -118,6 +119,12 @@ function ProjectsPage() {
       await deleteProject(id);
       toast('Project deleted');
     }
+  };
+
+  const handleDuplicate = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const newProject = await duplicateProject(id);
+    toast(`Duplicated as "${newProject.name}"`);
   };
 
   /** Format date as "Jan 15, 2026" */
@@ -300,6 +307,13 @@ function ProjectsPage() {
                     title="Plan with AI"
                   >
                     <Sparkles size={16} />
+                  </button>
+                  <button
+                    onClick={e => handleDuplicate(e, project.id)}
+                    className="text-surface-500 hover:text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    title="Duplicate project"
+                  >
+                    <Copy size={16} />
                   </button>
                   {project.archived ? (
                     <button

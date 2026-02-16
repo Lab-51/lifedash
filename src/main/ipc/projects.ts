@@ -71,6 +71,63 @@ export function registerProjectHandlers(): void {
     await db.delete(projects).where(eq(projects.id, validId));
   });
 
+  ipcMain.handle('projects:duplicate', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const db = getDb();
+
+    // Fetch source project
+    const [source] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, validId));
+    if (!source) throw new Error('Project not found');
+
+    // Create new project with copied metadata
+    const [newProject] = await db
+      .insert(projects)
+      .values({
+        name: `${source.name} (copy)`,
+        description: source.description,
+        color: source.color,
+      })
+      .returning();
+
+    // Fetch all boards for the source project
+    const sourceBoards = await db
+      .select()
+      .from(boards)
+      .where(eq(boards.projectId, validId))
+      .orderBy(asc(boards.position));
+
+    // Duplicate each board and its columns
+    for (const srcBoard of sourceBoards) {
+      const [newBoard] = await db
+        .insert(boards)
+        .values({
+          projectId: newProject.id,
+          name: srcBoard.name,
+          position: srcBoard.position,
+        })
+        .returning();
+
+      const srcColumns = await db
+        .select()
+        .from(columns)
+        .where(eq(columns.boardId, srcBoard.id))
+        .orderBy(asc(columns.position));
+
+      for (const srcCol of srcColumns) {
+        await db.insert(columns).values({
+          boardId: newBoard.id,
+          name: srcCol.name,
+          position: srcCol.position,
+        });
+      }
+    }
+
+    return newProject;
+  });
+
   // --- Boards ---
 
   ipcMain.handle('boards:list', async (_event, projectId: unknown) => {

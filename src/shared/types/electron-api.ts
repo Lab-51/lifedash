@@ -72,6 +72,7 @@ export interface ElectronAPI {
   createProject: (data: CreateProjectInput) => Promise<Project>;
   updateProject: (id: string, data: UpdateProjectInput) => Promise<Project>;
   deleteProject: (id: string) => Promise<void>;
+  duplicateProject: (id: string) => Promise<Project>;
 
   // Boards
   getBoards: (projectId: string) => Promise<Board[]>;
