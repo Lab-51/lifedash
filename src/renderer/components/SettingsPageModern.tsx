@@ -12,7 +12,7 @@ import ProviderCard from '../components/ProviderCard';
 import AddProviderForm from '../components/AddProviderForm';
 import TaskModelConfig from '../components/TaskModelConfig';
 import ThemeSelector from '../components/ThemeSelector';
-import DesignSelector from '../components/DesignSelector';
+
 import UsageSummary from '../components/UsageSummary';
 import BackupSection from '../components/settings/BackupSection';
 import ExportSection from '../components/settings/ExportSection';
@@ -114,8 +114,8 @@ export default function SettingsPageModern() {
                                         <ThemeSelector />
                                     </div>
                                     <div>
-                                        <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100 mb-3">Design Style</h3>
-                                        <DesignSelector />
+                                        <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100 mb-3">Themes</h3>
+                                        <p className="text-sm text-surface-400">More themes coming soon.</p>
                                     </div>
                                 </div>
                             </section>

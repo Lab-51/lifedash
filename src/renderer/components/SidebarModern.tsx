@@ -15,7 +15,7 @@ import {
     Zap,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
-import { useDesign } from '../hooks/useDesign';
+
 import type { ThemeMode } from '../hooks/useTheme';
 import RecordingIndicator from './RecordingIndicator';
 

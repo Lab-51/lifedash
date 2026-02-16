@@ -1,13 +1,10 @@
 // === FILE PURPOSE ===
 // Custom frameless window title bar with drag region and window controls.
-// Dynamically adjusts appearance based on design variant.
 
 import { useEffect, useState } from 'react';
 import { Minus, Square, Copy, X, Pin, PinOff } from 'lucide-react';
-import { useDesign } from '../hooks/useDesign';
 
 function TitleBar() {
-  const { designVariant } = useDesign();
   const [isMaximized, setIsMaximized] = useState(false);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
 
@@ -22,14 +19,9 @@ function TitleBar() {
     setIsAlwaysOnTop(result);
   };
 
-  const isModern = designVariant === 'modern';
-
   return (
     <div
-      className={`h-9 flex items-center justify-between select-none shrink-0 transition-colors duration-300 ${isModern
-          ? 'bg-white dark:bg-surface-900 border-b border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100'
-          : 'bg-surface-900 border-b border-surface-800 text-surface-300'
-        }`}
+      className="h-9 flex items-center justify-between select-none shrink-0 transition-colors duration-300 bg-white dark:bg-surface-900 border-b border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       <div className="flex items-center gap-2 pl-3">
@@ -47,9 +39,7 @@ function TitleBar() {
           type="button"
           onClick={toggleAlwaysOnTop}
           className={`w-10 h-full inline-flex items-center justify-center transition-colors ${isAlwaysOnTop
-              ? isModern
-                ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20'
-                : 'text-primary-400 bg-surface-800'
+              ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20'
               : 'opacity-60 hover:opacity-100 hover:bg-surface-200/50 dark:hover:bg-surface-800'
             }`}
           title={isAlwaysOnTop ? 'Unpin' : 'Pin on top'}
