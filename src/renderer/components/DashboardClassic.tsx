@@ -15,11 +15,18 @@ import {
     Clock,
     Calendar,
     Star,
+    ClipboardList,
+    Copy,
+    Check,
+    RefreshCw,
+    X,
+    Loader2,
 } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useIdeaStore } from '../stores/ideaStore';
 import { useBoardStore } from '../stores/boardStore';
+import { toast } from '../hooks/useToast';
 import type { IdeaStatus } from '../../shared/types';
 
 const STATUS_COLORS: Record<IdeaStatus, string> = {
@@ -97,6 +104,30 @@ export default function DashboardClassic() {
         return { newMeetings, newIdeas };
     }, [meetings, ideas, lastVisit]);
 
+    const [standupText, setStandupText] = useState<string | null>(null);
+    const [generatingStandup, setGeneratingStandup] = useState(false);
+    const [standupCopied, setStandupCopied] = useState(false);
+
+    const handleGenerateStandup = async () => {
+        setGeneratingStandup(true);
+        setStandupCopied(false);
+        try {
+            const result = await window.electronAPI.generateStandup();
+            setStandupText(result.standup);
+        } catch {
+            toast('Failed to generate standup', 'error');
+        } finally {
+            setGeneratingStandup(false);
+        }
+    };
+    const handleCopyStandup = async () => {
+        if (!standupText) return;
+        await navigator.clipboard.writeText(standupText);
+        setStandupCopied(true);
+        toast('Standup copied to clipboard', 'success');
+        setTimeout(() => setStandupCopied(false), 2000);
+    };
+
     const activeProjects = useMemo(
         () => projects.filter(p => !p.archived).slice(0, MAX_PROJECTS),
         [projects],
@@ -148,7 +179,7 @@ export default function DashboardClassic() {
             </div>
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 {QUICK_ACTIONS.map(({ label, icon: Icon, path }) => (
                     <button
                         key={label}
@@ -161,7 +192,41 @@ export default function DashboardClassic() {
                         </span>
                     </button>
                 ))}
+                <button
+                    onClick={handleGenerateStandup}
+                    disabled={generatingStandup}
+                    className="flex flex-col items-center gap-2 bg-surface-800 border border-surface-700 rounded-xl p-4 hover:border-primary-500 transition-colors group disabled:opacity-50"
+                >
+                    {generatingStandup ? (
+                        <Loader2 size={22} className="text-primary-400 animate-spin" />
+                    ) : (
+                        <ClipboardList size={22} className="text-surface-400 group-hover:text-primary-400 transition-colors" />
+                    )}
+                    <span className="text-sm text-surface-300 group-hover:text-surface-100 transition-colors">
+                        {generatingStandup ? 'Generating...' : 'Standup'}
+                    </span>
+                </button>
             </div>
+
+            {standupText && (
+                <div className="bg-surface-800 border border-surface-700 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-semibold text-surface-100">Daily Standup</h3>
+                        <div className="flex items-center gap-2">
+                            <button onClick={handleCopyStandup} className="p-1 rounded hover:bg-surface-700" title="Copy to clipboard">
+                                {standupCopied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} className="text-surface-400" />}
+                            </button>
+                            <button onClick={handleGenerateStandup} disabled={generatingStandup} className="p-1 rounded hover:bg-surface-700" title="Regenerate">
+                                <RefreshCw size={14} className={`text-surface-400 ${generatingStandup ? 'animate-spin' : ''}`} />
+                            </button>
+                            <button onClick={() => setStandupText(null)} className="p-1 rounded hover:bg-surface-700" title="Dismiss">
+                                <X size={14} className="text-surface-400" />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="text-sm text-surface-200 whitespace-pre-wrap">{standupText}</div>
+                </div>
+            )}
 
             {projects.length === 0 && meetings.length === 0 && ideas.length === 0 ? (
                 /* Empty dashboard onboarding CTA */

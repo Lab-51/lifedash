@@ -20,6 +20,7 @@ import { registerTaskStructuringHandlers } from './task-structuring';
 import { registerNotificationHandlers } from './notifications';
 import { registerTranscriptionProviderHandlers } from './transcription-provider';
 import { registerDiarizationHandlers } from './diarization';
+import { registerDashboardHandlers } from './dashboard';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -43,4 +44,5 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerNotificationHandlers();
   registerTranscriptionProviderHandlers();
   registerDiarizationHandlers();
+  registerDashboardHandlers();
 }

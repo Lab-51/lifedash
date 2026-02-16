@@ -15,11 +15,18 @@ import {
     Activity,
     Layers,
     Zap,
+    ClipboardList,
+    Copy,
+    Check,
+    RefreshCw,
+    X,
+    Loader2,
 } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useIdeaStore } from '../stores/ideaStore';
 import { useBoardStore } from '../stores/boardStore';
+import { toast } from '../hooks/useToast';
 
 /** Return a time-based greeting string. */
 function getGreeting(): string {
@@ -81,6 +88,30 @@ export default function DashboardModern() {
         return map;
     }, [allCards]);
 
+    const [standupText, setStandupText] = useState<string | null>(null);
+    const [generatingStandup, setGeneratingStandup] = useState(false);
+    const [standupCopied, setStandupCopied] = useState(false);
+
+    const handleGenerateStandup = async () => {
+        setGeneratingStandup(true);
+        setStandupCopied(false);
+        try {
+            const result = await window.electronAPI.generateStandup();
+            setStandupText(result.standup);
+        } catch {
+            toast('Failed to generate standup', 'error');
+        } finally {
+            setGeneratingStandup(false);
+        }
+    };
+    const handleCopyStandup = async () => {
+        if (!standupText) return;
+        await navigator.clipboard.writeText(standupText);
+        setStandupCopied(true);
+        toast('Standup copied to clipboard', 'success');
+        setTimeout(() => setStandupCopied(false), 2000);
+    };
+
     return (
         <div className="h-full flex flex-col overflow-hidden bg-surface-50/50 dark:bg-surface-950">
             {/* Hero Section */}
@@ -104,15 +135,23 @@ export default function DashboardModern() {
                             { icon: Plus, label: 'Project', path: '/projects?action=create', color: 'bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white' },
                             { icon: Brain, label: 'Brainstorm', path: '/brainstorm?action=create', color: 'bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white' },
                             { icon: Lightbulb, label: 'Idea', path: '/ideas?action=create', color: 'bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-white' },
+                            { icon: ClipboardList, label: 'Standup', path: '', color: 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white' },
                         ].map(({ icon: Icon, label, path, color }) => (
                             <button
                                 key={label}
-                                onClick={() => navigate(path)}
-                                className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-transparent hover:scale-105 hover:shadow-lg ${color}`}
+                                onClick={() => path ? navigate(path) : handleGenerateStandup()}
+                                disabled={!path && generatingStandup}
+                                className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-transparent hover:scale-105 hover:shadow-lg disabled:opacity-50 ${color}`}
                                 title={`New ${label}`}
                             >
-                                <Icon size={24} className="mb-2" />
-                                <span className="text-xs font-semibold">{label}</span>
+                                {!path && generatingStandup ? (
+                                    <Loader2 size={24} className="mb-2 animate-spin" />
+                                ) : (
+                                    <Icon size={24} className="mb-2" />
+                                )}
+                                <span className="text-xs font-semibold">
+                                    {!path && generatingStandup ? 'Loading...' : label}
+                                </span>
                             </button>
                         ))}
                     </div>
@@ -157,6 +196,27 @@ export default function DashboardModern() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Standup Result */}
+                    {standupText && (
+                        <div className="col-span-12 bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-surface-900 dark:text-surface-100">Daily Standup</h3>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={handleCopyStandup} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800" title="Copy">
+                                        {standupCopied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} className="text-surface-400" />}
+                                    </button>
+                                    <button onClick={handleGenerateStandup} disabled={generatingStandup} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800" title="Regenerate">
+                                        <RefreshCw size={14} className={`text-surface-400 ${generatingStandup ? 'animate-spin' : ''}`} />
+                                    </button>
+                                    <button onClick={() => setStandupText(null)} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800" title="Dismiss">
+                                        <X size={14} className="text-surface-400" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="text-sm text-surface-700 dark:text-surface-200 whitespace-pre-wrap">{standupText}</div>
+                        </div>
+                    )}
 
                     {/* Left Col: Projects & Priority */}
                     <div className="col-span-12 lg:col-span-8 space-y-6">

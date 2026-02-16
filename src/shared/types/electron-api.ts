@@ -243,6 +243,9 @@ export interface ElectronAPI {
   // Meeting Analytics
   getMeetingAnalytics: (meetingId: string) => Promise<MeetingAnalytics>;
 
+  // Dashboard
+  generateStandup: () => Promise<{ standup: string }>;
+
   // App-level events
   onShowCommandPalette: (callback: () => void) => () => void;
 }
