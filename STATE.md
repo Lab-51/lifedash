@@ -2,33 +2,37 @@
 
 ## Session Info
 Last updated: 2026-02-16
-Session focus: Plan B.1 execution + security audit + icon/branding overhaul
-Checkpoint reason: End of session — all work committed
+Session focus: Settings bug fixes + About section branding + icon regen
+Checkpoint reason: End of session — all work committed and pushed
 
 ## Position
-Milestone: Post Plan B.1 — ad-hoc improvements
-Latest commit: (pending commit for icon/branding work)
+Milestone: v1.7.0 — post Plan B.1, ad-hoc fixes and polish
+Latest commit: 8db498c (feat: add logo and dynamic version to About section)
+Version: 1.7.0 (bumped from 0.1.0)
 Test suite: 150 tests across 7 files
+Packaged app: `npm run make` verified working on Windows (Squirrel installer)
 SELF-IMPROVE-NEW.md: 27 proposals, 6 implemented (Phase A: 5/5, Phase B started: 1/?)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
 
 ## Ad-hoc Changes This Session
-- Plan B.1 executed: CSS splash screen + React appReady gating (cbc4d23)
-- SECURITY.md: Complete security architecture documentation (1615df4)
-- Security audit: 4 parallel agents audited audio pipeline, API keys, IPC/CSP, network/deps
-- Removed stale `electron-forge` v5.2.4 from dependencies (was shadowing v7 CLI)
-- Disabled WiX MSI maker in forge.config.ts (requires WiX Toolset not installed)
-- Icon overhaul: regenerated icon.png + icon.ico from SVG with cropped viewBox (no white borders)
-- Sidebar: replaced Zap lightning bolt with actual pulse/waveform logo SVG
-- Sidebar logo: added heartbeat glow animation (CSS keyframes, 3s cycle)
-- Tray icon: bumped from 16x16 to 32x32 on Windows, removed dead createTrayIcon() code
-- Added @resvg/resvg-js devDependency for SVG→PNG conversion
+- Fix: Model assignment persistence — TaskModelConfig useEffect now subscribes to
+  actual `settings['ai.taskModels']` value so it re-runs after async loadSettings() (1a2e863)
+- Fix: Usage costs always $0 — added MODEL_PRICING table with per-token costs for
+  GPT-4o, GPT-4o-mini, o1-mini, Claude Sonnet 4.5, Claude Haiku 4.5, Kimi K2.5;
+  both logUsage() and generate() now populate estimatedCost (1a2e863)
+- Upgrade: generate-icons.js rewritten from Electron capturePage to @resvg/resvg-js
+  (512x512, plain Node, no Electron runtime needed) (1a2e863)
+- Fix: generate-ico.js ESM default import for png-to-ico (1a2e863)
+- Regenerated icon.png + icon.ico from current branding SVG (1a2e863)
+- Feat: About section now shows actual LifeDash logo SVG instead of generic Bot icon (8db498c)
+- Feat: Dynamic version from package.json via preload bridge (appVersion) (8db498c)
+- Bump: Version 0.1.0 → 1.7.0 (149 commits, 7 core phases + 7 improvement rounds) (8db498c)
 
 ## Resume Context
 Next action: SELF-IMPROVE-NEW.md Phase B continued or user-directed work
-Prerequisites: None — all clean, pushed to remote
+Prerequisites: None — all clean, pushed to remote, `npm run make` verified
 
 ## Plan B.1 Results
 - Task 1: CSS splash screen in index.html (cbc4d23)
