@@ -295,281 +295,280 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false }: Me
 
   return (
     <>
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={handleOverlayClick}
-    >
-      <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-2xl max-h-[80vh] overflow-y-auto mx-4 p-6">
-        {/* Header: Title + Close */}
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="flex-1 min-w-0">
-            {isEditingTitle ? (
-              <input
-                type="text"
-                value={editTitle}
-                onChange={e => setEditTitle(e.target.value)}
-                onKeyDown={handleTitleKeyDown}
-                onBlur={saveTitleEdit}
-                autoFocus
-                className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-xl font-bold text-surface-100 focus:outline-none focus:border-primary-500 w-full"
-              />
-            ) : (
-              <h2
-                className="text-xl font-bold text-surface-100 cursor-pointer hover:text-surface-200"
-                onClick={startEditingTitle}
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      >
+        <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-2xl max-h-[80vh] overflow-y-auto mx-4 p-6">
+          {/* Header: Title + Close */}
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex-1 min-w-0">
+              {isEditingTitle ? (
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  onKeyDown={handleTitleKeyDown}
+                  onBlur={saveTitleEdit}
+                  autoFocus
+                  className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-xl font-bold text-surface-100 focus:outline-none focus:border-primary-500 w-full"
+                />
+              ) : (
+                <h2
+                  className="text-xl font-bold text-surface-100 cursor-pointer hover:text-surface-200"
+                  onClick={startEditingTitle}
+                >
+                  {meeting.title}
+                </h2>
+              )}
+            </div>
+            <button
+              onClick={handleClose}
+              className="text-surface-500 hover:text-surface-300 p-1 transition-colors shrink-0"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Metadata row */}
+          <div className="flex flex-wrap items-center gap-3 mb-5 text-sm">
+            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${status.className}`}>
+              {status.label}
+            </span>
+            <span className="flex items-center gap-1 text-surface-400">
+              <Clock size={14} />
+              {formatDuration(meeting.startedAt, meeting.endedAt)}
+            </span>
+            <span className="text-surface-400">
+              {formatDate(meeting.startedAt)} at {formatTime(meeting.startedAt)}
+            </span>
+          </div>
+
+          {/* Template info */}
+          {meeting.template && meeting.template !== 'none' && (() => {
+            const tmpl = MEETING_TEMPLATES.find(t => t.type === meeting.template);
+            return tmpl ? (
+              <div className="flex items-start gap-2 text-sm text-surface-300 mb-5">
+                <span className="px-1.5 py-0.5 rounded bg-surface-700 text-xs font-medium">{tmpl.name}</span>
+                {tmpl.agenda.length > 0 && (
+                  <div className="text-xs text-surface-400">
+                    {tmpl.agenda.map((item, i) => (
+                      <div key={i}>{'\u2022'} {item}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null;
+          })()}
+
+          {/* Project linking */}
+          <div className="flex items-center gap-3 mb-5">
+            <span className="text-sm text-surface-400">Project:</span>
+            <select
+              value={meeting.projectId || ''}
+              onChange={(e) => updateMeeting(meeting.id, {
+                projectId: e.target.value || null,
+              })}
+              className=""
+            >
+              <option value="">No project</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            {meeting.projectId && (
+              <button
+                onClick={() => {
+                  navigate(`/projects/${meeting.projectId}`);
+                  handleClose();
+                }}
+                className="flex items-center gap-1 text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                title="Go to project board"
               >
-                {meeting.title}
-              </h2>
+                Open board
+                <ArrowRight size={13} />
+              </button>
             )}
           </div>
-          <button
-            onClick={handleClose}
-            className="text-surface-500 hover:text-surface-300 p-1 transition-colors shrink-0"
-          >
-            <X size={20} />
-          </button>
-        </div>
 
-        {/* Metadata row */}
-        <div className="flex flex-wrap items-center gap-3 mb-5 text-sm">
-          <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${status.className}`}>
-            {status.label}
-          </span>
-          <span className="flex items-center gap-1 text-surface-400">
-            <Clock size={14} />
-            {formatDuration(meeting.startedAt, meeting.endedAt)}
-          </span>
-          <span className="text-surface-400">
-            {formatDate(meeting.startedAt)} at {formatTime(meeting.startedAt)}
-          </span>
-        </div>
+          {/* Meeting Analytics */}
+          <div className="mb-5">
+            <MeetingAnalyticsSection
+              meetingId={meeting.id}
+              isCompleted={meeting.status === 'completed'}
+            />
+          </div>
 
-        {/* Template info */}
-        {meeting.template && meeting.template !== 'none' && (() => {
-          const tmpl = MEETING_TEMPLATES.find(t => t.type === meeting.template);
-          return tmpl ? (
-            <div className="flex items-start gap-2 text-sm text-surface-300 mb-5">
-              <span className="px-1.5 py-0.5 rounded bg-surface-700 text-xs font-medium">{tmpl.name}</span>
-              {tmpl.agenda.length > 0 && (
-                <div className="text-xs text-surface-400">
-                  {tmpl.agenda.map((item, i) => (
-                    <div key={i}>{'\u2022'} {item}</div>
-                  ))}
-                </div>
-              )}
+          {/* AI provider error hint (shown when auto-generate fails) */}
+          {autoGenerate && error && !meeting.brief && !generatingBrief && (
+            <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <div className="flex items-start gap-2">
+                <Info size={14} className="text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-amber-300">
+                  Configure an AI provider in Settings to generate meeting intelligence.
+                </p>
+              </div>
             </div>
-          ) : null;
-        })()}
-
-        {/* Project linking */}
-        <div className="flex items-center gap-3 mb-5">
-          <span className="text-sm text-surface-400">Project:</span>
-          <select
-            value={meeting.projectId || ''}
-            onChange={(e) => updateMeeting(meeting.id, {
-              projectId: e.target.value || null,
-            })}
-            className=""
-          >
-            <option value="">No project</option>
-            {projects.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          {meeting.projectId && (
-            <button
-              onClick={() => {
-                navigate(`/projects/${meeting.projectId}`);
-                handleClose();
-              }}
-              className="flex items-center gap-1 text-xs text-primary-400 hover:text-primary-300 transition-colors"
-              title="Go to project board"
-            >
-              Open board
-              <ArrowRight size={13} />
-            </button>
           )}
-        </div>
 
-        {/* Meeting Analytics */}
-        <div className="mb-5">
-          <MeetingAnalyticsSection
-            meetingId={meeting.id}
-            isCompleted={meeting.status === 'completed'}
-          />
-        </div>
-
-        {/* AI provider error hint (shown when auto-generate fails) */}
-        {autoGenerate && error && !meeting.brief && !generatingBrief && (
-          <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <div className="flex items-start gap-2">
-              <Info size={14} className="text-amber-400 mt-0.5 shrink-0" />
-              <p className="text-sm text-amber-300">
-                Configure an AI provider in Settings to generate meeting intelligence.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* AI Brief */}
-        <div className="mb-5">
-          <BriefSection
-            meetingId={meeting.id}
-            brief={meeting.brief}
-            isCompleted={meeting.status === 'completed'}
-            generatingBrief={generatingBrief}
-            onGenerate={() => generateBrief(meeting.id)}
-          />
-        </div>
-
-        {/* Action Items */}
-        <div className="mb-5">
-          <ActionItemList
-            meetingId={meeting.id}
-            actionItems={meeting.actionItems}
-            isCompleted={meeting.status === 'completed'}
-            generatingActions={generatingActions}
-            onGenerate={() => generateActionItems(meeting.id)}
-            onUpdateStatus={updateActionItemStatus}
-            onConvert={(item) => setConvertingAction(item)}
-            meetingProjectId={meeting.projectId ?? undefined}
-            meetingProjectName={linkedProjectName}
-            onBatchConvert={(items) => setBatchConvertItems(items)}
-            onQuickPush={meeting.projectId ? handleQuickPush : undefined}
-            quickPushing={quickPushing}
-          />
-        </div>
-
-        {/* Transcript section */}
-        <div className="mb-5">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <h3 className="text-sm font-medium text-surface-300 shrink-0">
-              Transcript
-              {meeting.segments.length > 0 && (
-                <span className="ml-2 text-surface-500">
-                  {searchQuery
-                    ? `(${filteredSegments.length} of ${meeting.segments.length})`
-                    : `(${meeting.segments.length} segment${meeting.segments.length !== 1 ? 's' : ''})`
-                  }
-                </span>
-              )}
-            </h3>
-            <div className="flex items-center gap-3">
-              {/* Copy buttons */}
-              {meeting.segments.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <CopyBtn field="transcript" label="Transcript" onClick={copyTranscript} />
-                  <CopyBtn field="summary" label="Summary" onClick={copySummary} disabled={!meeting.brief} />
-                  <CopyBtn field="actions" label="Actions" onClick={copyActionItems} disabled={meeting.actionItems.length === 0} />
-                </div>
-              )}
-              {/* Search input */}
-              {meeting.segments.length > 0 && (
-                <div className="relative">
-                  <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={transcriptSearch}
-                    onChange={e => setTranscriptSearch(e.target.value)}
-                    placeholder="Search..."
-                    className="bg-surface-800 border border-surface-700 rounded text-sm text-surface-200 pl-7 pr-7 py-1 max-w-48 focus:outline-none focus:border-primary-500 placeholder:text-surface-600"
-                  />
-                  {transcriptSearch && (
-                    <button
-                      onClick={() => setTranscriptSearch('')}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300"
-                    >
-                      <X size={13} />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+          {/* AI Brief */}
+          <div className="mb-5">
+            <BriefSection
+              meetingId={meeting.id}
+              brief={meeting.brief}
+              isCompleted={meeting.status === 'completed'}
+              generatingBrief={generatingBrief}
+              onGenerate={() => generateBrief(meeting.id)}
+            />
           </div>
 
-          {meeting.segments.length === 0 ? (
-            <div className="text-center py-8 text-surface-500 text-sm">
-              {meeting.status === 'recording'
-                ? 'Transcription in progress...'
-                : 'No transcript available'}
-            </div>
-          ) : filteredSegments.length === 0 ? (
-            <div className="text-center py-6 text-surface-500 text-sm">
-              No segments match &ldquo;{transcriptSearch}&rdquo;
-            </div>
-          ) : (
-            <div className="max-h-64 overflow-y-auto rounded-lg bg-surface-800/50 border border-surface-700 p-3 space-y-2">
-              {filteredSegments.map(segment => {
-                const speakerColor = segment.speaker ? getSpeakerColor(segment.speaker) : null;
-                return (
-                  <div key={segment.id} className="flex gap-3 text-sm">
-                    <span className="font-mono text-xs text-surface-500 pt-0.5 shrink-0 w-12 text-right">
-                      {formatTimestamp(segment.startTime)}
-                    </span>
-                    <p className="text-surface-200 flex-1">
-                      {segment.speaker && speakerColor && (
-                        <span className={`${speakerColor.text} font-medium text-xs mr-1.5`}>
-                          [{segment.speaker}]
-                        </span>
-                      )}
-                      {searchQuery ? highlightText(segment.content, transcriptSearch) : segment.content}
-                    </p>
+          {/* Action Items */}
+          <div className="mb-5">
+            <ActionItemList
+              meetingId={meeting.id}
+              actionItems={meeting.actionItems}
+              isCompleted={meeting.status === 'completed'}
+              generatingActions={generatingActions}
+              onGenerate={() => generateActionItems(meeting.id)}
+              onUpdateStatus={updateActionItemStatus}
+              onConvert={(item) => setConvertingAction(item)}
+              meetingProjectId={meeting.projectId ?? undefined}
+              meetingProjectName={linkedProjectName}
+              onBatchConvert={(items) => setBatchConvertItems(items)}
+              onQuickPush={meeting.projectId ? handleQuickPush : undefined}
+              quickPushing={quickPushing}
+            />
+          </div>
+
+          {/* Transcript section */}
+          <div className="mb-5">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <h3 className="text-sm font-medium text-surface-300 shrink-0">
+                Transcript
+                {meeting.segments.length > 0 && (
+                  <span className="ml-2 text-surface-500">
+                    {searchQuery
+                      ? `(${filteredSegments.length} of ${meeting.segments.length})`
+                      : `(${meeting.segments.length} segment${meeting.segments.length !== 1 ? 's' : ''})`
+                    }
+                  </span>
+                )}
+              </h3>
+              <div className="flex items-center gap-3">
+                {/* Copy buttons */}
+                {meeting.segments.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <CopyBtn field="transcript" label="Transcript" onClick={copyTranscript} />
+                    <CopyBtn field="summary" label="Summary" onClick={copySummary} disabled={!meeting.brief} />
+                    <CopyBtn field="actions" label="Actions" onClick={copyActionItems} disabled={meeting.actionItems.length === 0} />
                   </div>
-                );
-              })}
-              <div ref={transcriptEndRef} />
+                )}
+                {/* Search input */}
+                {meeting.segments.length > 0 && (
+                  <div className="relative">
+                    <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={transcriptSearch}
+                      onChange={e => setTranscriptSearch(e.target.value)}
+                      placeholder="Search..."
+                      className="bg-surface-800 border border-surface-700 rounded text-sm text-surface-200 pl-7 pr-7 py-1 max-w-48 focus:outline-none focus:border-primary-500 placeholder:text-surface-600"
+                    />
+                    {transcriptSearch && (
+                      <button
+                        onClick={() => setTranscriptSearch('')}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Delete button */}
-        <div className="pt-3 border-t border-surface-700">
-          {confirmDelete ? (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-surface-400">Are you sure?</span>
+            {meeting.segments.length === 0 ? (
+              <div className="text-center py-8 text-surface-500 text-sm">
+                {meeting.status === 'recording'
+                  ? 'Transcription in progress...'
+                  : 'No transcript available'}
+              </div>
+            ) : filteredSegments.length === 0 ? (
+              <div className="text-center py-6 text-surface-500 text-sm">
+                No segments match &ldquo;{transcriptSearch}&rdquo;
+              </div>
+            ) : (
+              <div className="max-h-64 overflow-y-auto rounded-lg bg-surface-800/50 border border-surface-700 p-3 space-y-2">
+                {filteredSegments.map(segment => {
+                  const speakerColor = segment.speaker ? getSpeakerColor(segment.speaker) : null;
+                  return (
+                    <div key={segment.id} className="flex gap-3 text-sm">
+                      <span className="font-mono text-xs text-surface-500 pt-0.5 shrink-0 w-12 text-right">
+                        {formatTimestamp(segment.startTime)}
+                      </span>
+                      <p className="text-surface-200 flex-1">
+                        {segment.speaker && speakerColor && (
+                          <span className={`${speakerColor.text} font-medium text-xs mr-1.5`}>
+                            [{segment.speaker}]
+                          </span>
+                        )}
+                        {searchQuery ? highlightText(segment.content, transcriptSearch) : segment.content}
+                      </p>
+                    </div>
+                  );
+                })}
+                <div ref={transcriptEndRef} />
+              </div>
+            )}
+          </div>
+
+          {/* Delete button */}
+          <div className="pt-3 border-t border-surface-700">
+            {confirmDelete ? (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-surface-400">Are you sure?</span>
+                <button
+                  onClick={handleDelete}
+                  className="text-sm text-red-400 hover:text-red-300 font-medium transition-colors"
+                >
+                  Confirm Delete
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="text-sm text-surface-400 hover:text-surface-200 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
               <button
-                onClick={handleDelete}
-                className="text-sm text-red-400 hover:text-red-300 font-medium transition-colors"
+                onClick={() => setConfirmDelete(true)}
+                className="flex items-center gap-1.5 text-sm text-surface-500 hover:text-red-400 transition-colors"
               >
-                Confirm Delete
+                <Trash2 size={14} />
+                Delete Meeting
               </button>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="text-sm text-surface-400 hover:text-surface-200 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="flex items-center gap-1.5 text-sm text-surface-500 hover:text-red-400 transition-colors"
-            >
-              <Trash2 size={14} />
-              Delete Meeting
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
-    </div>
-    {convertingAction && (
-      <ConvertActionModal
-        actionItem={convertingAction}
-        preselectedProjectId={meeting.projectId ?? undefined}
-        preselectedProjectName={linkedProjectName}
-        onConvert={convertActionToCard}
-        onClose={() => setConvertingAction(null)}
-      />
-    )}
-    {batchConvertItems && batchConvertItems.length > 0 && (
-      <ConvertActionModal
-        actionItems={batchConvertItems}
-        preselectedProjectId={meeting.projectId ?? undefined}
-        preselectedProjectName={linkedProjectName}
-        onConvert={convertActionToCard}
-        onClose={() => setBatchConvertItems(null)}
-      />
-    )}
+      {convertingAction && (
+        <ConvertActionModal
+          actionItem={convertingAction}
+          preselectedProjectId={meeting.projectId ?? undefined}
+          preselectedProjectName={linkedProjectName}
+          onConvert={convertActionToCard}
+          onClose={() => setConvertingAction(null)}
+        />
+      )}
+      {batchConvertItems && batchConvertItems.length > 0 && (
+        <ConvertActionModal
+          actionItems={batchConvertItems}
+          preselectedProjectId={meeting.projectId ?? undefined}
+          preselectedProjectName={linkedProjectName}
+          onConvert={convertActionToCard}
+          onClose={() => setBatchConvertItems(null)}
+        />
+      )}
     </>
   );
 }

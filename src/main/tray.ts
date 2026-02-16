@@ -7,6 +7,7 @@
 // Electron (app, Tray, Menu, nativeImage, BrowserWindow)
 
 import { app, BrowserWindow, Menu, nativeImage, Tray } from 'electron';
+import icon from '../assets/icon.png';
 
 let tray: Tray | null = null;
 
@@ -36,12 +37,26 @@ function createTrayIcon(): Electron.NativeImage {
  * Single-click on the tray icon toggles window visibility.
  */
 export function createTray(mainWindow: BrowserWindow): Tray {
-  const icon = createTrayIcon();
-  tray = new Tray(icon);
+  // Try to load from imported path (Vite asset)
+  let trayIcon = nativeImage.createFromPath(icon);
+
+  // If that fails (e.g. dev server URL issue), try absolute path in source for dev
+  if (trayIcon.isEmpty()) {
+    const path = require('path');
+    const devIconPath = path.join(__dirname, '../../src/assets/icon.png');
+    trayIcon = nativeImage.createFromPath(devIconPath);
+  }
+
+  // Resize for typical tray requirements
+  // Windows: 16x16 or 32x32 (HiDPI)
+  // macOS: 22x22 template
+  const resizedIcon = trayIcon.resize({ width: 16, height: 16 });
+
+  tray = new Tray(resizedIcon);
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Show Living Dashboard',
+      label: 'Show LifeDash',
       click: () => {
         mainWindow.show();
         mainWindow.focus();
@@ -57,7 +72,7 @@ export function createTray(mainWindow: BrowserWindow): Tray {
     },
   ]);
 
-  tray.setToolTip('Living Dashboard');
+  tray.setToolTip('LifeDash');
   tray.setContextMenu(contextMenu);
 
   // Single-click on tray icon: toggle window visibility

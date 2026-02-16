@@ -76,8 +76,8 @@ export default function SettingsPageModern() {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
-                                    ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 ring-1 ring-primary-200 dark:ring-primary-800'
-                                    : 'text-surface-500 hover:text-surface-900 dark:hover:text-surface-100 hover:bg-surface-100 dark:hover:bg-surface-800'
+                                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 ring-1 ring-primary-200 dark:ring-primary-800'
+                                : 'text-surface-500 hover:text-surface-900 dark:hover:text-surface-100 hover:bg-surface-100 dark:hover:bg-surface-800'
                                 }`}
                         >
                             {tab.icon}
@@ -265,7 +265,7 @@ export default function SettingsPageModern() {
                                 <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
                                     <Bot size={32} className="text-primary-600 dark:text-primary-400" />
                                 </div>
-                                <h2 className="text-2xl font-bold text-surface-900 dark:text-surface-100 mb-2">Living Dashboard</h2>
+                                <h2 className="text-2xl font-bold text-surface-900 dark:text-surface-100 mb-2">LifeDash</h2>
                                 <p className="text-surface-500 mb-8 max-w-md mx-auto">
                                     A next-generation AI assistant workspace designed for productivity and seamless collaboration.
                                 </p>

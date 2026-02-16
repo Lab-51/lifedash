@@ -111,5 +111,5 @@ export function showNotification(title: string, body: string): void {
  * Send a test notification to verify that notifications are working.
  */
 export function sendTestNotification(): void {
-  showNotification('Living Dashboard', 'Notifications are working!');
+  showNotification('LifeDash', 'Notifications are working!');
 }

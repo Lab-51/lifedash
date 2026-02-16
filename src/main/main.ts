@@ -10,6 +10,8 @@
 
 import { app, BrowserWindow, dialog, globalShortcut } from 'electron';
 import path from 'node:path';
+// @ts-ignore
+import icon from '../assets/icon.png';
 import started from 'electron-squirrel-startup';
 import windowStateKeeper from 'electron-window-state';
 import { registerIpcHandlers } from './ipc';
@@ -63,6 +65,7 @@ const createWindow = async () => {
   });
 
   mainWindow = new BrowserWindow({
+    icon: icon,
     x: mainWindowState.x,
     y: mainWindowState.y,
     width: mainWindowState.width,

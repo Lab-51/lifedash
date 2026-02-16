@@ -1,4 +1,4 @@
-# Living Dashboard
+# LifeDash
 
 AI-powered desktop dashboard for meeting intelligence, project management, brainstorming, and idea tracking.
 

@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { Minus, Square, Copy, X, Pin, PinOff } from 'lucide-react';
+import dashIcon from '../assets/icon.svg';
 
 function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
@@ -25,8 +26,9 @@ function TitleBar() {
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       <div className="flex items-center gap-2 pl-3">
+        <img src={dashIcon} alt="LifeDash" className="w-5 h-5" />
         <span className="text-sm font-medium opacity-80">
-          Living Dashboard
+          LifeDash
         </span>
       </div>
 
@@ -39,8 +41,8 @@ function TitleBar() {
           type="button"
           onClick={toggleAlwaysOnTop}
           className={`w-10 h-full inline-flex items-center justify-center transition-colors ${isAlwaysOnTop
-              ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20'
-              : 'opacity-60 hover:opacity-100 hover:bg-surface-200/50 dark:hover:bg-surface-800'
+            ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20'
+            : 'opacity-60 hover:opacity-100 hover:bg-surface-200/50 dark:hover:bg-surface-800'
             }`}
           title={isAlwaysOnTop ? 'Unpin' : 'Pin on top'}
         >

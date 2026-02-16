@@ -1,4 +1,4 @@
-# Living Dashboard
+# LifeDash
 
 ## Vision
 An AI-powered adaptive desktop dashboard for professional environments that unifies meeting intelligence, project management, AI-assisted brainstorming, structured task planning, and idea management into a single Electron-based application.

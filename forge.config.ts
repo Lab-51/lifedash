@@ -3,7 +3,7 @@
 
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
-import { MakerWix } from '@electron-forge/maker-wix';
+// import { MakerWix } from '@electron-forge/maker-wix';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
@@ -22,8 +22,10 @@ const EXTERNAL_PACKAGES = [
 
 const config: ForgeConfig = {
   packagerConfig: {
+    icon: './src/assets/icon',
     asar: true,
     // Extract PGlite from the asar so its WASM binary loads as a real file
+    // @ts-ignore
     asarUnpack: ['**/node_modules/@electric-sql/pglite/**'],
     extraResource: ['./drizzle'],
   },
@@ -56,20 +58,24 @@ const config: ForgeConfig = {
     new MakerSquirrel(
       process.env.CERT_PASSWORD
         ? {
-            certificateFile: './certs/living-dashboard.pfx',
-            certificatePassword: process.env.CERT_PASSWORD,
-          }
-        : {},
+          certificateFile: './certs/living-dashboard.pfx',
+          certificatePassword: process.env.CERT_PASSWORD,
+        }
+        : {
+          setupIcon: './src/assets/icon.ico',
+        },
     ),
     new MakerZIP({}, ['darwin']),
-    new MakerWix({
-      name: 'Living Dashboard',
-      manufacturer: 'Living Dashboard',
-      upgradeCode: '570d3454-6859-4ff3-9f24-385a00bcc551',
-      ui: {
-        chooseDirectory: true,
-      },
-    }),
+    // WiX MSI maker — requires WiX Toolset installed (candle.exe + light.exe).
+    // Uncomment when WiX is available for enterprise MSI distribution.
+    // new MakerWix({
+    //   name: 'LifeDash',
+    //   manufacturer: 'LifeDash',
+    //   upgradeCode: '570d3454-6859-4ff3-9f24-385a00bcc551',
+    //   ui: {
+    //     chooseDirectory: true,
+    //   },
+    // }),
   ],
   plugins: [
     new VitePlugin({

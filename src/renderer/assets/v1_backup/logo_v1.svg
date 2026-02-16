@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" fill="none">
+  <defs>
+    <linearGradient id="brand-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4" /> <!-- cyan-500 -->
+      <stop offset="100%" stop-color="#3b82f6" /> <!-- blue-500 -->
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(20, -10)">
+    <!-- Pulse Line and Arrow -->
+    <path d="M10,60 L30,60 L35,45 L40,75 L45,15 L50,95 L55,60 L75,60 L85,60" 
+          stroke="url(#brand-gradient)" 
+          stroke-width="6" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"
+          fill="none" />
+          
+    <path d="M75,50 L85,60 L75,70" 
+          stroke="url(#brand-gradient)" 
+          stroke-width="6" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"
+          fill="none" />
+  </g>
+
+  <!-- Text -->
+  <text x="120" y="65" font-family="'Inter', sans-serif" font-size="48" font-weight="700" fill="#e2e8f0" style="font-family: system-ui, -apple-system, sans-serif;">
+    Life<tspan font-weight="300">Dash</tspan>
+  </text>
+</svg>

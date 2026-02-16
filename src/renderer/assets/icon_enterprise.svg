@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="app-bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" /> <!-- slate-900 -->
+      <stop offset="100%" stop-color="#334155" /> <!-- slate-700 -->
+    </linearGradient>
+    
+    <linearGradient id="pulse-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee" /> <!-- cyan-400 -->
+      <stop offset="100%" stop-color="#60a5fa" /> <!-- blue-400 -->
+    </linearGradient>
+  </defs>
+
+  <!-- Container: "Squircle" / Rounded Rect -->
+  <rect x="5" y="5" width="90" height="90" rx="22" fill="url(#app-bg-gradient)" />
+  
+  <!-- "Glass" reflection effect (subtle top highlight) -->
+  <path d="M10,27 C10,15 15,10 27,10 L73,10 C85,10 90,15 90,27 L90,45 C90,45 10,45 10,45 Z" fill="#ffffff" opacity="0.05" />
+
+  <g transform="translate(0, -5)">
+    <!-- Simplified, Stronger Pulse Path -->
+    <!-- Path: Flat -> Small Dip -> Big Spike Up -> Deep Spike Down -> Arrow Out -->
+    <path d="M20,55 L32,55 L38,62 L48,28 L58,78 L65,55 L75,55" 
+          stroke="url(#pulse-gradient)" 
+          stroke-width="7" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"
+          fill="none" />
+          
+    <!-- Arrow Head -->
+    <path d="M72,48 L80,55 L72,62" 
+          stroke="url(#pulse-gradient)" 
+          stroke-width="7" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"
+          fill="none" />
+  </g>
+</svg>

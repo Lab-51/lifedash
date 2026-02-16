@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 120" fill="none">
+  <defs>
+    <linearGradient id="logo-bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" /> <!-- slate-900 -->
+      <stop offset="100%" stop-color="#334155" /> <!-- slate-700 -->
+    </linearGradient>
+    
+    <linearGradient id="logo-pulse-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee" /> <!-- cyan-400 -->
+      <stop offset="100%" stop-color="#60a5fa" /> <!-- blue-400 -->
+    </linearGradient>
+  </defs>
+
+  <!-- === ICON SECTION (100x100 scaled) === -->
+  <g transform="translate(10, 10)">
+    <!-- Container -->
+    <rect x="5" y="5" width="90" height="90" rx="22" fill="url(#logo-bg-gradient)" />
+    
+    <!-- Pulse -->
+    <g transform="translate(0, -5)">
+      <path d="M20,55 L32,55 L38,62 L48,28 L58,78 L65,55 L75,55" 
+            stroke="url(#logo-pulse-gradient)" 
+            stroke-width="7" 
+            stroke-linecap="round" 
+            stroke-linejoin="round"
+            fill="none" />
+      <path d="M72,48 L80,55 L72,62" 
+            stroke="url(#logo-pulse-gradient)" 
+            stroke-width="7" 
+            stroke-linecap="round" 
+            stroke-linejoin="round"
+            fill="none" />
+    </g>
+  </g>
+
+  <!-- === TEXT SECTION === -->
+  <!-- Main Text: Inter Heavy, white -->
+  <text x="130" y="80" font-family="'Inter', sans-serif" font-size="56" font-weight="800" fill="#f1f5f9" letter-spacing="-1.5">
+    LifeDash
+  </text>
+  
+  <!-- Subtitle / Tagline (Enterprise Touch) -->
+  <!-- Uncomment to include tagline -->
+  <!-- <text x="130" y="90" font-family="'Inter', sans-serif" font-size="14" font-weight="500" fill="#94a3b8" letter-spacing="1">ENTERPRISE INTELLIGENCE</text> -->
+
+</svg>

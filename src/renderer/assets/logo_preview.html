@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <style>
+        body {
+            font-family: system-ui;
+            background: #0f172a;
+            color: white;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        h1 {
+            color: #f1f5f9;
+            font-size: 2rem;
+            font-weight: 300;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 2rem;
+            border-radius: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            border: 1px solid #334155;
+        }
+
+        .card-title {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .icon-sm {
+            width: 32px;
+            height: 32px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>LifeDash Logo Comparision</h1>
+
+    <div class="grid">
+        <div class="card">
+            <div class="card-title">V1 (Original) - Logo</div>
+            <img src="./logo.svg" style="height: 60px;" />
+        </div>
+
+        <div class="card">
+            <div class="card-title">V2 (Enterprise) - Logo</div>
+            <img src="./logo_enterprise.svg" style="height: 60px;" />
+        </div>
+
+        <div class="card">
+            <div class="card-title">V1 (Original) - Icon</div>
+            <img src="./icon.svg" style="width: 100px; height: 100px;" />
+        </div>
+
+        <div class="card">
+            <div class="card-title">V2 (Enterprise) - Icon</div>
+            <img src="./icon_enterprise.svg" style="width: 100px; height: 100px;" />
+        </div>
+
+        <div class="card"
+            style="border-color: #3b82f6; background: #1e293b; box-shadow: 0 0 20px rgba(59, 130, 246, 0.1);">
+            <div class="card-title" style="color: #60a5fa;">V3 (Refined) - Logo</div>
+            <img src="./logo_enterprise_v3.svg" style="height: 60px;" />
+            <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem;">New: Inner glow, softer pulse, "Dash"
+                weight contrast</div>
+        </div>
+
+        <div class="card"
+            style="border-color: #3b82f6; background: #1e293b; box-shadow: 0 0 20px rgba(59, 130, 246, 0.1);">
+            <div class="card-title" style="color: #60a5fa;">V3 (Refined) - Icon</div>
+            <img src="./icon_enterprise_v3.svg" style="width: 100px; height: 100px;" />
+        </div>
+    </div>
+
+    <p style="color: #64748b; font-size: 0.875rem; margin-top: 2rem;">V2 Features: Rounded container, heavier stroke,
+        tighter tracking, unified shape.</p>
+</body>
+
+</html>

@@ -1,87 +1,61 @@
 <!DOCTYPE html>
 <html lang="en" class="design-modern" data-design="modern">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Living Dashboard</title>
-    <style>
-      body {
-        background: #020617;
-        margin: 0;
-      }
 
-      #splash {
-        position: fixed;
-        inset: 0;
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: #020617;
-        opacity: 1;
-        transition: opacity 300ms ease-out;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LifeDash</title>
+  <style>
+    body {
+      background: #020617;
+      margin: 0;
+    }
 
-      #splash.splash-hidden {
+    #splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #020617;
+      opacity: 1;
+      transition: opacity 300ms ease-out;
+    }
+
+    #splash.splash-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .splash-logo {
+      width: 300px;
+      height: auto;
+      opacity: 0;
+      animation: logo-fade-in 0.8s ease-out forwards;
+    }
+
+    @keyframes logo-fade-in {
+      0% {
         opacity: 0;
-        pointer-events: none;
+        transform: scale(0.95);
       }
 
-      .splash-title {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 1.75rem;
-        font-weight: 300;
-        color: #e2e8f0;
-        letter-spacing: 0.1em;
-        margin-bottom: 2rem;
-        user-select: none;
+      100% {
+        opacity: 1;
+        transform: scale(1);
       }
+    }
+  </style>
+</head>
 
-      .splash-dots {
-        display: flex;
-        gap: 0.5rem;
-      }
+<body>
+  <div id="splash">
+    <img src="./assets/logo.svg" alt="LifeDash" class="splash-logo" />
+  </div>
+  <div id="root"></div>
+  <script type="module" src="./main.tsx"></script>
+</body>
 
-      .splash-dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: #e2e8f0;
-        opacity: 0.2;
-        animation: splash-pulse 1.4s ease-in-out infinite;
-      }
-
-      .splash-dot:nth-child(2) {
-        animation-delay: 0.2s;
-      }
-
-      .splash-dot:nth-child(3) {
-        animation-delay: 0.4s;
-      }
-
-      @keyframes splash-pulse {
-        0%, 80%, 100% {
-          opacity: 0.2;
-          transform: scale(1);
-        }
-        40% {
-          opacity: 1;
-          transform: scale(1.15);
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="splash">
-      <div class="splash-title">Living Dashboard</div>
-      <div class="splash-dots">
-        <div class="splash-dot"></div>
-        <div class="splash-dot"></div>
-        <div class="splash-dot"></div>
-      </div>
-    </div>
-    <div id="root"></div>
-    <script type="module" src="./main.tsx"></script>
-  </body>
 </html>
