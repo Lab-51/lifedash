@@ -2,19 +2,21 @@
 
 ## Session Info
 Last updated: 2026-02-16
-Session focus: Phase 15 — SELF-IMPROVE-2.md COMPLETE (all 32 proposals delivered)
+Session focus: Ad-hoc bug fixes and UX polish
 
 ## Position
-Milestone: Self-Improve #2 Remediation — COMPLETE
-Phase: 15 (Toast, Duplicate, Status Bar, Last Visit, Tooltips, Undo Delete)
-Plan: 13.1 — COMPLETE (3/3 tasks)
-Plan: 13.2 — COMPLETE (3/3 tasks)
-Plan: 14.1 — COMPLETE (3/3 tasks)
-Plan: 15.1 — COMPLETE (3/3 tasks)
-Plan: 15.2 — COMPLETE (3/3 tasks)
-Latest commit: f8fddfc on main
+Milestone: Post-SELF-IMPROVE-2 ad-hoc improvements
+Phase: 15+ (Ad-hoc fixes and polish)
+Latest commit: 5b6fb8e on main
 Test suite: 150 tests across 7 files
 SELF-IMPROVE-2.md: 32 of 32 proposals completed
+
+## Ad-hoc Fixes (2026-02-16)
+- Fix: Backup list regex mismatch — backups were created but never listed (6e6bbd1)
+  - listBackups regex expected \d{6} for time but filenames had HH-MM-SS with dashes
+- Feat: Collapse activity log to 4 latest with expand toggle (24842fe)
+- Feat: Collapse comments to 3 latest with expand toggle (3d4748b)
+- Feat: Collapse relationships to 3 latest with expand toggle (5b6fb8e)
 
 ## Plan 15.2 Results (SELF-IMPROVE-2.md final 3 proposals)
 - Task 1: "Since last visit" context on dashboard ✓ (05d3292)
