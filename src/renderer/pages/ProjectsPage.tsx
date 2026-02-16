@@ -36,8 +36,11 @@ function ProjectsPage() {
   const createProject = useProjectStore(s => s.createProject);
   const updateProject = useProjectStore(s => s.updateProject);
   const deleteProject = useProjectStore(s => s.deleteProject);
+  const removeProjectFromUI = useProjectStore(s => s.removeProjectFromUI);
+  const restoreProjectToUI = useProjectStore(s => s.restoreProjectToUI);
   const duplicateProject = useProjectStore(s => s.duplicateProject);
   const allCards = useBoardStore(s => s.allCards);
+  const loadAllCards = useBoardStore(s => s.loadAllCards);
   const [showArchived, setShowArchived] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -113,17 +116,32 @@ function ProjectsPage() {
     setEditingProjectId(null);
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
+  const handleDelete = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
-    if (window.confirm(`Delete project "${name}"? This will permanently remove the project and all its boards, columns, and cards. This cannot be undone.`)) {
-      await deleteProject(id);
-      toast('Project deleted');
-    }
+    const snapshot = projects.find(p => p.id === id);
+    if (!snapshot) return;
+
+    removeProjectFromUI(id);
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!cancelled) deleteProject(id);
+    }, 5000);
+
+    toast(`Deleted "${name}"`, 'info', {
+      label: 'Undo',
+      onClick: () => {
+        cancelled = true;
+        clearTimeout(timer);
+        restoreProjectToUI(snapshot);
+      },
+    }, 5000);
   };
 
   const handleDuplicate = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     const newProject = await duplicateProject(id);
+    await loadAllCards();
     toast(`Duplicated as "${newProject.name}"`);
   };
 

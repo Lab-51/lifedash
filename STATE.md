@@ -2,16 +2,47 @@
 
 ## Session Info
 Last updated: 2026-02-16
-Session focus: Phase 14 — Meeting Badges, Save-as-Card, Card Detail Polish
+Session focus: Phase 15 — SELF-IMPROVE-2.md COMPLETE (all 32 proposals delivered)
 
 ## Position
-Milestone: Self-Improve #2 Remediation (continued)
-Phase: 14 (Meeting Badges, Save-as-Card, Card Detail Polish)
+Milestone: Self-Improve #2 Remediation — COMPLETE
+Phase: 15 (Toast, Duplicate, Status Bar, Last Visit, Tooltips, Undo Delete)
 Plan: 13.1 — COMPLETE (3/3 tasks)
 Plan: 13.2 — COMPLETE (3/3 tasks)
 Plan: 14.1 — COMPLETE (3/3 tasks)
-Latest commit: cf2f8f3 on main
+Plan: 15.1 — COMPLETE (3/3 tasks)
+Plan: 15.2 — COMPLETE (3/3 tasks)
+Latest commit: f8fddfc on main
 Test suite: 150 tests across 7 files
+SELF-IMPROVE-2.md: 32 of 32 proposals completed
+
+## Plan 15.2 Results (SELF-IMPROVE-2.md final 3 proposals)
+- Task 1: "Since last visit" context on dashboard ✓ (05d3292)
+  - localStorage tracks dashboard visit timestamps across sessions
+  - Returns show "Since your last visit: N new meetings, M new ideas" below greeting
+  - First-ever visit shows nothing; only counts meetings + ideas (not auto-created entities)
+- Task 2: Keyboard shortcut hints in sidebar and modal ✓ (5622327)
+  - Sidebar NavLink tooltips show shortcut on hover: "Home (Ctrl+1)", "Projects (Ctrl+2)", etc.
+  - KeyboardShortcutsModal gains "Page Shortcuts" group: /, Ctrl+N, Esc
+- Task 3: Undo card deletion via delayed delete and toast ✓ (f8fddfc)
+  - Replaces two-click confirm with undo-based flow (Gmail/Slack pattern)
+  - Card removed from UI instantly, 5s toast with "Undo" button, actual delete after timeout
+  - Toast system extended with action buttons and configurable duration
+  - boardStore gains removeCardFromUI/restoreCardToUI for optimistic updates
+
+## Plan 15.1 Results (SELF-IMPROVE-2.md remaining 6 → 3)
+- Task 1: Toast notification system ✓ (9cd8846)
+  - Zustand-based `useToastStore` + standalone `toast()` function
+  - `ToastContainer` renders fixed bottom-right, max 3 toasts, 3s auto-dismiss
+  - Wired up 3 ProjectsPage actions as proof of concept (create/archive/delete)
+- Task 2: Duplicate project action ✓ (432a1da)
+  - `projects:duplicate` IPC handler copies project + boards + columns (not cards)
+  - Copy button in project card hover actions (between Plan with AI and Archive)
+  - Toast confirmation: "Duplicated as 'Name (copy)'"
+- Task 3: Dynamic status bar ✓ (5613f31)
+  - `meetings:pending-action-count` IPC with COUNT query on action_items
+  - StatusBar shows amber "N pending actions" when > 0, polled every 30s
+  - Right side changed from "Ctrl+1-5: Navigate" to "Ctrl+K: Commands"
 
 ## Plan 14.1 Results (SELF-IMPROVE-2.md remaining 7)
 - Task 1: Meeting card action item count badge + delete button ✓ (6a18676)

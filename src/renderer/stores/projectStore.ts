@@ -20,6 +20,8 @@ interface ProjectStore {
   createProject: (data: CreateProjectInput) => Promise<Project>;
   updateProject: (id: string, data: UpdateProjectInput) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  removeProjectFromUI: (id: string) => void;
+  restoreProjectToUI: (project: Project) => void;
   duplicateProject: (id: string) => Promise<Project>;
 }
 
@@ -59,6 +61,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({
       projects: get().projects.filter(p => p.id !== id),
     });
+  },
+
+  removeProjectFromUI: (id) => {
+    set({ projects: get().projects.filter(p => p.id !== id) });
+  },
+
+  restoreProjectToUI: (project) => {
+    set({ projects: [...get().projects, project] });
   },
 
   duplicateProject: async (id) => {

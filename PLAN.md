@@ -1,363 +1,342 @@
-<phase n="13.2" name="Board UX, Brainstorm Polish, CSV Export">
+<phase n="15.2" name="Last Visit Context, Shortcut Tooltips, Undo Delete">
   <context>
-    Plan 13.2 addresses 10 remaining proposals from SELF-IMPROVE-2.md, covering board UX
-    quick wins, brainstorm streaming/UX improvements, CSV board export, and meeting card polish.
+    Plan 15.2 completes the final 3 proposals from SELF-IMPROVE-2.md:
+    - E10: "Since last visit" context on dashboard
+    - Q11: Keyboard shortcut tooltips on sidebar/buttons
+    - Q12: Soft-delete safety net (scoped as undo-based deletion via toast)
 
-    All items are LOW-to-MEDIUM effort (under 2 hours each) and HIGH-to-MEDIUM impact.
-    Plan 13.1 addressed the top 5 "Do First" items; this plan covers the next tier.
-
-    Proposals addressed:
-    - Q1: Strip HTML from command palette card descriptions
-    - F5: Board empty filter state message
-    - Q3: `/` keyboard shortcut to focus board search
-    - Q4: Escape key closes filter dropdowns
-    - Q5: Card description 1-line preview on KanbanCard
-    - F4: Markdown during brainstorm streaming
-    - E5: Auto-select last active brainstorm session
-    - F9: Brainstorm input auto-resize
-    - Q6: Export board as CSV
-    - Q7: Project color dot on meeting cards
+    Q12 was originally estimated at 1 week for a full deletedAt column + trash bin approach.
+    That requires touching 18+ card query sites across the backend. Instead, we implement
+    the same "wow moment" (recovering from accidental deletion) using a delayed-delete +
+    undo toast pattern — zero backend changes, zero schema changes, all frontend.
 
     @PROJECT.md @STATE.md @SELF-IMPROVE-2.md
-    @src/renderer/components/CommandPalette.tsx
-    @src/renderer/pages/BoardPage.tsx
-    @src/renderer/components/KanbanCard.tsx
-    @src/renderer/pages/BrainstormPage.tsx
-    @src/renderer/components/ChatMessage.tsx
-    @src/renderer/components/MeetingCard.tsx
-    @src/renderer/pages/MeetingsPage.tsx
+    @src/renderer/pages/DashboardPage.tsx
+    @src/renderer/components/Sidebar.tsx
+    @src/renderer/hooks/useKeyboardShortcuts.ts
+    @src/renderer/components/KeyboardShortcutsModal.tsx
+    @src/renderer/hooks/useToast.ts
+    @src/renderer/components/ToastContainer.tsx
+    @src/renderer/components/CardDetailModal.tsx
     @src/renderer/stores/boardStore.ts
   </context>
 
   <task type="auto" n="1">
-    <n>Board UX quick wins and command palette HTML fix</n>
+    <n>"Since last visit" context on dashboard</n>
     <files>
-      src/renderer/components/CommandPalette.tsx
-      src/renderer/pages/BoardPage.tsx
-      src/renderer/components/KanbanCard.tsx
+      src/renderer/pages/DashboardPage.tsx
     </files>
     <action>
-      Five quick improvements to the board and command palette:
+      Track when the user last visited the dashboard. On return visits, show a brief
+      summary line below the greeting: "Since your last visit: 2 new meetings, 1 new idea".
+      This makes the dashboard feel alive and responsive.
 
-      **A. Strip HTML tags from command palette card descriptions (CommandPalette.tsx)**
+      **A. Track last visit timestamp in localStorage**
 
-      1. Line 91: Card descriptions from TipTap contain HTML tags (`&lt;p&gt;`, `&lt;strong&gt;`, etc.)
-         that show raw in the command palette sublabel. Add a `stripHtml` helper at the top:
-         ```
-         function stripHtml(html: string): string {
-           return html.replace(/&lt;[^&gt;]*&gt;/g, '').trim();
-         }
-         ```
-      2. Apply it where the sublabel is set (line 91):
-         `sublabel: c.description ? stripHtml(c.description) : undefined`
+      1. On DashboardPage mount, read `localStorage.getItem('dashboard_last_visit')`.
+         Store the result in a ref (not state — we don't want re-renders).
 
-      **B. Board empty filter state message (BoardPage.tsx)**
+      2. After reading, immediately set the current timestamp:
+         `localStorage.setItem('dashboard_last_visit', new Date().toISOString())`
 
-      3. When `hasActiveFilters &amp;&amp; filteredCards.length === 0`, show a centered message
-         ABOVE the column grid (around line 462, before the columns container):
+      **B. Compute "since last visit" counts**
+
+      3. Using the previous visit timestamp, compute counts of entities created since:
          ```tsx
-         {hasActiveFilters &amp;&amp; filteredCards.length === 0 &amp;&amp; (
-           &lt;div className="text-center py-12"&gt;
-             &lt;p className="text-surface-400 text-sm"&gt;No cards match your filters.&lt;/p&gt;
-             &lt;button onClick={clearFilters} className="text-xs text-primary-400 hover:text-primary-300 mt-2"&gt;
-               Clear filters
-             &lt;/button&gt;
-           &lt;/div&gt;
+         const sinceLastVisit = useMemo(() => {
+           if (!lastVisitRef.current) return null;
+           const since = new Date(lastVisitRef.current).getTime();
+           const newMeetings = meetings.filter(m => new Date(m.createdAt).getTime() > since).length;
+           const newIdeas = ideas.filter(i => new Date(i.createdAt).getTime() > since).length;
+           return { newMeetings, newIdeas };
+         }, [meetings, ideas]);
+         ```
+
+         Use a `useRef` for the last visit timestamp, read it in a `useEffect` that runs once
+         on mount BEFORE the useMemo computes. Actually, since the ref value is set before
+         the first render computation, use `useState` with a lazy initializer instead:
+         ```tsx
+         const [lastVisit] = useState(() => {
+           const saved = localStorage.getItem('dashboard_last_visit');
+           // Update timestamp for next visit
+           localStorage.setItem('dashboard_last_visit', new Date().toISOString());
+           return saved;
+         });
+         ```
+
+         Then the useMemo can read `lastVisit` from state (set once, never changes).
+
+      4. Only count meetings and ideas — not projects or cards, since those are often created
+         programmatically (action item conversion, AI planning, etc.).
+
+      **C. Render the summary line**
+
+      5. Below the greeting, after the `formatToday()` paragraph, conditionally render:
+         ```tsx
+         {sinceLastVisit && (sinceLastVisit.newMeetings > 0 || sinceLastVisit.newIdeas > 0) && (
+           <p className="mt-1 text-sm text-primary-400/80">
+             Since your last visit:
+             {sinceLastVisit.newMeetings > 0 && ` ${sinceLastVisit.newMeetings} new meeting${sinceLastVisit.newMeetings !== 1 ? 's' : ''}`}
+             {sinceLastVisit.newMeetings > 0 && sinceLastVisit.newIdeas > 0 && ','}
+             {sinceLastVisit.newIdeas > 0 && ` ${sinceLastVisit.newIdeas} new idea${sinceLastVisit.newIdeas !== 1 ? 's' : ''}`}
+           </p>
          )}
          ```
 
-      **C. `/` keyboard shortcut to focus board search (BoardPage.tsx)**
+      6. On first-ever visit (no localStorage entry), show nothing (null from useState).
 
-      4. Add a ref to the search input: `const searchInputRef = useRef&lt;HTMLInputElement&gt;(null);`
-         Attach it to the search `&lt;input&gt;` at line 341.
-
-      5. Add a `useEffect` with a global keydown listener:
-         ```tsx
-         useEffect(() =&gt; {
-           const handleGlobalKeyDown = (e: KeyboardEvent) =&gt; {
-             if (e.key === '/' &amp;&amp; !e.ctrlKey &amp;&amp; !e.metaKey &amp;&amp; !e.altKey) {
-               const tag = (e.target as HTMLElement).tagName;
-               if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-               e.preventDefault();
-               searchInputRef.current?.focus();
-             }
-           };
-           document.addEventListener('keydown', handleGlobalKeyDown);
-           return () =&gt; document.removeEventListener('keydown', handleGlobalKeyDown);
-         }, []);
-         ```
-         This matches GitHub/Gmail convention. Guards against triggering inside inputs.
-
-      **D. Escape key closes filter dropdowns (BoardPage.tsx)**
-
-      6. The priority and label dropdowns use state: `showPriorityFilter` and `showLabelFilter`
-         (check exact state names). Add to the same global keydown handler from step 5:
-         ```
-         if (e.key === 'Escape') {
-           setShowPriorityFilter(false);
-           setShowLabelFilter(false);
-           searchInputRef.current?.blur();
-         }
-         ```
-         Or if the dropdowns use different state names, find them first.
-
-      **E. Card description 1-line preview on KanbanCard (KanbanCard.tsx)**
-
-      7. After the title element (around line 191, after the `&lt;/p&gt;` for card.title), add a
-         1-line description preview when a description exists:
-         ```tsx
-         {card.description &amp;&amp; !isEditing &amp;&amp; (
-           &lt;p className="text-xs text-surface-500 line-clamp-1 mt-0.5"&gt;
-             {card.description.replace(/&lt;[^&gt;]*&gt;/g, '').trim()}
-           &lt;/p&gt;
-         )}
-         ```
-         Same `stripHtml` approach. `line-clamp-1` limits to one line. `text-xs text-surface-500`
-         for subtle appearance. Only show when not in title-editing mode.
+      WHY this approach: localStorage is persistent across sessions, requires no backend changes,
+      and is the standard pattern for tracking client-side timestamps. The lazy useState initializer
+      ensures we capture the previous timestamp before overwriting it.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — zero type errors
       2. Run `npm test` — all tests pass
-      3. Manual: open command palette (Ctrl+K) → search for a card with rich text →
-         description shows plain text (no HTML tags)
-      4. Manual: on board, apply a filter that matches 0 cards →
-         "No cards match your filters. [Clear filters]" message appears
-      5. Manual: on board, press `/` → search input focuses
-      6. Manual: `/` does NOT fire when typing in a text input
-      7. Manual: open priority or label dropdown → press Escape → dropdown closes
-      8. Manual: cards with descriptions show a subtle 1-line preview below the title
-      9. Manual: cards without descriptions show no extra line
+      3. Manual: first visit to dashboard → no "Since" line shown
+      4. Manual: navigate away, create a meeting or idea, return to dashboard →
+         "Since your last visit: 1 new meeting" appears in primary color
+      5. Manual: close and reopen app → counter reflects activity since last dashboard visit
     </verify>
     <done>
-      Command palette strips HTML from card descriptions. Board shows empty filter message
-      with clear button. `/` focuses search. Escape closes dropdowns. Cards show 1-line
-      description preview.
+      Dashboard shows "Since your last visit" summary with new meetings/ideas counts.
+      First visit shows nothing. Timestamp persists across sessions via localStorage.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Card descriptions stored as TipTap HTML (confirmed: rich text editor saves HTML)
-      - BoardPage has showPriorityFilter/showLabelFilter state (confirmed via explore)
-      - KanbanCard title ends around line 191 (confirmed via explore)
-      - Simple regex HTML strip is sufficient (no nested or escaped tags in TipTap output)
+      - localStorage is available in Electron renderer (standard web API)
+      - meetings and ideas arrays are already loaded by the time DashboardPage renders
+        (App.tsx pre-loads them in useEffect on mount)
+      - Only counting meetings + ideas (not cards/projects which are often auto-created)
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Brainstorm streaming markdown, auto-select session, textarea resize</n>
+    <n>Keyboard shortcut hints in sidebar and shortcut modal updates</n>
     <files>
-      src/renderer/pages/BrainstormPage.tsx
+      src/renderer/components/Sidebar.tsx
+      src/renderer/components/KeyboardShortcutsModal.tsx
     </files>
     <action>
-      Three brainstorm UX improvements:
+      Add keyboard shortcut hints to sidebar navigation items and update the shortcuts
+      modal with page-specific shortcuts that were added in recent phases.
 
-      **A. Markdown rendering during streaming (BrainstormPage.tsx)**
+      **A. Sidebar shortcut hints (Sidebar.tsx)**
 
-      1. Line 443 renders streaming text with `whitespace-pre-wrap`, showing raw text.
-         Completed messages (in ChatMessage.tsx) already use ReactMarkdown + remark-gfm.
-         Replace the streaming text div (line 443) with ReactMarkdown:
+      1. Read `src/renderer/components/Sidebar.tsx`. The navItems array maps paths to labels
+         and icons. The NavLink elements have `title={label}`.
+
+      2. Create a shortcut map:
          ```tsx
-         &lt;div className="text-sm text-surface-200"&gt;
-           &lt;ReactMarkdown remarkPlugins={[remarkGfm]}&gt;
-             {streamingText}
-           &lt;/ReactMarkdown&gt;
-           &lt;span className="animate-pulse text-primary-400"&gt;|&lt;/span&gt;
-         &lt;/div&gt;
-         ```
-         Import `ReactMarkdown` from 'react-markdown' and `remarkGfm` from 'remark-gfm'
-         at the top of BrainstormPage.tsx (they're already dependencies of the project).
-
-         Note: ReactMarkdown re-renders on each token. Keep the existing components config
-         from ChatMessage or use minimal styling. If performance is a concern, you may use
-         the same `components` prop as ChatMessage for consistent styling, but copy it inline
-         rather than importing from ChatMessage (to keep it simple).
-
-      **B. Auto-select last active brainstorm session (BrainstormPage.tsx)**
-
-      2. When a user loads a session (clicks in sidebar), persist its ID to localStorage:
-         In the session click handler (around line 264 where `loadSession(session.id)` is called),
-         add: `localStorage.setItem('lastBrainstormSessionId', session.id);`
-
-      3. Also persist when creating a new session: after `createSession()` returns, save the
-         new session's ID to localStorage.
-
-      4. On page mount (in a useEffect), after sessions are loaded (`sessions.length &gt; 0`
-         and `!activeSession`), check localStorage for `lastBrainstormSessionId`. If it exists
-         and matches an ID in the loaded sessions, call `loadSession(id)`. Otherwise, do nothing
-         (user sees the session list as before).
-         ```tsx
-         useEffect(() =&gt; {
-           if (sessions.length &gt; 0 &amp;&amp; !activeSession &amp;&amp; !loadingSession) {
-             const lastId = localStorage.getItem('lastBrainstormSessionId');
-             if (lastId &amp;&amp; sessions.some(s =&gt; s.id === lastId)) {
-               loadSession(lastId);
-             }
-           }
-         }, [sessions, activeSession, loadingSession, loadSession]);
+         const SHORTCUT_KEYS: Record<string, string> = {
+           '/': 'Ctrl+1',
+           '/projects': 'Ctrl+2',
+           '/meetings': 'Ctrl+3',
+           '/ideas': 'Ctrl+4',
+           '/brainstorm': 'Ctrl+5',
+           '/settings': 'Ctrl+6',
+         };
          ```
 
-      **C. Brainstorm textarea auto-resize (BrainstormPage.tsx)**
+      3. Update the NavLink `title` to include the shortcut:
+         ```tsx
+         title={`${label}  (${SHORTCUT_KEYS[path] || ''})`}
+         ```
+         This provides progressive discovery — users hovering over sidebar icons see the
+         shortcut key in the native browser tooltip, without any new UI components needed.
 
-      5. Find the chat input `&lt;textarea&gt;` (around line 462-475). It likely has a fixed height
-         or rows. Change it to auto-resize with content:
-         - Add a ref: `const textareaRef = useRef&lt;HTMLTextAreaElement&gt;(null);`
-         - Add an auto-resize function:
-           ```tsx
-           const autoResize = () =&gt; {
-             const el = textareaRef.current;
-             if (el) {
-               el.style.height = 'auto';
-               el.style.height = Math.min(el.scrollHeight, 160) + 'px'; // max ~6 lines
-             }
-           };
-           ```
-         - Call `autoResize()` in `onChange` (after setting the input value).
-         - Also call `autoResize()` on mount via useEffect.
-         - Reset height after sending a message (set input to '' and then call autoResize
-           or set style.height to 'auto' directly).
-         - Set `rows={1}` and remove any fixed `h-` class. Add `resize-none overflow-hidden`
-           to prevent manual resize and scrollbar flicker.
+      **B. Update KeyboardShortcutsModal with page-specific shortcuts (KeyboardShortcutsModal.tsx)**
+
+      4. Read `src/renderer/components/KeyboardShortcutsModal.tsx`. It has two groups:
+         Navigation (Ctrl+1-6) and Actions (Ctrl+K, Ctrl+Shift+Space, Ctrl+?, Esc).
+
+      5. Add a third group for page-specific shortcuts that were added in recent phases:
+         ```tsx
+         {
+           label: 'Page Shortcuts',
+           shortcuts: [
+             { keys: '/', description: 'Focus board search (on Board page)' },
+             { keys: 'Ctrl+N', description: 'New brainstorm session (on Brainstorm page)' },
+             { keys: 'Esc', description: 'Close filters / blur search (on Board page)' },
+           ],
+         },
+         ```
+
+      WHY: These shortcuts were added in Plans 13.1-13.2 but never documented in the
+      keyboard shortcuts modal. Users discover them by accident or not at all.
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — zero type errors
       2. Run `npm test` — all tests pass
-      3. Manual: in brainstorm, send a message → streaming response renders with markdown
-         formatting (headers, bold, lists, code blocks) — no visual "pop" when streaming ends
-      4. Manual: load a brainstorm session → navigate away → return to brainstorm page →
-         the same session is automatically loaded
-      5. Manual: type a multi-line message in the brainstorm input → textarea grows to fit
-         content (up to ~6 lines max, then scrolls)
-      6. Manual: send the message → textarea shrinks back to 1 line
+      3. Manual: hover any sidebar icon → tooltip shows "Home (Ctrl+1)", "Projects (Ctrl+2)", etc.
+      4. Manual: open Ctrl+? shortcuts modal → new "Page Shortcuts" group shows /, Ctrl+N, Esc
     </verify>
     <done>
-      Streaming brainstorm text renders with full markdown. Last-used session auto-loads on
-      page revisit. Textarea auto-resizes with content up to 6 lines.
+      Sidebar items show shortcut keys in tooltip on hover.
+      Keyboard shortcuts modal includes page-specific shortcuts from recent phases.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - react-markdown and remark-gfm are already project dependencies (confirmed)
-      - ReactMarkdown handles incremental streaming text gracefully (it re-renders on each update)
-      - localStorage is available in Electron renderer (confirmed: standard web API)
-      - Textarea has no fixed height constraint that would prevent auto-resize
+      - Native title attribute tooltip is sufficient for shortcut discovery (no custom tooltip component)
+      - The 3 page-specific shortcuts (/, Ctrl+N, Esc on board) are the only ones added recently
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Board CSV export and meeting card project color</n>
+    <n>Undo card deletion via delayed delete and toast undo button</n>
     <files>
-      src/renderer/pages/BoardPage.tsx
-      src/renderer/components/MeetingCard.tsx
-      src/renderer/pages/MeetingsPage.tsx
+      src/renderer/hooks/useToast.ts
+      src/renderer/components/ToastContainer.tsx
+      src/renderer/components/CardDetailModal.tsx
+      src/renderer/stores/boardStore.ts
     </files>
     <action>
-      Two data-focused improvements: CSV export for boards and project color dots on meeting cards.
+      Replace the harsh window.confirm + permanent delete pattern for cards with a smooth
+      undo-based flow: remove card from UI immediately, show a toast with "Undo" button,
+      actually delete after 5 seconds. If undo is clicked, the card reappears.
 
-      **A. Export board as CSV (BoardPage.tsx)**
+      This delivers the "I can undo that!" wow moment from Q12 without any schema changes,
+      migration, or backend modifications. Zero backend changes — all frontend.
 
-      1. Add a CSV export helper function inside BoardPage or as a local utility:
-         ```tsx
-         function exportBoardAsCsv(columns: Column[], cards: Card[], labels: Label[]) {
-           const headers = ['Column', 'Title', 'Description', 'Priority', 'Due Date', 'Labels', 'Created', 'Updated'];
-           const rows = cards.map(card =&gt; {
-             const col = columns.find(c =&gt; c.id === card.columnId);
-             const cardLabels = card.labels?.map(l =&gt; l.name).join('; ') ?? '';
-             const desc = card.description?.replace(/&lt;[^&gt;]*&gt;/g, '').replace(/"/g, '""').trim() ?? '';
-             return [
-               col?.name ?? '',
-               card.title.replace(/"/g, '""'),
-               desc,
-               card.priority,
-               card.dueDate ?? '',
-               cardLabels,
-               new Date(card.createdAt).toLocaleDateString(),
-               new Date(card.updatedAt).toLocaleDateString(),
-             ].map(v =&gt; `"${v}"`).join(',');
-           });
-           const csv = [headers.join(','), ...rows].join('\n');
+      **A. Extend Toast type to support actions (useToast.ts)**
 
-           const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-           const url = URL.createObjectURL(blob);
-           const a = document.createElement('a');
-           a.href = url;
-           a.download = `board-export-${new Date().toISOString().slice(0, 10)}.csv`;
-           a.click();
-           URL.revokeObjectURL(url);
+      1. Read `src/renderer/hooks/useToast.ts`. Current Toast interface:
+         ```ts
+         interface Toast { id: string; message: string; type: 'success' | 'error' | 'info'; }
+         ```
+
+      2. Add an optional action:
+         ```ts
+         export interface Toast {
+           id: string;
+           message: string;
+           type: 'success' | 'error' | 'info';
+           action?: { label: string; onClick: () => void };
          }
          ```
 
-      2. Add an "Export CSV" button in the board header toolbar, after the filter indicator area
-         (around line 444-459). Use the Download icon from lucide-react:
-         ```tsx
-         &lt;button
-           onClick={() =&gt; exportBoardAsCsv(columns, cards, labels)}
-           className="flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 px-2 py-1 rounded hover:bg-surface-700"
-           title="Export board as CSV"
-         &gt;
-           &lt;Download size={14} /&gt;
-           Export CSV
-         &lt;/button&gt;
+      3. Update the `addToast` signature and `toast()` convenience function:
+         ```ts
+         addToast: (message: string, type?: Toast['type'], action?: Toast['action']) => void;
          ```
-         Import `Download` from lucide-react. Note: this exports ALL cards (unfiltered), not just
-         filtered cards. The export reflects the full board state.
-
-      **B. Project color dot on meeting cards (MeetingCard.tsx + MeetingsPage.tsx)**
-
-      3. In MeetingsPage.tsx, create a `projectColorMap` alongside the existing `projectNameMap`:
-         The projects data is already available from `useProjectStore(s =&gt; s.projects)` (line 37).
-         ```tsx
-         const projectColorMap = useMemo(() =&gt; {
-           const map = new Map&lt;string, string&gt;();
-           projects.forEach(p =&gt; map.set(p.id, p.color ?? '#6366f1'));
-           return map;
-         }, [projects]);
-         ```
-         Pass `projectColor` to MeetingCard:
-         ```tsx
-         &lt;MeetingCard
-           ...existing props...
-           projectColor={meeting.projectId ? projectColorMap.get(meeting.projectId) : undefined}
-         /&gt;
+         ```ts
+         export function toast(message: string, type?: Toast['type'], action?: Toast['action']) {
+           useToastStore.getState().addToast(message, type, action);
+         }
          ```
 
-      4. In MeetingCard.tsx, add `projectColor?: string` to the MeetingCardProps interface.
+      **B. Render action button in ToastContainer (ToastContainer.tsx)**
 
-      5. Where the `projectName` badge is rendered (lines 87-91), add a small color dot
-         BEFORE the project name text:
+      4. Read `src/renderer/components/ToastContainer.tsx`.
+
+      5. After the message text span, before the X close button, add:
          ```tsx
-         {projectName &amp;&amp; (
-           &lt;span className="text-xs bg-primary-600/10 text-primary-400 px-2 py-0.5 rounded-full flex items-center gap-1.5"&gt;
-             {projectColor &amp;&amp; (
-               &lt;span
-                 className="w-2 h-2 rounded-full shrink-0"
-                 style={{ backgroundColor: projectColor }}
-               /&gt;
-             )}
-             {projectName}
-           &lt;/span&gt;
+         {t.action && (
+           <button
+             onClick={() => { t.action!.onClick(); removeToast(t.id); }}
+             className="text-xs font-medium text-primary-400 hover:text-primary-300 transition-colors shrink-0"
+           >
+             {t.action.label}
+           </button>
          )}
          ```
-         The inline style uses the project's actual hex color for the dot.
+
+      **C. Implement undo card deletion (CardDetailModal.tsx + boardStore.ts)**
+
+      6. Read `src/renderer/components/CardDetailModal.tsx`. Find the delete handler —
+         it likely uses `window.confirm()` then calls `deleteCard(id)`.
+
+      7. Read `src/renderer/stores/boardStore.ts`. Find the `deleteCard` action.
+
+      8. In boardStore.ts, add a new action `removeCardFromUI`:
+         ```ts
+         removeCardFromUI: (cardId: string) => {
+           set({
+             allCards: get().allCards.filter(c => c.id !== cardId),
+             columnCards: get().columnCards.filter(c => c.id !== cardId),
+           });
+         },
+         ```
+         Also add `restoreCardToUI`:
+         ```ts
+         restoreCardToUI: (card: Card) => {
+           set({
+             allCards: [...get().allCards, card],
+             columnCards: [...get().columnCards, card],
+           });
+         },
+         ```
+         These are purely UI-side operations — no IPC calls.
+
+      9. In CardDetailModal.tsx, replace the delete handler:
+         ```tsx
+         const handleDelete = () => {
+           // Snapshot the card before removing from UI
+           const cardSnapshot = { ...card };
+           const cardId = card.id;
+
+           // Remove from UI immediately (optimistic)
+           removeCardFromUI(cardId);
+           onClose(); // Close the detail modal
+
+           // Schedule actual deletion after 5 seconds
+           let cancelled = false;
+           const timer = setTimeout(() => {
+             if (!cancelled) {
+               deleteCard(cardId); // Actually call IPC to delete
+             }
+           }, 5000);
+
+           // Show toast with undo button
+           toast('Card deleted', 'info', {
+             label: 'Undo',
+             onClick: () => {
+               cancelled = true;
+               clearTimeout(timer);
+               restoreCardToUI(cardSnapshot);
+             },
+           });
+         };
+         ```
+
+         Import `toast` from `../hooks/useToast`.
+         Import `removeCardFromUI` and `restoreCardToUI` from boardStore.
+
+      10. Remove the `window.confirm()` guard — the undo toast IS the safety net.
+
+      WHY this approach over soft-delete:
+      - Zero backend changes (no migration, no schema change, no query filter modifications)
+      - Zero risk to existing 18+ card query sites
+      - Same UX outcome: user can recover from accidental deletion
+      - 5-second window is generous enough for "oh no" moments
+      - After 5 seconds, deletion is permanent (matching current behavior)
+      - The toast undo pattern is well-established (Gmail, Google Docs, Slack)
     </action>
     <verify>
       1. Run `npx tsc --noEmit` — zero type errors
       2. Run `npm test` — all tests pass
-      3. Manual: on a board with cards, click "Export CSV" → CSV file downloads
-      4. Manual: open the CSV in a text editor or Excel → headers + card data are correct,
-         descriptions have HTML stripped, labels are semicolon-separated
-      5. Manual: on MeetingsPage, meetings linked to a project show a color dot next to
-         the project name badge
-      6. Manual: the color dot matches the project's assigned color
-      7. Manual: meetings without a project show no color dot or project badge
+      3. Manual: open a card → click Delete → no confirm dialog appears
+      4. Manual: card disappears from board, modal closes, toast appears: "Card deleted [Undo]"
+      5. Manual: click Undo within 5 seconds → card reappears in its column
+      6. Manual: wait 5 seconds without clicking Undo → card is permanently deleted
+      7. Manual: toast auto-dismisses after 3 seconds (but deletion waits 5 seconds)
+      8. Manual: verify toasts with actions render correctly (message + Undo button + X)
     </verify>
     <done>
-      Board can be exported as CSV with all card data. Meeting cards show a project color
-      dot next to the project name badge for visual cross-entity association.
+      Cards can be recovered from accidental deletion via toast undo button.
+      Toast system extended with action buttons. No backend or schema changes.
+      5-second undo window before permanent deletion.
     </done>
-    <confidence>HIGH</confidence>
+    <confidence>MEDIUM</confidence>
     <assumptions>
-      - Project type has a `color` field (confirmed: projects store + project type)
-      - Blob URL download works in Electron renderer (standard web API, confirmed)
-      - Card descriptions are TipTap HTML (same strip approach as Task 1)
-      - The `labels` array is available on Card objects in boardStore (confirmed)
+      - CardDetailModal handles card deletion (need to verify the exact handler location)
+      - boardStore has `allCards` and `columnCards` arrays that can be filtered/restored
+      - The 5s delay between UI removal and actual IPC deletion is acceptable
+      - Toast auto-dismiss (3s) is shorter than delete delay (5s) — the undo action fires
+        before actual deletion even if toast has visually disappeared. Need to extend toast
+        duration to 5s for undo toasts, or accept that undo is available even after toast
+        fades. IMPORTANT: For undo toasts, use a longer auto-dismiss (5s instead of 3s).
+      - Timer cleanup: if user navigates away, the setTimeout still fires — this is fine,
+        the deletion should still happen after 5 seconds regardless
     </assumptions>
   </task>
 </phase>

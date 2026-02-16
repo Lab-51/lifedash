@@ -1,39 +1,40 @@
-# Plan 14.1 Summary — Meeting Badges, Save-as-Card, Card Detail Polish
+# Plan 15.2 Summary — Last Visit Context, Shortcut Tooltips, Undo Delete
 
 ## Date: 2026-02-16
 ## Status: COMPLETE (3/3 tasks, sequential execution)
 
 ## What Changed
 
-Addressed 7 remaining proposals from SELF-IMPROVE-2.md — meeting card intelligence, brainstorm-to-card workflow, and small UX polish.
+Completed the final 3 proposals from SELF-IMPROVE-2.md (E10, Q11, Q12), finishing all 32 proposals.
 
-### Task 1: Meeting card action item count badge + delete button
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 6a18676
+### Task 1: "Since last visit" context on dashboard
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 05d3292
 
-- Q2: Action item count badge on meeting cards (ListChecks icon + count)
-- F7: Hover-reveal Trash2 delete button with window.confirm guard
-- Backend: `getActionItemCounts()` in meetingService + `meetings:action-item-counts` IPC
-- 8 files modified across backend, preload, store, and components
+- E10: localStorage tracks dashboard visit timestamps across sessions
+- Returns show "Since your last visit: N new meetings, M new ideas" below greeting
+- First-ever visit shows nothing; only counts meetings + ideas (not auto-created entities)
+- 1 file modified: DashboardPage.tsx
 
-### Task 2: Brainstorm save-as-card, Ctrl+N shortcut, filtered column count
-**Status:** COMPLETE | **Confidence:** MEDIUM (verified) | **Commit:** 10c3788
+### Task 2: Keyboard shortcut hints in sidebar and modal
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 5622327
 
-- E9: "Save as Card" button on AI messages (project-linked sessions only)
-- F10: Ctrl+N keyboard shortcut opens new brainstorm session form
-- F8: Column headers show "X of Y" format when board filters are active
-- Backend: `exportToCard()` creates card in first column of linked project board
-- 9 files modified across backend, preload, store, and components
+- Q11: Sidebar NavLink tooltips show shortcut on hover: "Home (Ctrl+1)", etc.
+- KeyboardShortcutsModal gains "Page Shortcuts" group: /, Ctrl+N, Esc
+- 2 files modified: Sidebar.tsx, KeyboardShortcutsModal.tsx
 
-### Task 3: Card detail relative time + last recording duration
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** cf2f8f3
+### Task 3: Undo card deletion via delayed delete and toast
+**Status:** COMPLETE | **Confidence:** MEDIUM → HIGH | **Commit:** f8fddfc
 
-- Q8: CardDetailModal timestamps show relative time: "Created: Feb 10 (6d ago)"
-- Q9: RecordingControls idle state shows last completed recording title + duration
-- 2 files modified (display-only changes)
+- Q12: Replaces two-click confirm with undo-based flow (Gmail/Slack pattern)
+- Card removed from UI instantly, 5s toast with "Undo" button, actual delete after timeout
+- Toast system extended with action buttons and configurable duration
+- boardStore gains removeCardFromUI/restoreCardToUI for optimistic updates
+- Plan correction: delete handler was in KanbanCard.tsx, not CardDetailModal.tsx
+- 4 files modified: useToast.ts, ToastContainer.tsx, boardStore.ts, KanbanCard.tsx
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors) — all 3 tasks
 - `npx vitest run`: 150/150 tests pass — all 3 tasks
 
-## SELF-IMPROVE-2.md Status
-All proposals now addressed across Plans 13.1, 13.2, and 14.1.
+## SELF-IMPROVE-2.md Completion Status
+All 32 proposals delivered across Plans 13.1, 13.2, 14.1, 15.1, and 15.2.
