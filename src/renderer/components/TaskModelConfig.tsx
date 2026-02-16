@@ -47,6 +47,8 @@ type DraftConfig = Record<AITaskType, { providerId: string; model: string }>;
 export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
   const getTaskModels = useSettingsStore(s => s.getTaskModels);
   const setTaskModels = useSettingsStore(s => s.setTaskModels);
+  // Subscribe to the actual setting value so we re-render when loadSettings() completes
+  const taskModelsJson = useSettingsStore(s => s.settings['ai.taskModels']);
   const [draft, setDraft] = useState<DraftConfig>({} as DraftConfig);
   const [customModel, setCustomModel] = useState<Record<AITaskType, string>>({} as Record<AITaskType, string>);
   const [saving, setSaving] = useState(false);
@@ -55,7 +57,7 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
 
   const enabledProviders = providers.filter(p => p.enabled);
 
-  // Load saved config on mount
+  // Load saved config when settings become available (after async loadSettings)
   useEffect(() => {
     const savedModels = getTaskModels();
     const initial: DraftConfig = {} as DraftConfig;
@@ -70,7 +72,8 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
       }
     }
     setDraft(initial);
-  }, [getTaskModels]);
+    setDirty(false);
+  }, [taskModelsJson, getTaskModels]);
 
   const updateDraft = (type: AITaskType, field: 'providerId' | 'model', value: string) => {
     setDraft(prev => ({

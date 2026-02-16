@@ -1,63 +1,31 @@
 /**
- * Script to generate icon.png from icon.svg
- * Run with: npx electron scripts/generate-icons.js
+ * Generate icon.png from icon.svg using @resvg/resvg-js.
+ * Run with: node scripts/generate-icons.js
+ *
+ * Produces a 512x512 PNG suitable for Electron Forge packaging.
+ * No Electron runtime required — works in plain Node.js.
  */
-const { app, BrowserWindow } = require('electron');
+const { Resvg } = require('@resvg/resvg-js');
 const fs = require('fs');
 const path = require('path');
 
-async function generate() {
-    await app.whenReady();
+const SVG_PATH = path.join(__dirname, '../src/renderer/assets/icon.svg');
+const OUT_PATH = path.join(__dirname, '../src/assets/icon.png');
+const SIZE = 512;
 
-    // Create a silent window
-    const win = new BrowserWindow({
-        show: false,
-        width: 256,
-        height: 256,
-        webPreferences: {
-            offscreen: true, // Render offscreen if possible
-        },
-        // Frameless to ensure we just get the content (though capturePage area can be set)
-    });
-
-    // Get SVG content
-    const svgPath = path.join(__dirname, '../src/renderer/assets/icon.svg');
-    if (!fs.existsSync(svgPath)) {
-        console.error(`SVG not found at: ${svgPath}`);
-        app.quit();
-        return;
-    }
-
-    const svgContent = fs.readFileSync(svgPath, 'utf-8');
-
-    // Load content
-    const html = `
-    <html>
-      <body style="margin: 0; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; height: 100vh;">
-        <div style="width: 256px; height: 256px;">
-          ${svgContent}
-        </div>
-      </body>
-    </html>
-  `;
-
-    const dataUri = `data:text/html;base64,${Buffer.from(html).toString('base64')}`;
-
-    await win.loadURL(dataUri);
-
-    // Wait a moment for rendering
-    await new Promise(r => setTimeout(r, 500));
-
-    // Capture
-    const image = await win.webContents.capturePage();
-
-    const buffer = image.toPNG();
-    const outputPath = path.join(__dirname, '../src/assets/icon.png');
-
-    fs.writeFileSync(outputPath, buffer);
-
-    console.log(`Generated icon.png at ${outputPath}`);
-    app.quit();
+if (!fs.existsSync(SVG_PATH)) {
+  console.error(`SVG not found at: ${SVG_PATH}`);
+  process.exit(1);
 }
 
-generate();
+const svg = fs.readFileSync(SVG_PATH, 'utf-8');
+
+const resvg = new Resvg(svg, {
+  fitTo: { mode: 'width', value: SIZE },
+});
+
+const rendered = resvg.render();
+const buffer = rendered.asPng();
+
+fs.writeFileSync(OUT_PATH, buffer);
+console.log(`Generated ${SIZE}x${SIZE} icon.png at ${OUT_PATH} (${buffer.length} bytes)`);

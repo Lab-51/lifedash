@@ -1,4 +1,4 @@
-const pngToIco = require('png-to-ico');
+const { default: pngToIco } = require('png-to-ico');
 const fs = require('fs');
 const path = require('path');
 

@@ -6,7 +6,6 @@
 // ai (generateText), @ai-sdk/openai, @ai-sdk/anthropic, ollama-ai-provider
 //
 // === LIMITATIONS ===
-// - Cost estimation not yet implemented (planned for Plan 3.3)
 // - Provider cache must be manually cleared on config change
 //
 // === VERIFICATION STATUS ===
@@ -36,6 +35,29 @@ const TEST_MODELS: Record<AIProviderName, string> = {
   ollama: 'llama3.2',
   kimi: 'kimi-k2.5',
 };
+
+// Pricing per token (USD). Prices sourced from provider pricing pages (Feb 2026).
+// Local models (Ollama) are free. Unknown models default to 0.
+interface TokenPricing { input: number; output: number }
+const MODEL_PRICING: Record<string, TokenPricing> = {
+  // OpenAI
+  'gpt-4o':          { input: 2.50 / 1e6, output: 10.00 / 1e6 },
+  'gpt-4o-mini':     { input: 0.15 / 1e6, output: 0.60 / 1e6 },
+  'o1-mini':         { input: 1.10 / 1e6, output: 4.40 / 1e6 },
+  // Anthropic
+  'claude-sonnet-4-5-20250929': { input: 3.00 / 1e6, output: 15.00 / 1e6 },
+  'claude-haiku-4-5-20251001':  { input: 0.80 / 1e6, output: 4.00 / 1e6 },
+  // Kimi (Moonshot)
+  'kimi-k2.5':         { input: 1.00 / 1e6, output: 4.00 / 1e6 },
+  'kimi-k2.5-preview': { input: 1.00 / 1e6, output: 4.00 / 1e6 },
+};
+
+/** Estimate cost in USD from token counts and model ID. Returns 0 for unknown/local models. */
+function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+  const pricing = MODEL_PRICING[model];
+  if (!pricing) return 0;
+  return inputTokens * pricing.input + outputTokens * pricing.output;
+}
 
 // Provider factory type — callable provider instances that return a LanguageModel
 // when called with a model ID string. ollama-ai-provider v1.2.0 returns
@@ -211,14 +233,17 @@ export async function generate(options: {
 
   // Log usage (fire-and-forget — don't fail generation if logging fails)
   try {
+    const inputTok = result.usage?.inputTokens ?? 0;
+    const outputTok = result.usage?.outputTokens ?? 0;
     const db = getDb();
     await db.insert(aiUsage).values({
       providerId: options.providerId,
       model: options.model,
       taskType: options.taskType,
-      promptTokens: result.usage?.inputTokens ?? 0,
-      completionTokens: result.usage?.outputTokens ?? 0,
+      promptTokens: inputTok,
+      completionTokens: outputTok,
       totalTokens: result.usage?.totalTokens ?? 0,
+      estimatedCost: estimateCost(options.model, inputTok, outputTok),
     });
   } catch (logError) {
     log.error('Failed to log usage:', logError);
@@ -321,14 +346,17 @@ export async function logUsage(
   usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | null,
 ): Promise<void> {
   try {
+    const inputTok = usage?.inputTokens ?? 0;
+    const outputTok = usage?.outputTokens ?? 0;
     const db = getDb();
     await db.insert(aiUsage).values({
       providerId,
       model,
       taskType,
-      promptTokens: usage?.inputTokens ?? 0,
-      completionTokens: usage?.outputTokens ?? 0,
+      promptTokens: inputTok,
+      completionTokens: outputTok,
       totalTokens: usage?.totalTokens ?? 0,
+      estimatedCost: estimateCost(model, inputTok, outputTok),
     });
   } catch (error) {
     log.error('Failed to log usage:', error);
