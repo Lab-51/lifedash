@@ -10,6 +10,7 @@ export const projects = pgTable('projects', {
   description: text('description'),
   color: varchar('color', { length: 7 }), // Hex color e.g. #3b82f6
   archived: boolean('archived').default(false).notNull(),
+  pinned: boolean('pinned').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

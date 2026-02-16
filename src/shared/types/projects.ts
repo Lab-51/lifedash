@@ -8,6 +8,7 @@ export interface Project {
   description: string | null;
   color: string | null;
   archived: boolean;
+  pinned: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -63,6 +64,7 @@ export interface UpdateProjectInput {
   description?: string | null;
   color?: string | null;
   archived?: boolean;
+  pinned?: boolean;
 }
 
 export interface CreateBoardInput {

@@ -10,7 +10,7 @@
 
 import { useEffect, useState, useMemo, lazy, Suspense } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2, LayoutList, Copy } from 'lucide-react';
+import { FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2, LayoutList, Copy, Star } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useBoardStore } from '../stores/boardStore';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -306,12 +306,26 @@ function ProjectsPage() {
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    <h3 className="font-semibold text-surface-100 truncate">
+                    <h3 className="font-semibold text-surface-100 truncate flex items-center gap-1">
                       {project.name}
+                      {project.pinned && <Star size={12} className="text-amber-400 fill-amber-400 shrink-0" />}
                     </h3>
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0 ml-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateProject(project.id, { pinned: !project.pinned });
+                    }}
+                    className={`text-surface-500 hover:text-amber-400 transition-opacity shrink-0 ${project.pinned ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                    title={project.pinned ? 'Unpin project' : 'Pin project'}
+                  >
+                    <Star
+                      size={16}
+                      className={project.pinned ? 'text-amber-400 fill-amber-400' : 'text-surface-500'}
+                    />
+                  </button>
                   <button
                     onClick={e => handleStartRename(e, project)}
                     className="text-surface-500 hover:text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"

@@ -10,7 +10,7 @@
 // - Column reorder does sequential updates (not batched).
 
 import { ipcMain } from 'electron';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, desc } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { projects, boards, columns, cards } from '../db/schema';
 import { validateInput } from '../../shared/validation/ipc-validator';
@@ -30,7 +30,7 @@ export function registerProjectHandlers(): void {
 
   ipcMain.handle('projects:list', async () => {
     const db = getDb();
-    return db.select().from(projects).orderBy(asc(projects.createdAt));
+    return db.select().from(projects).orderBy(desc(projects.pinned), asc(projects.createdAt));
   });
 
   ipcMain.handle(

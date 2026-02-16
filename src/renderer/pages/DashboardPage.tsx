@@ -18,6 +18,7 @@ import {
   FolderKanban,
   Clock,
   Calendar,
+  Star,
 } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -237,6 +238,7 @@ function DashboardPage() {
                         style={{ backgroundColor: project.color || '#3b82f6' }}
                       />
                       <h3 className="font-medium text-surface-100 truncate">{project.name}</h3>
+                      {project.pinned && <Star size={12} className="text-amber-400 fill-amber-400 shrink-0" />}
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-1 text-xs text-surface-400">
