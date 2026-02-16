@@ -272,6 +272,34 @@ body {
   padding: 0;
 }
 
+/* Sidebar logo — slow heartbeat glow */
+@keyframes logo-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 6px rgba(99, 102, 241, 0.15),
+      0 0 12px rgba(59, 130, 246, 0.05);
+  }
+  40% {
+    box-shadow:
+      0 0 12px rgba(99, 102, 241, 0.45),
+      0 0 28px rgba(59, 130, 246, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 8px rgba(99, 102, 241, 0.3),
+      0 0 18px rgba(59, 130, 246, 0.12);
+  }
+  65% {
+    box-shadow:
+      0 0 10px rgba(99, 102, 241, 0.35),
+      0 0 22px rgba(59, 130, 246, 0.15);
+  }
+}
+
+.animate-logo-pulse {
+  animation: logo-pulse 3s ease-in-out infinite;
+}
+
 /* Kanban card drag-and-drop animations */
 @keyframes card-grab {
 

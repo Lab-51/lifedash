@@ -12,8 +12,8 @@ import {
     Sun,
     Moon,
     Monitor,
-    Zap,
 } from 'lucide-react';
+import dashIcon from '../assets/icon.svg';
 import { useTheme } from '../hooks/useTheme';
 
 import type { ThemeMode } from '../hooks/useTheme';
@@ -69,11 +69,9 @@ export default function SidebarModern() {
 
     return (
         <nav className="w-20 bg-white dark:bg-surface-900 border-r border-surface-200 dark:border-surface-800 flex flex-col shrink-0 py-6 transition-colors duration-300 z-50">
-            {/* App Logo / Top Icon */}
+            {/* App Logo / Top Icon — slow heartbeat glow */}
             <div className="flex justify-center mb-8">
-                <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-xl shadow-lg shadow-primary-500/30 flex items-center justify-center text-white">
-                    <Zap size={20} fill="currentColor" />
-                </div>
+                <img src={dashIcon} alt="LifeDash" className="w-10 h-10 rounded-xl animate-logo-pulse" />
             </div>
 
             <div className="flex flex-col gap-3 px-3 flex-1">

@@ -2,21 +2,33 @@
 
 ## Session Info
 Last updated: 2026-02-16
-Session focus: Execute Plan B.1 — App Startup Loading Animation
-Checkpoint reason: Plan B.1 COMPLETE
+Session focus: Plan B.1 execution + security audit + icon/branding overhaul
+Checkpoint reason: End of session — all work committed
 
 ## Position
-Milestone: Plan B.1 — App Startup Loading Animation (COMPLETE)
-Latest commit: cbc4d23 on main — splash screen feature
+Milestone: Post Plan B.1 — ad-hoc improvements
+Latest commit: (pending commit for icon/branding work)
 Test suite: 150 tests across 7 files
 SELF-IMPROVE-NEW.md: 27 proposals, 6 implemented (Phase A: 5/5, Phase B started: 1/?)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
 
+## Ad-hoc Changes This Session
+- Plan B.1 executed: CSS splash screen + React appReady gating (cbc4d23)
+- SECURITY.md: Complete security architecture documentation (1615df4)
+- Security audit: 4 parallel agents audited audio pipeline, API keys, IPC/CSP, network/deps
+- Removed stale `electron-forge` v5.2.4 from dependencies (was shadowing v7 CLI)
+- Disabled WiX MSI maker in forge.config.ts (requires WiX Toolset not installed)
+- Icon overhaul: regenerated icon.png + icon.ico from SVG with cropped viewBox (no white borders)
+- Sidebar: replaced Zap lightning bolt with actual pulse/waveform logo SVG
+- Sidebar logo: added heartbeat glow animation (CSS keyframes, 3s cycle)
+- Tray icon: bumped from 16x16 to 32x32 on Windows, removed dead createTrayIcon() code
+- Added @resvg/resvg-js devDependency for SVG→PNG conversion
+
 ## Resume Context
 Next action: SELF-IMPROVE-NEW.md Phase B continued or user-directed work
-Prerequisites: None — all clean
+Prerequisites: None — all clean, pushed to remote
 
 ## Plan B.1 Results
 - Task 1: CSS splash screen in index.html (cbc4d23)

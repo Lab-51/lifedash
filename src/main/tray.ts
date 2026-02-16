@@ -7,30 +7,10 @@
 // Electron (app, Tray, Menu, nativeImage, BrowserWindow)
 
 import { app, BrowserWindow, Menu, nativeImage, Tray } from 'electron';
+import * as path from 'node:path';
 import icon from '../assets/icon.png';
 
 let tray: Tray | null = null;
-
-/**
- * Create a simple 16x16 tray icon programmatically.
- * Uses a solid blue square matching the primary-500 color (#3b82f6).
- * On Windows, .png works fine for tray icons.
- */
-function createTrayIcon(): Electron.NativeImage {
-  // 16x16 RGBA buffer: solid blue (#3b82f6) with full opacity
-  const size = 16;
-  const buffer = Buffer.alloc(size * size * 4);
-  for (let i = 0; i < size * size; i++) {
-    buffer[i * 4] = 0x3b; // R
-    buffer[i * 4 + 1] = 0x82; // G
-    buffer[i * 4 + 2] = 0xf6; // B
-    buffer[i * 4 + 3] = 0xff; // A
-  }
-  return nativeImage.createFromBuffer(buffer, {
-    width: size,
-    height: size,
-  });
-}
 
 /**
  * Create the system tray with a context menu.
@@ -42,15 +22,14 @@ export function createTray(mainWindow: BrowserWindow): Tray {
 
   // If that fails (e.g. dev server URL issue), try absolute path in source for dev
   if (trayIcon.isEmpty()) {
-    const path = require('path');
     const devIconPath = path.join(__dirname, '../../src/assets/icon.png');
     trayIcon = nativeImage.createFromPath(devIconPath);
   }
 
-  // Resize for typical tray requirements
-  // Windows: 16x16 or 32x32 (HiDPI)
-  // macOS: 22x22 template
-  const resizedIcon = trayIcon.resize({ width: 16, height: 16 });
+  // Windows tray: 32x32 looks sharp on standard and HiDPI displays
+  // macOS tray: 22x22 template
+  const traySize = process.platform === 'darwin' ? 22 : 32;
+  const resizedIcon = trayIcon.resize({ width: traySize, height: traySize });
 
   tray = new Tray(resizedIcon);
 
