@@ -126,6 +126,9 @@ ${pendingActionsText}
 Today's date: ${now.toLocaleDateString()}`;
 
     // f. Generate with AI
+    log.info(`Standup provider: ${resolved.providerName} / ${resolved.model}`);
+    log.info(`Standup prompt length: ${prompt.length} chars`);
+
     const result = await generate({
       providerId: resolved.providerId,
       providerName: resolved.providerName,
@@ -138,7 +141,10 @@ Today's date: ${now.toLocaleDateString()}`;
       maxTokens: 500,
     });
 
-    log.info('Standup generated');
+    log.info(`Standup result: ${result.text.length} chars`);
+    if (!result.text) {
+      throw new Error(`AI provider (${resolved.providerName}/${resolved.model}) returned empty text. Try a different provider or model in Settings.`);
+    }
     return { standup: result.text };
   });
 

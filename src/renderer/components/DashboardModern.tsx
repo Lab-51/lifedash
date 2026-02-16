@@ -2,7 +2,7 @@
 // Home dashboard page — Modern Design
 // Enterprise-grade, widget-based layout with glassmorphism and rich visuals.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Mic,
@@ -26,6 +26,8 @@ import { useMeetingStore } from '../stores/meetingStore';
 import { useIdeaStore } from '../stores/ideaStore';
 import { useBoardStore } from '../stores/boardStore';
 import { toast } from '../hooks/useToast';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import ProductivityPulse from './ProductivityPulse';
 
 /** Return a time-based greeting string. */
@@ -91,6 +93,8 @@ export default function DashboardModern() {
     const [standupText, setStandupText] = useState<string | null>(null);
     const [generatingStandup, setGeneratingStandup] = useState(false);
     const [standupCopied, setStandupCopied] = useState(false);
+    const standupRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     const handleGenerateStandup = async () => {
         setGeneratingStandup(true);
@@ -98,6 +102,9 @@ export default function DashboardModern() {
         try {
             const result = await window.electronAPI.generateStandup();
             setStandupText(result.standup);
+            toast('Standup ready', 'success');
+            // Scroll container to top so the standup card is visible
+            setTimeout(() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 100);
         } catch {
             toast('Failed to generate standup', 'error');
         } finally {
@@ -164,7 +171,34 @@ export default function DashboardModern() {
             </div>
 
             {/* Main Content Grid - Overlapping the Hero */}
-            <div className="flex-1 overflow-y-auto px-8 pb-8 -mt-6 z-20">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 pb-8 -mt-6 z-20">
+
+                {/* Standup Result — above the grid so it's impossible to miss */}
+                {standupText !== null && standupText.length > 0 && (
+                    <div ref={standupRef} className="mb-6 bg-white dark:bg-surface-900 rounded-2xl border border-emerald-300 dark:border-emerald-800/60 shadow-md p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <ClipboardList size={16} className="text-emerald-500" />
+                                <h3 className="font-semibold text-surface-900 dark:text-surface-100">Daily Standup</h3>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button onClick={handleCopyStandup} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors" title="Copy to clipboard">
+                                    {standupCopied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} className="text-surface-400" />}
+                                </button>
+                                <button onClick={handleGenerateStandup} disabled={generatingStandup} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors" title="Regenerate">
+                                    <RefreshCw size={14} className={`text-surface-400 ${generatingStandup ? 'animate-spin' : ''}`} />
+                                </button>
+                                <button onClick={() => setStandupText(null)} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors" title="Dismiss">
+                                    <X size={14} className="text-surface-400" />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="text-sm text-surface-700 dark:text-surface-200 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{standupText}</ReactMarkdown>
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-12 gap-6 pb-8">
 
                     {/* Stats Row */}
@@ -201,27 +235,6 @@ export default function DashboardModern() {
                             </div>
                         </div>
                     </div>
-
-                    {/* Standup Result */}
-                    {standupText && (
-                        <div className="col-span-12 bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm p-5">
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="font-semibold text-surface-900 dark:text-surface-100">Daily Standup</h3>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={handleCopyStandup} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800" title="Copy">
-                                        {standupCopied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} className="text-surface-400" />}
-                                    </button>
-                                    <button onClick={handleGenerateStandup} disabled={generatingStandup} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800" title="Regenerate">
-                                        <RefreshCw size={14} className={`text-surface-400 ${generatingStandup ? 'animate-spin' : ''}`} />
-                                    </button>
-                                    <button onClick={() => setStandupText(null)} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800" title="Dismiss">
-                                        <X size={14} className="text-surface-400" />
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="text-sm text-surface-700 dark:text-surface-200 whitespace-pre-wrap">{standupText}</div>
-                        </div>
-                    )}
 
                     {/* Productivity Pulse */}
                     {(projects.length > 0 || meetings.length > 0) && (

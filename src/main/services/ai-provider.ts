@@ -49,10 +49,24 @@ interface ProviderFactory {
 // Providers that don't support custom temperature values
 const FIXED_TEMPERATURE_PROVIDERS: Set<AIProviderName> = new Set(['kimi']);
 
+// Thinking/reasoning models need a higher token budget because they consume
+// tokens for internal reasoning before producing visible output. A low limit
+// (e.g. 500) can be entirely consumed by thinking, leaving 0 tokens for text.
+const REASONING_PROVIDERS: Set<AIProviderName> = new Set(['kimi']);
+const REASONING_MIN_TOKENS = 4096;
+
 /** Strip temperature for providers that only accept fixed values (e.g. Kimi K2.5). */
 function sanitizeTemperature(providerName: AIProviderName, temperature?: number): number | undefined {
   if (FIXED_TEMPERATURE_PROVIDERS.has(providerName)) return undefined;
   return temperature;
+}
+
+/** Ensure reasoning models have enough token budget for thinking + output. */
+function sanitizeMaxTokens(providerName: AIProviderName, maxTokens?: number): number | undefined {
+  if (REASONING_PROVIDERS.has(providerName)) {
+    return Math.max(maxTokens ?? REASONING_MIN_TOKENS, REASONING_MIN_TOKENS);
+  }
+  return maxTokens;
 }
 
 // Cache provider factories by DB id (invalidated on config change)
@@ -173,8 +187,27 @@ export async function generate(options: {
     prompt: options.prompt,
     system: options.system,
     temperature: sanitizeTemperature(options.providerName, options.temperature),
-    maxOutputTokens: options.maxTokens,
+    maxOutputTokens: sanitizeMaxTokens(options.providerName, options.maxTokens),
   });
+
+  // Reasoning model fallback: some models (e.g. Kimi k2.5) put content in
+  // reasoning instead of text. Use reasoning as fallback when text is empty.
+  let text = result.text;
+  if (!text && result.reasoning && result.reasoning.length > 0) {
+    const reasoningText = result.reasoning.map(r => r.text).join('\n');
+    log.info(`[AI] text empty but reasoning has ${reasoningText.length} chars — using reasoning as text`);
+    text = reasoningText;
+  }
+  if (!text) {
+    // Log raw response fields for debugging
+    const diag = {
+      textLen: result.text?.length ?? 0,
+      reasoningLen: result.reasoning?.length ?? 0,
+      finishReason: result.finishReason,
+      usage: result.usage,
+    };
+    log.error(`[AI] Empty response from ${options.providerName}/${options.model}: ${JSON.stringify(diag)}`);
+  }
 
   // Log usage (fire-and-forget — don't fail generation if logging fails)
   try {
@@ -186,14 +219,13 @@ export async function generate(options: {
       promptTokens: result.usage?.inputTokens ?? 0,
       completionTokens: result.usage?.outputTokens ?? 0,
       totalTokens: result.usage?.totalTokens ?? 0,
-      // Cost estimation added in Plan 3.3 (requires pricing table)
     });
   } catch (logError) {
     log.error('Failed to log usage:', logError);
   }
 
   return {
-    text: result.text,
+    text,
     usage: result.usage,
   };
 }
