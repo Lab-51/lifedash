@@ -29,6 +29,14 @@ function formatElapsed(seconds: number): string {
   return `${m}:${s}`;
 }
 
+function formatLastDuration(startedAt: string, endedAt: string): string {
+  const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+  const min = Math.floor(ms / 60000);
+  const sec = Math.floor((ms % 60000) / 1000);
+  if (min === 0) return `${sec}s`;
+  return `${min}m ${sec}s`;
+}
+
 // --- Retro equalizer constants ---
 const EQ_BARS = 16;
 const EQ_SEGMENTS = 10;
@@ -183,6 +191,8 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
   const stopRecording = useRecordingStore(s => s.stopRecording);
   const setIncludeMic = useRecordingStore(s => s.setIncludeMic);
   const deleteMeeting = useMeetingStore(s => s.deleteMeeting);
+  const meetings = useMeetingStore(s => s.meetings);
+  const lastCompletedMeeting = meetings.find(m => m.status === 'completed' && m.endedAt);
   const projects = useProjectStore(s => s.projects);
   const activeProjects = projects.filter(p => !p.archived);
   const [title, setTitle] = useState(suggestMeetingTitle);
@@ -239,6 +249,11 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
             disabled={starting}
             autoFocus
           />
+          {lastCompletedMeeting && (
+            <p className="text-xs text-surface-500 -mt-1">
+              Last: {lastCompletedMeeting.title} — {formatLastDuration(lastCompletedMeeting.startedAt, lastCompletedMeeting.endedAt!)}
+            </p>
+          )}
           <select
             value={selectedProjectId}
             onChange={(e) => setSelectedProjectId(e.target.value)}

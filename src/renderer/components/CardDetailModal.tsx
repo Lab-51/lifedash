@@ -94,6 +94,17 @@ function formatDate(dateStr: string): string {
   });
 }
 
+function formatRelativeTime(isoDate: string): string {
+  const seconds = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  const days = Math.floor(seconds / 86400);
+  if (days === 1) return 'yesterday';
+  if (days < 30) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
+
 /** Convert ISO string to datetime-local input value (YYYY-MM-DDTHH:mm) */
 function toDateTimeLocalValue(isoStr: string): string {
   const d = new Date(isoStr);
@@ -497,9 +508,9 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
         {/* Timestamps */}
         <div className="text-xs text-surface-500 flex items-center gap-1">
-          <span>Created: {formatDate(card.createdAt)}</span>
+          <span>Created: {formatDate(card.createdAt)} ({formatRelativeTime(card.createdAt)})</span>
           <span>·</span>
-          <span>Updated: {formatDate(card.updatedAt)}</span>
+          <span>Updated: {formatDate(card.updatedAt)} ({formatRelativeTime(card.updatedAt)})</span>
         </div>
       </div>
     </div>
