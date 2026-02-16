@@ -114,7 +114,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       if (meetingId) {
         await window.electronAPI.updateMeeting(meetingId, {
           endedAt: new Date().toISOString(),
-          audioPath,
+          ...(audioPath ? { audioPath } : {}),
           status: 'completed',
         });
       }

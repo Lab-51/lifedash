@@ -11,22 +11,26 @@ import { FolderOpen, Loader2, RotateCcw } from 'lucide-react';
 
 /** Settings key for the recordings save path */
 const SETTINGS_KEY = 'recordings:savePath';
+const SAVE_RECORDINGS_KEY = 'audio:saveRecordings';
 
 export default function RecordingsSavePathSection() {
   const [currentPath, setCurrentPath] = useState('');
   const [defaultPath, setDefaultPath] = useState('');
   const [isCustom, setIsCustom] = useState(false);
+  const [saveEnabled, setSaveEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [savedPath, defPath] = await Promise.all([
+        const [savedPath, defPath, saveRecordings] = await Promise.all([
           window.electronAPI.getSetting(SETTINGS_KEY),
           window.electronAPI.getDefaultRecordingsPath(),
+          window.electronAPI.getSetting(SAVE_RECORDINGS_KEY),
         ]);
 
         setDefaultPath(defPath);
+        setSaveEnabled(saveRecordings !== 'false');
 
         if (savedPath) {
           setCurrentPath(savedPath);
@@ -44,6 +48,15 @@ export default function RecordingsSavePathSection() {
 
     load();
   }, []);
+
+  const handleToggleSave = async (enabled: boolean) => {
+    try {
+      await window.electronAPI.setSetting(SAVE_RECORDINGS_KEY, String(enabled));
+      setSaveEnabled(enabled);
+    } catch (err) {
+      console.error('Failed to update save recordings setting:', err);
+    }
+  };
 
   const handleBrowse = async () => {
     try {
@@ -87,50 +100,69 @@ export default function RecordingsSavePathSection() {
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <FolderOpen size={18} className="text-primary-400" />
-          <h2 className="text-lg font-semibold text-surface-100">Recordings Folder</h2>
+          <h2 className="text-lg font-semibold text-surface-100">Recordings</h2>
         </div>
         <p className="text-sm text-surface-500 mt-1">
-          Choose where audio recordings are saved on disk.
+          Configure audio recording storage. Transcripts are always saved regardless of this setting.
         </p>
       </div>
 
       <div className="p-4 bg-surface-800 border border-surface-700 rounded-lg space-y-4">
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-surface-200">
-              Save Location
-              {isCustom && (
-                <span className="ml-2 text-xs font-normal text-primary-400">(custom)</span>
-              )}
-            </label>
+        {/* Save audio toggle */}
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={saveEnabled}
+            onChange={(e) => handleToggleSave(e.target.checked)}
+            className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
+          />
+          <div>
+            <span className="text-sm font-medium text-surface-200">Save audio recordings to disk</span>
+            <p className="text-xs text-surface-500 mt-0.5">
+              When disabled, only transcripts are kept. Audio files won't be saved, so you won't be able to replay or re-transcribe.
+            </p>
           </div>
+        </label>
 
-          <div className="flex items-center gap-2">
-            <code className="flex-1 text-sm text-surface-300 bg-surface-900 px-3 py-2 rounded border border-surface-700 truncate">
-              {currentPath}
-            </code>
-            <button
-              onClick={handleBrowse}
-              className="px-3 py-2 text-sm bg-surface-700 hover:bg-surface-600 text-surface-200 rounded transition-colors whitespace-nowrap"
-            >
-              Browse...
-            </button>
-            {isCustom && (
+        {/* Folder picker — only shown when saving is enabled */}
+        {saveEnabled && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-surface-200">
+                Save Location
+                {isCustom && (
+                  <span className="ml-2 text-xs font-normal text-primary-400">(custom)</span>
+                )}
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-sm text-surface-300 bg-surface-900 px-3 py-2 rounded border border-surface-700 truncate">
+                {currentPath}
+              </code>
               <button
-                onClick={handleReset}
-                className="flex items-center gap-1 px-3 py-2 text-sm text-surface-400 hover:text-surface-200 transition-colors"
-                title="Reset to default location"
+                onClick={handleBrowse}
+                className="px-3 py-2 text-sm bg-surface-700 hover:bg-surface-600 text-surface-200 rounded transition-colors whitespace-nowrap"
               >
-                <RotateCcw size={14} />
-                Reset
+                Browse...
               </button>
-            )}
-          </div>
+              {isCustom && (
+                <button
+                  onClick={handleReset}
+                  className="flex items-center gap-1 px-3 py-2 text-sm text-surface-400 hover:text-surface-200 transition-colors"
+                  title="Reset to default location"
+                >
+                  <RotateCcw size={14} />
+                  Reset
+                </button>
+              )}
+            </div>
 
-          <p className="text-xs text-surface-500 mt-2">
-            Changing this folder only affects new recordings. Existing recordings remain accessible at their original paths.
-          </p>
-        </div>
+            <p className="text-xs text-surface-500 mt-2">
+              Changing this folder only affects new recordings. Existing recordings remain accessible at their original paths.
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );

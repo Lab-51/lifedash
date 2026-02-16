@@ -111,8 +111,28 @@ export async function stopRecording(): Promise<string> {
   const combined = Buffer.concat(chunks);
   chunks = []; // Free memory
 
-  // Save WAV file
-  const audioPath = await saveWav(meetingId, combined);
+  // Check if audio saving is enabled (default: true)
+  let saveEnabled = true;
+  try {
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(settings)
+      .where(eq(settings.key, 'audio:saveRecordings'));
+    if (rows.length > 0 && rows[0].value === 'false') {
+      saveEnabled = false;
+    }
+  } catch (err) {
+    log.error('Failed to read audio:saveRecordings setting, defaulting to save:', err);
+  }
+
+  // Save WAV file (or skip if disabled)
+  let audioPath = '';
+  if (saveEnabled) {
+    audioPath = await saveWav(meetingId, combined);
+  } else {
+    log.debug('Audio saving disabled — skipping WAV file');
+  }
 
   // Push stopped state
   pushState();
