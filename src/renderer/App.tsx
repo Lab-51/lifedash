@@ -18,6 +18,7 @@ import AppLayout from './components/AppLayout';
 import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { useTheme } from './hooks/useTheme';
+import { useDesign } from './hooks/useDesign';
 import { useRecordingStore } from './stores/recordingStore';
 import { useProjectStore } from './stores/projectStore';
 import { useMeetingStore } from './stores/meetingStore';
@@ -66,6 +67,7 @@ function AppShell({ children }: { children: ReactNode }) {
 
   useKeyboardShortcuts(navigate, toggleCommandPalette, toggleShortcutsHelp);
   useTheme();
+  useDesign();
 
   // Initialize recording state listener (always active regardless of page)
   useEffect(() => {

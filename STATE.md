@@ -6,11 +6,16 @@ Session focus: SELF-IMPROVE-NEW.md — New Feature Development
 
 ## Position
 Milestone: SELF-IMPROVE-NEW.md Phase A — Quick Capture & Daily Habits
-Phase: A.1 COMPLETE
+Phase: A.2 (Daily Standup Generator + Productivity Pulse)
 Latest commit: f5f08e6 on main
 Test suite: 150 tests across 7 files
-SELF-IMPROVE-NEW.md: 27 proposals, 3 implemented
+SELF-IMPROVE-NEW.md: 27 proposals, 3 implemented (5 total in Phase A)
 Plan A.1: COMPLETE (3/3 tasks)
+Plan A.2: READY (2 tasks: Daily Standup Generator, Productivity Pulse)
+
+## Plan A.2 Confidence
+Task 1 (Daily Standup Generator): HIGH — uses existing AI provider + card activities data
+Task 2 (Productivity Pulse): HIGH — pure CSS heatmap from existing createdAt timestamps
 
 ## Plan A.1 Results
 - Task 1: Pin/Star Projects ✓ (2b7ffdc)
