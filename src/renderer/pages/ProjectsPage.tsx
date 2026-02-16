@@ -16,6 +16,7 @@ import { useBoardStore } from '../stores/boardStore';
 import LoadingSpinner from '../components/LoadingSpinner';
 const ProjectPlanningModal = lazy(() => import('../components/ProjectPlanningModal'));
 import type { CreateProjectInput } from '../../shared/types';
+import { toast } from '../hooks/useToast';
 
 const PRESET_COLORS = [
   '#3b82f6', // blue
@@ -82,12 +83,14 @@ function ProjectsPage() {
     });
     setFormData({ name: '', description: '', color: PRESET_COLORS[0] });
     setShowCreateForm(false);
+    toast('Project created');
     navigate(`/projects/${project.id}`);
   };
 
   const handleArchive = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation(); // Don't navigate when clicking archive
     await updateProject(id, { archived: true });
+    toast('Project archived');
   };
 
   const handleUnarchive = async (e: React.MouseEvent, id: string) => {
@@ -113,6 +116,7 @@ function ProjectsPage() {
     e.stopPropagation();
     if (window.confirm(`Delete project "${name}"? This will permanently remove the project and all its boards, columns, and cards. This cannot be undone.`)) {
       await deleteProject(id);
+      toast('Project deleted');
     }
   };
 

@@ -26,6 +26,7 @@ import { useBrainstormStore } from './stores/brainstormStore';
 import { useBoardStore } from './stores/boardStore';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
+import ToastContainer from './components/ToastContainer';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
@@ -127,6 +128,7 @@ function App() {
             </Route>
           </Routes>
           <StatusBar />
+          <ToastContainer />
         </div>
       </AppShell>
     </HashRouter>
