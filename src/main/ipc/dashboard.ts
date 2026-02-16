@@ -6,7 +6,7 @@ import { eq, gte, desc, and, or, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import {
   cards, cardActivities, columns, boards, projects,
-  actionItems, meetings,
+  actionItems, meetings, ideas,
 } from '../db/schema';
 import { resolveTaskModel, generate } from '../services/ai-provider';
 import { createLogger } from '../services/logger';
@@ -140,5 +140,34 @@ Today's date: ${now.toLocaleDateString()}`;
 
     log.info('Standup generated');
     return { standup: result.text };
+  });
+
+  ipcMain.handle('dashboard:activity-data', async () => {
+    const db = getDb();
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const cardRows = await db
+      .select({ createdAt: cards.createdAt })
+      .from(cards)
+      .where(gte(cards.createdAt, ninetyDaysAgo));
+
+    const meetingRows = await db
+      .select({ createdAt: meetings.createdAt })
+      .from(meetings)
+      .where(gte(meetings.createdAt, ninetyDaysAgo));
+
+    const ideaRows = await db
+      .select({ createdAt: ideas.createdAt })
+      .from(ideas)
+      .where(gte(ideas.createdAt, ninetyDaysAgo));
+
+    const dayCounts: Record<string, number> = {};
+    for (const row of [...cardRows, ...meetingRows, ...ideaRows]) {
+      const dateStr = new Date(row.createdAt).toISOString().split('T')[0];
+      dayCounts[dateStr] = (dayCounts[dateStr] || 0) + 1;
+    }
+
+    return { dayCounts };
   });
 }

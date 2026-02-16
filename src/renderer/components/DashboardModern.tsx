@@ -2,7 +2,7 @@
 // Home dashboard page — Modern Design
 // Enterprise-grade, widget-based layout with glassmorphism and rich visuals.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Mic,
@@ -21,12 +21,14 @@ import {
     RefreshCw,
     X,
     Loader2,
+    Flame,
 } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useIdeaStore } from '../stores/ideaStore';
 import { useBoardStore } from '../stores/boardStore';
 import { toast } from '../hooks/useToast';
+import ActivityHeatmap, { getColor, calculateStreak } from './ActivityHeatmap';
 
 /** Return a time-based greeting string. */
 function getGreeting(): string {
@@ -111,6 +113,12 @@ export default function DashboardModern() {
         toast('Standup copied to clipboard', 'success');
         setTimeout(() => setStandupCopied(false), 2000);
     };
+
+    const [activityData, setActivityData] = useState<Record<string, number>>({});
+    useEffect(() => {
+        window.electronAPI.getActivityData().then(r => setActivityData(r.dayCounts));
+    }, []);
+    const streak = useMemo(() => calculateStreak(activityData), [activityData]);
 
     return (
         <div className="h-full flex flex-col overflow-hidden bg-surface-50/50 dark:bg-surface-950">
@@ -215,6 +223,28 @@ export default function DashboardModern() {
                                 </div>
                             </div>
                             <div className="text-sm text-surface-700 dark:text-surface-200 whitespace-pre-wrap">{standupText}</div>
+                        </div>
+                    )}
+
+                    {/* Productivity Pulse */}
+                    {(projects.length > 0 || meetings.length > 0) && (
+                        <div className="col-span-12 bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-surface-900 dark:text-surface-100">Productivity Pulse</h3>
+                                {streak > 0 && (
+                                    <span className="text-xs text-amber-500 font-semibold flex items-center gap-1">
+                                        <Flame size={14} /> {streak} day streak
+                                    </span>
+                                )}
+                            </div>
+                            <ActivityHeatmap dayCounts={activityData} />
+                            <div className="mt-2 flex items-center gap-3 text-xs text-surface-400">
+                                <span>Less</span>
+                                {[0, 1, 3, 5, 7].map(n => (
+                                    <div key={n} className={`w-[10px] h-[10px] rounded-sm ${getColor(n)}`} />
+                                ))}
+                                <span>More</span>
+                            </div>
                         </div>
                     )}
 

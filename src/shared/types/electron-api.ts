@@ -245,6 +245,7 @@ export interface ElectronAPI {
 
   // Dashboard
   generateStandup: () => Promise<{ standup: string }>;
+  getActivityData: () => Promise<{ dayCounts: Record<string, number> }>;
 
   // App-level events
   onShowCommandPalette: (callback: () => void) => () => void;
