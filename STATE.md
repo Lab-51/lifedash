@@ -2,14 +2,33 @@
 
 ## Session Info
 Last updated: 2026-02-16
-Session focus: Ad-hoc bug fixes and UX polish
+Session focus: SELF-IMPROVE-NEW.md — New Feature Development
 
 ## Position
-Milestone: Post-SELF-IMPROVE-2 ad-hoc improvements
-Phase: 15+ (Ad-hoc fixes and polish)
-Latest commit: c4142ad on main
+Milestone: SELF-IMPROVE-NEW.md Phase A — Quick Capture & Daily Habits
+Phase: A.1 COMPLETE
+Latest commit: f5f08e6 on main
 Test suite: 150 tests across 7 files
-SELF-IMPROVE-2.md: 32 of 32 proposals completed
+SELF-IMPROVE-NEW.md: 27 proposals, 3 implemented
+Plan A.1: COMPLETE (3/3 tasks)
+
+## Plan A.1 Results
+- Task 1: Pin/Star Projects ✓ (2b7ffdc)
+  - Schema migration adds `pinned` boolean column to projects
+  - Pinned projects sort to top via `desc(projects.pinned)` ordering
+  - Star toggle on project cards (always visible when pinned, hover when not)
+  - Dashboard shows star icon next to pinned project names
+- Task 2: AI Generate Card Description ✓ (6dd0b54)
+  - `card:generate-description` IPC traverses card→column→board→project for context
+  - Sparkles button in CardDetailModal next to "Apply Template"
+  - Uses configured AI provider with temperature 0.7, max 200 tokens
+  - Generates 2-3 sentence HTML description from title + priority + labels
+- Task 3: Quick Capture in Command Palette ✓ (f5f08e6)
+  - When typed text has <3 data matches, shows Quick Capture section
+  - "Create idea" — saves to idea repository via ideaStore
+  - "Create card in [Project]" — creates in first column of most recent project
+  - "Start brainstorm" — navigates to brainstorm page
+  - Works via Ctrl+K and global Ctrl+Shift+Space shortcut
 
 ## Ad-hoc Fixes (2026-02-16)
 - Fix: Backup list regex mismatch — backups were created but never listed (6e6bbd1)
@@ -22,6 +41,9 @@ SELF-IMPROVE-2.md: 32 of 32 proposals completed
   - Transcripts still captured live during recording regardless of setting
   - Folder picker hidden when saving is disabled
   - audioProcessor reads `audio:saveRecordings` setting, defaults to true
+- Fix: Brainstorm scroll-up during streaming no longer snaps back to bottom (2b3ad51)
+  - Scroll listener tracks if user is >80px from bottom; auto-scroll only when at bottom
+  - Scroll lock resets when user sends a new message
 
 ## Plan 15.2 Results (SELF-IMPROVE-2.md final 3 proposals)
 - Task 1: "Since last visit" context on dashboard ✓ (05d3292)
