@@ -17,6 +17,8 @@ export const meetingsBridge = {
   deleteMeeting: (id: string) => ipcRenderer.invoke('meetings:delete', id),
   getActionItemCounts: (meetingIds: string[]) =>
     ipcRenderer.invoke('meetings:action-item-counts', meetingIds),
+  meetingsGetPendingActionCount: () =>
+    ipcRenderer.invoke('meetings:pending-action-count'),
 
   // Recording
   startRecording: (meetingId: string) =>

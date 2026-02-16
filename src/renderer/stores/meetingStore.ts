@@ -22,6 +22,7 @@ interface MeetingStore {
   loading: boolean;
   error: string | null;
   actionItemCounts: Record<string, number>;
+  pendingActionCount: number;
 
   // Intelligence generation state
   generatingBrief: boolean;
@@ -38,6 +39,7 @@ interface MeetingStore {
   loadMeetings: () => Promise<void>;
   loadMeeting: (id: string) => Promise<void>;
   loadActionItemCounts: () => Promise<void>;
+  loadPendingActionCount: () => Promise<void>;
   updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<void>;
   deleteMeeting: (id: string) => Promise<void>;
   clearSelectedMeeting: () => void;
@@ -61,6 +63,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   loading: false,
   error: null,
   actionItemCounts: {},
+  pendingActionCount: 0,
   generatingBrief: false,
   generatingActions: false,
   diarizing: false,
@@ -100,6 +103,15 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       set({ actionItemCounts: counts });
     } catch {
       // Non-critical — silently ignore
+    }
+  },
+
+  loadPendingActionCount: async () => {
+    try {
+      const count = await window.electronAPI.meetingsGetPendingActionCount();
+      set({ pendingActionCount: count });
+    } catch {
+      // Silently fail — status bar is non-critical
     }
   },
 

@@ -50,4 +50,8 @@ export function registerMeetingHandlers(): void {
     const validIds = validateInput(meetingIdsSchema, ids);
     return meetingService.getActionItemCounts(validIds);
   });
+
+  ipcMain.handle('meetings:pending-action-count', async () => {
+    return meetingService.getPendingActionCount();
+  });
 }

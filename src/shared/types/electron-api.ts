@@ -160,6 +160,7 @@ export interface ElectronAPI {
   updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<Meeting>;
   deleteMeeting: (id: string) => Promise<void>;
   getActionItemCounts: (meetingIds: string[]) => Promise<Record<string, number>>;
+  meetingsGetPendingActionCount: () => Promise<number>;
 
   // Recording
   startRecording: (meetingId: string) => Promise<void>;

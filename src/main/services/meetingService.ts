@@ -70,6 +70,16 @@ function toActionItem(row: typeof actionItems.$inferSelect): ActionItem {
   };
 }
 
+/** Get total count of pending action items across all meetings */
+export async function getPendingActionCount(): Promise<number> {
+  const db = getDb();
+  const [row] = await db
+    .select({ value: count() })
+    .from(actionItems)
+    .where(eq(actionItems.status, 'pending'));
+  return row?.value ?? 0;
+}
+
 /** Get action item counts for a batch of meetings (meetingId -> count) */
 export async function getActionItemCounts(meetingIds: string[]): Promise<Record<string, number>> {
   if (meetingIds.length === 0) return {};
