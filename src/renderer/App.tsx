@@ -43,6 +43,7 @@ function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  const [appReady, setAppReady] = useState(false);
 
   const toggleCommandPalette = useCallback(() => {
     setShowCommandPalette(prev => !prev);
@@ -75,13 +76,25 @@ function AppShell({ children }: { children: ReactNode }) {
 
   // Pre-load entity data so command palette (Ctrl+K) always has results,
   // even before the user visits the corresponding pages.
+  // Once all stores settle, mark app as ready so the splash can be dismissed.
   useEffect(() => {
-    useProjectStore.getState().loadProjects();
-    useMeetingStore.getState().loadMeetings();
-    useIdeaStore.getState().loadIdeas();
-    useBrainstormStore.getState().loadSessions();
-    useBoardStore.getState().loadAllCards();
+    Promise.allSettled([
+      useProjectStore.getState().loadProjects(),
+      useMeetingStore.getState().loadMeetings(),
+      useIdeaStore.getState().loadIdeas(),
+      useBrainstormStore.getState().loadSessions(),
+      useBoardStore.getState().loadAllCards(),
+    ]).then(() => setAppReady(true));
   }, []);
+
+  // Dismiss the splash screen once the app is ready
+  useEffect(() => {
+    if (!appReady) return;
+    const splash = document.getElementById('splash');
+    if (!splash) return;
+    splash.classList.add('splash-hidden');
+    setTimeout(() => splash.remove(), 400);
+  }, [appReady]);
 
   // Listen for global hotkey IPC event (Ctrl+Shift+Space from main process)
   useEffect(() => {
@@ -104,7 +117,7 @@ function AppShell({ children }: { children: ReactNode }) {
         isOpen={showShortcutsHelp}
         onClose={closeShortcutsHelp}
       />
-      {children}
+      {appReady && children}
     </>
   );
 }
