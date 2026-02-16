@@ -1,40 +1,39 @@
-# Plan 15.2 Summary — Last Visit Context, Shortcut Tooltips, Undo Delete
+# Plan A.2 Summary — Daily Standup Generator + Productivity Pulse
 
 ## Date: 2026-02-16
-## Status: COMPLETE (3/3 tasks, sequential execution)
+## Status: COMPLETE (2/2 tasks, sequential execution)
 
 ## What Changed
 
-Completed the final 3 proposals from SELF-IMPROVE-2.md (E10, Q11, Q12), finishing all 32 proposals.
+Completed the remaining 2 features from SELF-IMPROVE-NEW.md Phase A:
+- Q3: Daily Standup Generator — AI-generated standup from recent activity
+- E1: Productivity Pulse — GitHub-style activity heatmap + streak counter
 
-### Task 1: "Since last visit" context on dashboard
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 05d3292
+### Task 1: Daily Standup Generator with AI
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 1a8fb34
 
-- E10: localStorage tracks dashboard visit timestamps across sessions
-- Returns show "Since your last visit: N new meetings, M new ideas" below greeting
-- First-ever visit shows nothing; only counts meetings + ideas (not auto-created entities)
-- 1 file modified: DashboardPage.tsx
+- New `dashboard:generate-standup` IPC handler queries card activities (48h), active cards (7d), pending action items (7d)
+- Joins through cardActivities→cards→columns→boards→projects for full context
+- AI generates 3-section markdown report: What I did / Doing today / Blockers
+- Classic dashboard: 5th quick action button + dismissible result card with copy/regenerate/dismiss
+- Modern dashboard: 5th hero action button (emerald) + full-width result card in grid
+- 7 files changed (2 new, 5 modified)
 
-### Task 2: Keyboard shortcut hints in sidebar and modal
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 5622327
+### Task 2: Productivity Pulse — Activity Heatmap + Streak Counter
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** f4cbd79
 
-- Q11: Sidebar NavLink tooltips show shortcut on hover: "Home (Ctrl+1)", etc.
-- KeyboardShortcutsModal gains "Page Shortcuts" group: /, Ctrl+N, Esc
-- 2 files modified: Sidebar.tsx, KeyboardShortcutsModal.tsx
-
-### Task 3: Undo card deletion via delayed delete and toast
-**Status:** COMPLETE | **Confidence:** MEDIUM → HIGH | **Commit:** f8fddfc
-
-- Q12: Replaces two-click confirm with undo-based flow (Gmail/Slack pattern)
-- Card removed from UI instantly, 5s toast with "Undo" button, actual delete after timeout
-- Toast system extended with action buttons and configurable duration
-- boardStore gains removeCardFromUI/restoreCardToUI for optimistic updates
-- Plan correction: delete handler was in KanbanCard.tsx, not CardDetailModal.tsx
-- 4 files modified: useToast.ts, ToastContainer.tsx, boardStore.ts, KanbanCard.tsx
+- New `dashboard:activity-data` IPC handler aggregates cards, meetings, ideas by day (90 days)
+- New ActivityHeatmap.tsx — pure CSS Grid, no chart library, design-agnostic
+- calculateStreak counts consecutive weekdays with activity (skips weekends)
+- Classic: section below standup card, above projects — emerald heatmap + "N day streak"
+- Modern: full-width card in grid below stats row — same heatmap + streak
+- 6 files changed (1 new, 5 modified)
 
 ## Verification
-- `npx tsc --noEmit`: PASS (zero errors) — all 3 tasks
-- `npx vitest run`: 150/150 tests pass — all 3 tasks
+- `npx tsc --noEmit`: PASS (zero errors) — both tasks
+- `npm test`: 150/150 tests pass — both tasks
 
-## SELF-IMPROVE-2.md Completion Status
-All 32 proposals delivered across Plans 13.1, 13.2, 14.1, 15.1, and 15.2.
+## Phase A Completion Status
+All 5 proposals from SELF-IMPROVE-NEW.md Phase A delivered across Plans A.1 and A.2:
+- A.1: Pin/Star Projects, AI Card Description, Quick Capture (3 tasks)
+- A.2: Daily Standup Generator, Productivity Pulse (2 tasks)

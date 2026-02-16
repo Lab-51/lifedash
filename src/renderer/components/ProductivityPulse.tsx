@@ -1,0 +1,273 @@
+// === FILE PURPOSE ===
+// Productivity Pulse — SVG-based Contribution Graph
+// Renders a strict GitHub-style activity heatmap.
+// Accurate date alignment, Year handling, and precise distribution.
+
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { Flame } from 'lucide-react';
+
+interface Props {
+    data: Record<string, number>;
+}
+
+// Visual Configuration
+const SQUARE_SIZE = 12;
+const GAP = 3;
+const DAY_LABEL_WIDTH = 30; // Width for Mon, Wed, Fri labels
+const MONTH_LABEL_HEIGHT = 20;
+const WEEK_WIDTH = SQUARE_SIZE + GAP;
+
+function calculateStreak(data: Record<string, number>): number {
+    let count = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize today
+
+    for (let i = 0; i < 365; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const val = data[dateStr] || 0;
+
+        // If checking today and it's 0, don't break streak yet (unless yesterday was 0 too)
+        // But here we are just counting strictly consecutive days including today.
+        // Logic: if today has data, count it. If not, don't count it but check yesterday. 
+        // If yesterday has data, streak is alive.
+        // If yesterday is 0, streak is broken (0).
+
+        if (i === 0 && val === 0) continue;
+
+        if (val > 0) count++;
+        else break;
+    }
+    return count;
+}
+
+function getClass(count: number): string {
+    if (count === 0) return 'fill-surface-100 dark:fill-surface-800/50';
+    if (count <= 1) return 'fill-emerald-200 dark:fill-emerald-900/60';
+    if (count <= 3) return 'fill-emerald-300 dark:fill-emerald-700';
+    if (count <= 5) return 'fill-emerald-400 dark:fill-emerald-600';
+    return 'fill-emerald-500 dark:fill-emerald-500';
+}
+
+export default function ProductivityPulse({ data }: Props) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [numWeeks, setNumWeeks] = useState(52);
+
+    // 1. Responsive width calculation
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const updateWidth = () => {
+            if (containerRef.current) {
+                const width = containerRef.current.clientWidth - 48; // Padding 24px * 2
+                const availableWidth = width - DAY_LABEL_WIDTH;
+                const weeks = Math.floor(availableWidth / WEEK_WIDTH);
+                setNumWeeks(Math.max(10, weeks));
+            }
+        };
+
+        updateWidth();
+        const observer = new ResizeObserver(updateWidth);
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
+
+    // 2. Data Processing & Grid Generation
+    const { grid, monthLabels } = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Find the Saturday of the current week to anchor the end of the graph
+        // This ensures the last column (current week) is visible
+        const dayOfWeek = today.getDay(); // 0=Sun, 6=Sat
+        const daysUntilSaturday = 6 - dayOfWeek;
+
+        const gridEndDate = new Date(today);
+        gridEndDate.setDate(today.getDate() + daysUntilSaturday);
+
+        // Calculate Start Date based on numWeeks
+        // gridStart = gridEndDate - (numWeeks weeks) + 1 day? 
+        // We want exactly numWeeks columns.
+        // Start date should be a Sunday.
+        // gridEndDate is Saturday.
+        // total days = numWeeks * 7.
+        // startDate = gridEndDate - (totalDays - 1)
+        const totalDays = numWeeks * 7;
+        const startDate = new Date(gridEndDate);
+        startDate.setDate(gridEndDate.getDate() - totalDays + 1);
+
+        const gridData = [];
+        const months: { label: string; x: number }[] = [];
+
+        let currentDate = new Date(startDate);
+        let firstLabelAdded = false;
+
+        for (let w = 0; w < numWeeks; w++) {
+            const weekDays = [];
+            let weekContainsFirstOfMonth = false;
+            let monthOfFirst = -1;
+            let yearOfFirst = -1;
+
+            for (let d = 0; d < 7; d++) {
+                const dateStr = currentDate.toISOString().split('T')[0];
+                const count = data[dateStr] || 0;
+                const m = currentDate.getMonth();
+                const y = currentDate.getFullYear();
+                const dom = currentDate.getDate();
+
+                // Check if this specific day is the 1st of the month
+                if (dom === 1) {
+                    weekContainsFirstOfMonth = true;
+                    monthOfFirst = m;
+                    yearOfFirst = y;
+                }
+
+                // Don't show future days in the last week
+                const isFuture = currentDate > today;
+
+                weekDays.push({
+                    date: new Date(currentDate),
+                    dateStr,
+                    count,
+                    isFuture
+                });
+
+                currentDate.setDate(currentDate.getDate() + 1); // Next day
+            }
+
+            gridData.push({ days: weekDays, index: w });
+
+            // Month Labels Logic
+            // If this week contains the 1st of a month, we label it.
+            if (weekContainsFirstOfMonth) {
+                const dateForLabel = new Date(yearOfFirst, monthOfFirst, 1);
+                const isJan = monthOfFirst === 0;
+
+                let label = dateForLabel.toLocaleDateString('en-US', { month: 'short' });
+
+                // Add year if January OR if it's the very first label we are showing (for context)
+                if (isJan || !firstLabelAdded) {
+                    label += ` ${dateForLabel.getFullYear()}`;
+                }
+
+                // Prevent overlapping labels: Only add if enough space from last one?
+                // Visual check: 4 weeks per month approx. 4 * 15px = 60px.
+                // Label "Jan 2024" is approx 50-60px. "Jan" is 20px. 
+                // We should be fine mostly.
+
+                // Adjust X position: slightly left to align with the start of the week?
+                // Or align with the day that is the 1st?
+                // GitHub aligns roughly over the column.
+                months.push({ label, x: (w * WEEK_WIDTH) + DAY_LABEL_WIDTH });
+                firstLabelAdded = true;
+            }
+        }
+
+        return { grid: gridData, monthLabels: months };
+    }, [data, numWeeks]);
+
+    const streak = useMemo(() => calculateStreak(data), [data]);
+    const totalActivities = Object.values(data).reduce((a, b) => a + b, 0);
+
+    const svgWidth = (numWeeks * WEEK_WIDTH) + DAY_LABEL_WIDTH;
+    const svgHeight = (7 * WEEK_WIDTH) + MONTH_LABEL_HEIGHT;
+
+    return (
+        <div
+            ref={containerRef}
+            className="w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-6 shadow-sm flex flex-col"
+        >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6 shrink-0">
+                <div className="flex items-center gap-6">
+                    <div>
+                        <h3 className="font-bold text-lg text-surface-900 dark:text-surface-100">Activity</h3>
+                        <p className="text-sm text-surface-500">
+                            {totalActivities} contributions in the last {Math.round(numWeeks / 4.3)} months
+                        </p>
+                    </div>
+
+                    <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-100 dark:border-surface-700/50">
+                        <Flame size={16} className={streak > 0 ? "text-amber-500 fill-amber-500/20" : "text-surface-300"} />
+                        <span className="text-sm font-semibold text-surface-700 dark:text-surface-200">{streak} day streak</span>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-surface-400">
+                    <span>Less</span>
+                    <div className="flex gap-1">
+                        <div className="w-3 h-3 rounded-[2px] bg-surface-100 dark:bg-surface-800/50" />
+                        <div className="w-3 h-3 rounded-[2px] bg-emerald-200 dark:bg-emerald-900/60" />
+                        <div className="w-3 h-3 rounded-[2px] bg-emerald-300 dark:bg-emerald-700" />
+                        <div className="w-3 h-3 rounded-[2px] bg-emerald-400 dark:bg-emerald-600" />
+                        <div className="w-3 h-3 rounded-[2px] bg-emerald-500 dark:bg-emerald-500" />
+                    </div>
+                    <span>More</span>
+                </div>
+            </div>
+
+            {/* SVG Chart */}
+            <div className="w-full overflow-hidden">
+                <svg
+                    width="100%"
+                    viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                    className="overflow-visible block"
+                >
+                    {/* Month Labels */}
+                    <g transform={`translate(0, 10)`}>
+                        {monthLabels.map((m, i) => (
+                            <text
+                                key={i}
+                                x={m.x}
+                                y={0}
+                                className="fill-surface-400 text-[10px] font-semibold"
+                                dominantBaseline="middle"
+                            >
+                                {m.label}
+                            </text>
+                        ))}
+                    </g>
+
+                    {/* Day Labels - Mon, Wed, Fri */}
+                    <g transform={`translate(0, ${MONTH_LABEL_HEIGHT})`}>
+                        <text x={0} y={(1 * WEEK_WIDTH) + (SQUARE_SIZE / 2) + 1} className="fill-surface-400 text-[10px]" dominantBaseline="middle">Mon</text>
+                        <text x={0} y={(3 * WEEK_WIDTH) + (SQUARE_SIZE / 2) + 1} className="fill-surface-400 text-[10px]" dominantBaseline="middle">Wed</text>
+                        <text x={0} y={(5 * WEEK_WIDTH) + (SQUARE_SIZE / 2) + 1} className="fill-surface-400 text-[10px]" dominantBaseline="middle">Fri</text>
+                    </g>
+
+                    {/* The Grid */}
+                    <g transform={`translate(${DAY_LABEL_WIDTH}, ${MONTH_LABEL_HEIGHT})`}>
+                        {grid.map((week, wIndex) => (
+                            <g key={wIndex} transform={`translate(${wIndex * WEEK_WIDTH}, 0)`}>
+                                {week.days.map((day, dIndex) => (
+                                    /* Only render if not future, or render placeholder */
+                                    day.isFuture ? (
+                                        <rect
+                                            key={dIndex}
+                                            y={dIndex * WEEK_WIDTH}
+                                            width={SQUARE_SIZE}
+                                            height={SQUARE_SIZE}
+                                            rx={2}
+                                            className="fill-transparent" // Invisible place holder
+                                        />
+                                    ) : (
+                                        <rect
+                                            key={dIndex}
+                                            y={dIndex * WEEK_WIDTH}
+                                            width={SQUARE_SIZE}
+                                            height={SQUARE_SIZE}
+                                            rx={2}
+                                            className={`transition-all duration-200 hover:opacity-80 shape-rendering-geometricPrecision ${getClass(day.count)}`}
+                                        >
+                                            <title>{`${day.date.toDateString()}: ${day.count} activities`}</title>
+                                        </rect>
+                                    )
+                                ))}
+                            </g>
+                        ))}
+                    </g>
+                </svg>
+            </div>
+        </div>
+    );
+}

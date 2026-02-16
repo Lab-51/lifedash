@@ -2,20 +2,40 @@
 
 ## Session Info
 Last updated: 2026-02-16
-Session focus: SELF-IMPROVE-NEW.md — New Feature Development
+Session focus: SELF-IMPROVE-NEW.md Phase A + Design Cleanup
+Checkpoint reason: Session end — Phase A complete, Classic design removed
 
 ## Position
-Milestone: SELF-IMPROVE-NEW.md Phase A — Quick Capture & Daily Habits
-Phase: A.2 (Daily Standup Generator + Productivity Pulse)
-Latest commit: f5f08e6 on main
+Milestone: SELF-IMPROVE-NEW.md Phase A — COMPLETE
+Latest commit: df9c8b3 on main (pushed)
 Test suite: 150 tests across 7 files
-SELF-IMPROVE-NEW.md: 27 proposals, 3 implemented (5 total in Phase A)
+SELF-IMPROVE-NEW.md: 27 proposals, 5 implemented (Phase A complete: 5/5)
 Plan A.1: COMPLETE (3/3 tasks)
-Plan A.2: READY (2 tasks: Daily Standup Generator, Productivity Pulse)
+Plan A.2: COMPLETE (2/2 tasks)
 
-## Plan A.2 Confidence
-Task 1 (Daily Standup Generator): HIGH — uses existing AI provider + card activities data
-Task 2 (Productivity Pulse): HIGH — pure CSS heatmap from existing createdAt timestamps
+## Ad-hoc Changes This Session
+- Classic design removed entirely (df9c8b3) — 9 Classic components deleted, ~2966 lines removed
+- Modern is now the sole design — page switchers simplified to render Modern directly
+- Settings "Design Style" → "Themes — More themes coming soon"
+- User upgraded ActivityHeatmap → ProductivityPulse (SVG-based, responsive, proper date alignment)
+
+## Resume Context
+Next action: SELF-IMPROVE-NEW.md Phase B or user-directed work
+Prerequisites: None — all clean, pushed to remote
+
+## Plan A.2 Results
+- Task 1: Daily Standup Generator ✓ (1a8fb34)
+  - `dashboard:generate-standup` IPC queries card activities (48h), active cards (7d), pending action items (7d)
+  - Joins through cardActivities→cards→columns→boards→projects for full context
+  - AI generates 3-section report: What I did / Doing today / Blockers
+  - Classic: 5th quick action button + dismissible result card with copy/regenerate
+  - Modern: 5th hero action button (emerald) + full-width result card in grid
+- Task 2: Productivity Pulse ✓ (f4cbd79)
+  - `dashboard:activity-data` IPC queries cards, meetings, ideas createdAt (90 days)
+  - New ActivityHeatmap component — pure CSS Grid, no chart library
+  - calculateStreak counts consecutive weekdays with activity
+  - Classic: section below standup, above projects — emerald heatmap + streak counter
+  - Modern: full-width card in grid below stats row — same heatmap + streak
 
 ## Plan A.1 Results
 - Task 1: Pin/Star Projects ✓ (2b7ffdc)
