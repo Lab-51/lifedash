@@ -45,6 +45,7 @@ interface BrainstormStore {
 
   // Export actions
   exportToIdea: (messageId: string) => Promise<Idea>;
+  exportToCard: (messageId: string) => Promise<void>;
 }
 
 export const useBrainstormStore = create<BrainstormStore>((set, get) => ({
@@ -176,5 +177,11 @@ export const useBrainstormStore = create<BrainstormStore>((set, get) => ({
     const session = get().activeSession;
     if (!session) throw new Error('No active session');
     return window.electronAPI.exportBrainstormToIdea(session.id, messageId);
+  },
+
+  exportToCard: async (messageId: string) => {
+    const session = get().activeSession;
+    if (!session) throw new Error('No active session');
+    await window.electronAPI.exportBrainstormToCard(session.id, messageId);
   },
 }));

@@ -47,6 +47,7 @@ export default function BrainstormPage() {
   const abortStream = useBrainstormStore(s => s.abortStream);
   const clearActiveSession = useBrainstormStore(s => s.clearActiveSession);
   const exportToIdea = useBrainstormStore(s => s.exportToIdea);
+  const exportToCard = useBrainstormStore(s => s.exportToCard);
   const projects = useProjectStore(s => s.projects);
   const loadProjects = useProjectStore(s => s.loadProjects);
   const [input, setInput] = useState('');
@@ -104,6 +105,18 @@ export default function BrainstormPage() {
     }
   }, []);
 
+  // Ctrl+N shortcut to open new session form
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setShowNewSession(true);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleCreateSession = async () => {
     if (!newSessionTitle.trim()) return;
     const session = await createSession({
@@ -147,6 +160,14 @@ export default function BrainstormPage() {
       await exportToIdea(messageId);
     } catch (err) {
       console.error('Failed to export to idea:', err);
+    }
+  };
+
+  const handleExportToCard = async (messageId: string) => {
+    try {
+      await exportToCard(messageId);
+    } catch (err) {
+      console.error('Failed to export to card:', err);
     }
   };
 
@@ -461,6 +482,7 @@ export default function BrainstormPage() {
                     key={msg.id}
                     message={msg}
                     onExportToIdea={msg.role === 'assistant' ? handleExportToIdea : undefined}
+                    onExportToCard={msg.role === 'assistant' && activeSession?.projectId ? handleExportToCard : undefined}
                   />
                 ))}
 

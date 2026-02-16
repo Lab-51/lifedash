@@ -203,6 +203,7 @@ export interface ElectronAPI {
   onBrainstormChunk: (callback: (data: { sessionId: string; chunk: string }) => void) => () => void;
   abortBrainstorm: () => Promise<void>;
   exportBrainstormToIdea: (sessionId: string, messageId: string) => Promise<Idea>;
+  exportBrainstormToCard: (sessionId: string, messageId: string) => Promise<Card>;
 
   // Backup & Restore
   backupCreate: () => Promise<BackupInfo>;

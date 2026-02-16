@@ -27,4 +27,6 @@ export const brainstormBridge = {
   abortBrainstorm: () => ipcRenderer.invoke('brainstorm:abort'),
   exportBrainstormToIdea: (sessionId: string, messageId: string) =>
     ipcRenderer.invoke('brainstorm:export-to-idea', sessionId, messageId),
+  exportBrainstormToCard: (sessionId: string, messageId: string) =>
+    ipcRenderer.invoke('brainstorm:export-to-card', sessionId, messageId),
 };

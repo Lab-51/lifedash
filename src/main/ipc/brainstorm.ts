@@ -143,4 +143,10 @@ export function registerBrainstormHandlers(): void {
     const validMessageId = validateInput(idParamSchema, messageId);
     return brainstormService.exportToIdea(validSessionId, validMessageId);
   });
+
+  ipcMain.handle('brainstorm:export-to-card', async (_event, sessionId: unknown, messageId: unknown) => {
+    const validSessionId = validateInput(idParamSchema, sessionId);
+    const validMessageId = validateInput(idParamSchema, messageId);
+    return brainstormService.exportToCard(validSessionId, validMessageId);
+  });
 }

@@ -17,6 +17,7 @@ import type { Card, Column, UpdateCardInput } from '../../shared/types';
 interface BoardColumnProps {
   column: Column;
   columnCards: Card[];
+  totalCardCount?: number;
   isDragOver: boolean;
   onDragOverChange: (isOver: boolean) => void;
   addCard: (columnId: string, title: string) => Promise<void>;
@@ -33,6 +34,7 @@ interface BoardColumnProps {
 const BoardColumn = memo(function BoardColumn({
   column,
   columnCards,
+  totalCardCount,
   isDragOver,
   onDragOverChange,
   addCard,
@@ -215,7 +217,9 @@ const BoardColumn = memo(function BoardColumn({
             </span>
           )}
           <span className="text-xs text-surface-500 bg-surface-700 px-1.5 py-0.5 rounded">
-            {columnCards.length}
+            {totalCardCount != null && totalCardCount !== columnCards.length
+              ? `${columnCards.length} of ${totalCardCount}`
+              : columnCards.length}
           </span>
         </div>
 

@@ -278,6 +278,69 @@ export async function buildContext(sessionId: string): Promise<string> {
 }
 
 /**
+ * Export an assistant message as a new board card on the linked project's first column.
+ */
+export async function exportToCard(
+  sessionId: string,
+  messageId: string,
+): Promise<{
+  id: string; columnId: string; title: string; description: string | null;
+  position: number; priority: string; dueDate: null; archived: boolean;
+  createdAt: string; updatedAt: string;
+}> {
+  const db = getDb();
+
+  const [msg] = await db.select().from(brainstormMessages)
+    .where(eq(brainstormMessages.id, messageId));
+  if (!msg) throw new Error(`Message not found: ${messageId}`);
+
+  const [session] = await db.select().from(brainstormSessions)
+    .where(eq(brainstormSessions.id, sessionId));
+  if (!session?.projectId) throw new Error('Session must be linked to a project to save as card');
+
+  // Find the project's board
+  const [board] = await db.select().from(boards)
+    .where(eq(boards.projectId, session.projectId));
+  if (!board) throw new Error('Project has no board');
+
+  // Find the first column (by position)
+  const [firstColumn] = await db.select().from(columns)
+    .where(eq(columns.boardId, board.id))
+    .orderBy(asc(columns.position))
+    .limit(1);
+  if (!firstColumn) throw new Error('Board has no columns');
+
+  // Count existing cards to get position
+  const existingCards = await db.select().from(cards)
+    .where(eq(cards.columnId, firstColumn.id));
+
+  // Create the title: first line stripped of markdown #, truncated to 100 chars
+  const title = msg.content.split('\n')[0].replace(/^#+\s*/, '').trim().slice(0, 100) || 'Brainstorm card';
+
+  // Create the card
+  const [card] = await db.insert(cards).values({
+    columnId: firstColumn.id,
+    title,
+    description: msg.content,
+    priority: 'medium',
+    position: existingCards.length,
+  }).returning();
+
+  return {
+    id: card.id,
+    columnId: card.columnId,
+    title: card.title,
+    description: card.description,
+    position: card.position,
+    priority: card.priority,
+    dueDate: null,
+    archived: card.archived,
+    createdAt: card.createdAt.toISOString(),
+    updatedAt: card.updatedAt.toISOString(),
+  };
+}
+
+/**
  * Export an assistant message as a new idea.
  * Uses the message content as the idea description and a truncated version as the title.
  */

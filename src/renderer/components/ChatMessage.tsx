@@ -7,7 +7,7 @@
 // lucide-react, react-markdown, remark-gfm
 
 import { useState } from 'react';
-import { Lightbulb, Check, User, Bot } from 'lucide-react';
+import { Lightbulb, Check, User, Bot, LayoutList } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { BrainstormMessage } from '../../shared/types';
@@ -15,20 +15,30 @@ import type { BrainstormMessage } from '../../shared/types';
 interface ChatMessageProps {
   message: BrainstormMessage;
   onExportToIdea?: (messageId: string) => void;
+  onExportToCard?: (messageId: string) => void;
 }
 
 function formatTimestamp(isoDate: string): string {
   return new Date(isoDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ChatMessage({ message, onExportToIdea }: ChatMessageProps) {
+export default function ChatMessage({ message, onExportToIdea, onExportToCard }: ChatMessageProps) {
   const [exported, setExported] = useState(false);
+  const [exportedCard, setExportedCard] = useState(false);
 
   const handleExport = () => {
     if (onExportToIdea && !exported) {
       onExportToIdea(message.id);
       setExported(true);
       setTimeout(() => setExported(false), 2000);
+    }
+  };
+
+  const handleExportToCard = () => {
+    if (onExportToCard && !exportedCard) {
+      onExportToCard(message.id);
+      setExportedCard(true);
+      setTimeout(() => setExportedCard(false), 2000);
     }
   };
 
@@ -87,19 +97,34 @@ export default function ChatMessage({ message, onExportToIdea }: ChatMessageProp
           </ReactMarkdown>
         </div>
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-surface-700/50">
-          {onExportToIdea && (
-            <button
-              onClick={handleExport}
-              className={`opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all ${
-                exported
-                  ? 'text-green-400 bg-green-400/10'
-                  : 'text-surface-400 hover:text-amber-400 hover:bg-surface-700'
-              }`}
-            >
-              {exported ? <Check size={12} /> : <Lightbulb size={12} />}
-              <span>{exported ? 'Saved!' : 'Save as Idea'}</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {onExportToIdea && (
+              <button
+                onClick={handleExport}
+                className={`opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all ${
+                  exported
+                    ? 'text-green-400 bg-green-400/10'
+                    : 'text-surface-400 hover:text-amber-400 hover:bg-surface-700'
+                }`}
+              >
+                {exported ? <Check size={12} /> : <Lightbulb size={12} />}
+                <span>{exported ? 'Saved!' : 'Save as Idea'}</span>
+              </button>
+            )}
+            {onExportToCard && (
+              <button
+                onClick={handleExportToCard}
+                className={`opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all ${
+                  exportedCard
+                    ? 'text-green-400 bg-green-400/10'
+                    : 'text-surface-400 hover:text-primary-400 hover:bg-surface-700'
+                }`}
+              >
+                {exportedCard ? <Check size={12} /> : <LayoutList size={12} />}
+                <span>{exportedCard ? 'Saved!' : 'Save as Card'}</span>
+              </button>
+            )}
+          </div>
           <span className="text-xs text-surface-600">{formatTimestamp(message.createdAt)}</span>
         </div>
       </div>

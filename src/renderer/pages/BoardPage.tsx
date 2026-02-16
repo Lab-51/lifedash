@@ -538,6 +538,7 @@ function BoardPage() {
             key={column.id}
             column={column}
             columnCards={getCardsByColumn(filteredCards, column.id)}
+            totalCardCount={hasActiveFilters ? getCardsByColumn(cards, column.id).length : undefined}
             isDragOver={dragOverColumnId === column.id}
             onDragOverChange={(isOver) => handleDragOverChange(column.id, isOver)}
             addCard={addCard}
