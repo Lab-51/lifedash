@@ -3,12 +3,13 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
-import { Search, Folder, Mic, Lightbulb, MessageSquare, LayoutGrid, LayoutDashboard, Settings, Plus, Play, Keyboard } from 'lucide-react';
+import { Search, Folder, Mic, Lightbulb, MessageSquare, LayoutGrid, LayoutDashboard, Settings, Plus, Play, Keyboard, PlusCircle, Zap } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useIdeaStore } from '../stores/ideaStore';
 import { useBrainstormStore } from '../stores/brainstormStore';
 import { useBoardStore } from '../stores/boardStore';
+import { toast } from '../hooks/useToast';
 
 interface CommandItem {
   id: string;
@@ -54,6 +55,41 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
   const ideas = useIdeaStore(s => s.ideas);
   const sessions = useBrainstormStore(s => s.sessions);
   const allCards = useBoardStore(s => s.allCards);
+  const loadAllCards = useBoardStore(s => s.loadAllCards);
+  const storeCreateIdea = useIdeaStore(s => s.createIdea);
+
+  const createIdea = useCallback(async (title: string) => {
+    try {
+      await storeCreateIdea({ title });
+      toast(`Idea created: "${title}"`, 'success');
+    } catch {
+      toast('Failed to create idea', 'error');
+    }
+  }, [storeCreateIdea]);
+
+  const createCardInFirstColumn = useCallback(async (projectId: string, title: string) => {
+    try {
+      const boards = await window.electronAPI.getBoards(projectId);
+      if (boards.length === 0) {
+        toast('No board found for this project', 'error');
+        return;
+      }
+      const boardColumns = await window.electronAPI.getColumns(boards[0].id);
+      if (boardColumns.length === 0) {
+        toast('No columns in this board', 'error');
+        return;
+      }
+      await window.electronAPI.createCard({
+        columnId: boardColumns[0].id,
+        title,
+        priority: 'medium',
+      });
+      loadAllCards();
+      toast(`Card created in ${boardColumns[0].name}`, 'success');
+    } catch {
+      toast('Failed to create card', 'error');
+    }
+  }, [loadAllCards]);
 
   useEffect(() => {
     if (isOpen) {
@@ -118,8 +154,49 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
       const c = counts[item.category] ?? 0;
       if (c < MAX_PER_CATEGORY) { matchedData.push(item); counts[item.category] = c + 1; }
     }
-    return [...matchedPages, ...matchedActions, ...matchedData];
-  }, [query, pageItems, actionItems, dataItems]);
+    const captureItems: CommandItem[] = [];
+    if (trimmed.length >= 2 && matchedData.length < 3) {
+      const displayText = trimmed.length > 40 ? trimmed.slice(0, 40) + '...' : trimmed;
+      const activeProject = projects.find(p => !p.archived);
+
+      captureItems.push({
+        id: 'capture-idea',
+        label: `Create idea: "${displayText}"`,
+        icon: Zap,
+        category: 'Quick Capture',
+        action: () => {
+          createIdea(trimmed);
+          onClose();
+        },
+      });
+
+      if (activeProject) {
+        captureItems.push({
+          id: 'capture-card',
+          label: `Create card in ${activeProject.name}: "${displayText}"`,
+          icon: PlusCircle,
+          category: 'Quick Capture',
+          action: () => {
+            createCardInFirstColumn(activeProject.id, trimmed);
+            onClose();
+          },
+        });
+      }
+
+      captureItems.push({
+        id: 'capture-brainstorm',
+        label: `Start brainstorm: "${displayText}"`,
+        icon: MessageSquare,
+        category: 'Quick Capture',
+        action: () => {
+          go('/brainstorm');
+          onClose();
+        },
+      });
+    }
+
+    return [...matchedPages, ...matchedActions, ...matchedData, ...captureItems];
+  }, [query, pageItems, actionItems, dataItems, projects, createIdea, createCardInFirstColumn, go, onClose]);
 
   useEffect(() => {
     setSelectedIndex(prev => Math.min(prev, Math.max(0, results.length - 1)));
