@@ -2,15 +2,31 @@
 
 ## Session Info
 Last updated: 2026-02-16
-Session focus: Phase 13 — Self-Improve #2 Remediation
+Session focus: Phase 14 — Meeting Badges, Save-as-Card, Card Detail Polish
 
 ## Position
-Milestone: Self-Improve #2 Remediation
-Phase: 13 (Dashboard Launch Pad + Recording Preflight + Column Rename)
+Milestone: Self-Improve #2 Remediation (continued)
+Phase: 14 (Meeting Badges, Save-as-Card, Card Detail Polish)
 Plan: 13.1 — COMPLETE (3/3 tasks)
 Plan: 13.2 — COMPLETE (3/3 tasks)
-Latest commit: fb408e7 on main
+Plan: 14.1 — COMPLETE (3/3 tasks)
+Latest commit: cf2f8f3 on main
 Test suite: 150 tests across 7 files
+
+## Plan 14.1 Results (SELF-IMPROVE-2.md remaining 7)
+- Task 1: Meeting card action item count badge + delete button ✓ (6a18676)
+  - New `getActionItemCounts` service + `meetings:action-item-counts` IPC
+  - MeetingCard shows ListChecks icon + count badge when action items exist
+  - Hover-reveal Trash2 delete button with window.confirm guard
+  - MeetingsPage passes actionItemCount and onDelete props
+- Task 2: Brainstorm save-as-card, Ctrl+N shortcut, filtered column count ✓ (10c3788)
+  - "Save as Card" button on AI messages (project-linked sessions only)
+  - Card created in first column of linked project's board
+  - Ctrl+N keyboard shortcut opens new session form
+  - Column headers show "X of Y" format when filters are active
+- Task 3: Card detail relative time + last recording duration ✓ (cf2f8f3)
+  - CardDetailModal timestamps show relative time: "Created: Feb 10 (6d ago)"
+  - RecordingControls idle state shows last completed recording title + duration
 
 ## Plan 13.2 Results (SELF-IMPROVE-2.md remaining 10)
 - Task 1: Board UX quick wins + command palette HTML fix ✓ (501b0e7)

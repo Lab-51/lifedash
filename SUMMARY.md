@@ -1,42 +1,39 @@
-# Plan 13.2 Summary — Board UX, Brainstorm Polish, CSV Export
+# Plan 14.1 Summary — Meeting Badges, Save-as-Card, Card Detail Polish
 
 ## Date: 2026-02-16
 ## Status: COMPLETE (3/3 tasks, sequential execution)
 
 ## What Changed
 
-Addressed 10 remaining proposals from SELF-IMPROVE-2.md — board UX quick wins, brainstorm streaming/UX improvements, CSV export, and meeting card polish.
+Addressed 7 remaining proposals from SELF-IMPROVE-2.md — meeting card intelligence, brainstorm-to-card workflow, and small UX polish.
 
-### Task 1: Board UX quick wins + command palette HTML fix
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 501b0e7
+### Task 1: Meeting card action item count badge + delete button
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 6a18676
 
-- Q1: `stripHtml()` helper strips HTML tags from card/project/idea descriptions in CommandPalette
-- F5: Empty filter state shows "No cards match your filters" with Clear Filters button
-- Q3: `/` keyboard shortcut focuses board search input (skips when in input/textarea)
-- Q4: Escape key closes priority and label filter dropdowns, blurs search
-- Q5: 1-line description preview on KanbanCard using `line-clamp-1` with HTML stripped
-- 3 files modified: CommandPalette.tsx, BoardPage.tsx, KanbanCard.tsx
+- Q2: Action item count badge on meeting cards (ListChecks icon + count)
+- F7: Hover-reveal Trash2 delete button with window.confirm guard
+- Backend: `getActionItemCounts()` in meetingService + `meetings:action-item-counts` IPC
+- 8 files modified across backend, preload, store, and components
 
-### Task 2: Brainstorm streaming markdown, auto-select, textarea resize
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** f40ed59
+### Task 2: Brainstorm save-as-card, Ctrl+N shortcut, filtered column count
+**Status:** COMPLETE | **Confidence:** MEDIUM (verified) | **Commit:** 10c3788
 
-- F4: Streaming brainstorm responses render with ReactMarkdown + remark-gfm (matches ChatMessage)
-- E5: Last active brainstorm session persisted to localStorage and auto-loaded on revisit
-- F9: Textarea auto-resizes with content up to ~6 lines, resets after send
-- 1 file modified: BrainstormPage.tsx
+- E9: "Save as Card" button on AI messages (project-linked sessions only)
+- F10: Ctrl+N keyboard shortcut opens new brainstorm session form
+- F8: Column headers show "X of Y" format when board filters are active
+- Backend: `exportToCard()` creates card in first column of linked project board
+- 9 files modified across backend, preload, store, and components
 
-### Task 3: Board CSV export + meeting card project color
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** fb408e7
+### Task 3: Card detail relative time + last recording duration
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** cf2f8f3
 
-- Q6: Export CSV button in board toolbar downloads all cards with metadata
-- Q7: Meeting cards show project color dot next to project name badge
-- 3 files modified: BoardPage.tsx, MeetingCard.tsx, MeetingsPage.tsx
+- Q8: CardDetailModal timestamps show relative time: "Created: Feb 10 (6d ago)"
+- Q9: RecordingControls idle state shows last completed recording title + duration
+- 2 files modified (display-only changes)
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors) — all 3 tasks
 - `npx vitest run`: 150/150 tests pass — all 3 tasks
 
 ## SELF-IMPROVE-2.md Status
-All 15 proposals now addressed:
-- Plan 13.1: Top 5 "Do First" items (3 tasks, 5 items)
-- Plan 13.2: Remaining 10 items (3 tasks, 10 items)
+All proposals now addressed across Plans 13.1, 13.2, and 14.1.
