@@ -5,6 +5,7 @@
 // keeping contextIsolation intact and nodeIntegration disabled.
 
 import { contextBridge } from 'electron';
+import { version as appVersion } from '../../package.json';
 import { windowBridge } from './domains/window';
 import { databaseBridge } from './domains/database';
 import { projectsBridge } from './domains/projects';
@@ -22,6 +23,7 @@ import { dashboardBridge } from './domains/dashboard';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
+  appVersion,
   ...windowBridge,
   ...databaseBridge,
   ...projectsBridge,

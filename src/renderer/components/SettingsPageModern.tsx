@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu } from 'lucide-react';
+import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useBackupStore } from '../stores/backupStore';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -262,18 +263,16 @@ export default function SettingsPageModern() {
                     {activeTab === 'about' && (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <section className="bg-white dark:bg-surface-900 p-8 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm text-center">
-                                <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                    <Bot size={32} className="text-primary-600 dark:text-primary-400" />
-                                </div>
+                                <img src={dashIcon} alt="LifeDash" className="w-20 h-20 mx-auto mb-4 drop-shadow-lg" />
                                 <h2 className="text-2xl font-bold text-surface-900 dark:text-surface-100 mb-2">LifeDash</h2>
                                 <p className="text-surface-500 mb-8 max-w-md mx-auto">
-                                    A next-generation AI assistant workspace designed for productivity and seamless collaboration.
+                                    AI-powered desktop dashboard for meeting intelligence, project management, brainstorming, and idea capture.
                                 </p>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
                                     <div className="p-4 bg-surface-50 dark:bg-surface-800 rounded-xl">
                                         <p className="text-xs text-surface-400 uppercase font-bold tracking-wider mb-1">Version</p>
-                                        <p className="text-surface-900 dark:text-surface-100 font-medium">0.1.0</p>
+                                        <p className="text-surface-900 dark:text-surface-100 font-medium">{window.electronAPI.appVersion}</p>
                                     </div>
                                     <div className="p-4 bg-surface-50 dark:bg-surface-800 rounded-xl">
                                         <p className="text-xs text-surface-400 uppercase font-bold tracking-wider mb-1">Encryption</p>

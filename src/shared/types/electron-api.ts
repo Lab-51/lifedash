@@ -50,6 +50,7 @@ import type { MeetingAnalytics } from './analytics';
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
   platform: NodeJS.Platform;
+  appVersion: string;
 
   // Window controls
   windowMinimize: () => void;
