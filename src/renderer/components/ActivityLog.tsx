@@ -5,6 +5,7 @@
 // === DEPENDENCIES ===
 // react, lucide-react, cardDetailStore (Zustand), shared types (CardActivityAction)
 
+import { useState } from 'react';
 import {
   PlusCircle,
   Pencil,
@@ -15,6 +16,8 @@ import {
   Link,
   Unlink,
   Activity,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import type { CardActivityAction } from '../../shared/types';
 import { useCardDetailStore } from '../stores/cardDetailStore';
@@ -91,9 +94,15 @@ interface ActivityLogProps {
   cardId: string;
 }
 
+const COLLAPSED_COUNT = 4;
+
 function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
   const selectedCardActivities = useCardDetailStore(s => s.selectedCardActivities);
   const loadingCardDetails = useCardDetailStore(s => s.loadingCardDetails);
+  const [expanded, setExpanded] = useState(false);
+
+  const hasMore = selectedCardActivities.length > COLLAPSED_COUNT;
+  const visibleActivities = expanded ? selectedCardActivities : selectedCardActivities.slice(0, COLLAPSED_COUNT);
 
   return (
     <div>
@@ -120,7 +129,7 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
           <div className="absolute left-[6px] top-1 bottom-1 border-l-2 border-surface-700" />
 
           <div className="space-y-3">
-            {selectedCardActivities.map(activity => {
+            {visibleActivities.map(activity => {
               const config = ACTION_CONFIG[activity.action] ?? {
                 icon: Activity,
                 colorClass: 'text-surface-400',
@@ -147,6 +156,26 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
               );
             })}
           </div>
+
+          {/* Expand/collapse toggle */}
+          {hasMore && (
+            <button
+              onClick={() => setExpanded(prev => !prev)}
+              className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
+            >
+              {expanded ? (
+                <>
+                  <ChevronUp size={12} />
+                  Show less
+                </>
+              ) : (
+                <>
+                  <ChevronDown size={12} />
+                  Show all {selectedCardActivities.length} activities
+                </>
+              )}
+            </button>
+          )}
         </div>
       )}
     </div>
