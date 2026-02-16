@@ -12,7 +12,7 @@
 import { ipcMain } from 'electron';
 import { eq, asc } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { projects, boards, columns } from '../db/schema';
+import { projects, boards, columns, cards } from '../db/schema';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import {
   createProjectInputSchema,
@@ -117,11 +117,30 @@ export function registerProjectHandlers(): void {
         .orderBy(asc(columns.position));
 
       for (const srcCol of srcColumns) {
-        await db.insert(columns).values({
+        const [newCol] = await db.insert(columns).values({
           boardId: newBoard.id,
           name: srcCol.name,
           position: srcCol.position,
-        });
+        }).returning();
+
+        // Duplicate cards in this column
+        const srcCards = await db
+          .select()
+          .from(cards)
+          .where(eq(cards.columnId, srcCol.id))
+          .orderBy(asc(cards.position));
+
+        for (const srcCard of srcCards) {
+          await db.insert(cards).values({
+            columnId: newCol.id,
+            title: srcCard.title,
+            description: srcCard.description,
+            position: srcCard.position,
+            priority: srcCard.priority,
+            dueDate: srcCard.dueDate,
+            archived: srcCard.archived,
+          });
+        }
       }
     }
 
