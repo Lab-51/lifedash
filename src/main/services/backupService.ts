@@ -175,7 +175,7 @@ export async function listBackups(): Promise<BackupInfo[]> {
   try {
     const files = await fs.promises.readdir(dir);
     const backupFiles = files.filter((f) =>
-      /^backup-\d{4}-\d{2}-\d{2}-\d{6}\.(sql|json)$/.test(f),
+      /^backup-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.(sql|json)$/.test(f),
     );
 
     const results: BackupInfo[] = [];
