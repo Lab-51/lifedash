@@ -3,10 +3,10 @@
 // actions, active projects, recent meetings, and recent ideas at a glance.
 
 // === DEPENDENCIES ===
-// react (useMemo), react-router-dom (useNavigate),
+// react (useMemo, useState), react-router-dom (useNavigate),
 // lucide-react icons, projectStore, meetingStore, ideaStore, boardStore
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Mic,
@@ -86,6 +86,20 @@ function DashboardPage() {
   const ideas = useIdeaStore(s => s.ideas);
   const allCards = useBoardStore(s => s.allCards);
 
+  const [lastVisit] = useState(() => {
+    const saved = localStorage.getItem('dashboard_last_visit');
+    localStorage.setItem('dashboard_last_visit', new Date().toISOString());
+    return saved;
+  });
+
+  const sinceLastVisit = useMemo(() => {
+    if (!lastVisit) return null;
+    const since = new Date(lastVisit).getTime();
+    const newMeetings = meetings.filter(m => new Date(m.createdAt).getTime() > since).length;
+    const newIdeas = ideas.filter(i => new Date(i.createdAt).getTime() > since).length;
+    return { newMeetings, newIdeas };
+  }, [meetings, ideas, lastVisit]);
+
   const activeProjects = useMemo(
     () => projects.filter(p => !p.archived).slice(0, MAX_PROJECTS),
     [projects],
@@ -126,6 +140,14 @@ function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold text-surface-100">{getGreeting()}</h1>
         <p className="mt-1 text-surface-400">{formatToday()}</p>
+        {sinceLastVisit && (sinceLastVisit.newMeetings > 0 || sinceLastVisit.newIdeas > 0) && (
+          <p className="mt-1 text-sm text-primary-400/80">
+            Since your last visit:
+            {sinceLastVisit.newMeetings > 0 && ` ${sinceLastVisit.newMeetings} new meeting${sinceLastVisit.newMeetings !== 1 ? 's' : ''}`}
+            {sinceLastVisit.newMeetings > 0 && sinceLastVisit.newIdeas > 0 && ','}
+            {sinceLastVisit.newIdeas > 0 && ` ${sinceLastVisit.newIdeas} new idea${sinceLastVisit.newIdeas !== 1 ? 's' : ''}`}
+          </p>
+        )}
       </div>
 
       {/* Quick Actions */}
