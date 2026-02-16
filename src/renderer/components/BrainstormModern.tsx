@@ -244,87 +244,6 @@ export default function BrainstormModern() {
                         </label>
                     </div>
 
-                    {/* New Session Modal/Overlay inside sidebar */}
-                    {showNewSession && (
-                        <div className="absolute inset-x-0 top-0 bottom-0 z-50 bg-white/80 dark:bg-surface-900/90 backdrop-blur-sm p-4 flex flex-col">
-                            <div className="bg-white dark:bg-surface-800 rounded-2xl shadow-xl border border-surface-200 dark:border-surface-700 p-5 w-full max-w-sm mx-auto mt-20">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-bold text-lg text-surface-900 dark:text-surface-100">New Session</h3>
-                                    <button onClick={() => setShowNewSession(false)} className="text-surface-400 hover:text-surface-600 dark:hover:text-surface-200">
-                                        <X size={20} />
-                                    </button>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-surface-500 mb-1.5 uppercase">Title</label>
-                                        <input
-                                            type="text"
-                                            value={newSessionTitle}
-                                            onChange={(e) => setNewSessionTitle(e.target.value)}
-                                            placeholder="e.g., Marketing Strategy Q1"
-                                            className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                                            autoFocus
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') handleCreateSession();
-                                                if (e.key === 'Escape') setShowNewSession(false);
-                                            }}
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-semibold text-surface-500 mb-1.5 uppercase">Project (Optional)</label>
-                                        <select
-                                            value={selectedProjectId}
-                                            onChange={(e) => setSelectedProjectId(e.target.value)}
-                                            className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 appearance-none"
-                                        >
-                                            <option value="">No linked project</option>
-                                            {projects.map((p) => (
-                                                <option key={p.id} value={p.id}>{p.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-semibold text-surface-500 mb-1.5 uppercase">Template</label>
-                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                            {BRAINSTORM_TEMPLATES.map((template) => (
-                                                <button
-                                                    key={template.id}
-                                                    type="button"
-                                                    onClick={() => setSelectedTemplateId(template.id)}
-                                                    className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${selectedTemplateId === template.id
-                                                            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10 ring-1 ring-primary-500'
-                                                            : 'border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800'
-                                                        }`}
-                                                >
-                                                    <div className="mt-0.5">{templateIcons[template.icon]}</div>
-                                                    <div>
-                                                        <p className={`text-sm font-semibold ${selectedTemplateId === template.id ? 'text-primary-700 dark:text-primary-300' : 'text-surface-900 dark:text-surface-100'}`}>
-                                                            {template.name}
-                                                        </p>
-                                                        <p className="text-xs text-surface-500 leading-snug">{template.description}</p>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-2">
-                                        <button
-                                            onClick={handleCreateSession}
-                                            disabled={!newSessionTitle.trim()}
-                                            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium py-2.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary-900/10 transition-all"
-                                        >
-                                            Start Session
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Session List */}
                     <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
                         {loadingSessions ? (
@@ -348,8 +267,8 @@ export default function BrainstormModern() {
                                         localStorage.setItem('lastBrainstormSessionId', session.id);
                                     }}
                                     className={`group relative rounded-xl p-3 cursor-pointer transition-all border ${activeSession?.id === session.id
-                                            ? 'bg-primary-50 dark:bg-primary-900/10 border-primary-200 dark:border-primary-800 shadow-sm'
-                                            : 'bg-transparent border-transparent hover:bg-surface-50 dark:hover:bg-surface-800'
+                                        ? 'bg-primary-50 dark:bg-primary-900/10 border-primary-200 dark:border-primary-800 shadow-sm'
+                                        : 'bg-transparent border-transparent hover:bg-surface-50 dark:hover:bg-surface-800'
                                         } ${session.status === 'archived' ? 'opacity-60 grayscale' : ''}`}
                                 >
                                     <div className="flex justify-between items-start gap-2">
@@ -376,8 +295,8 @@ export default function BrainstormModern() {
                                                 />
                                             ) : (
                                                 <h4 className={`text-sm font-medium truncate mb-1 ${activeSession?.id === session.id
-                                                        ? 'text-primary-900 dark:text-primary-100'
-                                                        : 'text-surface-700 dark:text-surface-300'
+                                                    ? 'text-primary-900 dark:text-primary-100'
+                                                    : 'text-surface-700 dark:text-surface-300'
                                                     }`}>
                                                     {session.title}
                                                 </h4>
@@ -433,6 +352,91 @@ export default function BrainstormModern() {
                         )}
                     </div>
                 </div>
+
+                {/* New Session Modal - Moved OUT of sidebar */}
+                {showNewSession && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-surface-900 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700 w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="font-bold text-xl text-surface-900 dark:text-surface-100">New Session</h3>
+                                <button
+                                    onClick={() => setShowNewSession(false)}
+                                    className="p-1 rounded-full hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-surface-900 transition-colors"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-5">
+                                <div>
+                                    <label className="block text-xs font-bold text-surface-500 mb-2 uppercase tracking-wide">Title</label>
+                                    <input
+                                        type="text"
+                                        value={newSessionTitle}
+                                        onChange={(e) => setNewSessionTitle(e.target.value)}
+                                        placeholder="e.g., Marketing Strategy Q1"
+                                        className="w-full bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-all"
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleCreateSession();
+                                            if (e.key === 'Escape') setShowNewSession(false);
+                                        }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-surface-500 mb-2 uppercase tracking-wide">Project (Optional)</label>
+                                    <select
+                                        value={selectedProjectId}
+                                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                                        className="w-full bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 appearance-none transition-all"
+                                    >
+                                        <option value="">No linked project</option>
+                                        {projects.map((p) => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-surface-500 mb-2 uppercase tracking-wide">Template</label>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-surface-300 dark:scrollbar-thumb-surface-700">
+                                        {BRAINSTORM_TEMPLATES.map((template) => (
+                                            <button
+                                                key={template.id}
+                                                type="button"
+                                                onClick={() => setSelectedTemplateId(template.id)}
+                                                className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${selectedTemplateId === template.id
+                                                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-1 ring-primary-500'
+                                                    : 'border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800'
+                                                    }`}
+                                            >
+                                                <div className="mt-0.5">{templateIcons[template.icon]}</div>
+                                                <div>
+                                                    <p className={`text-sm font-semibold ${selectedTemplateId === template.id ? 'text-primary-700 dark:text-primary-300' : 'text-surface-900 dark:text-surface-100'}`}>
+                                                        {template.name}
+                                                    </p>
+                                                    <p className="text-xs text-surface-500 leading-snug mt-0.5">{template.description}</p>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="pt-2">
+                                    <button
+                                        onClick={handleCreateSession}
+                                        disabled={!newSessionTitle.trim()}
+                                        className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-500/20 hover:shadow-primary-500/40 transition-all hover:-translate-y-0.5"
+                                    >
+                                        Start Session
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* This div was extraneous and caused the syntax error. It's removed. */}
 
                 {/* Right Chat Area */}
                 <div className="flex-1 flex flex-col relative bg-surface-50/50 dark:bg-surface-950">
@@ -598,8 +602,8 @@ export default function BrainstormModern() {
                                             onClick={() => handleSendMessage()}
                                             disabled={!input.trim() || streaming}
                                             className={`absolute right-2 bottom-2 p-2 rounded-xl transition-all ${!input.trim() || streaming
-                                                    ? 'bg-surface-200 dark:bg-surface-700 text-surface-400 cursor-not-allowed'
-                                                    : 'bg-primary-600 text-white hover:bg-primary-700 shadow-md'
+                                                ? 'bg-surface-200 dark:bg-surface-700 text-surface-400 cursor-not-allowed'
+                                                : 'bg-primary-600 text-white hover:bg-primary-700 shadow-md'
                                                 }`}
                                         >
                                             {streaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
@@ -614,6 +618,6 @@ export default function BrainstormModern() {
                     ) : null}
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

@@ -39,6 +39,7 @@ export default function MeetingsModern() {
     const [hasModel, setHasModel] = useState<boolean | null>(null);
     const [downloading, setDownloading] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
+    const [showControls, setShowControls] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
 
     // Open meeting from URL search param (e.g. ?openMeeting=<id> from dashboard deep-link)
@@ -52,8 +53,10 @@ export default function MeetingsModern() {
     }, [searchParams, setSearchParams, loading, meetings.length]);
 
     // Handle ?action=record — just clear the param (recording controls are always visible)
+    // Handle ?action=record
     useEffect(() => {
         if (searchParams.get('action') === 'record') {
+            setShowControls(true);
             searchParams.delete('action');
             setSearchParams(searchParams, { replace: true });
         }
@@ -169,17 +172,47 @@ export default function MeetingsModern() {
         <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950">
             {/* Modern Header */}
             <div className="p-8 pb-4 shrink-0">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div className="flex items-center justify-between gap-4 mb-6">
                     <div>
                         <h1 className="text-3xl font-light tracking-tight text-surface-900 dark:text-surface-50">Meetings</h1>
                         <p className="text-surface-500 mt-1">Capture and analyze conversations.</p>
                     </div>
 
-                    {/* Recording Controls - Prominent */}
-                    <div className="w-full md:w-auto">
-                        <RecordingControls hasModel={hasModel} />
-                    </div>
+                    <button
+                        onClick={() => setShowControls(!showControls)}
+                        disabled={isRecording}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${showControls || isRecording
+                                ? 'bg-surface-200 dark:bg-surface-800 text-surface-900 dark:text-surface-100 cursor-default'
+                                : 'bg-primary-600 hover:bg-primary-700 text-white shadow-md hover:shadow-lg'
+                            }`}
+                    >
+                        {isRecording ? (
+                            <>
+                                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                                <span>Recording...</span>
+                            </>
+                        ) : showControls ? (
+                            <>
+                                <X size={18} />
+                                <span>Close Recorder</span>
+                            </>
+                        ) : (
+                            <>
+                                <Mic size={18} />
+                                <span>New Recording</span>
+                            </>
+                        )}
+                    </button>
                 </div>
+
+                {/* Collapsible Recording Area */}
+                {(showControls || isRecording) && (
+                    <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-300">
+                        <div className="max-w-2xl mx-auto shadow-2xl rounded-xl overflow-hidden ring-1 ring-surface-950/5">
+                            <RecordingControls hasModel={hasModel} />
+                        </div>
+                    </div>
+                )}
 
                 {/* Filters & Search Toolbar */}
                 <div className="flex bg-white dark:bg-surface-900 p-1.5 rounded-xl border border-surface-200 dark:border-surface-800 shadow-sm items-center gap-2 mb-2">

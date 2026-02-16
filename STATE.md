@@ -2,26 +2,31 @@
 
 ## Session Info
 Last updated: 2026-02-16
-Session focus: SELF-IMPROVE-NEW.md Phase A + Design Cleanup
-Checkpoint reason: Session end — Phase A complete, Classic design removed
+Session focus: Execute Plan B.1 — App Startup Loading Animation
+Checkpoint reason: Plan B.1 COMPLETE
 
 ## Position
-Milestone: SELF-IMPROVE-NEW.md Phase A — COMPLETE
-Latest commit: df9c8b3 on main (pushed)
+Milestone: Plan B.1 — App Startup Loading Animation (COMPLETE)
+Latest commit: cbc4d23 on main — splash screen feature
 Test suite: 150 tests across 7 files
-SELF-IMPROVE-NEW.md: 27 proposals, 5 implemented (Phase A complete: 5/5)
+SELF-IMPROVE-NEW.md: 27 proposals, 6 implemented (Phase A: 5/5, Phase B started: 1/?)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
-
-## Ad-hoc Changes This Session
-- Classic design removed entirely (df9c8b3) — 9 Classic components deleted, ~2966 lines removed
-- Modern is now the sole design — page switchers simplified to render Modern directly
-- Settings "Design Style" → "Themes — More themes coming soon"
-- User upgraded ActivityHeatmap → ProductivityPulse (SVG-based, responsive, proper date alignment)
+Plan B.1: COMPLETE (2/2 tasks)
 
 ## Resume Context
-Next action: SELF-IMPROVE-NEW.md Phase B or user-directed work
-Prerequisites: None — all clean, pushed to remote
+Next action: SELF-IMPROVE-NEW.md Phase B continued or user-directed work
+Prerequisites: None — all clean
+
+## Plan B.1 Results
+- Task 1: CSS splash screen in index.html (cbc4d23)
+  - Pure HTML+CSS splash renders before any JS loads — no white flash
+  - Full viewport #020617 background, "Living Dashboard" title, 3-dot pulse animation
+  - `.splash-hidden` class with 300ms fade-out transition
+- Task 2: React splash dismissal in App.tsx (cbc4d23)
+  - Promise.allSettled waits for all 5 store hydrations before setting appReady
+  - Splash fades out smoothly when appReady=true, removed from DOM after 400ms
+  - App content gated on appReady — no empty-state flash between splash and dashboard
 
 ## Plan A.2 Results
 - Task 1: Daily Standup Generator ✓ (1a8fb34)

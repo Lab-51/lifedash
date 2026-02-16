@@ -286,7 +286,6 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={handleOverlayClick}
     >
       <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-3xl max-h-[80vh] overflow-y-auto mx-4 p-6">
         {/* Header: Title + Close button */}
@@ -327,9 +326,8 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               <button
                 key={opt.value}
                 onClick={() => handlePriorityChange(opt.value)}
-                className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${
-                  card.priority === opt.value ? opt.activeClass : opt.inactiveClass
-                }`}
+                className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${card.priority === opt.value ? opt.activeClass : opt.inactiveClass
+                  }`}
               >
                 {opt.label}
               </button>
@@ -348,20 +346,20 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               Apply Template
             </button>
 
-          {showTemplateDropdown && (
-            <div className="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg py-1 min-w-[200px] z-40">
-              {CARD_TEMPLATES.map(template => (
-                <button
-                  key={template.id}
-                  onClick={() => applyTemplate(template)}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors text-left"
-                >
-                  <span>{template.icon}</span>
-                  {template.name}
-                </button>
-              ))}
-            </div>
-          )}
+            {showTemplateDropdown && (
+              <div className="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg py-1 min-w-[200px] z-40">
+                {CARD_TEMPLATES.map(template => (
+                  <button
+                    key={template.id}
+                    onClick={() => applyTemplate(template)}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors text-left"
+                  >
+                    <span>{template.icon}</span>
+                    {template.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <button
@@ -461,9 +459,8 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                         <button
                           key={color}
                           onClick={() => setNewLabelColor(color)}
-                          className={`w-5 h-5 rounded-full transition-all ${
-                            newLabelColor === color ? 'ring-2 ring-white/50 scale-110' : 'hover:scale-110'
-                          }`}
+                          className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-white/50 scale-110' : 'hover:scale-110'
+                            }`}
                           style={{ backgroundColor: color }}
                         />
                       ))}
