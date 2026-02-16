@@ -60,7 +60,9 @@ export default function BrainstormPage() {
   const [renameTitle, setRenameTitle] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const userScrolledUpRef = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Handle ?action=create — auto-open the new session form
@@ -81,10 +83,36 @@ export default function BrainstormPage() {
     loadProjects();
   }, []);
 
-  // Auto-scroll to bottom when new messages or streaming text changes
+  // Track whether user has scrolled up from the bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // Consider "at bottom" if within 80px of the bottom
+      userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 80;
+    };
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [activeSession?.id]);
+
+  // Auto-scroll to bottom only when user hasn't scrolled up
+  useEffect(() => {
+    if (!userScrolledUpRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [activeSession?.messages, streamingText]);
+
+  // Always scroll to bottom when a new user message is sent (reset scroll lock)
+  const prevMessageCountRef = useRef(0);
+  useEffect(() => {
+    const count = activeSession?.messages.length ?? 0;
+    if (count > prevMessageCountRef.current) {
+      userScrolledUpRef.current = false;
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevMessageCountRef.current = count;
+  }, [activeSession?.messages.length]);
 
   // Auto-select last active brainstorm session on mount
   useEffect(() => {
@@ -448,7 +476,7 @@ export default function BrainstormPage() {
               </div>
 
               {/* Messages area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
                 {activeSession.messages.length === 0 && !streaming && (
                   <div className="flex flex-col items-center justify-center py-12">
                     <MessageSquare size={32} className="mb-3 text-surface-600" />
