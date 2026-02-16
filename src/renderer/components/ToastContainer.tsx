@@ -30,6 +30,14 @@ function ToastContainer() {
           style={{ borderLeftWidth: 3, borderLeftColor: TYPE_COLORS[t.type] }}
         >
           <span className="text-sm text-surface-200">{t.message}</span>
+          {t.action && (
+            <button
+              onClick={() => { t.action!.onClick(); removeToast(t.id); }}
+              className="text-xs font-medium text-primary-400 hover:text-primary-300 transition-colors shrink-0"
+            >
+              {t.action.label}
+            </button>
+          )}
           <button
             onClick={() => removeToast(t.id)}
             className="text-surface-400 hover:text-surface-200 transition-colors shrink-0"

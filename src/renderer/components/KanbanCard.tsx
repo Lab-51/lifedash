@@ -1,7 +1,7 @@
 // === FILE PURPOSE ===
 // KanbanCard — renders a single card in a Kanban column.
 // Shows priority border, priority badge, label dots, due date badge, and hover actions.
-// Supports inline title editing and delete with confirmation.
+// Supports inline title editing and undo-based deletion via delayed delete + toast.
 
 // === DEPENDENCIES ===
 // react, lucide-react (Pencil, Trash2, Clock), shared types (Card, UpdateCardInput),
@@ -15,6 +15,8 @@ import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import type { Card, UpdateCardInput } from '../../shared/types';
 import { getDueDateBadge } from '../utils/date-utils';
+import { toast } from '../hooks/useToast';
+import { useBoardStore } from '../stores/boardStore';
 
 interface KanbanCardProps {
   card: Card;
@@ -39,8 +41,9 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(card.title);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const removeCardFromUI = useBoardStore(s => s.removeCardFromUI);
+  const restoreCardToUI = useBoardStore(s => s.restoreCardToUI);
 
   const priority = PRIORITY_CONFIG[card.priority] ?? PRIORITY_CONFIG.medium;
 
@@ -51,13 +54,6 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
       editInputRef.current.select();
     }
   }, [isEditing]);
-
-  // Auto-dismiss delete confirmation after 2 seconds
-  useEffect(() => {
-    if (!confirmingDelete) return;
-    const timer = setTimeout(() => setConfirmingDelete(false), 2000);
-    return () => clearTimeout(timer);
-  }, [confirmingDelete]);
 
   // Set up drag behavior
   useEffect(() => {
@@ -138,11 +134,30 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
   };
 
   const handleDeleteClick = () => {
-    if (confirmingDelete) {
-      onDelete(card.id);
-    } else {
-      setConfirmingDelete(true);
-    }
+    // Snapshot the card before removing from UI
+    const cardSnapshot = { ...card };
+    const cardId = card.id;
+
+    // Remove from UI immediately (optimistic)
+    removeCardFromUI(cardId);
+
+    // Schedule actual deletion after 5 seconds
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!cancelled) {
+        onDelete(cardId);
+      }
+    }, 5000);
+
+    // Show toast with undo button (5s duration to match delete delay)
+    toast('Card deleted', 'info', {
+      label: 'Undo',
+      onClick: () => {
+        cancelled = true;
+        clearTimeout(timer);
+        restoreCardToUI(cardSnapshot);
+      },
+    }, 5000);
   };
 
   return (
@@ -249,22 +264,13 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
             </button>
           )}
 
-          {confirmingDelete ? (
-            <button
-              onClick={e => { e.stopPropagation(); handleDeleteClick(); }}
-              className="text-red-400 hover:text-red-300 text-[10px] font-medium transition-colors"
-            >
-              Delete?
-            </button>
-          ) : (
-            <button
-              onClick={e => { e.stopPropagation(); handleDeleteClick(); }}
-              className="text-surface-500 hover:text-red-400 p-0.5 transition-colors"
-              title="Delete card"
-            >
-              <Trash2 size={12} />
-            </button>
-          )}
+          <button
+            onClick={e => { e.stopPropagation(); handleDeleteClick(); }}
+            className="text-surface-500 hover:text-red-400 p-0.5 transition-colors"
+            title="Delete card"
+          >
+            <Trash2 size={12} />
+          </button>
         </div>
       </div>
     </div>
