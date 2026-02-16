@@ -30,4 +30,8 @@ export const cardDetailsBridge = {
   deleteCardAttachment: (id: string) => ipcRenderer.invoke('card:deleteAttachment', id),
   openCardAttachment: (filePath: string) =>
     ipcRenderer.invoke('card:openAttachment', filePath),
+
+  // AI description generation
+  generateCardDescription: (cardId: string) =>
+    ipcRenderer.invoke('card:generate-description', cardId),
 };

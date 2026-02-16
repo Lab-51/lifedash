@@ -123,6 +123,9 @@ export interface ElectronAPI {
   deleteCardAttachment: (id: string) => Promise<void>;
   openCardAttachment: (filePath: string) => Promise<void>;
 
+  // Card AI
+  generateCardDescription: (cardId: string) => Promise<{ description: string }>;
+
   // Labels
   getLabels: (projectId: string) => Promise<Label[]>;
   createLabel: (data: CreateLabelInput) => Promise<Label>;

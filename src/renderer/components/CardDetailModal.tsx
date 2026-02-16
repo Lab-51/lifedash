@@ -8,7 +8,7 @@
 // @tiptap/extension-placeholder, shared types, boardStore, cardDetailStore, section components
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Plus, FileText, Calendar } from 'lucide-react';
+import { X, Plus, FileText, Calendar, Sparkles } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -22,6 +22,7 @@ import RelationshipsSection from './RelationshipsSection';
 import ActivityLog from './ActivityLog';
 import TaskBreakdownSection from './TaskBreakdownSection';
 import { useTaskStructuringStore } from '../stores/taskStructuringStore';
+import { toast } from '../hooks/useToast';
 
 interface CardDetailModalProps {
   card: Card;
@@ -125,6 +126,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const labelDropdownRef = useRef<HTMLDivElement>(null);
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const templateDropdownRef = useRef<HTMLDivElement>(null);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
 
   const labels = useBoardStore(s => s.labels);
   const createLabel = useBoardStore(s => s.createLabel);
@@ -237,6 +239,23 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     setShowTemplateDropdown(false);
   };
 
+  // AI description generation handler
+  const handleGenerateDescription = async () => {
+    setGeneratingDescription(true);
+    try {
+      const result = await window.electronAPI.generateCardDescription(card.id);
+      if (result?.description && editor) {
+        editor.commands.setContent(result.description);
+        onUpdate(card.id, { description: result.description });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to generate description';
+      toast(message, 'error');
+    } finally {
+      setGeneratingDescription(false);
+    }
+  };
+
   // Label handlers
   const unattachedLabels = labels.filter(
     l => !card.labels?.some(cl => cl.id === l.id)
@@ -318,15 +337,16 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
           </div>
         </div>
 
-        {/* Template selector */}
-        <div className="mb-5 relative" ref={templateDropdownRef}>
-          <button
-            onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
-            className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors"
-          >
-            <FileText size={14} />
-            Apply Template
-          </button>
+        {/* Template selector + AI generate */}
+        <div className="mb-5 flex items-center gap-4">
+          <div className="relative" ref={templateDropdownRef}>
+            <button
+              onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
+              className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors"
+            >
+              <FileText size={14} />
+              Apply Template
+            </button>
 
           {showTemplateDropdown && (
             <div className="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg py-1 min-w-[200px] z-40">
@@ -342,6 +362,17 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               ))}
             </div>
           )}
+          </div>
+
+          <button
+            onClick={handleGenerateDescription}
+            disabled={generatingDescription}
+            className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors disabled:opacity-50"
+            title="Generate description from card title using AI"
+          >
+            <Sparkles size={14} className={generatingDescription ? 'animate-spin' : ''} />
+            {generatingDescription ? 'Generating...' : 'Generate with AI'}
+          </button>
         </div>
 
         {/* Description — TipTap editor */}

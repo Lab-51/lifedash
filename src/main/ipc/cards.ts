@@ -21,6 +21,7 @@ import {
   labels,
   columns,
   boards,
+  projects,
   cardComments,
   cardRelationships,
   cardRelationshipTypeEnum,
@@ -28,6 +29,7 @@ import {
   cardActivityActionEnum,
   cardAttachments,
 } from '../db/schema';
+import { resolveTaskModel, generate } from '../services/ai-provider';
 import * as attachmentService from '../services/attachmentService';
 import type { Card, Label } from '../../shared/types';
 import { buildCardLabelMap } from '../../shared/utils/card-utils';
@@ -541,5 +543,69 @@ export function registerCardHandlers(): void {
   ipcMain.handle('card:openAttachment', async (_event, filePath: unknown) => {
     const validFilePath = validateInput(filePathSchema, filePath);
     return attachmentService.openAttachment(validFilePath);
+  });
+
+  // --- AI: Generate Card Description ---
+
+  ipcMain.handle('card:generate-description', async (_event, cardId: unknown) => {
+    const validCardId = validateInput(idParamSchema, cardId);
+    const db = getDb();
+
+    // Fetch the card
+    const [card] = await db.select().from(cards).where(eq(cards.id, validCardId));
+    if (!card) throw new Error('Card not found');
+
+    // Traverse card -> column -> board -> project for context
+    const [column] = await db.select().from(columns).where(eq(columns.id, card.columnId));
+    let project: { name: string } | undefined;
+    if (column) {
+      const [board] = await db.select().from(boards).where(eq(boards.id, column.boardId));
+      if (board) {
+        const [proj] = await db
+          .select({ name: projects.name })
+          .from(projects)
+          .where(eq(projects.id, board.projectId));
+        project = proj;
+      }
+    }
+
+    // Get card labels for additional context
+    const cardLabelRows = await db
+      .select()
+      .from(cardLabels)
+      .where(eq(cardLabels.cardId, validCardId));
+    const labelIds = cardLabelRows.map(cl => cl.labelId);
+    const labelRows = labelIds.length > 0
+      ? await db.select().from(labels).where(inArray(labels.id, labelIds))
+      : [];
+    const labelNames = labelRows.map(l => l.name);
+
+    // Resolve AI provider
+    const resolved = await resolveTaskModel('card-description');
+    if (!resolved) throw new Error('No AI provider configured. Please add one in Settings.');
+
+    const prompt = `Write a concise task description (2-3 sentences) for this card on a project board.
+
+Card title: ${card.title}
+Priority: ${card.priority}
+${project ? `Project: ${project.name}` : ''}
+${labelNames.length > 0 ? `Labels: ${labelNames.join(', ')}` : ''}
+
+Write a clear, actionable description. Be specific and practical, not generic.
+Format as a single HTML paragraph (<p> tag).`;
+
+    const result = await generate({
+      providerId: resolved.providerId,
+      providerName: resolved.providerName,
+      apiKeyEncrypted: resolved.apiKeyEncrypted,
+      baseUrl: resolved.baseUrl,
+      model: resolved.model,
+      taskType: 'card-description',
+      prompt,
+      temperature: resolved.temperature ?? 0.7,
+      maxTokens: resolved.maxTokens ?? 200,
+    });
+
+    return { description: result.text };
   });
 }
