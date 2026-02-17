@@ -1,11 +1,12 @@
 // === FILE PURPOSE ===
 // Zustand store for focus mode / Pomodoro timer state.
-// Manages work/break sessions, countdown timer, and notifications.
+// Manages work/break sessions, countdown timer, notifications, and persistent stats.
 //
 // === DEPENDENCIES ===
 // zustand, window.electronAPI (preload bridge)
 
 import { create } from 'zustand';
+import type { FocusStats, FocusAchievement } from '../../shared/types/focus';
 
 interface FocusState {
   // State
@@ -19,6 +20,8 @@ interface FocusState {
   isPaused: boolean;
   intervalId: ReturnType<typeof setInterval> | null;
   showStartModal: boolean; // controls FocusStartModal visibility
+  stats: FocusStats | null;
+  achievements: FocusAchievement[];
 
   // Actions
   startFocus: (cardId: string | null, cardTitle: string | null) => void;
@@ -31,6 +34,9 @@ interface FocusState {
   loadSettings: () => Promise<void>;
   setShowStartModal: (show: boolean) => void;
   clearFocusedCard: () => void;
+  loadStats: () => Promise<void>;
+  saveSession: (input: { cardId?: string; durationMinutes: number; note?: string }) =>
+    Promise<{ newAchievements: FocusAchievement[] }>;
 }
 
 export const useFocusStore = create<FocusState>((set, get) => ({
@@ -44,6 +50,8 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   isPaused: false,
   intervalId: null,
   showStartModal: false,
+  stats: null,
+  achievements: [],
 
   startFocus: (cardId, cardTitle) => {
     const state = get();
@@ -156,5 +164,26 @@ export const useFocusStore = create<FocusState>((set, get) => ({
 
   clearFocusedCard: () => {
     set({ focusedCardId: null, focusedCardTitle: null });
+  },
+
+  loadStats: async () => {
+    try {
+      const [stats, achievements] = await Promise.all([
+        window.electronAPI.focusGetStats(),
+        window.electronAPI.focusGetAchievements(),
+      ]);
+      set({ stats, achievements });
+    } catch (error) {
+      console.error('Failed to load focus stats:', error);
+    }
+  },
+
+  saveSession: async (input) => {
+    const result = await window.electronAPI.focusSaveSession(input);
+    set({ stats: result.stats, achievements: result.newAchievements.length > 0
+      ? await window.electronAPI.focusGetAchievements()
+      : get().achievements,
+    });
+    return { newAchievements: result.newAchievements };
   },
 }));

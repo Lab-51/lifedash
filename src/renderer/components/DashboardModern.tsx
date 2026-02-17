@@ -29,6 +29,7 @@ import { toast } from '../hooks/useToast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ProductivityPulse from './ProductivityPulse';
+import FocusStatsWidget from './FocusStatsWidget';
 
 /** Return a time-based greeting string. */
 function getGreeting(): string {
@@ -258,6 +259,11 @@ export default function DashboardModern() {
                                 <Zap size={24} />
                             </div>
                         </div>
+                    </div>
+
+                    {/* Focus Stats */}
+                    <div className="col-span-12">
+                        <FocusStatsWidget />
                     </div>
 
                     {/* Productivity Pulse */}
