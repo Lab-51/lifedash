@@ -10,7 +10,7 @@
 // react (lazy), react-router-dom (HashRouter, Routes, Route, useNavigate),
 // TitleBar, AppLayout, StatusBar, useKeyboardShortcuts, lazy page components
 
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import TitleBar from './components/TitleBar';
@@ -29,6 +29,7 @@ import { useFocusStore } from './stores/focusStore';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import ToastContainer from './components/ToastContainer';
+import { toast } from './hooks/useToast';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
@@ -39,6 +40,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const BoardPage = lazy(() => import('./pages/BoardPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const FocusStartModal = lazy(() => import('./components/FocusStartModal'));
+const FocusCompleteModal = lazy(() => import('./components/FocusCompleteModal'));
 
 /** Wrapper that lives inside HashRouter to enable useNavigate for shortcuts */
 function AppShell({ children }: { children: ReactNode }) {
@@ -47,6 +49,7 @@ function AppShell({ children }: { children: ReactNode }) {
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [appReady, setAppReady] = useState(false);
   const showStartModal = useFocusStore(s => s.showStartModal);
+  const focusMode = useFocusStore(s => s.mode);
 
   const toggleCommandPalette = useCallback(() => {
     setShowCommandPalette(prev => !prev);
@@ -118,6 +121,15 @@ function AppShell({ children }: { children: ReactNode }) {
     return cleanup;
   }, []);
 
+  // Show toast when break timer ends (break -> idle transition)
+  const prevModeRef = useRef(focusMode);
+  useEffect(() => {
+    if (prevModeRef.current === 'break' && focusMode === 'idle') {
+      toast('Break complete! Ready for another session?', 'info');
+    }
+    prevModeRef.current = focusMode;
+  }, [focusMode]);
+
   return (
     <>
       <CommandPalette
@@ -134,6 +146,10 @@ function AppShell({ children }: { children: ReactNode }) {
         <FocusStartModal
           isOpen={showStartModal}
           onClose={() => useFocusStore.getState().setShowStartModal(false)}
+        />
+        <FocusCompleteModal
+          isOpen={focusMode === 'completed'}
+          onClose={() => useFocusStore.getState().stop()}
         />
       </Suspense>
       {appReady && children}
