@@ -1,33 +1,43 @@
-# Plan B.1 Summary — App Startup Loading Animation
+# Plan C.3 — Focus Mode / Pomodoro Timer
 
-## Date: 2026-02-16
-## Status: COMPLETE (2/2 tasks, sequential execution)
+## Date: 2026-02-17
+## Status: COMPLETE (3/3 tasks)
+
+All 3 tasks executed successfully. TypeScript clean, 150/150 tests passing.
 
 ## What Changed
 
-Added a splash screen that eliminates the blank window during app startup. Users now see branded loading feedback from the very first frame the window appears.
+### Task 1: Focus Store + notifications:show IPC + keyboard shortcut
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** b07f296
 
-### Task 1: Add CSS splash screen to index.html
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** cbc4d23
+- New `focusStore.ts` Zustand store with full Pomodoro timer engine
+- Mode cycle: idle → focus → completed → break → idle
+- setInterval-based tick(), pause/resume, session counting, settings persistence
+- `notifications:show` IPC handler for desktop alerts on timer completion
+- Ctrl+Shift+F keyboard shortcut registered + listed in shortcuts modal
+- AppShell: toggleFocusMode callback + loadSettings on startup
 
-- Pure HTML+CSS splash in index.html renders before any JavaScript loads
-- Full viewport dark overlay (#020617), "Living Dashboard" title (slate-200, light weight)
-- 3-dot pulse loading animation via @keyframes (staggered delays: 0s, 0.2s, 0.4s)
-- `.splash-hidden` class provides 300ms ease-out opacity transition for smooth dismissal
-- Body background matches BrowserWindow backgroundColor — zero white flash
+### Task 2: Focus Mode UI — StatusBar timer, FocusStartModal, sidebar collapse
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** fab5456
 
-### Task 2: Remove splash screen after React app is ready
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** cbc4d23
+- StatusBar: live countdown with card name, pause/resume/stop controls, color-coded (emerald=focus, amber=break)
+- FocusStartModal: optional card search + duration presets (25/30/45/60 + custom) + start button
+- SidebarModern: Timer icon button (opens modal when idle, stops session when active, emerald pulse)
+- AppLayout: sidebar hidden during focus/break modes, main content fills width
 
-- Replaced fire-and-forget store loading with `Promise.allSettled` tracking
-- `appReady` state gates app content — no empty-state flash between splash and dashboard
-- Splash fades out smoothly when all 5 stores are hydrated, DOM element removed after 400ms
-- `allSettled` (not `all`) ensures app loads even if one store fails
+### Task 3: Session completion — FocusCompleteModal + card comment logging + break cycle
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** a6b0f82
+
+- FocusCompleteModal: accomplishment textarea, session summary, Save & Start Break / Skip buttons
+- Card comment logged with tomato emoji prefix via addCardComment IPC
+- Break timer auto-starts after saving, break-end toast via AppShell mode transition watcher
+- Async-safe: waits for IPC save before closing, error handling with toast
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors)
-- `npm test`: 150/150 tests pass
+- `npx vitest run`: 150/150 tests pass
 
-## User Experience Flow
-Before: window appears → blank/empty state → stores load → content pops in
-After: window appears → splash with loading dots → stores load → smooth fade → fully loaded dashboard
+## Feature Summary
+Full Pomodoro timer: Ctrl+Shift+F trigger, card-linked focus sessions, StatusBar countdown,
+sidebar collapse, desktop notifications, accomplishment logging as card comments, break cycle,
+and session counting. All state in focusStore (Zustand), no new DB tables needed.
