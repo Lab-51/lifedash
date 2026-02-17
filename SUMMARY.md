@@ -1,46 +1,39 @@
-# Plan D.2 — Focus Mode Gamification
+# Plan D.3 — Unified Gamification System (All Features)
 
 ## Date: 2026-02-17
 ## Status: COMPLETE (3/3 tasks)
 
-All 3 tasks executed successfully. TypeScript clean, 150/150 tests passing.
-
 ## What Changed
 
-### Task 1: Focus sessions DB + service + IPC for gamification foundation
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 4e6b206
+Expanded gamification from focus-only to ALL features. Every meaningful user action now earns XP with satisfying "+N XP" toasts, creating a unified progression system across the entire app.
 
-- `focus_sessions` + `focus_achievements` Drizzle schema tables + migration 0012
-- `focusService.ts` — saveSession, getStats (streak calc, XP/level), getDailyData, getAchievements, checkAndUnlockAchievements
-- 4 IPC handlers: focus:save-session (returns session + stats + new achievements), focus:get-stats, focus:get-daily, focus:get-achievements
-- Shared types: FocusStats, FocusAchievement, FocusDailyData, LEVEL_THRESHOLDS (8 levels), ACHIEVEMENTS (12 milestones), calculateLevel()
-- Preload focusBridge with 4 methods, ElectronAPI types updated
+### Task 1: Unified Gamification Backend (d6ed188)
+- **xp_events table** — new schema + migration 0013 with backfill from focus_sessions
+- **gamificationService** — awardXP, getStats, getAchievements, checkAndUnlockAchievements
+- **28 achievements** across 7 categories: Focus (12), Cards (4), Projects (2), Meetings (3), Ideas (2), Brainstorm (2), Cross-feature (3)
+- **XP economy** — 18 event types with balanced rewards (1-20 XP per action)
+- **Rebalanced levels** — XP-based (not minutes): Beginner→Active→Engaged→Dedicated→Master→Grandmaster→Legend→Transcendent
+- **IPC + Preload** — 3 gamification handlers wired through to renderer
 
-### Task 2: FocusStatsWidget on dashboard + XP reward feedback in completion modal
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** da49ad6
+### Task 2: XP Hooks in All Stores (cdad49f)
+- **gamificationStore** — unified Zustand store for stats/achievements with toast integration
+- **XP awards in every store**: boardStore (card create/complete), cardDetailStore (checklist), projectStore (create/archive), recordingStore (meeting complete), meetingStore (brief/action), ideaStore (create/convert/analyze), brainstormStore (start/export), taskStructuringStore (AI plan/breakdown)
+- **Component hooks** — DashboardModern (standup), CardDetailModal (AI description)
+- **focusStore simplified** — delegates stats/achievements to gamificationStore
 
-- `FocusStatsWidget.tsx` — full-width dashboard card with today's stats, streak, XP/level progress bar, 7-day bar chart, 12 achievement icons
-- FocusCompleteModal reward view: "+N XP", level progress bar, streak count, new achievement badges
-- focusStore: loadStats() and saveSession() for persistent stats via IPC
-- Auto-transitions to break after 2s reward display
-
-### Task 3: Achievement toasts + StatusBar XP level + Focus quick action button
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 38da38a
-
-- Achievement toast notifications (5s duration, staggered 500ms) on both save and skip
-- Skip now persists session to DB (counts toward XP/achievements)
-- StatusBar: clickable "Lv.N LevelName" when idle → opens FocusStartModal
-- Dashboard hero: Focus quick action button with emerald pulse when active
-- Stats load on app startup via Promise.allSettled in AppShell
+### Task 3: Unified Widget + Achievements Modal (c7b55b8)
+- **FocusStatsWidget rewritten** as unified progress hub:
+  - Today's XP, activity streak (any activity), level progress bar, 7-day XP chart
+  - 6 category pills with color coding (emerald/blue/purple/amber/pink/cyan)
+  - 28 achievement badges colored by category (unlocked) or gray (locked)
+- **AchievementsModal** — full-screen view grouped by 7 categories with unlock status
+- **gamification:get-daily IPC** — daily XP totals for bar chart
 
 ## Verification
-- `npx tsc --noEmit`: PASS (zero errors)
-- `npx vitest run`: 150/150 tests pass
+- TypeScript: Pass (zero errors)
+- Tests: Pass (150/150)
+- All 3 commits clean
 
-## Feature Summary
-Focus Mode Gamification: every completed focus session is now persisted with XP (1 per minute),
-leveling (8 tiers from Beginner to Transcendent), streak tracking (consecutive days), and 12
-achievements. Dashboard shows a prominent FocusStatsWidget with today's stats, streak, level
-progress, weekly chart, and achievement icons. Completion modal celebrates with XP animation,
-level bar, and achievement badges. Achievement toasts appear anywhere in the app. StatusBar shows
-persistent level indicator. Dashboard hero gains a Focus quick action button.
+## Files Changed
+- 7 new files, ~25 modified files
+- +3,200 lines added, ~480 lines removed

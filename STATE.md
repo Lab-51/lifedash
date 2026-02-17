@@ -2,16 +2,15 @@
 
 ## Session Info
 Last updated: 2026-02-17
-Session focus: Plan D.2 — Focus Mode Gamification
-Checkpoint reason: Plan D.2 COMPLETE (3/3 tasks)
+Session focus: Plan D.3 — Unified Gamification System (All Features)
 
 ## Position
 Milestone: v1.9.0 — Phase D: Meeting Intelligence 2.0
-Latest commit: 38da38a (feat: achievement toasts + StatusBar XP level + Focus quick action button)
+Latest commit: c7b55b8 (feat: unified gamification widget + achievements modal + daily XP chart)
 Version: 1.9.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
-SELF-IMPROVE-NEW.md: 27 proposals, 16 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 2/?)
+SELF-IMPROVE-NEW.md: 27 proposals, 19 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 5/?)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
@@ -21,6 +20,32 @@ Plan C.2: COMPLETE (3/3 tasks) — Recurring Cards + Card Templates
 Plan C.3: COMPLETE (3/3 tasks) — Focus Mode / Pomodoro Timer
 Plan D.1: COMPLETE (3/3 tasks) — Meeting Prep Assistant
 Plan D.2: COMPLETE (3/3 tasks) — Focus Mode Gamification
+Plan D.3: COMPLETE (3/3 tasks) — Unified Gamification System
+
+## Plan D.3 Results
+- Task 1: Unified gamification backend — schema + service + 28 achievements + IPC (d6ed188)
+  - xp_events table with migration 0013 + backfill from focus_sessions
+  - gamificationService: awardXP, getStats, getAchievements, getAchievementCounts, checkAndUnlockAchievements
+  - 28 achievements across 7 categories (focus/cards/projects/meetings/ideas/brainstorm/cross)
+  - XP_REWARDS for 18 event types, rebalanced level thresholds (XP-based, not minutes)
+  - 3 gamification IPC handlers + preload bridge
+  - focusService simplified (delegates achievements/levels to gamification)
+- Task 2: Hook XP awards into all feature stores + gamificationStore (cdad49f)
+  - New gamificationStore: unified stats/achievements, awardXP with +XP toasts
+  - All stores fire XP: board (5/15), checklist (2), project (10/20), recording (20),
+    meeting (10/5), idea (5/10/5), brainstorm (5/5), AI tasks (10/10/5/5)
+  - focusStore delegates stats/achievements to gamificationStore
+  - App startup loads unified gamification stats
+- Task 3: Unified gamification widget + achievements modal + daily XP chart (c7b55b8)
+  - FocusStatsWidget rewritten as unified progress hub: today XP, activity streak,
+    level progress, 7-day XP bar chart, category breakdown (6 pills), 28 achievement badges
+  - New AchievementsModal: full-screen grouped view by 7 categories
+  - gamification:get-daily IPC for daily XP totals
+
+## Resume Context
+Next action: Plan D.4+ or next self-improve proposals
+Prerequisites: None — all clean
+Plan D.3 confidence: HIGH (all 3 tasks verified, tsc + 150/150 tests)
 
 ## Plan D.2 Results
 - Task 1: Focus sessions DB + service + IPC for gamification foundation (4e6b206)
@@ -41,9 +66,15 @@ Plan D.2: COMPLETE (3/3 tasks) — Focus Mode Gamification
   - Stats load on app startup via Promise.allSettled in AppShell
 
 ## Resume Context
-Next action: Plan D.3 or next SELF-IMPROVE proposal
+Next action: Execute Plan D.3 — Unified Gamification System (3 tasks)
 Prerequisites: None — all clean
-Plan D.2 confidence: HIGH (all 3 tasks verified)
+Plan D.3 confidence: HIGH (all 3 tasks)
+
+## Plan D.3 Summary — Unified Gamification System
+Expands gamification from focus-only to ALL features. 3 tasks:
+- Task 1: xp_events table + gamificationService + 28 achievements + shared types + IPC
+- Task 2: Hook awardXP into all stores (board, project, meeting, idea, brainstorm, AI)
+- Task 3: Unified widget + AchievementsModal + StatusBar + FocusCompleteModal updates
 
 ## Plan D.1 Results
 - Task 1: Meeting prep service + schema migration + IPC handler (4c918dc)
