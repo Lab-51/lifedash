@@ -1,14 +1,14 @@
 # Current State
 
 ## Session Info
-Last updated: 2026-02-16
-Session focus: Settings bug fixes + About section branding + icon regen
-Checkpoint reason: End of session — all work committed and pushed
+Last updated: 2026-02-17
+Session focus: Productivity Pulse bug fixes (live updates, streak cap, timezone)
+Checkpoint reason: All fixes committed and pushed
 
 ## Position
 Milestone: v1.7.0 — post Plan B.1, ad-hoc fixes and polish
-Latest commit: 8db498c (feat: add logo and dynamic version to About section)
-Version: 1.7.0 (bumped from 0.1.0)
+Latest commit: 0405918 (fix: productivity pulse live updates, streak cap, and timezone alignment)
+Version: 1.7.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
 SELF-IMPROVE-NEW.md: 27 proposals, 6 implemented (Phase A: 5/5, Phase B started: 1/?)
@@ -17,22 +17,17 @@ Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
 
 ## Ad-hoc Changes This Session
-- Fix: Model assignment persistence — TaskModelConfig useEffect now subscribes to
-  actual `settings['ai.taskModels']` value so it re-runs after async loadSettings() (1a2e863)
-- Fix: Usage costs always $0 — added MODEL_PRICING table with per-token costs for
-  GPT-4o, GPT-4o-mini, o1-mini, Claude Sonnet 4.5, Claude Haiku 4.5, Kimi K2.5;
-  both logUsage() and generate() now populate estimatedCost (1a2e863)
-- Upgrade: generate-icons.js rewritten from Electron capturePage to @resvg/resvg-js
-  (512x512, plain Node, no Electron runtime needed) (1a2e863)
-- Fix: generate-ico.js ESM default import for png-to-ico (1a2e863)
-- Regenerated icon.png + icon.ico from current branding SVG (1a2e863)
-- Feat: About section now shows actual LifeDash logo SVG instead of generic Bot icon (8db498c)
-- Feat: Dynamic version from package.json via preload bridge (appVersion) (8db498c)
-- Bump: Version 0.1.0 → 1.7.0 (149 commits, 7 core phases + 7 improvement rounds) (8db498c)
+- Fix: Productivity Pulse live updates — activity data re-fetches when
+  cards/meetings/ideas arrays change instead of only on mount (0405918)
+- Fix: Streak artificially capped at ~90 days — IPC query extended from
+  90 → 365 days so calculateStreak() has full year of data (0405918)
+- Fix: Timezone mismatch for UTC+ users — replaced toISOString().split('T')[0]
+  with local date formatting (getFullYear/getMonth/getDate) in both IPC handler
+  and ProductivityPulse component (0405918)
 
 ## Resume Context
 Next action: SELF-IMPROVE-NEW.md Phase B continued or user-directed work
-Prerequisites: None — all clean, pushed to remote, `npm run make` verified
+Prerequisites: None — all clean, pushed to remote
 
 ## Plan B.1 Results
 - Task 1: CSS splash screen in index.html (cbc4d23)

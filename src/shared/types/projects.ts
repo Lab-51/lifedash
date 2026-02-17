@@ -37,6 +37,7 @@ export interface Card {
   position: number;
   priority: CardPriority;
   dueDate: string | null;
+  completed: boolean;
   archived: boolean;
   createdAt: string;
   updatedAt: string;
@@ -99,6 +100,7 @@ export interface UpdateCardInput {
   description?: string | null;
   priority?: CardPriority;
   dueDate?: string | null;
+  completed?: boolean;
   archived?: boolean;
   columnId?: string;
   position?: number;

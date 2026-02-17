@@ -122,6 +122,7 @@ export const updateCardInputSchema = z.object({
   description: z.string().max(5000).nullable().optional(),
   priority: cardPrioritySchema.optional(),
   dueDate: z.string().nullable().optional(),
+  completed: z.boolean().optional(),
   archived: z.boolean().optional(),
   columnId: uuid.optional(),
   position: z.number().int().min(0).optional(),

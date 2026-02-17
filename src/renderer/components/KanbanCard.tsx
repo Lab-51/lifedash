@@ -9,7 +9,7 @@
 // @atlaskit/pragmatic-drag-and-drop-hitbox (attachClosestEdge, extractClosestEdge)
 
 import { memo, useState, useRef, useEffect } from 'react';
-import { Pencil, Trash2, Clock, Link2 } from 'lucide-react';
+import { Pencil, Trash2, Clock, Link2, Check } from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -183,32 +183,49 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
 
       {/* Top row: title area + priority badge */}
       <div className="flex items-start justify-between gap-2">
-        {/* Title or edit input */}
-        <div className="flex-1 min-w-0">
-          {isEditing ? (
-            <input
-              ref={editInputRef}
-              type="text"
-              value={editTitle}
-              onChange={e => setEditTitle(e.target.value)}
-              onKeyDown={handleEditKeyDown}
-              onBlur={saveEdit}
-              onClick={e => e.stopPropagation()}
-              className="bg-surface-900 border border-surface-700 rounded px-2 py-1 text-sm text-surface-100 focus:outline-none focus:border-primary-500 w-full"
-            />
-          ) : (
-            <p
-              className="text-sm text-surface-100 line-clamp-2"
-              onDoubleClick={startEditing}
+        {/* Completion tick + Title */}
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          <button
+            onClick={e => { e.stopPropagation(); onUpdate(card.id, { completed: !card.completed }); }}
+            className="mt-0.5 shrink-0"
+            title={card.completed ? 'Mark incomplete' : 'Mark complete'}
+          >
+            <div
+              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                card.completed
+                  ? 'bg-emerald-600 border-emerald-500'
+                  : 'border-surface-600 bg-surface-800 hover:border-surface-400'
+              }`}
             >
-              {card.title}
-            </p>
-          )}
-          {card.description && !isEditing && (
-            <p className="text-xs text-surface-500 line-clamp-1 mt-0.5">
-              {card.description.replace(/<[^>]*>/g, '').trim()}
-            </p>
-          )}
+              {card.completed && <Check size={10} className="text-white" />}
+            </div>
+          </button>
+          <div className="flex-1 min-w-0">
+            {isEditing ? (
+              <input
+                ref={editInputRef}
+                type="text"
+                value={editTitle}
+                onChange={e => setEditTitle(e.target.value)}
+                onKeyDown={handleEditKeyDown}
+                onBlur={saveEdit}
+                onClick={e => e.stopPropagation()}
+                className="bg-surface-900 border border-surface-700 rounded px-2 py-1 text-sm text-surface-100 focus:outline-none focus:border-primary-500 w-full"
+              />
+            ) : (
+              <p
+                className={`text-sm line-clamp-2 ${card.completed ? 'text-surface-500 line-through' : 'text-surface-100'}`}
+                onDoubleClick={startEditing}
+              >
+                {card.title}
+              </p>
+            )}
+            {card.description && !isEditing && (
+              <p className="text-xs text-surface-500 line-clamp-1 mt-0.5">
+                {card.description.replace(/<[^>]*>/g, '').trim()}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Priority + blocked badges */}

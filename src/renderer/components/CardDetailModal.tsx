@@ -8,7 +8,7 @@
 // @tiptap/extension-placeholder, shared types, boardStore, cardDetailStore, section components
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Plus, FileText, Calendar, Sparkles } from 'lucide-react';
+import { X, Plus, FileText, Calendar, Sparkles, Check } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -303,7 +303,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               />
             ) : (
               <h2
-                className="text-xl font-bold text-surface-100 cursor-pointer hover:text-surface-200"
+                className={`text-xl font-bold cursor-pointer hover:text-surface-200 ${card.completed ? 'text-surface-500 line-through' : 'text-surface-100'}`}
                 onClick={startEditingTitle}
               >
                 {card.title}
@@ -479,6 +479,28 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
           </div>
         </div>
 
+        {/* Completion */}
+        <div className="mb-5">
+          <span className="text-sm text-surface-400 block mb-2">Status</span>
+          <button
+            onClick={() => onUpdate(card.id, { completed: !card.completed })}
+            className="flex items-center gap-2.5 group/check"
+          >
+            <div
+              className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                card.completed
+                  ? 'bg-emerald-600 border-emerald-500'
+                  : 'border-surface-600 bg-surface-800 group-hover/check:border-surface-400'
+              }`}
+            >
+              {card.completed && <Check size={12} className="text-white" />}
+            </div>
+            <span className={`text-sm ${card.completed ? 'text-emerald-400' : 'text-surface-300'}`}>
+              {card.completed ? 'Completed' : 'Mark as complete'}
+            </span>
+          </button>
+        </div>
+
         {/* Due Date */}
         <div className="mb-5">
           <span className="text-sm text-surface-400 block mb-2">Due Date</span>
@@ -497,8 +519,8 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
             />
             {card.dueDate && (
               <>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${getDueDateBadge(card.dueDate).classes}`}>
-                  {getDueDateBadge(card.dueDate).label}
+                <span className={`text-xs px-2 py-0.5 rounded-full ${card.completed ? 'bg-emerald-500/20 text-emerald-400' : getDueDateBadge(card.dueDate).classes}`}>
+                  {card.completed ? 'Done' : getDueDateBadge(card.dueDate).label}
                 </span>
                 <button
                   onClick={() => onUpdate(card.id, { dueDate: null })}

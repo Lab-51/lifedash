@@ -2,7 +2,7 @@
 // KanbanCard Modern — renders a single card in a Kanban column with modern styling.
 
 import { memo, useState, useRef, useEffect } from 'react';
-import { Pencil, Trash2, Clock, Link2, AlertCircle } from 'lucide-react';
+import { Pencil, Trash2, Clock, Link2, AlertCircle, Check } from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -176,23 +176,40 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
             <div className="pl-2.5">
                 {/* Header row */}
                 <div className="flex items-start justify-between gap-2 mb-1.5">
-                    <div className="flex-1 min-w-0">
-                        {isEditing ? (
-                            <input
-                                ref={editInputRef}
-                                type="text"
-                                value={editTitle}
-                                onChange={e => setEditTitle(e.target.value)}
-                                onKeyDown={handleEditKeyDown}
-                                onBlur={saveEdit}
-                                onClick={e => e.stopPropagation()}
-                                className="w-full bg-surface-50 dark:bg-surface-900 border border-primary-500 rounded px-2 py-1 text-sm font-medium focus:outline-none"
-                            />
-                        ) : (
-                            <h4 className={`text-sm font-medium text-surface-900 dark:text-surface-100 leading-snug line-clamp-3 ${isBlocked ? 'line-through text-surface-500' : ''}`}>
-                                {card.title}
-                            </h4>
-                        )}
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                        <button
+                            onClick={e => { e.stopPropagation(); onUpdate(card.id, { completed: !card.completed }); }}
+                            className="mt-0.5 shrink-0"
+                            title={card.completed ? 'Mark incomplete' : 'Mark complete'}
+                        >
+                            <div
+                                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                    card.completed
+                                        ? 'bg-emerald-600 border-emerald-500'
+                                        : 'border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 hover:border-surface-400'
+                                }`}
+                            >
+                                {card.completed && <Check size={10} className="text-white" />}
+                            </div>
+                        </button>
+                        <div className="flex-1 min-w-0">
+                            {isEditing ? (
+                                <input
+                                    ref={editInputRef}
+                                    type="text"
+                                    value={editTitle}
+                                    onChange={e => setEditTitle(e.target.value)}
+                                    onKeyDown={handleEditKeyDown}
+                                    onBlur={saveEdit}
+                                    onClick={e => e.stopPropagation()}
+                                    className="w-full bg-surface-50 dark:bg-surface-900 border border-primary-500 rounded px-2 py-1 text-sm font-medium focus:outline-none"
+                                />
+                            ) : (
+                                <h4 className={`text-sm font-medium leading-snug line-clamp-3 ${card.completed ? 'line-through text-surface-500' : isBlocked ? 'line-through text-surface-500' : 'text-surface-900 dark:text-surface-100'}`}>
+                                    {card.title}
+                                </h4>
+                            )}
+                        </div>
                     </div>
 
                     {isBlocked && (

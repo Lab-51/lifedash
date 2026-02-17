@@ -27,6 +27,7 @@ export const cards = pgTable('cards', {
   position: integer('position').default(0).notNull(),
   priority: cardPriorityEnum('priority').default('medium').notNull(),
   dueDate: timestamp('due_date', { withTimezone: true }),
+  completed: boolean('completed').default(false).notNull(),
   archived: boolean('archived').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
