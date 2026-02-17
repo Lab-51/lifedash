@@ -107,6 +107,15 @@ export interface UpdateMeetingInput {
   status?: MeetingStatus;
 }
 
+export interface TranscriptSearchResult {
+  segmentId: string;
+  meetingId: string;
+  meetingTitle: string;
+  content: string;
+  startTime: number;
+  speaker: string | null;
+}
+
 /** Recording state pushed from main to renderer via events */
 export interface RecordingState {
   isRecording: boolean;

@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
-import { Search, Folder, Mic, Lightbulb, MessageSquare, LayoutGrid, LayoutDashboard, Settings, Plus, Play, Keyboard, PlusCircle, Zap } from 'lucide-react';
+import { Search, Folder, Mic, Lightbulb, MessageSquare, LayoutGrid, LayoutDashboard, Settings, Plus, Play, Keyboard, PlusCircle, Zap, FileSearch } from 'lucide-react';
+import type { TranscriptSearchResult } from '../../shared/types';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useIdeaStore } from '../stores/ideaStore';
@@ -47,8 +48,10 @@ function matchScore(query: string, title: string, description?: string | null): 
 function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [transcriptResults, setTranscriptResults] = useState<TranscriptSearchResult[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const projects = useProjectStore(s => s.projects);
   const meetings = useMeetingStore(s => s.meetings);
@@ -95,9 +98,30 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
     if (isOpen) {
       setQuery('');
       setSelectedIndex(0);
+      setTranscriptResults([]);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 3) {
+      setTranscriptResults([]);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await window.electronAPI.searchTranscripts(trimmed, 5);
+        setTranscriptResults(results);
+      } catch {
+        setTranscriptResults([]);
+      }
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query]);
 
   const go = useCallback((path: string) => { navigate(path); onClose(); }, [navigate, onClose]);
 
@@ -195,8 +219,17 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
       });
     }
 
-    return [...matchedPages, ...matchedActions, ...matchedData, ...captureItems];
-  }, [query, pageItems, actionItems, dataItems, projects, createIdea, createCardInFirstColumn, go, onClose]);
+    const transcriptItems: CommandItem[] = transcriptResults.map(r => ({
+      id: `ts-${r.segmentId}`,
+      label: r.content.length > 80 ? r.content.slice(0, 80) + '...' : r.content,
+      sublabel: r.meetingTitle,
+      icon: FileSearch,
+      category: 'Transcripts',
+      action: () => go(`/meetings?openMeeting=${r.meetingId}&transcriptSearch=${encodeURIComponent(trimmed)}`),
+    }));
+
+    return [...matchedPages, ...matchedActions, ...matchedData, ...transcriptItems, ...captureItems];
+  }, [query, pageItems, actionItems, dataItems, projects, transcriptResults, createIdea, createCardInFirstColumn, go, onClose]);
 
   useEffect(() => {
     setSelectedIndex(prev => Math.min(prev, Math.max(0, results.length - 1)));

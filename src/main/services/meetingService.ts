@@ -9,7 +9,7 @@
 // - No pagination on list queries yet.
 // - No recording/transcription logic (that's Plans 4.2-4.3).
 
-import { eq, desc, asc, count, inArray } from 'drizzle-orm';
+import { eq, desc, asc, count, inArray, ilike } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { meetings, transcripts, meetingBriefs, actionItems } from '../db/schema';
 import type {
@@ -18,6 +18,7 @@ import type {
   ActionItem,
   MeetingWithTranscript,
   TranscriptSegment,
+  TranscriptSearchResult,
   CreateMeetingInput,
   UpdateMeetingInput,
 } from '../../shared/types';
@@ -212,4 +213,33 @@ export async function updateSegmentSpeakers(
       .set({ speaker })
       .where(eq(transcripts.id, segmentId));
   }
+}
+
+export async function searchTranscripts(query: string, limit = 20): Promise<TranscriptSearchResult[]> {
+  const db = getDb();
+  const escaped = query.replace(/%/g, '\\%').replace(/_/g, '\\_');
+  const rows = await db
+    .select({
+      segmentId: transcripts.id,
+      meetingId: transcripts.meetingId,
+      meetingTitle: meetings.title,
+      content: transcripts.content,
+      startTime: transcripts.startTime,
+      speaker: transcripts.speaker,
+      startedAt: meetings.startedAt,
+    })
+    .from(transcripts)
+    .innerJoin(meetings, eq(transcripts.meetingId, meetings.id))
+    .where(ilike(transcripts.content, `%${escaped}%`))
+    .orderBy(desc(meetings.startedAt), asc(transcripts.startTime))
+    .limit(limit);
+
+  return rows.map(row => ({
+    segmentId: row.segmentId,
+    meetingId: row.meetingId,
+    meetingTitle: row.meetingTitle,
+    content: row.content,
+    startTime: row.startTime,
+    speaker: row.speaker ?? null,
+  }));
 }

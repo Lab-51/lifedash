@@ -35,6 +35,7 @@ export default function MeetingsModern() {
     const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
     const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
     const [autoOpenedMeetingId, setAutoOpenedMeetingId] = useState<string | null>(null);
+    const [initialTranscriptSearch, setInitialTranscriptSearch] = useState<string | undefined>(undefined);
     const prevIsRecording = useRef(isRecording);
     const [hasModel, setHasModel] = useState<boolean | null>(null);
     const [downloading, setDownloading] = useState(false);
@@ -46,8 +47,11 @@ export default function MeetingsModern() {
     useEffect(() => {
         const openMeetingId = searchParams.get('openMeeting');
         if (openMeetingId && !loading && meetings.length > 0) {
+            const tsSearch = searchParams.get('transcriptSearch') ?? undefined;
+            setInitialTranscriptSearch(tsSearch);
             setSelectedMeetingId(openMeetingId);
             searchParams.delete('openMeeting');
+            searchParams.delete('transcriptSearch');
             setSearchParams(searchParams, { replace: true });
         }
     }, [searchParams, setSearchParams, loading, meetings.length]);
@@ -348,9 +352,11 @@ export default function MeetingsModern() {
                 {selectedMeetingId && (
                     <MeetingDetailModal
                         autoGenerate={selectedMeetingId === autoOpenedMeetingId}
+                        initialTranscriptSearch={initialTranscriptSearch}
                         onClose={() => {
                             setSelectedMeetingId(null);
                             setAutoOpenedMeetingId(null);
+                            setInitialTranscriptSearch(undefined);
                             loadMeetings(); // Refresh list after viewing/editing
                         }}
                     />

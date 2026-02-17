@@ -82,4 +82,8 @@ export const meetingsBridge = {
   // Meeting Analytics
   getMeetingAnalytics: (meetingId: string) =>
     ipcRenderer.invoke('meeting:analytics', meetingId),
+
+  // Transcript Search
+  searchTranscripts: (query: string, limit?: number) =>
+    ipcRenderer.invoke('meetings:search-transcripts', query, limit),
 };

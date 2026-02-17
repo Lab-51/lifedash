@@ -23,6 +23,7 @@ interface MeetingDetailModalProps {
   onClose: () => void;
   /** When true, auto-generate brief + action items on open (post-recording) */
   autoGenerate?: boolean;
+  initialTranscriptSearch?: string;
 }
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
@@ -60,7 +61,7 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
   return `${min}m ${sec}s`;
 }
 
-export default function MeetingDetailModal({ onClose, autoGenerate = false }: MeetingDetailModalProps) {
+export default function MeetingDetailModal({ onClose, autoGenerate = false, initialTranscriptSearch }: MeetingDetailModalProps) {
   const navigate = useNavigate();
   const selectedMeeting = useMeetingStore(s => s.selectedMeeting);
   const updateMeeting = useMeetingStore(s => s.updateMeeting);
@@ -83,7 +84,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false }: Me
   const [convertingAction, setConvertingAction] = useState<ActionItem | null>(null);
   const [batchConvertItems, setBatchConvertItems] = useState<Array<{ id: string; text: string }> | null>(null);
   const [quickPushing, setQuickPushing] = useState(false);
-  const [transcriptSearch, setTranscriptSearch] = useState('');
+  const [transcriptSearch, setTranscriptSearch] = useState(initialTranscriptSearch ?? '');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const prevSegmentCount = useRef(0);

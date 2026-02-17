@@ -54,4 +54,10 @@ export function registerMeetingHandlers(): void {
   ipcMain.handle('meetings:pending-action-count', async () => {
     return meetingService.getPendingActionCount();
   });
+
+  ipcMain.handle('meetings:search-transcripts', async (_event, query: unknown, limit?: unknown) => {
+    const validQuery = validateInput(z.string().min(2), query);
+    const validLimit = limit !== undefined ? validateInput(z.number().int().min(1).max(100), limit) : undefined;
+    return meetingService.searchTranscripts(validQuery, validLimit);
+  });
 }
