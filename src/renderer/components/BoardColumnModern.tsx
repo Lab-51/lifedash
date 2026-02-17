@@ -286,7 +286,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                         onClick={handleDeleteColumn}
                         className="text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                     >
-                        Confirm?
+                        {columnCards.length > 0 ? `Delete column + ${columnCards.length} cards?` : 'Delete column?'}
                     </button>
                 ) : (
                     <button

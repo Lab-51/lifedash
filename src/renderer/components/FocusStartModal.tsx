@@ -48,13 +48,12 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
     return () => window.removeEventListener('keydown', handleKey);
   }, [isOpen, onClose]);
 
-  // Filtered cards for search dropdown
+  // All non-archived cards, filtered by search query
   const filteredCards = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+    const available = allCards.filter(c => !c.archived);
+    if (!searchQuery.trim()) return available;
     const query = searchQuery.toLowerCase();
-    return allCards
-      .filter(c => !c.archived && c.title.toLowerCase().includes(query))
-      .slice(0, 5);
+    return available.filter(c => c.title.toLowerCase().includes(query));
   }, [allCards, searchQuery]);
 
   const handleStart = () => {
@@ -115,18 +114,20 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                 </button>
               </div>
             ) : (
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search cards..."
-                  className="w-full pl-8 pr-3 py-2 bg-surface-800 border border-surface-700 rounded-lg text-sm text-surface-200 placeholder-surface-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
-                />
-                {filteredCards.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg overflow-hidden z-10">
-                    {filteredCards.map((card) => (
+              <div>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search cards..."
+                    className="w-full pl-8 pr-3 py-2 bg-surface-800 border border-surface-700 rounded-lg text-sm text-surface-200 placeholder-surface-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-surface-700 bg-surface-800">
+                  {filteredCards.length > 0 ? (
+                    filteredCards.map((card) => (
                       <button
                         key={card.id}
                         onClick={() => {
@@ -137,9 +138,11 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                       >
                         {card.title}
                       </button>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  ) : (
+                    <p className="px-3 py-2 text-xs text-surface-500">No cards found</p>
+                  )}
+                </div>
               </div>
             )}
           </div>

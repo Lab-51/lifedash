@@ -294,7 +294,7 @@ const BoardColumn = memo(function BoardColumn({
             onClick={handleDeleteColumn}
             className="text-xs text-red-400 hover:text-red-300 transition-colors"
           >
-            {columnCards.length > 0 ? `Delete ${columnCards.length} cards?` : 'Delete?'}
+            {columnCards.length > 0 ? `Delete column + ${columnCards.length} cards?` : 'Delete column?'}
           </button>
         ) : (
           <button
