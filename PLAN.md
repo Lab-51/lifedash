@@ -1,487 +1,322 @@
-# Plan D.2 — Focus Mode Gamification
-
-<phase n="D.2" name="Focus Mode Gamification">
+<phase n="D.4" name="Satisfying 300-Level Visual Progression System">
   <context>
-    Phase D: Engagement and Intelligence upgrades. Plan D.2 makes focus mode
-    a core engagement loop with persistent stats, XP/leveling, and achievements.
+    The app currently has 8 static levels (Beginner→Transcendent, max XP 30,000) with simple
+    emerald pills everywhere. The user wants a deep progression system with 300 levels where the
+    visual presentation gets incrementally more impressive every 10 levels — making leveling up
+    feel genuinely satisfying and aspirational.
 
-    Current state:
-    - Focus mode works: start/pause/resume/stop, break cycle, Ctrl+Shift+F.
-    - FocusStartModal: card selection + duration presets.
-    - FocusCompleteModal: accomplishment textarea → card comment → auto-break.
-    - StatusBar: live countdown with card name, pause/resume/stop.
-    - focusStore: in-memory sessionCount (lost on restart). No DB persistence.
-    - ProductivityPulse on dashboard: GitHub-style heatmap + calculateStreak().
-    - DashboardModern: 12-column grid — stats row → productivity pulse → projects + meetings.
-    - Next migration number: 0012.
+    Design: Every 10 levels = a new "tier" with a distinct visual identity (30 tiers total).
+    Six tier families of 5 tiers each, escalating in visual richness:
+      1. Metal   (Lv 1-50):   Bronze → Iron → Steel → Silver → Gold
+      2. Gem     (Lv 51-100): Emerald → Sapphire → Ruby → Amethyst → Diamond
+      3. Cosmic  (Lv 101-150):Stellar → Nebula → Quasar → Pulsar → Nova
+      4. Mythic  (Lv 151-200):Phoenix → Dragon → Titan → Oracle → Celestial
+      5. Divine  (Lv 201-250):Ethereal → Immortal → Transcendent → Ascendant → Divine
+      6. Ultimate(Lv 251-300):Apex → Supreme → Legendary → Infinite → Omega
 
-    Design decisions:
-    - New `focus_sessions` table stores every completed session (not breaks/skips).
-    - XP system: 1 XP per minute focused. Levels at thresholds (0, 60, 300, 900, 2100, 4500, 9000, 18000).
-      Level names: Beginner, Focused, Disciplined, Dedicated, Master, Grandmaster, Legend, Transcendent.
-    - Focus streak: consecutive calendar days with at least 1 completed session.
-    - Achievements: 12 milestones checked on session save. Toast celebration when new unlock.
-    - FocusStatsWidget: prominent dashboard card after the stats row, before productivity pulse.
-    - Enhanced FocusCompleteModal: shows XP earned, level progress, streak, new achievements.
-    - All stats fetched via IPC; focusStore gains totalMinutes/level/streak for use across UI.
+    XP Curve Formula: xpForLevel(n) = floor(20 + n * 8) XP from level n to n+1.
+    - Level 1→2: 28 XP | Level 10→11: 100 XP | Level 50→51: 420 XP | Level 100→101: 820 XP
+    - Total at Lv 50: ~10,800 | Lv 100: ~41,600 | Lv 200: ~164,000 | Lv 300: ~365,000
+    - At ~200 XP/day average: Lv 50 in ~2 months, Lv 100 in ~7 months, Lv 300 in ~5 years.
 
-    XP Level Thresholds (cumulative minutes):
-    | Level | Name          | Minutes | Sessions (~25min avg) |
-    |-------|---------------|---------|-----------------------|
-    | 1     | Beginner      | 0       | 0                     |
-    | 2     | Focused       | 60      | ~2-3                  |
-    | 3     | Disciplined   | 300     | ~12                   |
-    | 4     | Dedicated     | 900     | ~36                   |
-    | 5     | Master        | 2100    | ~84                   |
-    | 6     | Grandmaster   | 4500    | ~180                  |
-    | 7     | Legend         | 9000    | ~360                  |
-    | 8     | Transcendent  | 18000   | ~720                  |
+    Visual escalation per tier family:
+    - Metal: Solid colored background, no glow
+    - Gem: Colored bg + thin colored border ring
+    - Cosmic: Gradient background + subtle glow ring
+    - Mythic: Gradient bg + strong outer glow + bold text
+    - Divine: Animated shimmer/pulse via CSS keyframes + strong glow
+    - Ultimate: Multi-color gradient + animated glow pulse + special styling
 
-    Achievements (12):
-    | ID              | Name               | Condition                          |
-    |-----------------|--------------------|-------------------------------------|
-    | first_session   | First Focus        | Complete 1 session                  |
-    | five_sessions   | Getting Warmed Up  | Complete 5 sessions                 |
-    | ten_sessions    | In The Zone        | Complete 10 sessions                |
-    | fifty_sessions  | Focus Machine      | Complete 50 sessions                |
-    | hundred_sessions| Centurion          | Complete 100 sessions               |
-    | one_hour_day    | Power Hour         | 60+ minutes focused in a single day |
-    | two_hour_day    | Deep Worker        | 120+ minutes focused in a single day|
-    | streak_3        | Three-Day Streak   | 3 consecutive days with sessions    |
-    | streak_7        | Week Warrior       | 7 consecutive days with sessions    |
-    | streak_14       | Fortnight Focus    | 14 consecutive days with sessions   |
-    | streak_30       | Monthly Master     | 30 consecutive days with sessions   |
-    | level_5         | Master Achiever    | Reach Level 5 (Master)              |
+    The level_5 achievement (currently "Reach Level 5 Master") should be updated to level_50
+    since level 5 in a 300-level system is trivially easy.
 
-    @PROJECT.md @STATE.md
-    @src/renderer/stores/focusStore.ts
-    @src/renderer/components/FocusCompleteModal.tsx
-    @src/renderer/components/FocusStartModal.tsx
+    @src/shared/types/gamification.ts
+    @src/main/services/gamificationService.ts
+    @src/renderer/components/FocusStatsWidget.tsx
     @src/renderer/components/StatusBar.tsx
-    @src/renderer/components/DashboardModern.tsx
-    @src/renderer/components/ProductivityPulse.tsx
-    @src/main/db/schema/cards.ts (table pattern reference)
-    @src/main/db/connection.ts (getDb pattern)
-    @src/shared/types/electron-api.ts
-    @src/preload/domains/meetings.ts (preload pattern reference)
+    @src/renderer/components/FocusCompleteModal.tsx
+    @src/renderer/components/AchievementsModal.tsx
+    @src/renderer/stores/gamificationStore.ts
   </context>
 
   <task type="auto" n="1">
-    <n>Focus sessions DB table + save flow + stats IPC</n>
+    <n>300-Level System — Types, Formula, and Tier Definitions</n>
     <files>
-      src/main/db/schema/focus.ts (new)
-      src/main/db/schema/index.ts
-      drizzle/0012_focus_sessions.sql (new — manual migration)
-      src/main/services/focusService.ts (new)
-      src/main/ipc/focus.ts (new)
-      src/main/index.ts (register IPC)
-      src/preload/domains/focus.ts (new)
-      src/preload/index.ts
-      src/shared/types/focus.ts (new)
-      src/shared/types/electron-api.ts
+      src/shared/types/gamification.ts (rewrite level system)
+      src/main/services/gamificationService.ts (update achievement check for level_50)
     </files>
     <action>
-      **WHY:** All gamification features depend on persistent session data. Without a DB table,
-      stats are lost on restart and achievements can't be tracked. This is the foundation.
+      **WHY:** The current 8-level static system caps out too fast and has no visual progression.
+      A 300-level formula-based system with named tiers creates a deep, long-term progression that
+      makes every level-up feel meaningful.
 
-      ## Schema (src/main/db/schema/focus.ts)
+      ## 1. Rewrite level system in `src/shared/types/gamification.ts`
 
-      1. Create `focus_sessions` table:
-         ```ts
-         export const focusSessions = pgTable('focus_sessions', {
-           id: uuid('id').defaultRandom().primaryKey(),
-           cardId: uuid('card_id').references(() => cards.id, { onDelete: 'set null' }),
-           durationMinutes: integer('duration_minutes').notNull(),
-           note: text('note'),
-           completedAt: timestamp('completed_at', { withTimezone: true }).defaultNow().notNull(),
-         });
-         ```
+      **Remove** the static `LEVEL_THRESHOLDS` array (8 entries).
 
-      2. Create `focus_achievements` table:
-         ```ts
-         export const focusAchievements = pgTable('focus_achievements', {
-           id: varchar('id', { length: 50 }).primaryKey(), // e.g. 'first_session'
-           unlockedAt: timestamp('unlocked_at', { withTimezone: true }).defaultNow().notNull(),
-         });
-         ```
-
-      3. Export both from schema/index.ts.
-
-      ## Migration (drizzle/0012_focus_sessions.sql)
-
-      ```sql
-      CREATE TABLE "focus_sessions" (
-        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        "card_id" uuid REFERENCES "cards"("id") ON DELETE SET NULL,
-        "duration_minutes" integer NOT NULL,
-        "note" text,
-        "completed_at" timestamp with time zone DEFAULT now() NOT NULL
-      );
-
-      CREATE TABLE "focus_achievements" (
-        "id" varchar(50) PRIMARY KEY,
-        "unlocked_at" timestamp with time zone DEFAULT now() NOT NULL
-      );
+      **Add** `LEVEL_TIERS` — array of 30 tier definitions, each covering 10 levels:
+      ```ts
+      interface LevelTier {
+        tier: number;           // 1-30
+        name: string;           // "Bronze", "Iron", etc.
+        family: string;         // "metal", "gem", "cosmic", "mythic", "divine", "ultimate"
+        startLevel: number;     // 1, 11, 21, ...
+        endLevel: number;       // 10, 20, 30, ...
+        // Visual properties for the LevelBadge component:
+        colors: {
+          bg: string;           // Tailwind bg class (e.g. 'bg-amber-700/20')
+          text: string;         // Tailwind text class (e.g. 'text-amber-400')
+          border: string;       // Tailwind border class
+          glow: string;         // CSS box-shadow value ('' for none)
+          gradient?: string;    // Optional CSS gradient for bg
+        };
+        animate: boolean;       // Whether to apply shimmer animation (Divine/Ultimate only)
+      }
       ```
 
-      Also create drizzle/meta/0012_snapshot.json (copy pattern from 0011) and add entry
-      to drizzle/meta/_journal.json.
+      Tier definitions (30 tiers):
 
-      ## Shared Types (src/shared/types/focus.ts)
+      **Metal family** (tiers 1-5, Lv 1-50):
+      - Tier 1: Bronze  (Lv 1-10) — bg-amber-900/20, text-amber-600, border-amber-700/30, no glow
+      - Tier 2: Iron    (Lv 11-20) — bg-slate-600/20, text-slate-400, border-slate-500/30, no glow
+      - Tier 3: Steel   (Lv 21-30) — bg-zinc-500/20, text-zinc-300, border-zinc-400/30, no glow
+      - Tier 4: Silver  (Lv 31-40) — bg-gray-400/15, text-gray-300, border-gray-400/30, no glow
+      - Tier 5: Gold    (Lv 41-50) — bg-yellow-500/15, text-yellow-400, border-yellow-500/30, faint glow
 
-      4. Define types:
-         ```ts
-         export interface FocusSession {
-           id: string;
-           cardId: string | null;
-           durationMinutes: number;
-           note: string | null;
-           completedAt: string;
-         }
+      **Gem family** (tiers 6-10, Lv 51-100):
+      - Tier 6:  Emerald   (Lv 51-60) — bg-emerald-500/15, text-emerald-400, border-emerald-500/30, subtle glow
+      - Tier 7:  Sapphire  (Lv 61-70) — bg-blue-500/15, text-blue-400, border-blue-500/30, subtle glow
+      - Tier 8:  Ruby      (Lv 71-80) — bg-red-500/15, text-red-400, border-red-500/30, subtle glow
+      - Tier 9:  Amethyst  (Lv 81-90) — bg-purple-500/15, text-purple-400, border-purple-500/30, subtle glow
+      - Tier 10: Diamond   (Lv 91-100) — bg-sky-400/15, text-sky-300, border-sky-400/30, medium glow
 
-         export interface FocusStats {
-           totalSessions: number;
-           totalMinutes: number;
-           todaySessions: number;
-           todayMinutes: number;
-           currentStreak: number; // consecutive days
-           longestStreak: number;
-           level: number;
-           levelName: string;
-           xpCurrent: number; // totalMinutes
-           xpNextLevel: number; // minutes needed for next level
-           xpProgress: number; // 0-1 progress toward next level
-         }
+      **Cosmic family** (tiers 11-15, Lv 101-150):
+      - Tier 11: Stellar  — bg gradient indigo→violet, text-indigo-300, medium glow
+      - Tier 12: Nebula   — bg gradient purple→pink, text-purple-300, medium glow
+      - Tier 13: Quasar   — bg gradient cyan→blue, text-cyan-300, medium glow
+      - Tier 14: Pulsar   — bg gradient teal→emerald, text-teal-300, medium glow
+      - Tier 15: Nova     — bg gradient amber→orange, text-amber-300, strong glow
 
-         export interface FocusAchievement {
-           id: string;
-           name: string;
-           description: string;
-           icon: string;
-           unlockedAt: string | null; // null = locked
-         }
+      **Mythic family** (tiers 16-20, Lv 151-200):
+      - Tier 16: Phoenix   — bg gradient orange→red, text-orange-300, strong glow
+      - Tier 17: Dragon    — bg gradient red→rose, text-red-300, strong glow
+      - Tier 18: Titan     — bg gradient stone→amber, text-stone-300, strong glow
+      - Tier 19: Oracle    — bg gradient violet→fuchsia, text-violet-300, strong glow
+      - Tier 20: Celestial — bg gradient sky→indigo, text-sky-200, strong glow, bold text
 
-         export interface FocusDailyData {
-           date: string; // YYYY-MM-DD
-           sessions: number;
-           minutes: number;
-         }
-         ```
+      **Divine family** (tiers 21-25, Lv 201-250): animate=true
+      - Tier 21: Ethereal     — bg gradient slate→blue with shimmer, text-blue-200
+      - Tier 22: Immortal     — bg gradient emerald→teal with shimmer, text-emerald-200
+      - Tier 23: Transcendent — bg gradient purple→violet with shimmer, text-purple-200
+      - Tier 24: Ascendant    — bg gradient amber→yellow with shimmer, text-amber-200
+      - Tier 25: Divine       — bg gradient white→gold with shimmer, text-yellow-100
 
-      ## Focus Service (src/main/services/focusService.ts)
+      **Ultimate family** (tiers 26-30, Lv 251-300): animate=true
+      - Tier 26: Apex      — bg gradient rose→pink with pulse, text-rose-200
+      - Tier 27: Supreme   — bg gradient indigo→violet with pulse, text-indigo-200
+      - Tier 28: Legendary — bg gradient amber→red with pulse, text-amber-100
+      - Tier 29: Infinite  — bg gradient cyan→blue→purple (rainbow-ish) with pulse, text-white
+      - Tier 30: Omega     — bg gradient gold→white with strong pulse, text-white, extra glow
 
-      5. Implement service functions:
+      The exact Tailwind classes and CSS values should be chosen to look good on dark backgrounds.
+      Use inline style for gradient and glow (Tailwind can't do arbitrary gradients well).
 
-         a. `saveSession(input: { cardId?: string; durationMinutes: number; note?: string }): Promise<FocusSession>`
-            - Insert into focus_sessions, return the row.
+      **Add** `getTier(level: number): LevelTier` — returns the tier for a given level.
+      `const tierIndex = Math.min(Math.floor((level - 1) / 10), 29);`
 
-         b. `getStats(): Promise<FocusStats>`
-            - COUNT + SUM total sessions/minutes.
-            - COUNT + SUM today's sessions/minutes (where completedAt >= today start).
-            - Calculate streak: query distinct dates with sessions, walk backwards from today.
-            - Calculate longest streak: walk all dates forward, track max consecutive run.
-            - Calculate level/XP from totalMinutes using the threshold table.
+      **Replace** `calculateLevel(totalXp)` with a formula-based version:
+      - XP to go FROM level n TO level n+1 = `Math.floor(20 + n * 8)`
+      - Total XP at level n = sum from i=1 to n-1 of (20 + i*8) = `20*(n-1) + 4*(n-1)*n`
+        (closed-form: `totalXpForLevel(n) = 20*(n-1) + 4*n*(n-1)`)
+      - Max level: 300. Any XP beyond level 300 stays at level 300 with 100% progress.
+      - calculateLevel(totalXp) → { level, levelName (tier name), xpProgress, xpNextLevel }
+        levelName = getTier(level).name
+        To find level from totalXp: solve the quadratic or iterate efficiently.
+        Quadratic: totalXp = 20*(n-1) + 4*n*(n-1) = 4n^2 + 16n - 20
+        So: 4n^2 + 16n - (20 + totalXp) = 0
+        n = (-16 + sqrt(256 + 16*(20+totalXp))) / 8
+        Then floor to get the level, clamp to [1, 300].
 
-         c. `getDailyData(days: number = 30): Promise<FocusDailyData[]>`
-            - Group by date, count sessions, sum minutes for last N days.
-            - Fill gaps with zero-value entries (same pattern as AI usage daily).
+      **Keep** all existing exports unchanged (GamificationStats, Achievement, etc.)
+      GamificationStats already has `level, levelName, xpProgress, xpNextLevel` — no interface change needed.
 
-         d. `getAchievements(): Promise<FocusAchievement[]>`
-            - Return the full list of 12 achievements with unlock status from DB.
-            - Use a static ACHIEVEMENTS array with id/name/description/icon.
-            - Left-join with focus_achievements table to get unlockedAt.
+      **Export** `getTier` and `LevelTier` type (the LevelBadge component will need them).
 
-         e. `checkAndUnlockAchievements(stats: FocusStats): Promise<FocusAchievement[]>`
-            - Given current stats, check each achievement condition.
-            - Insert newly unlocked achievements into focus_achievements.
-            - Return only the newly unlocked ones (for toast notifications).
+      ## 2. Update `level_5` achievement → `level_50`
 
-         The ACHIEVEMENTS constant array and LEVEL_THRESHOLDS array should be defined
-         in this file (or in shared/types/focus.ts if renderer needs them).
+      In `ACHIEVEMENTS` array, change the `level_5` entry:
+      - id: 'level_50' (was 'level_5')
+      - name: 'Gold Achiever' (was 'Master Achiever')
+      - description: 'Reach Level 50 (Gold tier)' (was 'Reach Level 5 (Master)')
 
-         Define LEVEL_THRESHOLDS:
-         ```ts
-         const LEVEL_THRESHOLDS = [
-           { level: 1, name: 'Beginner', minutes: 0 },
-           { level: 2, name: 'Focused', minutes: 60 },
-           { level: 3, name: 'Disciplined', minutes: 300 },
-           { level: 4, name: 'Dedicated', minutes: 900 },
-           { level: 5, name: 'Master', minutes: 2100 },
-           { level: 6, name: 'Grandmaster', minutes: 4500 },
-           { level: 7, name: 'Legend', minutes: 9000 },
-           { level: 8, name: 'Transcendent', minutes: 18000 },
-         ];
-         ```
+      In `src/main/services/gamificationService.ts`, update the check:
+      - `{ id: 'level_50', condition: counts.level >= 50 }` (was level >= 5)
 
-         Define calculateLevel(totalMinutes) that returns { level, levelName, xpCurrent, xpNextLevel, xpProgress }.
-
-      ## IPC Handlers (src/main/ipc/focus.ts)
-
-      6. Register handlers:
-         - `focus:save-session` → saveSession(input) → returns { session, stats, newAchievements }
-           (save + get fresh stats + check achievements — all in one round trip)
-         - `focus:get-stats` → getStats()
-         - `focus:get-daily` → getDailyData(days)
-         - `focus:get-achievements` → getAchievements()
-
-      7. Register in main/index.ts: import './ipc/focus'.
-
-      ## Preload Bridge (src/preload/domains/focus.ts)
-
-      8. Add bridge methods:
-         ```ts
-         focusSaveSession: (input) => ipcRenderer.invoke('focus:save-session', input),
-         focusGetStats: () => ipcRenderer.invoke('focus:get-stats'),
-         focusGetDaily: (days) => ipcRenderer.invoke('focus:get-daily', days),
-         focusGetAchievements: () => ipcRenderer.invoke('focus:get-achievements'),
-         ```
-
-      9. Add to preload/index.ts.
-
-      ## ElectronAPI Types
-
-      10. Add all 4 methods to ElectronAPI interface. Import types from shared/types/focus.ts.
+      Note: Users who already unlocked level_5 will see a slightly different achievement.
+      This is acceptable — the old ID won't match any definition, so it'll just be an orphan
+      that doesn't display. New unlock uses level_50.
     </action>
     <verify>
-      1. `npx tsc --noEmit` passes with zero errors
-      2. `npx vitest run` — all 150 tests pass
-      3. Verify focus_sessions and focus_achievements tables in schema
-      4. Verify migration 0012 exists
-      5. Verify focusService exports: saveSession, getStats, getDailyData, getAchievements, checkAndUnlockAchievements
-      6. Verify 4 IPC handlers registered
-      7. Verify preload bridge and ElectronAPI types
-      8. Verify LEVEL_THRESHOLDS and ACHIEVEMENTS constants defined
+      - `npx tsc --noEmit` passes
+      - `npm test` passes (150 tests)
+      - gamification.ts exports: LEVEL_TIERS (30 entries), getTier, calculateLevel (formula-based)
+      - calculateLevel(0) returns { level: 1, levelName: 'Bronze' }
+      - calculateLevel(100) returns level ~3-4 (Bronze tier)
+      - calculateLevel(11000) returns ~level 50 (Gold tier)
+      - calculateLevel(365000) returns level 300 (Omega tier)
+      - LEVEL_THRESHOLDS static array no longer exists
+      - ACHIEVEMENTS has level_50, not level_5
     </verify>
     <done>
-      focus_sessions + focus_achievements tables created. focusService with save/stats/daily/achievements.
-      4 IPC handlers wired. Preload bridge + types complete. Migration 0012 ready.
-      tsc clean, all tests pass.
+      300-level formula-based system with 30 named tiers across 6 families.
+      Each tier has color/glow/animation properties for visual rendering.
+      calculateLevel() uses quadratic formula for O(1) level lookup.
+      Achievement updated from level_5 to level_50. tsc + tests pass.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - PGlite supports gen_random_uuid() (already used by all other tables)
-      - GROUP BY date with timestamp works as expected in PGlite
-      - 12 achievements is a good starting set (can add more later)
-      - Level thresholds feel achievable but stretch appropriately
+      - Quadratic formula for level lookup is precise enough (no floating-point issues)
+      - 30 tiers with inline styles for gradients/glow won't cause performance issues
+      - Renaming level_5 → level_50 doesn't break anything (DB stores string IDs)
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Focus Dashboard Widget + enhanced completion modal</n>
+    <n>LevelBadge Component + Integration Across UI</n>
     <files>
-      src/renderer/components/FocusStatsWidget.tsx (new)
-      src/renderer/components/DashboardModern.tsx
-      src/renderer/components/FocusCompleteModal.tsx
-      src/renderer/stores/focusStore.ts
+      src/renderer/components/LevelBadge.tsx (new)
+      src/renderer/components/FocusStatsWidget.tsx (use LevelBadge)
+      src/renderer/components/StatusBar.tsx (use LevelBadge)
+      src/renderer/components/FocusCompleteModal.tsx (use LevelBadge)
     </files>
     <action>
-      **WHY:** The dashboard is where users start their day. A prominent focus widget
-      with XP, level, streak, and daily progress makes focus mode visible and creates
-      a pull to engage. The enhanced completion modal provides immediate reward feedback.
+      **WHY:** The level badge is currently a plain emerald pill everywhere. With 30 tiers that
+      are supposed to look progressively more impressive, we need a dedicated component that
+      renders the badge with tier-appropriate styling — from humble Bronze to glorious Omega.
 
-      ## focusStore Updates
+      ## 1. Create `src/renderer/components/LevelBadge.tsx`
 
-      1. Add persistent stats to focusStore:
-         ```ts
-         // New state fields
-         stats: FocusStats | null;
-         achievements: FocusAchievement[];
-         // New actions
-         loadStats: () => Promise<void>;
-         saveSession: (input: { cardId?: string; durationMinutes: number; note?: string }) =>
-           Promise<{ newAchievements: FocusAchievement[] }>;
-         ```
+      A standalone component that renders a level badge with tier-aware visual styling.
 
-      2. `loadStats()`: calls focusGetStats() and focusGetAchievements(), updates store.
-      3. `saveSession()`: calls focusSaveSession() IPC, updates stats + achievements in store,
-         returns newAchievements for the completion modal to show.
+      ```ts
+      interface LevelBadgeProps {
+        level: number;
+        size?: 'sm' | 'md' | 'lg';
+        showName?: boolean;       // Show tier name next to level number (default: true)
+        showXP?: boolean;         // Show total XP next to badge (default: false)
+        totalXp?: number;         // Required if showXP=true
+        className?: string;       // Additional classes
+      }
+      ```
 
-      ## FocusStatsWidget (src/renderer/components/FocusStatsWidget.tsx)
+      The component:
+      1. Calls `getTier(level)` to get the tier definition
+      2. Renders a pill/badge with the tier's visual properties:
 
-      4. Create a dashboard widget component. It fetches stats on mount and renders:
+      **Size variants:**
+      - `sm`: h-5, text-[10px] — for StatusBar (compact)
+      - `md`: h-6, text-xs — for widget header (default)
+      - `lg`: h-8, text-sm — for FocusCompleteModal reward view
 
-         **Layout (full-width card, col-span-12, placed after stats row):**
-         ```
-         ┌──────────────────────────────────────────────────────────────────────┐
-         │  ⚡ Focus Mode                            [Start Focus Session]     │
-         ├────────────┬────────────┬────────────┬───────────────────────────────┤
-         │  TODAY     │  STREAK    │  LEVEL     │  THIS WEEK                   │
-         │  45 min    │  🔥 7 days │  Lv.3      │  ▃▅▇▃▅▇▁  (7-day bar chart) │
-         │  2 sessions│  Best: 14  │  Disciplined│  4h 30m total              │
-         │            │            │  ████░░ 67%│                              │
-         ├────────────┴────────────┴────────────┴───────────────────────────────┤
-         │  Achievements: 🏆🏆🏆🏆⬜⬜⬜⬜⬜⬜⬜⬜  (4/12 unlocked)           │
-         └──────────────────────────────────────────────────────────────────────┘
-         ```
+      **Visual layers (inner to outer):**
+      - Background: either solid Tailwind class or inline gradient
+      - Border: tier's border class (1px)
+      - Text: "Lv.N" in tier's text color, optionally "TierName" after it
+      - Glow: tier's glow value as box-shadow on the outer div (only if non-empty)
+      - Animation: if tier.animate is true, apply a CSS shimmer animation
 
-      5. **Today section**: todayMinutes + todaySessions from stats.
-         Emerald accent color. If no sessions today, show "No sessions yet" with subtle CTA.
+      **CSS shimmer animation (for Divine/Ultimate tiers):**
+      Add a `@keyframes shimmer` animation using a pseudo-element or background-position trick:
+      ```css
+      @keyframes shimmer {
+        0% { background-position: -200% center; }
+        100% { background-position: 200% center; }
+      }
+      ```
+      Apply via inline style: `{ backgroundSize: '200% 100%', animation: 'shimmer 3s ease infinite' }`
 
-      6. **Streak section**: currentStreak with fire icon (🔥 or Flame from lucide-react).
-         Show "Best: N" for longestStreak. Amber/orange color.
-         If streak is 0, show "Start your streak!" in muted text.
+      For the CSS keyframe, either:
+      (a) Inject a <style> tag in the component (simple, isolated), or
+      (b) Use Tailwind's `animate-` class with an extension — but since we can't extend
+          tailwind.config easily, option (a) is simpler.
 
-      7. **Level section**: level number + levelName.
-         XP progress bar: xpProgress (0-1) → width percentage.
-         Colors: emerald bar on surface-700 track.
-         Show "N min to next level" below progress bar.
+      The shimmer creates a subtle light sweep across the badge — the higher the tier,
+      the faster/brighter the shimmer.
 
-      8. **Weekly chart**: 7-day mini bar chart (pure CSS, same as AI usage pattern).
-         Fetch focusGetDaily(7). Each bar represents daily minutes, scaled to max.
-         Day labels (Mon-Sun) below bars. Emerald bars.
-         Show total weekly minutes below chart.
+      **Glow intensity progression:**
+      - No glow (Metal tiers 1-4): box-shadow: none
+      - Faint glow (Gold, tier 5): `0 0 6px rgba(color, 0.15)`
+      - Subtle glow (Gem tiers 6-9): `0 0 8px rgba(color, 0.2)`
+      - Medium glow (Diamond + Cosmic tiers 10-15): `0 0 12px rgba(color, 0.25)`
+      - Strong glow (Mythic tiers 16-20): `0 0 16px rgba(color, 0.3)`
+      - Strong + shimmer (Divine tiers 21-25): `0 0 20px rgba(color, 0.35)` + animation
+      - Intense + pulse (Ultimate tiers 26-30): `0 0 24px rgba(color, 0.4)` + faster animation
 
-      9. **Achievements row**: horizontal scrollable row of 12 achievement icons.
-         Unlocked: full color with tooltip showing name + unlock date.
-         Locked: grayscale/muted with tooltip showing name + requirement.
-         Show "N/12 unlocked" count.
+      ## 2. Update FocusStatsWidget.tsx
 
-      10. **Start button**: top-right of widget header. Opens FocusStartModal.
-          Uses `useFocusStore.getState().setShowStartModal(true)`.
-          Only show when mode is 'idle'.
+      **Header:** Replace the inline emerald level pill with:
+      ```tsx
+      <LevelBadge level={stats.level} size="md" />
+      ```
 
-      11. **Styling**: Follow DashboardModern patterns:
-          - bg-white dark:bg-surface-900/50 rounded-2xl border shadow
-          - Section headers: text-xs uppercase tracking-wider text-surface-500
-          - Stats values: text-2xl font-bold
-          - Compact but scannable
+      **Level column (Column 3):** Replace the inline "Lv.N" + progress bar with:
+      - `<LevelBadge level={stats.level} size="lg" showName />` at the top
+      - Keep the progress bar below it, but color it dynamically using the tier's text color
+        (get the tier via getTier(stats.level) and use its colors.text for the bar color)
+      - "N XP to next" text stays
 
-      ## DashboardModern Integration
+      ## 3. Update StatusBar.tsx
 
-      12. Import FocusStatsWidget.
-      13. Place it after the stats row (3 stat cards) and BEFORE the Productivity Pulse:
-          ```tsx
-          {/* Focus Stats */}
-          <div className="col-span-12">
-            <FocusStatsWidget />
-          </div>
-          ```
+      Replace the inline "Lv.N LevelName" text with:
+      ```tsx
+      <LevelBadge level={stats.level} size="sm" />
+      ```
+      Keep the click handler (opens FocusStartModal). The LevelBadge should be wrapped
+      in the existing button element.
 
-      ## Enhanced FocusCompleteModal
+      ## 4. Update FocusCompleteModal.tsx
 
-      14. After saving the session, show reward feedback:
-          - Fetch fresh stats from the store's saveSession() return value
-          - Show XP earned: "+25 XP" with emerald pulse animation
-          - Show level progress: "Level 3: Disciplined — 67% to next"
-          - Show streak: "🔥 7 day streak!"
-          - If new achievements unlocked: show them with celebration styling
-            (gold border, icon, name, brief animation)
-          - This replaces the plain "Session #N today" text
-          - Keep the accomplishment textarea and Save & Start Break flow unchanged
+      In the reward view, replace the inline "Level N: LevelName" + progress bar with:
+      ```tsx
+      <LevelBadge level={rewardStats.level} size="lg" showName />
+      ```
+      Then the progress bar below, colored by the tier's colors.
+      Keep "N XP to next level" text.
 
-      15. The save flow changes:
-          - Instead of directly calling addCardComment, call focusStore.saveSession()
-            which saves to DB and returns stats + newAchievements
-          - THEN call addCardComment for the card comment (keep existing behavior)
-          - Show reward info before transitioning to break
+      ## DESIGN PRINCIPLES:
+      - The badge should be the hero — the visual center of attention
+      - Low tiers should look clean and simple (not ugly)
+      - Each tier family should feel like a meaningful visual upgrade from the previous
+      - The transition from non-animated (Mythic) to animated (Divine) should feel like
+        a prestige moment — the badge starts to *shimmer*
+      - Ultimate tiers should look genuinely impressive — something to show off
+      - Don't over-animate — subtle, tasteful effects only
     </action>
     <verify>
-      1. `npx tsc --noEmit` passes with zero errors
-      2. `npx vitest run` — all tests pass
-      3. Manual: Dashboard shows FocusStatsWidget after stats row
-      4. Manual: Widget displays today's stats, streak, level, weekly chart, achievements
-      5. Manual: "Start Focus Session" button opens FocusStartModal
-      6. Manual: Complete a session → FocusCompleteModal shows XP earned, level progress, streak
-      7. Manual: Stats update in real-time after session completion
-      8. Manual: Weekly chart shows bars for days with sessions
-      9. Manual: Achievement icons show locked/unlocked state
+      - `npx tsc --noEmit` passes
+      - `npm test` passes (150 tests)
+      - Start app → dashboard widget shows tier-colored level badge (not plain emerald)
+      - StatusBar shows compact tier-colored level badge
+      - Focus complete → reward view shows large tier-colored level badge
+      - Different level values render different tier visuals:
+        - Level 1: Bronze (warm muted)
+        - Level 50: Gold (golden warm glow)
+        - Level 100: Diamond (brilliant blue glow)
+        - Level 200: Celestial (strong glow, gradient)
+        - Level 300: Omega (animated, intense glow)
     </verify>
     <done>
-      FocusStatsWidget on dashboard with today's stats, streak, XP/level, weekly chart,
-      achievements preview. FocusCompleteModal shows reward feedback (XP, level, streak,
-      new achievements). focusStore has persistent stats via IPC.
-      tsc clean, all tests pass.
+      LevelBadge component renders 30 distinct tier visuals with progressive impressiveness.
+      Metal→Gem→Cosmic→Mythic→Divine→Ultimate families escalate from simple to spectacular.
+      Integrated into FocusStatsWidget, StatusBar, and FocusCompleteModal. All existing
+      tests pass.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - DashboardModern has room for a full-width widget after stats row
-      - 7-day bar chart is sufficient (don't need 30-day for focus)
-      - Achievement icons can be lucide-react icons or simple text badges
-      - XP animation doesn't need Framer Motion — CSS transitions suffice
-    </assumptions>
-  </task>
-
-  <task type="auto" n="3">
-    <n>Achievement toasts + StatusBar XP display + focus quick action</n>
-    <files>
-      src/renderer/components/StatusBar.tsx
-      src/renderer/components/DashboardModern.tsx
-      src/renderer/components/AppShell.tsx (or wherever FocusCompleteModal is mounted)
-    </files>
-    <action>
-      **WHY:** Achievements need real-time celebration beyond the completion modal — toasts
-      visible anywhere in the app. StatusBar should show focus progress persistently. And
-      the dashboard hero section needs a direct "Focus" action button for prominence.
-
-      ## Achievement Toast Notifications
-
-      1. When focusStore.saveSession() returns newAchievements with length > 0:
-         - Show a toast for each new achievement
-         - Toast format: "🏆 Achievement Unlocked: [Name] — [Description]"
-         - Use the existing toast() system with 'success' type
-         - Duration: 5 seconds (longer than normal 3s to celebrate)
-         - If multiple achievements unlock at once, stagger by 500ms
-
-      2. Wire this in the FocusCompleteModal's save flow and also in the Skip flow:
-         - Save flow: after saveSession completes, toast each new achievement
-         - Skip flow: if user skips, still save session to DB (just no note),
-           then toast any achievements.
-           IMPORTANT: Currently skip calls stop() without saving. Change it to save
-           the session (with no note) before stopping, so the session still counts
-           toward stats and achievements.
-
-      ## StatusBar XP/Level Indicator
-
-      3. When focus mode is idle, show a subtle level indicator in the StatusBar:
-         - Left side (or right side, wherever there's space):
-         - Format: "Lv.3 Disciplined" with a mini XP bar
-         - Clicking it opens the FocusStartModal (quick access)
-         - Use focusStore.stats for level info
-         - Style: text-xs, muted when idle, emerald when focus active
-         - This gives persistent visibility to the leveling system
-
-      4. When in active focus mode, the existing timer display continues as-is.
-         The level indicator hides during active focus (timer takes priority).
-
-      ## Dashboard Quick Action Button
-
-      5. In DashboardModern hero section, add a "Focus" quick action button:
-         - Same pattern as Record, Project, Brainstorm, Idea, Standup buttons
-         - Icon: Timer (from lucide-react)
-         - Color: emerald
-         - Click: opens FocusStartModal
-         - Place it as the 6th button (after Standup)
-         - If focus mode is active, show "In Focus" with a pulse animation instead
-
-      ## Stats Loading
-
-      6. In AppShell (or wherever the app initializes stores), call focusStore.loadStats()
-         on startup so stats are available immediately for StatusBar and Dashboard.
-         Same pattern as loadSettings() which is already called.
-    </action>
-    <verify>
-      1. `npx tsc --noEmit` passes with zero errors
-      2. `npx vitest run` — all tests pass
-      3. Manual: Complete a session → achievement toast appears (if new achievement unlocked)
-      4. Manual: Skip a session → session still saved to DB, stats updated
-      5. Manual: StatusBar shows "Lv.N Name" when idle, clicking opens focus modal
-      6. Manual: StatusBar hides level when focus timer is active
-      7. Manual: Dashboard hero has "Focus" button that opens FocusStartModal
-      8. Manual: Focus button shows "In Focus" pulse when session is active
-      9. Manual: Stats load on app startup (no delay on first dashboard visit)
-    </verify>
-    <done>
-      Achievement toasts celebrate unlocks anywhere in the app. StatusBar shows level/XP
-      persistently. Dashboard has Focus quick action button. Skip still saves sessions.
-      Stats load on startup. tsc clean, all tests pass.
-    </done>
-    <confidence>HIGH</confidence>
-    <assumptions>
-      - Toast system supports custom duration (check — may need to pass duration param)
-      - StatusBar has horizontal space for level indicator when idle
-      - 6 hero action buttons still fit in the DashboardModern layout
-      - AppShell is the right place to call loadStats (check where loadSettings is called)
+      - Inline styles for gradient/glow/animation work in Electron's Chromium renderer
+      - CSS shimmer animation via injected style tag is acceptable (no CSP issues in Electron)
+      - 30 tier definitions don't noticeably impact bundle size
+      - Progress bar color adaptation (dynamic tier color) can be done via inline style
     </assumptions>
   </task>
 </phase>
-</content>

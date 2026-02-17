@@ -2,11 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-17
-Session focus: Plan D.3 — Unified Gamification System (All Features)
+Session focus: Plan D.4 — 300-Level Visual Progression + ad-hoc StatusBar fixes
+Checkpoint reason: Session complete
 
 ## Position
 Milestone: v1.9.0 — Phase D: Meeting Intelligence 2.0
-Latest commit: c7b55b8 (feat: unified gamification widget + achievements modal + daily XP chart)
+Latest commit: fdd6651 (fix: refresh pending action count immediately on status change)
 Version: 1.9.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
@@ -21,6 +22,22 @@ Plan C.3: COMPLETE (3/3 tasks) — Focus Mode / Pomodoro Timer
 Plan D.1: COMPLETE (3/3 tasks) — Meeting Prep Assistant
 Plan D.2: COMPLETE (3/3 tasks) — Focus Mode Gamification
 Plan D.3: COMPLETE (3/3 tasks) — Unified Gamification System
+Plan D.4: COMPLETE (2/2 tasks) — 300-Level Visual Progression
+
+## Plan D.4 Results
+- Task 1: 300-level formula-based system with 30 named tiers (7efdde6)
+  - Removed static 8-level LEVEL_THRESHOLDS array
+  - Added LevelTier interface + LEVEL_TIERS array (30 tiers across 6 families)
+  - Metal → Gem → Cosmic → Mythic → Divine → Ultimate visual escalation
+  - Formula-based calculateLevel using quadratic formula (O(1) lookup)
+  - getTier(level) + totalXpForLevel(n) helpers exported
+  - Achievement updated: level_5 → level_50 (Gold Achiever)
+- Task 2: LevelBadge component + UI integration (0f298af)
+  - New LevelBadge.tsx: 3 sizes (sm/md/lg), tier-colored bg/border/text/glow
+  - Shimmer animation for Divine/Ultimate tiers (CSS keyframes, module-level injection)
+  - FocusStatsWidget: header + level column use LevelBadge, progress bar color dynamic
+  - StatusBar: compact LevelBadge replaces "Lv.N Name" text
+  - FocusCompleteModal: reward view uses centered LevelBadge + dynamic progress bar
 
 ## Plan D.3 Results
 - Task 1: Unified gamification backend — schema + service + 28 achievements + IPC (d6ed188)
@@ -42,10 +59,15 @@ Plan D.3: COMPLETE (3/3 tasks) — Unified Gamification System
   - New AchievementsModal: full-screen grouped view by 7 categories
   - gamification:get-daily IPC for daily XP totals
 
+## Ad-hoc Fixes This Session
+- Fix: StatusBar level badge no longer opens FocusStartModal — now purely informational (b9289f6)
+- Fix: Pending action count refreshes immediately on approve/dismiss/convert — no 30s delay (fdd6651)
+
 ## Resume Context
-Next action: Plan D.4+ or next self-improve proposals
+Next action: Plan D.5 or next self-improvement proposal
+Plan D.4 is fully COMPLETE. Both tasks verified with tsc + 150/150 tests.
+Ad-hoc fixes committed and pushed.
 Prerequisites: None — all clean
-Plan D.3 confidence: HIGH (all 3 tasks verified, tsc + 150/150 tests)
 
 ## Plan D.2 Results
 - Task 1: Focus sessions DB + service + IPC for gamification foundation (4e6b206)

@@ -1,39 +1,38 @@
-# Plan D.3 — Unified Gamification System (All Features)
+# Plan D.4 — 300-Level Visual Progression System
 
 ## Date: 2026-02-17
-## Status: COMPLETE (3/3 tasks)
+## Status: COMPLETE (2/2 tasks)
 
 ## What Changed
 
-Expanded gamification from focus-only to ALL features. Every meaningful user action now earns XP with satisfying "+N XP" toasts, creating a unified progression system across the entire app.
+Replaced the static 8-level gamification system with a deep 300-level formula-based progression featuring 30 named tiers across 6 visual families. A new LevelBadge component renders tier-appropriate visuals (glow, gradients, shimmer) throughout the UI.
 
-### Task 1: Unified Gamification Backend (d6ed188)
-- **xp_events table** — new schema + migration 0013 with backfill from focus_sessions
-- **gamificationService** — awardXP, getStats, getAchievements, checkAndUnlockAchievements
-- **28 achievements** across 7 categories: Focus (12), Cards (4), Projects (2), Meetings (3), Ideas (2), Brainstorm (2), Cross-feature (3)
-- **XP economy** — 18 event types with balanced rewards (1-20 XP per action)
-- **Rebalanced levels** — XP-based (not minutes): Beginner→Active→Engaged→Dedicated→Master→Grandmaster→Legend→Transcendent
-- **IPC + Preload** — 3 gamification handlers wired through to renderer
+### Task 1: 300-Level System — Types, Formula, Tier Definitions (7efdde6)
+- **Removed** static `LEVEL_THRESHOLDS` (8 entries)
+- **Added** `LevelTier` interface + `LEVEL_TIERS` array (30 tiers, 6 families):
+  - Metal (Lv 1-50): Bronze → Iron → Steel → Silver → Gold
+  - Gem (Lv 51-100): Emerald → Sapphire → Ruby → Amethyst → Diamond
+  - Cosmic (Lv 101-150): Stellar → Nebula → Quasar → Pulsar → Nova
+  - Mythic (Lv 151-200): Phoenix → Dragon → Titan → Oracle → Celestial
+  - Divine (Lv 201-250): Ethereal → Immortal → Transcendent → Ascendant → Divine
+  - Ultimate (Lv 251-300): Apex → Supreme → Legendary → Infinite → Omega
+- **Formula-based** `calculateLevel()` using quadratic formula — O(1) lookup
+- **XP curve**: `20 + n*8` per level. Lv 50 at ~10.8k XP, Lv 300 at ~365k XP
+- **Achievement** `level_5` → `level_50` ("Gold Achiever")
 
-### Task 2: XP Hooks in All Stores (cdad49f)
-- **gamificationStore** — unified Zustand store for stats/achievements with toast integration
-- **XP awards in every store**: boardStore (card create/complete), cardDetailStore (checklist), projectStore (create/archive), recordingStore (meeting complete), meetingStore (brief/action), ideaStore (create/convert/analyze), brainstormStore (start/export), taskStructuringStore (AI plan/breakdown)
-- **Component hooks** — DashboardModern (standup), CardDetailModal (AI description)
-- **focusStore simplified** — delegates stats/achievements to gamificationStore
-
-### Task 3: Unified Widget + Achievements Modal (c7b55b8)
-- **FocusStatsWidget rewritten** as unified progress hub:
-  - Today's XP, activity streak (any activity), level progress bar, 7-day XP chart
-  - 6 category pills with color coding (emerald/blue/purple/amber/pink/cyan)
-  - 28 achievement badges colored by category (unlocked) or gray (locked)
-- **AchievementsModal** — full-screen view grouped by 7 categories with unlock status
-- **gamification:get-daily IPC** — daily XP totals for bar chart
+### Task 2: LevelBadge Component + UI Integration (0f298af)
+- **LevelBadge.tsx** (63 lines): reusable pill with 3 sizes, tier-colored visuals
+  - Gradient backgrounds (Cosmic+), glow box-shadow, shimmer animation (Divine/Ultimate)
+  - Module-level CSS keyframe injection (no duplicates)
+- **FocusStatsWidget**: header + level column use LevelBadge, dynamic progress bar color
+- **StatusBar**: compact LevelBadge replaces plain text in idle state
+- **FocusCompleteModal**: centered LevelBadge in reward view with tier-colored bar
 
 ## Verification
 - TypeScript: Pass (zero errors)
 - Tests: Pass (150/150)
-- All 3 commits clean
+- Both commits atomic and clean
 
 ## Files Changed
-- 7 new files, ~25 modified files
-- +3,200 lines added, ~480 lines removed
+- 1 new file (LevelBadge.tsx), 5 modified files
+- ~180 lines added, ~55 lines removed
