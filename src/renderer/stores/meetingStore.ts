@@ -195,6 +195,8 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
           },
         });
       }
+      // Refresh pending count so StatusBar updates immediately
+      get().loadPendingActionCount();
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to update action item' });
     }
@@ -216,6 +218,8 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
         });
       }
       useGamificationStore.getState().awardXP('action_convert');
+      // Refresh pending count so StatusBar updates immediately
+      get().loadPendingActionCount();
       return result.cardId;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to convert action to card' });
