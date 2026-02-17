@@ -13,6 +13,7 @@ import type {
   CardRelationship,
   CardActivity,
   CardAttachment,
+  CardChecklistItem,
   CreateCardCommentInput,
   CreateCardRelationshipInput,
 } from '../../shared/types';
@@ -23,6 +24,7 @@ interface CardDetailStore {
   selectedCardRelationships: CardRelationship[];
   selectedCardActivities: CardActivity[];
   selectedCardAttachments: CardAttachment[];
+  selectedCardChecklistItems: CardChecklistItem[];
   loadingCardDetails: boolean;
 
   // Actions
@@ -36,6 +38,11 @@ interface CardDetailStore {
   addAttachment: (cardId: string) => Promise<void>;
   deleteAttachment: (id: string) => Promise<void>;
   openAttachment: (filePath: string) => Promise<void>;
+  loadChecklistItems: (cardId: string) => Promise<void>;
+  addChecklistItem: (cardId: string, title: string) => Promise<void>;
+  updateChecklistItem: (id: string, updates: { title?: string; completed?: boolean }) => Promise<void>;
+  deleteChecklistItem: (id: string) => Promise<void>;
+  reorderChecklistItems: (cardId: string, itemIds: string[]) => Promise<void>;
 }
 
 export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
@@ -43,22 +50,25 @@ export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
   selectedCardRelationships: [],
   selectedCardActivities: [],
   selectedCardAttachments: [],
+  selectedCardChecklistItems: [],
   loadingCardDetails: false,
 
   loadCardDetails: async (cardId: string) => {
     set({ loadingCardDetails: true });
     try {
-      const [comments, relationships, activities, attachments] = await Promise.all([
+      const [comments, relationships, activities, attachments, checklistItems] = await Promise.all([
         window.electronAPI.getCardComments(cardId),
         window.electronAPI.getCardRelationships(cardId),
         window.electronAPI.getCardActivities(cardId),
         window.electronAPI.getCardAttachments(cardId),
+        window.electronAPI.getChecklistItems(cardId),
       ]);
       set({
         selectedCardComments: comments,
         selectedCardRelationships: relationships,
         selectedCardActivities: activities,
         selectedCardAttachments: attachments,
+        selectedCardChecklistItems: checklistItems,
         loadingCardDetails: false,
       });
     } catch (error) {
@@ -72,6 +82,7 @@ export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
     selectedCardRelationships: [],
     selectedCardActivities: [],
     selectedCardAttachments: [],
+    selectedCardChecklistItems: [],
   }),
 
   addComment: async (input: CreateCardCommentInput) => {
@@ -129,5 +140,57 @@ export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
 
   openAttachment: async (filePath: string) => {
     await window.electronAPI.openCardAttachment(filePath);
+  },
+
+  loadChecklistItems: async (cardId: string) => {
+    const items = await window.electronAPI.getChecklistItems(cardId);
+    set({ selectedCardChecklistItems: items });
+  },
+
+  addChecklistItem: async (cardId: string, title: string) => {
+    const item = await window.electronAPI.addChecklistItem(cardId, title);
+    set(state => ({
+      selectedCardChecklistItems: [...state.selectedCardChecklistItems, item],
+    }));
+  },
+
+  updateChecklistItem: async (id: string, updates: { title?: string; completed?: boolean }) => {
+    // Optimistic update
+    set(state => ({
+      selectedCardChecklistItems: state.selectedCardChecklistItems.map(item =>
+        item.id === id ? { ...item, ...updates } : item
+      ),
+    }));
+    try {
+      await window.electronAPI.updateChecklistItem(id, updates);
+    } catch (err) {
+      console.error('Failed to update checklist item:', err);
+    }
+  },
+
+  deleteChecklistItem: async (id: string) => {
+    set(state => ({
+      selectedCardChecklistItems: state.selectedCardChecklistItems.filter(item => item.id !== id),
+    }));
+    try {
+      await window.electronAPI.deleteChecklistItem(id);
+    } catch (err) {
+      console.error('Failed to delete checklist item:', err);
+    }
+  },
+
+  reorderChecklistItems: async (cardId: string, itemIds: string[]) => {
+    // Optimistic reorder
+    const items = get().selectedCardChecklistItems;
+    const reordered = itemIds.map((id, index) => {
+      const item = items.find(i => i.id === id)!;
+      return { ...item, position: index };
+    });
+    set({ selectedCardChecklistItems: reordered });
+    try {
+      await window.electronAPI.reorderChecklistItems(cardId, itemIds);
+    } catch (err) {
+      console.error('Failed to reorder checklist items:', err);
+    }
   },
 }));

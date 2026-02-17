@@ -17,6 +17,7 @@ import { useBoardStore } from '../stores/boardStore';
 import { useCardDetailStore } from '../stores/cardDetailStore';
 import { getDueDateBadge } from '../utils/date-utils';
 import AttachmentsSection from './AttachmentsSection';
+import ChecklistSection from './ChecklistSection';
 import CommentsSection from './CommentsSection';
 import RelationshipsSection from './RelationshipsSection';
 import ActivityLog from './ActivityLog';
@@ -538,6 +539,9 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
           <div className="text-sm text-surface-500 py-4 text-center">Loading details...</div>
         ) : (
           <>
+            <div className="mb-5">
+              <ChecklistSection cardId={card.id} />
+            </div>
             <div className="mb-5">
               <AttachmentsSection cardId={card.id} />
             </div>
