@@ -1,522 +1,487 @@
-# Plan C.3 — Focus Mode / Pomodoro Timer
+# Plan D.2 — Focus Mode Gamification
 
-<phase n="C.3" name="Focus Mode / Pomodoro Timer">
+<phase n="D.2" name="Focus Mode Gamification">
   <context>
-    Phase C: Task Management Power, feature E2 (Focus Mode / Pomodoro Timer).
-    Plans C.1 (Card Checklists) and C.2 (Recurring Cards + Card Templates) are COMPLETE.
+    Phase D: Engagement and Intelligence upgrades. Plan D.2 makes focus mode
+    a core engagement loop with persistent stats, XP/leveling, and achievements.
 
     Current state:
-    - StatusBar: src/renderer/components/StatusBar.tsx — h-6 bar, left=DB status, right=pending actions + "Ctrl+K: Commands"
-    - SidebarModern: src/renderer/components/SidebarModern.tsx — w-20 icon-nav, no collapse mechanism
-    - AppLayout: src/renderer/components/AppLayout.tsx — flex row: Sidebar + main (Outlet)
-    - AppShell in App.tsx: manages CommandPalette + KeyboardShortcutsModal toggle state
-    - useKeyboardShortcuts: Ctrl+1-6 nav, Ctrl+K palette, Ctrl+? shortcuts help
-    - KeyboardShortcutsModal: 3 groups (Navigation, Actions, Page Shortcuts)
-    - Zustand stores in src/renderer/stores/ (boardStore, cardDetailStore, settingsStore, etc.)
-    - settingsStore: key-value via setSetting/getSetting IPC — no new IPC needed for preferences
-    - notificationService: showNotification(title, body) exists in main process
-    - notifications IPC: get-preferences, update-preferences, test — but NO generic "show" handler
-    - notificationsBridge: notificationSendTest available in renderer
-    - Card comments: addCardComment({ cardId, content }) via cardDetailStore + IPC
-    - allCards: useBoardStore(s => s.allCards) — AllCardsItem[] with id, title, projectId, etc.
-    - Toast: useToastStore + toast() for in-app notifications
-    - Main process global shortcuts: globalShortcut.register in main.ts
+    - Focus mode works: start/pause/resume/stop, break cycle, Ctrl+Shift+F.
+    - FocusStartModal: card selection + duration presets.
+    - FocusCompleteModal: accomplishment textarea → card comment → auto-break.
+    - StatusBar: live countdown with card name, pause/resume/stop.
+    - focusStore: in-memory sessionCount (lost on restart). No DB persistence.
+    - ProductivityPulse on dashboard: GitHub-style heatmap + calculateStreak().
+    - DashboardModern: 12-column grid — stats row → productivity pulse → projects + meetings.
+    - Next migration number: 0012.
 
     Design decisions:
-    - Timer runs client-side via setInterval (no IPC for countdown — pure renderer logic).
-    - Focus store as new Zustand store (focusStore.ts) — same pattern as all other stores.
-    - Sidebar hides during focus mode (conditional render in AppLayout, reading focusStore).
-    - Session-end logs as card comment (existing IPC, no new table — keeps it simple).
-    - Desktop notification for timer end via new notifications:show IPC handler.
-    - Settings stored in existing key-value table: pomodoro.workDuration, pomodoro.breakDuration.
-    - No dedicated focus_sessions DB table (card comments serve as log; table can be added later).
-    - Ctrl+Shift+F triggers focus mode (not registered as globalShortcut — renderer-only,
-      so it only works when the app is focused, which is fine).
+    - New `focus_sessions` table stores every completed session (not breaks/skips).
+    - XP system: 1 XP per minute focused. Levels at thresholds (0, 60, 300, 900, 2100, 4500, 9000, 18000).
+      Level names: Beginner, Focused, Disciplined, Dedicated, Master, Grandmaster, Legend, Transcendent.
+    - Focus streak: consecutive calendar days with at least 1 completed session.
+    - Achievements: 12 milestones checked on session save. Toast celebration when new unlock.
+    - FocusStatsWidget: prominent dashboard card after the stats row, before productivity pulse.
+    - Enhanced FocusCompleteModal: shows XP earned, level progress, streak, new achievements.
+    - All stats fetched via IPC; focusStore gains totalMinutes/level/streak for use across UI.
 
-    @PROJECT.md @STATE.md @SELF-IMPROVE-NEW.md
+    XP Level Thresholds (cumulative minutes):
+    | Level | Name          | Minutes | Sessions (~25min avg) |
+    |-------|---------------|---------|-----------------------|
+    | 1     | Beginner      | 0       | 0                     |
+    | 2     | Focused       | 60      | ~2-3                  |
+    | 3     | Disciplined   | 300     | ~12                   |
+    | 4     | Dedicated     | 900     | ~36                   |
+    | 5     | Master        | 2100    | ~84                   |
+    | 6     | Grandmaster   | 4500    | ~180                  |
+    | 7     | Legend         | 9000    | ~360                  |
+    | 8     | Transcendent  | 18000   | ~720                  |
+
+    Achievements (12):
+    | ID              | Name               | Condition                          |
+    |-----------------|--------------------|-------------------------------------|
+    | first_session   | First Focus        | Complete 1 session                  |
+    | five_sessions   | Getting Warmed Up  | Complete 5 sessions                 |
+    | ten_sessions    | In The Zone        | Complete 10 sessions                |
+    | fifty_sessions  | Focus Machine      | Complete 50 sessions                |
+    | hundred_sessions| Centurion          | Complete 100 sessions               |
+    | one_hour_day    | Power Hour         | 60+ minutes focused in a single day |
+    | two_hour_day    | Deep Worker        | 120+ minutes focused in a single day|
+    | streak_3        | Three-Day Streak   | 3 consecutive days with sessions    |
+    | streak_7        | Week Warrior       | 7 consecutive days with sessions    |
+    | streak_14       | Fortnight Focus    | 14 consecutive days with sessions   |
+    | streak_30       | Monthly Master     | 30 consecutive days with sessions   |
+    | level_5         | Master Achiever    | Reach Level 5 (Master)              |
+
+    @PROJECT.md @STATE.md
+    @src/renderer/stores/focusStore.ts
+    @src/renderer/components/FocusCompleteModal.tsx
+    @src/renderer/components/FocusStartModal.tsx
     @src/renderer/components/StatusBar.tsx
-    @src/renderer/components/SidebarModern.tsx
-    @src/renderer/components/AppLayout.tsx
-    @src/renderer/App.tsx (AppShell)
-    @src/renderer/hooks/useKeyboardShortcuts.ts
-    @src/renderer/components/KeyboardShortcutsModal.tsx
-    @src/renderer/stores/boardStore.ts (allCards pattern)
-    @src/renderer/stores/cardDetailStore.ts (addComment)
-    @src/renderer/stores/settingsStore.ts
-    @src/main/ipc/notifications.ts
-    @src/main/services/notificationService.ts
-    @src/preload/domains/notifications.ts
+    @src/renderer/components/DashboardModern.tsx
+    @src/renderer/components/ProductivityPulse.tsx
+    @src/main/db/schema/cards.ts (table pattern reference)
+    @src/main/db/connection.ts (getDb pattern)
     @src/shared/types/electron-api.ts
+    @src/preload/domains/meetings.ts (preload pattern reference)
   </context>
 
   <task type="auto" n="1">
-    <n>Focus Store + notifications:show IPC + keyboard shortcut wiring</n>
+    <n>Focus sessions DB table + save flow + stats IPC</n>
     <files>
-      src/renderer/stores/focusStore.ts (new)
-      src/main/ipc/notifications.ts
-      src/preload/domains/notifications.ts
+      src/main/db/schema/focus.ts (new)
+      src/main/db/schema/index.ts
+      drizzle/0012_focus_sessions.sql (new — manual migration)
+      src/main/services/focusService.ts (new)
+      src/main/ipc/focus.ts (new)
+      src/main/index.ts (register IPC)
+      src/preload/domains/focus.ts (new)
+      src/preload/index.ts
+      src/shared/types/focus.ts (new)
       src/shared/types/electron-api.ts
-      src/renderer/hooks/useKeyboardShortcuts.ts
-      src/renderer/components/KeyboardShortcutsModal.tsx
     </files>
     <action>
-      **WHY:** The focus mode needs a core timer engine before any UI can display it. This task
-      creates the Zustand store with full timer logic, wires up the notification IPC for timer-end
-      alerts, and registers the keyboard shortcut so the feature has a trigger.
+      **WHY:** All gamification features depend on persistent session data. Without a DB table,
+      stats are lost on restart and achievements can't be tracked. This is the foundation.
 
-      ## Focus Store (src/renderer/stores/focusStore.ts)
+      ## Schema (src/main/db/schema/focus.ts)
 
-      1. Create a new Zustand store following the existing pattern (see boardStore, settingsStore):
-
+      1. Create `focus_sessions` table:
          ```ts
-         interface FocusState {
-           // State
-           mode: 'idle' | 'focus' | 'break';
-           timeRemaining: number;       // seconds
-           focusedCardId: string | null;
-           focusedCardTitle: string | null;
-           workDuration: number;         // minutes (default 25)
-           breakDuration: number;        // minutes (default 5)
-           sessionCount: number;         // completed focus sessions this app run
-           isPaused: boolean;
-           intervalId: ReturnType<typeof setInterval> | null;
+         export const focusSessions = pgTable('focus_sessions', {
+           id: uuid('id').defaultRandom().primaryKey(),
+           cardId: uuid('card_id').references(() => cards.id, { onDelete: 'set null' }),
+           durationMinutes: integer('duration_minutes').notNull(),
+           note: text('note'),
+           completedAt: timestamp('completed_at', { withTimezone: true }).defaultNow().notNull(),
+         });
+         ```
 
-           // Actions
-           startFocus: (cardId: string | null, cardTitle: string | null) => void;
-           startBreak: () => void;
-           pause: () => void;
-           resume: () => void;
-           stop: () => void;
-           tick: () => void;
-           setDurations: (work: number, breakMins: number) => void;
-           loadSettings: () => Promise<void>;
+      2. Create `focus_achievements` table:
+         ```ts
+         export const focusAchievements = pgTable('focus_achievements', {
+           id: varchar('id', { length: 50 }).primaryKey(), // e.g. 'first_session'
+           unlockedAt: timestamp('unlocked_at', { withTimezone: true }).defaultNow().notNull(),
+         });
+         ```
+
+      3. Export both from schema/index.ts.
+
+      ## Migration (drizzle/0012_focus_sessions.sql)
+
+      ```sql
+      CREATE TABLE "focus_sessions" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "card_id" uuid REFERENCES "cards"("id") ON DELETE SET NULL,
+        "duration_minutes" integer NOT NULL,
+        "note" text,
+        "completed_at" timestamp with time zone DEFAULT now() NOT NULL
+      );
+
+      CREATE TABLE "focus_achievements" (
+        "id" varchar(50) PRIMARY KEY,
+        "unlocked_at" timestamp with time zone DEFAULT now() NOT NULL
+      );
+      ```
+
+      Also create drizzle/meta/0012_snapshot.json (copy pattern from 0011) and add entry
+      to drizzle/meta/_journal.json.
+
+      ## Shared Types (src/shared/types/focus.ts)
+
+      4. Define types:
+         ```ts
+         export interface FocusSession {
+           id: string;
+           cardId: string | null;
+           durationMinutes: number;
+           note: string | null;
+           completedAt: string;
+         }
+
+         export interface FocusStats {
+           totalSessions: number;
+           totalMinutes: number;
+           todaySessions: number;
+           todayMinutes: number;
+           currentStreak: number; // consecutive days
+           longestStreak: number;
+           level: number;
+           levelName: string;
+           xpCurrent: number; // totalMinutes
+           xpNextLevel: number; // minutes needed for next level
+           xpProgress: number; // 0-1 progress toward next level
+         }
+
+         export interface FocusAchievement {
+           id: string;
+           name: string;
+           description: string;
+           icon: string;
+           unlockedAt: string | null; // null = locked
+         }
+
+         export interface FocusDailyData {
+           date: string; // YYYY-MM-DD
+           sessions: number;
+           minutes: number;
          }
          ```
 
-      2. `startFocus(cardId, cardTitle)`:
-         - Set mode='focus', focusedCardId, focusedCardTitle
-         - Set timeRemaining = workDuration * 60
-         - Set isPaused=false
-         - Clear any existing intervalId, then start new setInterval calling `tick()` every 1000ms
-         - Store the intervalId in state
+      ## Focus Service (src/main/services/focusService.ts)
 
-      3. `startBreak()`:
-         - Set mode='break', timeRemaining = breakDuration * 60, isPaused=false
-         - Start interval (same pattern as startFocus)
+      5. Implement service functions:
 
-      4. `pause()`: Set isPaused=true, clear interval
-      5. `resume()`: Set isPaused=false, restart interval
+         a. `saveSession(input: { cardId?: string; durationMinutes: number; note?: string }): Promise<FocusSession>`
+            - Insert into focus_sessions, return the row.
 
-      6. `stop()`:
-         - Clear interval, reset to mode='idle', timeRemaining=0, isPaused=false
-         - Do NOT clear focusedCardId/focusedCardTitle (needed for completion modal)
-         - Do NOT increment sessionCount (only incremented on natural timer end)
+         b. `getStats(): Promise<FocusStats>`
+            - COUNT + SUM total sessions/minutes.
+            - COUNT + SUM today's sessions/minutes (where completedAt >= today start).
+            - Calculate streak: query distinct dates with sessions, walk backwards from today.
+            - Calculate longest streak: walk all dates forward, track max consecutive run.
+            - Calculate level/XP from totalMinutes using the threshold table.
 
-      7. `tick()`:
-         - Decrement timeRemaining by 1
-         - If timeRemaining reaches 0:
-           - Clear interval
-           - If mode was 'focus':
-             - Increment sessionCount
-             - Send desktop notification: `window.electronAPI.notificationShow('Focus Complete', 'Great work! Time for a break.')`
-             - Set mode to 'completed' (temporary state for the completion modal)
-               ACTUALLY: add 'completed' to the mode union: `'idle' | 'focus' | 'break' | 'completed'`
-               The 'completed' mode signals the UI to show the completion prompt.
-           - If mode was 'break':
-             - Send notification: `window.electronAPI.notificationShow('Break Over', 'Ready to focus again?')`
-             - Set mode to 'idle'
+         c. `getDailyData(days: number = 30): Promise<FocusDailyData[]>`
+            - Group by date, count sessions, sum minutes for last N days.
+            - Fill gaps with zero-value entries (same pattern as AI usage daily).
 
-      8. `setDurations(work, breakMins)`:
-         - Update workDuration and breakDuration in state
-         - Persist via settings: `window.electronAPI.setSetting('pomodoro.workDuration', String(work))`
-         - Persist: `window.electronAPI.setSetting('pomodoro.breakDuration', String(breakMins))`
+         d. `getAchievements(): Promise<FocusAchievement[]>`
+            - Return the full list of 12 achievements with unlock status from DB.
+            - Use a static ACHIEVEMENTS array with id/name/description/icon.
+            - Left-join with focus_achievements table to get unlockedAt.
 
-      9. `loadSettings()`:
-         - Read from settings: `window.electronAPI.getSetting('pomodoro.workDuration')`
-         - Read: `window.electronAPI.getSetting('pomodoro.breakDuration')`
-         - Parse as numbers (default 25 and 5 if not set), update state
+         e. `checkAndUnlockAchievements(stats: FocusStats): Promise<FocusAchievement[]>`
+            - Given current stats, check each achievement condition.
+            - Insert newly unlocked achievements into focus_achievements.
+            - Return only the newly unlocked ones (for toast notifications).
 
-      10. Export `useFocusStore` (named export for consistency with other stores).
+         The ACHIEVEMENTS constant array and LEVEL_THRESHOLDS array should be defined
+         in this file (or in shared/types/focus.ts if renderer needs them).
 
-      ## notifications:show IPC
+         Define LEVEL_THRESHOLDS:
+         ```ts
+         const LEVEL_THRESHOLDS = [
+           { level: 1, name: 'Beginner', minutes: 0 },
+           { level: 2, name: 'Focused', minutes: 60 },
+           { level: 3, name: 'Disciplined', minutes: 300 },
+           { level: 4, name: 'Dedicated', minutes: 900 },
+           { level: 5, name: 'Master', minutes: 2100 },
+           { level: 6, name: 'Grandmaster', minutes: 4500 },
+           { level: 7, name: 'Legend', minutes: 9000 },
+           { level: 8, name: 'Transcendent', minutes: 18000 },
+         ];
+         ```
 
-      11. Add handler in src/main/ipc/notifications.ts:
-          ```ts
-          ipcMain.handle('notifications:show', async (_event, title: string, body: string) => {
-            showNotification(title, body);
-          });
-          ```
-          Import `showNotification` from the notificationService (already imported via sendTestNotification's module).
+         Define calculateLevel(totalMinutes) that returns { level, levelName, xpCurrent, xpNextLevel, xpProgress }.
 
-      12. Add to preload bridge (src/preload/domains/notifications.ts):
-          ```ts
-          notificationShow: (title: string, body: string) =>
-            ipcRenderer.invoke('notifications:show', title, body),
-          ```
+      ## IPC Handlers (src/main/ipc/focus.ts)
 
-      13. Add to ElectronAPI interface (src/shared/types/electron-api.ts):
-          ```ts
-          notificationShow: (title: string, body: string) => Promise<void>;
-          ```
+      6. Register handlers:
+         - `focus:save-session` → saveSession(input) → returns { session, stats, newAchievements }
+           (save + get fresh stats + check achievements — all in one round trip)
+         - `focus:get-stats` → getStats()
+         - `focus:get-daily` → getDailyData(days)
+         - `focus:get-achievements` → getAchievements()
 
-      ## Keyboard Shortcut
+      7. Register in main/index.ts: import './ipc/focus'.
 
-      14. Add `onToggleFocusMode` callback parameter to `useKeyboardShortcuts`:
-          - New param: `onToggleFocusMode?: () => void`
-          - In handleKeyDown: detect Ctrl+Shift+F (e.ctrlKey && e.shiftKey && e.key === 'F')
-          - IMPORTANT: Check for e.shiftKey to avoid conflicting with Ctrl+F (browser find).
-            When Shift is held, e.key is uppercase 'F'.
-          - Call `onToggleFocusMode()` and preventDefault
+      ## Preload Bridge (src/preload/domains/focus.ts)
 
-      15. Add to KeyboardShortcutsModal SHORTCUT_GROUPS:
-          - In the "Actions" group, add: `{ keys: 'Ctrl+Shift+F', description: 'Focus Mode' }`
+      8. Add bridge methods:
+         ```ts
+         focusSaveSession: (input) => ipcRenderer.invoke('focus:save-session', input),
+         focusGetStats: () => ipcRenderer.invoke('focus:get-stats'),
+         focusGetDaily: (days) => ipcRenderer.invoke('focus:get-daily', days),
+         focusGetAchievements: () => ipcRenderer.invoke('focus:get-achievements'),
+         ```
 
-      16. In App.tsx AppShell:
-          - Add `showFocusStart` state (boolean, default false)
-          - Add `toggleFocusStart` callback: if focus mode is idle, toggle showFocusStart;
-            if focus mode is active, call `useFocusStore.getState().stop()`
-          - Pass `toggleFocusStart` as `onToggleFocusMode` to `useKeyboardShortcuts`
-          - Initialize focus store settings: call `useFocusStore.getState().loadSettings()` in
-            the existing Promise.allSettled (add it alongside the other store loads)
-          - Export/expose `showFocusStart` and its setter — will be consumed by Task 2's
-            FocusStartModal. For now, just add the state. The modal rendering comes in Task 2.
+      9. Add to preload/index.ts.
+
+      ## ElectronAPI Types
+
+      10. Add all 4 methods to ElectronAPI interface. Import types from shared/types/focus.ts.
     </action>
     <verify>
       1. `npx tsc --noEmit` passes with zero errors
-      2. `npx vitest run` — all 150 tests pass (no existing tests broken)
-      3. Verify focusStore.ts exports useFocusStore with all documented actions
-      4. Verify notifications:show IPC handler registered in notifications.ts
-      5. Verify notificationShow in preload bridge and ElectronAPI type
-      6. Verify useKeyboardShortcuts accepts onToggleFocusMode parameter
-      7. Verify KeyboardShortcutsModal lists Ctrl+Shift+F under Actions
+      2. `npx vitest run` — all 150 tests pass
+      3. Verify focus_sessions and focus_achievements tables in schema
+      4. Verify migration 0012 exists
+      5. Verify focusService exports: saveSession, getStats, getDailyData, getAchievements, checkAndUnlockAchievements
+      6. Verify 4 IPC handlers registered
+      7. Verify preload bridge and ElectronAPI types
+      8. Verify LEVEL_THRESHOLDS and ACHIEVEMENTS constants defined
     </verify>
     <done>
-      focusStore.ts created with full timer engine (start/pause/resume/stop/tick).
-      notifications:show IPC handler wired (main + preload + types).
-      Ctrl+Shift+F registered in keyboard shortcuts hook + visible in shortcuts modal.
-      AppShell has showFocusStart state and toggleFocusStart callback.
-      Settings persistence for work/break durations working via existing settings IPC.
+      focus_sessions + focus_achievements tables created. focusService with save/stats/daily/achievements.
+      4 IPC handlers wired. Preload bridge + types complete. Migration 0012 ready.
       tsc clean, all tests pass.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - setInterval in renderer process is reliable for 1-second ticks (standard pattern)
-      - Electron Notification API works from main process (already proven by test notification)
-      - Ctrl+Shift+F doesn't conflict with any existing shortcuts (verified: not in SHORTCUT_MAP)
-      - Settings key-value store works for pomodoro.* keys (same pattern as ai.* keys)
+      - PGlite supports gen_random_uuid() (already used by all other tables)
+      - GROUP BY date with timestamp works as expected in PGlite
+      - 12 achievements is a good starting set (can add more later)
+      - Level thresholds feel achievable but stretch appropriately
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Focus Mode UI — StatusBar timer, FocusStartModal, sidebar toggle</n>
+    <n>Focus Dashboard Widget + enhanced completion modal</n>
     <files>
-      src/renderer/components/StatusBar.tsx
-      src/renderer/components/FocusStartModal.tsx (new)
-      src/renderer/components/SidebarModern.tsx
-      src/renderer/components/AppLayout.tsx
-      src/renderer/App.tsx (AppShell — add modal rendering)
+      src/renderer/components/FocusStatsWidget.tsx (new)
+      src/renderer/components/DashboardModern.tsx
+      src/renderer/components/FocusCompleteModal.tsx
+      src/renderer/stores/focusStore.ts
     </files>
     <action>
-      **WHY:** Users need visual feedback for the timer, a way to start focus sessions (pick a card
-      and duration), and the distraction-reducing sidebar collapse. This task builds all the
-      interactive UI on top of the store from Task 1.
+      **WHY:** The dashboard is where users start their day. A prominent focus widget
+      with XP, level, streak, and daily progress makes focus mode visible and creates
+      a pull to engage. The enhanced completion modal provides immediate reward feedback.
 
-      ## StatusBar Timer Display
+      ## focusStore Updates
 
-      1. In StatusBar.tsx, import `useFocusStore` from the focus store.
-         Read: `mode`, `timeRemaining`, `isPaused`, `focusedCardTitle`.
-
-      2. Add timer section between the pending actions badge and the "Ctrl+K" hint:
-         - Only visible when mode is 'focus', 'break', or 'completed'
-         - Layout: `[icon] [card name truncated] [MM:SS] [pause/resume btn] [stop btn]`
-         - Format timeRemaining: `Math.floor(s/60).toString().padStart(2,'0') + ':' + (s%60).toString().padStart(2,'0')`
-         - During focus: emerald accent (text-emerald-400), Timer icon (lucide-react)
-         - During break: amber accent (text-amber-400), Coffee icon (lucide-react)
-         - Card name: max-w-[120px] truncate, text-surface-300
-         - Pause button: Pause icon when running, Play icon when paused (toggle)
-           - onClick: `isPaused ? useFocusStore.getState().resume() : useFocusStore.getState().pause()`
-         - Stop button: Square icon, text-surface-500 hover:text-red-400
-           - onClick: `useFocusStore.getState().stop()`
-         - All controls are tiny (w-3.5 h-3.5 icons) to fit in h-6 bar
-
-      3. Make the timer section clickable (the card name part):
-         - Title tooltip: "Click to open focus card" or the full card title if truncated
-         - This is informational only — no navigation (card could be on any board page)
-
-      ## FocusStartModal (src/renderer/components/FocusStartModal.tsx)
-
-      4. Create a new modal component following the KeyboardShortcutsModal pattern:
-         - Props: `isOpen: boolean, onClose: () => void`
-         - Escape key closes it (same pattern as other modals)
-         - Backdrop: `fixed inset-0 z-50 bg-black/50`
-         - Content: centered card, max-w-md, bg-surface-900 rounded-xl
-
-      5. Modal content:
-         ```
-         ┌──────────────────────────────────────────────┐
-         │ 🎯 Start Focus Session                   [X] │
-         ├──────────────────────────────────────────────┤
-         │                                              │
-         │ Focus on (optional):                         │
-         │ [Search cards...                         🔍] │
-         │  ┌─ Card 1 title (Project A)              ─┐ │
-         │  │  Card 2 title (Project B)               │ │
-         │  └─ Card 3 title (Project C)              ─┘ │
-         │                                              │
-         │ Duration:                                    │
-         │ [25m] [30m] [45m] [60m] [Custom: ___]       │
-         │                                              │
-         │         [ Start Focus ]                      │
-         └──────────────────────────────────────────────┘
+      1. Add persistent stats to focusStore:
+         ```ts
+         // New state fields
+         stats: FocusStats | null;
+         achievements: FocusAchievement[];
+         // New actions
+         loadStats: () => Promise<void>;
+         saveSession: (input: { cardId?: string; durationMinutes: number; note?: string }) =>
+           Promise<{ newAchievements: FocusAchievement[] }>;
          ```
 
-      6. Card search implementation:
-         - Read `useBoardStore(s => s.allCards)` for the card list
-         - Text input with search icon, filters allCards by title (case-insensitive includes)
-         - Show max 5 results in a dropdown list below the input
-         - Each result: card title + project name (from projectStore lookup or embedded)
-         - Clicking a card selects it (shown as a chip below the input with X to deselect)
-         - Card selection is OPTIONAL — user can start a generic focus session without a card
-         - Filter out archived cards from the list
+      2. `loadStats()`: calls focusGetStats() and focusGetAchievements(), updates store.
+      3. `saveSession()`: calls focusSaveSession() IPC, updates stats + achievements in store,
+         returns newAchievements for the completion modal to show.
 
-      7. Duration presets:
-         - 4 pill buttons: 25, 30, 45, 60 minutes
-         - Default selected: the store's workDuration value
-         - "Custom" option: small number input (min 1, max 120)
-         - Selected duration highlighted with primary color ring
+      ## FocusStatsWidget (src/renderer/components/FocusStatsWidget.tsx)
 
-      8. "Start Focus" button:
-         - Primary button style (bg-primary-600 hover:bg-primary-700)
-         - On click:
-           a. If custom duration differs from stored workDuration, update via setDurations
-           b. Call `useFocusStore.getState().startFocus(selectedCardId, selectedCardTitle)`
-           c. Call onClose() to dismiss the modal
-           d. Show toast: `toast({ type: 'success', message: 'Focus mode started — 25 min' })`
+      4. Create a dashboard widget component. It fetches stats on mount and renders:
 
-      ## Sidebar Toggle
+         **Layout (full-width card, col-span-12, placed after stats row):**
+         ```
+         ┌──────────────────────────────────────────────────────────────────────┐
+         │  ⚡ Focus Mode                            [Start Focus Session]     │
+         ├────────────┬────────────┬────────────┬───────────────────────────────┤
+         │  TODAY     │  STREAK    │  LEVEL     │  THIS WEEK                   │
+         │  45 min    │  🔥 7 days │  Lv.3      │  ▃▅▇▃▅▇▁  (7-day bar chart) │
+         │  2 sessions│  Best: 14  │  Disciplined│  4h 30m total              │
+         │            │            │  ████░░ 67%│                              │
+         ├────────────┴────────────┴────────────┴───────────────────────────────┤
+         │  Achievements: 🏆🏆🏆🏆⬜⬜⬜⬜⬜⬜⬜⬜  (4/12 unlocked)           │
+         └──────────────────────────────────────────────────────────────────────┘
+         ```
 
-      9. In SidebarModern.tsx, add a Focus Mode button in the bottom section (above theme toggle):
-         - Import `useFocusStore` and read `mode`
-         - Import `Timer` icon from lucide-react
-         - Show the button always (it opens the start modal OR indicates active focus)
-         - When mode === 'idle': `Timer` icon, text-surface-400, tooltip "Focus Mode (Ctrl+Shift+F)"
-           onClick dispatches to AppShell's toggleFocusStart via a callback prop or by reading
-           a shared trigger. SIMPLEST APPROACH: import and use a tiny event emitter, OR just
-           have the button call `document.dispatchEvent(new CustomEvent('toggle-focus-mode'))`
-           and have AppShell listen for it. BUT CLEANER: just make the sidebar button trigger
-           the same keyboard shortcut effect. Actually, simplest: have SidebarModern accept an
-           optional `onToggleFocus` prop passed from AppLayout.
-           REVISED: Use the focusStore itself — add an `openStartModal` boolean + `setOpenStartModal`
-           action to focusStore. Sidebar and keyboard shortcut both set this flag. AppShell reads
-           it to show/hide FocusStartModal. This avoids prop drilling.
+      5. **Today section**: todayMinutes + todaySessions from stats.
+         Emerald accent color. If no sessions today, show "No sessions yet" with subtle CTA.
 
-      10. Update focusStore (from Task 1) to include:
-          - `showStartModal: boolean` (default false)
-          - `setShowStartModal: (show: boolean) => void`
-          - Modify Task 1's AppShell integration: instead of local `showFocusStart` state,
-            read `useFocusStore(s => s.showStartModal)` and use `setShowStartModal` to toggle.
+      6. **Streak section**: currentStreak with fire icon (🔥 or Flame from lucide-react).
+         Show "Best: N" for longestStreak. Amber/orange color.
+         If streak is 0, show "Start your streak!" in muted text.
 
-      11. When mode !== 'idle': the sidebar Timer button shows with emerald pulse animation
-          (animate-pulse, text-emerald-400) to indicate active focus session.
-          Click during active session → calls stop() (same as Ctrl+Shift+F during active).
+      7. **Level section**: level number + levelName.
+         XP progress bar: xpProgress (0-1) → width percentage.
+         Colors: emerald bar on surface-700 track.
+         Show "N min to next level" below progress bar.
 
-      12. In AppLayout.tsx, conditionally hide the sidebar during active focus mode:
-          - Import `useFocusStore`
-          - Read `mode` from store
-          - When mode is 'focus' or 'break': don't render `<Sidebar />`
-          - The main content will expand to fill the full width automatically (flex-1)
-          - Add a small "Show sidebar" hover zone on the left edge (w-2 h-full, transparent,
-            shows sidebar on hover). ACTUALLY, skip the hover zone for simplicity — user can
-            stop focus mode to get sidebar back. The StatusBar has stop controls.
+      8. **Weekly chart**: 7-day mini bar chart (pure CSS, same as AI usage pattern).
+         Fetch focusGetDaily(7). Each bar represents daily minutes, scaled to max.
+         Day labels (Mon-Sun) below bars. Emerald bars.
+         Show total weekly minutes below chart.
 
-      ## AppShell Modal Wiring
+      9. **Achievements row**: horizontal scrollable row of 12 achievement icons.
+         Unlocked: full color with tooltip showing name + unlock date.
+         Locked: grayscale/muted with tooltip showing name + requirement.
+         Show "N/12 unlocked" count.
 
-      13. In App.tsx AppShell, render FocusStartModal:
-          - Import FocusStartModal (lazy-loaded like other modals)
-          - Read `showStartModal` from focusStore
-          - Render: `<FocusStartModal isOpen={showStartModal} onClose={() => useFocusStore.getState().setShowStartModal(false)} />`
-          - Update the keyboard shortcut toggle to use focusStore's setShowStartModal instead
-            of local state (from Task 1 integration).
+      10. **Start button**: top-right of widget header. Opens FocusStartModal.
+          Uses `useFocusStore.getState().setShowStartModal(true)`.
+          Only show when mode is 'idle'.
+
+      11. **Styling**: Follow DashboardModern patterns:
+          - bg-white dark:bg-surface-900/50 rounded-2xl border shadow
+          - Section headers: text-xs uppercase tracking-wider text-surface-500
+          - Stats values: text-2xl font-bold
+          - Compact but scannable
+
+      ## DashboardModern Integration
+
+      12. Import FocusStatsWidget.
+      13. Place it after the stats row (3 stat cards) and BEFORE the Productivity Pulse:
+          ```tsx
+          {/* Focus Stats */}
+          <div className="col-span-12">
+            <FocusStatsWidget />
+          </div>
+          ```
+
+      ## Enhanced FocusCompleteModal
+
+      14. After saving the session, show reward feedback:
+          - Fetch fresh stats from the store's saveSession() return value
+          - Show XP earned: "+25 XP" with emerald pulse animation
+          - Show level progress: "Level 3: Disciplined — 67% to next"
+          - Show streak: "🔥 7 day streak!"
+          - If new achievements unlocked: show them with celebration styling
+            (gold border, icon, name, brief animation)
+          - This replaces the plain "Session #N today" text
+          - Keep the accomplishment textarea and Save & Start Break flow unchanged
+
+      15. The save flow changes:
+          - Instead of directly calling addCardComment, call focusStore.saveSession()
+            which saves to DB and returns stats + newAchievements
+          - THEN call addCardComment for the card comment (keep existing behavior)
+          - Show reward info before transitioning to break
     </action>
     <verify>
       1. `npx tsc --noEmit` passes with zero errors
       2. `npx vitest run` — all tests pass
-      3. Manual: Press Ctrl+Shift+F → FocusStartModal opens
-      4. Manual: Search for a card → select it → choose 25m → Start Focus
-      5. Manual: StatusBar shows emerald timer with card name, MM:SS countdown, pause/stop buttons
-      6. Manual: Sidebar collapses during focus mode, main content expands
-      7. Manual: Pause button works (timer stops, resumes on unpause)
-      8. Manual: Stop button returns to idle, sidebar reappears
-      9. Manual: Timer counts down to 0 → desktop notification appears
-      10. Manual: Sidebar Timer icon visible, clickable, pulses during active session
-      11. Manual: Start focus WITHOUT selecting a card → generic timer works
+      3. Manual: Dashboard shows FocusStatsWidget after stats row
+      4. Manual: Widget displays today's stats, streak, level, weekly chart, achievements
+      5. Manual: "Start Focus Session" button opens FocusStartModal
+      6. Manual: Complete a session → FocusCompleteModal shows XP earned, level progress, streak
+      7. Manual: Stats update in real-time after session completion
+      8. Manual: Weekly chart shows bars for days with sessions
+      9. Manual: Achievement icons show locked/unlocked state
     </verify>
     <done>
-      StatusBar displays live timer with card name, controls (pause/resume/stop), color-coded
-      by mode (emerald=focus, amber=break).
-      FocusStartModal provides card search/selection + duration presets + start button.
-      Sidebar hides during focus mode. Sidebar has Timer icon button.
-      Ctrl+Shift+F opens modal (idle) or stops session (active).
-      Desktop notification fires on timer completion.
+      FocusStatsWidget on dashboard with today's stats, streak, XP/level, weekly chart,
+      achievements preview. FocusCompleteModal shows reward feedback (XP, level, streak,
+      new achievements). focusStore has persistent stats via IPC.
       tsc clean, all tests pass.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - lucide-react has Timer, Pause, Play, Square, Coffee icons (all standard, verified)
-      - allCards from boardStore is loaded eagerly in AppShell (existing pattern)
-      - Hiding sidebar via conditional render won't cause layout shift (flex-1 handles it)
-      - Card search across allCards is fast enough without debounce (typically < 500 items)
+      - DashboardModern has room for a full-width widget after stats row
+      - 7-day bar chart is sufficient (don't need 30-day for focus)
+      - Achievement icons can be lucide-react icons or simple text badges
+      - XP animation doesn't need Framer Motion — CSS transitions suffice
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Session completion flow — card comment logging + break cycle + polish</n>
+    <n>Achievement toasts + StatusBar XP display + focus quick action</n>
     <files>
-      src/renderer/components/FocusCompleteModal.tsx (new)
-      src/renderer/App.tsx (AppShell — render completion modal)
-      src/renderer/stores/focusStore.ts (update: handle 'completed' mode transition)
+      src/renderer/components/StatusBar.tsx
+      src/renderer/components/DashboardModern.tsx
+      src/renderer/components/AppShell.tsx (or wherever FocusCompleteModal is mounted)
     </files>
     <action>
-      **WHY:** The most valuable part of focus mode is the feedback loop: completing a session
-      prompts reflection, which gets logged as a card comment. This turns focus sessions into
-      persistent data attached to cards. The break cycle keeps the Pomodoro rhythm going.
+      **WHY:** Achievements need real-time celebration beyond the completion modal — toasts
+      visible anywhere in the app. StatusBar should show focus progress persistently. And
+      the dashboard hero section needs a direct "Focus" action button for prominence.
 
-      ## FocusCompleteModal (src/renderer/components/FocusCompleteModal.tsx)
+      ## Achievement Toast Notifications
 
-      1. Create a modal that appears when focusStore mode === 'completed':
-         - Same modal pattern as FocusStartModal (backdrop, centered card, Escape to close)
-         - Content:
-         ```
-         ┌──────────────────────────────────────────────┐
-         │ ✅ Focus Session Complete!                    │
-         ├──────────────────────────────────────────────┤
-         │                                              │
-         │ You focused for 25 minutes                   │
-         │ on "Card Title Here"                         │
-         │                                              │
-         │ What did you accomplish?                      │
-         │ ┌──────────────────────────────────────────┐ │
-         │ │ (textarea, 3 rows)                       │ │
-         │ └──────────────────────────────────────────┘ │
-         │                                              │
-         │ Session #3 today                             │
-         │                                              │
-         │   [ Skip ]          [ Save & Start Break ]   │
-         └──────────────────────────────────────────────┘
-         ```
+      1. When focusStore.saveSession() returns newAchievements with length > 0:
+         - Show a toast for each new achievement
+         - Toast format: "🏆 Achievement Unlocked: [Name] — [Description]"
+         - Use the existing toast() system with 'success' type
+         - Duration: 5 seconds (longer than normal 3s to celebrate)
+         - If multiple achievements unlock at once, stagger by 500ms
 
-      2. Show the completed session details:
-         - Duration: the store's workDuration (what was configured when session started)
-         - Card title: focusedCardTitle from store (or "General focus" if no card)
-         - Session count: sessionCount from store
+      2. Wire this in the FocusCompleteModal's save flow and also in the Skip flow:
+         - Save flow: after saveSession completes, toast each new achievement
+         - Skip flow: if user skips, still save session to DB (just no note),
+           then toast any achievements.
+           IMPORTANT: Currently skip calls stop() without saving. Change it to save
+           the session (with no note) before stopping, so the session still counts
+           toward stats and achievements.
 
-      3. Textarea for accomplishment notes:
-         - Placeholder: "What did you accomplish during this session?"
-         - Auto-focuses when modal opens
-         - Not required — can be left empty
+      ## StatusBar XP/Level Indicator
 
-      4. "Save & Start Break" button (primary):
-         - If textarea has content AND focusedCardId is set:
-           - Call `window.electronAPI.addCardComment({ cardId: focusedCardId, content })` where
-             content is formatted as:
-             `🍅 Focus session completed (${workDuration} min)\n\n${userNote}`
-           - If textarea is empty but card exists, still log a minimal comment:
-             `🍅 Focus session completed (${workDuration} min)`
-         - If no card was selected, skip the comment (nothing to attach to)
-         - Then call `useFocusStore.getState().startBreak()`
-         - Show toast: `toast({ type: 'info', message: 'Break time — ${breakDuration} min' })`
-         - Close the modal
+      3. When focus mode is idle, show a subtle level indicator in the StatusBar:
+         - Left side (or right side, wherever there's space):
+         - Format: "Lv.3 Disciplined" with a mini XP bar
+         - Clicking it opens the FocusStartModal (quick access)
+         - Use focusStore.stats for level info
+         - Style: text-xs, muted when idle, emerald when focus active
+         - This gives persistent visibility to the leveling system
 
-      5. "Skip" button (secondary, text style):
-         - Skips logging, does NOT start break
-         - Sets mode to 'idle' via `useFocusStore.getState().stop()`
-         - Clears focusedCardId/focusedCardTitle
-         - Close the modal
+      4. When in active focus mode, the existing timer display continues as-is.
+         The level indicator hides during active focus (timer takes priority).
 
-      6. Add a "Save & Done" variant: if user doesn't want a break:
-         - Actually, keep it simple. Two buttons: "Skip" (idle, no log) and "Save & Break" (log + break).
-         - If user wants to skip the break, they can stop it from the StatusBar.
+      ## Dashboard Quick Action Button
 
-      ## Break Cycle
+      5. In DashboardModern hero section, add a "Focus" quick action button:
+         - Same pattern as Record, Project, Brainstorm, Idea, Standup buttons
+         - Icon: Timer (from lucide-react)
+         - Color: emerald
+         - Click: opens FocusStartModal
+         - Place it as the 6th button (after Standup)
+         - If focus mode is active, show "In Focus" with a pulse animation instead
 
-      7. When break timer ends (handled in focusStore.tick from Task 1):
-         - mode is set to 'idle'
-         - Desktop notification: "Break Over — Ready to focus again?"
-         - Toast: `toast({ type: 'info', message: 'Break complete! Ready for another session?' })`
-         - User can start a new session via Ctrl+Shift+F or sidebar button
+      ## Stats Loading
 
-      8. In StatusBar during break mode:
-         - Already handled by Task 2 (amber color, Coffee icon)
-         - The break timer counts down just like focus timer
-         - Stop button during break → immediate return to idle
-
-      ## AppShell Integration
-
-      9. In App.tsx AppShell:
-         - Import FocusCompleteModal (lazy)
-         - Read `mode` from focusStore
-         - Render FocusCompleteModal when mode === 'completed':
-           `<FocusCompleteModal isOpen={mode === 'completed'} onClose={() => useFocusStore.getState().stop()} />`
-         - The onClose (backdrop click or Escape) acts as "Skip" — returns to idle
-
-      ## focusStore Updates
-
-      10. Ensure 'completed' → 'break' transition works:
-          - When FocusCompleteModal calls startBreak(), it should work from 'completed' mode
-          - startBreak should clear the 'completed' state and begin break timer
-
-      11. Add `clearFocusedCard()` action:
-          - Sets focusedCardId and focusedCardTitle to null
-          - Called by FocusCompleteModal's "Skip" after stopping
-
-      12. Add toast import to focusStore for break-end notification:
-          - Import `toast` from useToast hook
-          - Call `toast({ type: 'info', message: 'Break complete! Ready for another session?' })`
-            at end of break timer
-          - ALTERNATIVELY: handle the toast in FocusCompleteModal or a useEffect in AppShell
-            that watches for mode transitions. The cleanest approach: add a `useEffect` in
-            AppShell that watches `mode` and shows toast when it transitions from 'break' to 'idle'.
-
-      ## Polish
-
-      13. Audio feedback (optional, skip if complex): Browser Audio API can play a short tone
-          on timer end. Skip this for now — desktop notification is sufficient.
-
-      14. Ensure the focus timer survives page navigation:
-          - Since focusStore is a Zustand global store and the interval runs in the store,
-            navigating between pages won't affect it. Verify this works.
-          - StatusBar is rendered outside Routes (in App component), so it always shows.
+      6. In AppShell (or wherever the app initializes stores), call focusStore.loadStats()
+         on startup so stats are available immediately for StatusBar and Dashboard.
+         Same pattern as loadSettings() which is already called.
     </action>
     <verify>
       1. `npx tsc --noEmit` passes with zero errors
       2. `npx vitest run` — all tests pass
-      3. Manual: Start focus on a card → wait for timer (or set to 1 min for testing) →
-         FocusCompleteModal appears with textarea
-      4. Manual: Type accomplishment note → "Save & Start Break" → card comment created →
-         break timer starts in StatusBar (amber)
-      5. Manual: Break timer ends → notification → toast → mode returns to idle → sidebar reappears
-      6. Manual: "Skip" button → no comment logged → mode returns to idle
-      7. Manual: Start focus WITHOUT card → completion modal skips card comment → break still works
-      8. Manual: Navigate between pages during focus → timer continues uninterrupted in StatusBar
-      9. Manual: Session counter increments correctly across multiple sessions
+      3. Manual: Complete a session → achievement toast appears (if new achievement unlocked)
+      4. Manual: Skip a session → session still saved to DB, stats updated
+      5. Manual: StatusBar shows "Lv.N Name" when idle, clicking opens focus modal
+      6. Manual: StatusBar hides level when focus timer is active
+      7. Manual: Dashboard hero has "Focus" button that opens FocusStartModal
+      8. Manual: Focus button shows "In Focus" pulse when session is active
+      9. Manual: Stats load on app startup (no delay on first dashboard visit)
     </verify>
     <done>
-      FocusCompleteModal prompts "What did you accomplish?" on session end.
-      Accomplishment note logged as card comment with Pomodoro emoji prefix.
-      Break timer auto-starts after saving, with amber StatusBar display.
-      Break end triggers notification + toast + return to idle.
-      Full Pomodoro cycle works: focus → complete → break → idle → repeat.
-      Timer persists across page navigation.
-      tsc clean, all tests pass.
+      Achievement toasts celebrate unlocks anywhere in the app. StatusBar shows level/XP
+      persistently. Dashboard has Focus quick action button. Skip still saves sessions.
+      Stats load on startup. tsc clean, all tests pass.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - addCardComment IPC can be called directly from modal (doesn't require cardDetailStore loading)
-        VERIFY: check if addCardComment works standalone or needs selectedCard context.
-        If cardDetailStore is needed, call its addComment action instead.
-      - 'completed' as a temporary mode state works without race conditions
-        (user interaction required to transition out of 'completed')
-      - Toast import pattern: `import { toast } from '../hooks/useToast'` (verified in other files)
+      - Toast system supports custom duration (check — may need to pass duration param)
+      - StatusBar has horizontal space for level indicator when idle
+      - 6 hero action buttons still fit in the DashboardModern layout
+      - AppShell is the right place to call loadStats (check where loadSettings is called)
     </assumptions>
   </task>
 </phase>
+</content>
