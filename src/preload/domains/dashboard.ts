@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron';
 
 export const dashboardBridge = {
-  generateStandup: () => ipcRenderer.invoke('dashboard:generate-standup'),
+  generateStandup: (projectId?: string) => ipcRenderer.invoke('dashboard:generate-standup', projectId),
   getActivityData: () => ipcRenderer.invoke('dashboard:activity-data'),
 };

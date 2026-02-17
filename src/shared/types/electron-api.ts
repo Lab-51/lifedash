@@ -245,7 +245,7 @@ export interface ElectronAPI {
   getMeetingAnalytics: (meetingId: string) => Promise<MeetingAnalytics>;
 
   // Dashboard
-  generateStandup: () => Promise<{ standup: string }>;
+  generateStandup: (projectId?: string) => Promise<{ standup: string }>;
   getActivityData: () => Promise<{ dayCounts: Record<string, number> }>;
 
   // App-level events

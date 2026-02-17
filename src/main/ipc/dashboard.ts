@@ -14,7 +14,7 @@ import { createLogger } from '../services/logger';
 const log = createLogger('Dashboard');
 
 export function registerDashboardHandlers(): void {
-  ipcMain.handle('dashboard:generate-standup', async () => {
+  ipcMain.handle('dashboard:generate-standup', async (_, projectId?: string) => {
     const db = getDb();
     const now = new Date();
     const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
@@ -40,6 +40,7 @@ export function registerDashboardHandlers(): void {
         and(
           gte(cardActivities.createdAt, twoDaysAgo),
           inArray(cardActivities.action, ['moved', 'created', 'updated']),
+          projectId ? eq(projects.id, projectId) : undefined,
         ),
       )
       .orderBy(desc(cardActivities.createdAt));
@@ -60,6 +61,7 @@ export function registerDashboardHandlers(): void {
             eq(actionItems.status, 'pending'),
             eq(actionItems.status, 'approved'),
           ),
+          projectId ? eq(meetings.projectId, projectId) : undefined,
         ),
       );
 
@@ -78,6 +80,7 @@ export function registerDashboardHandlers(): void {
         and(
           gte(cards.updatedAt, sevenDaysAgo),
           eq(cards.archived, false),
+          projectId ? eq(projects.id, projectId) : undefined,
         ),
       );
 

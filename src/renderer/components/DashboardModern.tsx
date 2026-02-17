@@ -93,17 +93,21 @@ export default function DashboardModern() {
     const [standupText, setStandupText] = useState<string | null>(null);
     const [generatingStandup, setGeneratingStandup] = useState(false);
     const [standupCopied, setStandupCopied] = useState(false);
+    const [standupPickerOpen, setStandupPickerOpen] = useState(false);
+    const [standupProjectId, setStandupProjectId] = useState<string | undefined>(undefined);
     const standupRef = useRef<HTMLDivElement>(null);
+    const standupBtnRef = useRef<HTMLButtonElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    const handleGenerateStandup = async () => {
+    const handleGenerateStandup = async (projectId?: string) => {
+        setStandupPickerOpen(false);
+        setStandupProjectId(projectId);
         setGeneratingStandup(true);
         setStandupCopied(false);
         try {
-            const result = await window.electronAPI.generateStandup();
+            const result = await window.electronAPI.generateStandup(projectId);
             setStandupText(result.standup);
             toast('Standup ready', 'success');
-            // Scroll container to top so the standup card is visible
             setTimeout(() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 100);
         } catch {
             toast('Failed to generate standup', 'error');
@@ -147,25 +151,36 @@ export default function DashboardModern() {
                             { icon: Plus, label: 'Project', path: '/projects?action=create', color: 'bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white' },
                             { icon: Brain, label: 'Brainstorm', path: '/brainstorm?action=create', color: 'bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white' },
                             { icon: Lightbulb, label: 'Idea', path: '/ideas?action=create', color: 'bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-white' },
-                            { icon: ClipboardList, label: 'Standup', path: '', color: 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white' },
                         ].map(({ icon: Icon, label, path, color }) => (
                             <button
                                 key={label}
-                                onClick={() => path ? navigate(path) : handleGenerateStandup()}
-                                disabled={!path && generatingStandup}
-                                className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-transparent hover:scale-105 hover:shadow-lg disabled:opacity-50 ${color}`}
+                                onClick={() => navigate(path)}
+                                className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-transparent hover:scale-105 hover:shadow-lg ${color}`}
                                 title={`New ${label}`}
                             >
-                                {!path && generatingStandup ? (
-                                    <Loader2 size={24} className="mb-2 animate-spin" />
-                                ) : (
-                                    <Icon size={24} className="mb-2" />
-                                )}
-                                <span className="text-xs font-semibold">
-                                    {!path && generatingStandup ? 'Loading...' : label}
-                                </span>
+                                <Icon size={24} className="mb-2" />
+                                <span className="text-xs font-semibold">{label}</span>
                             </button>
                         ))}
+                        {/* Standup button with project picker */}
+                        <div>
+                            <button
+                                ref={standupBtnRef}
+                                onClick={() => generatingStandup ? undefined : setStandupPickerOpen(o => !o)}
+                                disabled={generatingStandup}
+                                className="flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-transparent hover:scale-105 hover:shadow-lg disabled:opacity-50 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white"
+                                title="Generate Standup"
+                            >
+                                {generatingStandup ? (
+                                    <Loader2 size={24} className="mb-2 animate-spin" />
+                                ) : (
+                                    <ClipboardList size={24} className="mb-2" />
+                                )}
+                                <span className="text-xs font-semibold">
+                                    {generatingStandup ? 'Loading...' : 'Standup'}
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -180,12 +195,21 @@ export default function DashboardModern() {
                             <div className="flex items-center gap-2">
                                 <ClipboardList size={16} className="text-emerald-500" />
                                 <h3 className="font-semibold text-surface-900 dark:text-surface-100">Daily Standup</h3>
+                                {standupProjectId ? (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 font-medium">
+                                        {projects.find(p => p.id === standupProjectId)?.name || 'Project'}
+                                    </span>
+                                ) : (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface-100 dark:bg-surface-800 text-surface-500 font-medium">
+                                        All Projects
+                                    </span>
+                                )}
                             </div>
                             <div className="flex items-center gap-1">
                                 <button onClick={handleCopyStandup} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors" title="Copy to clipboard">
                                     {standupCopied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} className="text-surface-400" />}
                                 </button>
-                                <button onClick={handleGenerateStandup} disabled={generatingStandup} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors" title="Regenerate">
+                                <button onClick={() => handleGenerateStandup(standupProjectId)} disabled={generatingStandup} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors" title="Regenerate">
                                     <RefreshCw size={14} className={`text-surface-400 ${generatingStandup ? 'animate-spin' : ''}`} />
                                 </button>
                                 <button onClick={() => setStandupText(null)} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors" title="Dismiss">
@@ -340,6 +364,40 @@ export default function DashboardModern() {
 
                 </div>
             </div>
+
+            {/* Standup project picker — fixed position to escape hero overflow-hidden */}
+            {standupPickerOpen && (
+                <>
+                    <div className="fixed inset-0 z-50" onClick={() => setStandupPickerOpen(false)} />
+                    <div
+                        className="fixed z-50 w-56 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl py-1 max-h-64 overflow-y-auto"
+                        style={{
+                            top: (standupBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 8,
+                            right: window.innerWidth - (standupBtnRef.current?.getBoundingClientRect().right ?? 0),
+                        }}
+                    >
+                        <button
+                            onClick={() => handleGenerateStandup(undefined)}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-900 dark:text-surface-100 font-medium"
+                        >
+                            All Projects
+                        </button>
+                        {projects.filter(p => !p.archived).length > 0 && (
+                            <div className="border-t border-surface-100 dark:border-surface-800 my-1" />
+                        )}
+                        {projects.filter(p => !p.archived).map(p => (
+                            <button
+                                key={p.id}
+                                onClick={() => handleGenerateStandup(p.id)}
+                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors flex items-center gap-2"
+                            >
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color || '#3b82f6' }} />
+                                <span className="text-surface-700 dark:text-surface-200 truncate">{p.name}</span>
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
         </div>
     );
 }
