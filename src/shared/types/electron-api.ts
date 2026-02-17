@@ -248,6 +248,7 @@ export interface ElectronAPI {
   notificationGetPreferences: () => Promise<NotificationPreferences>;
   notificationUpdatePreferences: (prefs: Partial<NotificationPreferences>) => Promise<void>;
   notificationSendTest: () => Promise<void>;
+  notificationShow: (title: string, body: string) => Promise<void>;
 
   // Transcription Provider
   transcriptionGetConfig: () => Promise<TranscriptionProviderStatus>;

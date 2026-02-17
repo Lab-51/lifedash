@@ -8,4 +8,6 @@ export const notificationsBridge = {
   notificationUpdatePreferences: (prefs: Partial<NotificationPreferences>) =>
     ipcRenderer.invoke('notifications:update-preferences', prefs),
   notificationSendTest: () => ipcRenderer.invoke('notifications:test'),
+  notificationShow: (title: string, body: string) =>
+    ipcRenderer.invoke('notifications:show', title, body),
 };

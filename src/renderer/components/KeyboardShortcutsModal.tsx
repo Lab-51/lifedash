@@ -26,6 +26,7 @@ const SHORTCUT_GROUPS = [
     label: 'Actions',
     shortcuts: [
       { keys: 'Ctrl+K', description: 'Command Palette' },
+      { keys: 'Ctrl+Shift+F', description: 'Focus Mode' },
       { keys: 'Ctrl+Shift+Space', description: 'Quick Capture (global)' },
       { keys: 'Ctrl+?', description: 'Keyboard Shortcuts' },
       { keys: 'Esc', description: 'Close modal / overlay' },

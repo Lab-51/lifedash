@@ -23,11 +23,19 @@ function useKeyboardShortcuts(
   navigate: NavigateFunction,
   onToggleCommandPalette?: () => void,
   onToggleShortcutsHelp?: () => void,
+  onToggleFocusMode?: () => void,
 ): void {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // Require Ctrl (Windows/Linux) or Cmd (macOS)
       if (!e.ctrlKey && !e.metaKey) return;
+
+      // Ctrl+Shift+F — toggle focus mode
+      if (e.shiftKey && e.key === 'F' && onToggleFocusMode) {
+        e.preventDefault();
+        onToggleFocusMode();
+        return;
+      }
 
       // Ctrl+K / Cmd+K — toggle command palette
       if (e.key === 'k' && onToggleCommandPalette) {
@@ -55,7 +63,7 @@ function useKeyboardShortcuts(
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [navigate, onToggleCommandPalette, onToggleShortcutsHelp]);
+  }, [navigate, onToggleCommandPalette, onToggleShortcutsHelp, onToggleFocusMode]);
 }
 
 export default useKeyboardShortcuts;

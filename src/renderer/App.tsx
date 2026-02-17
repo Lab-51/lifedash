@@ -25,6 +25,7 @@ import { useMeetingStore } from './stores/meetingStore';
 import { useIdeaStore } from './stores/ideaStore';
 import { useBrainstormStore } from './stores/brainstormStore';
 import { useBoardStore } from './stores/boardStore';
+import { useFocusStore } from './stores/focusStore';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import ToastContainer from './components/ToastContainer';
@@ -66,7 +67,16 @@ function AppShell({ children }: { children: ReactNode }) {
     setShowShortcutsHelp(true);
   }, []);
 
-  useKeyboardShortcuts(navigate, toggleCommandPalette, toggleShortcutsHelp);
+  const toggleFocusMode = useCallback(() => {
+    const focusState = useFocusStore.getState();
+    if (focusState.mode === 'idle') {
+      focusState.setShowStartModal(true);
+    } else {
+      focusState.stop();
+    }
+  }, []);
+
+  useKeyboardShortcuts(navigate, toggleCommandPalette, toggleShortcutsHelp, toggleFocusMode);
   useTheme();
   // Initialize recording state listener (always active regardless of page)
   useEffect(() => {
@@ -84,6 +94,7 @@ function AppShell({ children }: { children: ReactNode }) {
       useIdeaStore.getState().loadIdeas(),
       useBrainstormStore.getState().loadSessions(),
       useBoardStore.getState().loadAllCards(),
+      useFocusStore.getState().loadSettings(),
     ]).then(() => setAppReady(true));
   }, []);
 

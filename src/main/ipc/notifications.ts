@@ -9,6 +9,7 @@ import {
   getNotificationPreferences,
   updateNotificationPreferences,
   sendTestNotification,
+  showNotification,
 } from '../services/notificationService';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { notificationPreferencesUpdateSchema } from '../../shared/validation/schemas';
@@ -25,5 +26,9 @@ export function registerNotificationHandlers(): void {
 
   ipcMain.handle('notifications:test', async () => {
     sendTestNotification();
+  });
+
+  ipcMain.handle('notifications:show', async (_event, title: string, body: string) => {
+    showNotification(title, body);
   });
 }
