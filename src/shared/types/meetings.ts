@@ -73,6 +73,7 @@ export interface Meeting {
   endedAt: string | null;
   audioPath: string | null;
   status: MeetingStatus;
+  prepBriefing: string | null;
   createdAt: string;
 }
 
@@ -97,6 +98,7 @@ export interface CreateMeetingInput {
   title: string;
   projectId?: string;
   template?: MeetingTemplateType;
+  prepBriefing?: string;
 }
 
 export interface UpdateMeetingInput {
@@ -114,6 +116,20 @@ export interface TranscriptSearchResult {
   content: string;
   startTime: number;
   speaker: string | null;
+}
+
+export interface MeetingPrepData {
+  projectName: string;
+  lastMeetingTitle: string | null;
+  lastMeetingDate: string | null;
+  cardChanges: {
+    created: { title: string; column: string }[];
+    completed: { title: string }[];
+    moved: { title: string; from: string; to: string }[];
+  };
+  pendingActions: { description: string; meetingTitle: string }[];
+  highPriorityCards: { title: string; column: string; dueDate: string | null }[];
+  aiBriefing: string;
 }
 
 /** Recording state pushed from main to renderer via events */

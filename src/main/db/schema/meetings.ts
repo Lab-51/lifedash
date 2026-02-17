@@ -24,6 +24,7 @@ export const meetings = pgTable('meetings', {
   endedAt: timestamp('ended_at', { withTimezone: true }),
   audioPath: text('audio_path'),
   status: meetingStatusEnum('status').default('recording').notNull(),
+  prepBriefing: text('prep_briefing'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

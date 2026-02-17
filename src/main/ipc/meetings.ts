@@ -8,6 +8,7 @@
 import { ipcMain } from 'electron';
 import { z } from 'zod';
 import * as meetingService from '../services/meetingService';
+import { generateMeetingPrep } from '../services/meetingPrepService';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import {
   idParamSchema,
@@ -59,5 +60,10 @@ export function registerMeetingHandlers(): void {
     const validQuery = validateInput(z.string().min(2), query);
     const validLimit = limit !== undefined ? validateInput(z.number().int().min(1).max(100), limit) : undefined;
     return meetingService.searchTranscripts(validQuery, validLimit);
+  });
+
+  ipcMain.handle('meetings:generate-prep', async (_event, projectId: unknown) => {
+    const validId = validateInput(idParamSchema, projectId);
+    return generateMeetingPrep(validId);
   });
 }

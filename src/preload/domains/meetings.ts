@@ -86,4 +86,8 @@ export const meetingsBridge = {
   // Transcript Search
   searchTranscripts: (query: string, limit?: number) =>
     ipcRenderer.invoke('meetings:search-transcripts', query, limit),
+
+  // Meeting Prep
+  meetingsGeneratePrep: (projectId: string) =>
+    ipcRenderer.invoke('meetings:generate-prep', projectId),
 };

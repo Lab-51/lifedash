@@ -21,7 +21,7 @@ import type {
 } from './ai';
 import type {
   Meeting, TranscriptSegment, TranscriptSearchResult, MeetingBrief,
-  MeetingTemplateType, RecordingState,
+  MeetingTemplateType, RecordingState, MeetingPrepData,
   CreateMeetingInput, UpdateMeetingInput,
 } from './meetings';
 import type {
@@ -182,6 +182,7 @@ export interface ElectronAPI {
   getActionItemCounts: (meetingIds: string[]) => Promise<Record<string, number>>;
   meetingsGetPendingActionCount: () => Promise<number>;
   searchTranscripts: (query: string, limit?: number) => Promise<TranscriptSearchResult[]>;
+  meetingsGeneratePrep: (projectId: string) => Promise<MeetingPrepData>;
 
   // Recording
   startRecording: (meetingId: string) => Promise<void>;
