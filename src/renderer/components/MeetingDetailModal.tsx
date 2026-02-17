@@ -8,15 +8,16 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Clock, Trash2, Info, Search, Copy, Check, ArrowRight } from 'lucide-react';
+import { X, Clock, Trash2, Info, Search, Copy, Check, ArrowRight, Download } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
+import { toast } from '../hooks/useToast';
 import BriefSection from './BriefSection';
 import ActionItemList from './ActionItemList';
 import ConvertActionModal from './ConvertActionModal';
 import MeetingAnalyticsSection from './MeetingAnalyticsSection';
 import { getSpeakerColor } from './MeetingAnalyticsSection';
-import type { ActionItem } from '../../shared/types';
+import type { ActionItem, MeetingWithTranscript } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 
 interface MeetingDetailModalProps {
@@ -59,6 +60,80 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
   const sec = totalSec % 60;
   if (min === 0) return `${sec}s`;
   return `${min}m ${sec}s`;
+}
+
+function formatTimestampHMS(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const hrs = Math.floor(totalSec / 3600).toString().padStart(2, '0');
+  const min = Math.floor((totalSec % 3600) / 60).toString().padStart(2, '0');
+  const sec = (totalSec % 60).toString().padStart(2, '0');
+  return `${hrs}:${min}:${sec}`;
+}
+
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+function formatMeetingAsMarkdown(
+  meeting: MeetingWithTranscript,
+  projectName: string | undefined,
+): string {
+  const lines: string[] = [];
+
+  lines.push(`# ${meeting.title}`);
+  lines.push('');
+
+  const dateTime = new Date(meeting.startedAt);
+  lines.push(`**Date:** ${dateTime.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${dateTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`);
+
+  if (meeting.endedAt) {
+    const ms = new Date(meeting.endedAt).getTime() - dateTime.getTime();
+    const minutes = Math.round(ms / 60000);
+    lines.push(`**Duration:** ${minutes} minute${minutes !== 1 ? 's' : ''}`);
+  }
+
+  if (meeting.template && meeting.template !== 'none') {
+    const tmpl = MEETING_TEMPLATES.find(t => t.type === meeting.template);
+    if (tmpl) lines.push(`**Template:** ${tmpl.name}`);
+  }
+
+  if (projectName) {
+    lines.push(`**Project:** ${projectName}`);
+  }
+
+  lines.push('');
+  lines.push('## Summary');
+  lines.push('');
+  lines.push(meeting.brief?.summary ?? 'No summary generated.');
+
+  lines.push('');
+  lines.push('## Action Items');
+  lines.push('');
+  if (meeting.actionItems.length === 0) {
+    lines.push('No action items.');
+  } else {
+    for (const item of meeting.actionItems) {
+      const checkbox = item.status === 'converted' ? '[x]'
+        : item.status === 'dismissed' ? '[~]'
+        : '[ ]';
+      lines.push(`- ${checkbox} ${item.description}`);
+    }
+  }
+
+  lines.push('');
+  lines.push('## Transcript');
+  lines.push('');
+  if (meeting.segments.length === 0) {
+    lines.push('No transcript available.');
+  } else {
+    for (const seg of meeting.segments) {
+      const ts = `[${formatTimestampHMS(seg.startTime)}]`;
+      const speaker = seg.speaker ? ` [${seg.speaker}]` : '';
+      lines.push(`${ts}${speaker} ${seg.content}`);
+    }
+  }
+
+  return lines.join('\n');
 }
 
 export default function MeetingDetailModal({ onClose, autoGenerate = false, initialTranscriptSearch }: MeetingDetailModalProps) {
@@ -159,6 +234,20 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
     ? projects.find((p) => p.id === meeting.projectId)
     : null;
   const linkedProjectName = linkedProject?.name ?? undefined;
+
+  const handleExport = () => {
+    const markdown = formatMeetingAsMarkdown(meeting, linkedProjectName);
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const slug = slugify(meeting.title);
+    const dateStr = new Date(meeting.startedAt).toISOString().slice(0, 10);
+    a.download = `meeting-${slug}-${dateStr}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Meeting exported as Markdown', 'success');
+  };
 
   // Title editing
   const startEditingTitle = () => {
@@ -322,12 +411,21 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                 </h2>
               )}
             </div>
-            <button
-              onClick={handleClose}
-              className="text-surface-500 hover:text-surface-300 p-1 transition-colors shrink-0"
-            >
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={handleExport}
+                className="text-surface-500 hover:text-surface-300 p-1 transition-colors"
+                title="Export as Markdown"
+              >
+                <Download size={18} />
+              </button>
+              <button
+                onClick={handleClose}
+                className="text-surface-500 hover:text-surface-300 p-1 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
 
           {/* Metadata row */}
