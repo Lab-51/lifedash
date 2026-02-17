@@ -71,13 +71,7 @@ function StatusBar() {
 
         {/* Level indicator when idle */}
         {focusMode === 'idle' && stats && (
-          <button
-            onClick={() => useFocusStore.getState().setShowStartModal(true)}
-            className="flex items-center gap-1 hover:opacity-80 transition-opacity"
-            title="Start focus session"
-          >
-            <LevelBadge level={stats.level} size="sm" />
-          </button>
+          <LevelBadge level={stats.level} size="sm" />
         )}
 
         {/* Focus / break timer */}
