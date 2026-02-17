@@ -27,4 +27,5 @@ export const settingsBridge = {
   // AI Usage
   getAIUsage: () => ipcRenderer.invoke('ai:get-usage'),
   getAIUsageSummary: () => ipcRenderer.invoke('ai:get-usage-summary'),
+  getAIUsageDaily: () => ipcRenderer.invoke('ai:get-usage-daily'),
 };

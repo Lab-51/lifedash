@@ -14,7 +14,7 @@
 // - No pagination on usage list (capped at 100 rows newest-first)
 
 import { ipcMain } from 'electron';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql, gte } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { aiProviders, aiUsage } from '../db/schema';
 import {
@@ -182,5 +182,54 @@ export function registerAIProviderHandlers(): void {
       summary.byTaskType[row.taskType].cost += row.estimatedCost ?? 0;
     }
     return summary;
+  });
+
+  // Get daily usage aggregates for last 30 days (for usage dashboard chart)
+  ipcMain.handle('ai:get-usage-daily', async () => {
+    const db = getDb();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+    thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+    const dateKey = sql<string>`to_char(${aiUsage.createdAt}, 'YYYY-MM-DD')`;
+    const rows = await db
+      .select({
+        date: dateKey,
+        tokens: sql<number>`COALESCE(SUM(${aiUsage.totalTokens}), 0)`,
+        cost: sql<number>`COALESCE(SUM(${aiUsage.estimatedCost}), 0)`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(aiUsage)
+      .where(gte(aiUsage.createdAt, thirtyDaysAgo))
+      .groupBy(dateKey)
+      .orderBy(dateKey);
+
+    // Build a map from the query results
+    const dataMap = new Map<string, { tokens: number; cost: number; count: number }>();
+    for (const row of rows) {
+      dataMap.set(row.date, {
+        tokens: Number(row.tokens),
+        cost: Number(row.cost),
+        count: Number(row.count),
+      });
+    }
+
+    // Fill in missing days for a continuous 30-day series
+    const result: Array<{ date: string; tokens: number; cost: number; count: number }> = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const entry = dataMap.get(key);
+      result.push({
+        date: key,
+        tokens: entry?.tokens ?? 0,
+        cost: entry?.cost ?? 0,
+        count: entry?.count ?? 0,
+      });
+    }
+    return result;
   });
 }

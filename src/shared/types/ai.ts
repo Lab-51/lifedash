@@ -54,6 +54,14 @@ export interface AIUsageSummary {
   byTaskType: Record<string, { tokens: number; cost: number }>;
 }
 
+/** Aggregated daily usage for the usage dashboard chart */
+export interface AIUsageDaily {
+  date: string;       // YYYY-MM-DD
+  tokens: number;
+  cost: number;
+  count: number;      // number of API calls
+}
+
 /** Per-task model configuration (stored as JSON in settings table) */
 export interface TaskModelConfig {
   providerId: string;

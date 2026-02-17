@@ -15,7 +15,7 @@ import type {
 } from './cards';
 import type {
   AIProvider, AIConnectionTestResult,
-  AIUsageEntry, AIUsageSummary,
+  AIUsageEntry, AIUsageSummary, AIUsageDaily,
   CreateAIProviderInput, UpdateAIProviderInput,
 } from './ai';
 import type {
@@ -156,6 +156,7 @@ export interface ElectronAPI {
   // AI Usage
   getAIUsage: () => Promise<AIUsageEntry[]>;
   getAIUsageSummary: () => Promise<AIUsageSummary>;
+  getAIUsageDaily: () => Promise<AIUsageDaily[]>;
 
   // Meetings
   getMeetings: () => Promise<Meeting[]>;
