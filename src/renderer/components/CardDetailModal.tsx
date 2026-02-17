@@ -7,12 +7,13 @@
 // react, lucide-react (X, Plus, FileText, Calendar), @tiptap/react, @tiptap/starter-kit,
 // @tiptap/extension-placeholder, shared types, boardStore, cardDetailStore, section components
 
-import { useState, useEffect, useRef } from 'react';
-import { X, Plus, FileText, Calendar, Sparkles, Check, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Plus, FileText, Calendar, Sparkles, Check, RefreshCw, BookmarkPlus } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { Card, UpdateCardInput, CardPriority } from '../../shared/types';
+import type { CardTemplate } from '../../shared/types/cards';
 import { useBoardStore } from '../stores/boardStore';
 import { useCardDetailStore } from '../stores/cardDetailStore';
 import { getDueDateBadge } from '../utils/date-utils';
@@ -42,7 +43,7 @@ const LABEL_COLORS = [
   '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899',
 ];
 
-interface CardTemplate {
+interface BuiltinTemplate {
   id: string;
   name: string;
   icon: string;
@@ -50,7 +51,8 @@ interface CardTemplate {
   description: string;
 }
 
-const CARD_TEMPLATES: CardTemplate[] = [
+// Built-in templates (always available, not DB-backed)
+const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
   {
     id: 'bug',
     name: 'Bug Report',
@@ -158,7 +160,9 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const templateDropdownRef = useRef<HTMLDivElement>(null);
   const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [dbTemplates, setDbTemplates] = useState<CardTemplate[]>([]);
 
+  const project = useBoardStore(s => s.project);
   const labels = useBoardStore(s => s.labels);
   const createLabel = useBoardStore(s => s.createLabel);
   const attachLabel = useBoardStore(s => s.attachLabel);
@@ -228,6 +232,22 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showTemplateDropdown]);
 
+  // Fetch DB templates when dropdown is opened
+  const fetchDbTemplates = useCallback(async () => {
+    try {
+      const templates = await window.electronAPI.getCardTemplates(project?.id);
+      setDbTemplates(templates);
+    } catch {
+      // Silently fail — built-in templates still available
+    }
+  }, [project?.id]);
+
+  useEffect(() => {
+    if (showTemplateDropdown) {
+      fetchDbTemplates();
+    }
+  }, [showTemplateDropdown, fetchDbTemplates]);
+
   // Title editing handlers
   const startEditingTitle = () => {
     setEditTitle(card.title);
@@ -258,9 +278,9 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     }
   };
 
-  // Template handler
-  const applyTemplate = (template: CardTemplate) => {
-    if (editor) {
+  // Template handler — works for both built-in and DB templates
+  const applyTemplate = (template: { description: string | null; priority: CardPriority }) => {
+    if (editor && template.description) {
       editor.commands.setContent(template.description);
       onUpdate(card.id, { description: template.description });
     }
@@ -268,6 +288,34 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
       onUpdate(card.id, { priority: template.priority });
     }
     setShowTemplateDropdown(false);
+  };
+
+  // Delete a DB template
+  const handleDeleteDbTemplate = async (templateId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await window.electronAPI.deleteCardTemplate(templateId);
+      setDbTemplates(prev => prev.filter(t => t.id !== templateId));
+      toast('Template deleted', 'success');
+    } catch {
+      toast('Failed to delete template', 'error');
+    }
+  };
+
+  // Save current card as template
+  const handleSaveAsTemplate = async () => {
+    const name = window.prompt('Template name:', card.title);
+    if (!name) return;
+    try {
+      await window.electronAPI.saveCardAsTemplate(card.id, name);
+      toast('Saved template: ' + name, 'success');
+      // Refresh if dropdown is open
+      if (showTemplateDropdown) {
+        fetchDbTemplates();
+      }
+    } catch {
+      toast('Failed to save template', 'error');
+    }
   };
 
   // AI description generation handler
@@ -366,7 +414,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
           </div>
         </div>
 
-        {/* Template selector + AI generate */}
+        {/* Template selector + Save as template + AI generate */}
         <div className="mb-5 flex items-center gap-4">
           <div className="relative" ref={templateDropdownRef}>
             <button
@@ -378,8 +426,37 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
             </button>
 
             {showTemplateDropdown && (
-              <div className="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg py-1 min-w-[200px] z-40">
-                {CARD_TEMPLATES.map(template => (
+              <div className="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg py-1 min-w-[220px] z-40">
+                {dbTemplates.length > 0 && (
+                  <>
+                    <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
+                      Your Templates
+                    </div>
+                    {dbTemplates.map(template => (
+                      <button
+                        key={template.id}
+                        onClick={() => applyTemplate(template)}
+                        className="group/tpl flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors text-left"
+                      >
+                        <span className="truncate flex-1">{template.name}</span>
+                        <span
+                          onClick={(e) => handleDeleteDbTemplate(template.id, e)}
+                          className="opacity-0 group-hover/tpl:opacity-100 text-surface-500 hover:text-red-400 transition-all shrink-0 p-0.5"
+                          title="Delete template"
+                        >
+                          <X size={12} />
+                        </span>
+                      </button>
+                    ))}
+                    <div className="border-t border-surface-700 my-1" />
+                  </>
+                )}
+                {dbTemplates.length > 0 && (
+                  <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
+                    Built-in
+                  </div>
+                )}
+                {BUILTIN_TEMPLATES.map(template => (
                   <button
                     key={template.id}
                     onClick={() => applyTemplate(template)}
@@ -392,6 +469,15 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               </div>
             )}
           </div>
+
+          <button
+            onClick={handleSaveAsTemplate}
+            className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors"
+            title="Save as template"
+          >
+            <BookmarkPlus size={14} />
+            Save as Template
+          </button>
 
           <button
             onClick={handleGenerateDescription}

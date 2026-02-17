@@ -258,6 +258,7 @@ export default function BoardPageModern() {
                         totalCardCount={hasActiveFilters ? getCardsByColumn(allCards, column.id).length : undefined}
                         isDragOver={dragOverColumnId === column.id}
                         onDragOverChange={(isOver) => handleDragOverChange(column.id, isOver)}
+                        projectId={projectId}
                         addCard={addCard}
                         updateCard={updateCard}
                         deleteCard={deleteCard}

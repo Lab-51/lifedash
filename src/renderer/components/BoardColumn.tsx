@@ -7,12 +7,31 @@
 // KanbanCard, shared types
 
 import { memo, useRef, useState, useEffect, useCallback } from 'react';
-import { Plus, X, GripVertical } from 'lucide-react';
+import { Plus, X, GripVertical, ChevronDown } from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import KanbanCard from './KanbanCard';
-import type { Card, Column, UpdateCardInput } from '../../shared/types';
+import type { Card, Column, UpdateCardInput, CardPriority } from '../../shared/types';
+import type { CardTemplate } from '../../shared/types/cards';
+import { toast } from '../hooks/useToast';
+
+/** Built-in template shape (non-DB). */
+interface BuiltinTemplate {
+  id: string;
+  name: string;
+  icon: string;
+  priority: CardPriority;
+  description: string;
+}
+
+/** Built-in templates shown in the creation dropdown. */
+const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
+  { id: 'bug', name: 'Bug Report', icon: '\u{1F41B}', priority: 'high', description: '<h2>Steps to Reproduce</h2><ol><li></li></ol><h2>Expected Behavior</h2><p></p><h2>Actual Behavior</h2><p></p>' },
+  { id: 'feature', name: 'Feature Request', icon: '\u2728', priority: 'medium', description: '<h2>User Story</h2><p>As a [user], I want [goal] so that [benefit].</p><h2>Acceptance Criteria</h2><ul><li></li></ul>' },
+  { id: 'action', name: 'Meeting Action', icon: '\u{1F4CB}', priority: 'medium', description: '<h2>Action Required</h2><p></p><h2>Assignee</h2><p></p><h2>Due Date</h2><p></p>' },
+  { id: 'note', name: 'Quick Note', icon: '\u{1F4DD}', priority: 'low', description: '<p></p>' },
+];
 
 interface BoardColumnProps {
   column: Column;
@@ -20,7 +39,8 @@ interface BoardColumnProps {
   totalCardCount?: number;
   isDragOver: boolean;
   onDragOverChange: (isOver: boolean) => void;
-  addCard: (columnId: string, title: string) => Promise<void>;
+  projectId?: string;
+  addCard: (columnId: string, title: string, priority?: CardPriority) => Promise<Card>;
   updateCard: (id: string, data: UpdateCardInput) => Promise<void>;
   deleteCard: (id: string) => Promise<void>;
   deleteColumn: (id: string) => Promise<void>;
@@ -37,6 +57,7 @@ const BoardColumn = memo(function BoardColumn({
   totalCardCount,
   isDragOver,
   onDragOverChange,
+  projectId,
   addCard,
   updateCard,
   deleteCard,
@@ -58,6 +79,13 @@ const BoardColumn = memo(function BoardColumn({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameName, setRenameName] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Template state for card creation
+  const [showCreateTemplateDropdown, setShowCreateTemplateDropdown] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<BuiltinTemplate | CardTemplate | null>(null);
+  const [dbTemplates, setDbTemplates] = useState<CardTemplate[]>([]);
+  const [hasTemplates, setHasTemplates] = useState<boolean | null>(null);
+  const createTemplateDropdownRef = useRef<HTMLDivElement>(null);
 
   // Combined drag-and-drop setup: card drop target + column drop target + column draggable
   useEffect(() => {
@@ -138,6 +166,32 @@ const BoardColumn = memo(function BoardColumn({
     if (isRenaming) renameInputRef.current?.focus();
   }, [isRenaming]);
 
+  // Check if any templates exist (to show/hide "From template" link)
+  useEffect(() => {
+    if (!addingCard) return;
+    (async () => {
+      try {
+        const templates = await window.electronAPI.getCardTemplates(projectId);
+        setDbTemplates(templates);
+        setHasTemplates(templates.length > 0 || BUILTIN_TEMPLATES.length > 0);
+      } catch {
+        setHasTemplates(BUILTIN_TEMPLATES.length > 0);
+      }
+    })();
+  }, [addingCard, projectId]);
+
+  // Close create-template dropdown on outside click
+  useEffect(() => {
+    if (!showCreateTemplateDropdown) return;
+    const handleClick = (e: MouseEvent) => {
+      if (createTemplateDropdownRef.current && !createTemplateDropdownRef.current.contains(e.target as Node)) {
+        setShowCreateTemplateDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showCreateTemplateDropdown]);
+
   const handleRenameSave = useCallback(async () => {
     const trimmed = renameName.trim();
     if (trimmed && trimmed !== column.name) {
@@ -149,8 +203,18 @@ const BoardColumn = memo(function BoardColumn({
   const handleAddCard = async () => {
     const title = newCardTitle.trim();
     if (!title) return;
-    await addCard(column.id, title);
+    const priority = selectedTemplate?.priority;
+    const newCard = await addCard(column.id, title, priority);
+    // Apply template description if selected
+    if (selectedTemplate && selectedTemplate.description) {
+      try {
+        await updateCard(newCard.id, { description: selectedTemplate.description });
+      } catch {
+        toast('Card created but template description failed to apply', 'error');
+      }
+    }
     setNewCardTitle('');
+    setSelectedTemplate(null);
     // Keep form open for rapid entry
   };
 
@@ -270,6 +334,69 @@ const BoardColumn = memo(function BoardColumn({
               placeholder="Card title..."
               className="bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 w-full"
             />
+
+            {/* Template selector for card creation */}
+            {hasTemplates && (
+              <div className="relative" ref={createTemplateDropdownRef}>
+                <button
+                  className="text-xs text-surface-400 hover:text-surface-300 mt-0.5 inline-flex items-center gap-1"
+                  onClick={() => setShowCreateTemplateDropdown(!showCreateTemplateDropdown)}
+                >
+                  From template <ChevronDown size={10} />
+                </button>
+
+                {showCreateTemplateDropdown && (
+                  <div className="absolute bottom-full left-0 mb-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg py-1 min-w-[200px] z-40 max-h-48 overflow-y-auto">
+                    {dbTemplates.length > 0 && (
+                      <>
+                        <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
+                          Your Templates
+                        </div>
+                        {dbTemplates.map(t => (
+                          <button
+                            key={t.id}
+                            onClick={() => { setSelectedTemplate(t); setShowCreateTemplateDropdown(false); }}
+                            className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors text-left"
+                          >
+                            <span className="truncate">{t.name}</span>
+                          </button>
+                        ))}
+                        <div className="border-t border-surface-700 my-1" />
+                      </>
+                    )}
+                    {dbTemplates.length > 0 && (
+                      <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
+                        Built-in
+                      </div>
+                    )}
+                    {BUILTIN_TEMPLATES.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => { setSelectedTemplate(t); setShowCreateTemplateDropdown(false); }}
+                        className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors text-left"
+                      >
+                        <span>{t.icon}</span>
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Selected template badge */}
+            {selectedTemplate && (
+              <div className="flex items-center gap-1 text-xs text-blue-400 mt-0.5">
+                <span>Using: {selectedTemplate.name}</span>
+                <button
+                  onClick={() => setSelectedTemplate(null)}
+                  className="text-surface-500 hover:text-surface-300"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handleAddCard()}
@@ -280,6 +407,8 @@ const BoardColumn = memo(function BoardColumn({
               <button
                 onClick={() => {
                   setNewCardTitle('');
+                  setSelectedTemplate(null);
+                  setShowCreateTemplateDropdown(false);
                   setAddingCard(false);
                 }}
                 className="text-surface-500 hover:text-surface-300 text-xs transition-colors"

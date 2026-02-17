@@ -54,7 +54,7 @@ interface BoardStore {
   updateColumn: (id: string, data: UpdateColumnInput) => Promise<void>;
   deleteColumn: (id: string) => Promise<void>;
   reorderColumns: (columnIds: string[]) => Promise<void>;
-  addCard: (columnId: string, title: string, priority?: Card['priority']) => Promise<void>;
+  addCard: (columnId: string, title: string, priority?: Card['priority']) => Promise<Card>;
   updateCard: (id: string, data: UpdateCardInput) => Promise<void>;
   deleteCard: (id: string) => Promise<void>;
   removeCardFromUI: (cardId: string) => void;
@@ -167,6 +167,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     const input: CreateCardInput = { columnId, title, priority };
     const card = await window.electronAPI.createCard(input);
     set({ cards: [...get().cards, card] });
+    return card;
   },
 
   updateCard: async (id: string, data: UpdateCardInput) => {
