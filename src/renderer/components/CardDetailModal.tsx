@@ -8,7 +8,7 @@
 // @tiptap/extension-placeholder, shared types, boardStore, cardDetailStore, section components
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Plus, FileText, Calendar, Sparkles, Check } from 'lucide-react';
+import { X, Plus, FileText, Calendar, Sparkles, Check, RefreshCw } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -105,6 +105,36 @@ function formatRelativeTime(isoDate: string): string {
   if (days === 1) return 'yesterday';
   if (days < 30) return `${days}d ago`;
   return `${Math.floor(days / 30)}mo ago`;
+}
+
+/** Calculate the next recurrence date from a due date and recurrence type. */
+function getNextRecurrenceDate(dueDate: string, recurrenceType: string): Date {
+  const d = new Date(dueDate);
+  switch (recurrenceType) {
+    case 'daily':
+      d.setDate(d.getDate() + 1);
+      break;
+    case 'weekly':
+      d.setDate(d.getDate() + 7);
+      break;
+    case 'biweekly':
+      d.setDate(d.getDate() + 14);
+      break;
+    case 'monthly':
+      d.setMonth(d.getMonth() + 1);
+      break;
+  }
+  return d;
+}
+
+/** Format a Date as a friendly string like "Wed, Feb 25, 2026". */
+function formatNextDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 /** Convert ISO string to datetime-local input value (YYYY-MM-DDTHH:mm) */
@@ -532,6 +562,66 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               </>
             )}
           </div>
+        </div>
+
+        {/* Repeat / Recurrence */}
+        <div className="mb-5">
+          <span className="text-sm text-surface-400 flex items-center gap-1.5 mb-2">
+            <RefreshCw size={14} />
+            Repeat
+          </span>
+          <select
+            value={card.recurrenceType ?? ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              onUpdate(card.id, { recurrenceType: val || null });
+            }}
+            className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-100 focus:outline-none focus:border-primary-500 [color-scheme:dark]"
+          >
+            <option value="">None</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Bi-weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+
+          {/* Next date preview */}
+          {card.recurrenceType && card.dueDate && (
+            <p className="text-xs text-surface-400 mt-2">
+              Next: {formatNextDate(getNextRecurrenceDate(card.dueDate, card.recurrenceType))}
+            </p>
+          )}
+          {card.recurrenceType && !card.dueDate && (
+            <p className="text-xs text-amber-400 mt-2">
+              Set a due date for auto-scheduling
+            </p>
+          )}
+
+          {/* End repeat date */}
+          {card.recurrenceType && (
+            <div className="flex items-center gap-3 mt-3">
+              <span className="text-xs text-surface-500">End repeat:</span>
+              <input
+                type="datetime-local"
+                value={card.recurrenceEndDate ? toDateTimeLocalValue(card.recurrenceEndDate) : ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  onUpdate(card.id, {
+                    recurrenceEndDate: val ? new Date(val).toISOString() : null,
+                  });
+                }}
+                className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-100 focus:outline-none focus:border-primary-500 [color-scheme:dark]"
+              />
+              {card.recurrenceEndDate && (
+                <button
+                  onClick={() => onUpdate(card.id, { recurrenceEndDate: null })}
+                  className="text-xs text-surface-500 hover:text-surface-300 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Card Details: Comments, Relationships, Activity */}

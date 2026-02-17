@@ -9,6 +9,7 @@
 // zustand, shared types, window.electronAPI (preload bridge)
 
 import { create } from 'zustand';
+import { toast } from '../hooks/useToast';
 import type {
   Project,
   Board,
@@ -173,6 +174,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     let newCards = get().cards.map(c => (c.id === id ? { ...c, ...updated } : c));
     if (spawnedCard) {
       newCards = [...newCards, spawnedCard as Card];
+      toast(`Recurring card created: ${spawnedCard.title}`, 'success');
     }
     set({ cards: newCards });
   },

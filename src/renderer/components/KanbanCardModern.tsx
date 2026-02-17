@@ -2,7 +2,7 @@
 // KanbanCard Modern — renders a single card in a Kanban column with modern styling.
 
 import { memo, useState, useRef, useEffect } from 'react';
-import { Pencil, Trash2, Clock, Link2, AlertCircle, Check } from 'lucide-react';
+import { Pencil, Trash2, Clock, Link2, AlertCircle, Check, RefreshCw } from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -244,6 +244,13 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
                         <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border ${getDueDateBadge(card.dueDate).classes.replace('text-', 'text-').replace('bg-', 'bg-').replace('/10', '/20')}`}>
                             <Clock size={10} />
                             {new Date(card.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </span>
+                    )}
+
+                    {/* Recurring badge */}
+                    {card.recurrenceType && (
+                        <span className="flex items-center gap-1 text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md" title={`Repeats ${card.recurrenceType}`}>
+                            <RefreshCw size={10} />
                         </span>
                     )}
 
