@@ -20,12 +20,14 @@ import {
     RefreshCw,
     X,
     Loader2,
+    Timer,
 } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useIdeaStore } from '../stores/ideaStore';
 import { useBoardStore } from '../stores/boardStore';
 import { toast } from '../hooks/useToast';
+import { useFocusStore } from '../stores/focusStore';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ProductivityPulse from './ProductivityPulse';
@@ -69,6 +71,7 @@ export default function DashboardModern() {
     const meetings = useMeetingStore(s => s.meetings);
     const ideas = useIdeaStore(s => s.ideas);
     const allCards = useBoardStore(s => s.allCards);
+    const focusMode = useFocusStore(s => s.mode);
 
     const activeProjects = useMemo(
         () => projects.filter(p => !p.archived).slice(0, MAX_PROJECTS),
@@ -163,6 +166,26 @@ export default function DashboardModern() {
                                 <span className="text-xs font-semibold">{label}</span>
                             </button>
                         ))}
+                        {/* Focus button */}
+                        <button
+                            onClick={() => {
+                                const focusState = useFocusStore.getState();
+                                if (focusState.mode === 'idle') {
+                                    focusState.setShowStartModal(true);
+                                }
+                            }}
+                            className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-transparent hover:scale-105 hover:shadow-lg ${
+                                focusMode === 'focus' || focusMode === 'break'
+                                    ? 'bg-emerald-500 text-white animate-pulse'
+                                    : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white'
+                            }`}
+                            title={focusMode === 'idle' ? 'Start Focus Session' : 'In Focus'}
+                        >
+                            <Timer size={24} className="mb-2" />
+                            <span className="text-xs font-semibold">
+                                {focusMode === 'focus' || focusMode === 'break' ? 'In Focus' : 'Focus'}
+                            </span>
+                        </button>
                         {/* Standup button with project picker */}
                         <div>
                             <button

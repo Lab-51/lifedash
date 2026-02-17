@@ -57,7 +57,23 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    try {
+      const { newAchievements: earned } = await useFocusStore.getState().saveSession({
+        cardId: focusedCardId || undefined,
+        durationMinutes: workDuration,
+      });
+      // Toast achievements even on skip
+      if (earned.length > 0) {
+        earned.forEach((a, i) => {
+          setTimeout(() => {
+            toast(`Achievement Unlocked: ${a.name} — ${a.description}`, 'success', undefined, 5000);
+          }, i * 500);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save session on skip:', error);
+    }
     useFocusStore.getState().stop();
     useFocusStore.getState().clearFocusedCard();
     onClose();
@@ -96,6 +112,15 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
       setRewardStats(useFocusStore.getState().stats);
       setNewAchievements(earned);
       setShowReward(true);
+
+      // Toast each new achievement with staggered timing
+      if (earned.length > 0) {
+        earned.forEach((a, i) => {
+          setTimeout(() => {
+            toast(`Achievement Unlocked: ${a.name} — ${a.description}`, 'success', undefined, 5000);
+          }, i * 500);
+        });
+      }
 
       // Auto-transition to break after 2 seconds
       setTimeout(() => {

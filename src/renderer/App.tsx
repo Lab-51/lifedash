@@ -100,6 +100,7 @@ function AppShell({ children }: { children: ReactNode }) {
       useBrainstormStore.getState().loadSessions(),
       useBoardStore.getState().loadAllCards(),
       useFocusStore.getState().loadSettings(),
+      useFocusStore.getState().loadStats(),
     ]).then(() => setAppReady(true));
   }, []);
 

@@ -37,6 +37,7 @@ function StatusBar() {
   const timeRemaining = useFocusStore(s => s.timeRemaining);
   const isPaused = useFocusStore(s => s.isPaused);
   const focusedCardTitle = useFocusStore(s => s.focusedCardTitle);
+  const stats = useFocusStore(s => s.stats);
 
   useEffect(() => {
     const load = useMeetingStore.getState().loadPendingActionCount;
@@ -64,6 +65,18 @@ function StatusBar() {
           <span className="text-amber-400/80">
             {pendingActionCount} pending action{pendingActionCount !== 1 ? 's' : ''}
           </span>
+        )}
+
+        {/* Level indicator when idle */}
+        {focusMode === 'idle' && stats && (
+          <button
+            onClick={() => useFocusStore.getState().setShowStartModal(true)}
+            className="flex items-center gap-1 text-surface-500 hover:text-emerald-400 transition-colors"
+            title="Start focus session"
+          >
+            <Timer size={12} />
+            <span>Lv.{stats.level} {stats.levelName}</span>
+          </button>
         )}
 
         {/* Focus / break timer */}
