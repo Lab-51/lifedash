@@ -2,32 +2,45 @@
 
 ## Session Info
 Last updated: 2026-02-17
-Session focus: Productivity Pulse bug fixes (live updates, streak cap, timezone)
-Checkpoint reason: All fixes committed and pushed
+Session focus: Plan B.2 — Search & Intelligence
+Checkpoint reason: Plan B.2 COMPLETE (3/3 tasks)
 
 ## Position
-Milestone: v1.7.0 — post Plan B.1, ad-hoc fixes and polish
-Latest commit: 0405918 (fix: productivity pulse live updates, streak cap, and timezone alignment)
+Milestone: v1.7.0 — Phase B: Search & Intelligence
+Latest commit: 50e9010 (feat: AI usage dashboard with visual bar chart and breakdowns)
 Version: 1.7.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
-SELF-IMPROVE-NEW.md: 27 proposals, 6 implemented (Phase A: 5/5, Phase B started: 1/?)
+SELF-IMPROVE-NEW.md: 27 proposals, 9 implemented (Phase A: 5/5, Phase B: 4/4 — splash + 3 features)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
+Plan B.2: COMPLETE (3/3 tasks)
 
 ## Ad-hoc Changes This Session
-- Fix: Productivity Pulse live updates — activity data re-fetches when
-  cards/meetings/ideas arrays change instead of only on mount (0405918)
-- Fix: Streak artificially capped at ~90 days — IPC query extended from
-  90 → 365 days so calculateStreak() has full year of data (0405918)
-- Fix: Timezone mismatch for UTC+ users — replaced toISOString().split('T')[0]
-  with local date formatting (getFullYear/getMonth/getDate) in both IPC handler
-  and ProductivityPulse component (0405918)
+- Feat: Project-scoped standup generation (a6779fe)
+  - Standup button opens fixed-position picker dropdown with "All Projects" + each active project
+  - IPC handler accepts optional `projectId` — filters activities, action items, and active cards
+
+## Plan B.2 Results
+- Task 1: Global Transcript Search in CommandPalette (3d417e7)
+  - `meetings:search-transcripts` IPC with ILIKE + join through meetings table
+  - CommandPalette "Transcripts" category with 300ms debounce (3+ chars)
+  - Click navigates to meeting with transcriptSearch param pre-populated
+  - MeetingDetailModal auto-seeds search from URL param
+- Task 2: Meeting Export as Markdown (e62da47)
+  - Download button in MeetingDetailModal header
+  - Formatted .md with title, metadata, summary, action items (checkboxes), transcript (HH:MM:SS)
+  - Browser Blob+download pattern (same as CSV export)
+- Task 3: AI Usage Dashboard with Visual Charts (50e9010)
+  - New `ai:get-usage-daily` IPC groups by date, fills 30-day series
+  - Summary cards: tokens (compact notation), cost, API calls
+  - 30-day vertical bar chart (pure CSS, hover tooltips)
+  - Task type + model breakdowns with color-coded horizontal progress bars
 
 ## Resume Context
-Next action: SELF-IMPROVE-NEW.md Phase B continued or user-directed work
-Prerequisites: None — all clean, pushed to remote
+Next action: SELF-IMPROVE-NEW.md Phase C or user-directed work
+Prerequisites: None — all clean, ready to push
 
 ## Plan B.1 Results
 - Task 1: CSS splash screen in index.html (cbc4d23)
