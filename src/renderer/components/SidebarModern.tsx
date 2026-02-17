@@ -12,9 +12,11 @@ import {
     Sun,
     Moon,
     Monitor,
+    Timer,
 } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useTheme } from '../hooks/useTheme';
+import { useFocusStore } from '../stores/focusStore';
 
 import type { ThemeMode } from '../hooks/useTheme';
 import RecordingIndicator from './RecordingIndicator';
@@ -58,6 +60,7 @@ const THEME_LABELS: Record<ThemeMode, string> = {
 export default function SidebarModern() {
     const location = useLocation();
     const { themeMode, setTheme } = useTheme();
+    const focusMode = useFocusStore(s => s.mode);
 
     const cycleTheme = () => {
         const idx = THEME_CYCLE.indexOf(themeMode);
@@ -107,6 +110,24 @@ export default function SidebarModern() {
 
                 {/* Recording Visualizer */}
                 <RecordingIndicator />
+
+                {/* Focus Mode Toggle */}
+                <button
+                    onClick={() => {
+                        if (focusMode === 'idle') {
+                            useFocusStore.getState().setShowStartModal(true);
+                        } else {
+                            useFocusStore.getState().stop();
+                        }
+                    }}
+                    title={focusMode === 'idle' ? 'Focus Mode (Ctrl+Shift+F)' : 'Stop Focus Session'}
+                    className="w-12 h-12 rounded-xl flex items-center justify-center text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800 transition-all hover:scale-105 active:scale-95"
+                >
+                    <Timer
+                        size={20}
+                        className={focusMode !== 'idle' ? 'animate-pulse text-emerald-400' : undefined}
+                    />
+                </button>
 
                 {/* Theme Toggle */}
                 <button

@@ -10,7 +10,7 @@
 // react (lazy), react-router-dom (HashRouter, Routes, Route, useNavigate),
 // TitleBar, AppLayout, StatusBar, useKeyboardShortcuts, lazy page components
 
-import { lazy, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import TitleBar from './components/TitleBar';
@@ -38,6 +38,7 @@ const BrainstormPage = lazy(() => import('./pages/BrainstormPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const BoardPage = lazy(() => import('./pages/BoardPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const FocusStartModal = lazy(() => import('./components/FocusStartModal'));
 
 /** Wrapper that lives inside HashRouter to enable useNavigate for shortcuts */
 function AppShell({ children }: { children: ReactNode }) {
@@ -45,6 +46,7 @@ function AppShell({ children }: { children: ReactNode }) {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [appReady, setAppReady] = useState(false);
+  const showStartModal = useFocusStore(s => s.showStartModal);
 
   const toggleCommandPalette = useCallback(() => {
     setShowCommandPalette(prev => !prev);
@@ -128,6 +130,12 @@ function AppShell({ children }: { children: ReactNode }) {
         isOpen={showShortcutsHelp}
         onClose={closeShortcutsHelp}
       />
+      <Suspense fallback={null}>
+        <FocusStartModal
+          isOpen={showStartModal}
+          onClose={() => useFocusStore.getState().setShowStartModal(false)}
+        />
+      </Suspense>
       {appReady && children}
     </>
   );
