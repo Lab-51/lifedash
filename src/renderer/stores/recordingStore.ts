@@ -24,9 +24,11 @@ interface RecordingStore {
   error: string | null;
   starting: boolean;
   includeMic: boolean;
+  prepBriefing: string | null;
 
   // Actions
   setIncludeMic: (value: boolean) => void;
+  setPrepBriefing: (text: string | null) => void;
   startRecording: (title: string, projectId?: string, template?: MeetingTemplateType) => Promise<void>;
   stopRecording: () => Promise<void>;
   clearCompletedMeetingId: () => void;
@@ -43,8 +45,10 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   error: null,
   starting: false,
   includeMic: true,
+  prepBriefing: null,
 
   setIncludeMic: (value: boolean) => set({ includeMic: value }),
+  setPrepBriefing: (text: string | null) => set({ prepBriefing: text }),
 
   startRecording: async (title: string, projectId?: string, template?: MeetingTemplateType) => {
     set({ starting: true, error: null });
@@ -54,6 +58,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         title,
         projectId,
         template: template ?? 'none',
+        prepBriefing: get().prepBriefing ?? undefined,
       });
 
       // Step 2: Tell main process to start recording
@@ -79,6 +84,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         meetingId: meeting.id,
         elapsed: 0,
         starting: false,
+        prepBriefing: null,
       });
     } catch (error) {
       // Clean up if anything failed

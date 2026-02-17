@@ -14,6 +14,7 @@ import { useProjectStore } from '../stores/projectStore';
 import { onAudioLevel } from '../services/audioCaptureService';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
+import MeetingPrepSection from './MeetingPrepSection';
 
 /** Generate a default meeting title with the current date and time. */
 function suggestMeetingTitle(): string {
@@ -284,6 +285,9 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
                 <div key={i}>{'\u2022'} {item}</div>
               ))}
             </div>
+          )}
+          {selectedProjectId && (
+            <MeetingPrepSection projectId={selectedProjectId} />
           )}
           <button
             type="button"
