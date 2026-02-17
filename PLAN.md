@@ -1,395 +1,522 @@
-# Plan C.2 — Recurring Cards + DB-backed Card Templates
+# Plan C.3 — Focus Mode / Pomodoro Timer
 
-<phase n="C.2" name="Recurring Cards + DB-backed Card Templates">
+<phase n="C.3" name="Focus Mode / Pomodoro Timer">
   <context>
-    Phase C: Task Management Power, features F8 (Recurring Cards) and F12 (Card Templates).
-    Plan C.1 (Card Checklists) is COMPLETE.
+    Phase C: Task Management Power, feature E2 (Focus Mode / Pomodoro Timer).
+    Plans C.1 (Card Checklists) and C.2 (Recurring Cards + Card Templates) are COMPLETE.
 
     Current state:
-    - Cards schema in src/main/db/schema/cards.ts has: id, columnId, title, description, position,
-      priority, dueDate, completed, archived, createdAt, updatedAt
-    - Card has a `completed` boolean — toggled via checkbox in CardDetailModal (line 483-503)
-    - No recurrence columns exist on cards
-    - "Apply Template" in CardDetailModal (lines 339-375) uses hardcoded CARD_TEMPLATES constant
-      (5 built-in templates: bug, feature, action, note, research)
-    - No card_templates DB table exists
-    - Latest migration is 0009 (card_checklist_items)
-    - Card update IPC: cards:update in src/main/ipc/cards.ts
-    - Preload bridge pattern: domain-specific files in src/preload/domains/
-    - ElectronAPI types in src/shared/types/electron-api.ts
-    - Zod schemas in src/shared/validation/schemas.ts
-    - Toast system: useToastStore + toast() function
+    - StatusBar: src/renderer/components/StatusBar.tsx — h-6 bar, left=DB status, right=pending actions + "Ctrl+K: Commands"
+    - SidebarModern: src/renderer/components/SidebarModern.tsx — w-20 icon-nav, no collapse mechanism
+    - AppLayout: src/renderer/components/AppLayout.tsx — flex row: Sidebar + main (Outlet)
+    - AppShell in App.tsx: manages CommandPalette + KeyboardShortcutsModal toggle state
+    - useKeyboardShortcuts: Ctrl+1-6 nav, Ctrl+K palette, Ctrl+? shortcuts help
+    - KeyboardShortcutsModal: 3 groups (Navigation, Actions, Page Shortcuts)
+    - Zustand stores in src/renderer/stores/ (boardStore, cardDetailStore, settingsStore, etc.)
+    - settingsStore: key-value via setSetting/getSetting IPC — no new IPC needed for preferences
+    - notificationService: showNotification(title, body) exists in main process
+    - notifications IPC: get-preferences, update-preferences, test — but NO generic "show" handler
+    - notificationsBridge: notificationSendTest available in renderer
+    - Card comments: addCardComment({ cardId, content }) via cardDetailStore + IPC
+    - allCards: useBoardStore(s => s.allCards) — AllCardsItem[] with id, title, projectId, etc.
+    - Toast: useToastStore + toast() for in-app notifications
+    - Main process global shortcuts: globalShortcut.register in main.ts
 
     Design decisions:
-    - Recurrence triggers on `completed = true` (not "done column" detection).
-      Avoids needing isDoneColumn on columns table. Clear, predictable trigger point.
-    - varchar for recurrenceType (not enum) — simpler migrations for future values.
-    - Card templates: DB-backed table + keep 5 built-in templates as hardcoded fallback.
-    - Label matching in templates by name (best-effort, skip missing labels).
+    - Timer runs client-side via setInterval (no IPC for countdown — pure renderer logic).
+    - Focus store as new Zustand store (focusStore.ts) — same pattern as all other stores.
+    - Sidebar hides during focus mode (conditional render in AppLayout, reading focusStore).
+    - Session-end logs as card comment (existing IPC, no new table — keeps it simple).
+    - Desktop notification for timer end via new notifications:show IPC handler.
+    - Settings stored in existing key-value table: pomodoro.workDuration, pomodoro.breakDuration.
+    - No dedicated focus_sessions DB table (card comments serve as log; table can be added later).
+    - Ctrl+Shift+F triggers focus mode (not registered as globalShortcut — renderer-only,
+      so it only works when the app is focused, which is fine).
 
     @PROJECT.md @STATE.md @SELF-IMPROVE-NEW.md
-    @src/main/db/schema/cards.ts
-    @src/main/ipc/cards.ts
-    @src/renderer/components/CardDetailModal.tsx
-    @src/renderer/components/KanbanCard.tsx
-    @src/renderer/stores/boardStore.ts
-    @src/shared/types/projects.ts
-    @src/shared/types/cards.ts
+    @src/renderer/components/StatusBar.tsx
+    @src/renderer/components/SidebarModern.tsx
+    @src/renderer/components/AppLayout.tsx
+    @src/renderer/App.tsx (AppShell)
+    @src/renderer/hooks/useKeyboardShortcuts.ts
+    @src/renderer/components/KeyboardShortcutsModal.tsx
+    @src/renderer/stores/boardStore.ts (allCards pattern)
+    @src/renderer/stores/cardDetailStore.ts (addComment)
+    @src/renderer/stores/settingsStore.ts
+    @src/main/ipc/notifications.ts
+    @src/main/services/notificationService.ts
+    @src/preload/domains/notifications.ts
     @src/shared/types/electron-api.ts
-    @src/shared/validation/schemas.ts
-    @src/preload/domains/card-details.ts
-    @src/preload/domains/projects.ts
   </context>
 
   <task type="auto" n="1">
-    <n>Schema + migration + IPC handlers for recurring cards and card templates</n>
+    <n>Focus Store + notifications:show IPC + keyboard shortcut wiring</n>
     <files>
-      src/main/db/schema/cards.ts
-      src/shared/types/projects.ts
-      src/shared/types/cards.ts
+      src/renderer/stores/focusStore.ts (new)
+      src/main/ipc/notifications.ts
+      src/preload/domains/notifications.ts
       src/shared/types/electron-api.ts
-      src/shared/validation/schemas.ts
-      src/preload/domains/card-details.ts
-      src/main/ipc/cards.ts
-      drizzle/ (generated migration 0010)
+      src/renderer/hooks/useKeyboardShortcuts.ts
+      src/renderer/components/KeyboardShortcutsModal.tsx
     </files>
     <action>
-      ## Recurring Cards — Schema Changes
+      **WHY:** The focus mode needs a core timer engine before any UI can display it. This task
+      creates the Zustand store with full timer logic, wires up the notification IPC for timer-end
+      alerts, and registers the keyboard shortcut so the feature has a trigger.
 
-      **WHY:** Cards need recurrence metadata so the system can auto-create the next occurrence
-      when a recurring card is marked complete. Triggering on `completed = true` is simpler and
-      more reliable than "done column" detection (avoids needing isDoneColumn on columns table).
+      ## Focus Store (src/renderer/stores/focusStore.ts)
 
-      1. Add columns to `cards` table in src/main/db/schema/cards.ts:
-         - `recurrenceType` — varchar('recurrence_type', { length: 20 }), nullable.
-           Values: 'daily' | 'weekly' | 'biweekly' | 'monthly' | null (no recurrence).
-         - `recurrenceEndDate` — timestamp('recurrence_end_date', { withTimezone: true }), nullable.
-           If set, stop generating new occurrences after this date.
-         - `sourceRecurringId` — uuid('source_recurring_id'), nullable.
-           Points to the original recurring card that spawned this one (for lineage tracking).
-           Do NOT add a FK constraint (self-referencing FKs with cascade can be tricky).
+      1. Create a new Zustand store following the existing pattern (see boardStore, settingsStore):
 
-      2. Add recurrence fields to Card interface in src/shared/types/projects.ts:
-         - `recurrenceType?: string | null;`
-         - `recurrenceEndDate?: string | null;`
-         - `sourceRecurringId?: string | null;`
-
-      3. Add to UpdateCardInput in src/shared/types/projects.ts:
-         - `recurrenceType?: string | null;`
-         - `recurrenceEndDate?: string | null;`
-
-      4. Update `updateCardInputSchema` in src/shared/validation/schemas.ts:
-         - `recurrenceType: z.enum(['daily','weekly','biweekly','monthly']).nullable().optional()`
-         - `recurrenceEndDate: z.string().nullable().optional()`
-
-      ## Card Templates — Schema
-
-      5. Create `cardTemplates` table in src/main/db/schema/cards.ts:
          ```ts
-         export const cardTemplates = pgTable('card_templates', {
-           id:          uuid('id').defaultRandom().primaryKey(),
-           projectId:   uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
-           name:        varchar('name', { length: 200 }).notNull(),
-           description: text('description'),
-           priority:    cardPriorityEnum('priority').default('medium').notNull(),
-           labelNames:  text('label_names'),  // JSON array of label name strings
-           createdAt:   timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-           updatedAt:   timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-         });
-         ```
-         Import `projects` from the boards schema file for the FK reference.
+         interface FocusState {
+           // State
+           mode: 'idle' | 'focus' | 'break';
+           timeRemaining: number;       // seconds
+           focusedCardId: string | null;
+           focusedCardTitle: string | null;
+           workDuration: number;         // minutes (default 25)
+           breakDuration: number;        // minutes (default 5)
+           sessionCount: number;         // completed focus sessions this app run
+           isPaused: boolean;
+           intervalId: ReturnType<typeof setInterval> | null;
 
-      6. Add CardTemplate type to src/shared/types/cards.ts:
-         ```ts
-         export interface CardTemplate {
-           id: string;
-           projectId: string | null;
-           name: string;
-           description: string | null;
-           priority: CardPriority;
-           labelNames: string[] | null;
-           createdAt: string;
-           updatedAt: string;
+           // Actions
+           startFocus: (cardId: string | null, cardTitle: string | null) => void;
+           startBreak: () => void;
+           pause: () => void;
+           resume: () => void;
+           stop: () => void;
+           tick: () => void;
+           setDurations: (work: number, breakMins: number) => void;
+           loadSettings: () => Promise<void>;
          }
          ```
-         Import CardPriority from projects.ts if needed.
 
-      7. Add Zod schemas in src/shared/validation/schemas.ts:
-         ```ts
-         export const createCardTemplateSchema = z.object({
-           projectId: uuid.nullable().optional(),
-           name: z.string().min(1).max(200),
-           description: z.string().max(5000).nullable().optional(),
-           priority: cardPrioritySchema.optional(),
-           labelNames: z.array(z.string().max(100)).max(20).nullable().optional(),
-         });
-         ```
+      2. `startFocus(cardId, cardTitle)`:
+         - Set mode='focus', focusedCardId, focusedCardTitle
+         - Set timeRemaining = workDuration * 60
+         - Set isPaused=false
+         - Clear any existing intervalId, then start new setInterval calling `tick()` every 1000ms
+         - Store the intervalId in state
 
-      ## Recurring Cards — Auto-Spawn Logic
+      3. `startBreak()`:
+         - Set mode='break', timeRemaining = breakDuration * 60, isPaused=false
+         - Start interval (same pattern as startFocus)
 
-      8. Create utility function `spawnRecurringCard` in src/main/ipc/cards.ts:
-         - Input: the completed card's full data (including recurrenceType, dueDate, etc.)
-         - Calculate next due date based on recurrenceType:
-           daily → +1 day, weekly → +7 days, biweekly → +14 days, monthly → +1 month (use Date)
-         - If recurrenceEndDate is set and next date exceeds it → return null (no spawn)
-         - If original card had no dueDate → spawn with no dueDate (recurrence still works, just unscheduled)
-         - Create new card in the SAME column with:
-           title (same), description (same), priority (same), recurrenceType (same),
-           recurrenceEndDate (same), sourceRecurringId (point to completed card's id),
-           dueDate (calculated next date or null), completed: false, position: 0 (top of column)
-         - Does NOT copy: checklist items, comments, relationships, attachments
-         - Return the newly created card (or null)
+      4. `pause()`: Set isPaused=true, clear interval
+      5. `resume()`: Set isPaused=false, restart interval
 
-      9. Hook spawn logic into `cards:update` IPC handler:
-         - BEFORE the update: fetch the card's current `completed` value from DB
-         - After update: if completed changed from false → true AND card has recurrenceType,
-           call spawnRecurringCard
-         - Return shape: `{ card: Card; spawnedCard: Card | null }`
-         - IMPORTANT: This changes the IPC response contract. ALL callers of updateCard
-           must be updated to destructure `{ card }` from the response.
-         - Search for all usages of `window.electronAPI.updateCard` in the renderer and
-           `cards:update` invocations. Update each caller.
+      6. `stop()`:
+         - Clear interval, reset to mode='idle', timeRemaining=0, isPaused=false
+         - Do NOT clear focusedCardId/focusedCardTitle (needed for completion modal)
+         - Do NOT increment sessionCount (only incremented on natural timer end)
 
-      ## Card Templates — IPC Handlers
+      7. `tick()`:
+         - Decrement timeRemaining by 1
+         - If timeRemaining reaches 0:
+           - Clear interval
+           - If mode was 'focus':
+             - Increment sessionCount
+             - Send desktop notification: `window.electronAPI.notificationShow('Focus Complete', 'Great work! Time for a break.')`
+             - Set mode to 'completed' (temporary state for the completion modal)
+               ACTUALLY: add 'completed' to the mode union: `'idle' | 'focus' | 'break' | 'completed'`
+               The 'completed' mode signals the UI to show the completion prompt.
+           - If mode was 'break':
+             - Send notification: `window.electronAPI.notificationShow('Break Over', 'Ready to focus again?')`
+             - Set mode to 'idle'
 
-      10. Add IPC handlers (can go in src/main/ipc/cards.ts or a new card-templates.ts):
-          - `card-templates:list` — takes optional projectId (string | undefined).
-            Returns templates where projectId matches OR projectId IS NULL (global).
-            Order by name ASC.
-          - `card-templates:create` — validates with createCardTemplateSchema, inserts, returns.
-          - `card-templates:delete` — deletes by id.
-          - `card-templates:save-from-card` — takes a cardId + optional name override.
-            Reads the card (join with labels), creates a template with: card's description,
-            priority, and label names. Name defaults to card title.
-            Returns the created template.
+      8. `setDurations(work, breakMins)`:
+         - Update workDuration and breakDuration in state
+         - Persist via settings: `window.electronAPI.setSetting('pomodoro.workDuration', String(work))`
+         - Persist: `window.electronAPI.setSetting('pomodoro.breakDuration', String(breakMins))`
 
-      ## Wiring
+      9. `loadSettings()`:
+         - Read from settings: `window.electronAPI.getSetting('pomodoro.workDuration')`
+         - Read: `window.electronAPI.getSetting('pomodoro.breakDuration')`
+         - Parse as numbers (default 25 and 5 if not set), update state
 
-      11. Add to preload bridge (src/preload/domains/card-details.ts):
-          - `getCardTemplates: (projectId?: string) => ipcRenderer.invoke('card-templates:list', projectId)`
-          - `createCardTemplate: (input) => ipcRenderer.invoke('card-templates:create', input)`
-          - `deleteCardTemplate: (id: string) => ipcRenderer.invoke('card-templates:delete', id)`
-          - `saveCardAsTemplate: (cardId: string, name?: string) => ipcRenderer.invoke('card-templates:save-from-card', cardId, name)`
+      10. Export `useFocusStore` (named export for consistency with other stores).
 
-      12. Add to ElectronAPI interface (src/shared/types/electron-api.ts):
-          - Import CardTemplate type
-          - `getCardTemplates: (projectId?: string) => Promise<CardTemplate[]>`
-          - `createCardTemplate: (input: { ... }) => Promise<CardTemplate>`
-          - `deleteCardTemplate: (id: string) => Promise<void>`
-          - `saveCardAsTemplate: (cardId: string, name?: string) => Promise<CardTemplate>`
-          - Update `updateCard` return type to `Promise<{ card: Card; spawnedCard: Card | null }>`
+      ## notifications:show IPC
 
-      13. Export cardTemplates from src/main/db/schema/index.ts (if not auto-exported).
+      11. Add handler in src/main/ipc/notifications.ts:
+          ```ts
+          ipcMain.handle('notifications:show', async (_event, title: string, body: string) => {
+            showNotification(title, body);
+          });
+          ```
+          Import `showNotification` from the notificationService (already imported via sendTestNotification's module).
 
-      14. Run `npx drizzle-kit generate` to create migration 0010.
-          Verify the SQL adds 3 columns to cards + creates card_templates table.
+      12. Add to preload bridge (src/preload/domains/notifications.ts):
+          ```ts
+          notificationShow: (title: string, body: string) =>
+            ipcRenderer.invoke('notifications:show', title, body),
+          ```
+
+      13. Add to ElectronAPI interface (src/shared/types/electron-api.ts):
+          ```ts
+          notificationShow: (title: string, body: string) => Promise<void>;
+          ```
+
+      ## Keyboard Shortcut
+
+      14. Add `onToggleFocusMode` callback parameter to `useKeyboardShortcuts`:
+          - New param: `onToggleFocusMode?: () => void`
+          - In handleKeyDown: detect Ctrl+Shift+F (e.ctrlKey && e.shiftKey && e.key === 'F')
+          - IMPORTANT: Check for e.shiftKey to avoid conflicting with Ctrl+F (browser find).
+            When Shift is held, e.key is uppercase 'F'.
+          - Call `onToggleFocusMode()` and preventDefault
+
+      15. Add to KeyboardShortcutsModal SHORTCUT_GROUPS:
+          - In the "Actions" group, add: `{ keys: 'Ctrl+Shift+F', description: 'Focus Mode' }`
+
+      16. In App.tsx AppShell:
+          - Add `showFocusStart` state (boolean, default false)
+          - Add `toggleFocusStart` callback: if focus mode is idle, toggle showFocusStart;
+            if focus mode is active, call `useFocusStore.getState().stop()`
+          - Pass `toggleFocusStart` as `onToggleFocusMode` to `useKeyboardShortcuts`
+          - Initialize focus store settings: call `useFocusStore.getState().loadSettings()` in
+            the existing Promise.allSettled (add it alongside the other store loads)
+          - Export/expose `showFocusStart` and its setter — will be consumed by Task 2's
+            FocusStartModal. For now, just add the state. The modal rendering comes in Task 2.
     </action>
     <verify>
       1. `npx tsc --noEmit` passes with zero errors
-      2. `npx drizzle-kit generate` creates migration SQL
-      3. `npx vitest run` — all 150 tests pass
-      4. Verify migration SQL has: ALTER TABLE cards ADD recurrence_type, recurrence_end_date,
-         source_recurring_id; CREATE TABLE card_templates
+      2. `npx vitest run` — all 150 tests pass (no existing tests broken)
+      3. Verify focusStore.ts exports useFocusStore with all documented actions
+      4. Verify notifications:show IPC handler registered in notifications.ts
+      5. Verify notificationShow in preload bridge and ElectronAPI type
+      6. Verify useKeyboardShortcuts accepts onToggleFocusMode parameter
+      7. Verify KeyboardShortcutsModal lists Ctrl+Shift+F under Actions
     </verify>
     <done>
-      Cards table has recurrenceType, recurrenceEndDate, sourceRecurringId columns.
-      card_templates table exists with CRUD IPC handlers.
-      spawnRecurringCard utility creates next occurrence when card completes.
-      cards:update returns { card, spawnedCard } and handles auto-spawn.
-      All preload + types wired. tsc clean, tests pass.
+      focusStore.ts created with full timer engine (start/pause/resume/stop/tick).
+      notifications:show IPC handler wired (main + preload + types).
+      Ctrl+Shift+F registered in keyboard shortcuts hook + visible in shortcuts modal.
+      AppShell has showFocusStart state and toggleFocusStart callback.
+      Settings persistence for work/break durations working via existing settings IPC.
+      tsc clean, all tests pass.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - drizzle-kit generate works with added columns (proven pattern from 9 prior migrations)
-      - varchar for recurrenceType (not enum) avoids ALTER TYPE migration complexity
-      - Spawn on completed=true (not on column move) keeps it simple
-      - Changing updateCard response shape requires updating all callers — manageable
+      - setInterval in renderer process is reliable for 1-second ticks (standard pattern)
+      - Electron Notification API works from main process (already proven by test notification)
+      - Ctrl+Shift+F doesn't conflict with any existing shortcuts (verified: not in SHORTCUT_MAP)
+      - Settings key-value store works for pomodoro.* keys (same pattern as ai.* keys)
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Recurring Cards UI — CardDetailModal + KanbanCard + boardStore integration</n>
+    <n>Focus Mode UI — StatusBar timer, FocusStartModal, sidebar toggle</n>
     <files>
-      src/renderer/components/CardDetailModal.tsx
-      src/renderer/components/KanbanCard.tsx
-      src/renderer/stores/boardStore.ts
+      src/renderer/components/StatusBar.tsx
+      src/renderer/components/FocusStartModal.tsx (new)
+      src/renderer/components/SidebarModern.tsx
+      src/renderer/components/AppLayout.tsx
+      src/renderer/App.tsx (AppShell — add modal rendering)
     </files>
     <action>
-      **WHY:** Users need to configure recurrence on cards and see which cards are recurring.
-      When a recurring card is completed, the spawned card should appear on the board immediately.
+      **WHY:** Users need visual feedback for the timer, a way to start focus sessions (pick a card
+      and duration), and the distraction-reducing sidebar collapse. This task builds all the
+      interactive UI on top of the store from Task 1.
 
-      ## CardDetailModal — Recurrence Section
+      ## StatusBar Timer Display
 
-      1. Add a "Repeat" section between the Due Date section (line ~535) and
-         ChecklistSection (line ~542). Layout:
+      1. In StatusBar.tsx, import `useFocusStore` from the focus store.
+         Read: `mode`, `timeRemaining`, `isPaused`, `focusedCardTitle`.
 
+      2. Add timer section between the pending actions badge and the "Ctrl+K" hint:
+         - Only visible when mode is 'focus', 'break', or 'completed'
+         - Layout: `[icon] [card name truncated] [MM:SS] [pause/resume btn] [stop btn]`
+         - Format timeRemaining: `Math.floor(s/60).toString().padStart(2,'0') + ':' + (s%60).toString().padStart(2,'0')`
+         - During focus: emerald accent (text-emerald-400), Timer icon (lucide-react)
+         - During break: amber accent (text-amber-400), Coffee icon (lucide-react)
+         - Card name: max-w-[120px] truncate, text-surface-300
+         - Pause button: Pause icon when running, Play icon when paused (toggle)
+           - onClick: `isPaused ? useFocusStore.getState().resume() : useFocusStore.getState().pause()`
+         - Stop button: Square icon, text-surface-500 hover:text-red-400
+           - onClick: `useFocusStore.getState().stop()`
+         - All controls are tiny (w-3.5 h-3.5 icons) to fit in h-6 bar
+
+      3. Make the timer section clickable (the card name part):
+         - Title tooltip: "Click to open focus card" or the full card title if truncated
+         - This is informational only — no navigation (card could be on any board page)
+
+      ## FocusStartModal (src/renderer/components/FocusStartModal.tsx)
+
+      4. Create a new modal component following the KeyboardShortcutsModal pattern:
+         - Props: `isOpen: boolean, onClose: () => void`
+         - Escape key closes it (same pattern as other modals)
+         - Backdrop: `fixed inset-0 z-50 bg-black/50`
+         - Content: centered card, max-w-md, bg-surface-900 rounded-xl
+
+      5. Modal content:
          ```
-         ┌──────────────────────────────────────────────────┐
-         │ 🔄 Repeat                                       │
-         │ [None ▾]  ← select dropdown                     │
-         │                                                  │
-         │ (when recurrence is active + due date exists:)   │
-         │ Next: Wed, Feb 25, 2026                          │
-         │                                                  │
-         │ (when recurrence is active, no due date:)        │
-         │ ⚠ Set a due date for auto-scheduling            │
-         │                                                  │
-         │ End repeat: [date input]  [Clear]                │
-         └──────────────────────────────────────────────────┘
+         ┌──────────────────────────────────────────────┐
+         │ 🎯 Start Focus Session                   [X] │
+         ├──────────────────────────────────────────────┤
+         │                                              │
+         │ Focus on (optional):                         │
+         │ [Search cards...                         🔍] │
+         │  ┌─ Card 1 title (Project A)              ─┐ │
+         │  │  Card 2 title (Project B)               │ │
+         │  └─ Card 3 title (Project C)              ─┘ │
+         │                                              │
+         │ Duration:                                    │
+         │ [25m] [30m] [45m] [60m] [Custom: ___]       │
+         │                                              │
+         │         [ Start Focus ]                      │
+         └──────────────────────────────────────────────┘
          ```
 
-         - Label: "Repeat" with RefreshCw icon (lucide-react)
-         - Select dropdown options: None, Daily, Weekly, Bi-weekly, Monthly
-         - Auto-save on change: `onUpdate(card.id, { recurrenceType: value || null })`
-         - When recurrence is set and dueDate exists, show "Next: [calculated date]"
-           using the same date math as spawnRecurringCard (daily +1d, weekly +7d, etc.)
-         - When recurrence is set but no dueDate, show amber hint text
-         - "End repeat" date picker: only visible when recurrence != None.
-           Uses datetime-local input. Clearing removes the end date.
-         - When recurrence is None, only the dropdown is shown (compact).
+      6. Card search implementation:
+         - Read `useBoardStore(s => s.allCards)` for the card list
+         - Text input with search icon, filters allCards by title (case-insensitive includes)
+         - Show max 5 results in a dropdown list below the input
+         - Each result: card title + project name (from projectStore lookup or embedded)
+         - Clicking a card selects it (shown as a chip below the input with X to deselect)
+         - Card selection is OPTIONAL — user can start a generic focus session without a card
+         - Filter out archived cards from the list
 
-      ## KanbanCard — Recurring Badge
+      7. Duration presets:
+         - 4 pill buttons: 25, 30, 45, 60 minutes
+         - Default selected: the store's workDuration value
+         - "Custom" option: small number input (min 1, max 120)
+         - Selected duration highlighted with primary color ring
 
-      2. Add a RefreshCw icon badge in the bottom row (after checklist, before dependency):
-         - Only shown when `card.recurrenceType` is truthy
-         - `<RefreshCw className="w-3.5 h-3.5" />`
-         - text-blue-400, with title tooltip showing recurrence type (e.g. "Repeats weekly")
-         - Capitalize the type for display: "Daily", "Weekly", etc.
+      8. "Start Focus" button:
+         - Primary button style (bg-primary-600 hover:bg-primary-700)
+         - On click:
+           a. If custom duration differs from stored workDuration, update via setDurations
+           b. Call `useFocusStore.getState().startFocus(selectedCardId, selectedCardTitle)`
+           c. Call onClose() to dismiss the modal
+           d. Show toast: `toast({ type: 'success', message: 'Focus mode started — 25 min' })`
 
-      ## boardStore — Handle Spawn on Complete
+      ## Sidebar Toggle
 
-      3. Update boardStore.updateCard action:
-         - The IPC now returns `{ card: Card; spawnedCard: Card | null }` (from Task 1)
-         - Destructure the response: `const { card, spawnedCard } = await window.electronAPI.updateCard(...)`
-         - Update the cards array with the updated card (existing logic)
-         - If spawnedCard exists, add it to the cards array
-         - Show toast: `toast({ type: 'success', message: 'Recurring card created: ${spawnedCard.title}' })`
-         - Import toast from the toast store
+      9. In SidebarModern.tsx, add a Focus Mode button in the bottom section (above theme toggle):
+         - Import `useFocusStore` and read `mode`
+         - Import `Timer` icon from lucide-react
+         - Show the button always (it opens the start modal OR indicates active focus)
+         - When mode === 'idle': `Timer` icon, text-surface-400, tooltip "Focus Mode (Ctrl+Shift+F)"
+           onClick dispatches to AppShell's toggleFocusStart via a callback prop or by reading
+           a shared trigger. SIMPLEST APPROACH: import and use a tiny event emitter, OR just
+           have the button call `document.dispatchEvent(new CustomEvent('toggle-focus-mode'))`
+           and have AppShell listen for it. BUT CLEANER: just make the sidebar button trigger
+           the same keyboard shortcut effect. Actually, simplest: have SidebarModern accept an
+           optional `onToggleFocus` prop passed from AppLayout.
+           REVISED: Use the focusStore itself — add an `openStartModal` boolean + `setOpenStartModal`
+           action to focusStore. Sidebar and keyboard shortcut both set this flag. AppShell reads
+           it to show/hide FocusStartModal. This avoids prop drilling.
 
-      4. Update ALL other callers of updateCard in the renderer:
-         - Search for `updateCard(` and `electronAPI.updateCard(` across all renderer files
-         - Each caller now gets `{ card, spawnedCard }` — most just need `{ card }`
-         - Common pattern: `const { card } = await window.electronAPI.updateCard(id, data)`
-         - Key files to check: CardDetailModal (onUpdate prop), boardStore, any inline calls
-         - The CardDetailModal's `onUpdate` callback in BoardPage.tsx likely wraps
-           boardStore.updateCard — if so, only boardStore needs the change.
+      10. Update focusStore (from Task 1) to include:
+          - `showStartModal: boolean` (default false)
+          - `setShowStartModal: (show: boolean) => void`
+          - Modify Task 1's AppShell integration: instead of local `showFocusStart` state,
+            read `useFocusStore(s => s.showStartModal)` and use `setShowStartModal` to toggle.
 
-      5. When user toggles completed=true on a recurring card in CardDetailModal:
-         - The boardStore handles the spawn (step 3)
-         - Card detail modal stays open on the current (now-completed) card
-         - User sees the toast about the new card
+      11. When mode !== 'idle': the sidebar Timer button shows with emerald pulse animation
+          (animate-pulse, text-emerald-400) to indicate active focus session.
+          Click during active session → calls stop() (same as Ctrl+Shift+F during active).
+
+      12. In AppLayout.tsx, conditionally hide the sidebar during active focus mode:
+          - Import `useFocusStore`
+          - Read `mode` from store
+          - When mode is 'focus' or 'break': don't render `<Sidebar />`
+          - The main content will expand to fill the full width automatically (flex-1)
+          - Add a small "Show sidebar" hover zone on the left edge (w-2 h-full, transparent,
+            shows sidebar on hover). ACTUALLY, skip the hover zone for simplicity — user can
+            stop focus mode to get sidebar back. The StatusBar has stop controls.
+
+      ## AppShell Modal Wiring
+
+      13. In App.tsx AppShell, render FocusStartModal:
+          - Import FocusStartModal (lazy-loaded like other modals)
+          - Read `showStartModal` from focusStore
+          - Render: `<FocusStartModal isOpen={showStartModal} onClose={() => useFocusStore.getState().setShowStartModal(false)} />`
+          - Update the keyboard shortcut toggle to use focusStore's setShowStartModal instead
+            of local state (from Task 1 integration).
     </action>
     <verify>
-      1. `npx tsc --noEmit` passes
+      1. `npx tsc --noEmit` passes with zero errors
       2. `npx vitest run` — all tests pass
-      3. Manual: Create card → set due date → set recurrence "Weekly" → shows "Next: [+7 days]"
-      4. Manual: Mark card as completed → toast shows "Recurring card created" → new card
-         appears in same column with due date +7 days and recurrenceType=weekly
-      5. KanbanCard shows blue RefreshCw badge on recurring cards
-      6. Set recurrence without due date → amber hint shown
-      7. Set end date → spawn stops after end date
-      8. No duplicate spawns: marking an already-completed card as completed again doesn't spawn
+      3. Manual: Press Ctrl+Shift+F → FocusStartModal opens
+      4. Manual: Search for a card → select it → choose 25m → Start Focus
+      5. Manual: StatusBar shows emerald timer with card name, MM:SS countdown, pause/stop buttons
+      6. Manual: Sidebar collapses during focus mode, main content expands
+      7. Manual: Pause button works (timer stops, resumes on unpause)
+      8. Manual: Stop button returns to idle, sidebar reappears
+      9. Manual: Timer counts down to 0 → desktop notification appears
+      10. Manual: Sidebar Timer icon visible, clickable, pulses during active session
+      11. Manual: Start focus WITHOUT selecting a card → generic timer works
     </verify>
     <done>
-      CardDetailModal has Recurrence section with dropdown + end date + next occurrence preview.
-      KanbanCard shows recurring badge (blue RefreshCw).
-      Completing a recurring card auto-spawns next occurrence via boardStore.
-      Toast confirms spawn. All callers of updateCard updated for new response shape.
-      tsc clean, tests pass.
+      StatusBar displays live timer with card name, controls (pause/resume/stop), color-coded
+      by mode (emerald=focus, amber=break).
+      FocusStartModal provides card search/selection + duration presets + start button.
+      Sidebar hides during focus mode. Sidebar has Timer icon button.
+      Ctrl+Shift+F opens modal (idle) or stops session (active).
+      Desktop notification fires on timer completion.
+      tsc clean, all tests pass.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - RefreshCw icon is available in lucide-react (standard icon, verified)
-      - Toast system (useToastStore/toast) available and working
-      - boardStore.updateCard is the main entry point for card updates from the UI
-      - Changing IPC response shape is the cleanest approach (vs separate channel)
+      - lucide-react has Timer, Pause, Play, Square, Coffee icons (all standard, verified)
+      - allCards from boardStore is loaded eagerly in AppShell (existing pattern)
+      - Hiding sidebar via conditional render won't cause layout shift (flex-1 handles it)
+      - Card search across allCards is fast enough without debounce (typically < 500 items)
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>DB-backed Card Templates — replace hardcoded templates + Save as Template</n>
+    <n>Session completion flow — card comment logging + break cycle + polish</n>
     <files>
-      src/renderer/components/CardDetailModal.tsx
-      src/renderer/components/BoardColumn.tsx
+      src/renderer/components/FocusCompleteModal.tsx (new)
+      src/renderer/App.tsx (AppShell — render completion modal)
+      src/renderer/stores/focusStore.ts (update: handle 'completed' mode transition)
     </files>
     <action>
-      **WHY:** The existing "Apply Template" dropdown uses 5 hardcoded templates. Users need
-      to save their own templates from existing cards and access them during card creation.
-      DB-backed templates make the feature useful across sessions and projects.
+      **WHY:** The most valuable part of focus mode is the feedback loop: completing a session
+      prompts reflection, which gets logged as a card comment. This turns focus sessions into
+      persistent data attached to cards. The break cycle keeps the Pomodoro rhythm going.
 
-      ## CardDetailModal — Enhanced Template System
+      ## FocusCompleteModal (src/renderer/components/FocusCompleteModal.tsx)
 
-      1. Replace the hardcoded template dropdown with a combined list:
-         - On dropdown open, fetch templates via `window.electronAPI.getCardTemplates(projectId)`
-           (projectId from card → column → board → project context, already available in the modal)
-         - Show two groups with a small divider label:
-           "Your Templates" (DB templates, from the fetch) at the top
-           "Built-in" (the existing 5 CARD_TEMPLATES: bug, feature, action, note, research) below
-         - If no custom templates exist, just show "Built-in" without a group header
-         - Each DB template row: name + small delete button (X) on hover
-         - Clicking a DB template applies it: set description (via editor.commands.setContent),
-           set priority (via onUpdate). For labelNames: fetch project labels, match by name,
-           attach matching ones via attachLabel.
-         - Clicking a built-in template: same behavior as current (existing code).
+      1. Create a modal that appears when focusStore mode === 'completed':
+         - Same modal pattern as FocusStartModal (backdrop, centered card, Escape to close)
+         - Content:
+         ```
+         ┌──────────────────────────────────────────────┐
+         │ ✅ Focus Session Complete!                    │
+         ├──────────────────────────────────────────────┤
+         │                                              │
+         │ You focused for 25 minutes                   │
+         │ on "Card Title Here"                         │
+         │                                              │
+         │ What did you accomplish?                      │
+         │ ┌──────────────────────────────────────────┐ │
+         │ │ (textarea, 3 rows)                       │ │
+         │ └──────────────────────────────────────────┘ │
+         │                                              │
+         │ Session #3 today                             │
+         │                                              │
+         │   [ Skip ]          [ Save & Start Break ]   │
+         └──────────────────────────────────────────────┘
+         ```
 
-      2. Add "Save as Template" button:
-         - Position: next to the existing "Apply Template" button (group them together)
-         - Icon: BookmarkPlus from lucide-react, small button with title="Save as template"
-         - On click: show a small inline name input (pre-filled with card title, max 200 chars)
-           with Save/Cancel. Or use window.prompt for simplicity (matches existing patterns
-           like column rename which uses inline input).
-         - Calls `window.electronAPI.saveCardAsTemplate(cardId, name)`
-         - On success: `toast({ type: 'success', message: 'Saved template: [name]' })`
-         - Template captures: description, priority, label names from the current card
+      2. Show the completed session details:
+         - Duration: the store's workDuration (what was configured when session started)
+         - Card title: focusedCardTitle from store (or "General focus" if no card)
+         - Session count: sessionCount from store
 
-      ## BoardColumn — Template in Card Creation
+      3. Textarea for accomplishment notes:
+         - Placeholder: "What did you accomplish during this session?"
+         - Auto-focuses when modal opens
+         - Not required — can be left empty
 
-      3. Enhance the "Add card" form in BoardColumn.tsx:
-         - Below the title input (in the addingCard form), add a small clickable text:
-           "From template ▾" (text-xs, text-surface-400, cursor-pointer)
-         - Clicking opens a compact dropdown listing available templates
-           (project-scoped + global, fetched via getCardTemplates)
-         - Include built-in templates in the list too
-         - Selecting a template: pre-fills a `selectedTemplate` state variable
-         - When "Add" is clicked with a template selected:
-           1. Create the card with the user's title + template's priority
-           2. Then update it with the template's description
-           3. Then attempt to attach matching labels
-           The card title always comes from user input (not template).
-         - Show a small badge next to the input when a template is selected:
-           "Using: [template name]" with an X to clear selection
-         - If no templates are available (no DB templates exist), hide "From template" link
+      4. "Save & Start Break" button (primary):
+         - If textarea has content AND focusedCardId is set:
+           - Call `window.electronAPI.addCardComment({ cardId: focusedCardId, content })` where
+             content is formatted as:
+             `🍅 Focus session completed (${workDuration} min)\n\n${userNote}`
+           - If textarea is empty but card exists, still log a minimal comment:
+             `🍅 Focus session completed (${workDuration} min)`
+         - If no card was selected, skip the comment (nothing to attach to)
+         - Then call `useFocusStore.getState().startBreak()`
+         - Show toast: `toast({ type: 'info', message: 'Break time — ${breakDuration} min' })`
+         - Close the modal
 
-      ## Cleanup
+      5. "Skip" button (secondary, text style):
+         - Skips logging, does NOT start break
+         - Sets mode to 'idle' via `useFocusStore.getState().stop()`
+         - Clears focusedCardId/focusedCardTitle
+         - Close the modal
 
-      4. Keep the CARD_TEMPLATES constant in CardDetailModal (or move to a shared constants
-         file). These are the built-in defaults that always exist regardless of DB state.
-         Mark them clearly with a comment: `// Built-in templates (always available)`.
+      6. Add a "Save & Done" variant: if user doesn't want a break:
+         - Actually, keep it simple. Two buttons: "Skip" (idle, no log) and "Save & Break" (log + break).
+         - If user wants to skip the break, they can stop it from the StatusBar.
+
+      ## Break Cycle
+
+      7. When break timer ends (handled in focusStore.tick from Task 1):
+         - mode is set to 'idle'
+         - Desktop notification: "Break Over — Ready to focus again?"
+         - Toast: `toast({ type: 'info', message: 'Break complete! Ready for another session?' })`
+         - User can start a new session via Ctrl+Shift+F or sidebar button
+
+      8. In StatusBar during break mode:
+         - Already handled by Task 2 (amber color, Coffee icon)
+         - The break timer counts down just like focus timer
+         - Stop button during break → immediate return to idle
+
+      ## AppShell Integration
+
+      9. In App.tsx AppShell:
+         - Import FocusCompleteModal (lazy)
+         - Read `mode` from focusStore
+         - Render FocusCompleteModal when mode === 'completed':
+           `<FocusCompleteModal isOpen={mode === 'completed'} onClose={() => useFocusStore.getState().stop()} />`
+         - The onClose (backdrop click or Escape) acts as "Skip" — returns to idle
+
+      ## focusStore Updates
+
+      10. Ensure 'completed' → 'break' transition works:
+          - When FocusCompleteModal calls startBreak(), it should work from 'completed' mode
+          - startBreak should clear the 'completed' state and begin break timer
+
+      11. Add `clearFocusedCard()` action:
+          - Sets focusedCardId and focusedCardTitle to null
+          - Called by FocusCompleteModal's "Skip" after stopping
+
+      12. Add toast import to focusStore for break-end notification:
+          - Import `toast` from useToast hook
+          - Call `toast({ type: 'info', message: 'Break complete! Ready for another session?' })`
+            at end of break timer
+          - ALTERNATIVELY: handle the toast in FocusCompleteModal or a useEffect in AppShell
+            that watches for mode transitions. The cleanest approach: add a `useEffect` in
+            AppShell that watches `mode` and shows toast when it transitions from 'break' to 'idle'.
+
+      ## Polish
+
+      13. Audio feedback (optional, skip if complex): Browser Audio API can play a short tone
+          on timer end. Skip this for now — desktop notification is sufficient.
+
+      14. Ensure the focus timer survives page navigation:
+          - Since focusStore is a Zustand global store and the interval runs in the store,
+            navigating between pages won't affect it. Verify this works.
+          - StatusBar is rendered outside Routes (in App component), so it always shows.
     </action>
     <verify>
-      1. `npx tsc --noEmit` passes
+      1. `npx tsc --noEmit` passes with zero errors
       2. `npx vitest run` — all tests pass
-      3. Manual: Open card → "Save as Template" → enter name → template saved → toast shown
-      4. Manual: Open card → "Apply Template" dropdown shows "Your Templates" + "Built-in"
-      5. Manual: Click a custom template → description + priority applied to card
-      6. Manual: Delete a custom template via X button → removed from dropdown
-      7. Manual: BoardColumn → type title → "From template" → select template →
-         "Add" → card created with title + template's description/priority
-      8. Built-in templates (bug, feature, etc.) still work as before
+      3. Manual: Start focus on a card → wait for timer (or set to 1 min for testing) →
+         FocusCompleteModal appears with textarea
+      4. Manual: Type accomplishment note → "Save & Start Break" → card comment created →
+         break timer starts in StatusBar (amber)
+      5. Manual: Break timer ends → notification → toast → mode returns to idle → sidebar reappears
+      6. Manual: "Skip" button → no comment logged → mode returns to idle
+      7. Manual: Start focus WITHOUT card → completion modal skips card comment → break still works
+      8. Manual: Navigate between pages during focus → timer continues uninterrupted in StatusBar
+      9. Manual: Session counter increments correctly across multiple sessions
     </verify>
     <done>
-      Hardcoded templates supplemented with DB-backed user templates.
-      "Save as Template" button creates templates from existing cards.
-      Templates available in CardDetailModal dropdown and BoardColumn creation flow.
-      Built-in templates preserved as always-available defaults.
-      tsc clean, tests pass.
+      FocusCompleteModal prompts "What did you accomplish?" on session end.
+      Accomplishment note logged as card comment with Pomodoro emoji prefix.
+      Break timer auto-starts after saving, with amber StatusBar display.
+      Break end triggers notification + toast + return to idle.
+      Full Pomodoro cycle works: focus → complete → break → idle → repeat.
+      Timer persists across page navigation.
+      tsc clean, all tests pass.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - 5 built-in templates kept as hardcoded fallback (not migrated to DB — always available)
-      - Label matching by name is best-effort (skip if label doesn't exist in target project)
-      - window.electronAPI.getCardTemplates returns both project-scoped + global templates
-      - BookmarkPlus icon available in lucide-react
+      - addCardComment IPC can be called directly from modal (doesn't require cardDetailStore loading)
+        VERIFY: check if addCardComment works standalone or needs selectedCard context.
+        If cardDetailStore is needed, call its addComment action instead.
+      - 'completed' as a temporary mode state works without race conditions
+        (user interaction required to transition out of 'completed')
+      - Toast import pattern: `import { toast } from '../hooks/useToast'` (verified in other files)
     </assumptions>
   </task>
 </phase>

@@ -7,7 +7,7 @@ Checkpoint reason: Plan C.3 COMPLETE (3/3 tasks)
 
 ## Position
 Milestone: v1.8.0 — Phase C: Task Management Power
-Latest commit: a6b0f82 (feat: session completion flow — FocusCompleteModal + card comment logging + break cycle)
+Latest commit: 91c059f (docs: update STATE.md with Plan C.3 completion)
 Version: 1.8.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
