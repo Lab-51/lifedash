@@ -37,8 +37,9 @@ import {
 } from 'lucide-react';
 import { useFocusStore } from '../stores/focusStore';
 import { useGamificationStore } from '../stores/gamificationStore';
-import { ACHIEVEMENTS, CATEGORY_COLORS } from '../../shared/types/gamification';
+import { ACHIEVEMENTS, CATEGORY_COLORS, getTier } from '../../shared/types/gamification';
 import AchievementsModal from './AchievementsModal';
+import LevelBadge from './LevelBadge';
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   Zap, Flame, Target, Cpu, Crown, Clock, BrainCircuit, TrendingUp, Calendar, CalendarCheck, Award, Trophy,
@@ -117,12 +118,7 @@ export default function FocusStatsWidget() {
           </div>
           <div className="flex items-center gap-3">
             {/* Level pill */}
-            {stats && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 rounded-full">
-                <span className="text-xs font-bold text-emerald-400">Lv.{stats.level}</span>
-                <span className="text-xs text-emerald-400/80">{stats.levelName}</span>
-              </div>
-            )}
+            {stats && <LevelBadge level={stats.level} size="md" />}
             {/* Total XP */}
             {stats && (
               <span className="text-xs font-semibold text-surface-400">{stats.totalXp.toLocaleString()} XP</span>
@@ -187,13 +183,10 @@ export default function FocusStatsWidget() {
               <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold">Level</p>
               {stats ? (
                 <>
-                  <p className="text-2xl font-bold text-emerald-500">
-                    Lv.{stats.level}
-                  </p>
-                  <p className="text-xs text-surface-400 mb-1">{stats.levelName}</p>
-                  <div className="w-full h-1.5 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
+                  <LevelBadge level={stats.level} size="lg" />
+                  <div className="w-full h-1.5 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden mt-1">
                     <div
-                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                      className={`h-full ${getTier(stats.level).colors.text.replace('text-', 'bg-')} rounded-full transition-all duration-500`}
                       style={{ width: `${stats.xpProgress * 100}%` }}
                     />
                   </div>
@@ -202,10 +195,7 @@ export default function FocusStatsWidget() {
                   </p>
                 </>
               ) : (
-                <>
-                  <p className="text-2xl font-bold text-surface-600 dark:text-surface-400">Lv.1</p>
-                  <p className="text-xs text-surface-500">Beginner</p>
-                </>
+                <LevelBadge level={1} size="lg" />
               )}
             </div>
 

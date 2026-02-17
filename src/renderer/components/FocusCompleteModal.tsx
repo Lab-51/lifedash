@@ -8,7 +8,9 @@ import { X, CheckCircle, Trophy } from 'lucide-react';
 import { useFocusStore } from '../stores/focusStore';
 import { useGamificationStore } from '../stores/gamificationStore';
 import { toast } from '../hooks/useToast';
+import { getTier } from '../../shared/types/gamification';
 import type { GamificationStats, Achievement } from '../../shared/types/gamification';
+import LevelBadge from './LevelBadge';
 
 interface FocusCompleteModalProps {
   isOpen: boolean;
@@ -175,12 +177,12 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
               {/* Level Progress */}
               {rewardStats && (
                 <div>
-                  <p className="text-surface-300 text-sm">
-                    Level {rewardStats.level}: {rewardStats.levelName}
-                  </p>
-                  <div className="w-48 mx-auto h-2 bg-surface-700 rounded-full mt-2 overflow-hidden">
+                  <div className="flex justify-center mb-2">
+                    <LevelBadge level={rewardStats.level} size="lg" />
+                  </div>
+                  <div className="w-48 mx-auto h-2 bg-surface-700 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-emerald-500 rounded-full transition-all duration-1000"
+                      className={`h-full ${getTier(rewardStats.level).colors.text.replace('text-', 'bg-')} rounded-full transition-all duration-1000`}
                       style={{ width: `${rewardStats.xpProgress * 100}%` }}
                     />
                   </div>

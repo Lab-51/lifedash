@@ -13,6 +13,7 @@ import useDatabaseStatus from '../hooks/useDatabaseStatus';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useFocusStore } from '../stores/focusStore';
 import { useGamificationStore } from '../stores/gamificationStore';
+import LevelBadge from './LevelBadge';
 
 /** Resolves status indicator color class based on connection state */
 function getIndicatorClass(connected: boolean, checking: boolean): string {
@@ -72,11 +73,10 @@ function StatusBar() {
         {focusMode === 'idle' && stats && (
           <button
             onClick={() => useFocusStore.getState().setShowStartModal(true)}
-            className="flex items-center gap-1 text-surface-500 hover:text-emerald-400 transition-colors"
+            className="flex items-center gap-1 hover:opacity-80 transition-opacity"
             title="Start focus session"
           >
-            <Timer size={12} />
-            <span>Lv.{stats.level} {stats.levelName}</span>
+            <LevelBadge level={stats.level} size="sm" />
           </button>
         )}
 
