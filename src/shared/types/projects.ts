@@ -42,6 +42,8 @@ export interface Card {
   createdAt: string;
   updatedAt: string;
   labels?: Label[];
+  checklistTotal?: number;
+  checklistDone?: number;
 }
 
 export interface Label {

@@ -10,8 +10,10 @@
 // - Depends on AI provider being configured for 'task_structuring' task type
 
 import { useState, useEffect } from 'react';
-import { Sparkles, Loader2, AlertCircle, Check, ListTodo } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, Check, ListTodo, ListChecks } from 'lucide-react';
 import { useTaskStructuringStore } from '../stores/taskStructuringStore';
+import { useCardDetailStore } from '../stores/cardDetailStore';
+import { toast } from '../hooks/useToast';
 import type { SubtaskSuggestion } from '../../shared/types';
 
 interface TaskBreakdownSectionProps {
@@ -48,6 +50,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
 
   const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(new Set());
   const [applying, setApplying] = useState(false);
+  const [addingToChecklist, setAddingToChecklist] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [applied, setApplied] = useState(false);
 
@@ -118,6 +121,37 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
         error instanceof Error ? error.message : 'Failed to create cards',
       );
       setApplying(false);
+    }
+  };
+
+  const handleAddToChecklist = async () => {
+    if (!breakdown || selectedSubtasks.size === 0) return;
+
+    setAddingToChecklist(true);
+    setApplyError(null);
+
+    try {
+      const sortedIndices = Array.from(selectedSubtasks).sort((a, b) => a - b);
+      const titles = sortedIndices.map(i => breakdown.subtasks[i].title);
+
+      await window.electronAPI.addChecklistItemsBatch(cardId, titles);
+
+      // Refresh checklist items in the store
+      await useCardDetailStore.getState().loadChecklistItems(cardId);
+
+      toast(`Added ${titles.length} items to checklist`, 'success');
+      setAddingToChecklist(false);
+      setApplied(true);
+
+      setTimeout(() => {
+        setApplied(false);
+        clearBreakdown();
+      }, 1500);
+    } catch (error) {
+      setApplyError(
+        error instanceof Error ? error.message : 'Failed to add to checklist',
+      );
+      setAddingToChecklist(false);
     }
   };
 
@@ -256,29 +290,48 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
           {applied && (
             <div className="flex items-center gap-2 text-xs text-emerald-400 mt-2">
               <Check size={12} />
-              Cards created successfully!
+              Done!
             </div>
           )}
 
-          {/* Apply button */}
+          {/* Action buttons */}
           {!applied && (
-            <button
-              onClick={handleApply}
-              disabled={applying || selectedSubtasks.size === 0}
-              className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-3 py-1.5 rounded-lg transition-colors mt-3 flex items-center gap-1.5"
-            >
-              {applying ? (
-                <>
-                  <Loader2 size={13} className="animate-spin" />
-                  Creating cards...
-                </>
-              ) : (
-                <>
-                  <ListTodo size={13} />
-                  Create Selected as Cards ({selectedSubtasks.size})
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2 mt-3">
+              <button
+                onClick={handleApply}
+                disabled={applying || addingToChecklist || selectedSubtasks.size === 0}
+                className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                {applying ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <ListTodo size={13} />
+                    Create as Cards ({selectedSubtasks.size})
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleAddToChecklist}
+                disabled={applying || addingToChecklist || selectedSubtasks.size === 0}
+                className="bg-surface-700 hover:bg-surface-600 disabled:opacity-40 disabled:cursor-not-allowed text-surface-200 text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                {addingToChecklist ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  <>
+                    <ListChecks size={13} />
+                    Add to Checklist ({selectedSubtasks.size})
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </div>
       )}

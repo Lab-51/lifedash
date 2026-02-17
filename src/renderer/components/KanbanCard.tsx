@@ -9,7 +9,7 @@
 // @atlaskit/pragmatic-drag-and-drop-hitbox (attachClosestEdge, extractClosestEdge)
 
 import { memo, useState, useRef, useEffect } from 'react';
-import { Pencil, Trash2, Clock, Link2, Check } from 'lucide-react';
+import { Pencil, Trash2, Clock, Link2, Check, CheckSquare } from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -259,6 +259,19 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
             <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${getDueDateBadge(card.dueDate).classes}`}>
               <Clock size={10} />
               {getDueDateBadge(card.dueDate).label}
+            </span>
+          )}
+          {(card.checklistTotal ?? 0) > 0 && (
+            <span
+              className={`inline-flex items-center gap-0.5 text-[10px] ${
+                card.checklistDone === card.checklistTotal
+                  ? 'text-emerald-400'
+                  : 'text-surface-400'
+              }`}
+              title={`${card.checklistDone}/${card.checklistTotal} checklist items completed`}
+            >
+              <CheckSquare size={10} />
+              {card.checklistDone}/{card.checklistTotal}
             </span>
           )}
           {(dependencyCount ?? 0) > 0 && (

@@ -6,13 +6,13 @@
 // drizzle-orm (eq, and, asc, desc operators), electron (ipcMain)
 
 // === LIMITATIONS ===
-// - cards:list-by-board uses 4 batch queries (columns, cards, cardLabels, labels).
+// - cards:list-by-board uses 5 batch queries (columns, cards, cardLabels, labels, checklists).
 // - No pagination on list queries yet.
 // - card:getRelationships fetches titles per relationship (N+1, acceptable for small counts)
 // - card:getActivities limited to most recent 50 entries
 
 import { ipcMain } from 'electron';
-import { eq, and, asc, desc, inArray, count } from 'drizzle-orm';
+import { eq, and, asc, desc, inArray, count, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { createLogger } from '../services/logger';
 import {
@@ -117,10 +117,27 @@ export function registerCardHandlers(): void {
       allLabels as unknown as Label[],
     );
 
+    // Query 5: Batch-fetch checklist progress per card
+    const checklistCounts = await db
+      .select({
+        cardId: cardChecklistItems.cardId,
+        total: count(),
+        done: count(sql`CASE WHEN ${cardChecklistItems.completed} THEN 1 END`),
+      })
+      .from(cardChecklistItems)
+      .where(inArray(cardChecklistItems.cardId, cardIds))
+      .groupBy(cardChecklistItems.cardId);
+
+    const checklistMap = new Map(
+      checklistCounts.map(c => [c.cardId, { total: Number(c.total), done: Number(c.done) }])
+    );
+
     // Assemble result
     return allCardRows.map((card) => ({
       ...(card as unknown as Card),
       labels: cardLabelMap.get(card.id) ?? [],
+      checklistTotal: checklistMap.get(card.id)?.total ?? 0,
+      checklistDone: checklistMap.get(card.id)?.done ?? 0,
     }));
   });
 
