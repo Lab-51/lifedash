@@ -11,6 +11,7 @@ import {
 import {
   XpEventType, XP_REWARDS, XP_CATEGORIES,
   GamificationStats, Achievement, ACHIEVEMENTS, calculateLevel,
+  XpDailyData,
 } from '../../shared/types/gamification';
 
 export async function awardXP(
@@ -381,6 +382,40 @@ function calculateLongestStreak(sortedDatesDesc: string[]): number {
   }
 
   return longest;
+}
+
+export async function getDailyXP(days: number = 7): Promise<XpDailyData[]> {
+  const db = getDb();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  startDate.setHours(0, 0, 0, 0);
+
+  const rows = await db
+    .select({
+      date: sql<string>`to_char(${xpEvents.earnedAt}, 'YYYY-MM-DD')`,
+      xp: sql<number>`coalesce(sum(${xpEvents.xpAmount}), 0)::int`,
+    })
+    .from(xpEvents)
+    .where(gte(xpEvents.earnedAt, startDate))
+    .groupBy(sql`to_char(${xpEvents.earnedAt}, 'YYYY-MM-DD')`)
+    .orderBy(sql`to_char(${xpEvents.earnedAt}, 'YYYY-MM-DD')`);
+
+  // Fill gaps with zero-value entries
+  const result: XpDailyData[] = [];
+  const dataMap = new Map(rows.map(r => [r.date, r]));
+
+  for (let i = 0; i < days; i++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    const dateStr = formatDateStr(d);
+    const data = dataMap.get(dateStr);
+    result.push({
+      date: dateStr,
+      xp: data?.xp || 0,
+    });
+  }
+
+  return result;
 }
 
 function formatDateStr(date: Date): string {

@@ -108,6 +108,13 @@ export function calculateLevel(totalXp: number): {
   };
 }
 
+// --- Daily XP Data ---
+
+export interface XpDailyData {
+  date: string;
+  xp: number;
+}
+
 // --- Stats ---
 
 export interface GamificationStats {

@@ -48,7 +48,7 @@ import type { NotificationPreferences } from './notifications';
 import type { TranscriptionProviderType, TranscriptionProviderStatus } from './transcription';
 import type { MeetingAnalytics } from './analytics';
 import type { FocusSession, FocusDailyData } from './focus';
-import type { GamificationStats, Achievement, XpEventType } from './gamification';
+import type { GamificationStats, Achievement, XpEventType, XpDailyData } from './gamification';
 
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
@@ -280,6 +280,7 @@ export interface ElectronAPI {
     Promise<{ xpAwarded: number; stats: GamificationStats; newAchievements: Achievement[] }>;
   gamificationGetStats: () => Promise<GamificationStats>;
   gamificationGetAchievements: () => Promise<Achievement[]>;
+  gamificationGetDaily: (days?: number) => Promise<XpDailyData[]>;
 
   // App-level events
   onShowCommandPalette: (callback: () => void) => () => void;

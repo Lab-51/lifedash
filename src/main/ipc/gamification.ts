@@ -30,4 +30,8 @@ export function registerGamificationHandlers(): void {
   ipcMain.handle('gamification:get-achievements', async () => {
     return gamificationService.getAchievements();
   });
+
+  ipcMain.handle('gamification:get-daily', async (_, days?: number) => {
+    return gamificationService.getDailyXP(days);
+  });
 }

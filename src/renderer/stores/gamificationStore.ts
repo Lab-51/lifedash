@@ -8,14 +8,16 @@
 
 import { create } from 'zustand';
 import { toast } from '../hooks/useToast';
-import type { GamificationStats, Achievement, XpEventType } from '../../shared/types/gamification';
+import type { GamificationStats, Achievement, XpEventType, XpDailyData } from '../../shared/types/gamification';
 
 interface GamificationState {
   stats: GamificationStats | null;
   achievements: Achievement[];
+  dailyXP: XpDailyData[];
 
   // Actions
   loadStats: () => Promise<void>;
+  loadDailyXP: (days?: number) => Promise<void>;
   awardXP: (eventType: XpEventType, entityId?: string) => Promise<void>;
   refreshStats: (stats: GamificationStats, newAchievements: Achievement[]) => void;
 }
@@ -23,6 +25,7 @@ interface GamificationState {
 export const useGamificationStore = create<GamificationState>((set, get) => ({
   stats: null,
   achievements: [],
+  dailyXP: [],
 
   loadStats: async () => {
     try {
@@ -33,6 +36,15 @@ export const useGamificationStore = create<GamificationState>((set, get) => ({
       set({ stats, achievements });
     } catch (error) {
       console.error('Failed to load gamification stats:', error);
+    }
+  },
+
+  loadDailyXP: async (days = 7) => {
+    try {
+      const dailyXP = await window.electronAPI.gamificationGetDaily(days);
+      set({ dailyXP });
+    } catch (error) {
+      console.error('Failed to load daily XP:', error);
     }
   },
 

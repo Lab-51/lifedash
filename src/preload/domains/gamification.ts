@@ -6,4 +6,5 @@ export const gamificationBridge = {
     ipcRenderer.invoke('gamification:award-xp', eventType, entityId),
   gamificationGetStats: () => ipcRenderer.invoke('gamification:get-stats'),
   gamificationGetAchievements: () => ipcRenderer.invoke('gamification:get-achievements'),
+  gamificationGetDaily: (days?: number) => ipcRenderer.invoke('gamification:get-daily', days),
 };
