@@ -2,21 +2,22 @@
 
 ## Session Info
 Last updated: 2026-02-17
-Session focus: Plan C.1 — Card Checklists / Subtasks
-Checkpoint reason: Plan C.1 COMPLETE (3/3 tasks)
+Session focus: Plan C.2 — Recurring Cards + Card Templates
+Checkpoint reason: Plan C.2 COMPLETE (3/3 tasks)
 
 ## Position
 Milestone: v1.8.0 — Phase C: Task Management Power
-Latest commit: 434c194 (feat: checklist progress badge on KanbanCard + AI breakdown to checklist)
+Latest commit: 28c0184 (feat: DB-backed card templates with Save as Template + template in card creation)
 Version: 1.8.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
-SELF-IMPROVE-NEW.md: 27 proposals, 10 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 1/4)
+SELF-IMPROVE-NEW.md: 27 proposals, 13 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 3/4)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
 Plan B.2: COMPLETE (3/3 tasks)
 Plan C.1: COMPLETE (3/3 tasks) — Card Checklists / Subtasks
+Plan C.2: COMPLETE (3/3 tasks) — Recurring Cards + Card Templates
 
 ## Ad-hoc Changes This Session
 - Feat: Project-scoped standup generation (a6779fe)
@@ -40,8 +41,31 @@ Plan C.1: COMPLETE (3/3 tasks) — Card Checklists / Subtasks
   - Task type + model breakdowns with color-coded horizontal progress bars
 
 ## Resume Context
-Next action: Plan C.2 (Recurring Cards + Card Templates) or user-directed work
+Next action: Plan C.3 (Focus Mode / Pomodoro) or user-directed work
 Prerequisites: None — all clean
+
+## Plan C.2 Results
+- Task 1: Schema + migration + IPC handlers for recurring cards and card templates (0cf5915)
+  - 3 new columns on cards: recurrenceType (varchar), recurrenceEndDate, sourceRecurringId
+  - card_templates table: id, projectId, name, description, priority, labelNames
+  - spawnRecurringCard utility auto-creates next occurrence on completion
+  - cards:update returns { card, spawnedCard } — boardStore handles spawn
+  - 4 template IPC handlers: list, create, delete, save-from-card
+  - Migration 0010 generated and verified
+- Task 2: Recurring Cards UI (6908931)
+  - CardDetailModal: "Repeat" section with dropdown (None/Daily/Weekly/Bi-weekly/Monthly)
+  - Next occurrence date preview when due date + recurrence set
+  - End repeat date picker with clear button
+  - KanbanCard + KanbanCardModern: blue RefreshCw badge on recurring cards
+  - boardStore shows toast when recurring card spawns
+- Task 3: DB-backed Card Templates (28c0184)
+  - CARD_TEMPLATES renamed to BUILTIN_TEMPLATES, 5 built-in always available
+  - "Save as Template" button (BookmarkPlus) in CardDetailModal
+  - Template dropdown shows "Your Templates" (DB) + "Built-in" groups
+  - DB templates deletable via hover X button
+  - BoardColumn + BoardColumnModern: "From template" in card creation flow
+  - Selected template applies priority + description to new card
+  - boardStore.addCard now returns Card (for template description application)
 
 ## Plan C.1 Results
 - Task 1: Schema + migration + IPC handlers for checklist items (006c7a3)
@@ -286,6 +310,7 @@ Plans 8.1-8.7 + 4 ad-hoc features delivered.
 ## Confidence Levels
 Overall approach: HIGH
 Plan C.1: HIGH — all 3 tasks verified with tsc + 150/150 tests
+Plan C.2: HIGH — all 3 tasks verified with tsc + 150/150 tests
 All tasks: HIGH — verified with tsc + 150/150 tests
 
 ## Blockers

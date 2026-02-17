@@ -1,421 +1,395 @@
-# Plan C.1 — Card Checklists / Subtasks (Phase C: Task Management Power)
+# Plan C.2 — Recurring Cards + DB-backed Card Templates
 
-<phase n="C.1" name="Card Checklists / Subtasks">
+<phase n="C.2" name="Recurring Cards + DB-backed Card Templates">
   <context>
-    Phase C from SELF-IMPROVE-NEW.md: Card Checklists (F4), Recurring Cards (F8),
-    Card Templates (F12), Focus Mode (E2). This plan covers F4 only — the highest
-    priority Phase C feature.
+    Phase C: Task Management Power, features F8 (Recurring Cards) and F12 (Card Templates).
+    Plan C.1 (Card Checklists) is COMPLETE.
 
-    Phase A complete: Pin/Star, AI Card Descriptions, Quick Capture, Standup, Pulse.
-    Phase B complete: Splash Screen, Transcript Search, Meeting Export, AI Usage Dashboard.
+    Current state:
+    - Cards schema in src/main/db/schema/cards.ts has: id, columnId, title, description, position,
+      priority, dueDate, completed, archived, createdAt, updatedAt
+    - Card has a `completed` boolean — toggled via checkbox in CardDetailModal (line 483-503)
+    - No recurrence columns exist on cards
+    - "Apply Template" in CardDetailModal (lines 339-375) uses hardcoded CARD_TEMPLATES constant
+      (5 built-in templates: bug, feature, action, note, research)
+    - No card_templates DB table exists
+    - Latest migration is 0009 (card_checklist_items)
+    - Card update IPC: cards:update in src/main/ipc/cards.ts
+    - Preload bridge pattern: domain-specific files in src/preload/domains/
+    - ElectronAPI types in src/shared/types/electron-api.ts
+    - Zod schemas in src/shared/validation/schemas.ts
+    - Toast system: useToastStore + toast() function
 
-    Card checklists add persistent subtask lists to cards. Items can be added, checked,
-    reordered, and deleted. KanbanCard shows progress badge ("3/7"). AI task breakdown
-    (TaskBreakdownSection) can populate checklists with one click.
-
-    **Architecture pattern (from codebase exploration):**
-    The checklist follows the exact child-entity pattern used by cardComments,
-    cardActivities, and cardAttachments:
-    1. DB table with cardId FK + cascade delete → schema/cards.ts
-    2. IPC handlers for CRUD → ipc/cards.ts
-    3. Preload bridge → preload/domains/card-details.ts
-    4. Store slice → stores/cardDetailStore.ts (loaded via loadCardDetails)
-    5. Section component → components/ChecklistSection.tsx → rendered in CardDetailModal
-
-    **Single-table design:** One `card_checklist_items` table (not two tables).
-    Each card has one flat checklist. This keeps the schema simple and matches the
-    feature description. If named checklists are needed later, add a `checklistName`
-    grouping field.
+    Design decisions:
+    - Recurrence triggers on `completed = true` (not "done column" detection).
+      Avoids needing isDoneColumn on columns table. Clear, predictable trigger point.
+    - varchar for recurrenceType (not enum) — simpler migrations for future values.
+    - Card templates: DB-backed table + keep 5 built-in templates as hardcoded fallback.
+    - Label matching in templates by name (best-effort, skip missing labels).
 
     @PROJECT.md @STATE.md @SELF-IMPROVE-NEW.md
-    @src/main/db/schema/cards.ts (cards, cardComments, cardActivities, cardAttachments tables)
-    @src/main/db/schema/index.ts (re-exports all schema)
-    @src/main/ipc/cards.ts (card CRUD + child entity handlers)
-    @src/preload/domains/card-details.ts (comments, relationships, activities, attachments bridge)
-    @src/shared/types/projects.ts (Card, CardComment, CardAttachment types)
-    @src/shared/types/electron-api.ts (ElectronAPI interface)
-    @src/shared/validation/schemas.ts (Zod validation schemas)
-    @src/renderer/stores/cardDetailStore.ts (selectedCard*, loadCardDetails, clearCardDetails)
-    @src/renderer/components/CardDetailModal.tsx (sections: Attachments, Comments, Relationships, Activity, TaskBreakdown)
-    @src/renderer/components/KanbanCard.tsx (badges: labels, due date, dependency count)
-    @src/renderer/components/TaskBreakdownSection.tsx (AI breakdown → creates cards in column)
-    @src/renderer/stores/boardStore.ts (cards state, cards:list-by-board fetching)
-    @drizzle.config.ts (migration output dir)
-    @drizzle/meta/_journal.json (9 migrations: 0000-0008)
+    @src/main/db/schema/cards.ts
+    @src/main/ipc/cards.ts
+    @src/renderer/components/CardDetailModal.tsx
+    @src/renderer/components/KanbanCard.tsx
+    @src/renderer/stores/boardStore.ts
+    @src/shared/types/projects.ts
+    @src/shared/types/cards.ts
+    @src/shared/types/electron-api.ts
+    @src/shared/validation/schemas.ts
+    @src/preload/domains/card-details.ts
+    @src/preload/domains/projects.ts
   </context>
 
   <task type="auto" n="1">
-    <n>Schema, migration, IPC handlers, and preload bridge for checklist items</n>
+    <n>Schema + migration + IPC handlers for recurring cards and card templates</n>
     <files>
       src/main/db/schema/cards.ts
-      src/main/db/schema/index.ts
-      src/main/ipc/cards.ts
-      src/preload/domains/card-details.ts
       src/shared/types/projects.ts
+      src/shared/types/cards.ts
       src/shared/types/electron-api.ts
       src/shared/validation/schemas.ts
-      drizzle/ (generated migration)
+      src/preload/domains/card-details.ts
+      src/main/ipc/cards.ts
+      drizzle/ (generated migration 0010)
     </files>
     <action>
-      Create the data layer for card checklist items. This follows the exact pattern
-      used by cardComments and cardAttachments — a child table with cascading delete.
+      ## Recurring Cards — Schema Changes
 
-      **1. Schema (src/main/db/schema/cards.ts):**
-      Add `cardChecklistItems` table after the existing cardAttachments table:
-      ```ts
-      export const cardChecklistItems = pgTable('card_checklist_items', {
-        id:        uuid('id').defaultRandom().primaryKey(),
-        cardId:    uuid('card_id').notNull().references(() => cards.id, { onDelete: 'cascade' }),
-        title:     varchar('title', { length: 500 }).notNull(),
-        completed: boolean('completed').default(false).notNull(),
-        position:  integer('position').default(0).notNull(),
-        createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-      });
-      ```
+      **WHY:** Cards need recurrence metadata so the system can auto-create the next occurrence
+      when a recurring card is marked complete. Triggering on `completed = true` is simpler and
+      more reliable than "done column" detection (avoids needing isDoneColumn on columns table).
 
-      **2. Schema index (src/main/db/schema/index.ts):**
-      Export `cardChecklistItems` from the barrel file (it may auto-export if using `export *`).
+      1. Add columns to `cards` table in src/main/db/schema/cards.ts:
+         - `recurrenceType` — varchar('recurrence_type', { length: 20 }), nullable.
+           Values: 'daily' | 'weekly' | 'biweekly' | 'monthly' | null (no recurrence).
+         - `recurrenceEndDate` — timestamp('recurrence_end_date', { withTimezone: true }), nullable.
+           If set, stop generating new occurrences after this date.
+         - `sourceRecurringId` — uuid('source_recurring_id'), nullable.
+           Points to the original recurring card that spawned this one (for lineage tracking).
+           Do NOT add a FK constraint (self-referencing FKs with cascade can be tricky).
 
-      **3. TypeScript types (src/shared/types/projects.ts):**
-      Add interface:
-      ```ts
-      export interface CardChecklistItem {
-        id: string;
-        cardId: string;
-        title: string;
-        completed: boolean;
-        position: number;
-        createdAt: string;
-      }
-      ```
+      2. Add recurrence fields to Card interface in src/shared/types/projects.ts:
+         - `recurrenceType?: string | null;`
+         - `recurrenceEndDate?: string | null;`
+         - `sourceRecurringId?: string | null;`
 
-      **4. Validation schemas (src/shared/validation/schemas.ts):**
-      Add Zod schemas:
-      ```ts
-      export const addChecklistItemSchema = z.object({
-        cardId: uuid,
-        title: z.string().min(1).max(500),
-      });
+      3. Add to UpdateCardInput in src/shared/types/projects.ts:
+         - `recurrenceType?: string | null;`
+         - `recurrenceEndDate?: string | null;`
 
-      export const updateChecklistItemSchema = z.object({
-        id: uuid,
-        title: z.string().min(1).max(500).optional(),
-        completed: z.boolean().optional(),
-      });
+      4. Update `updateCardInputSchema` in src/shared/validation/schemas.ts:
+         - `recurrenceType: z.enum(['daily','weekly','biweekly','monthly']).nullable().optional()`
+         - `recurrenceEndDate: z.string().nullable().optional()`
 
-      export const reorderChecklistItemsSchema = z.object({
-        cardId: uuid,
-        itemIds: z.array(uuid),  // ordered list of IDs in new position order
-      });
-      ```
+      ## Card Templates — Schema
 
-      **5. IPC handlers (src/main/ipc/cards.ts):**
-      Add 5 new handlers following the exact cardComments pattern:
-
-      a) `card:getChecklistItems` — SELECT where cardId, ORDER BY position ASC
-      b) `card:addChecklistItem` — INSERT with position = count of existing items
-         (same pattern as cards:create position computation)
-      c) `card:updateChecklistItem` — UPDATE title and/or completed by item ID
-      d) `card:deleteChecklistItem` — DELETE by item ID
-      e) `card:reorderChecklistItems` — Accept array of item IDs in new order,
-         UPDATE position for each. Use a transaction:
+      5. Create `cardTemplates` table in src/main/db/schema/cards.ts:
          ```ts
-         await db.transaction(async (tx) => {
-           for (let i = 0; i < itemIds.length; i++) {
-             await tx.update(cardChecklistItems)
-               .set({ position: i })
-               .where(eq(cardChecklistItems.id, itemIds[i]));
-           }
+         export const cardTemplates = pgTable('card_templates', {
+           id:          uuid('id').defaultRandom().primaryKey(),
+           projectId:   uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+           name:        varchar('name', { length: 200 }).notNull(),
+           description: text('description'),
+           priority:    cardPriorityEnum('priority').default('medium').notNull(),
+           labelNames:  text('label_names'),  // JSON array of label name strings
+           createdAt:   timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+           updatedAt:   timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+         });
+         ```
+         Import `projects` from the boards schema file for the FK reference.
+
+      6. Add CardTemplate type to src/shared/types/cards.ts:
+         ```ts
+         export interface CardTemplate {
+           id: string;
+           projectId: string | null;
+           name: string;
+           description: string | null;
+           priority: CardPriority;
+           labelNames: string[] | null;
+           createdAt: string;
+           updatedAt: string;
+         }
+         ```
+         Import CardPriority from projects.ts if needed.
+
+      7. Add Zod schemas in src/shared/validation/schemas.ts:
+         ```ts
+         export const createCardTemplateSchema = z.object({
+           projectId: uuid.nullable().optional(),
+           name: z.string().min(1).max(200),
+           description: z.string().max(5000).nullable().optional(),
+           priority: cardPrioritySchema.optional(),
+           labelNames: z.array(z.string().max(100)).max(20).nullable().optional(),
          });
          ```
 
-      Also add a **batch add** handler for TaskBreakdown integration:
-      f) `card:addChecklistItemsBatch` — Accept cardId + array of title strings.
-         Insert all with sequential positions starting from current max position.
-         Validation: `z.object({ cardId: uuid, titles: z.array(z.string().min(1).max(500)).min(1).max(50) })`
+      ## Recurring Cards — Auto-Spawn Logic
 
-      **6. Preload bridge (src/preload/domains/card-details.ts):**
-      Expose all 6 new methods following the existing pattern (ipcRenderer.invoke).
+      8. Create utility function `spawnRecurringCard` in src/main/ipc/cards.ts:
+         - Input: the completed card's full data (including recurrenceType, dueDate, etc.)
+         - Calculate next due date based on recurrenceType:
+           daily → +1 day, weekly → +7 days, biweekly → +14 days, monthly → +1 month (use Date)
+         - If recurrenceEndDate is set and next date exceeds it → return null (no spawn)
+         - If original card had no dueDate → spawn with no dueDate (recurrence still works, just unscheduled)
+         - Create new card in the SAME column with:
+           title (same), description (same), priority (same), recurrenceType (same),
+           recurrenceEndDate (same), sourceRecurringId (point to completed card's id),
+           dueDate (calculated next date or null), completed: false, position: 0 (top of column)
+         - Does NOT copy: checklist items, comments, relationships, attachments
+         - Return the newly created card (or null)
 
-      **7. ElectronAPI interface (src/shared/types/electron-api.ts):**
-      Add all 6 method signatures to the ElectronAPI interface.
+      9. Hook spawn logic into `cards:update` IPC handler:
+         - BEFORE the update: fetch the card's current `completed` value from DB
+         - After update: if completed changed from false → true AND card has recurrenceType,
+           call spawnRecurringCard
+         - Return shape: `{ card: Card; spawnedCard: Card | null }`
+         - IMPORTANT: This changes the IPC response contract. ALL callers of updateCard
+           must be updated to destructure `{ card }` from the response.
+         - Search for all usages of `window.electronAPI.updateCard` in the renderer and
+           `cards:update` invocations. Update each caller.
 
-      **8. Generate migration:**
-      Run `npm run db:generate` (drizzle-kit generate) to create the migration file.
-      Verify the generated SQL creates the `card_checklist_items` table with the
-      correct FK constraint and cascade delete.
+      ## Card Templates — IPC Handlers
 
-      WHY: The data layer must exist before the UI can be built. Following the
-      exact child-entity pattern (comments, attachments) ensures consistency and
-      reduces implementation risk.
+      10. Add IPC handlers (can go in src/main/ipc/cards.ts or a new card-templates.ts):
+          - `card-templates:list` — takes optional projectId (string | undefined).
+            Returns templates where projectId matches OR projectId IS NULL (global).
+            Order by name ASC.
+          - `card-templates:create` — validates with createCardTemplateSchema, inserts, returns.
+          - `card-templates:delete` — deletes by id.
+          - `card-templates:save-from-card` — takes a cardId + optional name override.
+            Reads the card (join with labels), creates a template with: card's description,
+            priority, and label names. Name defaults to card title.
+            Returns the created template.
+
+      ## Wiring
+
+      11. Add to preload bridge (src/preload/domains/card-details.ts):
+          - `getCardTemplates: (projectId?: string) => ipcRenderer.invoke('card-templates:list', projectId)`
+          - `createCardTemplate: (input) => ipcRenderer.invoke('card-templates:create', input)`
+          - `deleteCardTemplate: (id: string) => ipcRenderer.invoke('card-templates:delete', id)`
+          - `saveCardAsTemplate: (cardId: string, name?: string) => ipcRenderer.invoke('card-templates:save-from-card', cardId, name)`
+
+      12. Add to ElectronAPI interface (src/shared/types/electron-api.ts):
+          - Import CardTemplate type
+          - `getCardTemplates: (projectId?: string) => Promise<CardTemplate[]>`
+          - `createCardTemplate: (input: { ... }) => Promise<CardTemplate>`
+          - `deleteCardTemplate: (id: string) => Promise<void>`
+          - `saveCardAsTemplate: (cardId: string, name?: string) => Promise<CardTemplate>`
+          - Update `updateCard` return type to `Promise<{ card: Card; spawnedCard: Card | null }>`
+
+      13. Export cardTemplates from src/main/db/schema/index.ts (if not auto-exported).
+
+      14. Run `npx drizzle-kit generate` to create migration 0010.
+          Verify the SQL adds 3 columns to cards + creates card_templates table.
     </action>
     <verify>
-      1. `npx tsc --noEmit` passes — all types and IPC signatures compile
-      2. `npx vitest run` — all 150 existing tests still pass
-      3. Migration file exists in drizzle/ directory with correct CREATE TABLE SQL
-      4. Schema exports cardChecklistItems from index.ts
-      5. All 6 IPC handlers are registered (grep for "card:getChecklistItems" etc.)
-      6. Preload bridge exposes all 6 methods
-      7. ElectronAPI interface includes all 6 method signatures
+      1. `npx tsc --noEmit` passes with zero errors
+      2. `npx drizzle-kit generate` creates migration SQL
+      3. `npx vitest run` — all 150 tests pass
+      4. Verify migration SQL has: ALTER TABLE cards ADD recurrence_type, recurrence_end_date,
+         source_recurring_id; CREATE TABLE card_templates
     </verify>
     <done>
-      card_checklist_items table defined in schema with migration generated.
-      6 IPC handlers (get, add, update, delete, reorder, batch-add) registered.
-      Preload bridge and ElectronAPI types updated. TypeScript compiles, all tests pass.
+      Cards table has recurrenceType, recurrenceEndDate, sourceRecurringId columns.
+      card_templates table exists with CRUD IPC handlers.
+      spawnRecurringCard utility creates next occurrence when card completes.
+      cards:update returns { card, spawnedCard } and handles auto-spawn.
+      All preload + types wired. tsc clean, tests pass.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - PGlite supports transactions (standard PostgreSQL feature, used elsewhere in codebase)
-      - Single flat checklist per card is sufficient (no named sub-checklists)
-      - drizzle-kit generate will create the correct migration from the schema diff
+      - drizzle-kit generate works with added columns (proven pattern from 9 prior migrations)
+      - varchar for recurrenceType (not enum) avoids ALTER TYPE migration complexity
+      - Spawn on completed=true (not on column move) keeps it simple
+      - Changing updateCard response shape requires updating all callers — manageable
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>ChecklistSection UI component in CardDetailModal</n>
+    <n>Recurring Cards UI — CardDetailModal + KanbanCard + boardStore integration</n>
     <files>
-      src/renderer/stores/cardDetailStore.ts
-      src/renderer/components/ChecklistSection.tsx (new)
       src/renderer/components/CardDetailModal.tsx
+      src/renderer/components/KanbanCard.tsx
+      src/renderer/stores/boardStore.ts
     </files>
     <action>
-      Build the interactive checklist UI and wire it into the card detail view.
-      This is the primary user-facing feature — add, check, edit, reorder, delete items.
+      **WHY:** Users need to configure recurrence on cards and see which cards are recurring.
+      When a recurring card is completed, the spawned card should appear on the board immediately.
 
-      **1. Store slice (src/renderer/stores/cardDetailStore.ts):**
-      Add to the store state:
-      ```ts
-      selectedCardChecklistItems: CardChecklistItem[];
-      ```
+      ## CardDetailModal — Recurrence Section
 
-      Add actions:
-      ```ts
-      loadChecklistItems: (cardId: string) => Promise<void>;
-      addChecklistItem: (cardId: string, title: string) => Promise<void>;
-      updateChecklistItem: (id: string, updates: { title?: string; completed?: boolean }) => Promise<void>;
-      deleteChecklistItem: (id: string) => Promise<void>;
-      reorderChecklistItems: (cardId: string, itemIds: string[]) => Promise<void>;
-      ```
+      1. Add a "Repeat" section between the Due Date section (line ~535) and
+         ChecklistSection (line ~542). Layout:
 
-      Wire `loadChecklistItems` into the existing `loadCardDetails` function
-      (add to the Promise.all/Promise.allSettled array). Wire cleanup into
-      `clearCardDetails` (set to empty array).
+         ```
+         ┌──────────────────────────────────────────────────┐
+         │ 🔄 Repeat                                       │
+         │ [None ▾]  ← select dropdown                     │
+         │                                                  │
+         │ (when recurrence is active + due date exists:)   │
+         │ Next: Wed, Feb 25, 2026                          │
+         │                                                  │
+         │ (when recurrence is active, no due date:)        │
+         │ ⚠ Set a due date for auto-scheduling            │
+         │                                                  │
+         │ End repeat: [date input]  [Clear]                │
+         └──────────────────────────────────────────────────┘
+         ```
 
-      Each action is optimistic: update local state first, then call IPC.
-      On failure, reload from server (call loadChecklistItems again).
+         - Label: "Repeat" with RefreshCw icon (lucide-react)
+         - Select dropdown options: None, Daily, Weekly, Bi-weekly, Monthly
+         - Auto-save on change: `onUpdate(card.id, { recurrenceType: value || null })`
+         - When recurrence is set and dueDate exists, show "Next: [calculated date]"
+           using the same date math as spawnRecurringCard (daily +1d, weekly +7d, etc.)
+         - When recurrence is set but no dueDate, show amber hint text
+         - "End repeat" date picker: only visible when recurrence != None.
+           Uses datetime-local input. Clearing removes the end date.
+         - When recurrence is None, only the dropdown is shown (compact).
 
-      **2. ChecklistSection component (new file):**
-      Create `src/renderer/components/ChecklistSection.tsx`:
+      ## KanbanCard — Recurring Badge
 
-      Props: `{ cardId: string }`
+      2. Add a RefreshCw icon badge in the bottom row (after checklist, before dependency):
+         - Only shown when `card.recurrenceType` is truthy
+         - `<RefreshCw className="w-3.5 h-3.5" />`
+         - text-blue-400, with title tooltip showing recurrence type (e.g. "Repeats weekly")
+         - Capitalize the type for display: "Daily", "Weekly", etc.
 
-      Layout:
-      ```
-      ┌──────────────────────────────────────┐
-      │ ☑ Checklist                    2/5   │  ← header with count
-      ├──────────────────────────────────────┤
-      │ [✓] Completed item (strikethrough)   │  ← checked items
-      │ [ ] Pending item                  ✕  │  ← unchecked items with delete
-      │ [ ] Another pending item          ✕  │
-      │                                      │
-      │ [+ Add an item...              ]     │  ← input at bottom
-      └──────────────────────────────────────┘
-      ```
+      ## boardStore — Handle Spawn on Complete
 
-      Features:
-      a) **Header:** CheckSquare icon + "Checklist" label + "N/M" count badge.
-         Show a thin progress bar under the header (emerald-500 fill, proportional width).
+      3. Update boardStore.updateCard action:
+         - The IPC now returns `{ card: Card; spawnedCard: Card | null }` (from Task 1)
+         - Destructure the response: `const { card, spawnedCard } = await window.electronAPI.updateCard(...)`
+         - Update the cards array with the updated card (existing logic)
+         - If spawnedCard exists, add it to the cards array
+         - Show toast: `toast({ type: 'success', message: 'Recurring card created: ${spawnedCard.title}' })`
+         - Import toast from the toast store
 
-      b) **Items list:** Map over selectedCardChecklistItems (sorted by position).
-         Each item row has:
-         - Checkbox (checked = completed). Toggle calls updateChecklistItem.
-         - Title text. Completed items show line-through + text-slate-400.
-         - Click title to edit inline (same pattern as column rename: click → input,
-           Enter/blur saves, Escape cancels). Call updateChecklistItem with new title.
-         - X button on hover to delete (calls deleteChecklistItem).
-         - Drag handle (GripVertical icon) for reordering.
+      4. Update ALL other callers of updateCard in the renderer:
+         - Search for `updateCard(` and `electronAPI.updateCard(` across all renderer files
+         - Each caller now gets `{ card, spawnedCard }` — most just need `{ card }`
+         - Common pattern: `const { card } = await window.electronAPI.updateCard(id, data)`
+         - Key files to check: CardDetailModal (onUpdate prop), boardStore, any inline calls
+         - The CardDetailModal's `onUpdate` callback in BoardPage.tsx likely wraps
+           boardStore.updateCard — if so, only boardStore needs the change.
 
-      c) **Drag reorder:** Use pragmatic-drag-and-drop (already in the project) for
-         item reordering. On drop, compute new item order and call reorderChecklistItems.
-         Follow the pattern from KanbanCard/BoardColumn drag setup.
-
-      d) **Add input:** Text input at the bottom. Enter adds item (calls addChecklistItem).
-         Clear input after successful add. Auto-focus stays on input for rapid entry
-         (user can type → Enter → type → Enter for quick batch creation).
-
-      e) **Empty state:** When no items, show just the add input with placeholder
-         "Add a checklist item..." and a subtle hint text.
-
-      Styling: Match existing section styles (CommentsSection, AttachmentsSection).
-      Use slate-700/slate-600 borders, rounded-lg containers, hover states.
-
-      **3. CardDetailModal integration:**
-      Import ChecklistSection. Render it BEFORE AttachmentsSection (after the
-      description/TipTap editor area, before the other sections). This puts checklists
-      in a prominent position since they're the most interactive section.
-
-      Position in render order: Description → **Checklist** → Attachments → Comments →
-      Relationships → Activity → TaskBreakdown.
-
-      WHY: Checklists are the most-interacted-with card feature in tools like Trello.
-      Placing them prominently and making them fast to use (rapid entry, inline edit,
-      one-click check) maximizes adoption.
+      5. When user toggles completed=true on a recurring card in CardDetailModal:
+         - The boardStore handles the spawn (step 3)
+         - Card detail modal stays open on the current (now-completed) card
+         - User sees the toast about the new card
     </action>
     <verify>
       1. `npx tsc --noEmit` passes
-      2. `npx vitest run` — all existing tests pass
-      3. Manual: open a card detail → see empty Checklist section with add input
-      4. Add 3 items rapidly (type → Enter × 3) — items appear in order
-      5. Check/uncheck items — line-through toggles, count updates
-      6. Click title to edit inline — Enter saves, Escape cancels
-      7. Hover item → X button appears → click deletes item
-      8. Drag items to reorder — new order persists after closing and reopening card
-      9. Close and reopen card — checklist items reload correctly
+      2. `npx vitest run` — all tests pass
+      3. Manual: Create card → set due date → set recurrence "Weekly" → shows "Next: [+7 days]"
+      4. Manual: Mark card as completed → toast shows "Recurring card created" → new card
+         appears in same column with due date +7 days and recurrenceType=weekly
+      5. KanbanCard shows blue RefreshCw badge on recurring cards
+      6. Set recurrence without due date → amber hint shown
+      7. Set end date → spawn stops after end date
+      8. No duplicate spawns: marking an already-completed card as completed again doesn't spawn
     </verify>
     <done>
-      ChecklistSection component renders in CardDetailModal with full CRUD:
-      add items, check/uncheck, inline title edit, delete, drag-to-reorder.
-      Progress bar and count badge in header. TypeScript compiles, all tests pass.
+      CardDetailModal has Recurrence section with dropdown + end date + next occurrence preview.
+      KanbanCard shows recurring badge (blue RefreshCw).
+      Completing a recurring card auto-spawns next occurrence via boardStore.
+      Toast confirms spawn. All callers of updateCard updated for new response shape.
+      tsc clean, tests pass.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - pragmatic-drag-and-drop works for list reordering (same lib used for card drag)
-      - Inline edit pattern (click → input → Enter/blur) matches existing column rename UX
-      - Optimistic updates provide instant feedback; IPC calls happen in background
+      - RefreshCw icon is available in lucide-react (standard icon, verified)
+      - Toast system (useToastStore/toast) available and working
+      - boardStore.updateCard is the main entry point for card updates from the UI
+      - Changing IPC response shape is the cleanest approach (vs separate channel)
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>KanbanCard checklist badge and TaskBreakdown checklist integration</n>
+    <n>DB-backed Card Templates — replace hardcoded templates + Save as Template</n>
     <files>
-      src/main/ipc/cards.ts
-      src/shared/types/projects.ts
-      src/renderer/components/KanbanCard.tsx
-      src/renderer/stores/boardStore.ts
-      src/renderer/components/TaskBreakdownSection.tsx
+      src/renderer/components/CardDetailModal.tsx
+      src/renderer/components/BoardColumn.tsx
     </files>
     <action>
-      Add checklist progress visibility on the board and connect AI task breakdown
-      to checklists. These are the two integration points that make checklists powerful.
+      **WHY:** The existing "Apply Template" dropdown uses 5 hardcoded templates. Users need
+      to save their own templates from existing cards and access them during card creation.
+      DB-backed templates make the feature useful across sessions and projects.
 
-      **Part A: KanbanCard checklist progress badge**
+      ## CardDetailModal — Enhanced Template System
 
-      1. **Extend board card query (src/main/ipc/cards.ts):**
-         In the `cards:list-by-board` handler, add a subquery or post-fetch query
-         to get checklist progress for each card. Two approaches:
+      1. Replace the hardcoded template dropdown with a combined list:
+         - On dropdown open, fetch templates via `window.electronAPI.getCardTemplates(projectId)`
+           (projectId from card → column → board → project context, already available in the modal)
+         - Show two groups with a small divider label:
+           "Your Templates" (DB templates, from the fetch) at the top
+           "Built-in" (the existing 5 CARD_TEMPLATES: bug, feature, action, note, research) below
+         - If no custom templates exist, just show "Built-in" without a group header
+         - Each DB template row: name + small delete button (X) on hover
+         - Clicking a DB template applies it: set description (via editor.commands.setContent),
+           set priority (via onUpdate). For labelNames: fetch project labels, match by name,
+           attach matching ones via attachLabel.
+         - Clicking a built-in template: same behavior as current (existing code).
 
-         Option A (recommended — single extra query): After fetching cards, run one
-         batch query:
-         ```ts
-         const checklistCounts = await db
-           .select({
-             cardId: cardChecklistItems.cardId,
-             total: count(),
-             done: count(sql`CASE WHEN ${cardChecklistItems.completed} THEN 1 END`),
-           })
-           .from(cardChecklistItems)
-           .where(inArray(cardChecklistItems.cardId, cardIds))
-           .groupBy(cardChecklistItems.cardId);
-         ```
-         Merge counts into the card objects before returning.
+      2. Add "Save as Template" button:
+         - Position: next to the existing "Apply Template" button (group them together)
+         - Icon: BookmarkPlus from lucide-react, small button with title="Save as template"
+         - On click: show a small inline name input (pre-filled with card title, max 200 chars)
+           with Save/Cancel. Or use window.prompt for simplicity (matches existing patterns
+           like column rename which uses inline input).
+         - Calls `window.electronAPI.saveCardAsTemplate(cardId, name)`
+         - On success: `toast({ type: 'success', message: 'Saved template: [name]' })`
+         - Template captures: description, priority, label names from the current card
 
-         Option B (per-card subquery): Less efficient but simpler.
+      ## BoardColumn — Template in Card Creation
 
-         Use Option A. Add `checklistTotal` and `checklistDone` to the returned
-         card objects (default 0 for cards without checklists).
+      3. Enhance the "Add card" form in BoardColumn.tsx:
+         - Below the title input (in the addingCard form), add a small clickable text:
+           "From template ▾" (text-xs, text-surface-400, cursor-pointer)
+         - Clicking opens a compact dropdown listing available templates
+           (project-scoped + global, fetched via getCardTemplates)
+         - Include built-in templates in the list too
+         - Selecting a template: pre-fills a `selectedTemplate` state variable
+         - When "Add" is clicked with a template selected:
+           1. Create the card with the user's title + template's priority
+           2. Then update it with the template's description
+           3. Then attempt to attach matching labels
+           The card title always comes from user input (not template).
+         - Show a small badge next to the input when a template is selected:
+           "Using: [template name]" with an X to clear selection
+         - If no templates are available (no DB templates exist), hide "From template" link
 
-      2. **Extend Card type (src/shared/types/projects.ts):**
-         Add optional fields to the Card interface:
-         ```ts
-         checklistTotal?: number;
-         checklistDone?: number;
-         ```
-         Optional so existing code that creates Card objects doesn't break.
+      ## Cleanup
 
-      3. **KanbanCard badge (src/renderer/components/KanbanCard.tsx):**
-         In the bottom badge row (alongside labels, due date, dependency count),
-         add a checklist progress indicator when `card.checklistTotal > 0`:
-
-         ```tsx
-         {card.checklistTotal > 0 && (
-           <span className="flex items-center gap-1 text-xs text-slate-400"
-                 title={`${card.checklistDone}/${card.checklistTotal} completed`}>
-             <CheckSquare className="w-3.5 h-3.5" />
-             <span className={card.checklistDone === card.checklistTotal
-               ? 'text-emerald-400' : ''}>
-               {card.checklistDone}/{card.checklistTotal}
-             </span>
-           </span>
-         )}
-         ```
-
-         Position: after the due date badge, before the dependency badge.
-         When all items are complete (done === total), show in emerald-400.
-
-      4. **Refresh board after checklist changes (src/renderer/stores/boardStore.ts):**
-         The boardStore fetches cards via `cards:list-by-board`. When checklist items
-         change in the CardDetailModal, the board badges need to refresh. Add a
-         `refreshBoardCards` action that re-fetches cards for the current board,
-         or call existing `loadBoardData` after closing CardDetailModal.
-
-         Simplest approach: in cardDetailStore's `updateChecklistItem` and
-         `deleteChecklistItem` actions, after the IPC call, also call
-         `boardStore.getState().loadBoardCards(boardId)` to refresh badge counts.
-         BUT: this requires knowing the boardId from the checklist context.
-
-         Better approach: when CardDetailModal closes (in BoardPage), call
-         `loadCards(boardId)` to refresh. This already happens for comments
-         and other changes — verify and reuse the pattern.
-
-      **Part B: TaskBreakdown → Checklist integration**
-
-      5. **TaskBreakdownSection (src/renderer/components/TaskBreakdownSection.tsx):**
-         Currently, when the user clicks "Apply" on selected breakdown subtasks,
-         it creates new Kanban cards in the same column (lines 88-122).
-
-         Add a second action button: "Add to Checklist" (ListChecks icon).
-         This button:
-         - Calls `window.electronAPI.addChecklistItemsBatch(cardId, titles)` where
-           titles is the array of selected subtask titles
-         - Then calls `cardDetailStore.getState().loadChecklistItems(cardId)` to
-           refresh the checklist section
-         - Shows a toast: "Added N items to checklist"
-
-         The "Apply" button remains for creating full cards. Label it "Create as Cards"
-         to distinguish from "Add to Checklist". Both buttons sit side by side.
-         Only show "Add to Checklist" when breakdown has results.
-
-         This closes the loop: AI generates a task breakdown → user reviews →
-         one click adds all subtasks as trackable checklist items on the current card.
-
-      WHY: Checklist progress on KanbanCard gives at-a-glance visibility without
-      opening each card. TaskBreakdown integration makes AI-generated subtasks
-      actionable instead of throwaway suggestions.
+      4. Keep the CARD_TEMPLATES constant in CardDetailModal (or move to a shared constants
+         file). These are the built-in defaults that always exist regardless of DB state.
+         Mark them clearly with a comment: `// Built-in templates (always available)`.
     </action>
     <verify>
       1. `npx tsc --noEmit` passes
-      2. `npx vitest run` — all existing tests pass
-      3. Manual: add checklist items to a card → close card detail → KanbanCard
-         shows "2/5" badge (or whatever the actual counts are)
-      4. Complete all checklist items → badge turns emerald green ("5/5")
-      5. Card with no checklist items → no badge shown
-      6. Run AI task breakdown on a card → click "Add to Checklist" → items
-         appear in the ChecklistSection
-      7. "Create as Cards" button still works (existing behavior preserved)
-      8. Verify board refreshes correctly when checklist changes are made
+      2. `npx vitest run` — all tests pass
+      3. Manual: Open card → "Save as Template" → enter name → template saved → toast shown
+      4. Manual: Open card → "Apply Template" dropdown shows "Your Templates" + "Built-in"
+      5. Manual: Click a custom template → description + priority applied to card
+      6. Manual: Delete a custom template via X button → removed from dropdown
+      7. Manual: BoardColumn → type title → "From template" → select template →
+         "Add" → card created with title + template's description/priority
+      8. Built-in templates (bug, feature, etc.) still work as before
     </verify>
     <done>
-      KanbanCard shows "N/M" checklist progress badge with emerald highlight when
-      all items are complete. TaskBreakdownSection has "Add to Checklist" button
-      that batch-adds AI subtasks as checklist items. TypeScript compiles, all tests pass.
+      Hardcoded templates supplemented with DB-backed user templates.
+      "Save as Template" button creates templates from existing cards.
+      Templates available in CardDetailModal dropdown and BoardColumn creation flow.
+      Built-in templates preserved as always-available defaults.
+      tsc clean, tests pass.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - PGlite supports conditional COUNT (CASE WHEN ... THEN 1 END) — standard SQL
-      - Batch checklist query per board is efficient enough (one extra query per board load)
-      - Board card refresh on modal close is sufficient (no real-time badge updates needed)
-      - "Add to Checklist" and "Create as Cards" are clear enough labels for users
+      - 5 built-in templates kept as hardcoded fallback (not migrated to DB — always available)
+      - Label matching by name is best-effort (skip if label doesn't exist in target project)
+      - window.electronAPI.getCardTemplates returns both project-scoped + global templates
+      - BookmarkPlus icon available in lucide-react
     </assumptions>
   </task>
-
 </phase>
