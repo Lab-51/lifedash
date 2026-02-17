@@ -21,6 +21,7 @@ import { registerNotificationHandlers } from './notifications';
 import { registerTranscriptionProviderHandlers } from './transcription-provider';
 import { registerDiarizationHandlers } from './diarization';
 import { registerDashboardHandlers } from './dashboard';
+import { registerFocusHandlers } from './focus';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -45,4 +46,5 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerTranscriptionProviderHandlers();
   registerDiarizationHandlers();
   registerDashboardHandlers();
+  registerFocusHandlers();
 }

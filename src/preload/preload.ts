@@ -20,6 +20,7 @@ import { notificationsBridge } from './domains/notifications';
 import { transcriptionBridge } from './domains/transcription';
 import { appBridge } from './domains/app';
 import { dashboardBridge } from './domains/dashboard';
+import { focusBridge } from './domains/focus';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -38,4 +39,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...transcriptionBridge,
   ...appBridge,
   ...dashboardBridge,
+  ...focusBridge,
 });

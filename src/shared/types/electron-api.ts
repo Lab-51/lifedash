@@ -47,6 +47,7 @@ import type { ProjectPlan, TaskBreakdown } from './tasks';
 import type { NotificationPreferences } from './notifications';
 import type { TranscriptionProviderType, TranscriptionProviderStatus } from './transcription';
 import type { MeetingAnalytics } from './analytics';
+import type { FocusSession, FocusStats, FocusDailyData, FocusAchievement } from './focus';
 
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
@@ -266,6 +267,13 @@ export interface ElectronAPI {
   // Dashboard
   generateStandup: (projectId?: string) => Promise<{ standup: string }>;
   getActivityData: () => Promise<{ dayCounts: Record<string, number> }>;
+
+  // Focus Gamification
+  focusSaveSession: (input: { cardId?: string; durationMinutes: number; note?: string }) =>
+    Promise<{ session: FocusSession; stats: FocusStats; newAchievements: FocusAchievement[] }>;
+  focusGetStats: () => Promise<FocusStats>;
+  focusGetDaily: (days?: number) => Promise<FocusDailyData[]>;
+  focusGetAchievements: () => Promise<FocusAchievement[]>;
 
   // App-level events
   onShowCommandPalette: (callback: () => void) => () => void;

@@ -14,4 +14,5 @@ export * from './notifications';
 export * from './transcription';
 export * from './diarization';
 export * from './analytics';
+export * from './focus';
 export * from './electron-api';
