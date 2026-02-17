@@ -122,7 +122,7 @@ export default function DashboardModern() {
     const [activityData, setActivityData] = useState<Record<string, number>>({});
     useEffect(() => {
         window.electronAPI.getActivityData().then(r => setActivityData(r.dayCounts));
-    }, []);
+    }, [allCards.length, meetings.length, ideas.length]);
 
     return (
         <div className="h-full flex flex-col overflow-hidden bg-surface-50/50 dark:bg-surface-950">

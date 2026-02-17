@@ -150,27 +150,28 @@ Today's date: ${now.toLocaleDateString()}`;
 
   ipcMain.handle('dashboard:activity-data', async () => {
     const db = getDb();
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const oneYearAgo = new Date();
+    oneYearAgo.setDate(oneYearAgo.getDate() - 365);
 
     const cardRows = await db
       .select({ createdAt: cards.createdAt })
       .from(cards)
-      .where(gte(cards.createdAt, ninetyDaysAgo));
+      .where(gte(cards.createdAt, oneYearAgo));
 
     const meetingRows = await db
       .select({ createdAt: meetings.createdAt })
       .from(meetings)
-      .where(gte(meetings.createdAt, ninetyDaysAgo));
+      .where(gte(meetings.createdAt, oneYearAgo));
 
     const ideaRows = await db
       .select({ createdAt: ideas.createdAt })
       .from(ideas)
-      .where(gte(ideas.createdAt, ninetyDaysAgo));
+      .where(gte(ideas.createdAt, oneYearAgo));
 
     const dayCounts: Record<string, number> = {};
     for (const row of [...cardRows, ...meetingRows, ...ideaRows]) {
-      const dateStr = new Date(row.createdAt).toISOString().split('T')[0];
+      const d = new Date(row.createdAt);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       dayCounts[dateStr] = (dayCounts[dateStr] || 0) + 1;
     }
 

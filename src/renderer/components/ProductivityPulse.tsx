@@ -17,22 +17,21 @@ const DAY_LABEL_WIDTH = 30; // Width for Mon, Wed, Fri labels
 const MONTH_LABEL_HEIGHT = 20;
 const WEEK_WIDTH = SQUARE_SIZE + GAP;
 
+/** Format a Date as YYYY-MM-DD in local timezone (avoids UTC shift from toISOString). */
+function toLocalDateStr(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 function calculateStreak(data: Record<string, number>): number {
     let count = 0;
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize today
+    today.setHours(0, 0, 0, 0);
 
     for (let i = 0; i < 365; i++) {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
+        const dateStr = toLocalDateStr(d);
         const val = data[dateStr] || 0;
-
-        // If checking today and it's 0, don't break streak yet (unless yesterday was 0 too)
-        // But here we are just counting strictly consecutive days including today.
-        // Logic: if today has data, count it. If not, don't count it but check yesterday. 
-        // If yesterday has data, streak is alive.
-        // If yesterday is 0, streak is broken (0).
 
         if (i === 0 && val === 0) continue;
 
@@ -109,7 +108,7 @@ export default function ProductivityPulse({ data }: Props) {
             let yearOfFirst = -1;
 
             for (let d = 0; d < 7; d++) {
-                const dateStr = currentDate.toISOString().split('T')[0];
+                const dateStr = toLocalDateStr(currentDate);
                 const count = data[dateStr] || 0;
                 const m = currentDate.getMonth();
                 const y = currentDate.getFullYear();
