@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X, CheckCircle, Trophy } from 'lucide-react';
 import { useFocusStore } from '../stores/focusStore';
+import { useGamificationStore } from '../stores/gamificationStore';
 import { toast } from '../hooks/useToast';
 import type { GamificationStats, Achievement } from '../../shared/types/gamification';
 
@@ -109,7 +110,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
       }
 
       // Show reward feedback
-      setRewardStats(useFocusStore.getState().stats);
+      setRewardStats(useGamificationStore.getState().stats);
       setNewAchievements(earned);
       setShowReward(true);
 

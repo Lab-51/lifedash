@@ -35,6 +35,7 @@ import {
   BadgeCheck,
 } from 'lucide-react';
 import { useFocusStore } from '../stores/focusStore';
+import { useGamificationStore } from '../stores/gamificationStore';
 import { ACHIEVEMENTS } from '../../shared/types/gamification';
 import type { FocusDailyData } from '../../shared/types/focus';
 
@@ -45,10 +46,10 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: 
 };
 
 export default function FocusStatsWidget() {
-  const stats = useFocusStore(s => s.stats);
-  const achievements = useFocusStore(s => s.achievements);
+  const stats = useGamificationStore(s => s.stats);
+  const achievements = useGamificationStore(s => s.achievements);
   const mode = useFocusStore(s => s.mode);
-  const loadStats = useFocusStore(s => s.loadStats);
+  const loadStats = useGamificationStore(s => s.loadStats);
 
   const [dailyData, setDailyData] = useState<FocusDailyData[]>([]);
 

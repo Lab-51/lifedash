@@ -6,7 +6,7 @@
 // zustand, window.electronAPI (preload bridge)
 
 import { create } from 'zustand';
-import type { GamificationStats, Achievement } from '../../shared/types/gamification';
+import type { Achievement } from '../../shared/types/gamification';
 
 interface FocusState {
   // State
@@ -20,8 +20,6 @@ interface FocusState {
   isPaused: boolean;
   intervalId: ReturnType<typeof setInterval> | null;
   showStartModal: boolean; // controls FocusStartModal visibility
-  stats: GamificationStats | null;
-  achievements: Achievement[];
 
   // Actions
   startFocus: (cardId: string | null, cardTitle: string | null) => void;
@@ -34,7 +32,6 @@ interface FocusState {
   loadSettings: () => Promise<void>;
   setShowStartModal: (show: boolean) => void;
   clearFocusedCard: () => void;
-  loadStats: () => Promise<void>;
   saveSession: (input: { cardId?: string; durationMinutes: number; note?: string }) =>
     Promise<{ newAchievements: Achievement[] }>;
 }
@@ -50,8 +47,6 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   isPaused: false,
   intervalId: null,
   showStartModal: false,
-  stats: null,
-  achievements: [],
 
   startFocus: (cardId, cardTitle) => {
     const state = get();
@@ -166,24 +161,11 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     set({ focusedCardId: null, focusedCardTitle: null });
   },
 
-  loadStats: async () => {
-    try {
-      const [stats, achievements] = await Promise.all([
-        window.electronAPI.focusGetStats(),
-        window.electronAPI.gamificationGetAchievements(),
-      ]);
-      set({ stats, achievements });
-    } catch (error) {
-      console.error('Failed to load focus stats:', error);
-    }
-  },
-
   saveSession: async (input) => {
     const result = await window.electronAPI.focusSaveSession(input);
-    set({ stats: result.stats, achievements: result.newAchievements.length > 0
-      ? await window.electronAPI.gamificationGetAchievements()
-      : get().achievements,
-    });
+    // Delegate stats/achievements to gamificationStore
+    const { useGamificationStore } = await import('./gamificationStore');
+    useGamificationStore.getState().refreshStats(result.stats, result.newAchievements);
     return { newAchievements: result.newAchievements };
   },
 }));

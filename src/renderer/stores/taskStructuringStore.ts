@@ -9,6 +9,7 @@
 // - Depends on AI provider being configured for 'task_structuring' task type
 
 import { create } from 'zustand';
+import { useGamificationStore } from './gamificationStore';
 import type { ProjectPlan, TaskBreakdown } from '../../shared/types';
 
 interface TaskStructuringState {
@@ -44,6 +45,7 @@ export const useTaskStructuringStore = create<TaskStructuringState>((set) => ({
         description || '',
       );
       set({ plan, planLoading: false });
+      useGamificationStore.getState().awardXP('ai_plan');
     } catch (error) {
       set({
         planError: error instanceof Error ? error.message : 'Failed to generate plan',
@@ -57,6 +59,7 @@ export const useTaskStructuringStore = create<TaskStructuringState>((set) => ({
     try {
       const plan = await window.electronAPI.taskStructuringQuickPlan(name, description);
       set({ plan, planLoading: false });
+      useGamificationStore.getState().awardXP('ai_plan');
     } catch (error) {
       set({
         planError: error instanceof Error ? error.message : 'Failed to generate plan',
@@ -70,6 +73,7 @@ export const useTaskStructuringStore = create<TaskStructuringState>((set) => ({
     try {
       const breakdown = await window.electronAPI.taskStructuringBreakdown(cardId);
       set({ breakdown, breakdownLoading: false });
+      useGamificationStore.getState().awardXP('ai_breakdown');
     } catch (error) {
       set({
         breakdownError: error instanceof Error ? error.message : 'Failed to generate breakdown',

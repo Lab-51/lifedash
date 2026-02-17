@@ -8,6 +8,7 @@
 // zustand, shared types, window.electronAPI (preload bridge)
 
 import { create } from 'zustand';
+import { useGamificationStore } from './gamificationStore';
 import type {
   CardComment,
   CardRelationship,
@@ -163,6 +164,9 @@ export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
     }));
     try {
       await window.electronAPI.updateChecklistItem(id, updates);
+      if (updates.completed === true) {
+        useGamificationStore.getState().awardXP('checklist_complete');
+      }
     } catch (err) {
       console.error('Failed to update checklist item:', err);
     }

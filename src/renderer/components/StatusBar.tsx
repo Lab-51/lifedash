@@ -12,6 +12,7 @@ import { Timer, Coffee, Pause, Play, Square } from 'lucide-react';
 import useDatabaseStatus from '../hooks/useDatabaseStatus';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useFocusStore } from '../stores/focusStore';
+import { useGamificationStore } from '../stores/gamificationStore';
 
 /** Resolves status indicator color class based on connection state */
 function getIndicatorClass(connected: boolean, checking: boolean): string {
@@ -37,7 +38,7 @@ function StatusBar() {
   const timeRemaining = useFocusStore(s => s.timeRemaining);
   const isPaused = useFocusStore(s => s.isPaused);
   const focusedCardTitle = useFocusStore(s => s.focusedCardTitle);
-  const stats = useFocusStore(s => s.stats);
+  const stats = useGamificationStore(s => s.stats);
 
   useEffect(() => {
     const load = useMeetingStore.getState().loadPendingActionCount;

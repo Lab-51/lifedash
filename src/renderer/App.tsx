@@ -26,6 +26,7 @@ import { useIdeaStore } from './stores/ideaStore';
 import { useBrainstormStore } from './stores/brainstormStore';
 import { useBoardStore } from './stores/boardStore';
 import { useFocusStore } from './stores/focusStore';
+import { useGamificationStore } from './stores/gamificationStore';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import ToastContainer from './components/ToastContainer';
@@ -100,7 +101,7 @@ function AppShell({ children }: { children: ReactNode }) {
       useBrainstormStore.getState().loadSessions(),
       useBoardStore.getState().loadAllCards(),
       useFocusStore.getState().loadSettings(),
-      useFocusStore.getState().loadStats(),
+      useGamificationStore.getState().loadStats(),
     ]).then(() => setAppReady(true));
   }, []);
 

@@ -7,6 +7,7 @@
 // zustand, shared types, window.electronAPI (preload bridge)
 
 import { create } from 'zustand';
+import { useGamificationStore } from './gamificationStore';
 import type { Project, CreateProjectInput, UpdateProjectInput } from '../../shared/types';
 
 interface ProjectStore {
@@ -46,6 +47,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   createProject: async (data) => {
     const project = await window.electronAPI.createProject(data);
     set({ projects: [...get().projects, project] });
+    useGamificationStore.getState().awardXP('project_create', project.id);
     return project;
   },
 
@@ -54,6 +56,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({
       projects: get().projects.map(p => (p.id === id ? updated : p)),
     });
+    if (data.archived === true) {
+      useGamificationStore.getState().awardXP('project_archive', id);
+    }
   },
 
   deleteProject: async (id) => {

@@ -10,6 +10,7 @@
 
 import { create } from 'zustand';
 import { toast } from '../hooks/useToast';
+import { useGamificationStore } from './gamificationStore';
 import type {
   Project,
   Board,
@@ -167,6 +168,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     const input: CreateCardInput = { columnId, title, priority };
     const card = await window.electronAPI.createCard(input);
     set({ cards: [...get().cards, card] });
+    useGamificationStore.getState().awardXP('card_create', card.id);
     return card;
   },
 
@@ -178,6 +180,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       toast(`Recurring card created: ${spawnedCard.title}`, 'success');
     }
     set({ cards: newCards });
+    if (data.completed === true) {
+      useGamificationStore.getState().awardXP('card_complete', id);
+    }
   },
 
   deleteCard: async (id: string) => {

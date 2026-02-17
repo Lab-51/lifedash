@@ -28,6 +28,7 @@ import { useIdeaStore } from '../stores/ideaStore';
 import { useBoardStore } from '../stores/boardStore';
 import { toast } from '../hooks/useToast';
 import { useFocusStore } from '../stores/focusStore';
+import { useGamificationStore } from '../stores/gamificationStore';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ProductivityPulse from './ProductivityPulse';
@@ -112,6 +113,7 @@ export default function DashboardModern() {
             const result = await window.electronAPI.generateStandup(projectId);
             setStandupText(result.standup);
             toast('Standup ready', 'success');
+            useGamificationStore.getState().awardXP('ai_standup');
             setTimeout(() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 100);
         } catch {
             toast('Failed to generate standup', 'error');
@@ -284,11 +286,6 @@ export default function DashboardModern() {
                         </div>
                     </div>
 
-                    {/* Focus Stats */}
-                    <div className="col-span-12">
-                        <FocusStatsWidget />
-                    </div>
-
                     {/* Productivity Pulse */}
                     {(projects.length > 0 || meetings.length > 0) && (
                         <div className="col-span-12 bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm p-5 overflow-hidden">
@@ -298,6 +295,11 @@ export default function DashboardModern() {
                             <ProductivityPulse data={activityData} />
                         </div>
                     )}
+
+                    {/* Focus Stats */}
+                    <div className="col-span-12">
+                        <FocusStatsWidget />
+                    </div>
 
                     {/* Left Col: Projects & Priority */}
                     <div className="col-span-12 lg:col-span-8 space-y-6">

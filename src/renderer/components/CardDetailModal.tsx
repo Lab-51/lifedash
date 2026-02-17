@@ -24,6 +24,7 @@ import RelationshipsSection from './RelationshipsSection';
 import ActivityLog from './ActivityLog';
 import TaskBreakdownSection from './TaskBreakdownSection';
 import { useTaskStructuringStore } from '../stores/taskStructuringStore';
+import { useGamificationStore } from '../stores/gamificationStore';
 import { toast } from '../hooks/useToast';
 
 interface CardDetailModalProps {
@@ -326,6 +327,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
       if (result?.description && editor) {
         editor.commands.setContent(result.description);
         onUpdate(card.id, { description: result.description });
+        useGamificationStore.getState().awardXP('ai_description');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to generate description';

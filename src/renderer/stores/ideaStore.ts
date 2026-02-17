@@ -6,6 +6,7 @@
 // zustand, shared types, window.electronAPI
 
 import { create } from 'zustand';
+import { useGamificationStore } from './gamificationStore';
 import type { Idea, IdeaAnalysis, CreateIdeaInput, UpdateIdeaInput } from '../../shared/types';
 
 interface IdeaStore {
@@ -67,6 +68,7 @@ export const useIdeaStore = create<IdeaStore>((set, get) => ({
   createIdea: async (data: CreateIdeaInput) => {
     const idea = await window.electronAPI.createIdea(data);
     set({ ideas: [idea, ...get().ideas] });
+    useGamificationStore.getState().awardXP('idea_create', idea.id);
     return idea;
   },
 
@@ -94,6 +96,7 @@ export const useIdeaStore = create<IdeaStore>((set, get) => ({
       ideas: get().ideas.map(i => (i.id === id ? result.idea : i)),
       selectedIdea: get().selectedIdea?.id === id ? result.idea : get().selectedIdea,
     });
+    useGamificationStore.getState().awardXP('idea_convert', id);
     return result.projectId;
   },
 
@@ -103,6 +106,7 @@ export const useIdeaStore = create<IdeaStore>((set, get) => ({
       ideas: get().ideas.map(i => (i.id === ideaId ? result.idea : i)),
       selectedIdea: get().selectedIdea?.id === ideaId ? result.idea : get().selectedIdea,
     });
+    useGamificationStore.getState().awardXP('idea_convert', ideaId);
     return result.cardId;
   },
 
@@ -111,6 +115,7 @@ export const useIdeaStore = create<IdeaStore>((set, get) => ({
     try {
       const analysis = await window.electronAPI.analyzeIdea(id);
       set({ analysis, analyzing: false });
+      useGamificationStore.getState().awardXP('idea_analyze', id);
     } catch (error) {
       set({
         analyzing: false,

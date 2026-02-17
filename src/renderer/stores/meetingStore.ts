@@ -6,6 +6,7 @@
 // zustand, shared types, window.electronAPI
 
 import { create } from 'zustand';
+import { useGamificationStore } from './gamificationStore';
 import type {
   Meeting,
   MeetingWithTranscript,
@@ -157,6 +158,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       if (selected && selected.id === meetingId) {
         set({ selectedMeeting: { ...selected, brief } });
       }
+      useGamificationStore.getState().awardXP('meeting_brief', meetingId);
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to generate brief' });
     } finally {
@@ -213,6 +215,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
           },
         });
       }
+      useGamificationStore.getState().awardXP('action_convert');
       return result.cardId;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to convert action to card' });

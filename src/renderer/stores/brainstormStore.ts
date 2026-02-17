@@ -10,6 +10,7 @@
 // - Optimistic user message replaced after server round-trip
 
 import { create } from 'zustand';
+import { useGamificationStore } from './gamificationStore';
 import type {
   BrainstormSession,
   BrainstormMessage,
@@ -86,6 +87,7 @@ export const useBrainstormStore = create<BrainstormStore>((set, get) => ({
   createSession: async (data: CreateBrainstormSessionInput) => {
     const session = await window.electronAPI.createBrainstormSession(data);
     set({ sessions: [session, ...get().sessions] });
+    useGamificationStore.getState().awardXP('brainstorm_start', session.id);
     return session;
   },
 
@@ -176,12 +178,15 @@ export const useBrainstormStore = create<BrainstormStore>((set, get) => ({
   exportToIdea: async (messageId: string) => {
     const session = get().activeSession;
     if (!session) throw new Error('No active session');
-    return window.electronAPI.exportBrainstormToIdea(session.id, messageId);
+    const result = await window.electronAPI.exportBrainstormToIdea(session.id, messageId);
+    useGamificationStore.getState().awardXP('brainstorm_export');
+    return result;
   },
 
   exportToCard: async (messageId: string) => {
     const session = get().activeSession;
     if (!session) throw new Error('No active session');
     await window.electronAPI.exportBrainstormToCard(session.id, messageId);
+    useGamificationStore.getState().awardXP('brainstorm_export');
   },
 }));

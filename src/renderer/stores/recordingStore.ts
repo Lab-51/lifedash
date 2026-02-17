@@ -11,6 +11,7 @@
 
 import { create } from 'zustand';
 import * as audioCaptureService from '../services/audioCaptureService';
+import { useGamificationStore } from './gamificationStore';
 import type { RecordingState, MeetingTemplateType } from '../../shared/types';
 
 interface RecordingStore {
@@ -132,6 +133,9 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         elapsed: 0,
         lastTranscript: '',
       });
+      if (meetingId) {
+        useGamificationStore.getState().awardXP('meeting_complete', meetingId);
+      }
     } catch (error) {
       set({
         isProcessing: false,
