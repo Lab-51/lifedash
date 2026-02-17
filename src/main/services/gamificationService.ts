@@ -276,7 +276,7 @@ export async function checkAndUnlockAchievements(
     { id: 'streak_7', condition: counts.focusCurrentStreak >= 7 },
     { id: 'streak_14', condition: counts.focusCurrentStreak >= 14 },
     { id: 'streak_30', condition: counts.focusCurrentStreak >= 30 },
-    { id: 'level_5', condition: counts.level >= 5 },
+    { id: 'level_50', condition: counts.level >= 50 },
 
     // Cards
     { id: 'first_card', condition: counts.cardsCreated >= 1 },
