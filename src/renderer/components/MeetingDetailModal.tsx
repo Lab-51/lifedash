@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Clock, Trash2, Info, Search, Copy, Check, ArrowRight, Download } from 'lucide-react';
+import { X, Clock, Trash2, Info, Search, Copy, Check, ArrowRight, Download, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
 import { toast } from '../hooks/useToast';
@@ -72,6 +72,41 @@ function formatTimestampHMS(ms: number): string {
 
 function slugify(text: string): string {
   return text.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+/** Simple markdown renderer for prep briefing text: ## headings, - bullets, plain text. */
+function renderPrepLine(line: string, idx: number): React.ReactNode {
+  const trimmed = line.trim();
+  if (!trimmed) return <div key={idx} className="h-1" />;
+
+  if (trimmed.startsWith('## ')) {
+    return (
+      <p key={idx} className="text-xs font-semibold text-surface-200 mt-2 mb-0.5">
+        {trimmed.slice(3)}
+      </p>
+    );
+  }
+
+  if (trimmed.startsWith('# ')) {
+    return (
+      <p key={idx} className="text-xs font-bold text-surface-100 mt-2 mb-0.5">
+        {trimmed.slice(2)}
+      </p>
+    );
+  }
+
+  if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+    return (
+      <p key={idx} className="text-xs text-surface-300 pl-3">
+        <span className="text-surface-500 mr-1">{'\u2022'}</span>
+        {trimmed.slice(2)}
+      </p>
+    );
+  }
+
+  return (
+    <p key={idx} className="text-xs text-surface-300">{trimmed}</p>
+  );
 }
 
 function formatMeetingAsMarkdown(
@@ -161,6 +196,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
   const [quickPushing, setQuickPushing] = useState(false);
   const [transcriptSearch, setTranscriptSearch] = useState(initialTranscriptSearch ?? '');
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showPrep, setShowPrep] = useState(false);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const prevSegmentCount = useRef(0);
   const autoGenerateBriefTriggered = useRef(false);
@@ -488,6 +524,34 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
               </button>
             )}
           </div>
+
+          {/* Meeting Prep (collapsible, only shown if prep was generated) */}
+          {meeting.prepBriefing && meeting.prepBriefing.trim() !== '' && (
+            <div className="mb-5">
+              <button
+                type="button"
+                onClick={() => setShowPrep(!showPrep)}
+                className="w-full flex items-center justify-between gap-2 mb-2 group"
+              >
+                <h3 className="text-sm font-medium text-surface-400 flex items-center gap-1.5">
+                  <ClipboardList size={14} />
+                  Meeting Prep
+                </h3>
+                {showPrep ? (
+                  <ChevronDown size={16} className="text-surface-500 group-hover:text-surface-300 transition-colors" />
+                ) : (
+                  <ChevronRight size={16} className="text-surface-500 group-hover:text-surface-300 transition-colors" />
+                )}
+              </button>
+              {showPrep && (
+                <div className="bg-surface-800/30 border border-surface-700/50 rounded-lg p-3">
+                  <div className="space-y-0.5">
+                    {meeting.prepBriefing.split('\n').map(renderPrepLine)}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Meeting Analytics */}
           <div className="mb-5">

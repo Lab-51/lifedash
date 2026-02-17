@@ -137,6 +137,14 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
   const provider = await resolveTaskModel('summarization');
   if (!provider) throw new Error('No AI provider available for summarization');
 
+  // Build user prompt — optionally include pre-meeting prep for undiscussed item flagging
+  let userPrompt = `Meeting: ${meeting.title}\n\nTranscript:\n${transcript}`;
+
+  const prepBriefing = meeting.prepBriefing;
+  if (prepBriefing && prepBriefing.trim()) {
+    userPrompt += `\n\n## Pre-Meeting Prep Reference\nThe following prep briefing was generated before this meeting:\n---\n${prepBriefing}\n---\n\nIMPORTANT: After generating the summary, add a section:\n## Items Not Discussed\nList any topics from the prep briefing that were NOT covered in this meeting.\nIf all prep items were addressed, write "All prep items were discussed."`;
+  }
+
   // Generate summary (template-aware prompt)
   const result = await generate({
     providerId: provider.providerId,
@@ -145,7 +153,7 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
     baseUrl: provider.baseUrl,
     model: provider.model,
     taskType: 'summarization',
-    prompt: `Meeting: ${meeting.title}\n\nTranscript:\n${transcript}`,
+    prompt: userPrompt,
     system: getSummarizationPrompt(meeting.template),
     temperature: provider.temperature,
     maxTokens: provider.maxTokens,
