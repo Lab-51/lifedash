@@ -6,7 +6,7 @@
 // zustand, window.electronAPI (preload bridge)
 
 import { create } from 'zustand';
-import type { FocusStats, FocusAchievement } from '../../shared/types/focus';
+import type { GamificationStats, Achievement } from '../../shared/types/gamification';
 
 interface FocusState {
   // State
@@ -20,8 +20,8 @@ interface FocusState {
   isPaused: boolean;
   intervalId: ReturnType<typeof setInterval> | null;
   showStartModal: boolean; // controls FocusStartModal visibility
-  stats: FocusStats | null;
-  achievements: FocusAchievement[];
+  stats: GamificationStats | null;
+  achievements: Achievement[];
 
   // Actions
   startFocus: (cardId: string | null, cardTitle: string | null) => void;
@@ -36,7 +36,7 @@ interface FocusState {
   clearFocusedCard: () => void;
   loadStats: () => Promise<void>;
   saveSession: (input: { cardId?: string; durationMinutes: number; note?: string }) =>
-    Promise<{ newAchievements: FocusAchievement[] }>;
+    Promise<{ newAchievements: Achievement[] }>;
 }
 
 export const useFocusStore = create<FocusState>((set, get) => ({
@@ -170,7 +170,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     try {
       const [stats, achievements] = await Promise.all([
         window.electronAPI.focusGetStats(),
-        window.electronAPI.focusGetAchievements(),
+        window.electronAPI.gamificationGetAchievements(),
       ]);
       set({ stats, achievements });
     } catch (error) {
@@ -181,7 +181,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   saveSession: async (input) => {
     const result = await window.electronAPI.focusSaveSession(input);
     set({ stats: result.stats, achievements: result.newAchievements.length > 0
-      ? await window.electronAPI.focusGetAchievements()
+      ? await window.electronAPI.gamificationGetAchievements()
       : get().achievements,
     });
     return { newAchievements: result.newAchievements };

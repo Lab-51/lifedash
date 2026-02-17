@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { X, CheckCircle, Trophy } from 'lucide-react';
 import { useFocusStore } from '../stores/focusStore';
 import { toast } from '../hooks/useToast';
-import type { FocusStats, FocusAchievement } from '../../shared/types/focus';
+import type { GamificationStats, Achievement } from '../../shared/types/gamification';
 
 interface FocusCompleteModalProps {
   isOpen: boolean;
@@ -24,8 +24,8 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [showReward, setShowReward] = useState(false);
-  const [rewardStats, setRewardStats] = useState<FocusStats | null>(null);
-  const [newAchievements, setNewAchievements] = useState<FocusAchievement[]>([]);
+  const [rewardStats, setRewardStats] = useState<GamificationStats | null>(null);
+  const [newAchievements, setNewAchievements] = useState<Achievement[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Reset state and auto-focus textarea when modal opens
@@ -184,7 +184,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
                     />
                   </div>
                   <p className="text-xs text-surface-500 mt-1">
-                    {rewardStats.xpNextLevel - rewardStats.xpCurrent} min to next level
+                    {rewardStats.xpNextLevel - rewardStats.totalXp} XP to next level
                   </p>
                 </div>
               )}

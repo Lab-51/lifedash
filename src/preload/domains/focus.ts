@@ -1,4 +1,4 @@
-// === Preload bridge: Focus mode gamification ===
+// === Preload bridge: Focus mode sessions ===
 import { ipcRenderer } from 'electron';
 
 export const focusBridge = {
@@ -6,5 +6,4 @@ export const focusBridge = {
     ipcRenderer.invoke('focus:save-session', input),
   focusGetStats: () => ipcRenderer.invoke('focus:get-stats'),
   focusGetDaily: (days?: number) => ipcRenderer.invoke('focus:get-daily', days),
-  focusGetAchievements: () => ipcRenderer.invoke('focus:get-achievements'),
 };

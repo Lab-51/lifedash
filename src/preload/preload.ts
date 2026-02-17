@@ -21,6 +21,7 @@ import { transcriptionBridge } from './domains/transcription';
 import { appBridge } from './domains/app';
 import { dashboardBridge } from './domains/dashboard';
 import { focusBridge } from './domains/focus';
+import { gamificationBridge } from './domains/gamification';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -40,4 +41,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...appBridge,
   ...dashboardBridge,
   ...focusBridge,
+  ...gamificationBridge,
 });

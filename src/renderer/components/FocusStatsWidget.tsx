@@ -17,13 +17,31 @@ import {
   Award,
   Trophy,
   Play,
+  SquarePlus,
+  Layers,
+  CheckSquare,
+  ListChecks,
+  FolderPlus,
+  Bot,
+  Mic,
+  Video,
+  ArrowRightCircle,
+  Lightbulb,
+  Sparkles,
+  Brain,
+  BrainCog,
+  LayoutGrid,
+  Rocket,
+  BadgeCheck,
 } from 'lucide-react';
 import { useFocusStore } from '../stores/focusStore';
-import { ACHIEVEMENTS } from '../../shared/types/focus';
+import { ACHIEVEMENTS } from '../../shared/types/gamification';
 import type { FocusDailyData } from '../../shared/types/focus';
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   Zap, Flame, Target, Cpu, Crown, Clock, BrainCircuit, TrendingUp, Calendar, CalendarCheck, Award, Trophy,
+  SquarePlus, Layers, CheckSquare, ListChecks, FolderPlus, Bot, Mic, Video, ArrowRightCircle,
+  Lightbulb, Sparkles, Brain, BrainCog, LayoutGrid, Rocket, BadgeCheck,
 };
 
 export default function FocusStatsWidget() {
@@ -78,13 +96,13 @@ export default function FocusStatsWidget() {
           {/* Today */}
           <div className="space-y-1">
             <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold">Today</p>
-            {stats && stats.todaySessions > 0 ? (
+            {stats && stats.focusTodaySessions > 0 ? (
               <>
                 <p className="text-2xl font-bold text-emerald-500">
-                  {stats.todayMinutes} <span className="text-sm font-medium text-surface-400">min</span>
+                  {stats.focusTodayMinutes} <span className="text-sm font-medium text-surface-400">min</span>
                 </p>
                 <p className="text-xs text-surface-500">
-                  {stats.todaySessions} session{stats.todaySessions !== 1 ? 's' : ''}
+                  {stats.focusTodaySessions} session{stats.focusTodaySessions !== 1 ? 's' : ''}
                 </p>
               </>
             ) : (
@@ -130,7 +148,7 @@ export default function FocusStatsWidget() {
                   />
                 </div>
                 <p className="text-[10px] text-surface-500 mt-0.5">
-                  {stats.xpNextLevel - stats.xpCurrent} min to next
+                  {stats.xpNextLevel - stats.totalXp} XP to next
                 </p>
               </>
             ) : (
