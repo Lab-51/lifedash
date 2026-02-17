@@ -126,12 +126,22 @@ export const updateCardInputSchema = z.object({
   archived: z.boolean().optional(),
   columnId: uuid.optional(),
   position: z.number().int().min(0).optional(),
+  recurrenceType: z.enum(['daily', 'weekly', 'biweekly', 'monthly']).nullable().optional(),
+  recurrenceEndDate: z.string().nullable().optional(),
 });
 
 /** Used by the cards:move handler (id is a separate param, so only columnId + position here) */
 export const cardMoveSchema = z.object({
   columnId: uuid,
   position: z.number().int().min(0),
+});
+
+export const createCardTemplateSchema = z.object({
+  projectId: uuid.nullable().optional(),
+  name: z.string().min(1).max(200),
+  description: z.string().max(5000).nullable().optional(),
+  priority: cardPrioritySchema.optional(),
+  labelNames: z.array(z.string().max(100)).max(20).nullable().optional(),
 });
 
 // ============================================================================

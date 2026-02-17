@@ -1,4 +1,6 @@
-// === Advanced card types: comments, relationships, activity, attachments ===
+// === Advanced card types: comments, relationships, activity, attachments, templates ===
+
+import type { CardPriority } from './projects';
 
 export type CardRelationshipType = 'blocks' | 'depends_on' | 'related_to';
 
@@ -74,4 +76,15 @@ export interface CreateLabelInput {
 export interface UpdateLabelInput {
   name?: string;
   color?: string;
+}
+
+export interface CardTemplate {
+  id: string;
+  projectId: string | null;
+  name: string;
+  description: string | null;
+  priority: CardPriority;
+  labelNames: string[] | null;
+  createdAt: string;
+  updatedAt: string;
 }

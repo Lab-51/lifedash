@@ -10,7 +10,7 @@ import type {
 } from './projects';
 import type {
   CardComment, CardRelationship, CardActivity, CardAttachment,
-  CardChecklistItem,
+  CardChecklistItem, CardTemplate,
   CreateCardCommentInput, CreateCardRelationshipInput,
   CreateLabelInput, UpdateLabelInput,
 } from './cards';
@@ -102,7 +102,7 @@ export interface ElectronAPI {
   }>>;
   getCardsByBoard: (boardId: string) => Promise<Card[]>;
   createCard: (data: CreateCardInput) => Promise<Card>;
-  updateCard: (id: string, data: UpdateCardInput) => Promise<Card>;
+  updateCard: (id: string, data: UpdateCardInput) => Promise<{ card: Card; spawnedCard: Card | null }>;
   deleteCard: (id: string) => Promise<void>;
   moveCard: (id: string, columnId: string, position: number) => Promise<Card>;
 
@@ -135,6 +135,12 @@ export interface ElectronAPI {
 
   // Card AI
   generateCardDescription: (cardId: string) => Promise<{ description: string }>;
+
+  // Card Templates
+  getCardTemplates: (projectId?: string) => Promise<CardTemplate[]>;
+  createCardTemplate: (input: { projectId?: string | null; name: string; description?: string | null; priority?: CardPriority; labelNames?: string[] | null }) => Promise<CardTemplate>;
+  deleteCardTemplate: (id: string) => Promise<void>;
+  saveCardAsTemplate: (cardId: string, name?: string) => Promise<CardTemplate>;
 
   // Labels
   getLabels: (projectId: string) => Promise<Label[]>;

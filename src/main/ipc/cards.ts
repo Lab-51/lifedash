@@ -12,7 +12,7 @@
 // - card:getActivities limited to most recent 50 entries
 
 import { ipcMain } from 'electron';
-import { eq, and, asc, desc, inArray, count, sql } from 'drizzle-orm';
+import { eq, and, or, asc, desc, inArray, isNull, count, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { createLogger } from '../services/logger';
 import {
@@ -29,6 +29,7 @@ import {
   cardActivityActionEnum,
   cardAttachments,
   cardChecklistItems,
+  cardTemplates,
 } from '../db/schema';
 import { resolveTaskModel, generate } from '../services/ai-provider';
 import * as attachmentService from '../services/attachmentService';
@@ -51,6 +52,7 @@ import {
   updateChecklistItemSchema,
   reorderChecklistItemsSchema,
   addChecklistItemsBatchSchema,
+  createCardTemplateSchema,
 } from '../../shared/validation/schemas';
 
 const log = createLogger('Cards');
@@ -72,6 +74,49 @@ function logCardActivity(
       details: details ? JSON.stringify(details) : null,
     })
     .catch((err: unknown) => log.error('Activity log error:', err));
+}
+
+/**
+ * Spawn a new recurring card when a recurring card is completed.
+ * Calculates the next due date based on recurrence type and creates a clone.
+ * Returns null if no recurrence, past end date, or no recurrence type.
+ */
+async function spawnRecurringCard(completedCard: any, db: any): Promise<any | null> {
+  if (!completedCard.recurrenceType) return null;
+
+  // Calculate next due date
+  let nextDueDate: Date | null = null;
+  if (completedCard.dueDate) {
+    nextDueDate = new Date(completedCard.dueDate);
+    switch (completedCard.recurrenceType) {
+      case 'daily': nextDueDate.setDate(nextDueDate.getDate() + 1); break;
+      case 'weekly': nextDueDate.setDate(nextDueDate.getDate() + 7); break;
+      case 'biweekly': nextDueDate.setDate(nextDueDate.getDate() + 14); break;
+      case 'monthly': nextDueDate.setMonth(nextDueDate.getMonth() + 1); break;
+    }
+  }
+
+  // Check end date
+  if (completedCard.recurrenceEndDate && nextDueDate) {
+    if (nextDueDate > new Date(completedCard.recurrenceEndDate)) return null;
+  }
+
+  // Create new card at top of same column
+  const [newCard] = await db.insert(cards).values({
+    columnId: completedCard.columnId,
+    title: completedCard.title,
+    description: completedCard.description,
+    priority: completedCard.priority,
+    position: 0,
+    dueDate: nextDueDate ? nextDueDate.toISOString() : null,
+    recurrenceType: completedCard.recurrenceType,
+    recurrenceEndDate: completedCard.recurrenceEndDate,
+    sourceRecurringId: completedCard.id,
+    completed: false,
+    archived: false,
+  }).returning();
+
+  return newCard;
 }
 
 export function registerCardHandlers(): void {
@@ -193,6 +238,10 @@ export function registerCardHandlers(): void {
       const validId = validateInput(idParamSchema, id);
       const input = validateInput(updateCardInputSchema, data);
       const db = getDb();
+
+      // Query current card state BEFORE the update (for recurrence detection)
+      const [currentCard] = await db.select().from(cards).where(eq(cards.id, validId));
+
       // Convert dueDate string to Date object for the DB layer
       const setData: Record<string, unknown> = {
         ...input,
@@ -201,11 +250,28 @@ export function registerCardHandlers(): void {
       if (input.dueDate !== undefined) {
         setData.dueDate = input.dueDate ? new Date(input.dueDate) : null;
       }
+      if (input.recurrenceEndDate !== undefined) {
+        setData.recurrenceEndDate = input.recurrenceEndDate
+          ? new Date(input.recurrenceEndDate)
+          : null;
+      }
       const [card] = await db
         .update(cards)
         .set(setData)
         .where(eq(cards.id, validId))
         .returning();
+
+      // Check if completed changed from false -> true AND card has recurrenceType
+      let spawnedCard = null;
+      if (
+        currentCard &&
+        !currentCard.completed &&
+        card.completed &&
+        card.recurrenceType
+      ) {
+        spawnedCard = await spawnRecurringCard(card, db);
+      }
+
       // Log 'archived' or 'restored' if archived field changed, otherwise 'updated'
       if (input.archived === true) {
         logCardActivity(validId, 'archived');
@@ -216,7 +282,7 @@ export function registerCardHandlers(): void {
           fields: Object.keys(input).filter(k => k !== 'updatedAt'),
         });
       }
-      return card;
+      return { card, spawnedCard };
     },
   );
 
@@ -715,4 +781,103 @@ Format as a single HTML paragraph (<p> tag).`;
 
     return { description: result.text };
   });
+
+  // --- Card Templates ---
+
+  ipcMain.handle('card-templates:list', async (_event, projectId?: unknown) => {
+    const db = getDb();
+    const where = projectId
+      ? or(
+          eq(cardTemplates.projectId, validateInput(idParamSchema, projectId)),
+          isNull(cardTemplates.projectId),
+        )
+      : isNull(cardTemplates.projectId);
+    return db
+      .select()
+      .from(cardTemplates)
+      .where(where)
+      .orderBy(asc(cardTemplates.name))
+      .then(rows =>
+        rows.map(r => ({
+          ...r,
+          labelNames: r.labelNames ? JSON.parse(r.labelNames) : null,
+        })),
+      );
+  });
+
+  ipcMain.handle('card-templates:create', async (_event, data: unknown) => {
+    const input = validateInput(createCardTemplateSchema, data);
+    const db = getDb();
+    const [template] = await db
+      .insert(cardTemplates)
+      .values({
+        projectId: input.projectId ?? null,
+        name: input.name,
+        description: input.description ?? null,
+        priority: input.priority ?? 'medium',
+        labelNames: input.labelNames ? JSON.stringify(input.labelNames) : null,
+      })
+      .returning();
+    return {
+      ...template,
+      labelNames: template.labelNames ? JSON.parse(template.labelNames) : null,
+    };
+  });
+
+  ipcMain.handle('card-templates:delete', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const db = getDb();
+    await db.delete(cardTemplates).where(eq(cardTemplates.id, validId));
+  });
+
+  ipcMain.handle(
+    'card-templates:save-from-card',
+    async (_event, cardId: unknown, name?: unknown) => {
+      const validCardId = validateInput(idParamSchema, cardId);
+      const db = getDb();
+
+      // Fetch the card
+      const [card] = await db.select().from(cards).where(eq(cards.id, validCardId));
+      if (!card) throw new Error('Card not found');
+
+      // Fetch card labels
+      const cardLabelRows = await db
+        .select()
+        .from(cardLabels)
+        .where(eq(cardLabels.cardId, validCardId));
+      const labelIds = cardLabelRows.map(cl => cl.labelId);
+      const labelRows = labelIds.length > 0
+        ? await db.select().from(labels).where(inArray(labels.id, labelIds))
+        : [];
+      const labelNameList = labelRows.map(l => l.name);
+
+      // Traverse card -> column -> board -> project for projectId
+      let projectId: string | null = null;
+      const [column] = await db.select().from(columns).where(eq(columns.id, card.columnId));
+      if (column) {
+        const [board] = await db.select().from(boards).where(eq(boards.id, column.boardId));
+        if (board) {
+          projectId = board.projectId;
+        }
+      }
+
+      const templateName = (typeof name === 'string' && name.trim()) ? name.trim() : card.title;
+
+      const [template] = await db
+        .insert(cardTemplates)
+        .values({
+          projectId,
+          name: templateName,
+          description: card.description,
+          priority: card.priority,
+          labelNames: labelNameList.length > 0 ? JSON.stringify(labelNameList) : null,
+        })
+        .returning();
+
+      return {
+        ...template,
+        labelNames: template.labelNames ? JSON.parse(template.labelNames) : null,
+      };
+    },
+  );
 }

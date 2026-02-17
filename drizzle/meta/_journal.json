@@ -71,6 +71,13 @@
       "when": 1771353168535,
       "tag": "0009_luxuriant_ben_urich",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1771354595891,
+      "tag": "0010_left_leo",
+      "breakpoints": true
     }
   ]
 }

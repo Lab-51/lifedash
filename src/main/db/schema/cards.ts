@@ -16,6 +16,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { columns } from './boards';
 import { labels } from './labels';
+import { projects } from './projects';
 
 export const cardPriorityEnum = pgEnum('card_priority', ['low', 'medium', 'high', 'urgent']);
 
@@ -29,6 +30,9 @@ export const cards = pgTable('cards', {
   dueDate: timestamp('due_date', { withTimezone: true }),
   completed: boolean('completed').default(false).notNull(),
   archived: boolean('archived').default(false).notNull(),
+  recurrenceType: varchar('recurrence_type', { length: 20 }),
+  recurrenceEndDate: timestamp('recurrence_end_date', { withTimezone: true }),
+  sourceRecurringId: uuid('source_recurring_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -106,4 +110,17 @@ export const cardChecklistItems = pgTable('card_checklist_items', {
   completed: boolean('completed').default(false).notNull(),
   position: integer('position').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// --- Card Templates ---
+
+export const cardTemplates = pgTable('card_templates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 200 }).notNull(),
+  description: text('description'),
+  priority: cardPriorityEnum('priority').default('medium').notNull(),
+  labelNames: text('label_names'), // JSON-stringified array of label name strings
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

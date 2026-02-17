@@ -39,6 +39,9 @@ export interface Card {
   dueDate: string | null;
   completed: boolean;
   archived: boolean;
+  recurrenceType?: string | null;
+  recurrenceEndDate?: string | null;
+  sourceRecurringId?: string | null;
   createdAt: string;
   updatedAt: string;
   labels?: Label[];
@@ -106,4 +109,6 @@ export interface UpdateCardInput {
   archived?: boolean;
   columnId?: string;
   position?: number;
+  recurrenceType?: string | null;
+  recurrenceEndDate?: string | null;
 }

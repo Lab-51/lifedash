@@ -169,10 +169,12 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   },
 
   updateCard: async (id: string, data: UpdateCardInput) => {
-    const updated = await window.electronAPI.updateCard(id, data);
-    set({
-      cards: get().cards.map(c => (c.id === id ? { ...c, ...updated } : c)),
-    });
+    const { card: updated, spawnedCard } = await window.electronAPI.updateCard(id, data);
+    let newCards = get().cards.map(c => (c.id === id ? { ...c, ...updated } : c));
+    if (spawnedCard) {
+      newCards = [...newCards, spawnedCard as Card];
+    }
+    set({ cards: newCards });
   },
 
   deleteCard: async (id: string) => {
