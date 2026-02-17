@@ -2,16 +2,16 @@
 
 ## Session Info
 Last updated: 2026-02-17
-Session focus: Plan C.3 — Focus Mode / Pomodoro Timer
-Checkpoint reason: Plan C.3 COMPLETE (3/3 tasks)
+Session focus: Plan D.1 — Meeting Prep Assistant
+Checkpoint reason: Plan D.1 COMPLETE (3/3 tasks)
 
 ## Position
-Milestone: v1.8.0 — Phase C: Task Management Power
-Latest commit: 91c059f (docs: update STATE.md with Plan C.3 completion)
-Version: 1.8.0
+Milestone: v1.9.0 — Phase D: Meeting Intelligence 2.0
+Latest commit: e27854e (feat: prep section in MeetingDetailModal + undiscussed item flagging)
+Version: 1.9.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
-SELF-IMPROVE-NEW.md: 27 proposals, 14 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4)
+SELF-IMPROVE-NEW.md: 27 proposals, 15 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 1/?)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
@@ -19,6 +19,25 @@ Plan B.2: COMPLETE (3/3 tasks)
 Plan C.1: COMPLETE (3/3 tasks) — Card Checklists / Subtasks
 Plan C.2: COMPLETE (3/3 tasks) — Recurring Cards + Card Templates
 Plan C.3: COMPLETE (3/3 tasks) — Focus Mode / Pomodoro Timer
+Plan D.1: COMPLETE (3/3 tasks) — Meeting Prep Assistant
+
+## Plan D.1 Results
+- Task 1: Meeting prep service + schema migration + IPC handler (4c918dc)
+  - meetingPrepService.ts: queries project state since last meeting (card changes, pending actions, high-priority cards)
+  - Generates AI briefing via resolveTaskModel('meeting_prep')
+  - Schema: prepBriefing text column on meetings table, migration 0011
+  - meetings:generate-prep IPC handler + preload bridge + types
+  - CreateMeetingInput accepts optional prepBriefing
+- Task 2: MeetingPrepSection UI in RecordingControls (7ad1836)
+  - Collapsible card shows prep data when project selected (before recording)
+  - Structured sections: card changes, pending actions, high-priority, AI briefing
+  - Loading skeleton, error state with retry, regenerate button
+  - recordingStore carries prepBriefing to createMeeting on recording start
+- Task 3: Prep in MeetingDetailModal + undiscussed item flagging (e27854e)
+  - Collapsible "Meeting Prep" section in modal (collapsed by default)
+  - generateBrief() appends prep context to AI prompt when available
+  - Produces "Items Not Discussed" section flagging gaps
+  - Backwards-compatible: existing meetings unaffected
 
 ## Ad-hoc Changes This Session
 - Feat: Project-scoped standup generation (a6779fe)
@@ -42,8 +61,9 @@ Plan C.3: COMPLETE (3/3 tasks) — Focus Mode / Pomodoro Timer
   - Task type + model breakdowns with color-coded horizontal progress bars
 
 ## Resume Context
-Next action: Phase C complete — all 4 proposals implemented. Next: user testing or Phase D.
+Next action: Plan D.2 (next SELF-IMPROVE-NEW.md proposal) or user testing of meeting prep
 Prerequisites: None — all clean
+Plan D.1: COMPLETE
 
 ## Plan C.3 Results
 - Task 1: Focus Store + notifications:show IPC + Ctrl+Shift+F shortcut (b07f296)

@@ -1,4 +1,4 @@
-# Plan C.3 — Focus Mode / Pomodoro Timer
+# Plan D.1 — Meeting Prep Assistant
 
 ## Date: 2026-02-17
 ## Status: COMPLETE (3/3 tasks)
@@ -7,37 +7,39 @@ All 3 tasks executed successfully. TypeScript clean, 150/150 tests passing.
 
 ## What Changed
 
-### Task 1: Focus Store + notifications:show IPC + keyboard shortcut
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** b07f296
+### Task 1: Meeting prep service + schema migration + IPC handler
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 4c918dc
 
-- New `focusStore.ts` Zustand store with full Pomodoro timer engine
-- Mode cycle: idle → focus → completed → break → idle
-- setInterval-based tick(), pause/resume, session counting, settings persistence
-- `notifications:show` IPC handler for desktop alerts on timer completion
-- Ctrl+Shift+F keyboard shortcut registered + listed in shortcuts modal
-- AppShell: toggleFocusMode callback + loadSettings on startup
+- New `meetingPrepService.ts` (228 lines) queries project state since last meeting
+- Gathers: card activities (created/moved/completed), pending action items, high-priority cards
+- Generates AI briefing via resolveTaskModel('meeting_prep') + generate()
+- Schema migration 0011: `prep_briefing` text column on meetings table
+- `meetings:generate-prep` IPC handler + preload bridge + ElectronAPI types
+- CreateMeetingInput + Meeting type updated with prepBriefing field
 
-### Task 2: Focus Mode UI — StatusBar timer, FocusStartModal, sidebar collapse
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** fab5456
+### Task 2: MeetingPrepSection UI in RecordingControls
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** 7ad1836
 
-- StatusBar: live countdown with card name, pause/resume/stop controls, color-coded (emerald=focus, amber=break)
-- FocusStartModal: optional card search + duration presets (25/30/45/60 + custom) + start button
-- SidebarModern: Timer icon button (opens modal when idle, stops session when active, emerald pulse)
-- AppLayout: sidebar hidden during focus/break modes, main content fills width
+- New `MeetingPrepSection.tsx` (230 lines) collapsible card in RecordingControls
+- Auto-generates when project selected (before recording starts)
+- Structured sections: card changes (color-coded), pending actions, high-priority, AI briefing
+- Loading skeleton, error state with retry, regenerate button
+- recordingStore carries prepBriefing to createMeeting on recording start
 
-### Task 3: Session completion — FocusCompleteModal + card comment logging + break cycle
-**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** a6b0f82
+### Task 3: Prep in MeetingDetailModal + undiscussed item flagging
+**Status:** COMPLETE | **Confidence:** HIGH | **Commit:** e27854e
 
-- FocusCompleteModal: accomplishment textarea, session summary, Save & Start Break / Skip buttons
-- Card comment logged with tomato emoji prefix via addCardComment IPC
-- Break timer auto-starts after saving, break-end toast via AppShell mode transition watcher
-- Async-safe: waits for IPC save before closing, error handling with toast
+- "Meeting Prep" collapsible section in MeetingDetailModal (collapsed by default)
+- Simple markdown rendering for prep briefing text
+- generateBrief() appends prep context when available, producing "Items Not Discussed" section
+- Backwards-compatible: meetings without prep are unaffected
 
 ## Verification
 - `npx tsc --noEmit`: PASS (zero errors)
 - `npx vitest run`: 150/150 tests pass
 
 ## Feature Summary
-Full Pomodoro timer: Ctrl+Shift+F trigger, card-linked focus sessions, StatusBar countdown,
-sidebar collapse, desktop notifications, accomplishment logging as card comments, break cycle,
-and session counting. All state in focusStore (Zustand), no new DB tables needed.
+Meeting Prep Assistant: select a project before recording → auto-generates AI briefing
+with card changes, pending actions, and high-priority items since last meeting. Prep saved
+to meeting record. After meeting, prep visible in detail modal. AI brief generation flags
+undiscussed items from prep. Full end-to-end flow with zero new tables (reuses existing schema).
