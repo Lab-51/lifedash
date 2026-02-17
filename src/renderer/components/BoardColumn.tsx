@@ -215,7 +215,8 @@ const BoardColumn = memo(function BoardColumn({
     }
     setNewCardTitle('');
     setSelectedTemplate(null);
-    // Keep form open for rapid entry
+    setShowCreateTemplateDropdown(false);
+    setAddingCard(false);
   };
 
   const handleCardKeyDown = (e: React.KeyboardEvent) => {

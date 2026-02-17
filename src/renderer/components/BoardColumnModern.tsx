@@ -207,6 +207,8 @@ const BoardColumnModern = memo(function BoardColumnModern({
         }
         setNewCardTitle('');
         setSelectedTemplate(null);
+        setShowCreateTemplateDropdown(false);
+        setAddingCard(false);
     };
 
     const handleCardKeyDown = (e: React.KeyboardEvent) => {

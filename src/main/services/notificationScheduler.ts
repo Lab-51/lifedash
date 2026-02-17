@@ -112,6 +112,7 @@ async function checkDueDateReminders(): Promise<void> {
           isNotNull(cards.dueDate),
           lte(cards.dueDate, in24h),
           eq(cards.archived, false),
+          eq(cards.completed, false),
         ),
       )
       .limit(10);
@@ -172,6 +173,7 @@ async function checkDailyDigest(digestHour: number): Promise<void> {
           isNotNull(cards.dueDate),
           lte(cards.dueDate, todayEnd),
           eq(cards.archived, false),
+          eq(cards.completed, false),
         ),
       )
       .limit(50);
@@ -185,6 +187,7 @@ async function checkDailyDigest(digestHour: number): Promise<void> {
           isNotNull(cards.dueDate),
           lte(cards.dueDate, todayStart),
           eq(cards.archived, false),
+          eq(cards.completed, false),
         ),
       )
       .limit(50);
