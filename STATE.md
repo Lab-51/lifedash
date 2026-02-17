@@ -2,20 +2,21 @@
 
 ## Session Info
 Last updated: 2026-02-17
-Session focus: Plan B.2 — Search & Intelligence
-Checkpoint reason: Plan B.2 COMPLETE (3/3 tasks)
+Session focus: Plan C.1 — Card Checklists / Subtasks
+Checkpoint reason: Plan C.1 COMPLETE (3/3 tasks)
 
 ## Position
-Milestone: v1.7.0 — Phase B: Search & Intelligence
-Latest commit: 50e9010 (feat: AI usage dashboard with visual bar chart and breakdowns)
-Version: 1.7.0
+Milestone: v1.8.0 — Phase C: Task Management Power
+Latest commit: 434c194 (feat: checklist progress badge on KanbanCard + AI breakdown to checklist)
+Version: 1.8.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
-SELF-IMPROVE-NEW.md: 27 proposals, 9 implemented (Phase A: 5/5, Phase B: 4/4 — splash + 3 features)
+SELF-IMPROVE-NEW.md: 27 proposals, 10 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 1/4)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
 Plan B.2: COMPLETE (3/3 tasks)
+Plan C.1: COMPLETE (3/3 tasks) — Card Checklists / Subtasks
 
 ## Ad-hoc Changes This Session
 - Feat: Project-scoped standup generation (a6779fe)
@@ -39,8 +40,22 @@ Plan B.2: COMPLETE (3/3 tasks)
   - Task type + model breakdowns with color-coded horizontal progress bars
 
 ## Resume Context
-Next action: SELF-IMPROVE-NEW.md Phase C or user-directed work
-Prerequisites: None — all clean, ready to push
+Next action: Plan C.2 (Recurring Cards + Card Templates) or user-directed work
+Prerequisites: None — all clean
+
+## Plan C.1 Results
+- Task 1: Schema + migration + IPC handlers for checklist items (006c7a3)
+  - `card_checklist_items` table with migration 0009
+  - 6 IPC handlers: get, add, update, delete, reorder, batch-add
+  - Preload bridge, ElectronAPI types, Zod validation schemas
+- Task 2: ChecklistSection UI component in CardDetailModal (8cc0611)
+  - New ChecklistSection.tsx (178 lines) with progress bar, inline edit, rapid entry
+  - cardDetailStore extended with optimistic CRUD actions
+  - Rendered before AttachmentsSection in card detail view
+- Task 3: KanbanCard checklist badge + TaskBreakdown integration (434c194)
+  - Batch checklist count query (Query 5) in cards:list-by-board
+  - "3/7" badge on KanbanCard (emerald when all complete)
+  - "Add to Checklist" button in TaskBreakdownSection alongside "Create as Cards"
 
 ## Plan B.1 Results
 - Task 1: CSS splash screen in index.html (cbc4d23)
@@ -270,6 +285,7 @@ Plans 8.1-8.7 + 4 ad-hoc features delivered.
 
 ## Confidence Levels
 Overall approach: HIGH
+Plan C.1: HIGH — all 3 tasks verified with tsc + 150/150 tests
 All tasks: HIGH — verified with tsc + 150/150 tests
 
 ## Blockers
