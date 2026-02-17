@@ -43,6 +43,15 @@ export interface CardAttachment {
   createdAt: string;
 }
 
+export interface CardChecklistItem {
+  id: string;
+  cardId: string;
+  title: string;
+  completed: boolean;
+  position: number;
+  createdAt: string;
+}
+
 // === Input types ===
 
 export interface CreateCardCommentInput {

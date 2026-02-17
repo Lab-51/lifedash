@@ -321,3 +321,28 @@ export const taskStructuringDescriptionSchema = z.string().max(10000);
 
 /** For whisper:download-model — model file name */
 export const whisperModelNameSchema = z.string().min(1).max(200);
+
+// ============================================================================
+// Card Checklist Items
+// ============================================================================
+
+export const addChecklistItemSchema = z.object({
+  cardId: uuid,
+  title: z.string().min(1).max(500),
+});
+
+export const updateChecklistItemSchema = z.object({
+  id: uuid,
+  title: z.string().min(1).max(500).optional(),
+  completed: z.boolean().optional(),
+});
+
+export const reorderChecklistItemsSchema = z.object({
+  cardId: uuid,
+  itemIds: z.array(uuid),
+});
+
+export const addChecklistItemsBatchSchema = z.object({
+  cardId: uuid,
+  titles: z.array(z.string().min(1).max(500)).min(1).max(50),
+});

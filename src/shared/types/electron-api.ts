@@ -10,6 +10,7 @@ import type {
 } from './projects';
 import type {
   CardComment, CardRelationship, CardActivity, CardAttachment,
+  CardChecklistItem,
   CreateCardCommentInput, CreateCardRelationshipInput,
   CreateLabelInput, UpdateLabelInput,
 } from './cards';
@@ -123,6 +124,14 @@ export interface ElectronAPI {
   addCardAttachment: (cardId: string) => Promise<CardAttachment | null>;
   deleteCardAttachment: (id: string) => Promise<void>;
   openCardAttachment: (filePath: string) => Promise<void>;
+
+  // Card Checklist Items
+  getChecklistItems: (cardId: string) => Promise<CardChecklistItem[]>;
+  addChecklistItem: (cardId: string, title: string) => Promise<CardChecklistItem>;
+  updateChecklistItem: (id: string, updates: { title?: string; completed?: boolean }) => Promise<CardChecklistItem>;
+  deleteChecklistItem: (id: string) => Promise<void>;
+  reorderChecklistItems: (cardId: string, itemIds: string[]) => Promise<void>;
+  addChecklistItemsBatch: (cardId: string, titles: string[]) => Promise<CardChecklistItem[]>;
 
   // Card AI
   generateCardDescription: (cardId: string) => Promise<{ description: string }>;

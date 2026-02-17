@@ -64,6 +64,13 @@
       "when": 1771344000000,
       "tag": "0008_card_completed",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1771353168535,
+      "tag": "0009_luxuriant_ben_urich",
+      "breakpoints": true
     }
   ]
 }

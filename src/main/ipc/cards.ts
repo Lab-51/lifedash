@@ -12,7 +12,7 @@
 // - card:getActivities limited to most recent 50 entries
 
 import { ipcMain } from 'electron';
-import { eq, and, asc, desc, inArray } from 'drizzle-orm';
+import { eq, and, asc, desc, inArray, count } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { createLogger } from '../services/logger';
 import {
@@ -28,6 +28,7 @@ import {
   cardActivities,
   cardActivityActionEnum,
   cardAttachments,
+  cardChecklistItems,
 } from '../db/schema';
 import { resolveTaskModel, generate } from '../services/ai-provider';
 import * as attachmentService from '../services/attachmentService';
@@ -46,6 +47,10 @@ import {
   commentContentSchema,
   createCardRelationshipInputSchema,
   filePathSchema,
+  addChecklistItemSchema,
+  updateChecklistItemSchema,
+  reorderChecklistItemsSchema,
+  addChecklistItemsBatchSchema,
 } from '../../shared/validation/schemas';
 
 const log = createLogger('Cards');
@@ -543,6 +548,91 @@ export function registerCardHandlers(): void {
   ipcMain.handle('card:openAttachment', async (_event, filePath: unknown) => {
     const validFilePath = validateInput(filePathSchema, filePath);
     return attachmentService.openAttachment(validFilePath);
+  });
+
+  // --- Card Checklist Items ---
+
+  ipcMain.handle('card:getChecklistItems', async (_event, cardId: unknown) => {
+    const validCardId = validateInput(idParamSchema, cardId);
+    const db = getDb();
+    return db
+      .select()
+      .from(cardChecklistItems)
+      .where(eq(cardChecklistItems.cardId, validCardId))
+      .orderBy(asc(cardChecklistItems.position));
+  });
+
+  ipcMain.handle('card:addChecklistItem', async (_event, input: unknown) => {
+    const validInput = validateInput(addChecklistItemSchema, input);
+    const db = getDb();
+    // Get count of existing items for position
+    const [{ value: existingCount }] = await db
+      .select({ value: count() })
+      .from(cardChecklistItems)
+      .where(eq(cardChecklistItems.cardId, validInput.cardId));
+    const [item] = await db
+      .insert(cardChecklistItems)
+      .values({
+        cardId: validInput.cardId,
+        title: validInput.title,
+        position: existingCount,
+      })
+      .returning();
+    return item;
+  });
+
+  ipcMain.handle('card:updateChecklistItem', async (_event, input: unknown) => {
+    const validInput = validateInput(updateChecklistItemSchema, input);
+    const db = getDb();
+    const setData: Record<string, unknown> = {};
+    if (validInput.title !== undefined) setData.title = validInput.title;
+    if (validInput.completed !== undefined) setData.completed = validInput.completed;
+    const [item] = await db
+      .update(cardChecklistItems)
+      .set(setData)
+      .where(eq(cardChecklistItems.id, validInput.id))
+      .returning();
+    return item;
+  });
+
+  ipcMain.handle('card:deleteChecklistItem', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const db = getDb();
+    await db.delete(cardChecklistItems).where(eq(cardChecklistItems.id, validId));
+  });
+
+  ipcMain.handle('card:reorderChecklistItems', async (_event, input: unknown) => {
+    const validInput = validateInput(reorderChecklistItemsSchema, input);
+    const db = getDb();
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < validInput.itemIds.length; i++) {
+        await tx
+          .update(cardChecklistItems)
+          .set({ position: i })
+          .where(eq(cardChecklistItems.id, validInput.itemIds[i]));
+      }
+    });
+  });
+
+  ipcMain.handle('card:addChecklistItemsBatch', async (_event, input: unknown) => {
+    const validInput = validateInput(addChecklistItemsBatchSchema, input);
+    const db = getDb();
+    // Get current max position
+    const existing = await db
+      .select({ value: count() })
+      .from(cardChecklistItems)
+      .where(eq(cardChecklistItems.cardId, validInput.cardId));
+    const startPosition = existing[0].value;
+    const values = validInput.titles.map((title, i) => ({
+      cardId: validInput.cardId,
+      title,
+      position: startPosition + i,
+    }));
+    const items = await db
+      .insert(cardChecklistItems)
+      .values(values)
+      .returning();
+    return items;
   });
 
   // --- AI: Generate Card Description ---

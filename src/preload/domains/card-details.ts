@@ -31,6 +31,20 @@ export const cardDetailsBridge = {
   openCardAttachment: (filePath: string) =>
     ipcRenderer.invoke('card:openAttachment', filePath),
 
+  // Checklist Items
+  getChecklistItems: (cardId: string) =>
+    ipcRenderer.invoke('card:getChecklistItems', cardId),
+  addChecklistItem: (cardId: string, title: string) =>
+    ipcRenderer.invoke('card:addChecklistItem', { cardId, title }),
+  updateChecklistItem: (id: string, updates: { title?: string; completed?: boolean }) =>
+    ipcRenderer.invoke('card:updateChecklistItem', { id, ...updates }),
+  deleteChecklistItem: (id: string) =>
+    ipcRenderer.invoke('card:deleteChecklistItem', id),
+  reorderChecklistItems: (cardId: string, itemIds: string[]) =>
+    ipcRenderer.invoke('card:reorderChecklistItems', { cardId, itemIds }),
+  addChecklistItemsBatch: (cardId: string, titles: string[]) =>
+    ipcRenderer.invoke('card:addChecklistItemsBatch', { cardId, titles }),
+
   // AI description generation
   generateCardDescription: (cardId: string) =>
     ipcRenderer.invoke('card:generate-description', cardId),

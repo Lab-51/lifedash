@@ -95,3 +95,15 @@ export const cardAttachments = pgTable('card_attachments', {
   mimeType: varchar('mime_type', { length: 200 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// --- Card Checklist Items ---
+
+export const cardChecklistItems = pgTable('card_checklist_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  cardId: uuid('card_id').notNull()
+    .references(() => cards.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 500 }).notNull(),
+  completed: boolean('completed').default(false).notNull(),
+  position: integer('position').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
