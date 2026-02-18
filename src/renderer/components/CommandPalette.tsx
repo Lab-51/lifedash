@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
-import { Search, Folder, Mic, Lightbulb, MessageSquare, LayoutGrid, LayoutDashboard, Settings, Plus, Play, Keyboard, PlusCircle, Zap, FileSearch } from 'lucide-react';
+import { Search, Folder, Mic, Lightbulb, MessageSquare, LayoutGrid, LayoutDashboard, Settings, Plus, Play, Keyboard, PlusCircle, Zap, FileSearch, Clock } from 'lucide-react';
 import type { TranscriptSearchResult } from '../../shared/types';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -131,6 +131,7 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
     { id: 'p-meet', label: 'Meetings', icon: Mic, category: 'Pages', action: () => go('/meetings') },
     { id: 'p-idea', label: 'Ideas', icon: Lightbulb, category: 'Pages', action: () => go('/ideas') },
     { id: 'p-brain', label: 'Brainstorm', icon: MessageSquare, category: 'Pages', action: () => go('/brainstorm') },
+    { id: 'p-focus', label: 'Focus', icon: Clock, category: 'Pages', action: () => go('/focus') },
     { id: 'p-set', label: 'Settings', icon: Settings, category: 'Pages', action: () => go('/settings') },
   ], [go]);
 

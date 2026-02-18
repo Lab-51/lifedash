@@ -19,7 +19,8 @@ const SHORTCUT_GROUPS = [
       { keys: 'Ctrl+3', description: 'Meetings' },
       { keys: 'Ctrl+4', description: 'Ideas' },
       { keys: 'Ctrl+5', description: 'Brainstorm' },
-      { keys: 'Ctrl+6', description: 'Settings' },
+      { keys: 'Ctrl+6', description: 'Focus' },
+      { keys: 'Ctrl+7', description: 'Settings' },
     ],
   },
   {
