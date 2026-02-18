@@ -231,7 +231,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
     return (
         <div
             ref={columnRef}
-            className={`w-80 shrink-0 flex flex-col bg-surface-50 dark:bg-surface-900/50 rounded-2xl border border-surface-200 dark:border-surface-800/50 transition-all relative ${isDragOver ? 'ring-2 ring-primary-500/30 bg-primary-50/50 dark:bg-primary-900/10' : ''
+            className={`w-80 shrink-0 flex flex-col bg-surface-50 dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 transition-all relative ${isDragOver ? 'ring-2 ring-primary-500/30 bg-primary-50/50 dark:bg-primary-900/20' : ''
                 } ${isDragging ? 'opacity-50 scale-95 rotate-1' : ''}`}
         >
             {/* Column reorder edge indicators */}
@@ -273,7 +273,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                             <h3 className="font-bold text-sm text-surface-700 dark:text-surface-200 truncate cursor-text hover:text-surface-900 dark:hover:text-surface-100 transition-colors">
                                 {column.name}
                             </h3>
-                            <span className="bg-surface-200 dark:bg-surface-800 text-surface-600 dark:text-surface-400 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            <span className="bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                                 {columnCards.length}
                             </span>
                         </div>
@@ -313,7 +313,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                     />
                 ))}
                 {columnCards.length === 0 && !addingCard && (
-                    <div className="flex flex-col items-center justify-center py-8 text-surface-400 border-2 border-dashed border-surface-200 dark:border-surface-800 rounded-xl">
+                    <div className="flex flex-col items-center justify-center py-8 text-surface-400 border-2 border-dashed border-surface-200 dark:border-surface-700 rounded-xl">
                         <p className="text-xs font-medium">No cards</p>
                         <button
                             onClick={() => setAddingCard(true)}
@@ -336,7 +336,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                             onChange={e => setNewCardTitle(e.target.value)}
                             onKeyDown={handleCardKeyDown}
                             placeholder="Enter card title..."
-                            className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium placeholder:font-normal"
+                            className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:focus:ring-primary-500/40 focus:border-primary-500 transition-all font-medium placeholder:font-normal"
                         />
 
                         {/* Template selector for card creation */}
@@ -424,7 +424,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                 ) : (
                     <button
                         onClick={() => setAddingCard(true)}
-                        className="flex items-center justify-center gap-1.5 text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 text-sm font-medium w-full px-3 py-2.5 rounded-xl transition-all hover:bg-white dark:hover:bg-surface-800 hover:shadow-sm border border-transparent hover:border-surface-200 dark:hover:border-surface-700"
+                        className="flex items-center justify-center gap-1.5 text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 text-sm font-medium w-full px-3 py-2.5 rounded-xl transition-all hover:bg-white dark:hover:bg-surface-800/80 hover:shadow-sm border border-transparent hover:border-surface-200 dark:hover:border-surface-700"
                     >
                         <Plus size={16} />
                         <span>Add Card</span>

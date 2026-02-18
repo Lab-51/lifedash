@@ -34,10 +34,10 @@ interface CardDetailModalProps {
 }
 
 const PRIORITY_OPTIONS: { value: CardPriority; label: string; activeClass: string; inactiveClass: string }[] = [
-  { value: 'low', label: 'LOW', activeClass: 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40', inactiveClass: 'text-surface-400 hover:text-emerald-400' },
-  { value: 'medium', label: 'MED', activeClass: 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/40', inactiveClass: 'text-surface-400 hover:text-blue-400' },
-  { value: 'high', label: 'HIGH', activeClass: 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40', inactiveClass: 'text-surface-400 hover:text-amber-400' },
-  { value: 'urgent', label: 'URG', activeClass: 'bg-red-500/20 text-red-400 ring-1 ring-red-500/40', inactiveClass: 'text-surface-400 hover:text-red-400' },
+  { value: 'low', label: 'LOW', activeClass: 'bg-emerald-500/30 text-emerald-400 ring-1 ring-emerald-500/50', inactiveClass: 'text-surface-400 hover:text-emerald-400' },
+  { value: 'medium', label: 'MED', activeClass: 'bg-blue-500/30 text-blue-400 ring-1 ring-blue-500/50', inactiveClass: 'text-surface-400 hover:text-blue-400' },
+  { value: 'high', label: 'HIGH', activeClass: 'bg-amber-500/30 text-amber-400 ring-1 ring-amber-500/50', inactiveClass: 'text-surface-400 hover:text-amber-400' },
+  { value: 'urgent', label: 'URG', activeClass: 'bg-red-500/30 text-red-400 ring-1 ring-red-500/50', inactiveClass: 'text-surface-400 hover:text-red-400' },
 ];
 
 const LABEL_COLORS = [
@@ -366,9 +366,9 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/60"
     >
-      <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 w-full max-w-3xl max-h-[80vh] overflow-y-auto mx-4 p-6">
+      <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-600 w-full max-w-3xl max-h-[80vh] overflow-y-auto mx-4 p-6">
         {/* Header: Title + Close button */}
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex-1 min-w-0">
@@ -421,14 +421,14 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
           <div className="relative" ref={templateDropdownRef}>
             <button
               onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
-              className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors"
             >
               <FileText size={14} />
               Apply Template
             </button>
 
             {showTemplateDropdown && (
-              <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg shadow-lg py-1 min-w-[220px] z-40">
+              <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-600 rounded-lg shadow-lg py-1 min-w-[220px] z-40">
                 {dbTemplates.length > 0 && (
                   <>
                     <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
@@ -474,7 +474,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
           <button
             onClick={handleSaveAsTemplate}
-            className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors"
             title="Save as template"
           >
             <BookmarkPlus size={14} />
@@ -484,7 +484,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
           <button
             onClick={handleGenerateDescription}
             disabled={generatingDescription}
-            className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors disabled:opacity-50"
             title="Generate description from card title using AI"
           >
             <Sparkles size={14} className={generatingDescription ? 'animate-spin' : ''} />
@@ -534,7 +534,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               </button>
 
               {showLabelDropdown && (
-                <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg shadow-lg p-2 min-w-[220px] z-40">
+                <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-600 rounded-lg shadow-lg p-2 min-w-[220px] z-40">
                   {/* Existing unattached labels */}
                   {unattachedLabels.length > 0 && (
                     <div className="mb-2">
@@ -578,7 +578,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                         <button
                           key={color}
                           onClick={() => setNewLabelColor(color)}
-                          className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-white/50 scale-110' : 'hover:scale-110'
+                          className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-white/70 scale-110' : 'hover:scale-110'
                             }`}
                           style={{ backgroundColor: color }}
                         />

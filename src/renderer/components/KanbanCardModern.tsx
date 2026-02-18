@@ -152,7 +152,7 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
         <div
             ref={cardRef}
             onClick={onClick}
-            className={`group relative bg-white dark:bg-surface-800 rounded-xl p-3.5 border border-surface-200 dark:border-surface-700 cursor-pointer shadow-sm hover:shadow-md hover:border-primary-300 dark:hover:border-primary-700 transition-all ${isBlocked ? 'opacity-75 bg-surface-50 dark:bg-surface-900' : ''
+            className={`group relative bg-white dark:bg-surface-800 rounded-xl p-3.5 border border-surface-200 dark:border-surface-700 cursor-pointer shadow-sm hover:shadow-md hover:border-primary-300 dark:hover:border-primary-600 transition-all ${isBlocked ? 'opacity-75 bg-surface-50 dark:bg-surface-900' : ''
                 }`}
             style={
                 isDragging
@@ -186,7 +186,7 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
                                 className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                                     card.completed
                                         ? 'bg-emerald-600 border-emerald-500'
-                                        : 'border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 hover:border-surface-400'
+                                        : 'border-surface-300 dark:border-surface-500 bg-white dark:bg-surface-800 hover:border-surface-400'
                                 }`}
                             >
                                 {card.completed && <Check size={10} className="text-white" />}
@@ -233,7 +233,7 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
 
                     {/* Link Count */}
                     {(dependencyCount ?? 0) > 0 && (
-                        <span className="flex items-center gap-1 text-[10px] text-surface-500 bg-surface-100 dark:bg-surface-700 px-1.5 py-0.5 rounded-md">
+                        <span className="flex items-center gap-1 text-[10px] text-surface-500 dark:text-surface-400 bg-surface-100 dark:bg-surface-700 px-1.5 py-0.5 rounded-md">
                             <Link2 size={10} />
                             {dependencyCount}
                         </span>
@@ -264,7 +264,7 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
                 </div>
 
                 {/* Hover Actions */}
-                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 dark:bg-surface-800/90 rounded-lg p-1 shadow-sm border border-surface-100 dark:border-surface-700 backdrop-blur-sm">
+                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 dark:bg-surface-800/90 rounded-lg p-1 shadow-sm border border-surface-100 dark:border-surface-600 backdrop-blur-sm">
                     {!isEditing && (
                         <button
                             onClick={e => { e.stopPropagation(); startEditing(); }}

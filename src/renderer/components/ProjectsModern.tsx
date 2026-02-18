@@ -210,7 +210,7 @@ export default function ProjectsModern() {
                             placeholder="Search projects..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-lg text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-lg text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:focus:ring-primary-500/40 focus:border-primary-500 transition-all"
                         />
                     </div>
 
@@ -330,7 +330,7 @@ export default function ProjectsModern() {
                             <div
                                 key={project.id}
                                 onClick={() => navigate(`/projects/${project.id}`)}
-                                className={`group relative flex flex-col bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-5 hover:shadow-lg dark:hover:shadow-primary-900/10 hover:border-primary-500/30 transition-all cursor-pointer ${project.archived ? 'opacity-60 grayscale' : ''}`}
+                                className={`group relative flex flex-col bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-5 hover:shadow-lg dark:hover:shadow-lg dark:hover:shadow-primary-950/30 hover:border-primary-500/30 transition-all cursor-pointer ${project.archived ? 'opacity-60 grayscale' : ''}`}
                             >
                                 {/* More Menu (Absolute) */}
                                 <div className="absolute top-4 right-4 z-10">
@@ -345,20 +345,20 @@ export default function ProjectsModern() {
                                     </button>
                                     {/* Dropdown */}
                                     {activeMenuId === project.id && (
-                                        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl shadow-xl py-1 z-20 animate-in fade-in zoom-in-95 duration-100">
-                                            <button onClick={(e) => handleStartRename(e, project)} className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-800 flex items-center gap-2">
+                                        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-800 rounded-xl shadow-xl py-1 z-20 animate-in fade-in zoom-in-95 duration-100">
+                                            <button onClick={(e) => handleStartRename(e, project)} className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700 flex items-center gap-2">
                                                 <Pencil size={14} /> Rename
                                             </button>
-                                            <button onClick={(e) => { e.stopPropagation(); setPlanningProjectId(project.id); setActiveMenuId(null); }} className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-800 flex items-center gap-2">
+                                            <button onClick={(e) => { e.stopPropagation(); setPlanningProjectId(project.id); setActiveMenuId(null); }} className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700 flex items-center gap-2">
                                                 <Sparkles size={14} /> Plan with AI
                                             </button>
-                                            <button onClick={(e) => handleDuplicate(e, project.id)} className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-800 flex items-center gap-2">
+                                            <button onClick={(e) => handleDuplicate(e, project.id)} className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700 flex items-center gap-2">
                                                 <Copy size={14} /> Duplicate
                                             </button>
-                                            <div className="h-px bg-surface-100 dark:bg-surface-800 my-1" />
+                                            <div className="h-px bg-surface-100 dark:bg-surface-700 my-1" />
                                             <button
                                                 onClick={(e) => project.archived ? handleUnarchive(e, project.id) : handleArchive(e, project.id)}
-                                                className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-800 flex items-center gap-2"
+                                                className="w-full text-left px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700 flex items-center gap-2"
                                             >
                                                 <Archive size={14} /> {project.archived ? 'Unarchive' : 'Archive'}
                                             </button>
@@ -375,7 +375,7 @@ export default function ProjectsModern() {
                                     </div>
                                     <button
                                         onClick={(e) => { e.stopPropagation(); updateProject(project.id, { pinned: !project.pinned }); }}
-                                        className={`mr-10 ${project.pinned ? 'text-amber-400' : 'text-surface-300 dark:text-surface-600 hover:text-amber-400'} transition-colors`}
+                                        className={`mr-10 ${project.pinned ? 'text-amber-400' : 'text-surface-300 dark:text-surface-500 hover:text-amber-400'} transition-colors`}
                                     >
                                         <Star size={18} fill={project.pinned ? "currentColor" : "none"} />
                                     </button>
