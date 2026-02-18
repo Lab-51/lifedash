@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-18
-Session focus: Plan D.6 — Immersive Full-Screen Focus Overlay
-Checkpoint reason: Plan D.6 complete
+Session focus: Plan D.6 — Focus Overlay + XP label fix
+Checkpoint reason: Session end — D.6 complete + ad-hoc bug fix
 
 ## Position
 Milestone: v1.9.0 — Phase D: Meeting Intelligence 2.0
-Latest commit: 10573c4 (feat: immersive full-screen focus overlay with progress ring and stats)
+Latest commit: ece4f11 (fix: add "XP" suffix to category breakdown pills to avoid count confusion)
 Version: 1.9.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
@@ -101,9 +101,14 @@ Plan D.6: COMPLETE (3/3 tasks) — Immersive Full-Screen Focus Overlay
   - Paused state: animate-pulse on ring + "PAUSED" label
   - "Ctrl+Shift+F to exit" keyboard hint at bottom
 
+## Ad-hoc Fixes This Session
+- Fix: Category pills in FocusStatsWidget now show "50 XP" instead of "50" (ece4f11)
+  - User mistook XP values for item counts (e.g., "Meetings 50" looked like 50 meetings)
+
 ## Resume Context
 Next action: Plan D.7 or next self-improve proposal
-Plan D.6 is fully COMPLETE. All 3 tasks verified with tsc + 150/150 tests.
+Plan D.6 is fully COMPLETE + 1 ad-hoc fix. All verified with tsc + 150/150 tests.
+3 commits unpushed to origin.
 Prerequisites: None — all clean
 
 ## Plan D.2 Results

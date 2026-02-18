@@ -1,53 +1,33 @@
-# Session Handoff — 2026-02-17
+# Session Handoff — 2026-02-18
 
-## What Happened This Session
+## What Was Done
 
-### Plan D.4 — 300-Level Visual Progression (COMPLETE, 2/2 tasks)
+### Plan D.6 — Immersive Full-Screen Focus Overlay (3/3 tasks)
+Created a new full-screen overlay that takes over the app during focus/break sessions:
+- **FocusOverlay.tsx** (266 lines) — SVG circular progress ring (280px), giant font-mono text-8xl countdown, level badge + XP, streak counter, today's stats (sessions/minutes/XP), 15 motivational quotes (random per session), breathing gradient animation, pause/stop controls
+- **App.tsx** — Lazy-loaded FocusOverlay, rendered when mode=focus|break (z-40, below FocusCompleteModal)
+- **StatusBar.tsx** — Returns null during focus/break (full immersion), cleaned up dead focus/break code that TS narrowing flagged
+- Polish: 500ms fade-in via requestAnimationFrame, animate-pulse on ring when paused + "PAUSED" label, "Ctrl+Shift+F to exit" hint
 
-1. **300-level formula-based system** (7efdde6) — Replaced static 8-level LEVEL_THRESHOLDS with 30 named tiers across 6 families (Metal→Gem→Cosmic→Mythic→Divine→Ultimate). O(1) quadratic formula level lookup. XP curve: Lv 50 at ~10.8k, Lv 300 at ~365k.
-2. **LevelBadge component + UI integration** (0f298af) — New LevelBadge.tsx with tier-colored visuals (gradient, glow, shimmer for Divine/Ultimate). Integrated into FocusStatsWidget, StatusBar, FocusCompleteModal.
+### Ad-hoc Fix: XP Label Confusion
+- FocusStatsWidget category pills showed raw numbers (e.g., "Meetings 50") — users mistook XP for item counts
+- Added "XP" suffix so pills now read "50 XP"
 
-### Ad-hoc StatusBar Fixes
-
-3. **Level badge no longer opens focus modal** (b9289f6) — StatusBar LevelBadge is now informational only.
-4. **Pending action count refreshes immediately** (fdd6651) — meetingStore now reloads count after approve/dismiss/convert instead of waiting for 30s poll.
-
-All pushed to `origin/main`.
-
-## Current Position
-
-- **Phase D: Meeting Intelligence 2.0** — Plans D.1-D.4 COMPLETE
-- **SELF-IMPROVE-NEW.md**: 19 of 27 proposals implemented
-- **Next**: Plan D.5 or next self-improvement proposal
-- **Test suite**: 150 tests across 7 files, all passing
-- **tsc**: Zero errors
-
-## How to Resume
-
-```bash
-# 1. Check state
-/nexus:status
-
-# 2. Plan next feature or review proposals
-/nexus:self-improve
-# or
-/nexus:plan D.5
+## Commits (3 unpushed)
+```
+ece4f11 fix: add "XP" suffix to category breakdown pills to avoid count confusion
+16b4313 docs: checkpoint — Plan D.6 complete
+10573c4 feat: immersive full-screen focus overlay with progress ring and stats
 ```
 
-## Key Files
+## Resume Instructions
+1. Run `/nexus:resume` or read STATE.md
+2. Next: Plan D.7 or next self-improve proposal
+3. Remember to `git push` if ready
+4. Test the focus overlay manually: Ctrl+Shift+F to start, verify visual experience
 
-| File | Purpose |
-|------|---------|
-| `STATE.md` | Current position — Plan D.4 complete + 2 ad-hoc fixes |
-| `PLAN.md` | Plan D.4 (completed, can be replaced) |
-| `SUMMARY.md` | Plan D.4 execution summary |
-| `SELF-IMPROVE-NEW.md` | 27 proposals, roadmap for remaining phases |
-
-## New Files This Session
-
-| File | Lines | Purpose |
-|------|-------|---------|
-| `src/renderer/components/LevelBadge.tsx` | ~63 | Tier-aware level badge with shimmer animation |
-
-## Note on Pending Actions
-The "N pending actions" in the StatusBar counts action_items from meeting transcripts (not kanban cards). User has 5 pending action items from past meetings that need to be approved/dismissed in the Meetings page.
+## Key Files Changed
+- `src/renderer/components/FocusOverlay.tsx` (NEW)
+- `src/renderer/App.tsx` (+2 lines)
+- `src/renderer/components/StatusBar.tsx` (simplified)
+- `src/renderer/components/FocusStatsWidget.tsx` (1-line fix)
