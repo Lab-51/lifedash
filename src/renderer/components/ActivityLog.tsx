@@ -146,7 +146,7 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
                   </div>
 
                   {/* Description + timestamp */}
-                  <span className="text-sm text-surface-300">
+                  <span className="text-sm text-surface-700 dark:text-surface-300">
                     {describeActivity(activity.action, activity.details)}
                   </span>
                   <span className="text-xs text-surface-500 ml-auto whitespace-nowrap">
@@ -161,7 +161,7 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
           {hasMore && (
             <button
               onClick={() => setExpanded(prev => !prev)}
-              className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
+              className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
             >
               {expanded ? (
                 <>

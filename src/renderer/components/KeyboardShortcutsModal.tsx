@@ -59,19 +59,19 @@ function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-surface-900 rounded-xl border border-surface-700 shadow-2xl overflow-hidden"
+        className="w-full max-w-md bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 shadow-xl dark:shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-700">
-          <h2 className="text-sm font-medium text-surface-200">Keyboard Shortcuts</h2>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-700">
+          <h2 className="text-sm font-medium text-surface-800 dark:text-surface-200">Keyboard Shortcuts</h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-md hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            className="p-1 rounded-md hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 transition-colors"
             aria-label="Close"
           >
             <X size={16} />
@@ -91,8 +91,8 @@ function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps
                     key={shortcut.keys}
                     className="flex items-center justify-between py-1"
                   >
-                    <span className="text-sm text-surface-300">{shortcut.description}</span>
-                    <kbd className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono text-surface-200 bg-surface-700 rounded border border-surface-600">
+                    <span className="text-sm text-surface-700 dark:text-surface-300">{shortcut.description}</span>
+                    <kbd className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono text-surface-800 dark:text-surface-200 bg-surface-100 dark:bg-surface-700 rounded border border-surface-200 dark:border-surface-600">
                       {shortcut.keys}
                     </kbd>
                   </div>

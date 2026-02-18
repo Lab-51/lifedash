@@ -219,19 +219,19 @@ export default function ConvertActionModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 dark:bg-black/50"
       onClick={handleOverlayClick}
     >
-      <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-md mx-4 p-5">
+      <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 w-full max-w-md mx-4 p-5">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-semibold text-surface-100">
+          <h3 className="text-lg font-semibold text-surface-900 dark:text-surface-100">
             {isBatch ? 'Convert to Cards' : 'Convert to Card'}
           </h3>
           <button
             onClick={onClose}
             disabled={converting}
-            className="text-surface-500 hover:text-surface-300 p-1 transition-colors disabled:opacity-40"
+            className="text-surface-500 hover:text-surface-700 dark:text-surface-300 p-1 transition-colors disabled:opacity-40"
           >
             <X size={18} />
           </button>
@@ -252,7 +252,7 @@ export default function ConvertActionModal({
         {preselectedProjectId && !projectOverridden && resolvedProjectName && step !== 1 && (
           <div className="flex items-center gap-2 mb-3 text-sm">
             <span className="text-surface-400">Project:</span>
-            <span className="text-surface-200 font-medium">{resolvedProjectName}</span>
+            <span className="text-surface-800 dark:text-surface-200 font-medium">{resolvedProjectName}</span>
             <button
               onClick={handleChangeProject}
               className="text-primary-400 hover:text-primary-300 text-xs underline transition-colors"
@@ -280,7 +280,7 @@ export default function ConvertActionModal({
           {/* Step 1: Select Project */}
           {step === 1 && !loading && (
             <div>
-              <p className="text-sm text-surface-300 mb-2">Choose a project</p>
+              <p className="text-sm text-surface-700 dark:text-surface-300 mb-2">Choose a project</p>
               <div className="max-h-48 overflow-y-auto space-y-1.5">
                 {projects.map((p) => (
                   <div
@@ -292,7 +292,7 @@ export default function ConvertActionModal({
                         : 'border-surface-700 hover:border-surface-600'
                     }`}
                   >
-                    <span className="flex items-center text-sm text-surface-200">
+                    <span className="flex items-center text-sm text-surface-800 dark:text-surface-200">
                       <span
                         className="w-3 h-3 rounded-full inline-block mr-2 shrink-0"
                         style={{ backgroundColor: p.color || '#6b7280' }}
@@ -311,7 +311,7 @@ export default function ConvertActionModal({
           {/* Step 2: Select Board */}
           {step === 2 && !loading && (
             <div>
-              <p className="text-sm text-surface-300 mb-2">Choose a board</p>
+              <p className="text-sm text-surface-700 dark:text-surface-300 mb-2">Choose a board</p>
               <div className="max-h-48 overflow-y-auto space-y-1.5">
                 {boards.map((b) => (
                   <div
@@ -323,7 +323,7 @@ export default function ConvertActionModal({
                         : 'border-surface-700 hover:border-surface-600'
                     }`}
                   >
-                    <span className="text-sm text-surface-200">{b.name}</span>
+                    <span className="text-sm text-surface-800 dark:text-surface-200">{b.name}</span>
                   </div>
                 ))}
                 {boards.length === 0 && (
@@ -336,7 +336,7 @@ export default function ConvertActionModal({
           {/* Step 3: Select Column */}
           {step === 3 && !loading && (
             <div>
-              <p className="text-sm text-surface-300 mb-2">Choose a column</p>
+              <p className="text-sm text-surface-700 dark:text-surface-300 mb-2">Choose a column</p>
               <div className="max-h-48 overflow-y-auto space-y-1.5">
                 {columns.map((c) => (
                   <div
@@ -348,7 +348,7 @@ export default function ConvertActionModal({
                         : 'border-surface-700 hover:border-surface-600'
                     }`}
                   >
-                    <span className="text-sm text-surface-200">{c.name}</span>
+                    <span className="text-sm text-surface-800 dark:text-surface-200">{c.name}</span>
                   </div>
                 ))}
                 {columns.length === 0 && (
@@ -367,12 +367,12 @@ export default function ConvertActionModal({
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-surface-700">
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-surface-200 dark:border-surface-700">
           <div>
             {step > 1 && !converting && (
               <button
                 onClick={handleBack}
-                className="text-sm text-surface-400 hover:text-surface-200 flex items-center gap-1 transition-colors"
+                className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 flex items-center gap-1 transition-colors"
               >
                 <ChevronLeft size={14} />
                 Back
@@ -383,7 +383,7 @@ export default function ConvertActionModal({
             <button
               onClick={onClose}
               disabled={converting}
-              className="text-sm text-surface-400 hover:text-surface-200 transition-colors disabled:opacity-40"
+              className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors disabled:opacity-40"
             >
               Cancel
             </button>

@@ -43,7 +43,7 @@ function StatusBar() {
   if (focusMode === 'focus' || focusMode === 'break') return null;
 
   return (
-    <div className="h-6 flex items-center justify-between bg-surface-900 border-t border-surface-800 px-3 shrink-0">
+    <div className="h-6 flex items-center justify-between bg-white dark:bg-surface-900 border-t border-surface-200 dark:border-surface-800 px-3 shrink-0">
       {/* Left: database connection status */}
       <div className="flex items-center gap-1.5">
         <span

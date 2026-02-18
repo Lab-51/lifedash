@@ -74,7 +74,7 @@ export default function AudioDeviceSection() {
     return (
       <section className="mb-10">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-surface-100">Audio Devices</h2>
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Audio Devices</h2>
         </div>
         <div className="flex items-center justify-center py-6 text-surface-500">
           <Loader2 size={20} className="animate-spin" />
@@ -89,24 +89,24 @@ export default function AudioDeviceSection() {
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <Headphones size={18} className="text-primary-400" />
-          <h2 className="text-lg font-semibold text-surface-100">Audio Devices</h2>
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Audio Devices</h2>
         </div>
         <p className="text-sm text-surface-500 mt-1">
           Select which microphone to use for meeting recordings.
         </p>
       </div>
 
-      <div className="p-4 bg-surface-800 border border-surface-700 rounded-lg space-y-4">
+      <div className="p-4 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg space-y-4">
         {/* Microphone selection */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-surface-200">
+            <label className="text-sm font-medium text-surface-800 dark:text-surface-200">
               Microphone Input
             </label>
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex items-center gap-1 text-xs text-surface-400 hover:text-surface-200 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors disabled:opacity-50"
               title="Refresh device list"
             >
               <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
@@ -135,7 +135,7 @@ export default function AudioDeviceSection() {
         </div>
 
         {/* System audio info */}
-        <div className="pt-3 border-t border-surface-700">
+        <div className="pt-3 border-t border-surface-200 dark:border-surface-700">
           <p className="text-xs text-surface-500">
             System audio (what you hear) is captured automatically via the operating system.
             No configuration needed.

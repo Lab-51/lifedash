@@ -76,7 +76,7 @@ const ActionItemRow = memo(function ActionItemRow({
   const isDismissed = item.status === 'dismissed';
 
   return (
-    <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-3 flex items-start gap-3">
+    <div className="bg-surface-100/50 dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700 rounded-lg p-3 flex items-start gap-3">
       {/* Batch selection checkbox */}
       {showCheckbox && (
         <input
@@ -93,7 +93,7 @@ const ActionItemRow = memo(function ActionItemRow({
       {/* Description */}
       <div className="flex-1 min-w-0">
         <p
-          className={`text-sm ${isDismissed ? 'text-surface-500 line-through' : 'text-surface-200'}`}
+          className={`text-sm ${isDismissed ? 'text-surface-500 line-through' : 'text-surface-800 dark:text-surface-200'}`}
         >
           {item.description}
         </p>
@@ -108,21 +108,21 @@ const ActionItemRow = memo(function ActionItemRow({
           <>
             <button
               onClick={() => onUpdateStatus(item.id, 'approved')}
-              className="p-1 rounded hover:bg-surface-700 transition-colors text-emerald-400 hover:text-emerald-300"
+              className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-emerald-400 hover:text-emerald-300"
               title="Approve"
             >
               <Check size={14} />
             </button>
             <button
               onClick={() => onUpdateStatus(item.id, 'dismissed')}
-              className="p-1 rounded hover:bg-surface-700 transition-colors text-surface-500 hover:text-red-400"
+              className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-surface-500 hover:text-red-400"
               title="Dismiss"
             >
               <X size={14} />
             </button>
             <button
               onClick={() => onConvert(item)}
-              className="p-1 rounded hover:bg-surface-700 transition-colors text-primary-400 hover:text-primary-300"
+              className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-primary-400 hover:text-primary-300"
               title="Convert to card"
             >
               <ArrowRight size={14} />
@@ -132,7 +132,7 @@ const ActionItemRow = memo(function ActionItemRow({
         {item.status === 'approved' && (
           <button
             onClick={() => onConvert(item)}
-            className="p-1 rounded hover:bg-surface-700 transition-colors text-primary-400 hover:text-primary-300"
+            className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-primary-400 hover:text-primary-300"
             title="Convert to card"
           >
             <ArrowRight size={14} />
@@ -227,9 +227,9 @@ export default function ActionItemList({
     <div>
       {/* Header with optional count badge */}
       <div className="flex items-center mb-2">
-        <h3 className="text-sm font-medium text-surface-300">Action Items</h3>
+        <h3 className="text-sm font-medium text-surface-700 dark:text-surface-300">Action Items</h3>
         {actionItems.length > 0 && (
-          <span className="bg-surface-700 text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-2">
+          <span className="bg-surface-700 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-2">
             {actionItems.length}
           </span>
         )}
@@ -262,7 +262,7 @@ export default function ActionItemList({
 
       {/* Quick push — one-click push all approved items to linked project */}
       {showQuickPush && !generatingActions && (
-        <div className="mt-3 pt-3 border-t border-surface-700">
+        <div className="mt-3 pt-3 border-t border-surface-200 dark:border-surface-700">
           <div className="flex items-center justify-between gap-2">
             <div className="flex-1 min-w-0">
               {quickPushResult && (
@@ -293,11 +293,11 @@ export default function ActionItemList({
 
       {/* Batch push section */}
       {showBatchPush && !generatingActions && (
-        <div className="mt-3 pt-3 border-t border-surface-700">
+        <div className="mt-3 pt-3 border-t border-surface-200 dark:border-surface-700">
           <div className="flex items-center justify-between">
             <button
               onClick={handleSelectAll}
-              className="text-xs text-surface-400 hover:text-surface-200 transition-colors"
+              className="text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
             >
               {allSelected ? 'Deselect All' : 'Select All'}
             </button>

@@ -33,7 +33,7 @@ export default function IdeaAnalysisSection({
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
-        <label className="text-sm font-medium text-surface-300 flex items-center gap-1.5">
+        <label className="text-sm font-medium text-surface-700 dark:text-surface-300 flex items-center gap-1.5">
           <Sparkles size={14} className="text-purple-400" />
           AI Analysis
         </label>
@@ -74,7 +74,7 @@ export default function IdeaAnalysisSection({
 
       {/* Analysis results */}
       {analysis && !analyzing && (
-        <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-4 space-y-3">
+        <div className="bg-surface-100/50 dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700 rounded-lg p-4 space-y-3">
           {/* Suggested Effort */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -110,20 +110,20 @@ export default function IdeaAnalysisSection({
           {/* Feasibility notes */}
           <div>
             <span className="text-xs text-surface-400 block mb-1">Feasibility:</span>
-            <p className="text-sm text-surface-300">{analysis.feasibilityNotes}</p>
+            <p className="text-sm text-surface-700 dark:text-surface-300">{analysis.feasibilityNotes}</p>
           </div>
 
           {/* Rationale */}
           <div>
             <span className="text-xs text-surface-400 block mb-1">Rationale:</span>
-            <p className="text-sm text-surface-300">{analysis.rationale}</p>
+            <p className="text-sm text-surface-700 dark:text-surface-300">{analysis.rationale}</p>
           </div>
 
           {/* Dismiss button */}
           <div className="flex justify-end">
             <button
               onClick={onClearAnalysis}
-              className="text-xs text-surface-500 hover:text-surface-300 transition-colors"
+              className="text-xs text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
             >
               Dismiss
             </button>

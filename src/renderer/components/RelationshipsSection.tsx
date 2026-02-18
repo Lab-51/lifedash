@@ -98,7 +98,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
         <Link2 size={14} className="text-surface-400" />
         <span className="text-sm text-surface-400">Relationships</span>
         {selectedCardRelationships.length > 0 && (
-          <span className="bg-surface-800 text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
+          <span className="bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
             {selectedCardRelationships.length}
           </span>
         )}
@@ -106,7 +106,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
         {/* Toggle add form */}
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="text-xs text-surface-400 hover:text-surface-200 ml-auto transition-colors"
+          className="text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 ml-auto transition-colors"
         >
           {showAddForm ? 'Cancel' : 'Add Relationship'}
         </button>
@@ -145,7 +145,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
             <button
               onClick={handleAdd}
               disabled={!selectedTargetId}
-              className="text-surface-400 hover:text-surface-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors p-1"
+              className="text-surface-400 hover:text-surface-800 dark:text-surface-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors p-1"
             >
               <Plus size={18} />
             </button>
@@ -181,12 +181,12 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
                           key={item.id}
                           className="flex items-center justify-between py-1 group"
                         >
-                          <span className="text-sm text-surface-200 truncate">
+                          <span className="text-sm text-surface-800 dark:text-surface-200 truncate">
                             {item.linkedCardTitle}
                           </span>
                           <button
                             onClick={() => deleteRelationship(item.id)}
-                            className="text-surface-500 hover:text-surface-300 opacity-0 group-hover:opacity-100 transition-all p-0.5"
+                            className="text-surface-500 hover:text-surface-700 dark:text-surface-300 opacity-0 group-hover:opacity-100 transition-all p-0.5"
                           >
                             <X size={14} />
                           </button>
@@ -200,7 +200,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
                 {parsed.length > COLLAPSED_COUNT && (
                   <button
                     onClick={() => setExpanded(prev => !prev)}
-                    className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
+                    className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
                   >
                     {expanded ? (
                       <>

@@ -81,7 +81,7 @@ function renderPrepLine(line: string, idx: number): React.ReactNode {
 
   if (trimmed.startsWith('## ')) {
     return (
-      <p key={idx} className="text-xs font-semibold text-surface-200 mt-2 mb-0.5">
+      <p key={idx} className="text-xs font-semibold text-surface-800 dark:text-surface-200 mt-2 mb-0.5">
         {trimmed.slice(3)}
       </p>
     );
@@ -97,7 +97,7 @@ function renderPrepLine(line: string, idx: number): React.ReactNode {
 
   if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
     return (
-      <p key={idx} className="text-xs text-surface-300 pl-3">
+      <p key={idx} className="text-xs text-surface-700 dark:text-surface-300 pl-3">
         <span className="text-surface-500 mr-1">{'\u2022'}</span>
         {trimmed.slice(2)}
       </p>
@@ -105,7 +105,7 @@ function renderPrepLine(line: string, idx: number): React.ReactNode {
   }
 
   return (
-    <p key={idx} className="text-xs text-surface-300">{trimmed}</p>
+    <p key={idx} className="text-xs text-surface-700 dark:text-surface-300">{trimmed}</p>
   );
 }
 
@@ -411,7 +411,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex items-center gap-1 text-xs text-surface-400 hover:text-surface-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      className="flex items-center gap-1 text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       title={label}
     >
       {copiedField === field ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
@@ -422,9 +422,9 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
       >
-        <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-2xl max-h-[80vh] overflow-y-auto mx-4 p-6">
+        <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 w-full max-w-2xl max-h-[80vh] overflow-y-auto mx-4 p-6">
           {/* Header: Title + Close */}
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex-1 min-w-0">
@@ -436,11 +436,11 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                   onKeyDown={handleTitleKeyDown}
                   onBlur={saveTitleEdit}
                   autoFocus
-                  className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-xl font-bold text-surface-100 focus:outline-none focus:border-primary-500 w-full"
+                  className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-xl font-bold text-surface-100 focus:outline-none focus:border-primary-500 w-full"
                 />
               ) : (
                 <h2
-                  className="text-xl font-bold text-surface-100 cursor-pointer hover:text-surface-200"
+                  className="text-xl font-bold text-surface-100 cursor-pointer hover:text-surface-800 dark:text-surface-200"
                   onClick={startEditingTitle}
                 >
                   {meeting.title}
@@ -450,14 +450,14 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
             <div className="flex items-center gap-1 shrink-0">
               <button
                 onClick={handleExport}
-                className="text-surface-500 hover:text-surface-300 p-1 transition-colors"
+                className="text-surface-500 hover:text-surface-700 dark:text-surface-300 p-1 transition-colors"
                 title="Export as Markdown"
               >
                 <Download size={18} />
               </button>
               <button
                 onClick={handleClose}
-                className="text-surface-500 hover:text-surface-300 p-1 transition-colors"
+                className="text-surface-500 hover:text-surface-700 dark:text-surface-300 p-1 transition-colors"
               >
                 <X size={20} />
               </button>
@@ -482,7 +482,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
           {meeting.template && meeting.template !== 'none' && (() => {
             const tmpl = MEETING_TEMPLATES.find(t => t.type === meeting.template);
             return tmpl ? (
-              <div className="flex items-start gap-2 text-sm text-surface-300 mb-5">
+              <div className="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300 mb-5">
                 <span className="px-1.5 py-0.5 rounded bg-surface-700 text-xs font-medium">{tmpl.name}</span>
                 {tmpl.agenda.length > 0 && (
                   <div className="text-xs text-surface-400">
@@ -538,13 +538,13 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                   Meeting Prep
                 </h3>
                 {showPrep ? (
-                  <ChevronDown size={16} className="text-surface-500 group-hover:text-surface-300 transition-colors" />
+                  <ChevronDown size={16} className="text-surface-500 group-hover:text-surface-700 dark:text-surface-300 transition-colors" />
                 ) : (
-                  <ChevronRight size={16} className="text-surface-500 group-hover:text-surface-300 transition-colors" />
+                  <ChevronRight size={16} className="text-surface-500 group-hover:text-surface-700 dark:text-surface-300 transition-colors" />
                 )}
               </button>
               {showPrep && (
-                <div className="bg-surface-800/30 border border-surface-700/50 rounded-lg p-3">
+                <div className="bg-surface-100/50 dark:bg-surface-800/30 border border-surface-200 dark:border-surface-700/50 rounded-lg p-3">
                   <div className="space-y-0.5">
                     {meeting.prepBriefing.split('\n').map(renderPrepLine)}
                   </div>
@@ -605,7 +605,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
           {/* Transcript section */}
           <div className="mb-5">
             <div className="flex items-center justify-between gap-2 mb-3">
-              <h3 className="text-sm font-medium text-surface-300 shrink-0">
+              <h3 className="text-sm font-medium text-surface-700 dark:text-surface-300 shrink-0">
                 Transcript
                 {meeting.segments.length > 0 && (
                   <span className="ml-2 text-surface-500">
@@ -634,12 +634,12 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                       value={transcriptSearch}
                       onChange={e => setTranscriptSearch(e.target.value)}
                       placeholder="Search..."
-                      className="bg-surface-800 border border-surface-700 rounded text-sm text-surface-200 pl-7 pr-7 py-1 max-w-48 focus:outline-none focus:border-primary-500 placeholder:text-surface-600"
+                      className="bg-surface-800 border border-surface-700 rounded text-sm text-surface-800 dark:text-surface-200 pl-7 pr-7 py-1 max-w-48 focus:outline-none focus:border-primary-500 placeholder:text-surface-600"
                     />
                     {transcriptSearch && (
                       <button
                         onClick={() => setTranscriptSearch('')}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-700 dark:text-surface-300"
                       >
                         <X size={13} />
                       </button>
@@ -668,7 +668,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                       <span className="font-mono text-xs text-surface-500 pt-0.5 shrink-0 w-12 text-right">
                         {formatTimestamp(segment.startTime)}
                       </span>
-                      <p className="text-surface-200 flex-1">
+                      <p className="text-surface-800 dark:text-surface-200 flex-1">
                         {segment.speaker && speakerColor && (
                           <span className={`${speakerColor.text} font-medium text-xs mr-1.5`}>
                             [{segment.speaker}]
@@ -685,7 +685,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
           </div>
 
           {/* Delete button */}
-          <div className="pt-3 border-t border-surface-700">
+          <div className="pt-3 border-t border-surface-200 dark:border-surface-700">
             {confirmDelete ? (
               <div className="flex items-center gap-3">
                 <span className="text-sm text-surface-400">Are you sure?</span>
@@ -697,7 +697,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                 </button>
                 <button
                   onClick={() => setConfirmDelete(false)}
-                  className="text-sm text-surface-400 hover:text-surface-200 transition-colors"
+                  className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
                 >
                   Cancel
                 </button>

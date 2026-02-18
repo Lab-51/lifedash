@@ -92,7 +92,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
         <MessageSquare size={14} className="text-surface-400" />
         <span className="text-sm text-surface-400">Comments</span>
         {selectedCardComments.length > 0 && (
-          <span className="bg-surface-800 text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
+          <span className="bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
             {selectedCardComments.length}
           </span>
         )}
@@ -106,7 +106,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
           onKeyDown={handleAddKeyDown}
           placeholder="Write a comment..."
           rows={3}
-          className="bg-surface-800 border border-surface-700 rounded-lg p-3 text-sm text-surface-100 placeholder:text-surface-500 resize-none w-full focus:outline-none focus:border-primary-500 transition-colors"
+          className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg p-3 text-sm text-surface-100 placeholder:text-surface-500 resize-none w-full focus:outline-none focus:border-primary-500 transition-colors"
         />
         <div className="flex justify-end mt-2">
           <button
@@ -128,7 +128,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
             {(expanded ? selectedCardComments : selectedCardComments.slice(0, 3)).map(comment => (
               <div
                 key={comment.id}
-                className="bg-surface-800/50 rounded-lg px-3 py-2.5"
+                className="bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-3 py-2.5"
               >
                 {editingId === comment.id ? (
                   /* Edit mode */
@@ -139,7 +139,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
                       onKeyDown={handleEditKeyDown}
                       rows={3}
                       autoFocus
-                      className="bg-surface-800 border border-surface-700 rounded-lg p-3 text-sm text-surface-100 placeholder:text-surface-500 resize-none w-full focus:outline-none focus:border-primary-500 transition-colors"
+                      className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg p-3 text-sm text-surface-100 placeholder:text-surface-500 resize-none w-full focus:outline-none focus:border-primary-500 transition-colors"
                     />
                     <div className="flex items-center gap-2 mt-2">
                       <button
@@ -151,7 +151,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
                       </button>
                       <button
                         onClick={cancelEditing}
-                        className="text-xs text-surface-400 hover:text-surface-200 px-2 py-1.5 transition-colors"
+                        className="text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 px-2 py-1.5 transition-colors"
                       >
                         Cancel
                       </button>
@@ -160,7 +160,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
                 ) : (
                   /* Display mode */
                   <div>
-                    <p className="text-sm text-surface-200 whitespace-pre-wrap">
+                    <p className="text-sm text-surface-800 dark:text-surface-200 whitespace-pre-wrap">
                       {comment.content}
                     </p>
                     <div className="flex items-center gap-2 mt-1.5">
@@ -170,14 +170,14 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
                       <span className="text-xs text-surface-600">·</span>
                       <button
                         onClick={() => startEditing(comment.id, comment.content)}
-                        className="inline-flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
+                        className="inline-flex items-center gap-1 text-xs text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
                       >
                         <Pencil size={12} />
                         Edit
                       </button>
                       <button
                         onClick={() => handleDelete(comment.id)}
-                        className="inline-flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
+                        className="inline-flex items-center gap-1 text-xs text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
                       >
                         <Trash2 size={12} />
                         Delete
@@ -193,7 +193,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
           {selectedCardComments.length > 3 && (
             <button
               onClick={() => setExpanded(prev => !prev)}
-              className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors"
+              className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
             >
               {expanded ? (
                 <>

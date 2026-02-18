@@ -313,19 +313,19 @@ export default function ProjectPlanningModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
       onClick={handleOverlayClick}
     >
-      <div className="bg-surface-900 border border-surface-700 rounded-xl max-w-4xl w-full max-h-[85vh] overflow-y-auto p-6 mx-4">
+      <div className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl max-w-4xl w-full max-h-[85vh] overflow-y-auto p-6 mx-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Sparkles size={20} className="text-primary-400" />
-            <h2 className="text-lg font-semibold text-surface-100">AI Project Planning</h2>
+            <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">AI Project Planning</h2>
           </div>
           <button
             onClick={handleClose}
-            className="text-surface-400 hover:text-surface-200 transition-colors"
+            className="text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
           >
             <X size={20} />
           </button>
@@ -333,7 +333,7 @@ export default function ProjectPlanningModal({
 
         {/* Project name */}
         <p className="text-sm text-surface-400 mb-4">
-          Planning for: <span className="text-surface-200">{projectName}</span>
+          Planning for: <span className="text-surface-800 dark:text-surface-200">{projectName}</span>
         </p>
 
         {/* Context textarea */}
@@ -346,7 +346,7 @@ export default function ProjectPlanningModal({
             onChange={e => setAdditionalContext(e.target.value)}
             placeholder="Describe goals, tech stack, constraints, or any specific requirements..."
             rows={3}
-            className="w-full text-sm bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-surface-200 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 resize-none"
+            className="w-full text-sm bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-surface-800 dark:text-surface-200 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 resize-none"
             disabled={planLoading}
           />
         </div>
@@ -412,7 +412,7 @@ export default function ProjectPlanningModal({
             {/* Summary */}
             <div>
               <h3 className="text-sm font-medium text-surface-400 mb-1">Summary</h3>
-              <p className="text-sm text-surface-200">{editablePlan.summary}</p>
+              <p className="text-sm text-surface-800 dark:text-surface-200">{editablePlan.summary}</p>
             </div>
 
             {/* Edit hint */}
@@ -431,8 +431,8 @@ export default function ProjectPlanningModal({
                     onClick={() => setActivePillar(idx)}
                     className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                       idx === activePillar
-                        ? 'bg-surface-700 text-surface-100'
-                        : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800'
+                        ? 'bg-surface-700 text-surface-900 dark:text-surface-100'
+                        : 'text-surface-400 hover:text-surface-800 dark:text-surface-200 hover:bg-surface-800'
                     }`}
                   >
                     {pillar.name}
@@ -443,7 +443,7 @@ export default function ProjectPlanningModal({
                 ))}
                 <button
                   onClick={addPillar}
-                  className="px-2 py-1.5 rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-colors"
+                  className="px-2 py-1.5 rounded-lg text-surface-500 hover:text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
                   title="Add pillar"
                 >
                   <Plus size={14} />
@@ -452,7 +452,7 @@ export default function ProjectPlanningModal({
 
               {/* Active pillar content */}
               {currentPillar && (
-                <div className="bg-surface-800/30 border border-surface-700/50 rounded-lg p-4">
+                <div className="bg-surface-100/50 dark:bg-surface-800/30 border border-surface-200 dark:border-surface-700/50 rounded-lg p-4">
                   {/* Pillar name + delete */}
                   <div className="flex items-center gap-2 mb-2">
                     <label className="text-xs text-surface-500 shrink-0">Column name:</label>
@@ -460,7 +460,7 @@ export default function ProjectPlanningModal({
                       type="text"
                       value={currentPillar.name}
                       onChange={e => updatePillarName(currentPillar._id, e.target.value)}
-                      className="flex-1 text-sm bg-surface-800 border border-surface-700 rounded px-2 py-1 text-surface-200 focus:outline-none focus:border-primary-500"
+                      className="flex-1 text-sm bg-surface-800 border border-surface-700 rounded px-2 py-1 text-surface-800 dark:text-surface-200 focus:outline-none focus:border-primary-500"
                     />
                     {editablePlan.pillars.length > 1 && (
                       <button
@@ -512,15 +512,15 @@ export default function ProjectPlanningModal({
                   {editablePlan.milestones.map(milestone => (
                     <div
                       key={milestone.name}
-                      className="bg-surface-800/30 border border-surface-700/50 rounded-lg p-3"
+                      className="bg-surface-100/50 dark:bg-surface-800/30 border border-surface-200 dark:border-surface-700/50 rounded-lg p-3"
                     >
-                      <h4 className="text-sm font-medium text-surface-200">{milestone.name}</h4>
+                      <h4 className="text-sm font-medium text-surface-800 dark:text-surface-200">{milestone.name}</h4>
                       <p className="text-xs text-surface-400 mt-1">{milestone.description}</p>
                       <div className="mt-2 flex flex-wrap gap-1">
                         {milestone.taskTitles.map(title => (
                           <span
                             key={title}
-                            className="text-xs bg-surface-700/50 text-surface-300 px-2 py-0.5 rounded"
+                            className="text-xs bg-surface-700/50 text-surface-700 dark:text-surface-300 px-2 py-0.5 rounded"
                           >
                             {title}
                           </span>
@@ -533,14 +533,14 @@ export default function ProjectPlanningModal({
             )}
 
             {/* Apply / Cancel actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-surface-700">
+            <div className="flex items-center justify-between pt-3 border-t border-surface-200 dark:border-surface-700">
               <p className="text-xs text-surface-500">
                 {selectedCount} of {totalCount} tasks selected
               </p>
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleClose}
-                  className="text-surface-400 hover:text-surface-200 px-4 py-2 text-sm transition-colors"
+                  className="text-surface-400 hover:text-surface-800 dark:text-surface-200 px-4 py-2 text-sm transition-colors"
                 >
                   Cancel
                 </button>
@@ -636,7 +636,7 @@ function EditableTaskRow({ task, selected, onToggle, onUpdate, onDelete }: Edita
   };
 
   return (
-    <div className="bg-surface-800/50 rounded-lg px-4 py-2 group">
+    <div className="bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-4 py-2 group">
       <div className="flex items-center gap-3">
         {/* Checkbox */}
         <input
@@ -655,11 +655,11 @@ function EditableTaskRow({ task, selected, onToggle, onUpdate, onDelete }: Edita
             onChange={e => setEditValue(e.target.value)}
             onBlur={commitEdit}
             onKeyDown={handleKeyDown}
-            className="flex-1 min-w-0 text-sm bg-surface-800 border border-primary-500 rounded px-2 py-0.5 text-surface-200 focus:outline-none"
+            className="flex-1 min-w-0 text-sm bg-surface-800 border border-primary-500 rounded px-2 py-0.5 text-surface-800 dark:text-surface-200 focus:outline-none"
           />
         ) : (
           <span
-            className="text-sm text-surface-200 flex-1 min-w-0 truncate cursor-pointer hover:text-primary-300 transition-colors"
+            className="text-sm text-surface-800 dark:text-surface-200 flex-1 min-w-0 truncate cursor-pointer hover:text-primary-300 transition-colors"
             onClick={() => {
               setEditingField('title');
               setEditValue(task.title);
@@ -707,7 +707,7 @@ function EditableTaskRow({ task, selected, onToggle, onUpdate, onDelete }: Edita
           onBlur={commitEdit}
           onKeyDown={handleKeyDown}
           rows={2}
-          className="w-full mt-1 ml-7 text-xs bg-surface-800 border border-primary-500 rounded px-2 py-1 text-surface-300 focus:outline-none resize-none"
+          className="w-full mt-1 ml-7 text-xs bg-surface-800 border border-primary-500 rounded px-2 py-1 text-surface-700 dark:text-surface-300 focus:outline-none resize-none"
         />
       ) : task.description ? (
         <p

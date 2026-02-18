@@ -207,12 +207,12 @@ export default function TranscriptionProviderSection() {
             value={key}
             onChange={(e) => setKey(e.target.value)}
             placeholder={hasKey ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : 'Enter API key...'}
-            className="w-full bg-surface-700 border border-surface-600 text-surface-200 text-sm rounded-lg px-2 py-1 pr-8 focus:ring-primary-500 focus:border-primary-500"
+            className="w-full bg-surface-700 border border-surface-600 text-surface-800 dark:text-surface-200 text-sm rounded-lg px-2 py-1 pr-8 focus:ring-primary-500 focus:border-primary-500"
           />
           <button
             type="button"
             onClick={() => setShowKey(!showKey)}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-200 transition-colors"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
             title={showKey ? 'Hide key' : 'Show key'}
           >
             {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -243,7 +243,7 @@ export default function TranscriptionProviderSection() {
     return (
       <section className="mb-10">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-surface-100">Transcription Provider</h2>
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Transcription Provider</h2>
         </div>
         <div className="flex items-center justify-center py-6 text-surface-500">
           <Loader2 size={20} className="animate-spin" />
@@ -258,14 +258,14 @@ export default function TranscriptionProviderSection() {
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <Mic size={18} className="text-primary-400" />
-          <h2 className="text-lg font-semibold text-surface-100">Transcription Provider</h2>
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Transcription Provider</h2>
         </div>
         <p className="text-sm text-surface-500 mt-1">
           Select how meeting audio is transcribed.
         </p>
       </div>
 
-      <div className="p-4 bg-surface-800 border border-surface-700 rounded-lg space-y-4">
+      <div className="p-4 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg space-y-4">
         {/* Provider radio options */}
         {PROVIDERS.map((provider) => (
           <div key={provider.type}>
@@ -280,7 +280,7 @@ export default function TranscriptionProviderSection() {
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-surface-200">
+                  <span className="text-sm font-medium text-surface-800 dark:text-surface-200">
                     {provider.label}
                   </span>
                   {renderStatus(provider.type)}
@@ -303,11 +303,11 @@ export default function TranscriptionProviderSection() {
         ))}
 
         {/* Test connection button */}
-        <div className="pt-2 border-t border-surface-700">
+        <div className="pt-2 border-t border-surface-200 dark:border-surface-700">
           <button
             onClick={handleTest}
             disabled={testing}
-            className="flex items-center gap-2 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 disabled:cursor-not-allowed text-surface-200 px-3 py-1.5 rounded-lg text-sm transition-colors"
+            className="flex items-center gap-2 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 disabled:cursor-not-allowed text-surface-800 dark:text-surface-200 px-3 py-1.5 rounded-lg text-sm transition-colors"
           >
             {testing ? (
               <Loader2 size={16} className="animate-spin" />

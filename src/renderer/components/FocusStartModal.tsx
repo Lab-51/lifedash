@@ -73,22 +73,22 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-surface-900 rounded-xl border border-surface-700 shadow-2xl overflow-hidden"
+        className="w-full max-w-md bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 shadow-xl dark:shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-700">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-700">
           <div className="flex items-center gap-2">
             <Timer size={16} className="text-emerald-400" />
-            <h2 className="text-sm font-medium text-surface-200">Start Focus Session</h2>
+            <h2 className="text-sm font-medium text-surface-800 dark:text-surface-200">Start Focus Session</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-md hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+            className="p-1 rounded-md hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 transition-colors"
             aria-label="Close"
           >
             <X size={16} />
@@ -103,8 +103,8 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
               Link a card (optional)
             </label>
             {selectedCard ? (
-              <div className="flex items-center gap-2 px-3 py-2 bg-surface-800 rounded-lg border border-surface-700">
-                <span className="text-sm text-surface-200 truncate flex-1">{selectedCard.title}</span>
+              <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700">
+                <span className="text-sm text-surface-800 dark:text-surface-200 truncate flex-1">{selectedCard.title}</span>
                 <button
                   onClick={() => setSelectedCard(null)}
                   className="p-0.5 rounded hover:bg-surface-600 text-surface-400 hover:text-surface-200 transition-colors"
@@ -122,7 +122,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search cards..."
-                    className="w-full pl-8 pr-3 py-2 bg-surface-800 border border-surface-700 rounded-lg text-sm text-surface-200 placeholder-surface-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full pl-8 pr-3 py-2 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg text-sm text-surface-800 dark:text-surface-200 placeholder-surface-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
                   />
                 </div>
                 <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-surface-700 bg-surface-800">
@@ -134,7 +134,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                           setSelectedCard({ id: card.id, title: card.title });
                           setSearchQuery('');
                         }}
-                        className="w-full text-left px-3 py-2 text-sm text-surface-300 hover:bg-surface-700 hover:text-surface-100 transition-colors truncate"
+                        className="w-full text-left px-3 py-2 text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-surface-100 transition-colors truncate"
                       >
                         {card.title}
                       </button>
@@ -163,7 +163,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                     !isCustom && duration === preset
                       ? 'bg-primary-600 text-white ring-2 ring-primary-400'
-                      : 'bg-surface-800 text-surface-400 hover:text-surface-200 hover:bg-surface-700'
+                      : 'bg-surface-50 dark:bg-surface-800 text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700'
                   }`}
                 >
                   {preset}m
@@ -174,7 +174,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                   isCustom
                     ? 'bg-primary-600 text-white ring-2 ring-primary-400'
-                    : 'bg-surface-800 text-surface-400 hover:text-surface-200 hover:bg-surface-700'
+                    : 'bg-surface-50 dark:bg-surface-800 text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700'
                 }`}
               >
                 Custom
@@ -191,7 +191,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                     const val = Math.min(120, Math.max(1, parseInt(e.target.value, 10) || 1));
                     setDuration(val);
                   }}
-                  className="w-20 px-3 py-1.5 bg-surface-800 border border-surface-700 rounded-lg text-sm text-surface-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  className="w-20 px-3 py-1.5 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg text-sm text-surface-800 dark:text-surface-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 />
                 <span className="text-sm text-surface-500">minutes</span>
               </div>

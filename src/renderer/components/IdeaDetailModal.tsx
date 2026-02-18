@@ -189,9 +189,9 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
     >
-      <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto p-5">
+      <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto p-5">
         {/* Header row */}
         <div className="flex items-center gap-2">
           <input
@@ -208,7 +208,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
           />
           <button
             onClick={onClose}
-            className="text-surface-500 hover:text-surface-300 p-1 transition-colors"
+            className="text-surface-500 hover:text-surface-700 dark:text-surface-300 p-1 transition-colors"
           >
             <X size={18} />
           </button>
@@ -286,7 +286,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
             {/* Description */}
             <div className="mt-4">
-              <label className="text-sm font-medium text-surface-300 mb-1 block">
+              <label className="text-sm font-medium text-surface-700 dark:text-surface-300 mb-1 block">
                 Description
               </label>
               <textarea
@@ -298,7 +298,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   }
                 }}
                 placeholder="Add a description..."
-                className="bg-surface-800 border border-surface-700 rounded-lg p-3 text-sm text-surface-200 placeholder:text-surface-500 w-full min-h-[80px] resize-y focus:outline-none focus:border-primary-500"
+                className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg p-3 text-sm text-surface-800 dark:text-surface-200 placeholder:text-surface-500 w-full min-h-[80px] resize-y focus:outline-none focus:border-primary-500"
               />
             </div>
 
@@ -321,7 +321,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
             {/* Tags */}
             <div className="mt-4">
-              <label className="text-sm font-medium text-surface-300 mb-2 block">
+              <label className="text-sm font-medium text-surface-700 dark:text-surface-300 mb-2 block">
                 Tags
               </label>
               {tags.length > 0 && (
@@ -329,7 +329,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   {tags.map((tag) => (
                     <span
                       key={tag}
-                      className="bg-surface-700 text-surface-300 text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+                      className="bg-surface-700 text-surface-700 dark:text-surface-300 text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1"
                     >
                       #{tag}
                       <button
@@ -349,7 +349,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={handleTagKeyDown}
                   placeholder="Add tag..."
-                  className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-200 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 flex-1"
+                  className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 flex-1"
                 />
                 <button
                   onClick={addTag}
@@ -361,8 +361,8 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
             </div>
 
             {/* Divider — Actions */}
-            <div className="border-t border-surface-700 mt-4 pt-4">
-              <label className="text-sm font-medium text-surface-300 mb-2 block">
+            <div className="border-t border-surface-200 dark:border-surface-700 mt-4 pt-4">
+              <label className="text-sm font-medium text-surface-700 dark:text-surface-300 mb-2 block">
                 Actions
               </label>
 
@@ -371,7 +371,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                 <div className="space-y-2">
                   <button
                     onClick={handleBrainstormIdea}
-                    className="flex items-center gap-2 px-4 py-2 bg-surface-700 hover:bg-surface-600 text-surface-200 rounded-lg text-sm transition-colors w-full"
+                    className="flex items-center gap-2 px-4 py-2 bg-surface-700 hover:bg-surface-600 text-surface-800 dark:text-surface-200 rounded-lg text-sm transition-colors w-full"
                   >
                     <MessageSquare size={16} />
                     Brainstorm This Idea
@@ -379,14 +379,14 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setConvertMode('project')}
-                      className="flex-1 flex items-center justify-center gap-2 p-3 border border-surface-700 rounded-lg text-sm text-surface-200 hover:border-primary-500 hover:bg-primary-500/10 transition-colors cursor-pointer"
+                      className="flex-1 flex items-center justify-center gap-2 p-3 border border-surface-700 rounded-lg text-sm text-surface-800 dark:text-surface-200 hover:border-primary-500 hover:bg-primary-500/10 transition-colors cursor-pointer"
                     >
                       <FolderPlus size={16} />
                       Create Project
                     </button>
                     <button
                       onClick={() => setConvertMode('card')}
-                      className="flex-1 flex items-center justify-center gap-2 p-3 border border-surface-700 rounded-lg text-sm text-surface-200 hover:border-primary-500 hover:bg-primary-500/10 transition-colors cursor-pointer"
+                      className="flex-1 flex items-center justify-center gap-2 p-3 border border-surface-700 rounded-lg text-sm text-surface-800 dark:text-surface-200 hover:border-primary-500 hover:bg-primary-500/10 transition-colors cursor-pointer"
                     >
                       <ArrowRightCircle size={16} />
                       Add as Card
@@ -398,13 +398,13 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
               {/* Convert to project confirmation */}
               {convertMode === 'project' && (
                 <div>
-                  <p className="text-sm text-surface-300 mb-3">
+                  <p className="text-sm text-surface-700 dark:text-surface-300 mb-3">
                     Create a new project from this idea?
                   </p>
                   <div className="flex items-center gap-2 justify-end">
                     <button
                       onClick={() => setConvertMode('none')}
-                      className="text-sm text-surface-400 hover:text-surface-200 transition-colors"
+                      className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
                     >
                       Cancel
                     </button>
@@ -431,14 +431,14 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
             </div>
 
             {/* Divider */}
-            <div className="border-t border-surface-700 mt-4 pt-4">
+            <div className="border-t border-surface-200 dark:border-surface-700 mt-4 pt-4">
               {/* Footer: Delete */}
               <div className="flex items-center justify-end">
                 <div className="flex items-center gap-2">
                   {!confirmDelete ? (
                     <button
                       onClick={() => setConfirmDelete(true)}
-                      className="text-surface-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-surface-800 transition-colors"
+                      className="text-surface-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -447,7 +447,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                       <span className="text-sm text-red-400">Delete?</span>
                       <button
                         onClick={() => setConfirmDelete(false)}
-                        className="text-sm text-surface-400 hover:text-surface-200 transition-colors"
+                        className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
                       >
                         Cancel
                       </button>

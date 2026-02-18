@@ -51,11 +51,11 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     return (
-      <div className="flex-1 flex items-center justify-center bg-surface-900/50 p-6">
-        <div className="max-w-md w-full bg-surface-900 border border-surface-700 rounded-xl p-8 text-center">
+      <div className="flex-1 flex items-center justify-center bg-surface-50/50 dark:bg-surface-900/50 p-6">
+        <div className="max-w-md w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl p-8 text-center">
           <AlertTriangle size={40} className="mx-auto mb-4 text-warning" />
 
-          <h2 className="text-xl font-semibold text-surface-100">
+          <h2 className="text-xl font-semibold text-surface-900 dark:text-surface-100">
             Something went wrong
           </h2>
 

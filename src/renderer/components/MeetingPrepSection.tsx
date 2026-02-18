@@ -28,7 +28,7 @@ function renderBriefing(text: string): React.ReactNode[] {
       nodes.push(<div key={i} className="h-1.5" />);
     } else if (trimmed.startsWith('## ')) {
       nodes.push(
-        <p key={i} className="text-xs font-semibold text-surface-200 mt-2 mb-0.5">
+        <p key={i} className="text-xs font-semibold text-surface-800 dark:text-surface-200 mt-2 mb-0.5">
           {trimmed.slice(3)}
         </p>,
       );
@@ -40,14 +40,14 @@ function renderBriefing(text: string): React.ReactNode[] {
       );
     } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
       nodes.push(
-        <p key={i} className="text-xs text-surface-300 pl-3">
+        <p key={i} className="text-xs text-surface-700 dark:text-surface-300 pl-3">
           <span className="text-surface-500 mr-1">{'\u2022'}</span>
           {trimmed.slice(2)}
         </p>,
       );
     } else {
       nodes.push(
-        <p key={i} className="text-xs text-surface-300">{trimmed}</p>,
+        <p key={i} className="text-xs text-surface-700 dark:text-surface-300">{trimmed}</p>,
       );
     }
   }
@@ -145,7 +145,7 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
           </div>
           <button
             onClick={handleRegenerate}
-            className="flex items-center gap-1 text-xs text-surface-400 hover:text-surface-200 transition-colors shrink-0"
+            className="flex items-center gap-1 text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors shrink-0"
           >
             <RefreshCw size={12} />
             Retry
@@ -166,7 +166,7 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between p-3 text-left hover:bg-surface-700/30 transition-colors rounded-lg"
       >
-        <span className="text-sm font-medium text-surface-200 truncate">
+        <span className="text-sm font-medium text-surface-800 dark:text-surface-200 truncate">
           Meeting Prep for &ldquo;{prepData.projectName}&rdquo;
         </span>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -176,7 +176,7 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
               e.stopPropagation();
               handleRegenerate();
             }}
-            className="text-surface-500 hover:text-surface-300 p-0.5 transition-colors"
+            className="text-surface-500 hover:text-surface-700 dark:text-surface-300 p-0.5 transition-colors"
             title="Regenerate prep"
           >
             <RefreshCw size={12} />
@@ -208,7 +208,7 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
           {/* Card changes */}
           {totalChanges > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-medium text-surface-300">
+              <p className="text-xs font-medium text-surface-700 dark:text-surface-300">
                 Changes ({totalChanges}):
               </p>
               {prepData.cardChanges.created.length > 0 && (
@@ -232,11 +232,11 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
           {/* Pending actions */}
           {prepData.pendingActions.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-medium text-surface-300">
+              <p className="text-xs font-medium text-surface-700 dark:text-surface-300">
                 Pending Actions ({prepData.pendingActions.length}):
               </p>
               {prepData.pendingActions.map((action, i) => (
-                <p key={i} className="text-xs text-surface-300 pl-2">
+                <p key={i} className="text-xs text-surface-700 dark:text-surface-300 pl-2">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 align-middle" />
                   &ldquo;{action.description}&rdquo;
                   <span className="text-surface-500 ml-1">(from {action.meetingTitle})</span>
@@ -248,11 +248,11 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
           {/* High priority cards */}
           {prepData.highPriorityCards.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-medium text-surface-300">
+              <p className="text-xs font-medium text-surface-700 dark:text-surface-300">
                 High Priority ({prepData.highPriorityCards.length}):
               </p>
               {prepData.highPriorityCards.map((card, i) => (
-                <p key={i} className="text-xs text-surface-300 pl-2">
+                <p key={i} className="text-xs text-surface-700 dark:text-surface-300 pl-2">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 mr-1.5 align-middle" />
                   &ldquo;{card.title}&rdquo;
                   <span className="text-surface-500 ml-1">in {card.column}</span>
@@ -268,8 +268,8 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
 
           {/* AI Briefing */}
           {prepData.aiBriefing && (
-            <div className="space-y-1 pt-2 border-t border-surface-700">
-              <p className="text-xs font-medium text-surface-300">AI Briefing</p>
+            <div className="space-y-1 pt-2 border-t border-surface-200 dark:border-surface-700">
+              <p className="text-xs font-medium text-surface-700 dark:text-surface-300">AI Briefing</p>
               <div className="space-y-0.5">
                 {renderBriefing(prepData.aiBriefing)}
               </div>

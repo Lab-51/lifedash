@@ -97,7 +97,7 @@ export default function BackupSection() {
     <section className="mb-10">
       {/* Section header */}
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-surface-100">Database Backups</h2>
+        <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Database Backups</h2>
         <p className="text-sm text-surface-500">
           Create and manage database backups. Restore from a previous snapshot at any time.
         </p>
@@ -118,7 +118,7 @@ export default function BackupSection() {
             <span className="text-sm text-amber-400">Overwrite current database?</span>
             <button
               onClick={() => setConfirmRestoreFile(false)}
-              className="text-xs text-surface-400 hover:text-surface-200 transition-colors"
+              className="text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
             >
               Cancel
             </button>
@@ -133,7 +133,7 @@ export default function BackupSection() {
           <button
             onClick={() => setConfirmRestoreFile(true)}
             disabled={isBusy}
-            className="flex items-center gap-2 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 disabled:cursor-not-allowed text-surface-200 px-3 py-1.5 rounded-lg text-sm transition-colors"
+            className="flex items-center gap-2 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 disabled:cursor-not-allowed text-surface-800 dark:text-surface-200 px-3 py-1.5 rounded-lg text-sm transition-colors"
           >
             <Upload size={16} />
             Restore from File...
@@ -184,9 +184,9 @@ export default function BackupSection() {
         <div className="space-y-2 mb-4">
           {backups.map((backup) => (
             <div key={backup.fileName}>
-              <div className="bg-surface-800/50 rounded-lg px-4 py-3 flex items-center justify-between">
+              <div className="bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-4 py-3 flex items-center justify-between">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-surface-200 truncate">
+                  <div className="text-sm font-medium text-surface-800 dark:text-surface-200 truncate">
                     {backup.fileName}
                   </div>
                   <div className="text-xs text-surface-500 mt-0.5">
@@ -197,7 +197,7 @@ export default function BackupSection() {
                   <button
                     onClick={() => setConfirmRestore(backup.fileName)}
                     disabled={isBusy}
-                    className="flex items-center gap-1 text-xs text-surface-400 hover:text-surface-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center gap-1 text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     title="Restore this backup"
                   >
                     <RotateCcw size={14} />
@@ -224,7 +224,7 @@ export default function BackupSection() {
                   <div className="flex items-center gap-2 ml-4 shrink-0">
                     <button
                       onClick={() => setConfirmRestore(null)}
-                      className="text-xs text-surface-400 hover:text-surface-200 transition-colors"
+                      className="text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
                     >
                       Cancel
                     </button>
@@ -245,7 +245,7 @@ export default function BackupSection() {
                   <div className="flex items-center gap-2 ml-4 shrink-0">
                     <button
                       onClick={() => setConfirmDelete(null)}
-                      className="text-xs text-surface-400 hover:text-surface-200 transition-colors"
+                      className="text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
                     >
                       Cancel
                     </button>
@@ -281,8 +281,8 @@ export default function BackupSection() {
 
       {/* Auto-backup settings */}
       {autoSettings && (
-        <div className="mt-6 p-4 bg-surface-800 border border-surface-700 rounded-lg">
-          <h3 className="text-sm font-medium text-surface-200 mb-3">Automatic Backups</h3>
+        <div className="mt-6 p-4 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg">
+          <h3 className="text-sm font-medium text-surface-800 dark:text-surface-200 mb-3">Automatic Backups</h3>
 
           {/* Enable toggle */}
           <label className="flex items-center gap-2 cursor-pointer mb-3">
@@ -292,7 +292,7 @@ export default function BackupSection() {
               onChange={(e) => updateAutoSettings({ enabled: e.target.checked })}
               className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
             />
-            <span className="text-sm text-surface-300">Enable automatic backups</span>
+            <span className="text-sm text-surface-700 dark:text-surface-300">Enable automatic backups</span>
           </label>
 
           {autoSettings.enabled && (
@@ -326,7 +326,7 @@ export default function BackupSection() {
                       updateAutoSettings({ retention: val });
                     }
                   }}
-                  className="bg-surface-700 border border-surface-600 text-surface-200 text-sm rounded-lg px-2 py-1 w-20 focus:ring-primary-500 focus:border-primary-500"
+                  className="bg-surface-700 border border-surface-600 text-surface-800 dark:text-surface-200 text-sm rounded-lg px-2 py-1 w-20 focus:ring-primary-500 focus:border-primary-500"
                 />
                 <span className="text-xs text-surface-500">backups</span>
               </div>

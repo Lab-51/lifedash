@@ -67,7 +67,7 @@ export default function MeetingAnalyticsSection({
   if (analyticsLoading && !analytics) {
     return (
       <div>
-        <h3 className="text-sm font-medium text-surface-300 mb-2 flex items-center gap-1.5">
+        <h3 className="text-sm font-medium text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5">
           <BarChart3 size={14} />
           Meeting Analytics
         </h3>
@@ -83,12 +83,12 @@ export default function MeetingAnalyticsSection({
 
   return (
     <div>
-      <h3 className="text-sm font-medium text-surface-300 mb-2 flex items-center gap-1.5">
+      <h3 className="text-sm font-medium text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5">
         <BarChart3 size={14} />
         Meeting Analytics
       </h3>
 
-      <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-3 space-y-4">
+      <div className="bg-surface-100/50 dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700 rounded-lg p-3 space-y-4">
         {/* Top stats row */}
         <div className="grid grid-cols-4 gap-3 text-center">
           <div>
@@ -96,25 +96,25 @@ export default function MeetingAnalyticsSection({
               <Clock size={12} />
               Duration
             </div>
-            <div className="text-surface-200 text-sm font-medium">
+            <div className="text-surface-800 dark:text-surface-200 text-sm font-medium">
               {formatDurationLong(analytics.durationMs)}
             </div>
           </div>
           <div>
             <div className="text-surface-400 text-xs mb-1">Segments</div>
-            <div className="text-surface-200 text-sm font-medium">
+            <div className="text-surface-800 dark:text-surface-200 text-sm font-medium">
               {analytics.totalSegments.toLocaleString()}
             </div>
           </div>
           <div>
             <div className="text-surface-400 text-xs mb-1">Words</div>
-            <div className="text-surface-200 text-sm font-medium">
+            <div className="text-surface-800 dark:text-surface-200 text-sm font-medium">
               {analytics.totalWords.toLocaleString()}
             </div>
           </div>
           <div>
             <div className="text-surface-400 text-xs mb-1">WPM</div>
-            <div className="text-surface-200 text-sm font-medium">
+            <div className="text-surface-800 dark:text-surface-200 text-sm font-medium">
               {analytics.wordsPerMinute}
             </div>
           </div>
@@ -188,8 +188,8 @@ export default function MeetingAnalyticsSection({
               Action Items
             </div>
             <div className="flex items-center gap-3 text-xs">
-              <span className="text-surface-300">
-                Total: <strong className="text-surface-200">{analytics.actionItemCounts.total}</strong>
+              <span className="text-surface-700 dark:text-surface-300">
+                Total: <strong className="text-surface-800 dark:text-surface-200">{analytics.actionItemCounts.total}</strong>
               </span>
               {analytics.actionItemCounts.pending > 0 && (
                 <span className="text-amber-400">

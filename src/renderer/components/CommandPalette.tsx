@@ -261,10 +261,10 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
   let flatIdx = 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/50" onClick={onClose} onKeyDown={handleKeyDown}>
-      <div className="w-full max-w-lg bg-surface-900 rounded-xl border border-surface-700 shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/30 dark:bg-black/50" onClick={onClose} onKeyDown={handleKeyDown}>
+      <div className="w-full max-w-lg bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 shadow-xl dark:shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-700">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-200 dark:border-surface-700">
           <Search className="w-5 h-5 text-surface-400 shrink-0" />
           <input
             ref={inputRef}
@@ -272,9 +272,9 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
             value={query}
             onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
             placeholder="Search or jump to..."
-            className="flex-1 bg-transparent text-surface-100 placeholder-surface-500 outline-none text-sm"
+            className="flex-1 bg-transparent text-surface-900 dark:text-surface-100 placeholder-surface-500 outline-none text-sm"
           />
-          <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] text-surface-500 bg-surface-800 rounded border border-surface-600">ESC</kbd>
+          <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] text-surface-500 bg-surface-50 dark:bg-surface-800 rounded border border-surface-200 dark:border-surface-600">ESC</kbd>
         </div>
 
         {/* Results list */}
@@ -291,7 +291,7 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
                   <button
                     key={item.id}
                     data-cmd-item
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${sel ? 'bg-primary-600/20 text-surface-100' : 'text-surface-300 hover:bg-surface-800'}`}
+                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${sel ? 'bg-primary-600/20 text-surface-900 dark:text-surface-100' : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'}`}
                     onClick={() => item.action()}
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >
@@ -308,10 +308,10 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
         </div>
 
         {/* Footer hints */}
-        <div className="flex items-center gap-4 px-4 py-2 border-t border-surface-700 text-[11px] text-surface-500">
-          <span><kbd className="px-1 py-0.5 bg-surface-800 rounded border border-surface-600">Enter</kbd> select</span>
-          <span><kbd className="px-1 py-0.5 bg-surface-800 rounded border border-surface-600">&uarr;&darr;</kbd> navigate</span>
-          <span><kbd className="px-1 py-0.5 bg-surface-800 rounded border border-surface-600">Esc</kbd> close</span>
+        <div className="flex items-center gap-4 px-4 py-2 border-t border-surface-200 dark:border-surface-700 text-[11px] text-surface-500">
+          <span><kbd className="px-1 py-0.5 bg-surface-50 dark:bg-surface-800 rounded border border-surface-200 dark:border-surface-600">Enter</kbd> select</span>
+          <span><kbd className="px-1 py-0.5 bg-surface-50 dark:bg-surface-800 rounded border border-surface-200 dark:border-surface-600">&uarr;&darr;</kbd> navigate</span>
+          <span><kbd className="px-1 py-0.5 bg-surface-50 dark:bg-surface-800 rounded border border-surface-200 dark:border-surface-600">Esc</kbd> close</span>
         </div>
       </div>
     </div>

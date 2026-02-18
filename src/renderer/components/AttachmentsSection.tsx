@@ -72,7 +72,7 @@ function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
           <Paperclip size={14} className="text-surface-400" />
           <span className="text-sm text-surface-400">Attachments</span>
           {selectedCardAttachments.length > 0 && (
-            <span className="bg-surface-800 text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
+            <span className="bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
               {selectedCardAttachments.length}
             </span>
           )}
@@ -98,12 +98,12 @@ function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
             return (
               <div
                 key={att.id}
-                className="bg-surface-800/50 rounded-lg px-3 py-2.5 flex items-center gap-3 group hover:bg-surface-800/80 transition-colors"
+                className="bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-3 py-2.5 flex items-center gap-3 group hover:bg-surface-800/80 transition-colors"
               >
                 <Icon size={16} className="text-surface-400 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <span
-                    className="text-sm text-surface-200 truncate block max-w-[200px]"
+                    className="text-sm text-surface-800 dark:text-surface-200 truncate block max-w-[200px]"
                     title={att.fileName}
                   >
                     {att.fileName}
@@ -115,7 +115,7 @@ function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => handleOpen(att.filePath)}
-                    className="inline-flex items-center gap-1 text-xs text-surface-400 hover:text-surface-200 transition-colors px-1.5 py-1"
+                    className="inline-flex items-center gap-1 text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors px-1.5 py-1"
                     title="Open with default app"
                   >
                     <ExternalLink size={12} />
@@ -131,7 +131,7 @@ function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
                       </button>
                       <button
                         onClick={() => setConfirmDeleteId(null)}
-                        className="text-xs text-surface-500 hover:text-surface-300 transition-colors px-1.5 py-1"
+                        className="text-xs text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors px-1.5 py-1"
                       >
                         Cancel
                       </button>
@@ -139,7 +139,7 @@ function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
                   ) : (
                     <button
                       onClick={() => setConfirmDeleteId(att.id)}
-                      className="text-surface-500 hover:text-surface-300 transition-colors p-1"
+                      className="text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors p-1"
                       title="Delete attachment"
                     >
                       <Trash2 size={12} />

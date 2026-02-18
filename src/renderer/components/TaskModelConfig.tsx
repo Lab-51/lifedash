@@ -159,10 +159,10 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
 
         return (
           <div key={type}
-            className="p-3 bg-surface-800 border border-surface-700 rounded-lg">
+            className="p-3 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="text-sm font-medium text-surface-200">{label}</div>
+                <div className="text-sm font-medium text-surface-800 dark:text-surface-200">{label}</div>
                 <div className="text-xs text-surface-500">{description}</div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -188,7 +188,7 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
                         updateDraft(type, 'model', e.target.value);
                       }}
                       placeholder="Model name..."
-                      className="text-xs bg-surface-900 border border-surface-700 rounded px-2 py-1.5 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500 w-36" />
+                      className="text-xs bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded px-2 py-1.5 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500 w-36" />
                   ) : (
                     <select value={entry.model}
                       onChange={e => updateDraft(type, 'model', e.target.value)}
@@ -215,7 +215,7 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
         </button>
         {dirty && (
           <button onClick={handleReset}
-            className="flex items-center gap-1.5 text-surface-400 hover:text-surface-200 text-sm transition-colors">
+            className="flex items-center gap-1.5 text-surface-400 hover:text-surface-800 dark:text-surface-200 text-sm transition-colors">
             <RotateCcw size={14} />
             Reset
           </button>

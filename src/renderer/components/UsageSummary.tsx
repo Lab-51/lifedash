@@ -112,8 +112,8 @@ function DailyBar({ day, maxTokens, onHover, onLeave, isHovered }: {
     >
       {/* Tooltip */}
       {isHovered && (
-        <div className="absolute bottom-full mb-2 z-10 px-2.5 py-1.5 bg-surface-800 border border-surface-700 rounded-lg shadow-lg text-xs whitespace-nowrap pointer-events-none">
-          <div className="font-medium text-surface-100">{formatShortDate(day.date)}</div>
+        <div className="absolute bottom-full mb-2 z-10 px-2.5 py-1.5 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg shadow-lg text-xs whitespace-nowrap pointer-events-none">
+          <div className="font-medium text-surface-900 dark:text-surface-100">{formatShortDate(day.date)}</div>
           <div className="text-surface-400">
             {formatCompactNumber(day.tokens)} tokens &middot; {formatCost(day.cost)}
           </div>
@@ -144,7 +144,7 @@ function BreakdownRow({ label, value, maxValue, barColor, bgColor, suffix }: {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-surface-300 font-medium">{label}</span>
+        <span className="text-surface-700 dark:text-surface-300 font-medium">{label}</span>
         <span className="text-surface-400">{suffix}</span>
       </div>
       <div className={`h-2 rounded-full ${bgColor} overflow-hidden`}>
@@ -223,10 +223,10 @@ export default function UsageSummary() {
     <div className="space-y-5">
       {/* Header with refresh */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-surface-200">AI Usage Dashboard</h3>
+        <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">AI Usage Dashboard</h3>
         <button
           onClick={fetchUsage}
-          className="flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
         >
           <RefreshCw size={14} />
           Refresh
@@ -259,7 +259,7 @@ export default function UsageSummary() {
       <div className="bg-surface-900 rounded-2xl border border-surface-800 p-4">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h4 className="text-xs font-semibold text-surface-300 uppercase tracking-wider">Last 30 Days</h4>
+            <h4 className="text-xs font-semibold text-surface-700 dark:text-surface-300 uppercase tracking-wider">Last 30 Days</h4>
             <p className="text-xs text-surface-500 mt-0.5">{formatCompactNumber(totalDailyTokens)} tokens total</p>
           </div>
         </div>

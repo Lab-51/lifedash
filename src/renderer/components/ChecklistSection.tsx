@@ -91,7 +91,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
         <CheckSquare size={14} className="text-surface-400" />
         <span className="text-sm text-surface-400">Checklist</span>
         {total > 0 && (
-          <span className="bg-surface-800 text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
+          <span className="bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
             {done}/{total}
           </span>
         )}
@@ -139,7 +139,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
             ) : (
               <span
                 className={`flex-1 text-sm cursor-pointer ${
-                  item.completed ? 'line-through text-surface-500' : 'text-surface-200'
+                  item.completed ? 'line-through text-surface-500' : 'text-surface-800 dark:text-surface-200'
                 }`}
                 onClick={() => startEditing(item.id, item.title)}
               >
@@ -150,7 +150,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
             {/* Delete button */}
             <button
               onClick={() => deleteChecklistItem(item.id)}
-              className="text-surface-500 hover:text-surface-300 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+              className="text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
             >
               <X size={14} />
             </button>
@@ -168,7 +168,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
           onChange={e => setNewItemTitle(e.target.value)}
           onKeyDown={handleAddKeyDown}
           placeholder="Add a checklist item..."
-          className="flex-1 bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 transition-colors"
+          className="flex-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 transition-colors"
         />
       </div>
     </div>

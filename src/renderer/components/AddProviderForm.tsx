@@ -55,8 +55,8 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
 
   return (
     <form onSubmit={handleSubmit}
-      className="mb-6 p-4 bg-surface-800 border border-surface-700 rounded-lg">
-      <h3 className="text-sm font-semibold text-surface-200 mb-4">Add AI Provider</h3>
+      className="mb-6 p-4 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg">
+      <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-4">Add AI Provider</h3>
 
       {error && (
         <div className="mb-3 p-2 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
@@ -82,7 +82,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
                 className={`flex-1 p-2.5 rounded-lg border text-left text-sm transition-colors ${
                   name === opt.value
                     ? 'border-primary-500 bg-primary-500/10 text-primary-400'
-                    : 'border-surface-700 bg-surface-900 text-surface-300 hover:border-surface-600'
+                    : 'border-surface-700 bg-surface-900 text-surface-700 dark:text-surface-300 hover:border-surface-600'
                 }`}>
                 <div className="font-medium">{opt.label}</div>
                 <div className="text-xs text-surface-500 mt-0.5">{opt.description}</div>
@@ -99,7 +99,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
           <input type="text" value={displayName}
             onChange={e => setDisplayName(e.target.value)}
             placeholder={`My ${PROVIDER_OPTIONS.find(o => o.value === name)?.label}`}
-            className="w-full text-sm bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
+            className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
         </div>
 
         {/* API Key (not shown for Ollama) */}
@@ -110,10 +110,10 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
               <input type={showApiKey ? 'text' : 'password'} value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
                 placeholder="sk-..."
-                className="w-full text-sm bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 pr-10 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
+                className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 pr-10 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
               <button type="button"
                 onClick={() => setShowApiKey(!showApiKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300">
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-700 dark:text-surface-300">
                 {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
@@ -128,7 +128,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
           <input type="text" value={baseUrl}
             onChange={e => setBaseUrl(e.target.value)}
             placeholder={name === 'ollama' ? 'http://localhost:11434' : 'Leave blank for default'}
-            className="w-full text-sm bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
+            className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
         </div>
 
         {/* Buttons */}
@@ -139,7 +139,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
             {submitting ? 'Adding...' : 'Add Provider'}
           </button>
           <button type="button" onClick={onClose}
-            className="text-surface-400 hover:text-surface-200 px-4 py-2 text-sm transition-colors">
+            className="text-surface-400 hover:text-surface-800 dark:text-surface-200 px-4 py-2 text-sm transition-colors">
             Cancel
           </button>
         </div>

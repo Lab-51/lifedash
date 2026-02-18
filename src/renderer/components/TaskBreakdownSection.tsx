@@ -159,7 +159,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
     <div>
       {/* Section title */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1.5 text-sm font-medium text-surface-300">
+        <div className="flex items-center gap-1.5 text-sm font-medium text-surface-700 dark:text-surface-300">
           <Sparkles size={14} />
           AI Task Breakdown
         </div>
@@ -167,7 +167,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
         {breakdown && !breakdownLoading && (
           <button
             onClick={toggleAll}
-            className="text-[10px] text-surface-500 hover:text-surface-300 transition-colors"
+            className="text-[10px] text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
           >
             {selectedSubtasks.size === breakdown.subtasks.length
               ? 'Deselect all'
@@ -181,7 +181,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={handleGenerate}
-            className="text-xs bg-surface-800 hover:bg-surface-700 text-surface-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+            className="text-xs bg-surface-800 hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-800 dark:text-surface-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
           >
             <ListTodo size={13} />
             Break into Subtasks
@@ -214,7 +214,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
           {/* Regenerate button */}
           <button
             onClick={handleGenerate}
-            className="text-xs bg-surface-800 hover:bg-surface-700 text-surface-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors mb-3"
+            className="text-xs bg-surface-800 hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-800 dark:text-surface-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors mb-3"
           >
             <Sparkles size={13} />
             Regenerate
@@ -228,7 +228,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
                 <button
                   key={index}
                   onClick={() => toggleSubtask(index)}
-                  className={`flex items-center gap-2 w-full bg-surface-800/50 rounded-lg px-3 py-2 text-left transition-colors ${
+                  className={`flex items-center gap-2 w-full bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-3 py-2 text-left transition-colors ${
                     isSelected
                       ? 'ring-1 ring-surface-600'
                       : 'opacity-50'
@@ -251,7 +251,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
                   </span>
 
                   {/* Title */}
-                  <span className="text-sm text-surface-200 flex-1 truncate">
+                  <span className="text-sm text-surface-800 dark:text-surface-200 flex-1 truncate">
                     {subtask.title}
                   </span>
 
@@ -317,7 +317,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
               <button
                 onClick={handleAddToChecklist}
                 disabled={applying || addingToChecklist || selectedSubtasks.size === 0}
-                className="bg-surface-700 hover:bg-surface-600 disabled:opacity-40 disabled:cursor-not-allowed text-surface-200 text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                className="bg-surface-700 hover:bg-surface-600 disabled:opacity-40 disabled:cursor-not-allowed text-surface-800 dark:text-surface-200 text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
               >
                 {addingToChecklist ? (
                   <>

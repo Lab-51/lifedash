@@ -26,10 +26,10 @@ function ToastContainer() {
       {visible.map(t => (
         <div
           key={t.id}
-          className="bg-surface-800 border border-surface-700 rounded-lg px-4 py-2 shadow-lg flex items-center gap-3"
+          className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-4 py-2 shadow-lg flex items-center gap-3"
           style={{ borderLeftWidth: 3, borderLeftColor: TYPE_COLORS[t.type] }}
         >
-          <span className="text-sm text-surface-200">{t.message}</span>
+          <span className="text-sm text-surface-800 dark:text-surface-200">{t.message}</span>
           {t.action && (
             <button
               onClick={() => { t.action!.onClick(); removeToast(t.id); }}
@@ -40,7 +40,7 @@ function ToastContainer() {
           )}
           <button
             onClick={() => removeToast(t.id)}
-            className="text-surface-400 hover:text-surface-200 transition-colors shrink-0"
+            className="text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 transition-colors shrink-0"
             aria-label="Dismiss"
           >
             <X size={14} />

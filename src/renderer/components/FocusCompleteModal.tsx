@@ -140,23 +140,23 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
       onClick={showReward ? undefined : handleSkip}
     >
       <div
-        className="w-full max-w-md bg-surface-900 rounded-xl border border-surface-700 shadow-2xl overflow-hidden"
+        className="w-full max-w-md bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 shadow-xl dark:shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-700">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-700">
           <div className="flex items-center gap-2">
             <CheckCircle size={16} className="text-emerald-400" />
-            <h2 className="text-sm font-medium text-surface-200">Focus Session Complete!</h2>
+            <h2 className="text-sm font-medium text-surface-800 dark:text-surface-200">Focus Session Complete!</h2>
           </div>
           {!showReward && (
             <button
               onClick={handleSkip}
-              className="p-1 rounded-md hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+              className="p-1 rounded-md hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 transition-colors"
               aria-label="Close"
             >
               <X size={16} />
@@ -180,7 +180,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
                   <div className="flex justify-center mb-2">
                     <LevelBadge level={rewardStats.level} size="lg" />
                   </div>
-                  <div className="w-48 mx-auto h-2 bg-surface-700 rounded-full overflow-hidden">
+                  <div className="w-48 mx-auto h-2 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
                     <div
                       className={`h-full ${getTier(rewardStats.level).colors.text.replace('text-', 'bg-')} rounded-full transition-all duration-1000`}
                       style={{ width: `${rewardStats.xpProgress * 100}%` }}
@@ -228,12 +228,12 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
             <>
               {/* Session summary */}
               <div className="text-center py-2">
-                <p className="text-surface-200 text-sm">
+                <p className="text-surface-800 dark:text-surface-200 text-sm">
                   You focused for <span className="font-semibold text-emerald-400">{workDuration} minutes</span>
                 </p>
                 <p className="text-surface-400 text-sm mt-1">
                   {focusedCardTitle
-                    ? <>on &ldquo;<span className="text-surface-300">{focusedCardTitle}</span>&rdquo;</>
+                    ? <>on &ldquo;<span className="text-surface-700 dark:text-surface-300">{focusedCardTitle}</span>&rdquo;</>
                     : 'General focus'
                   }
                 </p>
@@ -250,7 +250,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
                   onChange={(e) => setNote(e.target.value)}
                   rows={3}
                   placeholder="What did you accomplish during this session?"
-                  className="w-full px-3 py-2 bg-surface-800 border border-surface-700 rounded-lg text-sm text-surface-200 placeholder-surface-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                  className="w-full px-3 py-2 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg text-sm text-surface-800 dark:text-surface-200 placeholder-surface-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-none"
                 />
               </div>
 

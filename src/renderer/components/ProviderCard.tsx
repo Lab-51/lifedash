@@ -105,7 +105,7 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
               className="w-full text-xs bg-surface-950 border border-surface-700 rounded px-2.5 py-1.5 pr-8 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
             <button type="button"
               onClick={() => setShowKey(!showKey)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300">
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-700 dark:text-surface-300">
               {showKey ? <EyeOff size={12} /> : <Eye size={12} />}
             </button>
           </div>
@@ -115,7 +115,7 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
               Save
             </button>
             <button onClick={() => { setEditingKey(false); setNewApiKey(''); }}
-              className="text-xs text-surface-400 hover:text-surface-200 transition-colors">
+              className="text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors">
               Cancel
             </button>
           </div>
@@ -140,7 +140,7 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
       <div className="flex items-center gap-2">
         <button onClick={() => testConnection(provider.id)}
           disabled={testState?.loading}
-          className="flex items-center gap-1.5 text-xs text-surface-300 hover:text-primary-400 transition-colors disabled:opacity-50">
+          className="flex items-center gap-1.5 text-xs text-surface-700 dark:text-surface-300 hover:text-primary-400 transition-colors disabled:opacity-50">
           {testState?.loading
             ? <Loader2 size={14} className="animate-spin" />
             : <Zap size={14} />
@@ -148,7 +148,7 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
           {testState?.loading ? 'Testing...' : 'Test'}
         </button>
         <button onClick={() => setEditingKey(!editingKey)}
-          className="flex items-center gap-1.5 text-xs text-surface-300 hover:text-primary-400 transition-colors">
+          className="flex items-center gap-1.5 text-xs text-surface-700 dark:text-surface-300 hover:text-primary-400 transition-colors">
           <Key size={14} />
           {editingKey ? 'Close' : 'Edit Key'}
         </button>

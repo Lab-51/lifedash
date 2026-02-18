@@ -366,9 +366,9 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
     >
-      <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-3xl max-h-[80vh] overflow-y-auto mx-4 p-6">
+      <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 w-full max-w-3xl max-h-[80vh] overflow-y-auto mx-4 p-6">
         {/* Header: Title + Close button */}
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex-1 min-w-0">
@@ -380,11 +380,11 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                 onKeyDown={handleTitleKeyDown}
                 onBlur={saveTitleEdit}
                 autoFocus
-                className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-xl font-bold text-surface-100 focus:outline-none focus:border-primary-500 w-full"
+                className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-xl font-bold text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 w-full"
               />
             ) : (
               <h2
-                className={`text-xl font-bold cursor-pointer hover:text-surface-200 ${card.completed ? 'text-surface-500 line-through' : 'text-surface-100'}`}
+                className={`text-xl font-bold cursor-pointer hover:text-surface-800 dark:hover:text-surface-200 ${card.completed ? 'text-surface-500 line-through' : 'text-surface-900 dark:text-surface-100'}`}
                 onClick={startEditingTitle}
               >
                 {card.title}
@@ -393,7 +393,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="text-surface-500 hover:text-surface-300 p-1 transition-colors shrink-0"
+            className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 p-1 transition-colors shrink-0"
           >
             <X size={20} />
           </button>
@@ -428,7 +428,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
             </button>
 
             {showTemplateDropdown && (
-              <div className="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg py-1 min-w-[220px] z-40">
+              <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg shadow-lg py-1 min-w-[220px] z-40">
                 {dbTemplates.length > 0 && (
                   <>
                     <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
@@ -438,7 +438,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                       <button
                         key={template.id}
                         onClick={() => applyTemplate(template)}
-                        className="group/tpl flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors text-left"
+                        className="group/tpl flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left"
                       >
                         <span className="truncate flex-1">{template.name}</span>
                         <span
@@ -450,7 +450,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                         </span>
                       </button>
                     ))}
-                    <div className="border-t border-surface-700 my-1" />
+                    <div className="border-t border-surface-200 dark:border-surface-700 my-1" />
                   </>
                 )}
                 {dbTemplates.length > 0 && (
@@ -462,7 +462,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                   <button
                     key={template.id}
                     onClick={() => applyTemplate(template)}
-                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors text-left"
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left"
                   >
                     <span>{template.icon}</span>
                     {template.name}
@@ -495,7 +495,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
         {/* Description — TipTap editor */}
         <div className="mb-5">
           <span className="text-sm text-surface-400 block mb-2">Description</span>
-          <div className="tiptap-editor bg-surface-800/50 rounded-lg border border-surface-700">
+          <div className="tiptap-editor bg-surface-100/50 dark:bg-surface-800/50 rounded-lg border border-surface-200 dark:border-surface-700">
             <EditorContent editor={editor} />
           </div>
         </div>
@@ -507,7 +507,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
             {card.labels?.map(label => (
               <span
                 key={label.id}
-                className="inline-flex items-center gap-1.5 bg-surface-800 rounded-full px-2.5 py-1 text-xs text-surface-200"
+                className="inline-flex items-center gap-1.5 bg-surface-50 dark:bg-surface-800 rounded-full px-2.5 py-1 text-xs text-surface-800 dark:text-surface-200"
               >
                 <span
                   className="w-2 h-2 rounded-full shrink-0"
@@ -516,7 +516,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                 {label.name}
                 <button
                   onClick={() => handleDetachLabel(label.id)}
-                  className="text-surface-500 hover:text-surface-300 transition-colors ml-0.5"
+                  className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors ml-0.5"
                 >
                   <X size={12} />
                 </button>
@@ -527,14 +527,14 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
             <div className="relative" ref={labelDropdownRef}>
               <button
                 onClick={() => setShowLabelDropdown(!showLabelDropdown)}
-                className="inline-flex items-center gap-1 text-xs text-surface-400 hover:text-surface-200 bg-surface-800 rounded-full px-2.5 py-1 transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 bg-surface-50 dark:bg-surface-800 rounded-full px-2.5 py-1 transition-colors"
               >
                 <Plus size={12} />
                 Add
               </button>
 
               {showLabelDropdown && (
-                <div className="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg p-2 min-w-[220px] z-40">
+                <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg shadow-lg p-2 min-w-[220px] z-40">
                   {/* Existing unattached labels */}
                   {unattachedLabels.length > 0 && (
                     <div className="mb-2">
@@ -542,7 +542,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                         <button
                           key={label.id}
                           onClick={() => handleAttachLabel(label.id)}
-                          className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs text-surface-200 hover:bg-surface-700 transition-colors"
+                          className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
                         >
                           <span
                             className="w-2.5 h-2.5 rounded-full shrink-0"
@@ -557,7 +557,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
                   {/* Divider */}
                   {unattachedLabels.length > 0 && (
-                    <div className="border-t border-surface-700 my-2" />
+                    <div className="border-t border-surface-200 dark:border-surface-700 my-2" />
                   )}
 
                   {/* Create new label */}
@@ -571,7 +571,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                       onChange={e => setNewLabelName(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') handleCreateAndAttach(); }}
                       placeholder="Label name..."
-                      className="bg-surface-900 border border-surface-700 rounded px-2 py-1 text-xs text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 w-full"
+                      className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded px-2 py-1 text-xs text-surface-900 dark:text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 w-full"
                     />
                     <div className="flex items-center gap-1.5">
                       {LABEL_COLORS.map(color => (
@@ -609,12 +609,12 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
                 card.completed
                   ? 'bg-emerald-600 border-emerald-500'
-                  : 'border-surface-600 bg-surface-800 group-hover/check:border-surface-400'
+                  : 'border-surface-300 dark:border-surface-600 bg-surface-50 dark:bg-surface-800 group-hover/check:border-surface-400'
               }`}
             >
               {card.completed && <Check size={12} className="text-white" />}
             </div>
-            <span className={`text-sm ${card.completed ? 'text-emerald-400' : 'text-surface-300'}`}>
+            <span className={`text-sm ${card.completed ? 'text-emerald-400' : 'text-surface-700 dark:text-surface-300'}`}>
               {card.completed ? 'Completed' : 'Mark as complete'}
             </span>
           </button>
@@ -634,7 +634,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                   dueDate: val ? new Date(val).toISOString() : null,
                 });
               }}
-              className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-100 focus:outline-none focus:border-primary-500 [color-scheme:dark]"
+              className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
             />
             {card.dueDate && (
               <>
@@ -643,7 +643,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                 </span>
                 <button
                   onClick={() => onUpdate(card.id, { dueDate: null })}
-                  className="text-xs text-surface-500 hover:text-surface-300 transition-colors"
+                  className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
                 >
                   Clear
                 </button>
@@ -664,7 +664,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               const val = e.target.value;
               onUpdate(card.id, { recurrenceType: val || null });
             }}
-            className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-100 focus:outline-none focus:border-primary-500 [color-scheme:dark]"
+            className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
           >
             <option value="">None</option>
             <option value="daily">Daily</option>
@@ -698,12 +698,12 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                     recurrenceEndDate: val ? new Date(val).toISOString() : null,
                   });
                 }}
-                className="bg-surface-800 border border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-100 focus:outline-none focus:border-primary-500 [color-scheme:dark]"
+                className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
               />
               {card.recurrenceEndDate && (
                 <button
                   onClick={() => onUpdate(card.id, { recurrenceEndDate: null })}
-                  className="text-xs text-surface-500 hover:text-surface-300 transition-colors"
+                  className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
                 >
                   Clear
                 </button>
