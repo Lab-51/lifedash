@@ -156,13 +156,14 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
   const startDate = new Date(options.startDate + 'T00:00:00');
   const endDate = new Date(options.endDate + 'T23:59:59.999');
   const directProject = aliasedTable(projects, 'dp');
+  const cardProject = aliasedTable(projects, 'cp');
 
   // Build base WHERE conditions
   const baseWhere = options.projectId
     ? and(
         gte(focusSessions.completedAt, startDate),
         lte(focusSessions.completedAt, endDate),
-        sql`COALESCE(${directProject.id}, ${projects.id}) = ${options.projectId}`,
+        sql`COALESCE(${directProject.id}, ${cardProject.id}) = ${options.projectId}`,
       )
     : and(
         gte(focusSessions.completedAt, startDate),
@@ -178,16 +179,16 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
       note: focusSessions.note,
       completedAt: focusSessions.completedAt,
       cardTitle: cards.title,
-      projectId: sql<string>`COALESCE(${directProject.id}, ${projects.id})`.as('eff_project_id'),
-      projectName: sql<string>`COALESCE(${directProject.name}, ${projects.name})`.as('eff_project_name'),
-      projectColor: sql<string>`COALESCE(${directProject.color}, ${projects.color})`.as('eff_project_color'),
+      projectId: sql<string>`COALESCE(${directProject.id}, ${cardProject.id})`.as('eff_project_id'),
+      projectName: sql<string>`COALESCE(${directProject.name}, ${cardProject.name})`.as('eff_project_name'),
+      projectColor: sql<string>`COALESCE(${directProject.color}, ${cardProject.color})`.as('eff_project_color'),
     })
     .from(focusSessions)
     .leftJoin(directProject, eq(focusSessions.projectId, directProject.id))
     .leftJoin(cards, eq(focusSessions.cardId, cards.id))
     .leftJoin(columns, eq(cards.columnId, columns.id))
     .leftJoin(boards, eq(columns.boardId, boards.id))
-    .leftJoin(projects, eq(boards.projectId, projects.id))
+    .leftJoin(cardProject, eq(boards.projectId, cardProject.id))
     .where(baseWhere)
     .orderBy(desc(focusSessions.completedAt));
 
@@ -206,9 +207,9 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
   // 2. Per-project aggregation
   const projectRows = await db
     .select({
-      projectId: sql<string>`COALESCE(${directProject.id}, ${projects.id})`.as('eff_project_id'),
-      projectName: sql<string>`COALESCE(${directProject.name}, ${projects.name})`.as('eff_project_name'),
-      projectColor: sql<string>`COALESCE(${directProject.color}, ${projects.color})`.as('eff_project_color'),
+      projectId: sql<string>`COALESCE(${directProject.id}, ${cardProject.id})`.as('eff_project_id'),
+      projectName: sql<string>`COALESCE(${directProject.name}, ${cardProject.name})`.as('eff_project_name'),
+      projectColor: sql<string>`COALESCE(${directProject.color}, ${cardProject.color})`.as('eff_project_color'),
       sessions: sql<number>`count(*)::int`,
       minutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
     })
@@ -217,15 +218,15 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
     .leftJoin(cards, eq(focusSessions.cardId, cards.id))
     .leftJoin(columns, eq(cards.columnId, columns.id))
     .leftJoin(boards, eq(columns.boardId, boards.id))
-    .leftJoin(projects, eq(boards.projectId, projects.id))
+    .leftJoin(cardProject, eq(boards.projectId, cardProject.id))
     .where(and(
       gte(focusSessions.completedAt, startDate),
       lte(focusSessions.completedAt, endDate),
     ))
     .groupBy(
-      sql`COALESCE(${directProject.id}, ${projects.id})`,
-      sql`COALESCE(${directProject.name}, ${projects.name})`,
-      sql`COALESCE(${directProject.color}, ${projects.color})`,
+      sql`COALESCE(${directProject.id}, ${cardProject.id})`,
+      sql`COALESCE(${directProject.name}, ${cardProject.name})`,
+      sql`COALESCE(${directProject.color}, ${cardProject.color})`,
     )
     .orderBy(sql`coalesce(sum(${focusSessions.durationMinutes}), 0) desc`);
 
@@ -242,7 +243,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
     ? and(
         gte(focusSessions.completedAt, startDate),
         lte(focusSessions.completedAt, endDate),
-        sql`COALESCE(${directProject.id}, ${projects.id}) = ${options.projectId}`,
+        sql`COALESCE(${directProject.id}, ${cardProject.id}) = ${options.projectId}`,
       )
     : and(
         gte(focusSessions.completedAt, startDate),
@@ -264,7 +265,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
         .leftJoin(cards, eq(focusSessions.cardId, cards.id))
         .leftJoin(columns, eq(cards.columnId, columns.id))
         .leftJoin(boards, eq(columns.boardId, boards.id))
-        .leftJoin(projects, eq(boards.projectId, projects.id))
+        .leftJoin(cardProject, eq(boards.projectId, cardProject.id))
         .where(summaryWhere)
     : db
         .select({
@@ -305,6 +306,7 @@ async function getDailyDataForRange(
 ): Promise<FocusDailyData[]> {
   const db = getDb();
   const directProject = aliasedTable(projects, 'dp');
+  const cardProject = aliasedTable(projects, 'cp');
 
   const baseQuery = projectId
     ? db
@@ -318,11 +320,11 @@ async function getDailyDataForRange(
         .leftJoin(cards, eq(focusSessions.cardId, cards.id))
         .leftJoin(columns, eq(cards.columnId, columns.id))
         .leftJoin(boards, eq(columns.boardId, boards.id))
-        .leftJoin(projects, eq(boards.projectId, projects.id))
+        .leftJoin(cardProject, eq(boards.projectId, cardProject.id))
         .where(and(
           gte(focusSessions.completedAt, startDate),
           lte(focusSessions.completedAt, endDate),
-          sql`COALESCE(${directProject.id}, ${projects.id}) = ${projectId}`,
+          sql`COALESCE(${directProject.id}, ${cardProject.id}) = ${projectId}`,
         ))
         .groupBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`)
         .orderBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`)
