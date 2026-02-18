@@ -4,7 +4,7 @@
 
 import { Suspense, lazy, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, X, Search, ChevronDown, Download, LayoutTemplate, SlidersHorizontal, Settings2, Pencil, Trash2, Check } from 'lucide-react';
+import { ArrowLeft, Plus, X, Search, ChevronDown, Download, LayoutTemplate, SlidersHorizontal, Settings2, Pencil, Trash2, Check, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 
 const LABEL_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 import { useBoardController, exportBoardAsCsv } from '../hooks/useBoardController';
@@ -74,6 +74,14 @@ export default function BoardPageModern() {
             else next.add(id);
             return next;
         });
+    };
+    const allColumnsCollapsed = columns.length > 0 && collapsedColumns.size === columns.length;
+    const toggleCollapseAll = () => {
+        if (allColumnsCollapsed) {
+            setCollapsedColumns(new Set());
+        } else {
+            setCollapsedColumns(new Set(columns.map(c => c.id)));
+        }
     };
 
     // Label management state
@@ -427,6 +435,20 @@ export default function BoardPageModern() {
                         >
                             Clear
                         </button>
+                    )}
+
+                    {columns.length > 0 && (
+                        <>
+                            <div className="w-px h-8 bg-surface-200 dark:bg-surface-700 mx-1" />
+                            <button
+                                onClick={toggleCollapseAll}
+                                className="flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-xl border border-surface-200 bg-white text-surface-600 dark:bg-surface-800 dark:border-surface-700 dark:text-surface-300 hover:border-surface-300 dark:hover:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700 shadow-sm transition-all"
+                                title={allColumnsCollapsed ? 'Expand all columns' : 'Collapse all columns'}
+                            >
+                                {allColumnsCollapsed ? <ChevronsUpDown size={16} /> : <ChevronsDownUp size={16} />}
+                                {allColumnsCollapsed ? 'Expand All' : 'Collapse All'}
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
