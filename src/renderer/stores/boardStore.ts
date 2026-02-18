@@ -63,6 +63,7 @@ interface BoardStore {
   moveCard: (id: string, columnId: string, position: number) => Promise<void>;
   loadLabels: () => Promise<void>;
   createLabel: (name: string, color: string) => Promise<Label>;
+  updateLabel: (id: string, data: { name?: string; color?: string }) => Promise<void>;
   deleteLabel: (id: string) => Promise<void>;
   attachLabel: (cardId: string, labelId: string) => Promise<void>;
   detachLabel: (cardId: string, labelId: string) => Promise<void>;
@@ -261,6 +262,17 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     });
     set({ labels: [...labels, label] });
     return label;
+  },
+
+  updateLabel: async (id: string, data: { name?: string; color?: string }) => {
+    const updated = await window.electronAPI.updateLabel(id, data);
+    set({
+      labels: get().labels.map(l => (l.id === id ? { ...l, ...updated } : l)),
+      cards: get().cards.map(c => ({
+        ...c,
+        labels: c.labels?.map(l => (l.id === id ? { ...l, ...updated } : l)),
+      })),
+    });
   },
 
   deleteLabel: async (id: string) => {

@@ -57,6 +57,9 @@ export function useBoardController() {
     const moveCard = useBoardStore(s => s.moveCard);
     const updateColumn = useBoardStore(s => s.updateColumn);
     const reorderColumns = useBoardStore(s => s.reorderColumns);
+    const createLabel = useBoardStore(s => s.createLabel);
+    const updateLabel = useBoardStore(s => s.updateLabel);
+    const deleteLabel = useBoardStore(s => s.deleteLabel);
 
     // UI state
     const [addingColumn, setAddingColumn] = useState(false);
@@ -103,6 +106,16 @@ export function useBoardController() {
         }
         return counts;
     }, [relationships]);
+
+    const labelUsageCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const card of cards) {
+            for (const l of card.labels ?? []) {
+                counts.set(l.id, (counts.get(l.id) ?? 0) + 1);
+            }
+        }
+        return counts;
+    }, [cards]);
 
     const filteredCards = cards.filter(card => {
         if (searchQuery) {
@@ -329,6 +342,11 @@ export function useBoardController() {
         searchInputRef,
         priorityDropdownRef,
         labelDropdownRef,
+        // Label management
+        createLabel,
+        updateLabel,
+        deleteLabel,
+        labelUsageCounts,
         // Helpers
         handleDragOverChange,
         blockedCardIds,

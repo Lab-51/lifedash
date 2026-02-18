@@ -2,9 +2,11 @@
 // Board view page — Modern Design
 // Displays the Kanban board for a project with enhanced UI/UX.
 
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, X, Search, ChevronDown, Download, LayoutTemplate, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Plus, X, Search, ChevronDown, Download, LayoutTemplate, SlidersHorizontal, Settings2, Pencil, Trash2, Check } from 'lucide-react';
+
+const LABEL_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 import { useBoardController, exportBoardAsCsv } from '../hooks/useBoardController';
 import LoadingSpinner from '../components/LoadingSpinner';
 import BoardColumnModern from '../components/BoardColumnModern';
@@ -53,11 +55,51 @@ export default function BoardPageModern() {
         searchInputRef,
         priorityDropdownRef,
         labelDropdownRef,
+        createLabel,
+        updateLabel,
+        deleteLabel,
+        labelUsageCounts,
         handleDragOverChange,
         blockedCardIds,
         dependencyCountMap,
         getCardsByColumn,
     } = useBoardController();
+
+    // Label management state
+    const [managingLabels, setManagingLabels] = useState(false);
+    const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+    const [editLabelName, setEditLabelName] = useState('');
+    const [editLabelColor, setEditLabelColor] = useState('');
+    const [addingNewLabel, setAddingNewLabel] = useState(false);
+    const [newLabelName, setNewLabelName] = useState('');
+    const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
+
+    const startEditLabel = (label: { id: string; name: string; color: string }) => {
+        setEditingLabelId(label.id);
+        setEditLabelName(label.name);
+        setEditLabelColor(label.color);
+    };
+
+    const saveEditLabel = async () => {
+        if (!editingLabelId || !editLabelName.trim()) return;
+        await updateLabel(editingLabelId, { name: editLabelName.trim(), color: editLabelColor });
+        setEditingLabelId(null);
+    };
+
+    const handleDeleteLabel = async (id: string) => {
+        const count = labelUsageCounts.get(id) ?? 0;
+        if (count > 0 && !window.confirm(`This label is on ${count} card${count > 1 ? 's' : ''}. Delete it?`)) return;
+        await deleteLabel(id);
+        if (labelFilter.includes(id)) toggleLabelFilter(id);
+    };
+
+    const handleAddLabel = async () => {
+        if (!newLabelName.trim()) return;
+        await createLabel(newLabelName.trim(), newLabelColor);
+        setNewLabelName('');
+        setNewLabelColor(LABEL_COLORS[0]);
+        setAddingNewLabel(false);
+    };
 
     const handleColumnKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
@@ -195,7 +237,7 @@ export default function BoardPageModern() {
 
                     <div className="relative" ref={labelDropdownRef}>
                         <button
-                            onClick={() => { setShowLabelDropdown(!showLabelDropdown); setShowPriorityDropdown(false); }}
+                            onClick={() => { setShowLabelDropdown(!showLabelDropdown); setShowPriorityDropdown(false); if (showLabelDropdown) { setManagingLabels(false); setEditingLabelId(null); setAddingNewLabel(false); } }}
                             className={`flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-xl border transition-all ${labelFilter.length > 0
                                     ? 'border-primary-200 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:border-primary-800 dark:text-primary-300 shadow-sm'
                                     : 'border-surface-200 bg-white text-surface-600 dark:bg-surface-800 dark:border-surface-700 dark:text-surface-300 hover:border-surface-300 dark:hover:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700 shadow-sm'
@@ -211,27 +253,157 @@ export default function BoardPageModern() {
                         </button>
 
                         {showLabelDropdown && (
-                            <div className="absolute top-full left-0 mt-2 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-2xl shadow-xl p-2 min-w-[200px] z-40 animate-in fade-in zoom-in-95 duration-200">
-                                <div className="px-3 py-2 text-xs font-semibold text-surface-400 uppercase tracking-wider">Filter by Label</div>
-                                {labels.length === 0 ? (
-                                    <p className="text-sm text-surface-500 px-4 py-3 italic">No labels found</p>
-                                ) : (
-                                    labels.map(label => (
+                            <div className="absolute top-full left-0 mt-2 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-2xl shadow-xl p-2 min-w-[260px] z-40 animate-in fade-in zoom-in-95 duration-200">
+                                {!managingLabels ? (
+                                    <>
+                                        {/* Filter Mode */}
+                                        <div className="px-3 py-2 text-xs font-semibold text-surface-400 uppercase tracking-wider">Filter by Label</div>
+                                        {labels.length === 0 ? (
+                                            <p className="text-sm text-surface-500 px-4 py-3 italic">No labels yet</p>
+                                        ) : (
+                                            labels.map(label => (
+                                                <button
+                                                    key={label.id}
+                                                    onClick={() => toggleLabelFilter(label.id)}
+                                                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-surface-700 dark:text-surface-200 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors"
+                                                >
+                                                    <span
+                                                        className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white dark:ring-surface-800 shadow-sm"
+                                                        style={{ backgroundColor: label.color }}
+                                                    />
+                                                    <span className="flex-1 text-left">{label.name}</span>
+                                                    {labelFilter.includes(label.id) && (
+                                                        <span className="text-primary-600 dark:text-primary-400 font-bold bg-primary-50 dark:bg-primary-900/20 px-2 py-0.5 rounded text-xs">Active</span>
+                                                    )}
+                                                </button>
+                                            ))
+                                        )}
+                                        <div className="h-px bg-surface-100 dark:bg-surface-700 my-1" />
                                         <button
-                                            key={label.id}
-                                            onClick={() => toggleLabelFilter(label.id)}
-                                            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-surface-700 dark:text-surface-200 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors"
+                                            onClick={() => { setManagingLabels(true); setEditingLabelId(null); setAddingNewLabel(false); }}
+                                            className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors"
                                         >
-                                            <span
-                                                className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white dark:ring-surface-800 shadow-sm"
-                                                style={{ backgroundColor: label.color }}
-                                            />
-                                            <span className="flex-1 text-left">{label.name}</span>
-                                            {labelFilter.includes(label.id) && (
-                                                <span className="text-primary-600 dark:text-primary-400 font-bold bg-primary-50 dark:bg-primary-900/20 px-2 py-0.5 rounded text-xs">Active</span>
-                                            )}
+                                            <Settings2 size={14} />
+                                            Manage Labels
                                         </button>
-                                    ))
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* Manage Mode */}
+                                        <div className="flex items-center gap-2 px-3 py-2">
+                                            <button
+                                                onClick={() => setManagingLabels(false)}
+                                                className="p-0.5 rounded text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 transition-colors"
+                                            >
+                                                <ArrowLeft size={14} />
+                                            </button>
+                                            <span className="text-xs font-semibold text-surface-400 uppercase tracking-wider">Manage Labels</span>
+                                        </div>
+                                        {labels.length === 0 ? (
+                                            <p className="text-sm text-surface-500 px-4 py-3 italic">No labels yet</p>
+                                        ) : (
+                                            labels.map(label => {
+                                                const count = labelUsageCounts.get(label.id) ?? 0;
+                                                if (editingLabelId === label.id) {
+                                                    return (
+                                                        <div key={label.id} className="px-3 py-2 space-y-2">
+                                                            <input
+                                                                type="text"
+                                                                value={editLabelName}
+                                                                onChange={e => setEditLabelName(e.target.value)}
+                                                                onKeyDown={e => { if (e.key === 'Enter') saveEditLabel(); if (e.key === 'Escape') setEditingLabelId(null); }}
+                                                                autoFocus
+                                                                className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-600 rounded-lg px-2.5 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                                                            />
+                                                            <div className="flex items-center gap-1.5">
+                                                                {LABEL_COLORS.map(c => (
+                                                                    <button
+                                                                        key={c}
+                                                                        onClick={() => setEditLabelColor(c)}
+                                                                        className={`w-5 h-5 rounded-full transition-all ${editLabelColor === c ? 'ring-2 ring-primary-500 scale-110' : 'hover:scale-110'}`}
+                                                                        style={{ backgroundColor: c }}
+                                                                    />
+                                                                ))}
+                                                                <div className="flex-1" />
+                                                                <button onClick={saveEditLabel} className="p-1 rounded text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
+                                                                    <Check size={14} />
+                                                                </button>
+                                                                <button onClick={() => setEditingLabelId(null)} className="p-1 rounded text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors">
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return (
+                                                    <div
+                                                        key={label.id}
+                                                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-sm hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors group"
+                                                    >
+                                                        <span
+                                                            className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white dark:ring-surface-800 shadow-sm"
+                                                            style={{ backgroundColor: label.color }}
+                                                        />
+                                                        <span className="flex-1 text-left font-medium text-surface-700 dark:text-surface-200 truncate">{label.name}</span>
+                                                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${count === 0 ? 'text-surface-400 bg-surface-100 dark:bg-surface-700' : 'text-surface-500 bg-surface-100 dark:bg-surface-700'}`}>
+                                                            {count}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => startEditLabel(label)}
+                                                            className="p-1 rounded text-surface-400 opacity-0 group-hover:opacity-100 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+                                                        >
+                                                            <Pencil size={12} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteLabel(label.id)}
+                                                            className="p-1 rounded text-surface-400 opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                                                        >
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                        <div className="h-px bg-surface-100 dark:bg-surface-700 my-1" />
+                                        {addingNewLabel ? (
+                                            <div className="px-3 py-2 space-y-2">
+                                                <input
+                                                    type="text"
+                                                    value={newLabelName}
+                                                    onChange={e => setNewLabelName(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter') handleAddLabel(); if (e.key === 'Escape') setAddingNewLabel(false); }}
+                                                    placeholder="Label name..."
+                                                    autoFocus
+                                                    className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-600 rounded-lg px-2.5 py-1.5 text-sm text-surface-900 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                                                />
+                                                <div className="flex items-center gap-1.5">
+                                                    {LABEL_COLORS.map(c => (
+                                                        <button
+                                                            key={c}
+                                                            onClick={() => setNewLabelColor(c)}
+                                                            className={`w-5 h-5 rounded-full transition-all ${newLabelColor === c ? 'ring-2 ring-primary-500 scale-110' : 'hover:scale-110'}`}
+                                                            style={{ backgroundColor: c }}
+                                                        />
+                                                    ))}
+                                                    <div className="flex-1" />
+                                                    <button onClick={handleAddLabel} className="p-1 rounded text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
+                                                        <Check size={14} />
+                                                    </button>
+                                                    <button onClick={() => setAddingNewLabel(false)} className="p-1 rounded text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors">
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setAddingNewLabel(true)}
+                                                className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors"
+                                            >
+                                                <Plus size={14} />
+                                                Add Label
+                                            </button>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         )}
