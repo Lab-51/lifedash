@@ -452,11 +452,16 @@ function calculateLongestStreak(sortedDatesDesc: string[]): number {
   return longest;
 }
 
-export async function getDailyXP(days: number = 7): Promise<XpDailyData[]> {
+export async function getDailyXP(_days?: number): Promise<XpDailyData[]> {
   const db = getDb();
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-  startDate.setHours(0, 0, 0, 0);
+
+  // Calculate Monday of the current week (ISO week: Mon=1, Sun=7)
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + mondayOffset);
+  monday.setHours(0, 0, 0, 0);
 
   const rows = await db
     .select({
@@ -464,17 +469,17 @@ export async function getDailyXP(days: number = 7): Promise<XpDailyData[]> {
       xp: sql<number>`coalesce(sum(${xpEvents.xpAmount}), 0)::int`,
     })
     .from(xpEvents)
-    .where(gte(xpEvents.earnedAt, startDate))
+    .where(gte(xpEvents.earnedAt, monday))
     .groupBy(sql`to_char(${xpEvents.earnedAt}, 'YYYY-MM-DD')`)
     .orderBy(sql`to_char(${xpEvents.earnedAt}, 'YYYY-MM-DD')`);
 
-  // Fill gaps with zero-value entries
+  // Always return 7 entries: Mon through Sun
   const result: XpDailyData[] = [];
   const dataMap = new Map(rows.map(r => [r.date, r]));
 
-  for (let i = 0; i < days; i++) {
-    const d = new Date(startDate);
-    d.setDate(d.getDate() + i);
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
     const dateStr = formatDateStr(d);
     const data = dataMap.get(dateStr);
     result.push({
