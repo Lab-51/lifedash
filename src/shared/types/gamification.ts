@@ -220,47 +220,103 @@ export interface Achievement {
 }
 
 export const ACHIEVEMENTS = [
-  // Focus (12)
+  // Focus (24)
   { id: 'first_session', name: 'First Focus', description: 'Complete your first focus session', icon: 'Zap', category: 'focus' },
   { id: 'five_sessions', name: 'Getting Warmed Up', description: 'Complete 5 focus sessions', icon: 'Flame', category: 'focus' },
   { id: 'ten_sessions', name: 'In The Zone', description: 'Complete 10 focus sessions', icon: 'Target', category: 'focus' },
+  { id: 'twenty_five_sessions', name: 'Quarter Pounder', description: 'Complete 25 focus sessions', icon: 'Timer', category: 'focus' },
   { id: 'fifty_sessions', name: 'Focus Machine', description: 'Complete 50 focus sessions', icon: 'Cpu', category: 'focus' },
   { id: 'hundred_sessions', name: 'Centurion', description: 'Complete 100 focus sessions', icon: 'Crown', category: 'focus' },
+  { id: 'two_hundred_sessions', name: 'Bicentennial', description: 'Complete 200 focus sessions', icon: 'Medal', category: 'focus' },
+  { id: 'five_hundred_sessions', name: 'The 500', description: 'Complete 500 focus sessions', icon: 'Shield', category: 'focus' },
   { id: 'one_hour_day', name: 'Power Hour', description: '60+ minutes focused in a single day', icon: 'Clock', category: 'focus' },
   { id: 'two_hour_day', name: 'Deep Worker', description: '120+ minutes focused in a single day', icon: 'BrainCircuit', category: 'focus' },
+  { id: 'three_hour_day', name: 'Marathon Runner', description: '180+ minutes focused in a single day', icon: 'Hourglass', category: 'focus' },
+  { id: 'four_hour_day', name: 'Touch Grass Soon', description: '240+ minutes focused in a single day', icon: 'TreePine', category: 'focus' },
   { id: 'streak_3', name: 'Three-Day Streak', description: '3 consecutive days with sessions', icon: 'TrendingUp', category: 'focus' },
   { id: 'streak_7', name: 'Week Warrior', description: '7 consecutive days with sessions', icon: 'Calendar', category: 'focus' },
   { id: 'streak_14', name: 'Fortnight Focus', description: '14 consecutive days with sessions', icon: 'CalendarCheck', category: 'focus' },
   { id: 'streak_30', name: 'Monthly Master', description: '30 consecutive days with sessions', icon: 'Award', category: 'focus' },
+  { id: 'streak_60', name: 'Two-Month Terror', description: '60 consecutive days with focus sessions', icon: 'Flag', category: 'focus' },
+  { id: 'streak_100', name: 'Century Streak', description: '100 consecutive days with focus sessions', icon: 'Infinity', category: 'focus' },
+  { id: 'focus_500_min', name: '500 Club', description: 'Accumulate 500 total focus minutes', icon: 'History', category: 'focus' },
+  { id: 'focus_2000_min', name: 'Time Lord', description: 'Accumulate 2,000 total focus minutes', icon: 'Globe', category: 'focus' },
+  { id: 'focus_10000_min', name: '10K Grinder', description: 'Accumulate 10,000 total focus minutes', icon: 'Mountain', category: 'focus' },
   { id: 'level_50', name: 'Gold Achiever', description: 'Reach Level 50 (Gold tier)', icon: 'Trophy', category: 'focus' },
+  { id: 'level_100', name: 'Diamond Hands', description: 'Reach Level 100 (Diamond tier)', icon: 'Gem', category: 'focus' },
+  { id: 'level_200', name: 'Celestial Being', description: 'Reach Level 200 (Celestial tier)', icon: 'Star', category: 'focus' },
 
-  // Cards (4)
+  // Cards (14)
   { id: 'first_card', name: 'Card Starter', description: 'Create your first card', icon: 'SquarePlus', category: 'cards' },
+  { id: 'cards_10', name: 'Double Digits', description: 'Create 10 cards', icon: 'Hash', category: 'cards' },
   { id: 'card_creator', name: 'Card Factory', description: 'Create 25 cards', icon: 'Layers', category: 'cards' },
+  { id: 'cards_50', name: 'Half Century', description: 'Create 50 cards', icon: 'Package', category: 'cards' },
+  { id: 'cards_100', name: 'Card Centurion', description: 'Create 100 cards', icon: 'Database', category: 'cards' },
+  { id: 'cards_completed_5', name: 'Nailed It', description: 'Complete 5 cards', icon: 'ThumbsUp', category: 'cards' },
   { id: 'card_completer', name: 'Task Crusher', description: 'Complete 25 cards', icon: 'CheckSquare', category: 'cards' },
+  { id: 'cards_completed_50', name: 'Fifty and Fired Up', description: 'Complete 50 cards', icon: 'Gift', category: 'cards' },
+  { id: 'cards_completed_100', name: 'Task Terminator', description: 'Complete 100 cards', icon: 'Swords', category: 'cards' },
   { id: 'checklist_champion', name: 'Checklist Champion', description: 'Complete 50 checklist items', icon: 'ListChecks', category: 'cards' },
+  { id: 'checklist_100', name: 'Checkbox Addict', description: 'Complete 100 checklist items', icon: 'CircleCheck', category: 'cards' },
+  { id: 'checklist_500', name: 'List Maniac', description: 'Complete 500 checklist items', icon: 'ScrollText', category: 'cards' },
+  { id: 'ai_descriptions_5', name: 'AI Ghostwriter', description: 'Generate 5 AI card descriptions', icon: 'PenTool', category: 'cards' },
+  { id: 'ai_breakdowns_3', name: 'Task Decomposer', description: 'Use AI task breakdown 3 times', icon: 'GitBranch', category: 'cards' },
 
-  // Projects (2)
+  // Projects (8)
   { id: 'first_project', name: 'Project Pioneer', description: 'Create your first project', icon: 'FolderPlus', category: 'projects' },
+  { id: 'projects_3', name: 'Triple Threat', description: 'Create 3 projects', icon: 'FolderTree', category: 'projects' },
+  { id: 'projects_5', name: 'Portfolio Builder', description: 'Create 5 projects', icon: 'Folders', category: 'projects' },
+  { id: 'projects_10', name: 'Serial Starter', description: 'Create 10 projects (finishing is overrated)', icon: 'Map', category: 'projects' },
   { id: 'project_planner', name: 'AI Architect', description: 'Use AI planning on a project', icon: 'Bot', category: 'projects' },
+  { id: 'project_archiver', name: 'Spring Cleaner', description: 'Archive your first project', icon: 'Archive', category: 'projects' },
+  { id: 'ai_plans_5', name: 'AI Strategist', description: 'Use AI planning 5 times', icon: 'Wand2', category: 'projects' },
+  { id: 'standups_5', name: 'Stand-Up Comedian', description: 'Generate 5 AI standup reports', icon: 'Coffee', category: 'projects' },
 
-  // Meetings (3)
+  // Meetings (10)
   { id: 'first_meeting', name: 'First Recording', description: 'Complete your first meeting recording', icon: 'Mic', category: 'meetings' },
+  { id: 'meetings_5', name: 'Regular Attendee', description: 'Complete 5 meeting recordings', icon: 'Headphones', category: 'meetings' },
   { id: 'meeting_maven', name: 'Meeting Maven', description: 'Complete 10 meeting recordings', icon: 'Video', category: 'meetings' },
+  { id: 'meetings_25', name: 'Meeting Survivor', description: 'Survive 25 meeting recordings', icon: 'Umbrella', category: 'meetings' },
+  { id: 'meetings_50', name: 'Professional Listener', description: 'Complete 50 meetings — send help', icon: 'Ear', category: 'meetings' },
+  { id: 'briefs_5', name: 'Brief Encounter', description: 'Generate 5 meeting briefs', icon: 'FileText', category: 'meetings' },
+  { id: 'briefs_20', name: 'TL;DR Expert', description: 'Generate 20 meeting briefs', icon: 'BookOpen', category: 'meetings' },
   { id: 'action_hero', name: 'Action Hero', description: 'Convert 10 action items to cards', icon: 'ArrowRightCircle', category: 'meetings' },
+  { id: 'actions_25', name: 'Action Jackson', description: 'Convert 25 action items to cards', icon: 'Crosshair', category: 'meetings' },
+  { id: 'actions_50', name: 'Action Avalanche', description: 'Convert 50 action items to cards', icon: 'Tornado', category: 'meetings' },
 
-  // Ideas (2)
+  // Ideas (8)
   { id: 'first_idea', name: 'Lightbulb Moment', description: 'Create your first idea', icon: 'Lightbulb', category: 'ideas' },
+  { id: 'ideas_10', name: 'Idea Machine', description: 'Create 10 ideas', icon: 'Compass', category: 'ideas' },
+  { id: 'ideas_25', name: 'Idea Factory', description: 'Create 25 ideas', icon: 'Sun', category: 'ideas' },
+  { id: 'ideas_50', name: 'Idea Fountain', description: 'Create 50 ideas (slow down, Edison)', icon: 'Waves', category: 'ideas' },
   { id: 'idea_converter', name: 'Idea Alchemist', description: 'Convert 5 ideas to projects or cards', icon: 'Sparkles', category: 'ideas' },
+  { id: 'ideas_converted_10', name: 'Idea Evangelist', description: 'Convert 10 ideas to projects or cards', icon: 'Send', category: 'ideas' },
+  { id: 'ideas_analyzed_5', name: 'Feasibility Guru', description: 'Analyze 5 ideas with AI', icon: 'Search', category: 'ideas' },
+  { id: 'ideas_analyzed_20', name: 'Over-Analyzer', description: 'Analyze 20 ideas with AI', icon: 'Eye', category: 'ideas' },
 
-  // Brainstorm (2)
+  // Brainstorm (8)
   { id: 'first_brainstorm', name: 'Brainstarter', description: 'Start your first brainstorm session', icon: 'Brain', category: 'brainstorm' },
+  { id: 'brainstorms_5', name: 'Storm Chaser', description: 'Complete 5 brainstorm sessions', icon: 'Wind', category: 'brainstorm' },
   { id: 'deep_thinker', name: 'Deep Thinker', description: 'Complete 10 brainstorm sessions', icon: 'BrainCog', category: 'brainstorm' },
+  { id: 'brainstorms_25', name: 'Thought Tornado', description: 'Complete 25 brainstorm sessions', icon: 'Hexagon', category: 'brainstorm' },
+  { id: 'brainstorms_50', name: 'Professional Overthinker', description: 'Complete 50 brainstorm sessions', icon: 'Anchor', category: 'brainstorm' },
+  { id: 'brainstorm_exports_1', name: 'Idea Smuggler', description: 'Save a brainstorm message as card', icon: 'Share', category: 'brainstorm' },
+  { id: 'brainstorm_exports_10', name: 'Share the Wisdom', description: 'Export 10 brainstorm messages as cards', icon: 'MessageCircle', category: 'brainstorm' },
+  { id: 'brainstorm_exports_25', name: 'Brainstorm Librarian', description: 'Export 25 brainstorm messages as cards', icon: 'GraduationCap', category: 'brainstorm' },
 
-  // Cross-feature (3)
+  // Cross-feature (12)
   { id: 'multitasker', name: 'Multitasker', description: 'Earn XP in 3+ categories in one day', icon: 'LayoutGrid', category: 'cross' },
-  { id: 'power_user', name: 'Power User', description: 'Earn 1000 total XP', icon: 'Rocket', category: 'cross' },
+  { id: 'multitasker_5', name: 'Swiss Army Knife', description: 'Earn XP in 5+ categories in one day', icon: 'Wrench', category: 'cross' },
+  { id: 'power_user', name: 'Power User', description: 'Earn 1,000 total XP', icon: 'Rocket', category: 'cross' },
+  { id: 'power_user_5000', name: 'XP Hoarder', description: 'Earn 5,000 total XP', icon: 'Coins', category: 'cross' },
+  { id: 'power_user_25000', name: 'XP Whale', description: 'Earn 25,000 total XP', icon: 'Wallet', category: 'cross' },
+  { id: 'power_user_100000', name: 'XP Dragon', description: 'Earn 100,000 total XP', icon: 'Skull', category: 'cross' },
   { id: 'completionist', name: 'Completionist', description: 'Unlock 20 achievements', icon: 'BadgeCheck', category: 'cross' },
+  { id: 'completionist_50', name: 'Half Way There', description: 'Unlock 50 achievements', icon: 'Heart', category: 'cross' },
+  { id: 'completionist_all', name: 'True Completionist', description: 'Unlock every single achievement', icon: 'Snowflake', category: 'cross' },
+  { id: 'xp_100_day', name: 'Century Day', description: 'Earn 100+ XP in a single day', icon: 'Moon', category: 'cross' },
+  { id: 'xp_500_day', name: 'Hyperfocus Day', description: 'Earn 500+ XP in a single day', icon: 'Bird', category: 'cross' },
+  { id: 'all_categories', name: 'Category Sweep', description: 'Earn XP in all 6 categories in one day', icon: 'Users', category: 'cross' },
 ] as const;
 
 // --- Category Colors ---
