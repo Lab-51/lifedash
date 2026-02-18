@@ -178,9 +178,9 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
       note: focusSessions.note,
       completedAt: focusSessions.completedAt,
       cardTitle: cards.title,
-      projectId: sql<string>`COALESCE(${directProject.id}, ${projects.id})`,
-      projectName: sql<string>`COALESCE(${directProject.name}, ${projects.name})`,
-      projectColor: sql<string>`COALESCE(${directProject.color}, ${projects.color})`,
+      projectId: sql<string>`COALESCE(${directProject.id}, ${projects.id})`.as('eff_project_id'),
+      projectName: sql<string>`COALESCE(${directProject.name}, ${projects.name})`.as('eff_project_name'),
+      projectColor: sql<string>`COALESCE(${directProject.color}, ${projects.color})`.as('eff_project_color'),
     })
     .from(focusSessions)
     .leftJoin(directProject, eq(focusSessions.projectId, directProject.id))
@@ -206,9 +206,9 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
   // 2. Per-project aggregation
   const projectRows = await db
     .select({
-      projectId: sql<string>`COALESCE(${directProject.id}, ${projects.id})`,
-      projectName: sql<string>`COALESCE(${directProject.name}, ${projects.name})`,
-      projectColor: sql<string>`COALESCE(${directProject.color}, ${projects.color})`,
+      projectId: sql<string>`COALESCE(${directProject.id}, ${projects.id})`.as('eff_project_id'),
+      projectName: sql<string>`COALESCE(${directProject.name}, ${projects.name})`.as('eff_project_name'),
+      projectColor: sql<string>`COALESCE(${directProject.color}, ${projects.color})`.as('eff_project_color'),
       sessions: sql<number>`count(*)::int`,
       minutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
     })
