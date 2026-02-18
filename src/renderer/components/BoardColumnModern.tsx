@@ -380,29 +380,30 @@ const BoardColumnModern = memo(function BoardColumnModern({
                                 <Palette size={14} />
                             </button>
                             {showColorPicker && (
-                                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg p-3 z-40 animate-in fade-in zoom-in-95 duration-100">
-                                    <div className="grid grid-cols-4 gap-2.5">
-                                        {COLUMN_COLORS.map(c => (
-                                            <button
-                                                key={c.label}
-                                                onClick={(e) => { e.stopPropagation(); updateColumnColor(column.id, c.value); setShowColorPicker(false); }}
-                                                className={`w-8 h-8 rounded-full transition-all flex items-center justify-center ${
-                                                    column.color === c.value
-                                                        ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-surface-800 ring-primary-500 scale-110'
-                                                        : 'hover:scale-110'
-                                                } ${!c.value ? 'bg-surface-100 dark:bg-surface-700 border-2 border-dashed border-surface-300 dark:border-surface-500' : ''}`}
+                                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100 min-w-[120px]">
+                                    {COLUMN_COLORS.map(c => (
+                                        <button
+                                            key={c.label}
+                                            onClick={(e) => { e.stopPropagation(); updateColumnColor(column.id, c.value); setShowColorPicker(false); }}
+                                            className={`flex items-center gap-2.5 w-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                                                column.color === c.value
+                                                    ? 'bg-surface-100 dark:bg-surface-700 text-surface-900 dark:text-surface-100'
+                                                    : 'text-surface-600 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
+                                            }`}
+                                        >
+                                            <span
+                                                className={`w-4 h-4 rounded-full shrink-0 flex items-center justify-center ${
+                                                    !c.value ? 'border border-dashed border-surface-300 dark:border-surface-500' : ''
+                                                }`}
                                                 style={c.value ? { backgroundColor: c.value } : undefined}
-                                                title={c.label}
                                             >
-                                                {!c.value && (
-                                                    <X size={12} className="text-surface-400" />
-                                                )}
                                                 {column.color === c.value && c.value && (
-                                                    <Check size={12} className="text-white drop-shadow-sm" />
+                                                    <Check size={10} className="text-white drop-shadow-sm" />
                                                 )}
-                                            </button>
-                                        ))}
-                                    </div>
+                                            </span>
+                                            <span>{c.label}</span>
+                                        </button>
+                                    ))}
                                 </div>
                             )}
                         </div>
