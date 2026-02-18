@@ -1,6 +1,6 @@
 // === FILE PURPOSE ===
 // Global keyboard shortcut handler for navigation.
-// Ctrl+1 through Ctrl+6 navigate to the six main pages.
+// Ctrl+1 through Ctrl+7 navigate to the seven main pages.
 // Supports both Ctrl (Windows/Linux) and Cmd (macOS) modifiers.
 
 // === DEPENDENCIES ===
@@ -16,7 +16,8 @@ const SHORTCUT_MAP: Record<string, string> = {
   '3': '/meetings',
   '4': '/ideas',
   '5': '/brainstorm',
-  '6': '/settings',
+  '6': '/focus',
+  '7': '/settings',
 };
 
 function useKeyboardShortcuts(

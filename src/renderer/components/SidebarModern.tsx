@@ -8,6 +8,7 @@ import {
     Mic,
     Lightbulb,
     Brain,
+    Clock,
     Settings,
     Sun,
     Moon,
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
     { path: '/meetings', label: 'Meetings', icon: Mic },
     { path: '/ideas', label: 'Ideas', icon: Lightbulb },
     { path: '/brainstorm', label: 'Brainstorm', icon: Brain },
+    { path: '/focus', label: 'Focus', icon: Clock },
     { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -42,7 +44,8 @@ const SHORTCUT_KEYS: Record<string, string> = {
     '/meetings': 'Ctrl+3',
     '/ideas': 'Ctrl+4',
     '/brainstorm': 'Ctrl+5',
-    '/settings': 'Ctrl+6',
+    '/focus': 'Ctrl+6',
+    '/settings': 'Ctrl+7',
 };
 
 const THEME_CYCLE: ThemeMode[] = ['dark', 'light', 'system'];

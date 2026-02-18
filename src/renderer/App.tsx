@@ -38,6 +38,7 @@ const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
 const IdeasPage = lazy(() => import('./pages/IdeasPage'));
 const BrainstormPage = lazy(() => import('./pages/BrainstormPage'));
+const FocusPage = lazy(() => import('./pages/FocusPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const BoardPage = lazy(() => import('./pages/BoardPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
@@ -176,6 +177,7 @@ function App() {
               <Route path="/meetings" element={<MeetingsPage />} />
               <Route path="/ideas" element={<IdeasPage />} />
               <Route path="/brainstorm" element={<BrainstormPage />} />
+              <Route path="/focus" element={<FocusPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/projects/:projectId" element={<BoardPage />} />
               <Route path="*" element={<NotFoundPage />} />
