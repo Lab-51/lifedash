@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { useFocusStore } from '../stores/focusStore';
 import { useGamificationStore } from '../stores/gamificationStore';
 import LevelBadge from './LevelBadge';
-import { Pause, Play, Square, Timer, Clock, Zap, Flame, Coffee, History } from 'lucide-react';
+import { Pause, Play, Square, Timer, Clock, Zap, Flame, Coffee } from 'lucide-react';
 
 // --- Motivational Quotes ---
 
@@ -215,13 +215,6 @@ export default function FocusOverlay() {
             <Zap className="w-4 h-4" />
             <span>+{todayXp} XP</span>
           </div>
-          <button
-            onClick={() => useFocusStore.getState().setShowHistoryModal(true)}
-            className="flex items-center gap-1.5 text-surface-500 dark:text-surface-400 text-sm hover:text-emerald-400 transition-colors"
-          >
-            <History className="w-4 h-4" />
-            <span>History</span>
-          </button>
         </div>
 
         {/* Motivational quote (focus) or relax message (break) */}

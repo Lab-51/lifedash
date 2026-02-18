@@ -9,4 +9,6 @@ export const focusBridge = {
   focusGetHistory: (options?: { offset?: number; limit?: number }) =>
     ipcRenderer.invoke('focus:get-history', options),
   focusGetPeriodStats: () => ipcRenderer.invoke('focus:get-period-stats'),
+  focusGetTimeReport: (options: { startDate: string; endDate: string; projectId?: string }) =>
+    ipcRenderer.invoke('focus:get-time-report', options),
 };

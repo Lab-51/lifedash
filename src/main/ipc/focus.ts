@@ -43,4 +43,8 @@ export function registerFocusHandlers(): void {
   ipcMain.handle('focus:get-period-stats', async () => {
     return focusService.getPeriodStats();
   });
+
+  ipcMain.handle('focus:get-time-report', async (_, options: { startDate: string; endDate: string; projectId?: string }) => {
+    return focusService.getTimeReport(options);
+  });
 }

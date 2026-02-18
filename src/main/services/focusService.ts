@@ -3,10 +3,10 @@
 // Handles session persistence and daily data queries.
 // Achievement/level logic has moved to gamificationService.ts.
 
-import { eq, gte, sql, desc } from 'drizzle-orm';
+import { eq, gte, lte, and, sql, desc } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { focusSessions, cards } from '../db/schema';
-import { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats } from '../../shared/types/focus';
+import { focusSessions, cards, columns, boards, projects } from '../db/schema';
+import { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats, FocusTimeReportOptions, FocusSessionFull, FocusProjectTime, FocusTimeReport } from '../../shared/types/focus';
 
 export async function saveSession(input: {
   cardId?: string;
@@ -149,4 +149,202 @@ export async function getPeriodStats(): Promise<FocusPeriodStats> {
     allTime: { sessions: agg.allSessions, minutes: agg.allMinutes },
     dailyData,
   };
+}
+
+export async function getTimeReport(options: FocusTimeReportOptions): Promise<FocusTimeReport> {
+  const db = getDb();
+  const startDate = new Date(options.startDate + 'T00:00:00');
+  const endDate = new Date(options.endDate + 'T23:59:59.999');
+
+  // Build base WHERE conditions
+  const baseWhere = options.projectId
+    ? and(
+        gte(focusSessions.completedAt, startDate),
+        lte(focusSessions.completedAt, endDate),
+        eq(projects.id, options.projectId),
+      )
+    : and(
+        gte(focusSessions.completedAt, startDate),
+        lte(focusSessions.completedAt, endDate),
+      );
+
+  // 1. Session list with project info via JOIN chain
+  const sessionRows = await db
+    .select({
+      id: focusSessions.id,
+      cardId: focusSessions.cardId,
+      durationMinutes: focusSessions.durationMinutes,
+      note: focusSessions.note,
+      completedAt: focusSessions.completedAt,
+      cardTitle: cards.title,
+      projectId: projects.id,
+      projectName: projects.name,
+      projectColor: projects.color,
+    })
+    .from(focusSessions)
+    .leftJoin(cards, eq(focusSessions.cardId, cards.id))
+    .leftJoin(columns, eq(cards.columnId, columns.id))
+    .leftJoin(boards, eq(columns.boardId, boards.id))
+    .leftJoin(projects, eq(boards.projectId, projects.id))
+    .where(baseWhere)
+    .orderBy(desc(focusSessions.completedAt));
+
+  const sessions: FocusSessionFull[] = sessionRows.map(r => ({
+    id: r.id,
+    cardId: r.cardId,
+    durationMinutes: r.durationMinutes,
+    note: r.note,
+    completedAt: r.completedAt.toISOString(),
+    cardTitle: r.cardTitle ?? null,
+    projectId: r.projectId ?? null,
+    projectName: r.projectName ?? null,
+    projectColor: r.projectColor ?? null,
+  }));
+
+  // 2. Per-project aggregation
+  const projectRows = await db
+    .select({
+      projectId: projects.id,
+      projectName: projects.name,
+      projectColor: projects.color,
+      sessions: sql<number>`count(*)::int`,
+      minutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
+    })
+    .from(focusSessions)
+    .leftJoin(cards, eq(focusSessions.cardId, cards.id))
+    .leftJoin(columns, eq(cards.columnId, columns.id))
+    .leftJoin(boards, eq(columns.boardId, boards.id))
+    .leftJoin(projects, eq(boards.projectId, projects.id))
+    .where(and(
+      gte(focusSessions.completedAt, startDate),
+      lte(focusSessions.completedAt, endDate),
+    ))
+    .groupBy(projects.id, projects.name, projects.color)
+    .orderBy(sql`coalesce(sum(${focusSessions.durationMinutes}), 0) desc`);
+
+  const projectBreakdown: FocusProjectTime[] = projectRows.map(r => ({
+    projectId: r.projectId ?? null,
+    projectName: r.projectName ?? null,
+    projectColor: r.projectColor ?? null,
+    sessions: r.sessions,
+    minutes: r.minutes,
+  }));
+
+  // 3. Summary stats
+  const summaryWhere = options.projectId
+    ? and(
+        gte(focusSessions.completedAt, startDate),
+        lte(focusSessions.completedAt, endDate),
+        eq(projects.id, options.projectId),
+      )
+    : and(
+        gte(focusSessions.completedAt, startDate),
+        lte(focusSessions.completedAt, endDate),
+      );
+
+  // For summary with project filter, we need the JOIN chain
+  const summaryQuery = options.projectId
+    ? db
+        .select({
+          totalSessions: sql<number>`count(*)::int`,
+          totalMinutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
+          avgSessionMinutes: sql<number>`coalesce(round(avg(${focusSessions.durationMinutes})::numeric), 0)::int`,
+          longestSessionMinutes: sql<number>`coalesce(max(${focusSessions.durationMinutes}), 0)::int`,
+          activeDays: sql<number>`count(distinct to_char(${focusSessions.completedAt}, 'YYYY-MM-DD'))::int`,
+        })
+        .from(focusSessions)
+        .leftJoin(cards, eq(focusSessions.cardId, cards.id))
+        .leftJoin(columns, eq(cards.columnId, columns.id))
+        .leftJoin(boards, eq(columns.boardId, boards.id))
+        .leftJoin(projects, eq(boards.projectId, projects.id))
+        .where(summaryWhere)
+    : db
+        .select({
+          totalSessions: sql<number>`count(*)::int`,
+          totalMinutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
+          avgSessionMinutes: sql<number>`coalesce(round(avg(${focusSessions.durationMinutes})::numeric), 0)::int`,
+          longestSessionMinutes: sql<number>`coalesce(max(${focusSessions.durationMinutes}), 0)::int`,
+          activeDays: sql<number>`count(distinct to_char(${focusSessions.completedAt}, 'YYYY-MM-DD'))::int`,
+        })
+        .from(focusSessions)
+        .where(summaryWhere);
+
+  const [summary] = await summaryQuery;
+
+  // 4. Daily data for the date range
+  const dayCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const dailyData = await getDailyDataForRange(startDate, endDate, dayCount, options.projectId);
+
+  return {
+    sessions,
+    projectBreakdown,
+    summary: {
+      totalSessions: summary.totalSessions,
+      totalMinutes: summary.totalMinutes,
+      avgSessionMinutes: summary.avgSessionMinutes,
+      longestSessionMinutes: summary.longestSessionMinutes,
+      activeDays: summary.activeDays,
+    },
+    dailyData,
+  };
+}
+
+async function getDailyDataForRange(
+  startDate: Date,
+  endDate: Date,
+  dayCount: number,
+  projectId?: string,
+): Promise<FocusDailyData[]> {
+  const db = getDb();
+
+  const baseQuery = projectId
+    ? db
+        .select({
+          date: sql<string>`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`,
+          sessions: sql<number>`count(*)::int`,
+          minutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
+        })
+        .from(focusSessions)
+        .leftJoin(cards, eq(focusSessions.cardId, cards.id))
+        .leftJoin(columns, eq(cards.columnId, columns.id))
+        .leftJoin(boards, eq(columns.boardId, boards.id))
+        .leftJoin(projects, eq(boards.projectId, projects.id))
+        .where(and(
+          gte(focusSessions.completedAt, startDate),
+          lte(focusSessions.completedAt, endDate),
+          eq(projects.id, projectId),
+        ))
+        .groupBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`)
+        .orderBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`)
+    : db
+        .select({
+          date: sql<string>`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`,
+          sessions: sql<number>`count(*)::int`,
+          minutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
+        })
+        .from(focusSessions)
+        .where(and(
+          gte(focusSessions.completedAt, startDate),
+          lte(focusSessions.completedAt, endDate),
+        ))
+        .groupBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`)
+        .orderBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`);
+
+  const rows = await baseQuery;
+  const dataMap = new Map(rows.map(r => [r.date, r]));
+  const result: FocusDailyData[] = [];
+
+  for (let i = 0; i < dayCount; i++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    const dateStr = formatDateStr(d);
+    const data = dataMap.get(dateStr);
+    result.push({
+      date: dateStr,
+      sessions: data?.sessions || 0,
+      minutes: data?.minutes || 0,
+    });
+  }
+
+  return result;
 }

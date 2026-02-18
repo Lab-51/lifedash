@@ -17,7 +17,6 @@ import {
   CalendarCheck,
   Award,
   Trophy,
-  Play,
   SquarePlus,
   Layers,
   CheckSquare,
@@ -91,7 +90,6 @@ import {
   Snowflake,
   Users,
 } from 'lucide-react';
-import { useFocusStore } from '../stores/focusStore';
 import { useGamificationStore } from '../stores/gamificationStore';
 import { ACHIEVEMENTS, CATEGORY_COLORS, getTier } from '../../shared/types/gamification';
 import AchievementsModal from './AchievementsModal';
@@ -145,7 +143,6 @@ export default function FocusStatsWidget() {
   const stats = useGamificationStore(s => s.stats);
   const achievements = useGamificationStore(s => s.achievements);
   const dailyXP = useGamificationStore(s => s.dailyXP);
-  const mode = useFocusStore(s => s.mode);
   const loadStats = useGamificationStore(s => s.loadStats);
   const loadDailyXP = useGamificationStore(s => s.loadDailyXP);
 
@@ -155,10 +152,6 @@ export default function FocusStatsWidget() {
     loadStats();
     loadDailyXP(7);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleStartFocus = () => {
-    useFocusStore.getState().setShowStartModal(true);
-  };
 
   // Weekly XP total and max for chart
   const weeklyTotalXP = dailyXP.reduce((sum, d) => sum + d.xp, 0);
@@ -185,16 +178,6 @@ export default function FocusStatsWidget() {
             {/* Total XP */}
             {stats && (
               <span className="text-xs font-semibold text-surface-400">{stats.totalXp.toLocaleString()} XP</span>
-            )}
-            {/* Start Focus button */}
-            {mode === 'idle' && (
-              <button
-                onClick={handleStartFocus}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors"
-              >
-                <Play size={12} />
-                Start Focus
-              </button>
             )}
           </div>
         </div>
@@ -376,17 +359,6 @@ export default function FocusStatsWidget() {
                 );
               })}
             </div>
-          </div>
-
-          {/* View Focus History link */}
-          <div className="mt-4 pt-3 border-t border-surface-100 dark:border-surface-800 flex justify-center">
-            <button
-              onClick={() => useFocusStore.getState().setShowHistoryModal(true)}
-              className="flex items-center gap-1.5 text-sm text-surface-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
-            >
-              <History size={14} />
-              View Focus History
-            </button>
           </div>
         </div>
       </div>

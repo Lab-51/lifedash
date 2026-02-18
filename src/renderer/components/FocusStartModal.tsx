@@ -205,6 +205,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
           >
             Start Focus — {duration} min
           </button>
+
         </div>
       </div>
     </div>

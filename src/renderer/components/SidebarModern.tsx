@@ -13,7 +13,6 @@ import {
     Moon,
     Monitor,
     Timer,
-    History,
 } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useTheme } from '../hooks/useTheme';
@@ -128,15 +127,6 @@ export default function SidebarModern() {
                         size={20}
                         className={focusMode !== 'idle' ? 'animate-pulse text-emerald-400' : undefined}
                     />
-                </button>
-
-                {/* Focus History */}
-                <button
-                    onClick={() => useFocusStore.getState().setShowHistoryModal(true)}
-                    title="Focus History"
-                    className="w-12 h-12 rounded-xl flex items-center justify-center text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800 transition-all hover:scale-105 active:scale-95"
-                >
-                    <History size={20} />
                 </button>
 
                 {/* Theme Toggle */}

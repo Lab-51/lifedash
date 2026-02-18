@@ -44,7 +44,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const FocusStartModal = lazy(() => import('./components/FocusStartModal'));
 const FocusCompleteModal = lazy(() => import('./components/FocusCompleteModal'));
 const FocusOverlay = lazy(() => import('./components/FocusOverlay'));
-const FocusHistoryModal = lazy(() => import('./components/FocusHistoryModal'));
+
 
 /** Wrapper that lives inside HashRouter to enable useNavigate for shortcuts */
 function AppShell({ children }: { children: ReactNode }) {
@@ -53,7 +53,6 @@ function AppShell({ children }: { children: ReactNode }) {
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [appReady, setAppReady] = useState(false);
   const showStartModal = useFocusStore(s => s.showStartModal);
-  const showHistoryModal = useFocusStore(s => s.showHistoryModal);
   const focusMode = useFocusStore(s => s.mode);
 
   const toggleCommandPalette = useCallback(() => {
@@ -157,10 +156,6 @@ function AppShell({ children }: { children: ReactNode }) {
         <FocusCompleteModal
           isOpen={focusMode === 'completed'}
           onClose={() => useFocusStore.getState().stop()}
-        />
-        <FocusHistoryModal
-          isOpen={showHistoryModal}
-          onClose={() => useFocusStore.getState().setShowHistoryModal(false)}
         />
       </Suspense>
       {appReady && children}
