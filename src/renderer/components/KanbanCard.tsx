@@ -250,10 +250,12 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
           {card.labels?.map(label => (
             <span
               key={label.id}
-              className="w-2 h-2 rounded-full"
+              className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full text-white/90"
               style={{ backgroundColor: label.color }}
-              title={label.name}
-            />
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-white/40 shrink-0" />
+              {label.name}
+            </span>
           ))}
           {card.dueDate && (
             <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${getDueDateBadge(card.dueDate).classes}`}>
