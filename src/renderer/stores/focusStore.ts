@@ -35,6 +35,8 @@ interface FocusState {
   clearFocusedCard: () => void;
   saveSession: (input: { cardId?: string; durationMinutes: number; note?: string }) =>
     Promise<{ newAchievements: Achievement[] }>;
+  updateSession: (id: string, input: { projectId?: string | null; note?: string | null }) => Promise<void>;
+  deleteSession: (id: string) => Promise<void>;
 }
 
 export const useFocusStore = create<FocusState>((set, get) => ({
@@ -197,5 +199,15 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     // Bump timestamp so FocusPage re-fetches after save completes
     set({ lastSavedAt: Date.now() });
     return { newAchievements: result.newAchievements };
+  },
+
+  updateSession: async (id, input) => {
+    await window.electronAPI.focusUpdateSession(id, input);
+    set({ lastSavedAt: Date.now() });
+  },
+
+  deleteSession: async (id) => {
+    await window.electronAPI.focusDeleteSession(id);
+    set({ lastSavedAt: Date.now() });
   },
 }));

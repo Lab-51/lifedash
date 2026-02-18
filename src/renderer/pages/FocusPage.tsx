@@ -2,10 +2,11 @@
 // Full page for focus time tracking — project filtering, stats, activity chart,
 // session list with date grouping, and CSV export.
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Timer, Download, Play, Clock, Calendar, BarChart3 } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Timer, Download, Play, Clock, Calendar, BarChart3, Pencil, Trash2, Check, X } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useFocusStore } from '../stores/focusStore';
+import { toast } from '../hooks/useToast';
 import type { FocusTimeReport, FocusSessionFull } from '../../shared/types/focus';
 
 type Period = 'thisWeek' | 'lastWeek' | 'last7Days' | 'thisMonth' | 'lastMonth' | 'custom';
@@ -100,6 +101,72 @@ export default function FocusPage() {
   const [customEnd, setCustomEnd] = useState('');
   const [projectId, setProjectId] = useState('');
   const [displayCount, setDisplayCount] = useState(PAGE);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editProject, setEditProject] = useState('');
+  const [editNote, setEditNote] = useState('');
+  const pendingDeleteRef = useRef<{ id: string; timeout: ReturnType<typeof setTimeout> } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pendingDeleteRef.current) {
+        clearTimeout(pendingDeleteRef.current.timeout);
+      }
+    };
+  }, []);
+
+  const startEdit = useCallback((s: FocusSessionFull) => {
+    setEditingId(s.id);
+    setEditProject(s.projectId || '');
+    setEditNote(s.note || '');
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingId(null);
+  }, []);
+
+  const saveEdit = useCallback(async () => {
+    if (!editingId) return;
+    await useFocusStore.getState().updateSession(editingId, {
+      projectId: editProject || null,
+      note: editNote || null,
+    });
+    setEditingId(null);
+  }, [editingId, editProject, editNote]);
+
+  const handleDelete = useCallback((session: FocusSessionFull) => {
+    // Cancel any previous pending delete
+    if (pendingDeleteRef.current) {
+      clearTimeout(pendingDeleteRef.current.timeout);
+    }
+
+    // Optimistically remove from report
+    setReport(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        sessions: prev.sessions.filter(s => s.id !== session.id),
+      };
+    });
+
+    const timeout = setTimeout(async () => {
+      await useFocusStore.getState().deleteSession(session.id);
+      pendingDeleteRef.current = null;
+    }, 5000);
+
+    pendingDeleteRef.current = { id: session.id, timeout };
+
+    toast('Session deleted', 'info', {
+      label: 'Undo',
+      onClick: () => {
+        if (pendingDeleteRef.current?.id === session.id) {
+          clearTimeout(pendingDeleteRef.current.timeout);
+          pendingDeleteRef.current = null;
+          // Restore by re-fetching
+          useFocusStore.setState({ lastSavedAt: Date.now() });
+        }
+      },
+    }, 5000);
+  }, []);
 
   const focusMode = useFocusStore(s => s.mode);
   const lastSavedAt = useFocusStore(s => s.lastSavedAt);
@@ -294,15 +361,58 @@ export default function FocusPage() {
                     <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">{g.label}</p>
                     <div className="space-y-1">
                       {vis.map(s => (
-                        <div key={s.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
-                          <span className="text-xs text-surface-500 w-16 shrink-0">{fmtTime(s.completedAt)}</span>
-                          <span className="flex items-center gap-1 text-sm font-medium text-surface-900 dark:text-surface-100 w-16 shrink-0">
-                            <Timer size={12} className="text-emerald-500" />{s.durationMinutes} min
-                          </span>
-                          {s.projectColor && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.projectColor }} />}
-                          <span className="text-xs text-surface-400 w-28 truncate shrink-0">{s.projectName || 'No project'}</span>
-                          <span className="text-xs text-surface-600 dark:text-surface-300 truncate flex-1 min-w-0">{s.cardTitle || ''}</span>
-                          {s.note && <span className="text-xs text-surface-400 truncate max-w-[160px]">{s.note}</span>}
+                        <div key={s.id} className="group">
+                          {editingId === s.id ? (
+                            /* Inline edit form */
+                            <div className="px-3 py-3 rounded-lg bg-surface-50 dark:bg-surface-800/50 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={editProject}
+                                  onChange={e => setEditProject(e.target.value)}
+                                  className={`flex-1 ${inputCls}`}
+                                >
+                                  <option value="">No project</option>
+                                  {activeProjects.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  value={editNote}
+                                  onChange={e => setEditNote(e.target.value)}
+                                  placeholder="Note"
+                                  className={`flex-1 ${inputCls}`}
+                                  onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
+                                />
+                                <button onClick={saveEdit} className="p-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white transition-colors" title="Save">
+                                  <Check size={14} />
+                                </button>
+                                <button onClick={cancelEdit} className="p-1.5 rounded-md bg-surface-200 dark:bg-surface-700 hover:bg-surface-300 dark:hover:bg-surface-600 text-surface-700 dark:text-surface-300 transition-colors" title="Cancel">
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Normal display row */
+                            <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+                              <span className="text-xs text-surface-500 w-16 shrink-0">{fmtTime(s.completedAt)}</span>
+                              <span className="flex items-center gap-1 text-sm font-medium text-surface-900 dark:text-surface-100 w-16 shrink-0">
+                                <Timer size={12} className="text-emerald-500" />{s.durationMinutes} min
+                              </span>
+                              {s.projectColor && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.projectColor }} />}
+                              <span className="text-xs text-surface-400 w-28 truncate shrink-0">{s.projectName || 'No project'}</span>
+                              <span className="text-xs text-surface-600 dark:text-surface-300 truncate flex-1 min-w-0">{s.cardTitle || ''}</span>
+                              {s.note && <span className="text-xs text-surface-400 truncate max-w-[160px]">{s.note}</span>}
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                <button onClick={() => startEdit(s)} className="p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 transition-colors" title="Edit session">
+                                  <Pencil size={13} />
+                                </button>
+                                <button onClick={() => handleDelete(s)} className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-surface-400 hover:text-red-500 transition-colors" title="Delete session">
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
