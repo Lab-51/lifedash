@@ -126,7 +126,7 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
       {selectedCardActivities.length > 0 && (
         <div className="relative pl-5">
           {/* Timeline connector line */}
-          <div className="absolute left-[6px] top-1 bottom-1 border-l-2 border-surface-700" />
+          <div className="absolute left-[6px] top-1 bottom-1 border-l-2 border-surface-200 dark:border-surface-700" />
 
           <div className="space-y-3">
             {visibleActivities.map(activity => {
@@ -140,7 +140,7 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
                 <div key={activity.id} className="relative flex items-start gap-2.5">
                   {/* Icon dot (positioned over timeline line) */}
                   <div
-                    className={`absolute -left-5 top-0.5 flex items-center justify-center w-3 h-3 rounded-full bg-surface-900 ${config.colorClass}`}
+                    className={`absolute -left-5 top-0.5 flex items-center justify-center w-3 h-3 rounded-full bg-white dark:bg-surface-900 ${config.colorClass}`}
                   >
                     <Icon size={10} />
                   </div>

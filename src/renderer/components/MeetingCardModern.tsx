@@ -56,7 +56,7 @@ const MeetingCardModern = memo(function MeetingCardModern({ meeting, projectName
     return (
         <div
             onClick={onClick}
-            className={`group relative flex flex-col bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-5 hover:shadow-lg dark:hover:shadow-primary-900/10 hover:border-primary-500/30 transition-all cursor-pointer ${meeting.status === 'recording' ? 'ring-2 ring-rose-500/20 border-rose-500/30' : ''
+            className={`group relative flex flex-col bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-5 shadow-sm hover:shadow-lg dark:hover:shadow-primary-900/10 hover:border-primary-500/30 transition-all cursor-pointer ${meeting.status === 'recording' ? 'ring-2 ring-rose-500/20 border-rose-500/30' : ''
                 }`}
         >
             {/* Date Badge */}

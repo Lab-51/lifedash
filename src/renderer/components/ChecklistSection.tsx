@@ -91,7 +91,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
         <CheckSquare size={14} className="text-surface-400" />
         <span className="text-sm text-surface-400">Checklist</span>
         {total > 0 && (
-          <span className="bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
+          <span className="bg-surface-200 dark:bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
             {done}/{total}
           </span>
         )}
@@ -99,7 +99,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
 
       {/* Progress bar */}
       {total > 0 && (
-        <div className="h-0.5 bg-surface-700 rounded-full mt-2 mb-3">
+        <div className="h-0.5 bg-surface-200 dark:bg-surface-700 rounded-full mt-2 mb-3">
           <div
             className="h-full bg-emerald-500 rounded-full transition-all"
             style={{ width: `${percentage}%` }}
@@ -112,7 +112,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
         {items.map(item => (
           <div
             key={item.id}
-            className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-surface-800/50 group"
+            className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-surface-100 dark:hover:bg-surface-800/50 group"
           >
             {/* Drag handle (visual only) */}
             <GripVertical size={14} className="text-surface-600 cursor-grab shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -134,7 +134,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
                 onChange={e => setEditTitle(e.target.value)}
                 onKeyDown={handleEditKeyDown}
                 onBlur={saveEdit}
-                className="flex-1 bg-surface-800 border border-surface-700 rounded px-2 py-0.5 text-sm text-surface-100 focus:outline-none focus:border-primary-500"
+                className="flex-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded px-2 py-0.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500"
               />
             ) : (
               <span
@@ -168,7 +168,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
           onChange={e => setNewItemTitle(e.target.value)}
           onKeyDown={handleAddKeyDown}
           placeholder="Add a checklist item..."
-          className="flex-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 transition-colors"
+          className="flex-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-900 dark:text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 transition-colors"
         />
       </div>
     </div>

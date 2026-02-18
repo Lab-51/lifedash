@@ -280,7 +280,7 @@ export default function FocusStatsWidget() {
                             height: `${height}%`,
                             backgroundColor: day.xp > 0
                               ? 'rgb(16 185 129)' // emerald-500
-                              : 'rgb(64 64 64)', // surface-700ish
+                              : 'var(--color-surface-300)', // neutral bar for zero-XP days
                           }}
                           title={`${new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}: ${day.xp} XP`}
                         />
@@ -302,7 +302,7 @@ export default function FocusStatsWidget() {
                 <>
                   <div className="flex items-end gap-1 h-8">
                     {Array.from({ length: 7 }).map((_, i) => (
-                      <div key={i} className="flex-1 h-[4%] rounded-sm bg-surface-700" />
+                      <div key={i} className="flex-1 h-[4%] rounded-sm bg-surface-300 dark:bg-surface-700" />
                     ))}
                   </div>
                   <p className="text-xs text-surface-500">No data yet</p>
@@ -360,7 +360,7 @@ export default function FocusStatsWidget() {
               {ACHIEVEMENTS.map((ach) => {
                 const Icon = ICON_MAP[ach.icon] || Zap;
                 const unlocked = unlockedSet.has(ach.id);
-                const categoryClass = ACHIEVEMENT_CATEGORY_CLASS[ach.category] || 'bg-surface-800 text-surface-400';
+                const categoryClass = ACHIEVEMENT_CATEGORY_CLASS[ach.category] || 'bg-surface-200 dark:bg-surface-800 text-surface-500 dark:text-surface-400';
                 return (
                   <div
                     key={ach.id}

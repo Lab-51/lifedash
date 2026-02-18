@@ -82,7 +82,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
                 className={`flex-1 p-2.5 rounded-lg border text-left text-sm transition-colors ${
                   name === opt.value
                     ? 'border-primary-500 bg-primary-500/10 text-primary-400'
-                    : 'border-surface-700 bg-surface-900 text-surface-700 dark:text-surface-300 hover:border-surface-600'
+                    : 'border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-300 hover:border-surface-300 dark:hover:border-surface-600'
                 }`}>
                 <div className="font-medium">{opt.label}</div>
                 <div className="text-xs text-surface-500 mt-0.5">{opt.description}</div>
@@ -99,7 +99,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
           <input type="text" value={displayName}
             onChange={e => setDisplayName(e.target.value)}
             placeholder={`My ${PROVIDER_OPTIONS.find(o => o.value === name)?.label}`}
-            className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
+            className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-surface-900 dark:text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
         </div>
 
         {/* API Key (not shown for Ollama) */}
@@ -110,7 +110,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
               <input type={showApiKey ? 'text' : 'password'} value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
                 placeholder="sk-..."
-                className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 pr-10 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
+                className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 pr-10 text-surface-900 dark:text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
               <button type="button"
                 onClick={() => setShowApiKey(!showApiKey)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-700 dark:text-surface-300">
@@ -128,7 +128,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
           <input type="text" value={baseUrl}
             onChange={e => setBaseUrl(e.target.value)}
             placeholder={name === 'ollama' ? 'http://localhost:11434' : 'Leave blank for default'}
-            className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
+            className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-surface-900 dark:text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
         </div>
 
         {/* Buttons */}

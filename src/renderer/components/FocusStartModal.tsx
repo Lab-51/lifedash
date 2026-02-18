@@ -125,7 +125,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                     className="w-full pl-8 pr-3 py-2 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg text-sm text-surface-800 dark:text-surface-200 placeholder-surface-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
                   />
                 </div>
-                <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-surface-700 bg-surface-800">
+                <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800">
                   {filteredCards.length > 0 ? (
                     filteredCards.map((card) => (
                       <button

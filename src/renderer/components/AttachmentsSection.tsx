@@ -72,7 +72,7 @@ function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
           <Paperclip size={14} className="text-surface-400" />
           <span className="text-sm text-surface-400">Attachments</span>
           {selectedCardAttachments.length > 0 && (
-            <span className="bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
+            <span className="bg-surface-200 dark:bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
               {selectedCardAttachments.length}
             </span>
           )}
@@ -98,7 +98,7 @@ function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
             return (
               <div
                 key={att.id}
-                className="bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-3 py-2.5 flex items-center gap-3 group hover:bg-surface-800/80 transition-colors"
+                className="bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-3 py-2.5 flex items-center gap-3 group hover:bg-surface-200/80 dark:hover:bg-surface-800/80 transition-colors"
               >
                 <Icon size={16} className="text-surface-400 shrink-0" />
                 <div className="flex-1 min-w-0">
