@@ -2,16 +2,16 @@
 
 ## Session Info
 Last updated: 2026-02-18
-Session focus: Plan D.6 — Focus Overlay + XP label fix
-Checkpoint reason: Session end — D.6 complete + ad-hoc bug fix
+Session focus: Plan D.7 — Light Mode Overhaul COMPLETE
+Checkpoint reason: Plan D.7 complete, ready for visual testing + push
 
 ## Position
 Milestone: v1.9.0 — Phase D: Meeting Intelligence 2.0
-Latest commit: ece4f11 (fix: add "XP" suffix to category breakdown pills to avoid count confusion)
+Latest commit: 7846a59 (fix: polish remaining light mode gaps in 8 components)
 Version: 1.9.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
-SELF-IMPROVE-NEW.md: 27 proposals, 20 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 7/?)
+SELF-IMPROVE-NEW.md: 27 proposals, 21 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 8/?)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
@@ -25,6 +25,7 @@ Plan D.3: COMPLETE (3/3 tasks) — Unified Gamification System
 Plan D.4: COMPLETE (2/2 tasks) — 300-Level Visual Progression
 Plan D.5: COMPLETE (3/3 tasks) — Achievement Expansion (28 → 84)
 Plan D.6: COMPLETE (3/3 tasks) — Immersive Full-Screen Focus Overlay
+Plan D.7: COMPLETE (3/3 tasks) — Light Mode Overhaul
 
 ## Plan D.5 Results
 - Task 1: Expand ACHIEVEMENTS array from 28 to 84 entries (04a7fb7)
@@ -105,11 +106,26 @@ Plan D.6: COMPLETE (3/3 tasks) — Immersive Full-Screen Focus Overlay
 - Fix: Category pills in FocusStatsWidget now show "50 XP" instead of "50" (ece4f11)
   - User mistook XP values for item counts (e.g., "Meetings 50" looked like 50 meetings)
 
+## Plan D.7 Results — Light Mode Overhaul
+- Task 1: Class-based dark mode + natural Slate light palette (2df050f)
+  - Added `@variant dark (&:where(.dark, .dark *))` for class-based dark mode
+  - Updated useTheme.ts to toggle both `light` and `dark` classes
+  - Replaced inverted CSS variable light palette with natural Slate values
+  - Added light-specific CSS: scrollbar, select, TipTap, text selection, logo pulse, body bg
+- Task 2: Component light mode support — 37 files (a84aca9)
+  - Applied `dark:` variant pattern to all non-Modern components
+  - Modals, StatusBar, sub-components, settings sections, FocusOverlay, toasts, error boundary
+  - No dark mode values changed — only base (light) classes added
+- Task 3: Visual polish — sweep + depth fixes (7846a59)
+  - Fixed 8 more components with remaining dark-only patterns (count badges, inputs, timeline)
+  - Added shadow-sm to MeetingCardModern for light-mode depth
+  - Replaced hardcoded rgb color with CSS variable in FocusStatsWidget
+  - All 150 tests pass, tsc clean
+
 ## Resume Context
-Next action: Plan D.7 or next self-improve proposal
-Plan D.6 is fully COMPLETE + 1 ad-hoc fix. All verified with tsc + 150/150 tests.
-3 commits unpushed to origin.
-Prerequisites: None — all clean
+Next action: Visual testing of light mode, then next plan
+Plan D.7 COMPLETE. All verified with tsc + 150/150 tests.
+6 commits unpushed to origin.
 
 ## Plan D.2 Results
 - Task 1: Focus sessions DB + service + IPC for gamification foundation (4e6b206)

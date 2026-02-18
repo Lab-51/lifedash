@@ -1,270 +1,489 @@
-<phase n="D.6" name="Immersive Full-Screen Focus Overlay">
+<phase n="D.7" name="Light Mode Overhaul">
   <context>
-    The current focus mode hides the sidebar and shows a small timer in the StatusBar, but the user
-    still sees their regular page content (dashboard, project boards, etc.) — it's not immersive.
+    The app uses a hybrid theming approach: CSS variable inversion (surface-50↔950 flipped in
+    html.light) combined with Tailwind `dark:` prefix classes. This creates two problems:
 
-    The user wants a full-screen takeover experience with:
-    - Large circular progress ring with big countdown numbers (~8rem)
-    - Level badge + XP (top-left), streak counter (top-right)
-    - Today's focus stats (sessions, minutes, XP earned)
-    - Rotating motivational quotes
-    - Minimal controls (pause/resume, stop)
-    - Different visual treatment for focus (emerald) vs break (amber)
-    - Dark ambient background with breathing gradient animation
+    1. **Broken mechanism:** Tailwind v4's `dark:` uses `@media (prefers-color-scheme: dark)` by
+       default, not class-based. Modern components using `bg-surface-50 dark:bg-surface-950` break
+       when OS prefers light (base class applies, but inverted surface-50 = #09090b = dark).
 
-    Key existing architecture:
-    - focusStore: mode ('idle'|'focus'|'break'|'completed'), timeRemaining, isPaused, focusedCardTitle
-    - gamificationStore.stats: todayXp, focusTodaySessions, focusTodayMinutes, currentStreak, level, levelName, totalXp
-    - AppLayout hides sidebar when mode is 'focus' or 'break'
-    - StatusBar shows MM:SS timer with pause/stop controls
-    - FocusStartModal: setup dialog (works well, keep as-is)
-    - FocusCompleteModal: reward/XP view (works well, keep as-is)
-    - LevelBadge component already exists with tier colors
+    2. **Poor aesthetics:** Light mode is a mechanical inversion of Zinc grays — cold, flat, no depth.
 
-    No new backend/IPC work needed — all data is already available in existing stores.
+    **Solution:** Switch to class-based dark mode (`@variant dark`), replace the inversion approach
+    with a proper light-mode palette using natural Slate values, and add `dark:` variants to all
+    components that currently use hardcoded dark-only surface classes.
 
-    @src/renderer/stores/focusStore.ts
-    @src/renderer/stores/gamificationStore.ts
-    @src/renderer/components/AppLayout.tsx
-    @src/renderer/components/StatusBar.tsx
-    @src/renderer/components/LevelBadge.tsx
-    @src/renderer/components/FocusStartModal.tsx
-    @src/renderer/components/FocusCompleteModal.tsx
-    @src/renderer/App.tsx
-    @src/shared/types/gamification.ts (GamificationStats interface, getTier, calculateLevel)
+    **Dark mode guarantee:** Dark mode is visually unchanged. The only difference is that `dark:`
+    classes now match via CSS class (`.dark` on html) instead of media query — producing identical
+    visual results. No CSS variable values for dark mode are changed. No `dark:` class values are
+    changed in any component.
+
+    @PROJECT.md @STATE.md
+    @src/renderer/styles/globals.css
+    @src/renderer/hooks/useTheme.ts
+    @src/renderer/hooks/useDesign.ts
+    @src/renderer/components/SidebarModern.tsx (reference for Modern pattern)
+    @src/renderer/components/StatusBar.tsx (reference for non-Modern pattern)
   </context>
 
   <task type="auto" n="1">
-    <n>Create FocusOverlay full-screen component</n>
-    <files>src/renderer/components/FocusOverlay.tsx</files>
+    <n>Theme system fix + light mode CSS foundation</n>
+    <files>
+      src/renderer/styles/globals.css
+      src/renderer/hooks/useTheme.ts
+    </files>
     <action>
-      Create a new FocusOverlay.tsx component that renders a full-screen immersive focus view.
-      This is a pure presentation component that reads from focusStore and gamificationStore.
+      **1. Fix the dark mode variant mechanism (globals.css)**
 
-      === LAYOUT (top to bottom, centered vertically) ===
+      Add class-based dark mode variant at the top of globals.css, after the Tailwind import:
 
-      1. TOP BAR — flex between left and right, absolute top of overlay:
-         - Left: LevelBadge (size="sm") + "N XP" total
-         - Right: Flame icon + "N day streak" (only if currentStreak > 0)
+      ```css
+      @variant dark (&:where(.dark, .dark *));
+      ```
 
-      2. CENTER — the main visual (vertically + horizontally centered):
-         a. SVG circular progress ring:
-            - 280px diameter circle with stroke-based progress
-            - Background circle: dark gray (surface-800), strokeWidth 8
-            - Progress circle: emerald-500 for focus, amber-500 for break
-            - strokeDasharray / strokeDashoffset for progress (based on elapsed / total)
-            - stroke-linecap: round for aesthetic
-            - Smooth CSS transition on stroke-dashoffset (1s ease)
-         b. Inside the ring (centered text):
-            - Large countdown: MM:SS format, font-mono, text-8xl (focus) or text-7xl (break)
-            - Color: emerald-400 for focus, amber-400 for break
-            - Below timer: small label "FOCUS" or "BREAK TIME"
-         c. Below the ring:
-            - Card title (if focusedCardTitle exists): text-lg, text-surface-300, max-w-md truncate
-            - If no card: empty (don't show placeholder text)
+      This makes `dark:` classes match when `.dark` is on an ancestor element (standard Tailwind v4
+      class-based dark mode). Dark mode is visually identical — same selectors, same variables.
 
-      3. TODAY'S STATS ROW — centered below card title, ~mt-8:
-         - Three stat pills in a horizontal flex with gap-6:
-           - Sessions: "N sessions" with Timer icon
-           - Minutes: "N min" with Clock icon
-           - XP: "+N XP" with Zap icon
-         - Style: text-surface-400, text-sm, flex items-center gap-1.5
-         - Data from gamificationStore.stats: focusTodaySessions, focusTodayMinutes, todayXp
+      **2. Toggle dark/light classes (useTheme.ts)**
 
-      4. MOTIVATIONAL QUOTE — centered, ~mt-8:
-         - Italic text, text-surface-500, text-sm, max-w-lg text-center
-         - Quote selected randomly from a FOCUS_QUOTES array (see below)
-         - Quote stays the same for the entire session (pick on mount, store in state)
-         - Show quotes only in focus mode, not during break
+      Update the `applyTheme` function to toggle BOTH classes:
 
-      5. CONTROLS — centered at bottom, ~mb-12:
-         - Two buttons in a flex row with gap-4:
-           a. Pause/Resume: circular button (w-12 h-12), surface-800 bg, hover:surface-700
-              - Pause icon when running, Play icon when paused
-              - Calls focusStore.pause() / focusStore.resume()
-           b. Stop: circular button (w-12 h-12), surface-800 bg, hover:red-600
-              - Square icon
-              - Calls focusStore.stop()
-         - Show small text labels below each button: "Pause"/"Resume" and "Stop"
+      ```ts
+      function applyTheme(mode: ThemeMode) {
+        const resolved = resolveTheme(mode);
+        const el = document.documentElement.classList;
+        el.toggle('light', resolved === 'light');
+        el.toggle('dark', resolved === 'dark');
+      }
+      ```
 
-      === BREAK MODE VARIANT ===
-      When focusStore.mode === 'break':
-      - Progress ring stroke: amber-500 instead of emerald-500
-      - Timer text: amber-400
-      - Label below timer: "BREAK TIME" with Coffee icon
-      - No motivational quote (show "Relax, you earned it" in its place)
-      - Background gradient shifts to warm amber tones
+      This ensures `dark:` classes apply in dark mode (via class) and DON'T apply in light mode.
 
-      === BACKGROUND ===
-      - Full viewport: fixed inset-0, z-40
-      - Background color: bg-surface-950 (very dark)
-      - Subtle breathing gradient animation via CSS keyframes:
-        - For focus: radial-gradient that pulses from emerald-950/20 at center to transparent
-        - For break: radial-gradient that pulses from amber-950/20 at center to transparent
-        - Animation: 4s ease-in-out infinite alternate
-      - Inject the keyframes via a module-level style injection (same pattern as LevelBadge shimmer)
+      **3. Replace inverted light palettes with natural values (globals.css)**
 
-      === QUOTES ARRAY ===
-      Define FOCUS_QUOTES as a const array of ~15-20 strings inside FocusOverlay.tsx:
-      - "The secret of getting ahead is getting started." — Mark Twain
-      - "Focus on being productive instead of busy." — Tim Ferriss
-      - "It's not that I'm so smart, it's just that I stay with problems longer." — Einstein
-      - "Deep work is the ability to focus without distraction on a cognitively demanding task." — Cal Newport
-      - "The successful warrior is the average man, with laser-like focus." — Bruce Lee
-      - "Concentrate all your thoughts upon the work at hand." — Alexander Graham Bell
-      - "You can't depend on your eyes when your imagination is out of focus." — Mark Twain
-      - "Do every act of your life as though it were the last act of your life." — Marcus Aurelius
-      - "Where focus goes, energy flows." — Tony Robbins
-      - "The shorter way to do many things is to only do one thing at a time." — Mozart
-      - "Starve your distractions, feed your focus." — Unknown
-      - "It is during our darkest moments that we must focus to see the light." — Aristotle
-      - "Lack of direction, not lack of time, is the problem." — Zig Ziglar
-      - "I fear not the man who has practiced 10,000 kicks once, but the man who has practiced one kick 10,000 times." — Bruce Lee
-      - "The main thing is to keep the main thing the main thing." — Stephen Covey
+      Replace `html.light` block (the "classic" theme light override) with natural Slate values:
 
-      === formatTime UTILITY ===
-      Reuse the same MM:SS format: `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`
+      ```css
+      html.light {
+        --color-surface-50: #f8fafc;
+        --color-surface-100: #f1f5f9;
+        --color-surface-200: #e2e8f0;
+        --color-surface-300: #cbd5e1;
+        --color-surface-400: #94a3b8;
+        --color-surface-500: #64748b;
+        --color-surface-600: #475569;
+        --color-surface-700: #334155;
+        --color-surface-800: #1e293b;
+        --color-surface-900: #0f172a;
+        --color-surface-950: #020617;
+      }
+      ```
 
-      WHY: The full-screen overlay creates an immersive distraction-free environment. The circular
-      progress ring and large countdown give the user a clear sense of time passage. Stats and
-      quotes provide motivational context without overwhelming the minimal design.
+      Replace `html.design-modern.light` block with a polished Slate palette + adjusted primary:
+
+      ```css
+      html.design-modern.light {
+        /* Slate Surface — warm blue-gray, polished and readable */
+        --color-surface-50: #f8fafc;
+        --color-surface-100: #f1f5f9;
+        --color-surface-200: #e2e8f0;
+        --color-surface-300: #cbd5e1;
+        --color-surface-400: #94a3b8;
+        --color-surface-500: #64748b;
+        --color-surface-600: #475569;
+        --color-surface-700: #334155;
+        --color-surface-800: #1e293b;
+        --color-surface-900: #0f172a;
+        --color-surface-950: #020617;
+
+        /* Darken primary for light-background contrast */
+        --color-primary-300: #6366f1;
+        --color-primary-400: #4f46e5;
+        --color-primary-500: #4338ca;
+        --color-primary-600: #3730a3;
+      }
+      ```
+
+      NOTE: These are the NATURAL Slate values (not inverted). With class-based dark mode, light-mode
+      components use base classes with these natural values. `dark:` classes don't apply in light mode.
+
+      **4. Add light-mode-specific global CSS (globals.css)**
+
+      Add these rules after the palette definitions:
+
+      a) Light mode scrollbar (update existing rules):
+      ```css
+      html.light ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+      }
+      html.light ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+      ```
+
+      b) Light mode text selection:
+      ```css
+      html.light ::selection {
+        background: #c7d2fe;
+        color: #1e1b4b;
+      }
+      ```
+
+      c) Light mode select dropdowns — override the hardcoded dark select styles:
+      ```css
+      html.light select {
+        background-color: #ffffff;
+        border-color: #e2e8f0;
+        color: #1e293b;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+      }
+      html.light select:hover {
+        border-color: #cbd5e1;
+      }
+      html.light select option {
+        background-color: #ffffff;
+        color: #1e293b;
+      }
+      ```
+
+      d) Light mode body base:
+      ```css
+      html.light,
+      html.light body {
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      ```
+
+      e) Light mode TipTap:
+      ```css
+      html.light .tiptap-editor .ProseMirror {
+        color: #1e293b;
+      }
+      html.light .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+        color: #94a3b8;
+      }
+      html.light .tiptap-editor .ProseMirror code {
+        background: #f1f5f9;
+      }
+      html.light .tiptap-editor .ProseMirror pre {
+        background: #f1f5f9;
+      }
+      html.light .tiptap-editor .ProseMirror blockquote {
+        border-left-color: #cbd5e1;
+        color: #64748b;
+      }
+      ```
+
+      f) Light mode logo pulse:
+      ```css
+      @keyframes logo-pulse-light {
+        0%, 100% {
+          box-shadow: 0 0 6px rgba(79, 70, 229, 0.1), 0 0 12px rgba(99, 102, 241, 0.05);
+        }
+        40% {
+          box-shadow: 0 0 12px rgba(79, 70, 229, 0.3), 0 0 28px rgba(99, 102, 241, 0.12);
+        }
+        50% {
+          box-shadow: 0 0 8px rgba(79, 70, 229, 0.2), 0 0 18px rgba(99, 102, 241, 0.08);
+        }
+        65% {
+          box-shadow: 0 0 10px rgba(79, 70, 229, 0.25), 0 0 22px rgba(99, 102, 241, 0.1);
+        }
+      }
+      html.light .animate-logo-pulse {
+        animation: logo-pulse-light 3s ease-in-out infinite;
+      }
+      ```
+
+      **WHY this approach:**
+      - Class-based dark mode eliminates the OS-preference dependency
+      - Natural values (not inverted) are intuitive and easy to maintain
+      - Slate palette is warmer than Zinc, with blue undertones that complement the Indigo primary
+      - CSS-level light overrides (select, TipTap, etc.) avoid touching dark mode code at all
     </action>
     <verify>
-      Run `npx tsc --noEmit` — should compile with no errors.
-      Visually inspect: component renders a full-screen overlay with ring, timer, stats, quotes, controls.
+      1. Run `npx tsc --noEmit` — no type errors
+      2. Start the app with `npm start`
+      3. Toggle to dark mode — verify visuals are IDENTICAL to before (same colors, same look)
+      4. Toggle to light mode — verify page background is light (#f8fafc), not dark
+      5. Verify scrollbar, text selection, select dropdowns all look correct in light mode
+      6. Verify TipTap editor renders properly in light mode (open a card with description)
+      7. Toggle between dark/light/system 3 times rapidly — no flicker or stuck state
     </verify>
-    <done>FocusOverlay.tsx created with SVG progress ring, big countdown, level/streak header, today stats, quotes, controls, and focus/break variants.</done>
+    <done>
+      Class-based dark mode works. Light mode shows warm Slate palette with proper text contrast.
+      All global CSS elements (scrollbar, select, TipTap, animations) are polished for light mode.
+      Dark mode is visually identical to before.
+    </done>
     <confidence>HIGH</confidence>
+    <assumptions>
+      Tailwind v4's @variant dark directive accepts the (&:where(.dark, .dark *)) selector syntax.
+      If it doesn't, we'll use the alternative: @custom-variant dark (.dark &);
+    </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Integrate FocusOverlay into AppShell and hide StatusBar during focus</n>
+    <n>Component light mode support — modals, status bar, and sub-components</n>
     <files>
-      src/renderer/App.tsx
       src/renderer/components/StatusBar.tsx
+      src/renderer/components/CommandPalette.tsx
+      src/renderer/components/CardDetailModal.tsx
+      src/renderer/components/AchievementsModal.tsx
+      src/renderer/components/FocusCompleteModal.tsx
+      src/renderer/components/FocusStartModal.tsx
+      src/renderer/components/KeyboardShortcutsModal.tsx
+      src/renderer/components/ProjectPlanningModal.tsx
+      src/renderer/components/IdeaDetailModal.tsx
+      src/renderer/components/ConvertActionModal.tsx
+      src/renderer/components/MeetingDetailModal.tsx
+      src/renderer/components/ErrorBoundary.tsx
+      src/renderer/components/FocusOverlay.tsx
+      src/renderer/components/ToastContainer.tsx
+      src/renderer/components/AddProviderForm.tsx
+      src/renderer/components/ActivityLog.tsx
+      src/renderer/components/ChecklistSection.tsx
+      src/renderer/components/CommentsSection.tsx
+      src/renderer/components/RelationshipsSection.tsx
+      src/renderer/components/AttachmentsSection.tsx
+      src/renderer/components/TaskBreakdownSection.tsx
+      src/renderer/components/MeetingPrepSection.tsx
+      src/renderer/components/RecordingControls.tsx
+      src/renderer/components/BriefSection.tsx
+      src/renderer/components/ActionItemList.tsx
+      src/renderer/components/MeetingAnalyticsSection.tsx
+      src/renderer/components/IdeaAnalysisSection.tsx
+      src/renderer/components/UsageSummary.tsx
+      src/renderer/components/ProviderCard.tsx
+      src/renderer/components/TaskModelConfig.tsx
+      src/renderer/components/PageSkeleton.tsx
+      src/renderer/components/FocusStatsWidget.tsx
+      src/renderer/components/LevelBadge.tsx
+      src/renderer/components/ProductivityPulse.tsx
+      src/renderer/components/settings/BackupSection.tsx
+      src/renderer/components/settings/AudioDeviceSection.tsx
+      src/renderer/components/settings/NotificationSection.tsx
+      src/renderer/components/settings/ProxySettingsSection.tsx
+      src/renderer/components/settings/RecordingsSavePathSection.tsx
+      src/renderer/components/settings/TranscriptionProviderSection.tsx
     </files>
     <action>
-      Wire the new FocusOverlay into the app so it takes over the screen during focus/break modes.
+      Add light/dark class patterns to all components that currently use hardcoded dark-only surface
+      classes. This task does NOT change any dark: values — it only adds base (light mode) classes
+      alongside existing dark values.
 
-      === App.tsx CHANGES ===
+      **Mechanical patterns to apply:**
 
-      1. Add lazy import for FocusOverlay:
-         const FocusOverlay = lazy(() => import('./components/FocusOverlay'));
+      | Current class | Replace with |
+      |---------------|-------------|
+      | `bg-surface-900` (panel/card bg) | `bg-white dark:bg-surface-900` |
+      | `bg-surface-800` (input/recessed bg) | `bg-surface-50 dark:bg-surface-800` |
+      | `bg-surface-800/30` or `bg-surface-800/50` | `bg-surface-100/50 dark:bg-surface-800/30` (or /50) |
+      | `border-surface-700` | `border-surface-200 dark:border-surface-700` |
+      | `border-surface-700/50` | `border-surface-200 dark:border-surface-700/50` |
+      | `border-surface-800` | `border-surface-200 dark:border-surface-800` |
+      | `text-surface-100` | `text-surface-900 dark:text-surface-100` |
+      | `text-surface-200` | `text-surface-800 dark:text-surface-200` |
+      | `text-surface-300` | `text-surface-700 dark:text-surface-300` |
+      | `text-surface-400` | Keep as-is (readable in both modes) |
+      | `text-surface-500` | Keep as-is (works for both modes) |
+      | `placeholder-surface-500` or `placeholder:text-surface-500` | Keep as-is |
+      | `hover:bg-surface-700` | `hover:bg-surface-100 dark:hover:bg-surface-700` |
+      | `hover:bg-surface-800` | `hover:bg-surface-100 dark:hover:bg-surface-800` |
+      | `hover:text-surface-200` | `hover:text-surface-800 dark:hover:text-surface-200` |
+      | `hover:text-surface-300` | `hover:text-surface-700 dark:hover:text-surface-300` |
+      | `focus:border-primary-500` | Keep as-is (works in both modes) |
+      | `focus:ring-primary-500` | Keep as-is |
+      | `shadow-2xl` (on modals) | `shadow-xl dark:shadow-2xl` |
+      | `bg-black/50` (modal backdrop) | `bg-black/30 dark:bg-black/50` |
 
-      2. In AppShell, render FocusOverlay alongside existing modals (inside the Suspense block):
-         - Render when focusMode is 'focus' or 'break'
-         - Place it BEFORE FocusCompleteModal so the completion modal renders on TOP (higher in DOM = lower z-index, so actually place it after — or use z-index):
+      **Special cases:**
 
-         ```tsx
-         <Suspense fallback={null}>
-           <FocusStartModal
-             isOpen={showStartModal}
-             onClose={() => useFocusStore.getState().setShowStartModal(false)}
-           />
-           {(focusMode === 'focus' || focusMode === 'break') && <FocusOverlay />}
-           <FocusCompleteModal
-             isOpen={focusMode === 'completed'}
-             onClose={() => useFocusStore.getState().stop()}
-           />
-         </Suspense>
-         ```
+      1. **StatusBar** — Change outer div from `bg-surface-900 border-t border-surface-800` to
+         `bg-white dark:bg-surface-900 border-t border-surface-200 dark:border-surface-800`.
+         The text-surface-500 and text-surface-600 classes stay as-is (readable in both modes).
 
-         The FocusOverlay uses z-40. FocusCompleteModal already uses a modal overlay pattern
-         (likely z-50). Verify z-index ordering: FocusOverlay (z-40) < FocusCompleteModal (z-50).
+      2. **FocusOverlay** — Full-screen immersive overlay. Add light mode variant:
+         - Background: `bg-surface-50 dark:bg-surface-950` instead of `bg-surface-950`
+         - Timer text: `text-emerald-600 dark:text-emerald-400` for focus, `text-amber-600 dark:text-amber-400` for break
+         - Label text: `text-surface-600 dark:text-surface-400`
+         - Control buttons: `bg-surface-200 dark:bg-surface-800` with matching hover
+         - Stats text: `text-surface-500 dark:text-surface-400`
+         - Breathing gradient: use lighter emerald/indigo tones for light mode
+         - Keep the zen feel — clean white space with subtle color accents
 
-      === StatusBar.tsx CHANGES ===
+      3. **ErrorBoundary** — Update bg/border/text to use the light/dark pattern.
 
-      3. Hide the entire StatusBar when focus mode is active:
-         - At the top of the StatusBar component, read focusMode from focusStore
-         - If mode is 'focus' or 'break', return null (don't render)
-         - This gives the overlay true full-screen immersion
+      4. **ToastContainer** — Toasts should have visible shadow and solid bg in light mode:
+         `bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 shadow-lg`
 
-         ```tsx
-         const focusMode = useFocusStore(s => s.mode);
-         if (focusMode === 'focus' || focusMode === 'break') return null;
-         ```
+      5. **ActivityLog timeline dots** — The `bg-surface-900` circles need
+         `bg-white dark:bg-surface-900` to match the card background they sit on.
 
-         This also means the StatusBar's existing timer display code for focus/break modes
-         becomes dead code. KEEP IT for now (no harm, and it serves as fallback documentation).
-         Do NOT delete the focus timer logic from StatusBar — it's minimal code and might be
-         useful if we ever add a "minimal mode" toggle.
+      6. **Modal overlays** (the `fixed inset-0 bg-black/50` or `bg-surface-950/50` backdrop) —
+         Use `bg-black/30 dark:bg-black/50` for lighter backdrop in light mode.
 
-      === AppLayout.tsx — NO CHANGES ===
-      Keep the existing sidebar hiding logic in AppLayout. Even though the overlay covers
-      everything, hiding the sidebar underneath means less rendering and no accidental interactions.
+      **Execution approach:**
+      For each file: read the file, identify all surface-800/900/950 classes that lack a `dark:`
+      companion, and apply the transformation table above. Do NOT change any existing `dark:` class
+      values. Do NOT change classes on components that already have the `dark:` pattern (Modern
+      components like DashboardModern, BoardPageModern, etc. — skip those entirely).
 
-      WHY: The overlay must be rendered at the AppShell level (not inside routes) because it
-      needs to cover the entire app including the status bar. Hiding the StatusBar gives true
-      full-screen immersion. The z-index ordering ensures the completion modal appears above
-      the overlay when a session ends.
+      **WHY:** Without these changes, non-Modern components would display their dark theme colors
+      (surface-800=#1e293b, surface-900=#0f172a) in light mode because the CSS variable inversion
+      has been removed (Task 1). Adding explicit `dark:` variants ensures dark mode is preserved while
+      light mode gets proper bright values.
     </action>
     <verify>
-      Run `npx tsc --noEmit` — should compile with no errors.
-      Run `npx vitest run` — all 150 tests should pass.
-      Manual test: Start a focus session → full-screen overlay appears, StatusBar hidden.
-      Manual test: Let timer complete → FocusCompleteModal appears above overlay.
-      Manual test: Start break → overlay switches to amber break variant.
-      Manual test: Stop session → overlay disappears, StatusBar returns.
+      1. Run `npx tsc --noEmit` — no type errors
+      2. Start the app, toggle to light mode, and visually verify:
+         - StatusBar: white bg with visible text
+         - Command Palette (Ctrl+K): white modal with proper borders and text
+         - Card Detail Modal: white bg, readable text, proper input styling
+         - Achievements Modal: white bg, visible badges
+         - Focus Start Modal: white bg, readable card list
+         - Focus Complete Modal: white bg, readable stats
+         - Keyboard Shortcuts Modal: white bg, readable shortcuts
+         - Error Boundary: if triggered, shows white bg
+         - Toast notifications: visible on light background
+      3. Toggle to dark mode and verify ALL the above look IDENTICAL to before the changes
+      4. Confirm: no existing dark: class VALUES were changed (only new dark: classes added)
     </verify>
-    <done>FocusOverlay renders full-screen during focus/break. StatusBar hidden. FocusCompleteModal renders above overlay. All tests pass.</done>
+    <done>
+      All ~40 components render correctly in light mode with white/light backgrounds, readable text,
+      and visible borders. Dark mode appearance is identical to before — no visual regression.
+    </done>
     <confidence>HIGH</confidence>
+    <assumptions>
+      - All listed components are actively used (rendered in the current UI)
+      - The pattern replacements cover all cases (some edge cases may need manual adjustment)
+      - Settings sub-components follow the same pattern as the main components
+    </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Add fade transition and polish the overlay experience</n>
+    <n>Visual polish — shadows, depth, hover states, and page-level consistency</n>
     <files>
-      src/renderer/components/FocusOverlay.tsx
-      src/renderer/components/AppLayout.tsx
+      src/renderer/styles/globals.css (minor additions if needed)
+      src/renderer/components/SidebarModern.tsx
+      src/renderer/components/DashboardModern.tsx
+      src/renderer/components/BoardPageModern.tsx
+      src/renderer/components/BoardColumnModern.tsx
+      src/renderer/components/KanbanCardModern.tsx
+      src/renderer/components/BrainstormModern.tsx
+      src/renderer/components/MeetingsModern.tsx
+      src/renderer/components/MeetingCardModern.tsx
+      src/renderer/components/ProjectsModern.tsx
+      src/renderer/components/IdeasModern.tsx
+      src/renderer/components/SettingsPageModern.tsx
+      src/renderer/components/ChatMessageModern.tsx
+      (plus any other files that need touch-ups discovered during visual review)
     </files>
     <action>
-      Polish the overlay with smooth transitions and minor UX improvements.
+      Fine-tune Modern components and any remaining files for a polished, professional light mode.
+      These components already have `dark:` variants, so changes here improve the LIGHT side of
+      existing class pairs or add light-mode-specific enhancements. DO NOT change any dark: values.
 
-      === FADE-IN ANIMATION ===
-      1. Add a mount animation to FocusOverlay:
-         - On mount, the overlay should fade in from opacity-0 to opacity-100 over 500ms
-         - Use a useEffect + useState pattern:
-           ```tsx
-           const [visible, setVisible] = useState(false);
-           useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
-           ```
-         - Apply: `className={`... transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}`
+      **1. Shadows and depth**
 
-         Note: Fade-OUT is not needed because when mode changes to 'completed' or 'idle',
-         the overlay unmounts and the FocusCompleteModal or regular UI takes over immediately.
-         A fade-out would require complex unmount delay logic with no real UX benefit.
+      In light mode, shadows are the primary depth cue (unlike dark mode where luminance differences
+      are stronger). Ensure the following:
 
-      === PROGRESS RING PULSE ===
-      2. When isPaused is true:
-         - Add a gentle pulse animation to the progress ring (opacity oscillation)
-         - Use CSS: `animate-pulse` (Tailwind built-in) on the SVG progress circle when paused
-         - Also show "PAUSED" label below the timer instead of "FOCUS"/"BREAK TIME"
+      - Cards (KanbanCardModern, MeetingCardModern, DashboardModern stat cards):
+        Verify `shadow-sm` is present on the base class (not just on hover). Cards should subtly
+        float above the background. If missing, add it.
 
-      === KEYBOARD HINT ===
-      3. Add a small keyboard hint at the very bottom of the overlay:
-         - "Ctrl+Shift+F to exit" — text-surface-600, text-xs
-         - Positioned at the bottom center, mb-4
+      - Sidebar: Consider adding a subtle light-mode shadow for depth. For example, add to the
+        sidebar nav element: `shadow-[1px_0_3px_rgba(0,0,0,0.04)]` or just use the existing border.
 
-      === AppLayout TRANSITION ===
-      4. In AppLayout, add a smooth width transition when sidebar appears/disappears:
-         - The main content area already has `transition-colors duration-300`
-         - This is fine — the overlay covers the transition anyway. No change needed here
-           unless the sidebar pop-in is jarring when focus ends. If so, add:
-           `transition-all duration-300` to the main element.
+      **2. Sidebar tooltip**
 
-         Actually, leave AppLayout as-is. The overlay covers the transition, and the user
-         sees the FocusCompleteModal before the sidebar reappears. No change needed.
+      SidebarModern tooltip uses `bg-surface-800 text-white`. With natural values, surface-800 is
+      #1e293b (dark) — dark tooltip on light bg is correct and looks good. Verify it works.
 
-      WHY: The fade-in prevents a jarring appearance. The paused state visual feedback makes it
-      clear the timer isn't running. The keyboard hint reminds users how to exit without searching.
+      **3. Hover and focus state verification**
+
+      For Modern components, verify hover states create visible feedback in light mode:
+      - `hover:bg-surface-100 dark:hover:bg-surface-800` — surface-100 = #f1f5f9 (subtle) ✓
+      - `hover:border-primary-300 dark:hover:border-primary-700` — verify primary-300 contrast
+      - `hover:shadow-md` — visible on light bg ✓
+
+      If any hover states are too subtle, increase contrast. For example, if surface-100 hover is
+      invisible on a surface-50 background, use surface-200 instead.
+
+      **4. Dashboard page**
+
+      DashboardModern stat cards: `bg-white dark:bg-surface-900` on `bg-surface-50/50 dark:bg-surface-950`:
+      - In light mode: white cards on very slightly gray bg (#f8fafc at 50% opacity)
+      - This creates subtle depth. Verify it looks good. If cards don't float enough, add `shadow-sm`.
+
+      **5. Board page**
+
+      BoardColumnModern: `bg-surface-50 dark:bg-surface-900/50`:
+      - In light mode: surface-50 = #f8fafc (very light gray) ✓
+      - Cards inside: `bg-white dark:bg-surface-800` — white cards on light columns ✓
+
+      **6. Brainstorm chat**
+
+      Verify AI messages and user messages have clear visual distinction in light mode.
+      Chat bubbles use `bg-white dark:bg-surface-900` which should be fine.
+
+      **7. Settings page**
+
+      SettingsPageModern sections: `bg-white dark:bg-surface-900`. Verify section dividers and
+      borders are visible. If input backgrounds blend with the section background, adjust.
+
+      **8. Focus Overlay polish**
+
+      Verify the FocusOverlay light mode treatment from Task 2 produces a clean, zen-like experience.
+      The light overlay should feel calm and minimal — soft indigo accents on a bright background.
+
+      **9. Final sweep: search for remaining hardcoded dark-only patterns**
+
+      Grep for `bg-surface-[89]` in all .tsx files and verify each instance either:
+      a) Already has a `dark:` variant (Modern components), OR
+      b) Was updated in Task 2, OR
+      c) Is inside a component that's not rendered (dead code — skip)
+
+      Fix any remaining misses.
+
+      **10. Card drag animations**
+
+      The card-grab/card-drop keyframes use hardcoded `rgba(0,0,0,...)` shadows. These produce
+      dark shadows which work in light mode (shadows are dark). Verify they look appropriate and
+      not too heavy. If too strong for light mode, add light-mode variants in globals.css.
+
+      **WHY:** Modern components already have the `dark:` pattern but may need tweaks for the light
+      side to feel polished. The goal is a light mode that feels intentionally designed — clean,
+      airy, with proper depth hierarchy — not just "the other mode."
     </action>
     <verify>
-      Run `npx tsc --noEmit` — should compile with no errors.
-      Run `npx vitest run` — all 150 tests should pass.
-      Manual test: Start focus → overlay fades in smoothly (500ms).
-      Manual test: Pause → ring pulses, "PAUSED" label appears.
-      Manual test: Keyboard hint visible at bottom.
+      1. Run `npx tsc --noEmit` — no type errors
+      2. Run full test suite: `npm test` — all 150 tests pass
+      3. Visual verification in light mode — go through EVERY page:
+         - Dashboard: stat cards float, heatmap visible, standup area clean
+         - Projects: project cards have shadows, hover works, create modal clean
+         - Board: columns have depth, cards float, drag preview visible
+         - Meetings: meeting cards clean, recording controls visible
+         - Ideas: idea cards clean, detail modal polished
+         - Brainstorm: chat bubbles clear, sidebar clean, input area styled
+         - Settings: sections organized, inputs/selects styled, provider cards clean
+         - Focus Overlay: immersive light theme, ring visible, text readable
+         - All modals: white bg, visible borders, proper shadows
+      4. Toggle back to dark mode — verify EVERY page looks IDENTICAL to before
+      5. Rapid theme switching (10+ times) — no flicker, no stuck states
+      6. Check keyboard shortcuts, command palette, toasts in both modes
     </verify>
-    <done>Overlay fades in on mount. Paused state shows pulse + "PAUSED" label. Keyboard hint at bottom. All tests pass.</done>
+    <done>
+      Light mode is polished and professional across all pages. Shadows provide depth, colors are
+      warm and readable, hover/focus states provide clear feedback. Dark mode is 100% visually
+      unchanged. Theme switching is instant and flicker-free.
+    </done>
     <confidence>HIGH</confidence>
+    <assumptions>
+      - Modern components' existing light-side classes (bg-white, bg-surface-50, etc.) work
+        correctly with the natural Slate palette values from Task 1
+      - The FocusOverlay light theme can be achieved with the dark: pattern without a full rewrite
+    </assumptions>
   </task>
 </phase>

@@ -2,32 +2,36 @@
 
 ## What Was Done
 
-### Plan D.6 — Immersive Full-Screen Focus Overlay (3/3 tasks)
-Created a new full-screen overlay that takes over the app during focus/break sessions:
-- **FocusOverlay.tsx** (266 lines) — SVG circular progress ring (280px), giant font-mono text-8xl countdown, level badge + XP, streak counter, today's stats (sessions/minutes/XP), 15 motivational quotes (random per session), breathing gradient animation, pause/stop controls
-- **App.tsx** — Lazy-loaded FocusOverlay, rendered when mode=focus|break (z-40, below FocusCompleteModal)
-- **StatusBar.tsx** — Returns null during focus/break (full immersion), cleaned up dead focus/break code that TS narrowing flagged
-- Polish: 500ms fade-in via requestAnimationFrame, animate-pulse on ring when paused + "PAUSED" label, "Ctrl+Shift+F to exit" hint
+### Plan D.7 — Light Mode Overhaul (3/3 tasks)
+Complete rewrite of the app's light mode system:
+- **Task 1** (2df050f): Switched from CSS variable inversion to class-based `@variant dark` + natural Slate palette. Added light-specific global CSS (scrollbar, select, TipTap, text selection, body bg, logo pulse).
+- **Task 2** (a84aca9): Applied `dark:` variant pattern to 37 non-Modern components (modals, StatusBar, sub-components, settings sections, FocusOverlay, toasts, error boundary).
+- **Task 3** (7846a59): Final sweep — fixed 8 more components with remaining dark-only patterns, added shadow-sm to MeetingCardModern, replaced hardcoded rgb with CSS variable.
 
-### Ad-hoc Fix: XP Label Confusion
-- FocusStatsWidget category pills showed raw numbers (e.g., "Meetings 50") — users mistook XP for item counts
-- Added "XP" suffix so pills now read "50 XP"
+Dark mode is visually IDENTICAL — no `dark:` values changed anywhere. Only base (light) classes added.
 
-## Commits (3 unpushed)
+## Commits (6 unpushed — 3 from D.6, 3 from D.7)
 ```
+7846a59 fix: polish remaining light mode gaps in 8 components
+a84aca9 feat: add light mode classes to 37 components
+2df050f feat: class-based dark mode + natural Slate light palette
+55e5945 docs: checkpoint — Plan D.6 complete + XP label fix
 ece4f11 fix: add "XP" suffix to category breakdown pills to avoid count confusion
-16b4313 docs: checkpoint — Plan D.6 complete
 10573c4 feat: immersive full-screen focus overlay with progress ring and stats
 ```
 
+## Verification Status
+- TypeScript: Clean
+- Tests: 150/150 passing
+- Visual testing: NOT YET DONE — toggle to light mode and check every page
+
 ## Resume Instructions
 1. Run `/nexus:resume` or read STATE.md
-2. Next: Plan D.7 or next self-improve proposal
-3. Remember to `git push` if ready
-4. Test the focus overlay manually: Ctrl+Shift+F to start, verify visual experience
+2. **Visual test light mode**: Settings > Appearance > toggle to Light
+3. Push to origin when satisfied: `git push`
+4. Next: Check SELF-IMPROVE-NEW.md for next proposal
 
 ## Key Files Changed
-- `src/renderer/components/FocusOverlay.tsx` (NEW)
-- `src/renderer/App.tsx` (+2 lines)
-- `src/renderer/components/StatusBar.tsx` (simplified)
-- `src/renderer/components/FocusStatsWidget.tsx` (1-line fix)
+- `src/renderer/styles/globals.css` — @variant dark, Slate palette, light CSS overrides
+- `src/renderer/hooks/useTheme.ts` — toggle dark/light classes
+- 47 component files — `dark:` variant pattern added
