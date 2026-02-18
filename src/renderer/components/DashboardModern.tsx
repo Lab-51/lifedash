@@ -139,9 +139,9 @@ export default function DashboardModern() {
     }, [allCards.length, meetings.length, ideas.length]);
 
     return (
-        <div className="h-full flex flex-col overflow-hidden bg-surface-50/50 dark:bg-surface-950">
+        <div ref={scrollContainerRef} className="h-full overflow-y-auto bg-surface-50/50 dark:bg-surface-950">
             {/* Hero Section */}
-            <div className="relative shrink-0 p-8 pb-12 overflow-hidden">
+            <div className="relative p-8 pb-12 overflow-hidden">
 
                 <div className="relative z-10 flex items-end justify-between gap-4">
                     <div className="shrink-0">
@@ -202,7 +202,7 @@ export default function DashboardModern() {
                             <button
                                 key={label}
                                 onClick={() => navigate(path)}
-                                className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-transparent hover:scale-105 hover:shadow-lg ${color}`}
+                                className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-black/10 dark:border-white/10 hover:scale-105 hover:shadow-lg ${color}`}
                                 title={`New ${label}`}
                             >
                                 <Icon size={24} className="mb-2" />
@@ -217,7 +217,7 @@ export default function DashboardModern() {
                                     focusState.setShowStartModal(true);
                                 }
                             }}
-                            className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-transparent hover:scale-105 hover:shadow-lg ${
+                            className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-black/10 dark:border-white/10 hover:scale-105 hover:shadow-lg ${
                                 focusMode === 'focus' || focusMode === 'break'
                                     ? 'bg-emerald-500 text-white animate-pulse'
                                     : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white'
@@ -235,7 +235,7 @@ export default function DashboardModern() {
                                 ref={standupBtnRef}
                                 onClick={() => generatingStandup ? undefined : setStandupPickerOpen(o => !o)}
                                 disabled={generatingStandup}
-                                className="flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-transparent hover:scale-105 hover:shadow-lg disabled:opacity-50 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white"
+                                className="flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-black/10 dark:border-white/10 hover:scale-105 hover:shadow-lg disabled:opacity-50 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white"
                                 title="Generate Standup"
                             >
                                 {generatingStandup ? (
@@ -253,7 +253,7 @@ export default function DashboardModern() {
             </div>
 
             {/* Main Content Grid - Overlapping the Hero */}
-            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 pb-8 -mt-6 z-20">
+            <div className="px-8 pb-8 -mt-6 relative z-20">
 
                 {/* Standup Result — above the grid so it's impossible to miss */}
                 {standupText !== null && standupText.length > 0 && (
