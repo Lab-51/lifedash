@@ -333,7 +333,7 @@ export default function FocusStatsWidget() {
                       />
                       {CATEGORY_LABELS[cat]}
                       <span className={isZero ? 'text-surface-400 dark:text-surface-600' : ''}>
-                        {xp}
+                        {xp} XP
                       </span>
                     </div>
                   );
