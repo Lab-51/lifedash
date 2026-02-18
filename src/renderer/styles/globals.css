@@ -1,6 +1,8 @@
 @import "@fontsource-variable/inter";
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary-50: #eff6ff;
   --color-primary-100: #dbeafe;
@@ -33,20 +35,18 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Light theme — inverts surface scale so all existing classes adapt */
-/* Light theme — inverts surface scale so all existing classes adapt */
 html.light {
-  --color-surface-50: #020617;
-  --color-surface-100: #0f172a;
-  --color-surface-200: #1e293b;
-  --color-surface-300: #334155;
-  --color-surface-400: #64748b;
-  --color-surface-500: #94a3b8;
-  --color-surface-600: #cbd5e1;
-  --color-surface-700: #e2e8f0;
-  --color-surface-800: #f1f5f9;
-  --color-surface-900: #f8fafc;
-  --color-surface-950: #ffffff;
+  --color-surface-50: #f8fafc;
+  --color-surface-100: #f1f5f9;
+  --color-surface-200: #e2e8f0;
+  --color-surface-300: #cbd5e1;
+  --color-surface-400: #94a3b8;
+  --color-surface-500: #64748b;
+  --color-surface-600: #475569;
+  --color-surface-700: #334155;
+  --color-surface-800: #1e293b;
+  --color-surface-900: #0f172a;
+  --color-surface-950: #020617;
 }
 
 /* === Modern Design Variant (Zinc + Indigo) === */
@@ -81,27 +81,25 @@ html.design-modern {
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Modern Design - Light Mode Inversion */
 html.design-modern.light {
-  /* Invert Surface Scale (Zinc) */
-  --color-surface-50: #09090b;
-  --color-surface-100: #18181b;
-  --color-surface-200: #27272a;
-  --color-surface-300: #3f3f46;
-  --color-surface-400: #52525b;
-  --color-surface-500: #71717a;
-  --color-surface-600: #a1a1aa;
-  --color-surface-700: #d4d4d8;
-  --color-surface-800: #e4e4e7;
-  --color-surface-900: #f4f4f5;
-  --color-surface-950: #ffffff;
+  /* Slate Surface — warm blue-gray, polished and readable */
+  --color-surface-50: #f8fafc;
+  --color-surface-100: #f1f5f9;
+  --color-surface-200: #e2e8f0;
+  --color-surface-300: #cbd5e1;
+  --color-surface-400: #94a3b8;
+  --color-surface-500: #64748b;
+  --color-surface-600: #475569;
+  --color-surface-700: #334155;
+  --color-surface-800: #1e293b;
+  --color-surface-900: #0f172a;
+  --color-surface-950: #020617;
 
-  /* Adjust Primary for Light Mode Contrast */
-  /* Text-primary-400 needs to be readable on light background, so we darken it */
+  /* Darken primary for light-background contrast */
+  --color-primary-300: #6366f1;
   --color-primary-400: #4f46e5;
-  /* Indigo 600 */
   --color-primary-500: #4338ca;
-  /* Indigo 700 */
+  --color-primary-600: #3730a3;
 }
 
 /* Custom scrollbar */
@@ -124,11 +122,11 @@ html.design-modern.light {
 }
 
 html.light ::-webkit-scrollbar-thumb {
-  background: var(--color-surface-400);
+  background: #cbd5e1;
 }
 
 html.light ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-surface-500);
+  background: #94a3b8;
 }
 
 /* Styled select dropdowns — consistent dark theme with custom chevron */
@@ -168,6 +166,20 @@ select option {
   color: var(--color-surface-200);
 }
 
+html.light select {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  color: #1e293b;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+}
+html.light select:hover {
+  border-color: #cbd5e1;
+}
+html.light select option {
+  background-color: #ffffff;
+  color: #1e293b;
+}
+
 /* Keyboard focus rings — visible only on keyboard navigation */
 :focus-visible {
   outline: 2px solid var(--color-primary-500);
@@ -184,12 +196,23 @@ select option {
   color: white;
 }
 
+html.light ::selection {
+  background: #c7d2fe;
+  color: #1e1b4b;
+}
+
 /* Base body/html styles */
 html,
 body {
   overflow: hidden;
   background: var(--color-surface-950);
   color: var(--color-surface-100);
+}
+
+html.light,
+html.light body {
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 /* TipTap rich text editor styles */
@@ -272,6 +295,23 @@ body {
   padding: 0;
 }
 
+html.light .tiptap-editor .ProseMirror {
+  color: #1e293b;
+}
+html.light .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: #94a3b8;
+}
+html.light .tiptap-editor .ProseMirror code {
+  background: #f1f5f9;
+}
+html.light .tiptap-editor .ProseMirror pre {
+  background: #f1f5f9;
+}
+html.light .tiptap-editor .ProseMirror blockquote {
+  border-left-color: #cbd5e1;
+  color: #64748b;
+}
+
 /* Sidebar logo — slow heartbeat glow */
 @keyframes logo-pulse {
   0%, 100% {
@@ -298,6 +338,24 @@ body {
 
 .animate-logo-pulse {
   animation: logo-pulse 3s ease-in-out infinite;
+}
+
+@keyframes logo-pulse-light {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(79, 70, 229, 0.1), 0 0 12px rgba(99, 102, 241, 0.05);
+  }
+  40% {
+    box-shadow: 0 0 12px rgba(79, 70, 229, 0.3), 0 0 28px rgba(99, 102, 241, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(79, 70, 229, 0.2), 0 0 18px rgba(99, 102, 241, 0.08);
+  }
+  65% {
+    box-shadow: 0 0 10px rgba(79, 70, 229, 0.25), 0 0 22px rgba(99, 102, 241, 0.1);
+  }
+}
+html.light .animate-logo-pulse {
+  animation: logo-pulse-light 3s ease-in-out infinite;
 }
 
 /* Kanban card drag-and-drop animations */

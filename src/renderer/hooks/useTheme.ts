@@ -21,7 +21,9 @@ function resolveTheme(mode: ThemeMode): 'dark' | 'light' {
 /** Apply the resolved theme class to the document root */
 function applyTheme(mode: ThemeMode) {
   const resolved = resolveTheme(mode);
-  document.documentElement.classList.toggle('light', resolved === 'light');
+  const el = document.documentElement.classList;
+  el.toggle('light', resolved === 'light');
+  el.toggle('dark', resolved === 'dark');
 }
 
 /**
