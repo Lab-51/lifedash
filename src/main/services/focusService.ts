@@ -3,7 +3,7 @@
 // Handles session persistence and daily data queries.
 // Achievement/level logic has moved to gamificationService.ts.
 
-import { eq, gte, lte, and, sql, desc } from 'drizzle-orm';
+import { eq, gte, lte, and, sql, desc, aliasedTable } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { focusSessions, cards, columns, boards, projects } from '../db/schema';
 import { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats, FocusTimeReportOptions, FocusSessionFull, FocusProjectTime, FocusTimeReport } from '../../shared/types/focus';
@@ -155,13 +155,14 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
   const db = getDb();
   const startDate = new Date(options.startDate + 'T00:00:00');
   const endDate = new Date(options.endDate + 'T23:59:59.999');
+  const directProject = aliasedTable(projects, 'dp');
 
   // Build base WHERE conditions
   const baseWhere = options.projectId
     ? and(
         gte(focusSessions.completedAt, startDate),
         lte(focusSessions.completedAt, endDate),
-        eq(projects.id, options.projectId),
+        sql`COALESCE(${directProject.id}, ${projects.id}) = ${options.projectId}`,
       )
     : and(
         gte(focusSessions.completedAt, startDate),
@@ -177,11 +178,12 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
       note: focusSessions.note,
       completedAt: focusSessions.completedAt,
       cardTitle: cards.title,
-      projectId: projects.id,
-      projectName: projects.name,
-      projectColor: projects.color,
+      projectId: sql<string>`COALESCE(${directProject.id}, ${projects.id})`,
+      projectName: sql<string>`COALESCE(${directProject.name}, ${projects.name})`,
+      projectColor: sql<string>`COALESCE(${directProject.color}, ${projects.color})`,
     })
     .from(focusSessions)
+    .leftJoin(directProject, eq(focusSessions.projectId, directProject.id))
     .leftJoin(cards, eq(focusSessions.cardId, cards.id))
     .leftJoin(columns, eq(cards.columnId, columns.id))
     .leftJoin(boards, eq(columns.boardId, boards.id))
@@ -204,13 +206,14 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
   // 2. Per-project aggregation
   const projectRows = await db
     .select({
-      projectId: projects.id,
-      projectName: projects.name,
-      projectColor: projects.color,
+      projectId: sql<string>`COALESCE(${directProject.id}, ${projects.id})`,
+      projectName: sql<string>`COALESCE(${directProject.name}, ${projects.name})`,
+      projectColor: sql<string>`COALESCE(${directProject.color}, ${projects.color})`,
       sessions: sql<number>`count(*)::int`,
       minutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
     })
     .from(focusSessions)
+    .leftJoin(directProject, eq(focusSessions.projectId, directProject.id))
     .leftJoin(cards, eq(focusSessions.cardId, cards.id))
     .leftJoin(columns, eq(cards.columnId, columns.id))
     .leftJoin(boards, eq(columns.boardId, boards.id))
@@ -219,7 +222,11 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
       gte(focusSessions.completedAt, startDate),
       lte(focusSessions.completedAt, endDate),
     ))
-    .groupBy(projects.id, projects.name, projects.color)
+    .groupBy(
+      sql`COALESCE(${directProject.id}, ${projects.id})`,
+      sql`COALESCE(${directProject.name}, ${projects.name})`,
+      sql`COALESCE(${directProject.color}, ${projects.color})`,
+    )
     .orderBy(sql`coalesce(sum(${focusSessions.durationMinutes}), 0) desc`);
 
   const projectBreakdown: FocusProjectTime[] = projectRows.map(r => ({
@@ -235,7 +242,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
     ? and(
         gte(focusSessions.completedAt, startDate),
         lte(focusSessions.completedAt, endDate),
-        eq(projects.id, options.projectId),
+        sql`COALESCE(${directProject.id}, ${projects.id}) = ${options.projectId}`,
       )
     : and(
         gte(focusSessions.completedAt, startDate),
@@ -253,6 +260,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
           activeDays: sql<number>`count(distinct to_char(${focusSessions.completedAt}, 'YYYY-MM-DD'))::int`,
         })
         .from(focusSessions)
+        .leftJoin(directProject, eq(focusSessions.projectId, directProject.id))
         .leftJoin(cards, eq(focusSessions.cardId, cards.id))
         .leftJoin(columns, eq(cards.columnId, columns.id))
         .leftJoin(boards, eq(columns.boardId, boards.id))
@@ -296,6 +304,7 @@ async function getDailyDataForRange(
   projectId?: string,
 ): Promise<FocusDailyData[]> {
   const db = getDb();
+  const directProject = aliasedTable(projects, 'dp');
 
   const baseQuery = projectId
     ? db
@@ -305,6 +314,7 @@ async function getDailyDataForRange(
           minutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
         })
         .from(focusSessions)
+        .leftJoin(directProject, eq(focusSessions.projectId, directProject.id))
         .leftJoin(cards, eq(focusSessions.cardId, cards.id))
         .leftJoin(columns, eq(cards.columnId, columns.id))
         .leftJoin(boards, eq(columns.boardId, boards.id))
@@ -312,7 +322,7 @@ async function getDailyDataForRange(
         .where(and(
           gte(focusSessions.completedAt, startDate),
           lte(focusSessions.completedAt, endDate),
-          eq(projects.id, projectId),
+          sql`COALESCE(${directProject.id}, ${projects.id}) = ${projectId}`,
         ))
         .groupBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`)
         .orderBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`)
@@ -347,4 +357,20 @@ async function getDailyDataForRange(
   }
 
   return result;
+}
+
+export async function updateSession(
+  id: string,
+  input: { projectId?: string | null; note?: string | null },
+): Promise<void> {
+  const db = getDb();
+  const updates: Record<string, unknown> = {};
+  if ('projectId' in input) updates.projectId = input.projectId || null;
+  if ('note' in input) updates.note = input.note || null;
+  await db.update(focusSessions).set(updates).where(eq(focusSessions.id, id));
+}
+
+export async function deleteSession(id: string): Promise<void> {
+  const db = getDb();
+  await db.delete(focusSessions).where(eq(focusSessions.id, id));
 }

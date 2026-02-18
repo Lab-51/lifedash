@@ -47,4 +47,14 @@ export function registerFocusHandlers(): void {
   ipcMain.handle('focus:get-time-report', async (_, options: { startDate: string; endDate: string; projectId?: string }) => {
     return focusService.getTimeReport(options);
   });
+
+  ipcMain.handle('focus:update-session', async (_, id: string, input: { projectId?: string | null; note?: string | null }) => {
+    log.info(`Updating focus session: ${id}`);
+    await focusService.updateSession(id, input);
+  });
+
+  ipcMain.handle('focus:delete-session', async (_, id: string) => {
+    log.info(`Deleting focus session: ${id}`);
+    await focusService.deleteSession(id);
+  });
 }

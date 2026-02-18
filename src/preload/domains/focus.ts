@@ -11,4 +11,8 @@ export const focusBridge = {
   focusGetPeriodStats: () => ipcRenderer.invoke('focus:get-period-stats'),
   focusGetTimeReport: (options: { startDate: string; endDate: string; projectId?: string }) =>
     ipcRenderer.invoke('focus:get-time-report', options),
+  focusUpdateSession: (id: string, input: { projectId?: string | null; note?: string | null }) =>
+    ipcRenderer.invoke('focus:update-session', id, input),
+  focusDeleteSession: (id: string) =>
+    ipcRenderer.invoke('focus:delete-session', id),
 };

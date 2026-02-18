@@ -279,6 +279,8 @@ export interface ElectronAPI {
   focusGetPeriodStats: () => Promise<FocusPeriodStats>;
   focusGetTimeReport: (options: { startDate: string; endDate: string; projectId?: string }) =>
     Promise<FocusTimeReport>;
+  focusUpdateSession: (id: string, input: { projectId?: string | null; note?: string | null }) => Promise<void>;
+  focusDeleteSession: (id: string) => Promise<void>;
 
   // Gamification
   gamificationAwardXp: (eventType: XpEventType, entityId?: string) =>

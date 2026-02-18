@@ -4,10 +4,12 @@
 
 import { pgTable, uuid, varchar, text, integer, timestamp } from 'drizzle-orm/pg-core';
 import { cards } from './cards';
+import { projects } from './projects';
 
 export const focusSessions = pgTable('focus_sessions', {
   id: uuid('id').defaultRandom().primaryKey(),
   cardId: uuid('card_id').references(() => cards.id, { onDelete: 'set null' }),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
   durationMinutes: integer('duration_minutes').notNull(),
   note: text('note'),
   completedAt: timestamp('completed_at', { withTimezone: true }).defaultNow().notNull(),
