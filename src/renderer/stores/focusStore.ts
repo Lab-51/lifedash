@@ -20,6 +20,8 @@ interface FocusState {
   isPaused: boolean;
   intervalId: ReturnType<typeof setInterval> | null;
   showStartModal: boolean; // controls FocusStartModal visibility
+  lastSavedAt: number; // timestamp of last successful save (triggers FocusPage re-fetch)
+  completedDuration: number; // actual minutes focused (may be < workDuration if stopped early)
   // Actions
   startFocus: (cardId: string | null, cardTitle: string | null) => void;
   startBreak: () => void;
@@ -46,6 +48,8 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   isPaused: false,
   intervalId: null,
   showStartModal: false,
+  lastSavedAt: 0,
+  completedDuration: 0,
   startFocus: (cardId, cardTitle) => {
     const state = get();
     if (state.intervalId) clearInterval(state.intervalId);
@@ -89,18 +93,26 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     const state = get();
     if (state.intervalId) clearInterval(state.intervalId);
 
-    // Auto-save when stopping mid-focus (elapsed >= 30s)
+    // When stopping mid-focus with meaningful elapsed time, transition to
+    // 'completed' so FocusCompleteModal opens and handles the save (with await).
+    // This avoids the unreliable fire-and-forget save pattern.
     if (state.mode === 'focus') {
       const elapsedSeconds = state.workDuration * 60 - state.timeRemaining;
-      if (elapsedSeconds >= 30) {
+      if (elapsedSeconds >= 5) {
         const elapsedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
-        get().saveSession({
-          cardId: state.focusedCardId || undefined,
-          durationMinutes: elapsedMinutes,
-        }).catch(err => console.error('Failed to save stopped session:', err));
+        set({
+          mode: 'completed',
+          timeRemaining: 0,
+          isPaused: false,
+          intervalId: null,
+          completedDuration: elapsedMinutes,
+          sessionCount: state.sessionCount + 1,
+        });
+        return;
       }
     }
 
+    // For break, completed (force-dismiss), or focus < 5s: reset to idle
     set({
       mode: 'idle',
       timeRemaining: 0,
@@ -108,6 +120,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
       intervalId: null,
       focusedCardId: null,
       focusedCardTitle: null,
+      completedDuration: 0,
     });
   },
 
@@ -128,6 +141,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
           intervalId: null,
           mode: 'completed',
           sessionCount: state.sessionCount + 1,
+          completedDuration: state.workDuration,
         });
       } else if (state.mode === 'break') {
         window.electronAPI.notificationShow(
@@ -138,6 +152,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
           timeRemaining: 0,
           intervalId: null,
           mode: 'idle',
+          completedDuration: 0,
         });
       }
     } else {
@@ -179,6 +194,8 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     // Delegate stats/achievements to gamificationStore
     const { useGamificationStore } = await import('./gamificationStore');
     useGamificationStore.getState().refreshStats(result.stats, result.newAchievements);
+    // Bump timestamp so FocusPage re-fetches after save completes
+    set({ lastSavedAt: Date.now() });
     return { newAchievements: result.newAchievements };
   },
 }));

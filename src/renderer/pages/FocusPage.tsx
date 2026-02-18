@@ -86,6 +86,7 @@ export default function FocusPage() {
   const [displayCount, setDisplayCount] = useState(PAGE);
 
   const focusMode = useFocusStore(s => s.mode);
+  const lastSavedAt = useFocusStore(s => s.lastSavedAt);
 
   const [startDate, endDate] = periodRange(period, customStart, customEnd);
   const totalDays = daysInRange(startDate, endDate);
@@ -100,7 +101,7 @@ export default function FocusPage() {
       .then(data => { if (!cancelled) setReport(data); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [startDate, endDate, projectId, focusMode]);
+  }, [startDate, endDate, projectId, focusMode, lastSavedAt]);
 
   const grouped = useMemo(() => {
     if (!report) return [];

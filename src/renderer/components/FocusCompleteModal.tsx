@@ -19,10 +19,14 @@ interface FocusCompleteModalProps {
 
 function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
   const workDuration = useFocusStore(s => s.workDuration);
+  const completedDuration = useFocusStore(s => s.completedDuration);
   const breakDuration = useFocusStore(s => s.breakDuration);
   const focusedCardId = useFocusStore(s => s.focusedCardId);
   const focusedCardTitle = useFocusStore(s => s.focusedCardTitle);
   const sessionCount = useFocusStore(s => s.sessionCount);
+
+  // Use completedDuration (actual elapsed time) — falls back to workDuration for safety
+  const actualDuration = completedDuration || workDuration;
 
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -64,7 +68,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
     try {
       const { newAchievements: earned } = await useFocusStore.getState().saveSession({
         cardId: focusedCardId || undefined,
-        durationMinutes: workDuration,
+        durationMinutes: actualDuration,
       });
       // Toast achievements even on skip
       if (earned.length > 0) {
@@ -76,16 +80,18 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
       }
     } catch (error) {
       console.error('Failed to save session on skip:', error);
+      toast('Failed to save session', 'error');
     }
+    // stop() resets mode to 'idle' which closes this modal (isOpen={mode==='completed'})
+    // and also clears focusedCard — no separate onClose/clearFocusedCard needed
     useFocusStore.getState().stop();
-    useFocusStore.getState().clearFocusedCard();
-    onClose();
   };
 
   const handleStartBreak = () => {
     useFocusStore.getState().startBreak();
     toast(`Break time \u2014 ${breakDuration} min`, 'info');
-    onClose();
+    // startBreak() sets mode to 'break', which closes this modal automatically.
+    // Do NOT call onClose/stop here — that would immediately kill the break timer.
   };
 
   const handleSaveAndBreak = async () => {
@@ -94,7 +100,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
       // Save session to persistent storage and get reward data
       const { newAchievements: earned } = await useFocusStore.getState().saveSession({
         cardId: focusedCardId || undefined,
-        durationMinutes: workDuration,
+        durationMinutes: actualDuration,
         note: note.trim() || undefined,
       });
 
@@ -102,8 +108,8 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
       if (focusedCardId) {
         const trimmed = note.trim();
         const content = trimmed
-          ? `\uD83C\uDF45 Focus session completed (${workDuration} min)\n\n${trimmed}`
-          : `\uD83C\uDF45 Focus session completed (${workDuration} min)`;
+          ? `\uD83C\uDF45 Focus session completed (${actualDuration} min)\n\n${trimmed}`
+          : `\uD83C\uDF45 Focus session completed (${actualDuration} min)`;
 
         await window.electronAPI.addCardComment({
           cardId: focusedCardId,
@@ -171,7 +177,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
             <div className="text-center space-y-4 py-4">
               {/* XP Earned */}
               <div className="text-3xl font-bold text-emerald-400">
-                +{workDuration} XP
+                +{actualDuration} XP
               </div>
 
               {/* Level Progress */}
@@ -229,7 +235,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
               {/* Session summary */}
               <div className="text-center py-2">
                 <p className="text-surface-800 dark:text-surface-200 text-sm">
-                  You focused for <span className="font-semibold text-emerald-400">{workDuration} minutes</span>
+                  You focused for <span className="font-semibold text-emerald-400">{actualDuration} minutes</span>
                 </p>
                 <p className="text-surface-400 text-sm mt-1">
                   {focusedCardTitle
