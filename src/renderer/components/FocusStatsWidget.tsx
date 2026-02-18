@@ -377,6 +377,17 @@ export default function FocusStatsWidget() {
               })}
             </div>
           </div>
+
+          {/* View Focus History link */}
+          <div className="mt-4 pt-3 border-t border-surface-100 dark:border-surface-800 flex justify-center">
+            <button
+              onClick={() => useFocusStore.getState().setShowHistoryModal(true)}
+              className="flex items-center gap-1.5 text-sm text-surface-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
+            >
+              <History size={14} />
+              View Focus History
+            </button>
+          </div>
         </div>
       </div>
 

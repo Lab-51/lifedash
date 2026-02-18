@@ -20,6 +20,7 @@ interface FocusState {
   isPaused: boolean;
   intervalId: ReturnType<typeof setInterval> | null;
   showStartModal: boolean; // controls FocusStartModal visibility
+  showHistoryModal: boolean; // controls FocusHistoryModal visibility
 
   // Actions
   startFocus: (cardId: string | null, cardTitle: string | null) => void;
@@ -31,6 +32,7 @@ interface FocusState {
   setDurations: (work: number, breakMins: number) => void;
   loadSettings: () => Promise<void>;
   setShowStartModal: (show: boolean) => void;
+  setShowHistoryModal: (show: boolean) => void;
   clearFocusedCard: () => void;
   saveSession: (input: { cardId?: string; durationMinutes: number; note?: string }) =>
     Promise<{ newAchievements: Achievement[] }>;
@@ -47,6 +49,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   isPaused: false,
   intervalId: null,
   showStartModal: false,
+  showHistoryModal: false,
 
   startFocus: (cardId, cardTitle) => {
     const state = get();
@@ -155,6 +158,10 @@ export const useFocusStore = create<FocusState>((set, get) => ({
 
   setShowStartModal: (show) => {
     set({ showStartModal: show });
+  },
+
+  setShowHistoryModal: (show) => {
+    set({ showHistoryModal: show });
   },
 
   clearFocusedCard: () => {
