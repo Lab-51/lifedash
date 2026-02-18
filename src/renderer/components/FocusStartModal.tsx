@@ -3,9 +3,11 @@
 // Allows optional card selection and configurable duration presets.
 
 import { useEffect, useMemo, useState } from 'react';
-import { X, Search, Timer } from 'lucide-react';
+import { X, Search, Timer, Clock, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useBoardStore } from '../stores/boardStore';
 import { useFocusStore } from '../stores/focusStore';
+import { useGamificationStore } from '../stores/gamificationStore';
 import { toast } from '../hooks/useToast';
 
 interface FocusStartModalProps {
@@ -15,10 +17,19 @@ interface FocusStartModalProps {
 
 const DURATION_PRESETS = [25, 30, 45, 60] as const;
 
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
 function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
+  const navigate = useNavigate();
   const allCards = useBoardStore(s => s.allCards);
   const workDuration = useFocusStore(s => s.workDuration);
   const breakDuration = useFocusStore(s => s.breakDuration);
+  const stats = useGamificationStore(s => s.stats);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCard, setSelectedCard] = useState<{ id: string; title: string } | null>(null);
@@ -97,6 +108,22 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
 
         {/* Content */}
         <div className="px-5 py-4 space-y-5">
+          {/* Today's quick stats */}
+          {stats && stats.focusTodaySessions > 0 && (
+            <div className="flex items-center gap-4 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800/50">
+              <div className="flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-300">
+                <Timer size={14} />
+                <span className="font-medium">Today:</span>
+              </div>
+              <span className="text-sm text-emerald-600 dark:text-emerald-400">
+                {stats.focusTodaySessions} session{stats.focusTodaySessions !== 1 ? 's' : ''}
+              </span>
+              <span className="text-sm text-emerald-600 dark:text-emerald-400">
+                {formatDuration(stats.focusTodayMinutes)}
+              </span>
+            </div>
+          )}
+
           {/* Card search (optional) */}
           <div>
             <label className="text-xs text-surface-500 uppercase tracking-wider mb-2 block">
@@ -206,6 +233,18 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
             Start Focus — {duration} min
           </button>
 
+          {/* View Time Report CTA */}
+          <button
+            onClick={() => {
+              onClose();
+              navigate('/focus');
+            }}
+            className="w-full flex items-center justify-center gap-1.5 py-2 text-sm text-surface-500 hover:text-emerald-500 transition-colors"
+          >
+            <Clock size={14} />
+            View Time Report
+            <ArrowRight size={14} />
+          </button>
         </div>
       </div>
     </div>
