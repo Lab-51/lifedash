@@ -8,11 +8,14 @@ import { useProjectStore } from '../stores/projectStore';
 import { useFocusStore } from '../stores/focusStore';
 import type { FocusTimeReport, FocusSessionFull } from '../../shared/types/focus';
 
-type Period = 'thisWeek' | 'thisMonth' | 'lastMonth' | 'custom';
+type Period = 'thisWeek' | 'lastWeek' | 'last7Days' | 'thisMonth' | 'lastMonth' | 'custom';
 
 function getMonday(d: Date): Date {
   const day = d.getDay();
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() - day + (day === 0 ? -6 : 1));
+}
+function getSunday(mon: Date): Date {
+  return new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
 }
 function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -20,7 +23,19 @@ function toISO(d: Date): string {
 
 function periodRange(period: Period, cs: string, ce: string): [string, string] {
   const now = new Date();
-  if (period === 'thisWeek') return [toISO(getMonday(now)), toISO(now)];
+  if (period === 'thisWeek') {
+    const mon = getMonday(now);
+    return [toISO(mon), toISO(getSunday(mon))];
+  }
+  if (period === 'lastWeek') {
+    const thisMon = getMonday(now);
+    const lastMon = new Date(thisMon.getFullYear(), thisMon.getMonth(), thisMon.getDate() - 7);
+    return [toISO(lastMon), toISO(getSunday(lastMon))];
+  }
+  if (period === 'last7Days') {
+    const sixAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    return [toISO(sixAgo), toISO(now)];
+  }
   if (period === 'thisMonth') return [toISO(new Date(now.getFullYear(), now.getMonth(), 1)), toISO(now)];
   if (period === 'lastMonth') {
     return [toISO(new Date(now.getFullYear(), now.getMonth() - 1, 1)), toISO(new Date(now.getFullYear(), now.getMonth(), 0))];
@@ -66,7 +81,8 @@ function exportCSV(sessions: FocusSessionFull[], startDate: string, endDate: str
 }
 
 const PERIODS: { key: Period; label: string }[] = [
-  { key: 'thisWeek', label: 'This Week' }, { key: 'thisMonth', label: 'This Month' },
+  { key: 'thisWeek', label: 'This Week' }, { key: 'lastWeek', label: 'Last Week' },
+  { key: 'last7Days', label: 'Last 7 Days' }, { key: 'thisMonth', label: 'This Month' },
   { key: 'lastMonth', label: 'Last Month' }, { key: 'custom', label: 'Custom' },
 ];
 const PAGE = 50;
@@ -246,13 +262,19 @@ export default function FocusPage() {
                 })}
               </div>
               <div className="flex gap-px mt-1">
-                {daily.map((day, i) => {
-                  const iv = Math.max(Math.floor(daily.length / 10), 1);
-                  return <div key={day.date} className="flex-1 text-center">{i % iv === 0 ? <span className="text-[8px] text-surface-500">{new Date(day.date).getDate()}</span> : null}</div>;
-                })}
+                {daily.length === 7
+                  ? daily.map(day => (
+                      <div key={day.date} className="flex-1 text-center">
+                        <span className="text-[8px] text-surface-500">{new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                      </div>
+                    ))
+                  : daily.map((day, i) => {
+                      const iv = Math.max(Math.floor(daily.length / 10), 1);
+                      return <div key={day.date} className="flex-1 text-center">{i % iv === 0 ? <span className="text-[8px] text-surface-500">{new Date(day.date).getDate()}</span> : null}</div>;
+                    })}
               </div>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-surface-200 dark:border-surface-700">
-                <span className="text-xs text-surface-500 font-medium">{daily.length}-Day Activity</span>
+                <span className="text-xs text-surface-500 font-medium">{daily.length === 7 ? 'Weekly Activity' : `${daily.length}-Day Activity`}</span>
                 <span className="text-xs text-surface-400">{fmt(totalChart)} total</span>
               </div>
             </div>
