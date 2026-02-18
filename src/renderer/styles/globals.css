@@ -457,3 +457,91 @@ html.light .animate-logo-pulse {
     transform: translateX(100%);
   }
 }
+
+/* ECG heartbeat monitor — dual staggered sweeps with opacity crossfade */
+@keyframes ecg-sweep-trail {
+  0%   { mask-position: -100% 0; -webkit-mask-position: -100% 0; opacity: 0; }
+  8%   { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { mask-position: 200% 0; -webkit-mask-position: 200% 0; opacity: 0; }
+}
+
+@keyframes ecg-sweep-cursor {
+  0%   { mask-position: -100% 0; -webkit-mask-position: -100% 0; opacity: 0; }
+  8%   { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { mask-position: 200% 0; -webkit-mask-position: 200% 0; opacity: 0; }
+}
+
+.ecg-trail {
+  -webkit-mask-image: linear-gradient(to right,
+    transparent 0%,
+    rgba(0,0,0,0.02) 10%,
+    rgba(0,0,0,0.08) 25%,
+    rgba(0,0,0,0.2) 40%,
+    rgba(0,0,0,0.5) 58%,
+    rgba(0,0,0,0.8) 74%,
+    black 86%,
+    rgba(0,0,0,0.3) 94%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(to right,
+    transparent 0%,
+    rgba(0,0,0,0.02) 10%,
+    rgba(0,0,0,0.08) 25%,
+    rgba(0,0,0,0.2) 40%,
+    rgba(0,0,0,0.5) 58%,
+    rgba(0,0,0,0.8) 74%,
+    black 86%,
+    rgba(0,0,0,0.3) 94%,
+    transparent 100%
+  );
+  -webkit-mask-size: 50% 100%;
+  mask-size: 50% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: ecg-sweep-trail 9s linear infinite;
+}
+
+.ecg-cursor {
+  -webkit-mask-image: linear-gradient(to right,
+    transparent 0%,
+    transparent 28%,
+    rgba(0,0,0,0.3) 40%,
+    black 48%,
+    black 52%,
+    rgba(0,0,0,0.3) 60%,
+    transparent 72%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(to right,
+    transparent 0%,
+    transparent 28%,
+    rgba(0,0,0,0.3) 40%,
+    black 48%,
+    black 52%,
+    rgba(0,0,0,0.3) 60%,
+    transparent 72%,
+    transparent 100%
+  );
+  -webkit-mask-size: 14% 100%;
+  mask-size: 14% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: ecg-sweep-cursor 9s linear infinite;
+}
+
+.ecg-delayed {
+  animation-delay: -4.5s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ecg-trail,
+  .ecg-cursor {
+    animation: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+    opacity: 0.12;
+  }
+}
+

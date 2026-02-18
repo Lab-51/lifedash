@@ -42,6 +42,10 @@ function getGreeting(): string {
     return 'Good evening';
 }
 
+/** ECG waveform path — 4 heartbeats across 1000-unit width. */
+const ECG_PATH = 'M 0,50 L 55,50 L 63,44 L 71,50 L 88,50 L 94,8 L 101,92 L 108,42 L 114,58 L 120,50 L 135,50 L 143,39 L 153,50 L 280,50 L 288,44 L 296,50 L 313,50 L 319,8 L 326,92 L 333,42 L 339,58 L 345,50 L 360,50 L 368,39 L 378,50 L 530,50 L 538,44 L 546,50 L 563,50 L 569,8 L 576,92 L 583,42 L 589,58 L 595,50 L 610,50 L 618,39 L 628,50 L 780,50 L 788,44 L 796,50 L 813,50 L 819,8 L 826,92 L 833,42 L 839,58 L 845,50 L 860,50 L 868,39 L 878,50 L 1000,50';
+
+
 /** Format today's date as "Saturday, February 15". */
 function formatToday(): string {
     return new Date().toLocaleDateString('en-US', {
@@ -141,8 +145,8 @@ export default function DashboardModern() {
                 {/* Background Decorative Elem */}
                 <div className="absolute top-0 right-0 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
 
-                <div className="relative z-10 flex items-end justify-between">
-                    <div>
+                <div className="relative z-10 flex items-end justify-between gap-4">
+                    <div className="shrink-0">
                         <h1 className="text-4xl font-light tracking-tight text-surface-900 dark:text-surface-50">
                             {getGreeting()}
                         </h1>
@@ -151,7 +155,46 @@ export default function DashboardModern() {
                         </p>
                     </div>
 
-                    <div className="flex gap-3">
+                    {/* Heartbeat monitor — two staggered sweeps for seamless loop */}
+                    <div className="flex-1 min-w-0 relative h-10 mb-1" aria-hidden="true">
+                        {[false, true].map(delayed => (
+                            <div key={delayed ? 'b' : 'a'} className="absolute inset-0">
+                                <svg
+                                    className={`w-full h-full ecg-trail${delayed ? ' ecg-delayed' : ''}`}
+                                    viewBox="0 0 1000 100"
+                                    preserveAspectRatio="none"
+                                    fill="none"
+                                >
+                                    <path
+                                        d={ECG_PATH}
+                                        className="stroke-emerald-500/80 dark:stroke-emerald-400/70"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        style={{ filter: 'drop-shadow(0 0 3px rgb(16 185 129 / 0.5))' }}
+                                    />
+                                </svg>
+                                <svg
+                                    className={`w-full h-full ecg-cursor${delayed ? ' ecg-delayed' : ''} absolute inset-0`}
+                                    viewBox="0 0 1000 100"
+                                    preserveAspectRatio="none"
+                                    fill="none"
+                                >
+                                    <path
+                                        d={ECG_PATH}
+                                        className="stroke-emerald-400 dark:stroke-emerald-300"
+                                        strokeWidth="3"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        style={{ filter: 'drop-shadow(0 0 5px rgb(16 185 129 / 0.7)) drop-shadow(0 0 10px rgb(16 185 129 / 0.3))' }}
+                                    />
+                                </svg>
+                            </div>
+                        ))}
+                    </div>
+
+
+                    <div className="flex gap-3 shrink-0">
                         {[
                             { icon: Mic, label: 'Record', path: '/meetings?action=record', color: 'bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white' },
                             { icon: Plus, label: 'Project', path: '/projects?action=create', color: 'bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white' },
