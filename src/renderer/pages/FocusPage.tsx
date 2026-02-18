@@ -14,7 +14,9 @@ function getMonday(d: Date): Date {
   const day = d.getDay();
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() - day + (day === 0 ? -6 : 1));
 }
-function toISO(d: Date): string { return d.toISOString().slice(0, 10); }
+function toISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 function periodRange(period: Period, cs: string, ce: string): [string, string] {
   const now = new Date();
@@ -83,10 +85,13 @@ export default function FocusPage() {
   const [projectId, setProjectId] = useState('');
   const [displayCount, setDisplayCount] = useState(PAGE);
 
+  const focusMode = useFocusStore(s => s.mode);
+
   const [startDate, endDate] = periodRange(period, customStart, customEnd);
   const totalDays = daysInRange(startDate, endDate);
 
   useEffect(() => {
+    if (focusMode !== 'idle') return; // don't fetch while in focus/break/completed
     let cancelled = false;
     setLoading(true);
     setDisplayCount(PAGE);
@@ -95,7 +100,7 @@ export default function FocusPage() {
       .then(data => { if (!cancelled) setReport(data); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [startDate, endDate, projectId]);
+  }, [startDate, endDate, projectId, focusMode]);
 
   const grouped = useMemo(() => {
     if (!report) return [];
