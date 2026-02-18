@@ -22,10 +22,10 @@ interface KanbanCardProps {
 }
 
 const PRIORITY_STYLES = {
-    low: { color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800' },
-    medium: { color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800' },
-    high: { color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800' },
-    urgent: { color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800' },
+    low: { color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800', bar: 'bg-emerald-500' },
+    medium: { color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800', bar: 'bg-blue-500' },
+    high: { color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', bar: 'bg-amber-500' },
+    urgent: { color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800', bar: 'bg-red-500' },
 } as const;
 
 const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDelete, onClick, justDropped, isBlocked, dependencyCount }: KanbanCardProps) {
@@ -171,7 +171,7 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
             )}
 
             {/* Priority Indicator Line */}
-            <div className={`absolute top-3 bottom-3 left-0 w-1 rounded-r-full ${priorityStyle.bg.replace('/20', '')}`} />
+            <div className={`absolute top-3 bottom-3 left-0 w-1 rounded-r-full ${priorityStyle.bar}`} />
 
             <div className="pl-2.5">
                 {/* Header row */}
