@@ -2,36 +2,36 @@
 
 ## What Was Done
 
-### Plan D.7 — Light Mode Overhaul (3/3 tasks)
-Complete rewrite of the app's light mode system:
-- **Task 1** (2df050f): Switched from CSS variable inversion to class-based `@variant dark` + natural Slate palette. Added light-specific global CSS (scrollbar, select, TipTap, text selection, body bg, logo pulse).
-- **Task 2** (a84aca9): Applied `dark:` variant pattern to 37 non-Modern components (modals, StatusBar, sub-components, settings sections, FocusOverlay, toasts, error boundary).
-- **Task 3** (7846a59): Final sweep — fixed 8 more components with remaining dark-only patterns, added shadow-sm to MeetingCardModern, replaced hardcoded rgb with CSS variable.
+### Plan F.3 — Focus Session Management (3/3 tasks + 4 bug fixes)
+1. **Activity chart improvements** (d4cb97d): 6 period options (This Week, Last Week, Last 7 Days, This Month, Last Month, Custom). Full Mon-Sun display for weekly views. Day-of-week labels.
+2. **Backend — session update/delete** (1c19404): Migration 0015 adds `project_id` to `focus_sessions`. COALESCE-in-JOIN pattern resolves effective project. `updateSession`/`deleteSession` service + IPC + preload.
+3. **Session edit/delete UI** (13c5d94): Hover-reveal Pencil/Trash2 on session rows. Inline edit form (project dropdown + note). Delete with 5s undo toast.
 
-Dark mode is visually IDENTICAL — no `dark:` values changed anywhere. Only base (light) classes added.
+### Bug Fixes During Testing
+- `52d8784`: Added `.as()` aliases to COALESCE SQL expressions
+- `b6327b2`: Aliased both project table references
+- `2f93251`: Moved COALESCE into JOIN ON (single projects join — PGlite can't join same table twice)
+- `14f679f`: Fixed migration 0015 journal timestamp (was before 0014, so Drizzle skipped it)
 
-## Commits (6 unpushed — 3 from D.6, 3 from D.7)
-```
-7846a59 fix: polish remaining light mode gaps in 8 components
-a84aca9 feat: add light mode classes to 37 components
-2df050f feat: class-based dark mode + natural Slate light palette
-55e5945 docs: checkpoint — Plan D.6 complete + XP label fix
-ece4f11 fix: add "XP" suffix to category breakdown pills to avoid count confusion
-10573c4 feat: immersive full-screen focus overlay with progress ring and stats
-```
+### Key Lessons: PGlite Limitations
+- PGlite does NOT support joining the same table twice, even with different aliases
+- Solution: use `COALESCE(a, b)` inside the JOIN ON condition to pick the right FK
+- Drizzle migration journal timestamps must be monotonically increasing or migrations get skipped
 
-## Verification Status
-- TypeScript: Clean
-- Tests: 150/150 passing
-- Visual testing: NOT YET DONE — toggle to light mode and check every page
+## Current Position
+- Plan F.3: COMPLETE (3/3 tasks)
+- All pushed to GitHub: `9be488d`
+- Test suite: 150/150 pass
+- TypeScript: clean
 
 ## Resume Instructions
 1. Run `/nexus:resume` or read STATE.md
-2. **Visual test light mode**: Settings > Appearance > toggle to Light
-3. Push to origin when satisfied: `git push`
-4. Next: Check SELF-IMPROVE-NEW.md for next proposal
+2. Next action: User decides next feature or plan — no blockers
+3. Check SELF-IMPROVE-NEW.md for remaining proposals
 
 ## Key Files Changed
-- `src/renderer/styles/globals.css` — @variant dark, Slate palette, light CSS overrides
-- `src/renderer/hooks/useTheme.ts` — toggle dark/light classes
-- 47 component files — `dark:` variant pattern added
+- `src/renderer/pages/FocusPage.tsx` — 438 lines, period options + inline edit/delete UI
+- `src/main/services/focusService.ts` — COALESCE-in-JOIN pattern for effective project
+- `src/main/db/schema/focus.ts` — new `projectId` column
+- `src/renderer/stores/focusStore.ts` — `updateSession`/`deleteSession` actions
+- `drizzle/0015_broad_dormammu.sql` — migration for project_id column
