@@ -93,7 +93,7 @@ import {
 import { useGamificationStore } from '../stores/gamificationStore';
 import { ACHIEVEMENTS } from '../../shared/types/gamification';
 
-const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+export const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   Zap, Flame, Target, Cpu, Crown, Clock, BrainCircuit, TrendingUp, Calendar, CalendarCheck, Award, Trophy,
   SquarePlus, Layers, CheckSquare, ListChecks, FolderPlus, Bot, Mic, Video, ArrowRightCircle,
   Lightbulb, Sparkles, Brain, BrainCog, LayoutGrid, Rocket, BadgeCheck,

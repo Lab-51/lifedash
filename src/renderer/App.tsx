@@ -30,6 +30,7 @@ import { useGamificationStore } from './stores/gamificationStore';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import ToastContainer from './components/ToastContainer';
+import AchievementBanner from './components/AchievementBanner';
 import { toast } from './hooks/useToast';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -180,6 +181,7 @@ function App() {
             </Route>
           </Routes>
           <StatusBar />
+          <AchievementBanner />
           <ToastContainer />
         </div>
       </AppShell>

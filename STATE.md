@@ -2,16 +2,16 @@
 
 ## Session Info
 Last updated: 2026-02-18
-Session focus: Plan D.7 — Light Mode Overhaul COMPLETE
-Checkpoint reason: Plan D.7 complete, ready for visual testing + push
+Session focus: Plan D.8 — Achievement Banner COMPLETE
+Checkpoint reason: Plan D.8 complete, ready for visual testing + commit
 
 ## Position
 Milestone: v1.9.0 — Phase D: Meeting Intelligence 2.0
-Latest commit: 7846a59 (fix: polish remaining light mode gaps in 8 components)
+Latest commit: pending (Plan D.8 Achievement Banner)
 Version: 1.9.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
-SELF-IMPROVE-NEW.md: 27 proposals, 21 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 8/?)
+SELF-IMPROVE-NEW.md: 27 proposals, 22 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 9/?)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
@@ -26,6 +26,7 @@ Plan D.4: COMPLETE (2/2 tasks) — 300-Level Visual Progression
 Plan D.5: COMPLETE (3/3 tasks) — Achievement Expansion (28 → 84)
 Plan D.6: COMPLETE (3/3 tasks) — Immersive Full-Screen Focus Overlay
 Plan D.7: COMPLETE (3/3 tasks) — Light Mode Overhaul
+Plan D.8: COMPLETE (2/2 tasks) — Achievement Banner
 
 ## Plan D.5 Results
 - Task 1: Expand ACHIEVEMENTS array from 28 to 84 entries (04a7fb7)
@@ -122,10 +123,25 @@ Plan D.7: COMPLETE (3/3 tasks) — Light Mode Overhaul
   - Replaced hardcoded rgb color with CSS variable in FocusStatsWidget
   - All 150 tests pass, tsc clean
 
+## Plan D.8 Results — Achievement Banner
+- Task 1: AchievementBanner component + store + CSS animations (330 lines)
+  - NEW: AchievementBanner.tsx — Zustand store with queue system (push/next/clear)
+  - showAchievementBanner() convenience function for calling from any store
+  - Dramatic top-center banner: slide-down entrance, pulsing category-colored glow, shimmer sweep
+  - 7 category color configs (focus/emerald, cards/blue, projects/purple, meetings/amber, ideas/pink, brainstorm/cyan, cross/yellow)
+  - Auto-dismiss after 6s, exit animation 400ms before next() call
+  - Full dark/light mode support via runtime isDark check
+  - ICON_MAP exported from AchievementsModal for shared icon lookup
+  - 4 CSS keyframes in globals.css: achievement-enter, achievement-exit, achievement-glow, achievement-shimmer
+- Task 2: Integration — gamificationStore + App.tsx
+  - gamificationStore: replaced toast() calls with showAchievementBanner() in awardXP + refreshStats
+  - +XP toasts still use toast() system (bottom-right, 2s)
+  - AchievementBanner rendered in App.tsx between StatusBar and ToastContainer
+
 ## Resume Context
-Next action: Visual testing of light mode, then next plan
-Plan D.7 COMPLETE. All verified with tsc + 150/150 tests.
-6 commits unpushed to origin.
+Next action: Visual testing of Achievement Banner, then next proposal from SELF-IMPROVE-NEW.md
+Plan D.8 COMPLETE. All verified with tsc + 150/150 tests.
+Prerequisites: None — all clean
 
 ## Plan D.2 Results
 - Task 1: Focus sessions DB + service + IPC for gamification foundation (4e6b206)

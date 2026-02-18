@@ -8,6 +8,7 @@
 
 import { create } from 'zustand';
 import { toast } from '../hooks/useToast';
+import { showAchievementBanner } from '../components/AchievementBanner';
 import type { GamificationStats, Achievement, XpEventType, XpDailyData } from '../../shared/types/gamification';
 
 interface GamificationState {
@@ -68,10 +69,8 @@ export const useGamificationStore = create<GamificationState>((set, get) => ({
         const achievements = await window.electronAPI.gamificationGetAchievements();
         set({ achievements });
 
-        result.newAchievements.forEach((a: Achievement, i: number) => {
-          setTimeout(() => {
-            toast(`Achievement Unlocked: ${a.name} — ${a.description}`, 'success', undefined, 5000);
-          }, i * 500);
+        result.newAchievements.forEach((a: Achievement) => {
+          showAchievementBanner(a);
         });
       }
     } catch (error) {
@@ -88,10 +87,8 @@ export const useGamificationStore = create<GamificationState>((set, get) => ({
         set({ achievements });
       }).catch(() => {});
 
-      newAchievements.forEach((a, i) => {
-        setTimeout(() => {
-          toast(`Achievement Unlocked: ${a.name} — ${a.description}`, 'success', undefined, 5000);
-        }, i * 500);
+      newAchievements.forEach((a) => {
+        showAchievementBanner(a);
       });
     }
   },
