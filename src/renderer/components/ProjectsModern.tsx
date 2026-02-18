@@ -39,6 +39,8 @@ export default function ProjectsModern() {
     const [showArchived, setShowArchived] = useState(false);
     const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
+    const [editingDescId, setEditingDescId] = useState<string | null>(null);
+    const [editDesc, setEditDesc] = useState('');
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [planningProjectId, setPlanningProjectId] = useState<string | null>(null);
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
@@ -134,6 +136,15 @@ export default function ProjectsModern() {
             await updateProject(id, { name: trimmed });
         }
         setEditingProjectId(null);
+    };
+
+    const handleSaveDescription = async (id: string) => {
+        const trimmed = editDesc.trim();
+        const current = projects.find(p => p.id === id)?.description || '';
+        if (trimmed !== current) {
+            await updateProject(id, { description: trimmed || null });
+        }
+        setEditingDescId(null);
     };
 
     const handleDelete = (e: React.MouseEvent, id: string, name: string) => {
@@ -399,9 +410,29 @@ export default function ProjectsModern() {
                                     ) : (
                                         <h3 className="text-lg font-bold text-surface-900 dark:text-surface-100 truncate pr-8">{project.name}</h3>
                                     )}
-                                    <p className="text-sm text-surface-500 mt-1 line-clamp-2 h-10">
-                                        {project.description || <span className="italic opacity-50">No description</span>}
-                                    </p>
+                                    {editingDescId === project.id ? (
+                                        <textarea
+                                            value={editDesc}
+                                            onChange={(e) => setEditDesc(e.target.value)}
+                                            onBlur={() => handleSaveDescription(project.id)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveDescription(project.id); }
+                                                if (e.key === 'Escape') setEditingDescId(null);
+                                            }}
+                                            autoFocus
+                                            rows={2}
+                                            placeholder="Add a description..."
+                                            className="w-full text-sm mt-1 bg-surface-50 dark:bg-surface-800 border-none rounded px-2 py-1 -ml-2 outline-none focus:ring-2 focus:ring-primary-500/50 resize-none text-surface-700 dark:text-surface-300 placeholder-surface-400"
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    ) : (
+                                        <p
+                                            className="text-sm text-surface-500 mt-1 line-clamp-2 h-10 cursor-text hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
+                                            onClick={(e) => { e.stopPropagation(); setEditingDescId(project.id); setEditDesc(project.description || ''); }}
+                                        >
+                                            {project.description || <span className="italic opacity-50">Add description...</span>}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="mt-auto pt-4 border-t border-surface-100 dark:border-surface-800 flex items-center justify-between text-xs font-medium text-surface-500">
