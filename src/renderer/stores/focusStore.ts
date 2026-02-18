@@ -88,11 +88,26 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   stop: () => {
     const state = get();
     if (state.intervalId) clearInterval(state.intervalId);
+
+    // Auto-save when stopping mid-focus (elapsed >= 30s)
+    if (state.mode === 'focus') {
+      const elapsedSeconds = state.workDuration * 60 - state.timeRemaining;
+      if (elapsedSeconds >= 30) {
+        const elapsedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
+        get().saveSession({
+          cardId: state.focusedCardId || undefined,
+          durationMinutes: elapsedMinutes,
+        }).catch(err => console.error('Failed to save stopped session:', err));
+      }
+    }
+
     set({
       mode: 'idle',
       timeRemaining: 0,
       isPaused: false,
       intervalId: null,
+      focusedCardId: null,
+      focusedCardTitle: null,
     });
   },
 
