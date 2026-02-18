@@ -42,6 +42,7 @@ const BoardPage = lazy(() => import('./pages/BoardPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const FocusStartModal = lazy(() => import('./components/FocusStartModal'));
 const FocusCompleteModal = lazy(() => import('./components/FocusCompleteModal'));
+const FocusOverlay = lazy(() => import('./components/FocusOverlay'));
 
 /** Wrapper that lives inside HashRouter to enable useNavigate for shortcuts */
 function AppShell({ children }: { children: ReactNode }) {
@@ -149,6 +150,7 @@ function AppShell({ children }: { children: ReactNode }) {
           isOpen={showStartModal}
           onClose={() => useFocusStore.getState().setShowStartModal(false)}
         />
+        {(focusMode === 'focus' || focusMode === 'break') && <FocusOverlay />}
         <FocusCompleteModal
           isOpen={focusMode === 'completed'}
           onClose={() => useFocusStore.getState().stop()}

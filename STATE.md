@@ -1,17 +1,17 @@
 # Current State
 
 ## Session Info
-Last updated: 2026-02-17
-Session focus: Plan D.4 — 300-Level Visual Progression + ad-hoc StatusBar fixes
-Checkpoint reason: Session complete
+Last updated: 2026-02-18
+Session focus: Plan D.6 — Immersive Full-Screen Focus Overlay
+Checkpoint reason: Plan D.6 written, awaiting approval
 
 ## Position
 Milestone: v1.9.0 — Phase D: Meeting Intelligence 2.0
-Latest commit: fdd6651 (fix: refresh pending action count immediately on status change)
+Latest commit: 48bc230 (feat: add 56 new Lucide icons to ICON_MAP in both UI components)
 Version: 1.9.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
-SELF-IMPROVE-NEW.md: 27 proposals, 19 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 5/?)
+SELF-IMPROVE-NEW.md: 27 proposals, 19 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 6/?)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
@@ -23,6 +23,23 @@ Plan D.1: COMPLETE (3/3 tasks) — Meeting Prep Assistant
 Plan D.2: COMPLETE (3/3 tasks) — Focus Mode Gamification
 Plan D.3: COMPLETE (3/3 tasks) — Unified Gamification System
 Plan D.4: COMPLETE (2/2 tasks) — 300-Level Visual Progression
+Plan D.5: COMPLETE (3/3 tasks) — Achievement Expansion (28 → 84)
+
+## Plan D.5 Results
+- Task 1: Expand ACHIEVEMENTS array from 28 to 84 entries (04a7fb7)
+  - Focus 12→24, Cards 4→14, Projects 2→8, Meetings 3→10, Ideas 2→8, Brainstorm 2→8, Cross 3→12
+  - 56 new achievements with creative/funny names (Quarter Pounder, Touch Grass Soon, XP Dragon, etc.)
+  - All entries use unique Lucide icon names (no duplicates across 84)
+- Task 2: Update gamificationService with consolidated queries + 84 conditions (64c4864)
+  - Replaced 3 individual xp_events queries with single GROUP BY (eventCountMap)
+  - Added 10 new AchievementCounts fields: focusTotalMinutes, todayXp, aiPlanCount,
+    aiDescriptionCount, aiBreakdownCount, aiStandupCount, meetingBriefCount,
+    projectsArchived, brainstormExports, ideasAnalyzed
+  - checkAndUnlockAchievements expanded from 28 to 84 condition checks
+  - completionist_all uses ACHIEVEMENTS.length - 1 to avoid chicken-and-egg
+- Task 3: Add 56 Lucide icons to ICON_MAP in AchievementsModal + FocusStatsWidget (48bc230)
+  - Both files updated identically with 56 new imports + ICON_MAP entries
+  - Aliased `Map` as `MapIcon` to avoid shadowing global Map constructor
 
 ## Plan D.4 Results
 - Task 1: 300-level formula-based system with 30 named tiers (7efdde6)
@@ -64,9 +81,8 @@ Plan D.4: COMPLETE (2/2 tasks) — 300-Level Visual Progression
 - Fix: Pending action count refreshes immediately on approve/dismiss/convert — no 30s delay (fdd6651)
 
 ## Resume Context
-Next action: Plan D.5 or next self-improvement proposal
-Plan D.4 is fully COMPLETE. Both tasks verified with tsc + 150/150 tests.
-Ad-hoc fixes committed and pushed.
+Next action: Execute Plan D.6 — Immersive Full-Screen Focus Overlay (3 tasks)
+Plan D.6 confidence: HIGH (all 3 tasks)
 Prerequisites: None — all clean
 
 ## Plan D.2 Results

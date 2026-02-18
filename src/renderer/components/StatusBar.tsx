@@ -1,14 +1,13 @@
 // === FILE PURPOSE ===
 // Fixed bottom status bar showing database connection status (left)
-// and dynamic context-aware content (right): focus timer, pending action items + command hint.
-// Uses the useDatabaseStatus hook for connection state, meetingStore for action counts,
-// and focusStore for Pomodoro timer display.
+// and dynamic context-aware content (right): pending action items, level badge, command hint.
+// Hidden during focus/break modes when the full-screen FocusOverlay is active.
 
 // === DEPENDENCIES ===
-// useDatabaseStatus hook, meetingStore, focusStore, react, lucide-react
+// useDatabaseStatus hook, meetingStore, focusStore, gamificationStore, react, lucide-react
 
 import { useEffect } from 'react';
-import { Timer, Coffee, Pause, Play, Square } from 'lucide-react';
+import { Timer } from 'lucide-react';
 import useDatabaseStatus from '../hooks/useDatabaseStatus';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useFocusStore } from '../stores/focusStore';
@@ -27,18 +26,10 @@ function getStatusLabel(connected: boolean, checking: boolean): string {
   return connected ? 'Connected' : 'Disconnected';
 }
 
-/** Formats seconds as MM:SS */
-function formatTime(s: number): string {
-  return Math.floor(s / 60).toString().padStart(2, '0') + ':' + (s % 60).toString().padStart(2, '0');
-}
-
 function StatusBar() {
   const { connected, checking } = useDatabaseStatus();
   const pendingActionCount = useMeetingStore(s => s.pendingActionCount);
   const focusMode = useFocusStore(s => s.mode);
-  const timeRemaining = useFocusStore(s => s.timeRemaining);
-  const isPaused = useFocusStore(s => s.isPaused);
-  const focusedCardTitle = useFocusStore(s => s.focusedCardTitle);
   const stats = useGamificationStore(s => s.stats);
 
   useEffect(() => {
@@ -47,6 +38,9 @@ function StatusBar() {
     const interval = setInterval(load, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Hide StatusBar when full-screen FocusOverlay is active
+  if (focusMode === 'focus' || focusMode === 'break') return null;
 
   return (
     <div className="h-6 flex items-center justify-between bg-surface-900 border-t border-surface-800 px-3 shrink-0">
@@ -61,7 +55,7 @@ function StatusBar() {
         </span>
       </div>
 
-      {/* Right: pending actions + command hint */}
+      {/* Right: dynamic content */}
       <div className="flex items-center gap-3 text-xs text-surface-600">
         {pendingActionCount > 0 && (
           <span className="text-amber-400/80">
@@ -69,45 +63,17 @@ function StatusBar() {
           </span>
         )}
 
+        {/* Completed state: brief "Done!" indicator before FocusCompleteModal opens */}
+        {focusMode === 'completed' && (
+          <div className="flex items-center gap-1.5">
+            <Timer size={14} className="text-emerald-400" />
+            <span className="text-emerald-400 font-mono">Done!</span>
+          </div>
+        )}
+
         {/* Level indicator when idle */}
         {focusMode === 'idle' && stats && (
           <LevelBadge level={stats.level} size="sm" />
-        )}
-
-        {/* Focus / break timer */}
-        {(focusMode === 'focus' || focusMode === 'break' || focusMode === 'completed') && (
-          <div className="flex items-center gap-1.5">
-            {focusMode === 'focus' && <Timer size={14} className="text-emerald-400" />}
-            {focusMode === 'break' && <Coffee size={14} className="text-amber-400" />}
-            {focusMode === 'completed' && <Timer size={14} className="text-emerald-400" />}
-
-            {focusedCardTitle && (
-              <span className="max-w-[120px] truncate text-surface-300">{focusedCardTitle}</span>
-            )}
-
-            <span className={focusMode === 'break' ? 'text-amber-400 font-mono' : 'text-emerald-400 font-mono'}>
-              {focusMode === 'completed' ? 'Done!' : formatTime(timeRemaining)}
-            </span>
-
-            {(focusMode === 'focus' || focusMode === 'break') && (
-              <>
-                <button
-                  onClick={() => isPaused ? useFocusStore.getState().resume() : useFocusStore.getState().pause()}
-                  className="p-0.5 text-surface-400 hover:text-surface-200 transition-colors"
-                  aria-label={isPaused ? 'Resume' : 'Pause'}
-                >
-                  {isPaused ? <Play size={14} /> : <Pause size={14} />}
-                </button>
-                <button
-                  onClick={() => useFocusStore.getState().stop()}
-                  className="p-0.5 text-surface-500 hover:text-red-400 transition-colors"
-                  aria-label="Stop focus session"
-                >
-                  <Square size={14} />
-                </button>
-              </>
-            )}
-          </div>
         )}
 
         <span>Ctrl+K: Commands</span>
