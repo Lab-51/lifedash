@@ -2,16 +2,18 @@
 
 ## Session Info
 Last updated: 2026-02-18
-Session focus: Plan D.8 — Achievement Banner COMPLETE
-Checkpoint reason: Plan D.8 complete and pushed. Ready for next proposal.
+Session focus: Plan F.3 — Focus Session Management
 
 ## Position
-Milestone: v1.9.0 — Phase D: Meeting Intelligence 2.0
-Latest commit: 5102b8f (feat: dramatic achievement banner replaces plain text toasts)
-Version: 1.9.0
+Milestone: v2.0.0
+Latest commit: 13c5d94 (feat: session edit + delete with undo in FocusPage)
+Plan F.1: COMPLETE (3/3 tasks)
+Plan F.2: COMPLETE (3/3 tasks) — Focus Time Tracking Page
+Plan F.3: COMPLETE (3/3 tasks) — Session Edit, Delete, Chart Improvements
+Version: 1.9.0 → targeting 2.0.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
-SELF-IMPROVE-NEW.md: 27 proposals, 22 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 9/?)
+SELF-IMPROVE-NEW.md: 27 proposals, 22 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 10/?)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)
@@ -27,6 +29,7 @@ Plan D.5: COMPLETE (3/3 tasks) — Achievement Expansion (28 → 84)
 Plan D.6: COMPLETE (3/3 tasks) — Immersive Full-Screen Focus Overlay
 Plan D.7: COMPLETE (3/3 tasks) — Light Mode Overhaul
 Plan D.8: COMPLETE (2/2 tasks) — Achievement Banner
+Plan D.9: COMPLETE (3/3 tasks) — Dark Mode Polish (Projects & Cards)
 
 ## Plan D.5 Results
 - Task 1: Expand ACHIEVEMENTS array from 28 to 84 entries (04a7fb7)
@@ -138,10 +141,79 @@ Plan D.8: COMPLETE (2/2 tasks) — Achievement Banner
   - +XP toasts still use toast() system (bottom-right, 2s)
   - AchievementBanner rendered in App.tsx between StatusBar and ToastContainer
 
+## Plan D.9 Results — Dark Mode Polish (Projects & Cards)
+- Task 1: Board column & Kanban card dark mode contrast fixes (d627b2d)
+  - BoardColumnModern: solid column bg (removed /50 opacity), brighter count badge, visible dashed border, dark focus ring, subtler Add Card hover, stronger drag-over indicator
+  - KanbanCardModern: brighter toolbar border, link badge text, checkbox border, hover glow
+- Task 2: Projects page dark mode visibility fixes (d627b2d)
+  - Hover shadow now visible (shadow-lg + /30 opacity), dropdown floats above card (surface-800), menu hover items surface-700, divider visible, star icon brighter, dark focus ring on search
+- Task 3: Card detail modal dark mode depth & contrast fixes (d627b2d)
+  - Deeper overlay (/60), brighter modal border (surface-600), priority active states /30 + /50, dropdown borders surface-600, action link hover brighter (surface-100), color picker ring /70
+
+## Plan F.1 Results — Focus Session History & Time Tracking
+- Task 1: Focus history backend — session list + period aggregation queries (a421156)
+  - getSessionHistory(): paginated sessions with card titles via LEFT JOIN
+  - getPeriodStats(): single-query conditional aggregation (today/week/month/allTime) + 30-day dailyData
+  - 2 IPC handlers: focus:get-history, focus:get-period-stats
+  - Preload bridge: focusGetHistory, focusGetPeriodStats
+  - Types: FocusSessionWithCard, FocusPeriodBucket, FocusPeriodStats
+- Task 2: FocusHistoryModal — full session history view (386cfdf)
+  - 4 period summary cards (Today highlighted, This Week, This Month, All Time)
+  - 30-day activity bar chart (minutes per day, hover tooltips)
+  - Paginated session history table with card titles, notes, relative dates
+  - Loading skeleton, empty state, "Load More" pagination
+  - 253 lines, dark/light mode support
+- Task 3: Integration — entry points from widget, overlay, sidebar (21369c7)
+  - focusStore: showHistoryModal state + setShowHistoryModal action
+  - FocusStatsWidget: "View Focus History" button below achievements
+  - FocusOverlay: "History" button in today stats row
+  - SidebarModern: History icon button next to Focus Mode toggle
+  - App.tsx: FocusHistoryModal lazy-loaded in Suspense block
+
+## Plan F.2 Results — Focus Time Tracking Page
+- Task 1: Cleanup + project-aware time tracking backend (2fe1aed)
+  - Removed Focus History buttons from sidebar, widget, overlay, start modal
+  - Removed showHistoryModal from focusStore + FocusHistoryModal render from App.tsx
+  - New getTimeReport() service with 4-way LEFT JOIN (sessions → cards → columns → boards → projects)
+  - New types: FocusTimeReportOptions, FocusSessionFull, FocusProjectTime, FocusTimeReport
+  - New IPC handler: focus:get-time-report + preload bridge + ElectronAPI type
+- Task 2: Focus Time Tracking page at /focus (4639a7d)
+  - FocusPage.tsx (299 lines): period selector (week/month/last month/custom), project filter dropdown
+  - Summary stats cards (4 cards: sessions, total time, avg session, active days)
+  - Project breakdown horizontal bars (proportional, color-coded)
+  - Daily activity bar chart (emerald bars, hover tooltips)
+  - Date-grouped session list with Load More pagination (50 per page)
+  - CSV export (Blob + anchor download) with project-filtered filenames
+  - Empty state with Start Focus Session CTA
+  - Sidebar: Focus nav item with Clock icon (Ctrl+6), Settings shifted to Ctrl+7
+  - FocusHistoryModal.tsx deleted (replaced by page)
+- Task 3: FocusStartModal enhancement (9c555fa)
+  - Today's stats row (sessions + duration) shown above card search when sessions exist
+  - "View Time Report" CTA navigates to /focus page
+  - Keyboard shortcuts already updated by Task 2
+
+## Plan F.3 Results — Session Edit, Delete, Chart Improvements
+- Task 1: Activity chart — 6 period options + full-week display (d4cb97d)
+  - Period type: thisWeek | lastWeek | last7Days | thisMonth | lastMonth | custom
+  - thisWeek now shows full Mon-Sun (future days show 0 min bars)
+  - lastWeek: previous Mon-Sun, last7Days: rolling 6-day lookback
+  - Day-of-week labels (Mon, Tue, ...) for 7-day periods, numeric for others
+  - Footer label: "Weekly Activity" for 7-day, "{N}-Day Activity" otherwise
+- Task 2: Backend — session update/delete + direct project assignment (1c19404)
+  - Migration 0015: projectId column on focus_sessions (FK to projects, onDelete: set null)
+  - aliasedTable + COALESCE pattern: prefers direct projectId over card-chain projectId
+  - Updated all getTimeReport queries (sessions, breakdown, summary, daily)
+  - updateSession(id, {projectId, note}) + deleteSession(id) service functions
+  - IPC: focus:update-session, focus:delete-session + preload bridge + ElectronAPI
+- Task 3: Session edit + delete UI in FocusPage (13c5d94)
+  - Hover-reveal Pencil + Trash2 icons on session rows
+  - Inline edit form: project dropdown + note input + Save/Cancel
+  - Delete with 5s undo toast (optimistic removal, actual delete after timeout)
+  - focusStore: updateSession + deleteSession thin wrappers
+
 ## Resume Context
-Next action: Pick next proposal from SELF-IMPROVE-NEW.md (proposal #22+), or visual testing of achievement banner
-Plan D.8 COMPLETE and pushed (5102b8f). All verified with tsc + 150/150 tests.
-Prerequisites: None — working tree clean, all pushed to origin/main
+Plan F.3 COMPLETE — all 3 tasks verified (tsc clean, 150/150 tests pass)
+Next action: TBD
 
 ## Plan D.2 Results
 - Task 1: Focus sessions DB + service + IPC for gamification foundation (4e6b206)

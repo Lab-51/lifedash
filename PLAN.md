@@ -1,290 +1,248 @@
-<phase n="D.8" name="Achievement Banner">
+<phase n="F.3" name="Focus Session Management — Edit, Delete, and Chart Improvements">
   <context>
-    The gamification system has 84 achievements across 7 categories. When an achievement unlocks,
-    the flow is: gamificationService.checkAndUnlockAchievements() → IPC → gamificationStore.awardXP()
-    → toast("Achievement Unlocked: {name}"). Currently this uses the same plain text toast system
-    as all other notifications (bottom-right corner, small, dismisses in 5s).
+    Plan F.2 built the Focus Time Tracking page at /focus. User feedback:
+    1. The activity chart only shows days up to "today" for This Week (e.g., 4 bars if it's Thu).
+       User wants full 7-day weeks + more period options (Last Week, Last 7 Days).
+    2. Sessions are read-only — user wants to edit the project and note of existing sessions.
+       When a session's project changes, the project breakdown/chart/stats should update dynamically.
+    3. No way to delete sessions — user wants delete functionality.
 
-    The user wants a dramatic top-center banner with a "rare item found" visual effect — something
-    that feels celebratory and special, not just another toast.
+    Current state:
+    - FocusPage.tsx: 305 lines with period selector (4 options), project filter, summary stats,
+      project breakdown, activity chart, session list with date grouping + CSV export
+    - focusService.ts: getTimeReport() with 4-way LEFT JOIN (sessions → cards → columns → boards → projects)
+    - focus_sessions schema: id, cardId (FK cards), durationMinutes, note, completedAt
+    - Project info is currently derived ONLY from the card chain (no direct project link on sessions)
+    - XP is awarded on save via gamificationService.awardXP() — NOT reversed on delete (by design)
 
-    Achievement data structure: { id, name, description, icon (Lucide name), category }
-    Categories: focus, cards, projects, meetings, ideas, brainstorm, cross
+    Key approach: Add a `project_id` column to focus_sessions so users can directly assign
+    a project to a session (overriding the card-chain-derived project). Use COALESCE in queries
+    to prefer direct projectId over card-chain projectId.
 
-    @src/renderer/stores/gamificationStore.ts (lines 66-75, 91-95 — current toast logic)
-    @src/renderer/components/ToastContainer.tsx (current toast rendering)
-    @src/renderer/components/AchievementsModal.tsx (ICON_MAP for Lucide icon mapping)
-    @src/renderer/App.tsx (global layout — where to mount the banner)
-    @src/renderer/styles/globals.css (for CSS keyframe animations)
-    @src/shared/types/gamification.ts (Achievement type, ACHIEVEMENTS array)
+    Drizzle ORM v0.45.1 — supports aliasedTable() from 'drizzle-orm' for self-joins.
+
+    @src/renderer/pages/FocusPage.tsx
+    @src/main/services/focusService.ts
+    @src/main/ipc/focus.ts
+    @src/preload/domains/focus.ts
+    @src/shared/types/focus.ts
+    @src/shared/types/electron-api.ts
+    @src/main/db/schema/focus.ts
+    @src/renderer/stores/focusStore.ts
   </context>
 
   <task type="auto" n="1">
-    <n>AchievementBanner component + store + CSS animations</n>
+    <n>Activity chart period options + full-week display</n>
     <files>
-      src/renderer/components/AchievementBanner.tsx (NEW)
-      src/renderer/styles/globals.css
+      src/renderer/pages/FocusPage.tsx
     </files>
     <action>
-      Create a new AchievementBanner component that renders a dramatic "rare item found" banner
-      at the top center of the screen when an achievement is unlocked.
+      **Part A — New period options:**
+      Add "Last Week" and "Last 7 Days" to the PERIODS array:
+      - PERIODS becomes: This Week | Last Week | Last 7 Days | This Month | Last Month | Custom
+      - Period type: add 'lastWeek' | 'last7Days' to the Period union
 
-      **1. Internal Zustand store (inside the component file)**
+      Update `periodRange()` function:
+      - 'thisWeek': Mon of current week → **Sunday** of current week (always 7 days,
+        even if today is mid-week — future days will show 0-value bars in the chart)
+      - 'lastWeek': Mon of previous week → Sun of previous week (always 7 days)
+      - 'last7Days': 6 days ago → today (always 7 days)
+      - 'thisMonth' and 'lastMonth': unchanged
+      - 'custom': unchanged
 
-      Simple store managing a queue of achievements to display:
+      Helper function `getSunday(mon: Date)`: returns the Sunday of the same week.
 
-      ```ts
-      interface BannerState {
-        queue: Achievement[];
-        current: Achievement | null;
-        push: (achievement: Achievement) => void;
-        next: () => void;
-        clear: () => void;
-      }
-      ```
+      **Part B — Activity chart day-of-week labels:**
+      When the selected period is exactly 7 days (thisWeek, lastWeek, last7Days),
+      show abbreviated day-of-week labels (Mon, Tue, Wed, ...) under each bar instead
+      of the numeric date labels. Use `weekday: 'short'` from toLocaleDateString.
 
-      Export a convenience function: `showAchievementBanner(achievement: Achievement)` that calls
-      `push()`. This is what gamificationStore will call instead of `toast()`.
+      For other periods, keep the existing numeric date label logic.
 
-      When `push()` is called:
-      - Add achievement to queue
-      - If no `current`, immediately pop from queue and set as `current`
+      **Part C — Chart footer label:**
+      The footer currently says "{N}-Day Activity". For 7-day periods,
+      show "Weekly Activity" instead. For other lengths, keep "{N}-Day Activity".
 
-      When `next()` is called:
-      - If queue has items, pop next and set as `current`
-      - If queue is empty, set `current` to null
-
-      Auto-dismiss: When `current` changes to a non-null value, start a 6-second timer.
-      After 6s, call `next()`. Clear timer on unmount.
-
-      **2. Component visual design**
-
-      The banner should feel like finding a rare item in a video game. Key elements:
-
-      a) **Container:** Fixed position top-center, z-[60] (above everything). Width ~420px, centered.
-         Pointer-events-none on the wrapper, pointer-events-auto on the banner itself.
-
-      b) **Entrance animation:** Slide down from above + scale up slightly + fade in.
-         Duration 600ms, ease-out. Use CSS class toggling with a `visible` state that
-         flips after a requestAnimationFrame tick (same pattern as FocusOverlay).
-
-      c) **Exit animation:** Slide up + fade out. Duration 400ms. Trigger 400ms before
-         `next()` so exit completes before the next banner appears.
-
-      d) **Banner layout:**
-         - Outer glow: category-colored box-shadow that pulses (CSS animation)
-         - Background: gradient from category color (left, subtle) to surface-900/white
-         - Left side: Large icon (40px) in a circle with category-colored bg + shimmer
-         - Center: "ACHIEVEMENT UNLOCKED" label (uppercase, tracking-widest, tiny, category-colored),
-           achievement name (text-lg font-bold), description (text-sm text-surface-400)
-         - Right side: small X dismiss button
-
-      e) **Sparkle/particle effect:** Use CSS pseudo-elements with a shimmer animation on the
-         banner border. A horizontal shimmer line that sweeps across the banner once on entrance.
-         Use `@keyframes achievement-shimmer` with a background-gradient that translates from
-         left to right.
-
-      f) **Category colors** (reuse from AchievementsModal's ACHIEVEMENT_CATEGORY_CLASS):
-
-         | Category | Color accent |
-         |----------|-------------|
-         | focus | emerald-400 |
-         | cards | blue-400 |
-         | projects | purple-400 |
-         | meetings | amber-400 |
-         | ideas | pink-400 |
-         | brainstorm | cyan-400 |
-         | cross | yellow-400 |
-
-      g) **Light mode support:** Use `dark:` variant pattern. In light mode: white bg with
-         subtle category-colored border/glow. In dark mode: surface-900 bg with stronger glow.
-
-      **3. Icon rendering**
-
-      Copy the ICON_MAP approach from AchievementsModal.tsx — import the same Lucide icons and
-      map achievement.icon to a component. BUT to avoid duplicating 84 icon imports, instead
-      accept the icon as a prop OR use a shared ICON_MAP. Simplest approach: import only the
-      most commonly used ~20 icons and use `Award` as fallback. The banner only shows one
-      achievement at a time so this is fine.
-
-      Actually, the cleanest approach: create a small shared utility file is overkill for this.
-      Instead, import the ICON_MAP from AchievementsModal directly (it's already exported as a
-      const). If it's not exported, export it. Then use it: `const Icon = ICON_MAP[achievement.icon] || Award`.
-
-      **4. CSS animations (globals.css)**
-
-      Add these keyframes:
-
-      ```css
-      @keyframes achievement-enter {
-        from {
-          opacity: 0;
-          transform: translateY(-100%) scale(0.95);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0) scale(1);
-        }
-      }
-
-      @keyframes achievement-exit {
-        from {
-          opacity: 1;
-          transform: translateY(0) scale(1);
-        }
-        to {
-          opacity: 0;
-          transform: translateY(-100%) scale(0.95);
-        }
-      }
-
-      @keyframes achievement-glow {
-        0%, 100% {
-          box-shadow: 0 0 15px var(--achievement-glow-color, rgba(250, 204, 21, 0.3)),
-                      0 0 30px var(--achievement-glow-color, rgba(250, 204, 21, 0.1));
-        }
-        50% {
-          box-shadow: 0 0 25px var(--achievement-glow-color, rgba(250, 204, 21, 0.5)),
-                      0 0 50px var(--achievement-glow-color, rgba(250, 204, 21, 0.2));
-        }
-      }
-
-      @keyframes achievement-shimmer {
-        from {
-          transform: translateX(-100%);
-        }
-        to {
-          transform: translateX(100%);
-        }
-      }
-      ```
-
-      **5. Sound (skip for now)**
-      No audio — keep this purely visual. Can be added later.
-
-      **WHY this approach:**
-      - Dedicated store (not toast store) because the banner has different lifecycle (queue, animations, longer display)
-      - CSS keyframes over JS animations for performance (GPU-accelerated transforms)
-      - Category colors give each achievement a distinct feel without needing a "rarity" system
-      - The shimmer sweep + pulsing glow creates the "rare item" feel seen in games like Diablo/Destiny
+      WHY: Users expect full-week charts like other productivity tools (Toggl, RescueTime).
+      "This Week" showing 4 bars on Thursday feels incomplete. Adding "Last Week" and "Last 7 Days"
+      gives proper comparison options for time tracking.
     </action>
     <verify>
-      1. Run `npx tsc --noEmit` — no type errors
-      2. Verify the component file exists and exports `showAchievementBanner` + default component
-      3. Verify CSS keyframes are added to globals.css
-      4. The component should be self-contained — rendering it with no queue should show nothing
+      - npx tsc --noEmit passes
+      - PERIODS array has 6 entries (was 4)
+      - Period type includes 'lastWeek' and 'last7Days'
+      - periodRange returns Mon-Sun for 'thisWeek' (7 days even on Monday)
+      - periodRange returns previous Mon-Sun for 'lastWeek'
+      - Activity chart label is "Weekly Activity" for 7-day periods
     </verify>
-    <done>
-      AchievementBanner component renders a dramatic top-center banner with category-colored glow,
-      shimmer effect, slide-in/out animations, and a queue system for multiple achievements.
-      All CSS animations are GPU-accelerated. Component is fully self-contained with its own store.
-    </done>
+    <done>6 period options, full-week chart display, day-of-week labels for weekly views</done>
     <confidence>HIGH</confidence>
-    <assumptions>
-      - The ICON_MAP in AchievementsModal is importable (may need to export it)
-      - CSS @keyframes in globals.css works alongside existing keyframes
-      - z-[60] is sufficient to be above all other UI (FocusOverlay is z-40, modals are z-50)
-    </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Integration — wire banner into gamification flow + render in App.tsx</n>
+    <n>Backend — session update/delete + direct project assignment</n>
     <files>
-      src/renderer/stores/gamificationStore.ts
-      src/renderer/App.tsx
-      src/renderer/components/AchievementsModal.tsx (export ICON_MAP if needed)
+      src/main/db/schema/focus.ts
+      src/main/services/focusService.ts
+      src/main/ipc/focus.ts
+      src/preload/domains/focus.ts
+      src/shared/types/focus.ts
+      src/shared/types/electron-api.ts
     </files>
     <action>
-      **1. Export ICON_MAP from AchievementsModal (if not already exported)**
+      **Part A — Schema migration:**
+      Add `projectId` column to focus_sessions:
+      ```
+      projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
+      ```
+      Import `projects` from './projects' in focus.ts schema.
+      Run `npx drizzle-kit generate` to create migration 0015.
 
-      Check if ICON_MAP in AchievementsModal.tsx is exported. If not, add `export` to it.
-      The AchievementBanner needs to map icon names to Lucide components.
+      **Part B — Update getTimeReport queries:**
+      The key change: session's effective project = COALESCE(direct projectId, card-chain projectId).
 
-      **2. Replace toast calls with banner calls in gamificationStore**
-
-      In `gamificationStore.ts`, replace the achievement toast logic with the banner:
-
-      ```ts
-      import { showAchievementBanner } from '../components/AchievementBanner';
+      Use `aliasedTable` from 'drizzle-orm' to create a second reference to `projects`:
+      ```typescript
+      import { aliasedTable } from 'drizzle-orm';
+      const directProject = aliasedTable(projects, 'dp');
       ```
 
-      In `awardXP()` (around lines 66-75), replace:
-      ```ts
-      result.newAchievements.forEach((a: Achievement, i: number) => {
-        setTimeout(() => {
-          toast(`Achievement Unlocked: ${a.name} — ${a.description}`, 'success', undefined, 5000);
-        }, i * 500);
-      });
+      In the session list query:
+      - Add: `.leftJoin(directProject, eq(focusSessions.projectId, directProject.id))`
+      - Change selected project fields to use COALESCE:
+        ```
+        projectId: sql`COALESCE(${directProject.id}, ${projects.id})`,
+        projectName: sql`COALESCE(${directProject.name}, ${projects.name})`,
+        projectColor: sql`COALESCE(${directProject.color}, ${projects.color})`,
+        ```
+
+      In the project breakdown query: same aliasedTable join + COALESCE,
+      GROUP BY the COALESCE'd values.
+
+      In the summary query (when projectId filter is active):
+      filter by `COALESCE(dp.id, p.id) = projectId`.
+
+      In getDailyDataForRange: same aliasedTable pattern when projectId filter is active.
+
+      **Part C — New service functions:**
+
+      `updateSession(id, input)`:
+      ```typescript
+      export async function updateSession(
+        id: string,
+        input: { projectId?: string | null; note?: string | null }
+      ): Promise<void> {
+        const db = getDb();
+        const updates: Record<string, unknown> = {};
+        if ('projectId' in input) updates.projectId = input.projectId || null;
+        if ('note' in input) updates.note = input.note || null;
+        await db.update(focusSessions).set(updates).where(eq(focusSessions.id, id));
+      }
       ```
 
-      With:
-      ```ts
-      result.newAchievements.forEach((a: Achievement) => {
-        showAchievementBanner(a);
-      });
+      `deleteSession(id)`:
+      ```typescript
+      export async function deleteSession(id: string): Promise<void> {
+        const db = getDb();
+        await db.delete(focusSessions).where(eq(focusSessions.id, id));
+      }
       ```
+      Note: XP is NOT reversed on delete. The XP was earned when the session was completed;
+      deleting corrects time tracking, not gamification.
 
-      No need for setTimeout staggering — the banner's queue system handles sequential display.
+      **Part D — IPC handlers:**
+      - 'focus:update-session': calls focusService.updateSession(id, input)
+      - 'focus:delete-session': calls focusService.deleteSession(id)
 
-      Do the same replacement in `refreshStats()` (around lines 91-95).
+      **Part E — Preload bridge + types:**
+      Add to focusBridge:
+      - focusUpdateSession: (id: string, input: { projectId?: string | null; note?: string | null })
+      - focusDeleteSession: (id: string)
 
-      Keep the `+XP toast` as-is — only achievement notifications move to the banner.
+      Add to ElectronAPI interface:
+      - focusUpdateSession: same signature → Promise<void>
+      - focusDeleteSession: (id: string) → Promise<void>
 
-      **3. Add AchievementBanner to App.tsx**
-
-      Import and render the AchievementBanner component in the App layout, ABOVE ToastContainer:
-
-      ```tsx
-      import AchievementBanner from './components/AchievementBanner';
-      // ...
-      <StatusBar />
-      <AchievementBanner />
-      <ToastContainer />
-      ```
-
-      Since AchievementBanner uses fixed positioning, the DOM order doesn't matter for layout,
-      but placing it before ToastContainer keeps the code organized.
-
-      **4. Verify the full flow**
-
-      The complete flow after this change:
-      - User does something → store calls awardXP()
-      - Main process checks achievements → returns newAchievements[]
-      - gamificationStore calls showAchievementBanner(achievement) for each
-      - Banner store queues them, displays one at a time with 6s per banner
-      - Banner appears at top-center with dramatic entrance, glow, shimmer
-      - Auto-dismisses or user clicks X
-      - Next queued achievement appears
-
-      **WHY:** The banner provides a distinct, celebratory visual for achievements that stands
-      apart from regular operational toasts (+XP, errors, confirmations). This makes achievements
-      feel special and rewarding — a key gamification principle.
+      WHY: Direct project assignment is cleaner than forcing users to pick cards.
+      COALESCE-based queries mean existing sessions (with card-chain projects) continue
+      working unchanged. New edits set projectId directly.
     </action>
     <verify>
-      1. Run `npx tsc --noEmit` — no type errors
-      2. Run `npm test` — all 150 tests pass
-      3. Start the app with `npm start`
-      4. Trigger an achievement (e.g., create a card if you haven't created 5 yet, or create a
-         new focus session). Verify the banner appears at top center with:
-         - Slide-down entrance animation
-         - Category-colored glow and shimmer
-         - Achievement icon, name, and description
-         - Auto-dismiss after ~6 seconds
-      5. Verify the banner works in both dark and light mode
-      6. Verify regular +XP toasts still appear in the bottom-right corner
-      7. Verify clicking X dismisses the banner immediately
+      - npx drizzle-kit generate creates migration 0015 with ALTER TABLE
+      - npx tsc --noEmit passes
+      - focusSessions schema has projectId column
+      - focusService exports updateSession + deleteSession
+      - IPC handlers registered for focus:update-session and focus:delete-session
+      - Preload bridge has focusUpdateSession + focusDeleteSession
+      - ElectronAPI type includes both new methods
     </verify>
-    <done>
-      Achievement banners replace achievement toasts. The full flow works end-to-end: unlock →
-      banner queue → dramatic top-center display. Regular XP toasts still use ToastContainer.
-      Both dark and light mode supported.
-    </done>
+    <done>Schema migration, COALESCE-based queries, update/delete service + IPC ready</done>
+    <confidence>MEDIUM — aliasedTable API needs verification during implementation</confidence>
+  </task>
+
+  <task type="auto" n="3">
+    <n>Session edit + delete UI in FocusPage</n>
+    <files>
+      src/renderer/pages/FocusPage.tsx
+      src/renderer/stores/focusStore.ts
+    </files>
+    <action>
+      **Part A — Session row actions:**
+      Add hover-reveal action buttons to each session row (right side):
+      - Pencil icon (edit) — toggles inline edit form
+      - Trash2 icon (delete) — triggers delete with undo toast
+
+      Icons: import { Pencil, Trash2 } from 'lucide-react'
+      Buttons appear on hover via `opacity-0 group-hover:opacity-100` on the row.
+
+      **Part B — Inline edit form:**
+      When edit is clicked, the session row expands to show:
+      1. Project dropdown: "No project" + all active projects (same as the page filter dropdown)
+         - Pre-selected to current session projectId (or empty if none)
+         - Show project color dot next to each option
+      2. Note textarea: single-line input, pre-filled with current note
+      3. Save button (emerald, Check icon) + Cancel button (surface, X icon)
+
+      State: `editingSessionId: string | null` + `editProject: string` + `editNote: string`
+
+      On save:
+      - Call `window.electronAPI.focusUpdateSession(id, { projectId, note })`
+      - Bump `lastSavedAt` in focusStore to trigger report re-fetch
+      - Clear editing state
+      - The re-fetch automatically updates project breakdown, chart, and stats
+
+      **Part C — Delete with undo:**
+      Follow the existing undo pattern from card deletion (Plan 15.2):
+      - Click trash → session visually removed from list immediately (optimistic)
+      - Show toast: "Session deleted" with "Undo" button, 5s timeout
+      - After 5s: call `window.electronAPI.focusDeleteSession(id)` + bump lastSavedAt
+      - Undo: restore session to UI, cancel the pending delete
+
+      State: `pendingDelete: { id: string; timeout: ReturnType<typeof setTimeout> } | null`
+
+      Use the existing toast() system from '@/stores/toastStore' with action button support.
+
+      **Part D — focusStore additions:**
+      Add to focusStore:
+      - `updateSession(id, input)`: calls IPC + bumps lastSavedAt
+      - `deleteSession(id)`: calls IPC + bumps lastSavedAt
+
+      These are thin wrappers that the FocusPage calls after its local UI updates.
+
+      WHY: Inline editing is faster than a modal for simple field changes. The undo pattern
+      prevents accidental data loss while keeping the flow smooth. Bumping lastSavedAt
+      triggers the existing useEffect re-fetch, which dynamically updates ALL derived data
+      (project breakdown, chart, stats) without extra code.
+    </action>
+    <verify>
+      - npx tsc --noEmit passes
+      - Session rows show edit + delete icons on hover
+      - Clicking edit expands inline form with project dropdown + note input
+      - Saving triggers re-fetch (project breakdown updates)
+      - Delete shows undo toast, commits after 5s
+      - npx vitest run — all 150 tests pass
+    </verify>
+    <done>Full session edit (project + note) and delete with undo in FocusPage</done>
     <confidence>HIGH</confidence>
-    <assumptions>
-      - AchievementBanner component from Task 1 works correctly
-      - The ICON_MAP export from AchievementsModal doesn't cause circular dependencies
-      - showAchievementBanner can be called from a store (non-React context) because it uses
-        Zustand's getState() internally
-    </assumptions>
   </task>
 </phase>
