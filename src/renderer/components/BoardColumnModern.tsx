@@ -267,7 +267,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
             <div
                 ref={columnRef}
                 onClick={() => onToggleCollapse?.(column.id)}
-                className="w-10 shrink-0 flex flex-col items-center rounded-2xl border border-surface-200 dark:border-surface-800 cursor-pointer hover:border-primary-400 dark:hover:border-primary-600 transition-all relative group"
+                className="w-12 shrink-0 flex flex-col items-center rounded-2xl border border-surface-200 dark:border-surface-800 cursor-pointer hover:border-primary-400 dark:hover:border-primary-600 transition-all relative group overflow-hidden"
                 style={column.color ? { backgroundColor: `${column.color}15`, borderColor: `${column.color}40` } : undefined}
             >
                 {/* Column reorder edge indicators */}
@@ -277,13 +277,13 @@ const BoardColumnModern = memo(function BoardColumnModern({
                 {closestColumnEdge === 'right' && (
                     <div className="absolute -right-1 top-0 bottom-0 w-1 bg-primary-500 rounded-full z-10 box-content border-2 border-white dark:border-surface-900" />
                 )}
-                <div ref={headerRef} className="py-3 cursor-grab active:cursor-grabbing">
+                <div ref={headerRef} className="py-3 cursor-grab active:cursor-grabbing shrink-0">
                     <ChevronRight size={14} className="text-surface-400 group-hover:text-primary-500 transition-colors" />
                 </div>
-                <span className="bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded-full mb-2">
+                <span className="bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded-full mb-2 shrink-0">
                     {columnCards.length}
                 </span>
-                <span className="text-xs font-bold text-surface-500 dark:text-surface-400 whitespace-nowrap [writing-mode:vertical-lr] rotate-180 pb-3">
+                <span className="text-xs font-bold text-surface-500 dark:text-surface-400 whitespace-nowrap [writing-mode:vertical-lr] rotate-180 pt-3 pb-5">
                     {column.name}
                 </span>
             </div>
@@ -380,23 +380,25 @@ const BoardColumnModern = memo(function BoardColumnModern({
                                 <Palette size={14} />
                             </button>
                             {showColorPicker && (
-                                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg p-2 z-40 animate-in fade-in zoom-in-95 duration-100">
-                                    <div className="grid grid-cols-4 gap-1.5">
+                                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg p-3 z-40 animate-in fade-in zoom-in-95 duration-100">
+                                    <div className="grid grid-cols-4 gap-2.5">
                                         {COLUMN_COLORS.map(c => (
                                             <button
                                                 key={c.label}
                                                 onClick={(e) => { e.stopPropagation(); updateColumnColor(column.id, c.value); setShowColorPicker(false); }}
-                                                className={`w-6 h-6 rounded-full transition-all flex items-center justify-center ${
-                                                    column.color === c.value ? 'ring-2 ring-primary-500 scale-110' : 'hover:scale-110'
-                                                }`}
+                                                className={`w-8 h-8 rounded-full transition-all flex items-center justify-center ${
+                                                    column.color === c.value
+                                                        ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-surface-800 ring-primary-500 scale-110'
+                                                        : 'hover:scale-110'
+                                                } ${!c.value ? 'bg-surface-100 dark:bg-surface-700 border-2 border-dashed border-surface-300 dark:border-surface-500' : ''}`}
                                                 style={c.value ? { backgroundColor: c.value } : undefined}
                                                 title={c.label}
                                             >
                                                 {!c.value && (
-                                                    <X size={10} className="text-surface-400" />
+                                                    <X size={12} className="text-surface-400" />
                                                 )}
                                                 {column.color === c.value && c.value && (
-                                                    <Check size={10} className="text-white" />
+                                                    <Check size={12} className="text-white drop-shadow-sm" />
                                                 )}
                                             </button>
                                         ))}
@@ -443,7 +445,11 @@ const BoardColumnModern = memo(function BoardColumnModern({
             </div>
 
             {/* Add card form */}
-            <div className="px-3 pb-3 pt-1 sticky bottom-0 bg-gradient-to-t from-surface-50 via-surface-50 to-transparent dark:from-surface-900 dark:via-surface-900 rounded-b-2xl z-10">
+            <div
+                className={`px-3 pb-3 pt-1 sticky bottom-0 rounded-b-2xl z-10 ${
+                    column.color ? '' : 'bg-gradient-to-t from-surface-50 via-surface-50 to-transparent dark:from-surface-900 dark:via-surface-900'
+                }`}
+            >
                 {addingCard ? (
                     <div className="flex flex-col gap-2 bg-white dark:bg-surface-800 p-2 rounded-xl shadow-lg border border-surface-200 dark:border-surface-700 animate-in slide-in-from-bottom-2">
                         <input
