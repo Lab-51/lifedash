@@ -19,5 +19,6 @@ export const columns = pgTable('columns', {
   boardId: uuid('board_id').notNull().references(() => boards.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
   position: integer('position').default(0).notNull(),
+  color: varchar('color', { length: 7 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });

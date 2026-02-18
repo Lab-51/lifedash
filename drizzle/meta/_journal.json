@@ -99,6 +99,13 @@
       "when": 1771600000000,
       "tag": "0013_xp_events",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1771700000000,
+      "tag": "0014_column_color",
+      "breakpoints": true
     }
   ]
 }

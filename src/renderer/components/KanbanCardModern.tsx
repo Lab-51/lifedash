@@ -217,13 +217,6 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
                     )}
                 </div>
 
-                {/* Description preview */}
-                {card.description && !isEditing && (
-                    <p className="text-xs text-surface-500 line-clamp-2 mb-3 leading-relaxed">
-                        {card.description.replace(/<[^>]*>/g, '').trim()}
-                    </p>
-                )}
-
                 {/* Footer info using badges */}
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {/* Priority Badge */}

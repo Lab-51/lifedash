@@ -2,7 +2,7 @@
 // BoardColumnModern — renders a single Kanban column with modern styling.
 
 import { memo, useRef, useState, useEffect, useCallback } from 'react';
-import { Plus, X, GripVertical, MoreHorizontal, ChevronDown } from 'lucide-react';
+import { Plus, X, GripVertical, MoreHorizontal, ChevronDown, ChevronRight, Palette, Check } from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -28,6 +28,17 @@ const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     { id: 'note', name: 'Quick Note', icon: '\u{1F4DD}', priority: 'low', description: '<p></p>' },
 ];
 
+const COLUMN_COLORS = [
+    { value: null, label: 'Default' },
+    { value: '#3b82f6', label: 'Blue' },
+    { value: '#22c55e', label: 'Green' },
+    { value: '#f59e0b', label: 'Amber' },
+    { value: '#ef4444', label: 'Red' },
+    { value: '#8b5cf6', label: 'Purple' },
+    { value: '#ec4899', label: 'Pink' },
+    { value: '#06b6d4', label: 'Cyan' },
+];
+
 interface BoardColumnProps {
     column: Column;
     columnCards: Card[];
@@ -40,10 +51,13 @@ interface BoardColumnProps {
     deleteCard: (id: string) => Promise<void>;
     deleteColumn: (id: string) => Promise<void>;
     renameColumn: (id: string, name: string) => Promise<void>;
+    updateColumnColor: (id: string, color: string | null) => Promise<void>;
     onCardClick: (cardId: string) => void;
     justDroppedCardId: string | null;
     blockedCardIds?: Set<string>;
     dependencyCountMap?: Map<string, number>;
+    isCollapsed?: boolean;
+    onToggleCollapse?: (id: string) => void;
 }
 
 const BoardColumnModern = memo(function BoardColumnModern({
@@ -58,10 +72,13 @@ const BoardColumnModern = memo(function BoardColumnModern({
     deleteCard,
     deleteColumn,
     renameColumn,
+    updateColumnColor,
     onCardClick,
     justDroppedCardId,
     blockedCardIds,
     dependencyCountMap,
+    isCollapsed,
+    onToggleCollapse,
 }: BoardColumnProps) {
     const columnRef = useRef<HTMLDivElement>(null);
     const headerRef = useRef<HTMLDivElement>(null);
@@ -74,6 +91,10 @@ const BoardColumnModern = memo(function BoardColumnModern({
     const [isRenaming, setIsRenaming] = useState(false);
     const [renameName, setRenameName] = useState('');
     const renameInputRef = useRef<HTMLInputElement>(null);
+
+    // Color picker state
+    const [showColorPicker, setShowColorPicker] = useState(false);
+    const colorPickerRef = useRef<HTMLDivElement>(null);
 
     // Template state for card creation
     const [showCreateTemplateDropdown, setShowCreateTemplateDropdown] = useState(false);
@@ -172,6 +193,18 @@ const BoardColumnModern = memo(function BoardColumnModern({
         })();
     }, [addingCard, projectId]);
 
+    // Close color picker on outside click
+    useEffect(() => {
+        if (!showColorPicker) return;
+        const handleClick = (e: MouseEvent) => {
+            if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+                setShowColorPicker(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, [showColorPicker]);
+
     // Close create-template dropdown on outside click
     useEffect(() => {
         if (!showCreateTemplateDropdown) return;
@@ -228,11 +261,50 @@ const BoardColumnModern = memo(function BoardColumnModern({
         }
     };
 
+    // Collapsed view — vertical tab
+    if (isCollapsed) {
+        return (
+            <div
+                ref={columnRef}
+                onClick={() => onToggleCollapse?.(column.id)}
+                className="w-10 shrink-0 flex flex-col items-center rounded-2xl border border-surface-200 dark:border-surface-800 cursor-pointer hover:border-primary-400 dark:hover:border-primary-600 transition-all relative group"
+                style={column.color ? { backgroundColor: `${column.color}15`, borderColor: `${column.color}40` } : undefined}
+            >
+                {/* Column reorder edge indicators */}
+                {closestColumnEdge === 'left' && (
+                    <div className="absolute -left-1 top-0 bottom-0 w-1 bg-primary-500 rounded-full z-10 box-content border-2 border-white dark:border-surface-900" />
+                )}
+                {closestColumnEdge === 'right' && (
+                    <div className="absolute -right-1 top-0 bottom-0 w-1 bg-primary-500 rounded-full z-10 box-content border-2 border-white dark:border-surface-900" />
+                )}
+                <div ref={headerRef} className="py-3 cursor-grab active:cursor-grabbing">
+                    <ChevronRight size={14} className="text-surface-400 group-hover:text-primary-500 transition-colors" />
+                </div>
+                <span className="bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded-full mb-2">
+                    {columnCards.length}
+                </span>
+                <span className="text-xs font-bold text-surface-500 dark:text-surface-400 whitespace-nowrap [writing-mode:vertical-lr] rotate-180 pb-3">
+                    {column.name}
+                </span>
+            </div>
+        );
+    }
+
+    const columnBgStyle = column.color
+        ? { backgroundColor: `${column.color}08` }
+        : undefined;
+    const columnBorderStyle = column.color
+        ? { borderColor: `${column.color}30` }
+        : undefined;
+
     return (
         <div
             ref={columnRef}
-            className={`w-80 shrink-0 flex flex-col bg-surface-50 dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 transition-all relative ${isDragOver ? 'ring-2 ring-primary-500/30 bg-primary-50/50 dark:bg-primary-900/20' : ''
+            className={`w-80 shrink-0 flex flex-col rounded-2xl border transition-all relative ${
+                column.color ? '' : 'bg-surface-50 dark:bg-surface-900 border-surface-200 dark:border-surface-800'
+            } ${isDragOver ? 'ring-2 ring-primary-500/30 bg-primary-50/50 dark:bg-primary-900/20' : ''
                 } ${isDragging ? 'opacity-50 scale-95 rotate-1' : ''}`}
+            style={column.color ? { ...columnBgStyle, ...columnBorderStyle } : undefined}
         >
             {/* Column reorder edge indicators */}
             {closestColumnEdge === 'left' && (
@@ -280,7 +352,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                     )}
                 </div>
 
-                {/* Delete button */}
+                {/* Column actions */}
                 {deleteConfirm ? (
                     <button
                         onClick={handleDeleteColumn}
@@ -289,17 +361,62 @@ const BoardColumnModern = memo(function BoardColumnModern({
                         {columnCards.length > 0 ? `Delete column + ${columnCards.length} cards?` : 'Delete column?'}
                     </button>
                 ) : (
-                    <button
-                        onClick={handleDeleteColumn}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 hover:bg-surface-200 dark:hover:bg-surface-700 rounded transition-all"
-                    >
-                        <MoreHorizontal size={16} />
-                    </button>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                        {/* Collapse button */}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onToggleCollapse?.(column.id); }}
+                            className="p-1 text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 hover:bg-surface-200 dark:hover:bg-surface-700 rounded transition-all"
+                            title="Collapse column"
+                        >
+                            <ChevronDown size={14} className="rotate-90" />
+                        </button>
+                        {/* Color picker */}
+                        <div className="relative" ref={colorPickerRef}>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setShowColorPicker(!showColorPicker); }}
+                                className="p-1 text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 hover:bg-surface-200 dark:hover:bg-surface-700 rounded transition-all"
+                                title="Column color"
+                            >
+                                <Palette size={14} />
+                            </button>
+                            {showColorPicker && (
+                                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg p-2 z-40 animate-in fade-in zoom-in-95 duration-100">
+                                    <div className="grid grid-cols-4 gap-1.5">
+                                        {COLUMN_COLORS.map(c => (
+                                            <button
+                                                key={c.label}
+                                                onClick={(e) => { e.stopPropagation(); updateColumnColor(column.id, c.value); setShowColorPicker(false); }}
+                                                className={`w-6 h-6 rounded-full transition-all flex items-center justify-center ${
+                                                    column.color === c.value ? 'ring-2 ring-primary-500 scale-110' : 'hover:scale-110'
+                                                }`}
+                                                style={c.value ? { backgroundColor: c.value } : undefined}
+                                                title={c.label}
+                                            >
+                                                {!c.value && (
+                                                    <X size={10} className="text-surface-400" />
+                                                )}
+                                                {column.color === c.value && c.value && (
+                                                    <Check size={10} className="text-white" />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        {/* Delete / menu */}
+                        <button
+                            onClick={handleDeleteColumn}
+                            className="p-1 text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 hover:bg-surface-200 dark:hover:bg-surface-700 rounded transition-all"
+                        >
+                            <MoreHorizontal size={16} />
+                        </button>
+                    </div>
                 )}
             </div>
 
             {/* Card list */}
-            <div className="flex-1 px-3 pb-3 overflow-y-auto flex flex-col gap-3 min-h-[100px]">
+            <div className="px-3 pb-3 flex flex-col gap-3">
                 {columnCards.map(card => (
                     <KanbanCardModern
                         key={card.id}

@@ -65,6 +65,17 @@ export default function BoardPageModern() {
         getCardsByColumn,
     } = useBoardController();
 
+    // Collapsed columns state
+    const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
+    const toggleColumnCollapse = (id: string) => {
+        setCollapsedColumns(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
     // Label management state
     const [managingLabels, setManagingLabels] = useState(false);
     const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
@@ -421,7 +432,7 @@ export default function BoardPageModern() {
             </div>
 
             {/* Board Layout */}
-            <div className="flex-1 flex gap-6 overflow-x-auto px-8 pb-8 pt-6">
+            <div className="flex-1 flex items-start gap-6 overflow-x-auto px-8 pb-8 pt-6">
                 {columns.map(column => (
                     <BoardColumnModern
                         key={column.id}
@@ -436,10 +447,13 @@ export default function BoardPageModern() {
                         deleteCard={deleteCard}
                         deleteColumn={deleteColumn}
                         renameColumn={(id, name) => updateColumn(id, { name })}
+                        updateColumnColor={(id, color) => updateColumn(id, { color })}
                         onCardClick={(cardId) => setSelectedCardId(cardId)}
                         justDroppedCardId={justDroppedCardId}
                         blockedCardIds={blockedCardIds}
                         dependencyCountMap={dependencyCountMap}
+                        isCollapsed={collapsedColumns.has(column.id)}
+                        onToggleCollapse={toggleColumnCollapse}
                     />
                 ))}
 

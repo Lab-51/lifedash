@@ -102,6 +102,7 @@ export const createColumnInputSchema = z.object({
 export const updateColumnInputSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   position: z.number().int().min(0).optional(),
+  color: z.string().max(7).nullable().optional(),
 });
 
 export const columnReorderSchema = z.array(z.string().uuid());

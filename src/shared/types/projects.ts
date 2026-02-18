@@ -26,6 +26,7 @@ export interface Column {
   boardId: string;
   name: string;
   position: number;
+  color: string | null;
   createdAt: string;
 }
 
@@ -91,6 +92,7 @@ export interface CreateColumnInput {
 export interface UpdateColumnInput {
   name?: string;
   position?: number;
+  color?: string | null;
 }
 
 export interface CreateCardInput {
