@@ -142,8 +142,6 @@ export default function DashboardModern() {
         <div className="h-full flex flex-col overflow-hidden bg-surface-50/50 dark:bg-surface-950">
             {/* Hero Section */}
             <div className="relative shrink-0 p-8 pb-12 overflow-hidden">
-                {/* Background Decorative Elem */}
-                <div className="absolute top-0 right-0 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
 
                 <div className="relative z-10 flex items-end justify-between gap-4">
                     <div className="shrink-0">
