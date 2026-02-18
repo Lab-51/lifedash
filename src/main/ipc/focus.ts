@@ -35,4 +35,12 @@ export function registerFocusHandlers(): void {
   ipcMain.handle('focus:get-daily', async (_, days?: number) => {
     return focusService.getDailyData(days);
   });
+
+  ipcMain.handle('focus:get-history', async (_, options?: { offset?: number; limit?: number }) => {
+    return focusService.getSessionHistory(options);
+  });
+
+  ipcMain.handle('focus:get-period-stats', async () => {
+    return focusService.getPeriodStats();
+  });
 }

@@ -47,7 +47,7 @@ import type { ProjectPlan, TaskBreakdown } from './tasks';
 import type { NotificationPreferences } from './notifications';
 import type { TranscriptionProviderType, TranscriptionProviderStatus } from './transcription';
 import type { MeetingAnalytics } from './analytics';
-import type { FocusSession, FocusDailyData } from './focus';
+import type { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats } from './focus';
 import type { GamificationStats, Achievement, XpEventType, XpDailyData } from './gamification';
 
 /** API exposed to the renderer via contextBridge in preload.ts */
@@ -274,6 +274,9 @@ export interface ElectronAPI {
     Promise<{ session: FocusSession; stats: GamificationStats; newAchievements: Achievement[] }>;
   focusGetStats: () => Promise<GamificationStats>;
   focusGetDaily: (days?: number) => Promise<FocusDailyData[]>;
+  focusGetHistory: (options?: { offset?: number; limit?: number }) =>
+    Promise<{ sessions: FocusSessionWithCard[]; total: number }>;
+  focusGetPeriodStats: () => Promise<FocusPeriodStats>;
 
   // Gamification
   gamificationAwardXp: (eventType: XpEventType, entityId?: string) =>

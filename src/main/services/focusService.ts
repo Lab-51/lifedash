@@ -3,10 +3,10 @@
 // Handles session persistence and daily data queries.
 // Achievement/level logic has moved to gamificationService.ts.
 
-import { gte, sql, desc } from 'drizzle-orm';
+import { eq, gte, sql, desc } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { focusSessions } from '../db/schema';
-import { FocusSession, FocusDailyData } from '../../shared/types/focus';
+import { focusSessions, cards } from '../db/schema';
+import { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats } from '../../shared/types/focus';
 
 export async function saveSession(input: {
   cardId?: string;
@@ -67,4 +67,86 @@ export async function getDailyData(days: number = 30): Promise<FocusDailyData[]>
 
 function formatDateStr(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export async function getSessionHistory(options: { offset?: number; limit?: number } = {}): Promise<{ sessions: FocusSessionWithCard[]; total: number }> {
+  const db = getDb();
+  const limit = options.limit ?? 50;
+  const offset = options.offset ?? 0;
+
+  // Get total count
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(focusSessions);
+
+  // Get paginated sessions with card title via LEFT JOIN
+  const rows = await db
+    .select({
+      id: focusSessions.id,
+      cardId: focusSessions.cardId,
+      durationMinutes: focusSessions.durationMinutes,
+      note: focusSessions.note,
+      completedAt: focusSessions.completedAt,
+      cardTitle: cards.title,
+    })
+    .from(focusSessions)
+    .leftJoin(cards, eq(focusSessions.cardId, cards.id))
+    .orderBy(desc(focusSessions.completedAt))
+    .limit(limit)
+    .offset(offset);
+
+  return {
+    sessions: rows.map(r => ({
+      id: r.id,
+      cardId: r.cardId,
+      durationMinutes: r.durationMinutes,
+      note: r.note,
+      completedAt: r.completedAt.toISOString(),
+      cardTitle: r.cardTitle ?? null,
+    })),
+    total: count,
+  };
+}
+
+export async function getPeriodStats(): Promise<FocusPeriodStats> {
+  const db = getDb();
+  const now = new Date();
+
+  // Today start
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  // This week start (Monday, ISO week)
+  const weekStart = new Date(now);
+  const dayOfWeek = weekStart.getDay();
+  const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  weekStart.setDate(weekStart.getDate() + daysToMonday);
+  weekStart.setHours(0, 0, 0, 0);
+
+  // This month start
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // Run a single query with conditional aggregation
+  const [agg] = await db
+    .select({
+      todaySessions: sql<number>`count(*) filter (where ${focusSessions.completedAt} >= ${todayStart})::int`,
+      todayMinutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}) filter (where ${focusSessions.completedAt} >= ${todayStart}), 0)::int`,
+      weekSessions: sql<number>`count(*) filter (where ${focusSessions.completedAt} >= ${weekStart})::int`,
+      weekMinutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}) filter (where ${focusSessions.completedAt} >= ${weekStart}), 0)::int`,
+      monthSessions: sql<number>`count(*) filter (where ${focusSessions.completedAt} >= ${monthStart})::int`,
+      monthMinutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}) filter (where ${focusSessions.completedAt} >= ${monthStart}), 0)::int`,
+      allSessions: sql<number>`count(*)::int`,
+      allMinutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
+    })
+    .from(focusSessions);
+
+  const dailyData = await getDailyData(30);
+
+  return {
+    today: { sessions: agg.todaySessions, minutes: agg.todayMinutes },
+    thisWeek: { sessions: agg.weekSessions, minutes: agg.weekMinutes },
+    thisMonth: { sessions: agg.monthSessions, minutes: agg.monthMinutes },
+    allTime: { sessions: agg.allSessions, minutes: agg.allMinutes },
+    dailyData,
+  };
 }

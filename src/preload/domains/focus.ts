@@ -6,4 +6,7 @@ export const focusBridge = {
     ipcRenderer.invoke('focus:save-session', input),
   focusGetStats: () => ipcRenderer.invoke('focus:get-stats'),
   focusGetDaily: (days?: number) => ipcRenderer.invoke('focus:get-daily', days),
+  focusGetHistory: (options?: { offset?: number; limit?: number }) =>
+    ipcRenderer.invoke('focus:get-history', options),
+  focusGetPeriodStats: () => ipcRenderer.invoke('focus:get-period-stats'),
 };
