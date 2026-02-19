@@ -47,7 +47,8 @@ export const useCardAgentStore = create<CardAgentStore>((set, get) => ({
   ...initialState,
 
   loadMessages: async (cardId: string) => {
-    set({ loading: true, cardId });
+    // Reset streaming state on load — clears any stale stuck state from prior sessions
+    set({ loading: true, cardId, streaming: false, streamingText: '', toolEvents: [] });
     try {
       const messages = await window.electronAPI.cardAgentGetMessages(cardId);
       set({ messages, loading: false });
@@ -100,7 +101,14 @@ export const useCardAgentStore = create<CardAgentStore>((set, get) => ({
     });
 
     try {
-      const result = await window.electronAPI.cardAgentSendMessage(cardId, content);
+      // 90s safety timeout — prevents the UI from being stuck forever if the API hangs
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Agent request timed out. Try again.')), 90_000),
+      );
+      const result = await Promise.race([
+        window.electronAPI.cardAgentSendMessage(cardId, content),
+        timeout,
+      ]);
 
       if (result) {
         // The result contains the assistantMessage; the user message was persisted server-side.
@@ -145,7 +153,13 @@ export const useCardAgentStore = create<CardAgentStore>((set, get) => ({
   },
 
   abort: async (cardId: string) => {
-    await window.electronAPI.cardAgentAbort(cardId);
+    try {
+      await window.electronAPI.cardAgentAbort(cardId);
+    } catch {
+      // Abort is best-effort
+    }
+    // Always reset streaming state so the UI is never stuck
+    set({ streaming: false, streamingText: '', toolEvents: [] });
   },
 
   loadMessageCount: async (cardId: string) => {
