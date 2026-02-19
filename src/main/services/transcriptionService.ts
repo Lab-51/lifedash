@@ -11,7 +11,6 @@
 // === LIMITATIONS ===
 // - Sequential transcription (one segment at a time)
 // - Fixed 10-second segments (no VAD-based splitting)
-// - English-only for v1 (language is hardcoded)
 // - API providers add network latency per segment
 //
 // === NOTES ===
@@ -25,8 +24,9 @@ import * as whisperModelManager from './whisperModelManager';
 import * as transcriptionProviderService from './transcriptionProviderService';
 import * as deepgramTranscriber from './deepgramTranscriber';
 import * as assemblyaiTranscriber from './assemblyaiTranscriber';
+import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { aiUsage } from '../db/schema';
+import { aiUsage, settings } from '../db/schema';
 import { createLogger } from './logger';
 import type { TranscriptionProviderType } from '../../shared/types';
 
@@ -54,6 +54,7 @@ let lastTranscriptText = '';
 let pendingSegments: Buffer[] = []; // Queue of segments waiting to be transcribed
 let transcribing = false;
 let activeProvider: TranscriptionProviderType = 'local';
+let activeLanguage: string = 'en';
 
 export function setMainWindow(win: BrowserWindow): void {
   mainWindow = win;
@@ -72,6 +73,11 @@ export async function start(meetingId: string): Promise<void> {
   // Resolve which provider to use from saved config
   const config = await transcriptionProviderService.getConfig();
   activeProvider = config.type;
+
+  // Read language setting from DB (default: 'en')
+  const db = getDb();
+  const langRows = await db.select().from(settings).where(eq(settings.key, 'transcription:language'));
+  activeLanguage = langRows.length > 0 ? langRows[0].value : 'en';
 
   // Common state reset
   currentMeetingId = meetingId;
@@ -228,9 +234,12 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
 
     // transcribeData returns { promise, stop }. The promise resolves when
     // the native Napi::AsyncWorker finishes on its background thread.
-    const { promise } = whisperContext!.transcribeData(arrayBuffer, {
-      language: 'en',
-    });
+    const whisperOpts: Record<string, unknown> = {};
+    if (activeLanguage !== 'auto') {
+      whisperOpts.language = activeLanguage;
+    }
+    // When activeLanguage is 'auto', omit language so Whisper auto-detects per segment
+    const { promise } = whisperContext!.transcribeData(arrayBuffer, whisperOpts);
 
     const result = await promise;
 
@@ -279,9 +288,9 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
   try {
     let result;
     if (activeProvider === 'deepgram') {
-      result = await deepgramTranscriber.transcribeSegment(segment, startTimeMs);
+      result = await deepgramTranscriber.transcribeSegment(segment, startTimeMs, activeLanguage);
     } else {
-      result = await assemblyaiTranscriber.transcribeSegment(segment, startTimeMs);
+      result = await assemblyaiTranscriber.transcribeSegment(segment, startTimeMs, activeLanguage);
     }
 
     // Process result — save to DB and push to renderer

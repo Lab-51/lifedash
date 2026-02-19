@@ -13,10 +13,13 @@
 // - Speaker labels are best-effort — short meetings or quick speaker switches may be inaccurate
 
 import fs from 'node:fs';
+import { eq } from 'drizzle-orm';
 import * as meetingService from './meetingService';
 import * as deepgramTranscriber from './deepgramTranscriber';
 import * as assemblyaiTranscriber from './assemblyaiTranscriber';
 import * as transcriptionProviderService from './transcriptionProviderService';
+import { getDb } from '../db/connection';
+import { settings } from '../db/schema';
 import { createLogger } from './logger';
 import type { DiarizationWord, TranscriptSegment } from '../../shared/types';
 
@@ -132,18 +135,23 @@ export async function diarizeMeeting(
     // 4. Read WAV file
     const wavBuffer = fs.readFileSync(meeting.audioPath);
 
-    // 5. Call provider with diarization
+    // 5. Read language setting from DB (default: 'en')
+    const db = getDb();
+    const langRows = await db.select().from(settings).where(eq(settings.key, 'transcription:language'));
+    const language = langRows.length > 0 ? langRows[0].value : 'en';
+
+    // 6. Call provider with diarization
     log.info(`Starting ${provider} diarization for meeting ${meetingId}`);
     const result = provider === 'deepgram'
-      ? await deepgramTranscriber.transcribeFileWithDiarization(wavBuffer)
-      : await assemblyaiTranscriber.transcribeFileWithDiarization(wavBuffer);
+      ? await deepgramTranscriber.transcribeFileWithDiarization(wavBuffer, language)
+      : await assemblyaiTranscriber.transcribeFileWithDiarization(wavBuffer, language);
 
     log.debug(`Got ${result.words.length} words, ${result.speakers.length} speakers`);
 
-    // 6. Map speakers to existing segments
+    // 7. Map speakers to existing segments
     const speakerMap = mapSpeakersToSegments(meeting.segments, result.words);
 
-    // 7. Update DB
+    // 8. Update DB
     if (speakerMap.size > 0) {
       await meetingService.updateSegmentSpeakers(meetingId, speakerMap);
       log.debug(`Updated ${speakerMap.size} segments with speaker labels`);

@@ -7,7 +7,6 @@
 //
 // === LIMITATIONS ===
 // - REST API (not WebSocket streaming) — transcribes 10-sec segments after recording
-// - English-only for now (language parameter hardcoded)
 // - Speaker diarization via transcribeFileWithDiarization (full-file, post-recording)
 
 import { net } from 'electron';
@@ -44,17 +43,20 @@ interface DeepgramResponse {
  * Transcribe a PCM audio segment using Deepgram's REST API.
  * @param pcmBuffer Raw PCM audio (16-bit mono, 16kHz)
  * @param startTimeMs Absolute start time of this segment in the recording (ms)
+ * @param language Language code ('en', 'cs', etc.) or 'auto' for auto-detection (default: 'en')
  */
 export async function transcribeSegment(
   pcmBuffer: Buffer,
   startTimeMs: number,
+  language: string = 'en',
 ): Promise<TranscriberResult> {
   const apiKey = await transcriptionProviderService.getDecryptedKey('deepgram');
   if (!apiKey) {
     throw new Error('Deepgram API key not configured');
   }
 
-  const url = `${DEEPGRAM_API_URL}?model=nova-2&language=en&punctuate=true&smart_format=true&encoding=linear16&sample_rate=16000`;
+  const langParam = language === 'auto' ? 'detect_language=true' : `language=${language}`;
+  const url = `${DEEPGRAM_API_URL}?model=nova-2&${langParam}&punctuate=true&smart_format=true&encoding=linear16&sample_rate=16000`;
 
   const response = await net.fetch(url, {
     method: 'POST',
@@ -125,14 +127,17 @@ export async function testConnection(): Promise<{
  * Transcribe a full WAV file with speaker diarization using Deepgram.
  * Returns words with speaker labels for post-recording speaker identification.
  * @param wavBuffer Complete WAV file buffer
+ * @param language Language code ('en', 'cs', etc.) or 'auto' for auto-detection (default: 'en')
  */
 export async function transcribeFileWithDiarization(
   wavBuffer: Buffer,
+  language: string = 'en',
 ): Promise<DiarizationResult> {
   const apiKey = await transcriptionProviderService.getDecryptedKey('deepgram');
   if (!apiKey) throw new Error('Deepgram API key not configured');
 
-  const url = `${DEEPGRAM_API_URL}?model=nova-2&language=en&punctuate=true&diarize=true&encoding=linear16&sample_rate=16000`;
+  const langParam = language === 'auto' ? 'detect_language=true' : `language=${language}`;
+  const url = `${DEEPGRAM_API_URL}?model=nova-2&${langParam}&punctuate=true&diarize=true&encoding=linear16&sample_rate=16000`;
 
   const response = await net.fetch(url, {
     method: 'POST',

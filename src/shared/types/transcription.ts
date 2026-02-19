@@ -2,6 +2,14 @@
 
 export type TranscriptionProviderType = 'local' | 'deepgram' | 'assemblyai';
 
+export type TranscriptionLanguage = 'en' | 'cs' | 'auto';
+
+export const TRANSCRIPTION_LANGUAGES: { code: TranscriptionLanguage; label: string }[] = [
+  { code: 'en', label: 'English' },
+  { code: 'cs', label: 'Czech (Čeština)' },
+  { code: 'auto', label: 'Auto-detect (mixed)' },
+];
+
 export interface TranscriptionProviderConfig {
   type: TranscriptionProviderType;
   deepgramKeyEncrypted?: string;    // Encrypted via safeStorage

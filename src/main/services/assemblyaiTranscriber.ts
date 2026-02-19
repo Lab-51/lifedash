@@ -8,7 +8,6 @@
 // === LIMITATIONS ===
 // - Polling-based (adds 3-10 seconds of latency per segment)
 // - Speaker diarization via transcribeFileWithDiarization (full-file, post-recording)
-// - English-only for now
 
 import { net } from 'electron';
 import { WaveFile } from 'wavefile';
@@ -57,10 +56,12 @@ function pcmToWav(pcmBuffer: Buffer): Buffer {
  * Workflow: upload audio -> submit transcription -> poll until complete.
  * @param pcmBuffer Raw PCM audio (16-bit mono, 16kHz)
  * @param startTimeMs Absolute start time of this segment in the recording (ms)
+ * @param language Language code ('en', 'cs', etc.) or 'auto' for auto-detection (default: 'en')
  */
 export async function transcribeSegment(
   pcmBuffer: Buffer,
   startTimeMs: number,
+  language: string = 'en',
 ): Promise<TranscriberResult> {
   const apiKey = await transcriptionProviderService.getDecryptedKey('assemblyai');
   if (!apiKey) {
@@ -99,7 +100,11 @@ export async function transcribeSegment(
       'Authorization': apiKey,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ audio_url: uploadUrl, language_code: 'en' }),
+    body: JSON.stringify(
+      language === 'auto'
+        ? { audio_url: uploadUrl, language_detection: true }
+        : { audio_url: uploadUrl, language_code: language },
+    ),
   });
 
   if (!transcriptResponse.ok) {
@@ -218,9 +223,11 @@ export async function testConnection(): Promise<{
  * Transcribe a full WAV file with speaker diarization using AssemblyAI.
  * Returns words with speaker labels for post-recording speaker identification.
  * @param wavBuffer Complete WAV file buffer (already in WAV format)
+ * @param language Language code ('en', 'cs', etc.) or 'auto' for auto-detection (default: 'en')
  */
 export async function transcribeFileWithDiarization(
   wavBuffer: Buffer,
+  language: string = 'en',
 ): Promise<DiarizationResult> {
   const apiKey = await transcriptionProviderService.getDecryptedKey('assemblyai');
   if (!apiKey) throw new Error('AssemblyAI API key not configured');
@@ -251,11 +258,11 @@ export async function transcribeFileWithDiarization(
       'Authorization': apiKey,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      audio_url: uploadUrl,
-      language_code: 'en',
-      speaker_labels: true,
-    }),
+    body: JSON.stringify(
+      language === 'auto'
+        ? { audio_url: uploadUrl, language_detection: true, speaker_labels: true }
+        : { audio_url: uploadUrl, language_code: language, speaker_labels: true },
+    ),
   });
 
   if (!transcriptResponse.ok) {
