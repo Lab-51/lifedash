@@ -483,10 +483,46 @@ html.light .animate-logo-pulse {
   --achievement-glow-color: var(--glow-dark);
 }
 
+/* Achievement particle burst */
+@keyframes achievement-particle {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--px), var(--py)) scale(0);
+  }
+}
+
+/* Achievement icon bounce entrance */
+@keyframes achievement-icon-bounce {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+/* Achievement ring pulse — light mode alternative to glow */
+@keyframes achievement-ring-pulse {
+  0%, 100% {
+    box-shadow: 0 8px 30px -4px rgba(0,0,0,0.1);
+  }
+  50% {
+    box-shadow: 0 8px 30px -4px rgba(0,0,0,0.1),
+                0 0 0 3px var(--achievement-glow-color);
+  }
+}
+
 /* Achievement banner — animation state classes */
 .achievement-banner-enter {
   animation: achievement-enter 600ms ease-out forwards,
              achievement-glow 2s ease-in-out 600ms infinite;
+}
+/* Light mode: ring pulse instead of glow (glow is invisible on white) */
+:where(:not(.dark)) .achievement-banner-enter {
+  animation: achievement-enter 600ms ease-out forwards,
+             achievement-ring-pulse 2s ease-in-out 600ms infinite;
 }
 .achievement-banner-exit {
   animation: achievement-exit 400ms ease-in forwards;

@@ -142,6 +142,16 @@ export function showAchievementBanner(achievement: Achievement) {
   useBannerStore.getState().push(achievement);
 }
 
+// --- Particle burst positions (radiate outward from icon center) ---
+const PARTICLES = [
+  { x: '-20px', y: '-24px', delay: '0ms', size: 5 },
+  { x: '22px',  y: '-18px', delay: '50ms', size: 4 },
+  { x: '-16px', y: '20px',  delay: '100ms', size: 3 },
+  { x: '24px',  y: '16px',  delay: '75ms', size: 5 },
+  { x: '-8px',  y: '-28px', delay: '25ms', size: 4 },
+  { x: '12px',  y: '24px',  delay: '125ms', size: 3 },
+];
+
 // --- Auto-dismiss duration ---
 const DISPLAY_MS = 6000;
 const EXIT_MS = 400;
@@ -268,11 +278,33 @@ function AchievementBanner() {
           <div
             className={`
               w-12 h-12 rounded-full flex items-center justify-center shrink-0
+              relative overflow-visible
               ${cats.iconBgLight} ${cats.iconBgDark}
               ${cats.iconTextLight} ${cats.iconTextDark}
             `}
+            style={{
+              animation: visible && !exiting
+                ? 'achievement-icon-bounce 500ms ease-out 200ms both'
+                : undefined,
+            }}
           >
             <Icon size={26} />
+            {visible && !exiting && PARTICLES.map((p, i) => (
+              <span
+                key={i}
+                className="absolute rounded-full pointer-events-none"
+                style={{
+                  '--px': p.x,
+                  '--py': p.y,
+                  width: p.size,
+                  height: p.size,
+                  backgroundColor: 'currentColor',
+                  animation: `achievement-particle 700ms ease-out ${p.delay} forwards`,
+                  top: '50%',
+                  left: '50%',
+                } as React.CSSProperties}
+              />
+            ))}
           </div>
 
           {/* Text content */}
