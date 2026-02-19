@@ -151,10 +151,11 @@ export function registerCardAgentHandlers(): void {
         if (abortController.signal.aborted) {
           aborted = true;
           log.info('Card agent stream aborted by user');
-        } else if (!fullText) {
+        } else if (!fullText && collectedToolCalls.length === 0) {
           throw streamErr;
         } else {
-          log.warn('Card agent stream ended with error but text was received:',
+          // Continuation step failed but we have partial results — keep them
+          log.warn('Card agent stream error (partial results kept):',
             streamErr instanceof Error ? streamErr.message : streamErr);
         }
       } finally {

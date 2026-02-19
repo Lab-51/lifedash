@@ -375,7 +375,9 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/60"
     >
-      <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-600 w-full max-w-3xl max-h-[80vh] overflow-y-auto mx-4 p-6">
+      <div className={`bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-600 w-full max-w-3xl max-h-[80vh] mx-4 p-6 ${
+        activeTab === 'agent' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'
+      }`}>
         {/* Header: Title + Close button */}
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex-1 min-w-0">
@@ -788,7 +790,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
         )}
 
         {activeTab === 'agent' && (
-          <div className="h-[60vh]">
+          <div className="flex-1 min-h-0">
             <Suspense fallback={
               <div className="flex items-center justify-center h-32">
                 <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary-500 border-t-transparent" />
