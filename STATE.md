@@ -2,11 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-19
-Session focus: Plan G.1 — Achievement Banner Visual Overhaul
+Session focus: Plan H.1 — Transcription Language Selection
 
 ## Position
 Milestone: v2.0.0
-Latest commit: 28ff382 (feat: celebration particle effects, icon bounce, light-mode ring pulse)
+Latest commit: 56b7b31 (feat: per-recording language storage + full pipeline from UI to provider)
+Plan H.1: COMPLETE (3/3 tasks) — Transcription Language Selection
 Plan G.1: COMPLETE (2/2 tasks) — Achievement Banner Visual Overhaul
 Plan E.1: COMPLETE (3/3 tasks) — Card Agent Foundation (Backend + Tools + Schema)
 Plan E.2: COMPLETE (3/3 tasks) — Card Agent UI + 4 post-deploy fixes
@@ -152,6 +153,27 @@ Plan D.9: COMPLETE (3/3 tasks) — Dark Mode Polish (Projects & Cards)
   - Hover shadow now visible (shadow-lg + /30 opacity), dropdown floats above card (surface-800), menu hover items surface-700, divider visible, star icon brighter, dark focus ring on search
 - Task 3: Card detail modal dark mode depth & contrast fixes (d627b2d)
   - Deeper overlay (/60), brighter modal border (surface-600), priority active states /30 + /50, dropdown borders surface-600, action link hover brighter (surface-100), color picker ring /70
+
+## Plan H.1 Results — Transcription Language Selection
+- Task 1: Backend — configurable language across all providers (31c62d0)
+  - TranscriptionLanguage type ('en' | 'cs' | 'auto') + TRANSCRIPTION_LANGUAGES constant
+  - transcriptionService reads 'transcription:language' setting from DB at start
+  - Whisper: omits language for 'auto' (per-segment detection), passes code otherwise
+  - Deepgram: detect_language=true for 'auto', language=${code} otherwise
+  - AssemblyAI: language_detection:true for 'auto', language_code otherwise
+  - speakerDiarizationService also reads language setting for diarization calls
+- Task 2: UI — language selector + model compatibility warnings (85f7411)
+  - Language dropdown in RecordingControls (en/cs/auto-detect)
+  - Language selector in Settings TranscriptionProviderSection
+  - whisper:get-active-model IPC for checking model filename
+  - Amber warning when .en model + non-English language + local provider
+  - Selection persists via settings table (shared between both UIs)
+- Task 3: Per-recording language storage + full pipeline (56b7b31)
+  - Migration 0017: transcriptionLanguage varchar(10) on meetings table (nullable)
+  - CreateMeetingInput + Zod schema updated
+  - Full pipeline: RecordingControls → recordingStore → meetingService → DB
+  - recording:start reads language from meeting record → audioProcessor → transcriptionService
+  - MeetingDetailModal shows language label in metadata row (hidden for legacy meetings)
 
 ## Plan G.1 Results — Achievement Banner Visual Overhaul
 - Task 1: Redesign banner layout + proper dark: variant classes (4f70dd5)

@@ -1,331 +1,250 @@
-<phase n="G.1" name="Achievement Banner Visual Overhaul — Dark & Light Mode">
+# Plan H.1 — Transcription Language Selection
+
+<phase n="H.1" name="Transcription Language Selection">
   <context>
-    The AchievementBanner component (src/renderer/components/AchievementBanner.tsx, 329 lines)
-    displays a slide-down notification when achievements are unlocked. Current issues:
+    The transcription system currently hardcodes language as 'en' (English) in 3 places:
+    - transcriptionService.ts:232 — `language: 'en'` passed to Whisper
+    - deepgramTranscriber.ts:57,135 — `language=en` in API URL
+    - assemblyaiTranscriber.ts:102,256 — `language_code: 'en'` in request body
 
-    1. Uses runtime `isDark` check instead of Tailwind's `dark:` variant pattern
-    2. Visual design is basic — flat card with icon + text, minimal celebration feel
-    3. Light mode treatment is an afterthought (subtle gradient, weak depth)
-    4. Animation inline style object is overly complex (50+ lines of ternaries)
-    5. No countdown/progress indicator for auto-dismiss
+    The user wants to support Czech ('cs') and English ('en') transcription, plus
+    mixed-language recordings. Whisper supports auto-detection when the language
+    parameter is omitted — it detects per-segment, which works well for bilingual
+    meetings since audio is already chunked into 10-second segments.
 
-    The component has a solid Zustand store (queue system, push/next/clear) and good
-    animation keyframes in globals.css. The redesign keeps the store and replaces the
-    rendering with a much more polished visual treatment.
+    IMPORTANT: English-only models (*.en) cannot transcribe Czech or auto-detect.
+    The user must use a multilingual model (tiny, base, small) for non-English.
+    The UI must warn about this incompatibility.
 
-    Achievement data shape (from gamification.ts):
-    ```typescript
-    interface Achievement {
-      id: string;
-      name: string;
-      description: string;
-      icon: string;       // Lucide icon name → looked up via ICON_MAP
-      category: string;   // focus|cards|projects|meetings|ideas|brainstorm|cross
-      unlockedAt: string | null;
-    }
-    ```
+    Language options:
+    - English ('en') — works with all models
+    - Czech ('cs') — requires multilingual model
+    - Auto-detect ('auto') — requires multilingual model; best for mixed Czech/English
 
-    ICON_MAP is exported from AchievementsModal.tsx (84 entries).
-    7 category color configs already defined in the component (CATEGORY_STYLES).
+    Cloud providers:
+    - Deepgram: supports `language=cs`, auto-detect via `detect_language=true`
+    - AssemblyAI: supports `language_code` param, auto-detect via `language_detection: true`
 
-    The banner renders in App.tsx at z-[60], fixed top-center.
-    Auto-dismiss after 6s with 400ms exit animation.
+    Settings pattern: key-value in settings table (e.g. 'transcription:language' → 'en')
 
-    @src/renderer/components/AchievementBanner.tsx
-    @src/renderer/styles/globals.css
-    @src/renderer/components/AchievementsModal.tsx (ICON_MAP export)
-    @src/shared/types/gamification.ts (Achievement type)
+    @PROJECT.md @STATE.md
+    @src/main/services/transcriptionService.ts
+    @src/main/services/deepgramTranscriber.ts
+    @src/main/services/assemblyaiTranscriber.ts
+    @src/main/services/audioProcessor.ts
+    @src/main/services/whisperModelManager.ts
+    @src/main/ipc/recording.ts
+    @src/renderer/stores/recordingStore.ts
+    @src/renderer/components/RecordingControls.tsx
+    @src/renderer/components/settings/TranscriptionProviderSection.tsx
+    @src/shared/types/meetings.ts
   </context>
 
   <task type="auto" n="1">
-    <n>Redesign banner layout + proper dark: variant classes</n>
+    <n>Backend — make transcription language configurable across all providers</n>
     <files>
-      src/renderer/components/AchievementBanner.tsx (REWRITE render)
+      src/main/services/transcriptionService.ts
+      src/main/services/deepgramTranscriber.ts
+      src/main/services/assemblyaiTranscriber.ts
+      src/shared/types/meetings.ts (or shared/types/index.ts)
     </files>
     <action>
-      **WHY:** The current render uses `isDark` runtime checks with conditional class strings
-      in ~15 places, making it hard to maintain and inconsistent with the rest of the codebase
-      which uses Tailwind's `dark:` variant. The visual layout is also flat and underwhelming.
+      WHY: Language is hardcoded to 'en' in 3 services. We need to read a configurable
+      language setting and pass it through to each provider, including an 'auto' mode
+      for mixed-language recordings.
 
-      **Part A — Remove isDark runtime check**
+      1. Add a TranscriptionLanguage type to shared types:
+         `type TranscriptionLanguage = 'en' | 'cs' | 'auto';`
+         Add a TRANSCRIPTION_LANGUAGES constant array with {code, label} for UI use:
+         [{ code: 'en', label: 'English' }, { code: 'cs', label: 'Czech (Čeština)' }, { code: 'auto', label: 'Auto-detect (mixed)' }]
 
-      Delete the `const isDark = ...` line and ALL conditional expressions that use it.
-      Replace every `isDark ? X : Y` with proper Tailwind `dark:` classes.
+      2. In transcriptionService.ts:
+         - Add a module-level `activeLanguage: string = 'en'` variable
+         - In `start()`: read the language setting from DB via settings table directly:
+           ```typescript
+           const db = getDb();
+           const langRows = await db.select().from(settings).where(eq(settings.key, 'transcription:language'));
+           activeLanguage = langRows.length > 0 ? langRows[0].value : 'en';
+           ```
+         - In `dispatchToWhisper()`: replace `language: 'en'` with:
+           - If activeLanguage === 'auto': omit the language option entirely (Whisper auto-detects)
+           - Otherwise: `language: activeLanguage`
+         - In `dispatchToApi()`: pass activeLanguage to the cloud transcriber functions
 
-      Example transformation:
-      ```
-      // Before
-      ${isDark ? cats.iconBgDark : cats.iconBgLight}
-      ${isDark ? cats.iconTextDark : cats.iconTextLight}
+      3. In deepgramTranscriber.ts:
+         - Add `language` parameter to `transcribeSegment(pcmBuffer, startTimeMs, language)`
+           and `transcribeFileWithDiarization(wavBuffer, language)`
+         - Default language param to 'en' for backwards compatibility
+         - For the URL: if language === 'auto', replace `language=en` with `detect_language=true`
+         - Otherwise: use `language=${language}`
 
-      // After — use light classes as base, dark: for dark mode
-      ${cats.iconBgLight} dark:${cats.iconBgDark}
-      ${cats.iconTextLight} dark:${cats.iconTextDark}
-      ```
+      4. In assemblyaiTranscriber.ts:
+         - Add `language` parameter to `transcribeSegment(...)` and `transcribeFileWithDiarization(...)`
+         - Default language param to 'en' for backwards compatibility
+         - For the request body: if language === 'auto', replace `language_code: 'en'` with
+           `language_detection: true`
+         - Otherwise: `language_code: language`
 
-      Apply this pattern to ALL themed elements: container bg/border, gradient, icon circle,
-      label text, title text, description text, dismiss button hover.
-
-      NOTE: The `glowColor` for the CSS variable `--achievement-glow-color` cannot use
-      `dark:` since it's an inline style. For this ONE case, keep a runtime check BUT
-      refactor it to use a CSS-only approach: define two CSS variables and use the
-      Tailwind `dark:` variant in globals.css:
-      ```css
-      .achievement-banner {
-        --achievement-glow-color: var(--glow-light);
-      }
-      :where(.dark) .achievement-banner {
-        --achievement-glow-color: var(--glow-dark);
-      }
-      ```
-      Set both `--glow-light` and `--glow-dark` inline from the category config.
-
-      **Part B — Redesign visual layout**
-
-      New layout with more visual weight and celebration feel:
-
-      ```
-      ┌──────────────────────────────────────────────────┐
-      │ ┌──────┐                                     [×] │
-      │ │      │  ACHIEVEMENT UNLOCKED                    │
-      │ │ Icon │  Achievement Name             +25 XP    │
-      │ │      │  Description text                        │
-      │ └──────┘                                          │
-      │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━░░░░░░░░░░░░░░░░░░ │ ← countdown bar
-      └──────────────────────────────────────────────────┘
-      ```
-
-      Changes from current:
-      1. **Wider banner**: w-[480px] (up from 420px)
-      2. **Larger icon**: w-12 h-12 (up from w-10 h-10), icon size 26 (up from 22)
-      3. **XP badge**: Show "+N XP" badge to the right of the name (gold/amber pill).
-         The Achievement type doesn't include XP — add a simple XP_BY_CATEGORY lookup:
-         ```typescript
-         const XP_LABEL: Record<string, string> = {
-           focus: 'Focus', cards: 'Cards', projects: 'Projects',
-           meetings: 'Meetings', ideas: 'Ideas', brainstorm: 'Brainstorm', cross: 'Special',
-         };
-         ```
-         Show the category label as a pill next to the "Achievement Unlocked" text.
-      4. **Countdown progress bar**: 3px tall bar at the bottom of the banner that
-         shrinks from 100% to 0% over DISPLAY_MS using CSS transition.
-         Color: category accent color. Use a `<div>` with `transition: width` and
-         width toggled from '100%' to '0%' via a state change after mount.
-      5. **Shadow depth**:
-         - Dark: `shadow-2xl shadow-black/30` + glow animation (existing)
-         - Light: `shadow-xl shadow-surface-300/50` + subtle `ring-1 ring-surface-200/60`
-      6. **Typography hierarchy**:
-         - "ACHIEVEMENT UNLOCKED": text-[10px] uppercase tracking-[0.2em] font-bold (bolder)
-         - Name: text-base font-bold (down from text-lg — better proportion)
-         - Description: text-xs (down from text-sm — let name be hero)
-
-      **Part C — Simplify animation inline styles**
-
-      The current animation ternary tree (lines 214-264) is 50 lines of inline styles.
-      Replace with CSS classes in globals.css:
-      ```css
-      .achievement-banner-enter {
-        animation: achievement-enter 600ms ease-out forwards,
-                   achievement-glow 2s ease-in-out 600ms infinite;
-      }
-      .achievement-banner-exit {
-        animation: achievement-exit 400ms ease-in forwards;
-      }
-      .achievement-banner-hidden {
-        opacity: 0;
-        transform: translateY(-100%) scale(0.95);
-      }
-      ```
-      Then in the component, just apply the appropriate class based on state:
-      ```typescript
-      const animClass = exiting
-        ? 'achievement-banner-exit'
-        : visible
-          ? 'achievement-banner-enter'
-          : 'achievement-banner-hidden';
-      ```
-      This eliminates the massive inline style object entirely.
-
-      **Part D — Light mode specific treatment**
-
-      Light mode needs different depth treatment since glow effects are invisible
-      on white backgrounds:
-      - Container: `bg-white` with `ring-1 ring-black/[0.04]` for subtle edge
-      - Shadow: `shadow-[0_8px_30px_-4px_rgba(0,0,0,0.12)]` for floating depth
-      - Gradient: softer `from-{color}-50/80` tint (more visible on white)
-      - Icon circle: slightly more opaque background (`bg-{color}-100` vs `/15`)
-      - Text: darker values (surface-800/surface-600 vs surface-100/surface-400)
-      - Shimmer: reduce opacity to 0.08 (less harsh on white)
-
-      Update CATEGORY_STYLES to include light-mode icon bg as `bg-{color}-100`
-      (solid Tailwind class) instead of the current `bg-{color}-500/15` (translucent).
+      5. Update the file header comment in transcriptionService.ts to remove
+         "English-only for v1 (language is hardcoded)"
     </action>
     <verify>
-      - npx tsc --noEmit passes
-      - No `isDark` variable remains in the component (grep for it)
-      - All themed elements use `dark:` Tailwind variant
-      - Banner class is `achievement-banner` (for CSS glow variable)
-      - globals.css has `.achievement-banner-enter`, `.achievement-banner-exit`, `.achievement-banner-hidden`
-      - Countdown bar div exists with transition-based width animation
-      - Width increased to 480px
-      - Icon size increased to w-12 h-12
+      - `npx tsc --noEmit` passes with no errors
+      - All 5 hardcoded 'en' occurrences are replaced with dynamic language
+      - transcribeSegment and transcribeFileWithDiarization accept language param
+      - 'auto' mode correctly omits language for Whisper and uses detect_language for APIs
+      - `npm test` passes (150 tests)
     </verify>
     <done>
-      Banner renders with proper dark: variants, improved layout with larger icon,
-      category label, countdown bar, better shadows, and simplified animation classes.
-      No runtime isDark checks remain.
+      All 3 transcription providers accept configurable language.
+      'auto' mode enables per-segment language detection for mixed recordings.
+      No hardcoded 'en' remains in transcription code.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Tailwind's dark: variant works with dynamically composed class strings
-        (it does — same pattern used across all other components)
-      - color-mix() supported in Electron's Chromium (yes — Chrome 111+)
-      - ICON_MAP export from AchievementsModal remains available
+      - settings table is importable and queryable in transcriptionService
+      - Deepgram Nova-2 supports Czech ('cs') and detect_language param
+      - AssemblyAI supports language_detection: true for auto-detect
+      - @fugood/whisper.node auto-detects when language option is omitted
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Celebration particle effects + icon entrance animation</n>
+    <n>UI — language selector in RecordingControls + default in Settings + model warnings</n>
     <files>
-      src/renderer/components/AchievementBanner.tsx (ADD particles)
-      src/renderer/styles/globals.css (ADD keyframes)
+      src/renderer/components/RecordingControls.tsx
+      src/renderer/components/settings/TranscriptionProviderSection.tsx
+      src/main/ipc/recording.ts (add whisper:get-active-model IPC)
+      src/preload/domains/meetings.ts (or appropriate preload file)
+      src/shared/types/electron-api.d.ts (or wherever ElectronAPI is defined)
     </files>
     <action>
-      **WHY:** The single shimmer sweep is too subtle — achievement unlocks should feel
-      rewarding. Adding lightweight CSS-only particle/sparkle effects creates the "wow"
-      moment without any external libraries. This is the difference between "notification"
-      and "celebration."
+      WHY: Users need to choose the transcription language per-recording and set a default.
+      Critical: must warn when English-only Whisper model is selected with non-English language.
 
-      **Part A — Star burst particles (CSS-only)**
+      1. Add IPC to check active whisper model:
+         - In recording.ts (or a new whisper IPC file): add handler `whisper:get-active-model`
+           that returns the model filename string from whisperModelManager.getDefaultModelPath()
+           (extract basename) or null if no model.
+         - Add to preload bridge + ElectronAPI type.
 
-      Add 6-8 small star/sparkle elements that burst outward from the icon on entrance.
-      These are absolutely positioned `<span>` elements inside the icon circle container,
-      animated via CSS keyframes.
+      2. RecordingControls.tsx — add language dropdown:
+         - Import TRANSCRIPTION_LANGUAGES from shared types
+         - Add state: `const [selectedLanguage, setSelectedLanguage] = useState('en');`
+         - On mount, load default from settings:
+           `const savedLang = await window.electronAPI.getSetting('transcription:language');`
+           `if (savedLang) setSelectedLanguage(savedLang);`
+         - Add a `<select>` for language between the template selector and microphone toggle:
+           Options: map TRANSCRIPTION_LANGUAGES to option elements
+         - When language changes, save to settings immediately (becomes new default):
+           `await window.electronAPI.setSetting('transcription:language', value);`
+         - Style: same as existing selects (w-full, same classes)
 
-      In globals.css, add a `@keyframes achievement-particle` animation:
-      ```css
-      @keyframes achievement-particle {
-        0% {
-          opacity: 1;
-          transform: translate(0, 0) scale(1);
-        }
-        100% {
-          opacity: 0;
-          transform: translate(var(--px), var(--py)) scale(0);
-        }
-      }
-      ```
+      3. Model compatibility warning in RecordingControls:
+         - On mount (and when selectedLanguage changes), check the active whisper model name
+         - If model name contains '.en' AND selectedLanguage !== 'en':
+           Show amber warning below the language selector:
+           "Current Whisper model ({modelName}) is English-only. Download a multilingual
+           model in Settings for {language} transcription."
+         - Only show when transcription provider is 'local' (not relevant for cloud APIs)
 
-      Each particle `<span>` gets unique `--px` and `--py` CSS variables for direction,
-      plus a staggered `animation-delay`. The particles are 4-6px circles using the
-      category accent color.
-
-      Generate particle positions in the component:
-      ```typescript
-      const PARTICLES = [
-        { x: '-20px', y: '-24px', delay: '0ms', size: 5 },
-        { x: '22px',  y: '-18px', delay: '50ms', size: 4 },
-        { x: '-16px', y: '20px',  delay: '100ms', size: 3 },
-        { x: '24px',  y: '16px',  delay: '75ms', size: 5 },
-        { x: '-8px',  y: '-28px', delay: '25ms', size: 4 },
-        { x: '12px',  y: '24px',  delay: '125ms', size: 3 },
-      ];
-      ```
-
-      Render particles only when `visible && !exiting`:
-      ```jsx
-      {visible && !exiting && PARTICLES.map((p, i) => (
-        <span
-          key={i}
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            '--px': p.x,
-            '--py': p.y,
-            width: p.size,
-            height: p.size,
-            backgroundColor: 'currentColor',
-            animation: `achievement-particle 700ms ease-out ${p.delay} forwards`,
-            top: '50%',
-            left: '50%',
-          } as React.CSSProperties}
-        />
-      ))}
-      ```
-
-      The particles inherit `currentColor` from the icon circle's text color class,
-      so they automatically match the category color in both light and dark mode.
-
-      **Part B — Icon bounce entrance**
-
-      Add a bounce-scale animation to the icon circle on entrance:
-      ```css
-      @keyframes achievement-icon-bounce {
-        0% { transform: scale(0); }
-        50% { transform: scale(1.2); }
-        70% { transform: scale(0.9); }
-        100% { transform: scale(1); }
-      }
-      ```
-
-      Apply to the icon circle when `visible && !exiting`:
-      ```
-      style={{ animation: visible && !exiting ? 'achievement-icon-bounce 500ms ease-out 200ms both' : undefined }}
-      ```
-
-      The 200ms delay means the icon pops AFTER the banner slides in, creating a
-      staggered entrance sequence: banner slides → icon bounces → particles burst.
-
-      **Part C — Subtle ring pulse in light mode**
-
-      In light mode, the glow animation is invisible on white backgrounds. Add an
-      alternative "ring pulse" effect for light mode:
-      ```css
-      @keyframes achievement-ring-pulse {
-        0%, 100% {
-          box-shadow: 0 8px 30px -4px rgba(0,0,0,0.1);
-        }
-        50% {
-          box-shadow: 0 8px 30px -4px rgba(0,0,0,0.1),
-                      0 0 0 3px var(--achievement-glow-color);
-        }
-      }
-      ```
-
-      Use this animation in light mode instead of `achievement-glow`:
-      ```css
-      .achievement-banner-enter {
-        animation: achievement-enter 600ms ease-out forwards,
-                   achievement-glow 2s ease-in-out 600ms infinite;
-      }
-      :where(:not(.dark)) .achievement-banner-enter {
-        animation: achievement-enter 600ms ease-out forwards,
-                   achievement-ring-pulse 2s ease-in-out 600ms infinite;
-      }
-      ```
-
-      This way dark mode gets the existing outer glow, and light mode gets a subtle
-      colored ring pulse that's visible on white backgrounds.
+      4. TranscriptionProviderSection.tsx — add default language selector:
+         - Below the provider radio buttons, before Test Connection, add "Transcription Language"
+         - Import TRANSCRIPTION_LANGUAGES
+         - Load current value from settings on mount, save on change
+         - If provider is 'local', show same model compatibility warning
+         - Add helper text: "For mixed Czech/English meetings, use 'Auto-detect' with a
+           multilingual Whisper model."
     </action>
     <verify>
-      - npx tsc --noEmit passes
-      - npm test passes (150/150)
-      - globals.css has @keyframes: achievement-particle, achievement-icon-bounce, achievement-ring-pulse
-      - Particle spans render only during visible && !exiting state
-      - Particles use currentColor (no hardcoded colors)
-      - Icon bounce has 200ms delay (staggered after banner entrance)
-      - Light mode uses achievement-ring-pulse instead of achievement-glow
-      - No new npm dependencies added (pure CSS animations)
+      - `npx tsc --noEmit` passes
+      - RecordingControls shows language dropdown with 3 options
+      - Changing language saves to settings (persists across restarts)
+      - Settings page shows language selector in Transcription Provider section
+      - Amber warning shows when .en model + non-English language + local provider
+      - Warning does NOT show when using cloud providers
+      - `npm test` passes (150 tests)
     </verify>
     <done>
-      Achievement banner has celebration particle burst around icon, bouncing icon
-      entrance, and light-mode-appropriate ring pulse animation. All CSS-only,
-      no external libraries.
+      Language selector visible in both RecordingControls and Settings.
+      Selection persists via settings table.
+      Model compatibility warning shows when .en model + non-English + local provider.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - CSS custom properties (--px, --py) work with transform in Electron's Chromium (yes)
-      - 6-8 extra DOM elements for particles have negligible performance impact
-      - currentColor inheritance works through absolute positioning (yes — color is inherited)
+      - getSetting/setSetting IPC already works (verified in codebase)
+      - whisperModelManager.getDefaultModelPath() returns full path (basename extractable)
+      - .en suffix in model filename reliably indicates English-only model
     </assumptions>
   </task>
+
+  <task type="auto" n="3">
+    <n>Per-recording language storage + transcription service reads from meeting record</n>
+    <files>
+      src/main/db/schema/meetings.ts
+      src/shared/types/meetings.ts
+      src/shared/validation/schemas.ts
+      src/main/services/meetingService.ts
+      src/main/services/transcriptionService.ts
+      src/renderer/stores/recordingStore.ts
+      src/renderer/components/RecordingControls.tsx
+      src/renderer/components/MeetingDetailModal.tsx (or equivalent meeting detail view)
+      drizzle/ (new migration)
+    </files>
+    <action>
+      WHY: Each recording should store its language setting so the transcription service
+      uses exactly what was selected at recording time (not whatever the global default
+      happens to be), and so users can see what language was used when reviewing past meetings.
+
+      1. Schema migration (next available number):
+         - Add `transcriptionLanguage` varchar(10) column to meetings table, nullable
+         - null = legacy meetings before this feature (treated as 'en')
+         - Ensure migration journal timestamp is monotonically increasing (PGlite constraint)
+
+      2. Update CreateMeetingInput type + validation schema:
+         - Add `transcriptionLanguage?: string` to CreateMeetingInput interface
+         - Add to Zod schema: `transcriptionLanguage: z.string().max(10).optional()`
+
+      3. meetingService.createMeeting:
+         - Accept and persist transcriptionLanguage from input
+
+      4. recordingStore.startRecording:
+         - Add `language?: string` parameter
+         - Pass to createMeeting as transcriptionLanguage
+         - In RecordingControls, pass selectedLanguage to startRecording()
+
+      5. transcriptionService.start():
+         - Accept optional `language?: string` parameter
+         - If provided, use it as activeLanguage
+         - If not provided (backwards compat), fall back to reading from settings
+         - Update audioProcessor.startRecording to query the meeting's language and pass it
+
+      6. Display in meeting detail view:
+         - Show the transcription language as a small metadata item
+         - e.g., "Language: English" or "Language: Auto-detect"
+         - Use TRANSCRIPTION_LANGUAGES to look up the display label
+         - Only show when transcriptionLanguage is not null (hide for legacy meetings)
+    </action>
+    <verify>
+      - Migration generates and runs without errors (check drizzle journal timestamps)
+      - `npx tsc --noEmit` passes
+      - New meetings have transcriptionLanguage populated in DB
+      - transcriptionService uses per-meeting language (not just global setting)
+      - Meeting detail view shows language for new meetings
+      - Legacy meetings (null transcriptionLanguage) don't show language badge
+      - `npm test` passes (150 tests)
+    </verify>
+    <done>
+      Each meeting stores its transcription language.
+      Full pipeline: UI selection → meeting record → audioProcessor → transcriptionService → provider.
+      Past meetings display what language was used.
+    </done>
+    <confidence>HIGH</confidence>
+    <assumptions>
+      - Next migration number is available (check drizzle journal for latest)
+      - meetingService.createMeeting can accept the new field via spread/insert
+      - audioProcessor can query meetingService for the meeting's language before starting transcription
+    </assumptions>
+  </task>
+
 </phase>
