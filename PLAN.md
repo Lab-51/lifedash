@@ -1,435 +1,331 @@
-<phase n="E.2" name="Card Agent UI — Chat Panel, Tool Visualization, and Modal Integration">
+<phase n="G.1" name="Achievement Banner Visual Overhaul — Dark & Light Mode">
   <context>
-    Plan E.1 is COMPLETE — the card agent backend is fully operational:
-    - Schema: card_agent_messages table (migration 0016)
-    - Service: cardAgentService.ts with 7 tools + context builder + message persistence
-    - IPC: 5 handlers (send-message streaming, get-messages, clear-messages, get-message-count, abort)
-    - Preload: 7 bridge methods (5 invoke + 2 event listeners)
-    - Types: CardAgentMessage, ToolCallRecord, ToolResultRecord, AgentAction
+    The AchievementBanner component (src/renderer/components/AchievementBanner.tsx, 329 lines)
+    displays a slide-down notification when achievements are unlocked. Current issues:
 
-    The frontend needs a chat panel inside CardDetailModal. The modal is currently a
-    single scrollable column (max-w-3xl, 80vh). We will add a 2-tab system:
-    "Details" (existing content) and "AI Agent" (new chat panel).
+    1. Uses runtime `isDark` check instead of Tailwind's `dark:` variant pattern
+    2. Visual design is basic — flat card with icon + text, minimal celebration feel
+    3. Light mode treatment is an afterthought (subtle gradient, weak depth)
+    4. Animation inline style object is overly complex (50+ lines of ternaries)
+    5. No countdown/progress indicator for auto-dismiss
 
-    Proven patterns to reuse:
-    - BrainstormModern.tsx / brainstormStore.ts — streaming chat with abort
-    - ChatMessageModern.tsx — ReactMarkdown + remarkGfm rendering with dark/light mode
-    - brainstormStore — streaming pattern: onChunk listener → accumulate text → final reload
+    The component has a solid Zustand store (queue system, push/next/clear) and good
+    animation keyframes in globals.css. The redesign keeps the store and replaces the
+    rendering with a much more polished visual treatment.
 
-    Key API surface (preload bridge):
-      cardAgentSendMessage(cardId, content) → { assistantMessage, actions } | null
-      cardAgentGetMessages(cardId) → CardAgentMessage[]
-      cardAgentClearMessages(cardId) → void
-      cardAgentGetMessageCount(cardId) → number
-      cardAgentAbort(cardId) → void
-      onCardAgentChunk(cb: ({cardId, chunk}) => void) → cleanup fn
-      onCardAgentToolEvent(cb: ({cardId, type, toolName, args?, result?}) => void) → cleanup fn
+    Achievement data shape (from gamification.ts):
+    ```typescript
+    interface Achievement {
+      id: string;
+      name: string;
+      description: string;
+      icon: string;       // Lucide icon name → looked up via ICON_MAP
+      category: string;   // focus|cards|projects|meetings|ideas|brainstorm|cross
+      unlockedAt: string | null;
+    }
+    ```
 
-    Tool events fire twice per tool use: 'call' (with args) then 'result' (with result).
-    AgentAction[] (returned from sendMessage) has human-readable descriptions + success boolean.
+    ICON_MAP is exported from AchievementsModal.tsx (84 entries).
+    7 category color configs already defined in the component (CATEGORY_STYLES).
 
-    Important nuances:
-    - CardAgentMessage.content can be null (tool-only assistant messages)
-    - Only one card modal is open at a time — store can track single cardId
-    - After write tools (checklist, comment, description, createCard) → must refresh
-      cardDetailStore to show updated data in the Details tab
-    - The message history uses last-20-message windowing server-side (commit 5970332)
+    The banner renders in App.tsx at z-[60], fixed top-center.
+    Auto-dismiss after 6s with 400ms exit animation.
 
-    @src/renderer/components/CardDetailModal.tsx
-    @src/renderer/components/ChatMessageModern.tsx
-    @src/renderer/stores/brainstormStore.ts
-    @src/renderer/stores/cardDetailStore.ts
-    @src/shared/types/card-agent.ts
-    @src/preload/domains/card-agent.ts
-    @src/main/ipc/card-agent.ts
+    @src/renderer/components/AchievementBanner.tsx
+    @src/renderer/styles/globals.css
+    @src/renderer/components/AchievementsModal.tsx (ICON_MAP export)
+    @src/shared/types/gamification.ts (Achievement type)
   </context>
 
   <task type="auto" n="1">
-    <n>cardAgentStore + CardAgentPanel — core chat component</n>
+    <n>Redesign banner layout + proper dark: variant classes</n>
     <files>
-      src/renderer/stores/cardAgentStore.ts (NEW)
-      src/renderer/components/CardAgentPanel.tsx (NEW)
+      src/renderer/components/AchievementBanner.tsx (REWRITE render)
     </files>
     <action>
-      **Part A — Zustand store: src/renderer/stores/cardAgentStore.ts**
+      **WHY:** The current render uses `isDark` runtime checks with conditional class strings
+      in ~15 places, making it hard to maintain and inconsistent with the rest of the codebase
+      which uses Tailwind's `dark:` variant. The visual layout is also flat and underwhelming.
 
-      State:
+      **Part A — Remove isDark runtime check**
+
+      Delete the `const isDark = ...` line and ALL conditional expressions that use it.
+      Replace every `isDark ? X : Y` with proper Tailwind `dark:` classes.
+
+      Example transformation:
+      ```
+      // Before
+      ${isDark ? cats.iconBgDark : cats.iconBgLight}
+      ${isDark ? cats.iconTextDark : cats.iconTextLight}
+
+      // After — use light classes as base, dark: for dark mode
+      ${cats.iconBgLight} dark:${cats.iconBgDark}
+      ${cats.iconTextLight} dark:${cats.iconTextDark}
+      ```
+
+      Apply this pattern to ALL themed elements: container bg/border, gradient, icon circle,
+      label text, title text, description text, dismiss button hover.
+
+      NOTE: The `glowColor` for the CSS variable `--achievement-glow-color` cannot use
+      `dark:` since it's an inline style. For this ONE case, keep a runtime check BUT
+      refactor it to use a CSS-only approach: define two CSS variables and use the
+      Tailwind `dark:` variant in globals.css:
+      ```css
+      .achievement-banner {
+        --achievement-glow-color: var(--glow-light);
+      }
+      :where(.dark) .achievement-banner {
+        --achievement-glow-color: var(--glow-dark);
+      }
+      ```
+      Set both `--glow-light` and `--glow-dark` inline from the category config.
+
+      **Part B — Redesign visual layout**
+
+      New layout with more visual weight and celebration feel:
+
+      ```
+      ┌──────────────────────────────────────────────────┐
+      │ ┌──────┐                                     [×] │
+      │ │      │  ACHIEVEMENT UNLOCKED                    │
+      │ │ Icon │  Achievement Name             +25 XP    │
+      │ │      │  Description text                        │
+      │ └──────┘                                          │
+      │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━░░░░░░░░░░░░░░░░░░ │ ← countdown bar
+      └──────────────────────────────────────────────────┘
+      ```
+
+      Changes from current:
+      1. **Wider banner**: w-[480px] (up from 420px)
+      2. **Larger icon**: w-12 h-12 (up from w-10 h-10), icon size 26 (up from 22)
+      3. **XP badge**: Show "+N XP" badge to the right of the name (gold/amber pill).
+         The Achievement type doesn't include XP — add a simple XP_BY_CATEGORY lookup:
+         ```typescript
+         const XP_LABEL: Record<string, string> = {
+           focus: 'Focus', cards: 'Cards', projects: 'Projects',
+           meetings: 'Meetings', ideas: 'Ideas', brainstorm: 'Brainstorm', cross: 'Special',
+         };
+         ```
+         Show the category label as a pill next to the "Achievement Unlocked" text.
+      4. **Countdown progress bar**: 3px tall bar at the bottom of the banner that
+         shrinks from 100% to 0% over DISPLAY_MS using CSS transition.
+         Color: category accent color. Use a `<div>` with `transition: width` and
+         width toggled from '100%' to '0%' via a state change after mount.
+      5. **Shadow depth**:
+         - Dark: `shadow-2xl shadow-black/30` + glow animation (existing)
+         - Light: `shadow-xl shadow-surface-300/50` + subtle `ring-1 ring-surface-200/60`
+      6. **Typography hierarchy**:
+         - "ACHIEVEMENT UNLOCKED": text-[10px] uppercase tracking-[0.2em] font-bold (bolder)
+         - Name: text-base font-bold (down from text-lg — better proportion)
+         - Description: text-xs (down from text-sm — let name be hero)
+
+      **Part C — Simplify animation inline styles**
+
+      The current animation ternary tree (lines 214-264) is 50 lines of inline styles.
+      Replace with CSS classes in globals.css:
+      ```css
+      .achievement-banner-enter {
+        animation: achievement-enter 600ms ease-out forwards,
+                   achievement-glow 2s ease-in-out 600ms infinite;
+      }
+      .achievement-banner-exit {
+        animation: achievement-exit 400ms ease-in forwards;
+      }
+      .achievement-banner-hidden {
+        opacity: 0;
+        transform: translateY(-100%) scale(0.95);
+      }
+      ```
+      Then in the component, just apply the appropriate class based on state:
       ```typescript
-      interface CardAgentStore {
-        cardId: string | null;
-        messages: CardAgentMessage[];
-        streaming: boolean;
-        streamingText: string;
-        toolEvents: ToolEvent[];   // live tool events during streaming
-        actions: AgentAction[];    // final action summary from last turn
-        loading: boolean;
-        messageCount: number;      // for tab badge
-
-        // Actions
-        loadMessages: (cardId: string) => Promise<void>;
-        sendMessage: (cardId: string, content: string) => Promise<void>;
-        clearMessages: (cardId: string) => Promise<void>;
-        abort: (cardId: string) => Promise<void>;
-        loadMessageCount: (cardId: string) => Promise<void>;
-        reset: () => void;
-      }
-
-      interface ToolEvent {
-        toolName: string;
-        type: 'call' | 'result';
-        args?: unknown;
-        result?: unknown;
-      }
+      const animClass = exiting
+        ? 'achievement-banner-exit'
+        : visible
+          ? 'achievement-banner-enter'
+          : 'achievement-banner-hidden';
       ```
+      This eliminates the massive inline style object entirely.
 
-      Implementation pattern (mirrors brainstormStore):
-      1. `loadMessages` — calls cardAgentGetMessages, sets messages + cardId
-      2. `sendMessage` — the core streaming flow:
-         a. Push optimistic user message into messages[] (temp id, role:'user')
-         b. Set streaming=true, streamingText='', toolEvents=[], actions=[]
-         c. Register onCardAgentChunk listener → append chunk to streamingText
-         d. Register onCardAgentToolEvent listener → append to toolEvents[]
-         e. await cardAgentSendMessage(cardId, content)
-         f. On success: push saved assistantMessage into messages[], set actions
-         g. Set streaming=false, streamingText='', clear toolEvents
-         h. Cleanup both listeners in finally block
-         i. If result is null (aborted), remove optimistic user message
-      3. `clearMessages` — calls cardAgentClearMessages, resets messages[]
-      4. `abort` — calls cardAgentAbort
-      5. `loadMessageCount` — calls cardAgentGetMessageCount
-      6. `reset` — clear all state (called when modal closes)
+      **Part D — Light mode specific treatment**
 
-      The event listener cleanup functions returned by onCardAgentChunk/onCardAgentToolEvent
-      MUST be called in the finally block to prevent memory leaks.
+      Light mode needs different depth treatment since glow effects are invisible
+      on white backgrounds:
+      - Container: `bg-white` with `ring-1 ring-black/[0.04]` for subtle edge
+      - Shadow: `shadow-[0_8px_30px_-4px_rgba(0,0,0,0.12)]` for floating depth
+      - Gradient: softer `from-{color}-50/80` tint (more visible on white)
+      - Icon circle: slightly more opaque background (`bg-{color}-100` vs `/15`)
+      - Text: darker values (surface-800/surface-600 vs surface-100/surface-400)
+      - Shimmer: reduce opacity to 0.08 (less harsh on white)
 
-      WHY Zustand over local state: The store persists across tab switches within the modal
-      (user can switch to Details tab and back without losing streaming state).
-
-      **Part B — Chat panel: src/renderer/components/CardAgentPanel.tsx**
-
-      A vertically structured chat panel that fills the modal body area:
-
-      ```
-      ┌────────────────────────────────────────┐
-      │  [Messages area — flex-1 overflow-y]   │
-      │    ┌──────────────────────────────┐     │
-      │    │  User message (right-aligned) │     │
-      │    └──────────────────────────────┘     │
-      │    ┌──────────────────────────────┐     │
-      │    │  AI message (left-aligned)    │     │
-      │    │  ┌─ Tool actions ──────────┐  │     │
-      │    │  │ ✓ Added checklist item  │  │     │
-      │    │  └────────────────────────┘  │     │
-      │    └──────────────────────────────┘     │
-      │                                         │
-      │  [Starter prompts — when empty]         │
-      ├─────────────────────────────────────────┤
-      │  [Input area — sticky bottom]           │
-      │  ┌─────────────────────────┐ [Send/Stop]│
-      │  │  Ask the agent...       │            │
-      │  └─────────────────────────┘  [Clear]   │
-      └─────────────────────────────────────────┘
-      ```
-
-      Props: `{ cardId: string }`
-
-      Component structure:
-      1. **Message list** — scrollable area, ref for auto-scroll
-         - Map over store.messages
-         - User messages: right-aligned bubble (bg-primary-600 text-white, rounded-2xl rounded-tr-sm)
-           Plain whitespace-pre-wrap text (no markdown)
-         - Assistant messages: left-aligned card (bg-white dark:bg-surface-900, border, rounded-2xl rounded-tl-sm)
-           Render content via ReactMarkdown + remarkGfm (reuse exact component map from ChatMessageModern)
-           Guard: if content is null, show only tool actions (no markdown render)
-         - Streaming state: show assistant bubble with streamingText + blinking cursor span
-           If streamingText is empty + streaming=true, show "Thinking..." with Loader2 spinner
-         - Tool events during streaming: render below streaming text as small animated pills
-         - After each assistant message: render AgentAction badges from message.toolCalls
-
-      2. **Starter prompts** — shown when messages[] is empty and not streaming
-         4 clickable prompt cards in a 2x2 grid:
-         - "Break this task into steps" (ListChecks icon)
-         - "Draft acceptance criteria" (FileText icon)
-         - "What's the status of related work?" (Search icon)
-         - "Create sub-tasks for this card" (Plus icon)
-         Clicking a prompt calls sendMessage with that text.
-
-      3. **Input area** — sticky at bottom
-         - Textarea (auto-resize up to ~4 lines, reset after send)
-         - Enter to send, Shift+Enter for newline
-         - Send button (SendHorizonal icon) — disabled when empty or streaming
-         - Stop button (Square icon) — shown during streaming, calls abort
-         - Clear conversation button (Trash2 icon) — shown when messages exist + not streaming
-           Uses window.confirm for safety
-
-      4. **Auto-scroll** — same pattern as brainstorm:
-         - Track userScrolledUp via scroll listener (if >80px from bottom, set true)
-         - Auto-scroll to bottom on new messages/chunks (only when !userScrolledUp)
-         - Force-scroll on user send
-
-      5. **Loading state** — show skeleton while loadMessages is in progress
-
-      6. **Empty AI config state** — if no AI provider configured, show a gentle message
-         with link to Settings (same pattern as brainstorm)
-
-      Full dark/light mode from the start — use dark: variant classes throughout.
-      Keep file under 300 lines by extracting the markdown component map to a const.
+      Update CATEGORY_STYLES to include light-mode icon bg as `bg-{color}-100`
+      (solid Tailwind class) instead of the current `bg-{color}-500/15` (translucent).
     </action>
     <verify>
       - npx tsc --noEmit passes
-      - cardAgentStore.ts exports useCardAgentStore
-      - CardAgentPanel.tsx exports default component accepting { cardId: string }
-      - Store has all 6 actions: loadMessages, sendMessage, clearMessages, abort, loadMessageCount, reset
-      - Component renders messages, input area, starter prompts
-      - ReactMarkdown + remarkGfm used for assistant messages
-      - Event listener cleanup in finally block (no memory leaks)
-      - Dark/light mode classes present
+      - No `isDark` variable remains in the component (grep for it)
+      - All themed elements use `dark:` Tailwind variant
+      - Banner class is `achievement-banner` (for CSS glow variable)
+      - globals.css has `.achievement-banner-enter`, `.achievement-banner-exit`, `.achievement-banner-hidden`
+      - Countdown bar div exists with transition-based width animation
+      - Width increased to 480px
+      - Icon size increased to w-12 h-12
     </verify>
     <done>
-      Working chat panel component + store that can render messages, stream AI responses,
-      display tool events, and manage conversation lifecycle
+      Banner renders with proper dark: variants, improved layout with larger icon,
+      category label, countdown bar, better shadows, and simplified animation classes.
+      No runtime isDark checks remain.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - react-markdown and remark-gfm already installed (used by brainstorm)
-      - Preload bridge methods match the signatures documented in E.1
-      - CardAgentMessage.content can be null for tool-only assistant steps
+      - Tailwind's dark: variant works with dynamically composed class strings
+        (it does — same pattern used across all other components)
+      - color-mix() supported in Electron's Chromium (yes — Chrome 111+)
+      - ICON_MAP export from AchievementsModal remains available
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>CardDetailModal tab system + agent panel integration</n>
+    <n>Celebration particle effects + icon entrance animation</n>
     <files>
-      src/renderer/components/CardDetailModal.tsx (MODIFY)
+      src/renderer/components/AchievementBanner.tsx (ADD particles)
+      src/renderer/styles/globals.css (ADD keyframes)
     </files>
     <action>
-      **Part A — Add tab bar to CardDetailModal**
+      **WHY:** The single shimmer sweep is too subtle — achievement unlocks should feel
+      rewarding. Adding lightweight CSS-only particle/sparkle effects creates the "wow"
+      moment without any external libraries. This is the difference between "notification"
+      and "celebration."
 
-      Add a simple 2-tab bar immediately after the header (title + close button) and
-      before the priority selector:
+      **Part A — Star burst particles (CSS-only)**
 
-      ```
-      ┌─────────────────────────────────────────┐
-      │  Card Title                          [X] │
-      │  ┌──────────┐  ┌──────────┐             │
-      │  │ Details   │  │ AI Agent │  (3)        │
-      │  └──────────┘  └──────────┘             │
-      │  ─────────────────────────────────────── │  ← border-b
-      │  [Tab content below]                     │
-      ```
+      Add 6-8 small star/sparkle elements that burst outward from the icon on entrance.
+      These are absolutely positioned `<span>` elements inside the icon circle container,
+      animated via CSS keyframes.
 
-      State: `const [activeTab, setActiveTab] = useState<'details' | 'agent'>('details');`
-
-      Tab styling:
-      - Active: `text-primary-500 border-b-2 border-primary-500 font-medium`
-      - Inactive: `text-surface-400 hover:text-surface-600 dark:hover:text-surface-300`
-      - Both: `px-4 py-2 text-sm transition-colors`
-      - AI Agent tab: show message count badge (small emerald circle with number)
-        when messageCount > 0
-
-      Icons: Details tab = LayoutList, AI Agent tab = Bot
-
-      **Part B — Wrap existing content in Details tab**
-
-      All content from the priority selector down to the timestamps goes inside:
-      ```jsx
-      {activeTab === 'details' && (
-        <>
-          {/* existing priority, template, description, labels, ... timestamps */}
-        </>
-      )}
-      ```
-
-      This is a simple conditional render — no restructuring of existing code.
-
-      **Part C — Mount CardAgentPanel in AI Agent tab**
-
-      ```jsx
-      {activeTab === 'agent' && (
-        <CardAgentPanel cardId={card.id} />
-      )}
-      ```
-
-      Lazy import: `const CardAgentPanel = lazy(() => import('./CardAgentPanel'));`
-      Wrap in Suspense with a simple loading spinner fallback.
-
-      **Part D — Load message count on mount + refresh after agent turn**
-
-      On modal mount: call `useCardAgentStore.getState().loadMessageCount(card.id)`
-      This populates the badge on the AI Agent tab before the user clicks it.
-
-      **Part E — Refresh card data after agent mutations**
-
-      After an agent turn completes (sendMessage resolves), the agent may have modified
-      checklist items, comments, or the card description. The Details tab must reflect these.
-
-      In CardAgentPanel, after sendMessage resolves and actions[] contains write actions
-      (addChecklistItem, toggleChecklistItem, addComment, updateDescription, createCard),
-      call `useCardDetailStore.getState().loadCardDetails(cardId)` to refresh.
-
-      Also call the onUpdate callback for description changes so the TipTap editor
-      gets the updated content if the user switches back to Details tab.
-
-      For card-level changes (description), also refresh the card from boardStore so
-      the parent has the latest data.
-
-      **Part F — Clean up on modal close**
-
-      In the existing useEffect cleanup (where clearCardDetails is called), also call
-      `useCardAgentStore.getState().reset()` to clear agent state.
-
-      WHY tabs: The modal is max-w-3xl (768px) — too narrow for a side-by-side layout.
-      A tab system cleanly separates the dense card details from the conversational
-      agent interface. The store persists across tab switches so users can check details
-      and return to the conversation without losing state.
-    </action>
-    <verify>
-      - npx tsc --noEmit passes
-      - CardDetailModal renders tab bar with Details and AI Agent tabs
-      - Clicking Details shows all existing card content (no visual changes)
-      - Clicking AI Agent shows CardAgentPanel with correct cardId
-      - Message count badge appears on AI Agent tab when messages exist
-      - After agent mutations, switching to Details tab shows updated data
-      - Agent store resets on modal close
-      - Existing card detail functionality is completely unchanged
-    </verify>
-    <done>
-      CardDetailModal has a 2-tab system with the agent chat panel integrated,
-      message count badge, and card data refresh after mutations
-    </done>
-    <confidence>HIGH</confidence>
-    <assumptions>
-      - CardAgentPanel from Task 1 is complete and working
-      - Tab switching preserves store state (no re-mount issues)
-      - React.lazy works for the panel component (same pattern as other lazy components)
-    </assumptions>
-  </task>
-
-  <task type="auto" n="3">
-    <n>Tool call visualization + action badges + edge case polish</n>
-    <files>
-      src/renderer/components/CardAgentPanel.tsx (MODIFY)
-      src/renderer/stores/cardAgentStore.ts (MODIFY — if needed)
-    </files>
-    <action>
-      This task adds the visual polish that makes the agent feel alive — real-time
-      tool execution feedback and clear action summaries.
-
-      **Part A — Streaming tool event indicators**
-
-      During streaming, below the current streaming text, render tool events as
-      small animated pills:
-
-      ```
-      AI is responding...
-      ──────────────────
-      "Here's what I'll do..."  █  (blinking cursor)
-
-        ⟳ Searching project cards...          ← type='call', spinner
-        ✓ Found 3 matching cards              ← type='result', checkmark
-        ⟳ Adding checklist item: "Set up JWT" ← type='call', spinner
-      ```
-
-      Each tool event renders as:
-      - `type='call'`: Loader2 spinner + tool description in amber text
-        Format: "{humanName}..." where humanName maps tool names to friendly labels:
-        ```
-        getCardDetails → "Looking up card details"
-        searchProjectCards → "Searching project cards"
-        addChecklistItem → `Adding checklist item: "${args.title}"`
-        toggleChecklistItem → `${args.completed ? 'Completing' : 'Uncompleting'} checklist item`
-        addComment → "Adding comment"
-        updateDescription → "Updating description"
-        createCard → `Creating card: "${args.title}"`
-        ```
-      - `type='result'`: Check icon + same text in emerald, no spinner
-      - Animate: fade-in transition (opacity 0→1, 150ms)
-      - Container: border-l-2 border-surface-300 dark:border-surface-700 pl-3 ml-4 mt-2 space-y-1
-
-      **Part B — Persisted action badges on assistant messages**
-
-      For assistant messages that have non-null toolCalls[], render action badges
-      below the markdown content:
-
-      ```
-      [AI response text with markdown...]
-
-      ┌─────────────────────────────────────┐
-      │ ✓ Added checklist item: "Set up JWT" │
-      │ ✓ Added checklist item: "Write tests" │
-      │ ✓ Updated description                │
-      └─────────────────────────────────────┘
-      ```
-
-      Implementation:
-      - Parse toolCalls[] from the message to generate human-readable descriptions
-        (same humanName mapping as Part A, but using past tense: "Added", "Created", etc.)
-      - Each badge: flex row with CheckCircle2 icon (emerald) + description text
-      - Container: mt-3 pt-3 border-t border-surface-100 dark:border-surface-800 space-y-1.5
-      - Text: text-xs text-surface-600 dark:text-surface-400
-      - If a tool result indicates failure, show XCircle icon (red) instead
-
-      Note: Use toolCalls from the message, NOT the store's actions[] — the store actions
-      are only for the latest turn, but persisted messages need their own rendering.
-
-      To generate descriptions from toolCalls, create a helper:
-      ```typescript
-      function describeToolCall(call: ToolCallRecord): string {
-        // Map tool name + args to past-tense description
+      In globals.css, add a `@keyframes achievement-particle` animation:
+      ```css
+      @keyframes achievement-particle {
+        0% {
+          opacity: 1;
+          transform: translate(0, 0) scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(var(--px), var(--py)) scale(0);
+        }
       }
       ```
 
-      **Part C — Edge case handling**
+      Each particle `<span>` gets unique `--px` and `--py` CSS variables for direction,
+      plus a staggered `animation-delay`. The particles are 4-6px circles using the
+      category accent color.
 
-      1. **No AI provider configured:**
-         Check if any AI provider is available (same check brainstorm uses).
-         If not, show a centered message:
-         "Configure an AI provider in Settings to use the card agent."
-         with a button/link to navigate to Settings.
+      Generate particle positions in the component:
+      ```typescript
+      const PARTICLES = [
+        { x: '-20px', y: '-24px', delay: '0ms', size: 5 },
+        { x: '22px',  y: '-18px', delay: '50ms', size: 4 },
+        { x: '-16px', y: '20px',  delay: '100ms', size: 3 },
+        { x: '24px',  y: '16px',  delay: '75ms', size: 5 },
+        { x: '-8px',  y: '-28px', delay: '25ms', size: 4 },
+        { x: '12px',  y: '24px',  delay: '125ms', size: 3 },
+      ];
+      ```
 
-      2. **Error handling in sendMessage:**
-         If sendMessage throws (network error, provider error), show an error toast
-         via the toast() function. Don't leave the UI in a broken state — set
-         streaming=false and clean up listeners.
+      Render particles only when `visible && !exiting`:
+      ```jsx
+      {visible && !exiting && PARTICLES.map((p, i) => (
+        <span
+          key={i}
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            '--px': p.x,
+            '--py': p.y,
+            width: p.size,
+            height: p.size,
+            backgroundColor: 'currentColor',
+            animation: `achievement-particle 700ms ease-out ${p.delay} forwards`,
+            top: '50%',
+            left: '50%',
+          } as React.CSSProperties}
+        />
+      ))}
+      ```
 
-      3. **Long conversations:**
-         The backend already windows to last 20 messages. No frontend work needed,
-         but older messages still show in the UI (they're loaded from DB). Add a subtle
-         separator if messages.length > 20: "Earlier messages are summarized for AI context"
-         (optional, low priority).
+      The particles inherit `currentColor` from the icon circle's text color class,
+      so they automatically match the category color in both light and dark mode.
 
-      4. **Copy button on assistant messages:**
-         Small copy icon button (top-right of assistant message, visible on hover)
-         that copies the text content to clipboard. Same pattern as ChatMessageModern.
+      **Part B — Icon bounce entrance**
 
-      5. **Keyboard hint:**
-         Below the input area, small muted text: "Enter to send · Shift+Enter for new line"
+      Add a bounce-scale animation to the icon circle on entrance:
+      ```css
+      @keyframes achievement-icon-bounce {
+        0% { transform: scale(0); }
+        50% { transform: scale(1.2); }
+        70% { transform: scale(0.9); }
+        100% { transform: scale(1); }
+      }
+      ```
 
-      WHY real-time tool events matter: Without them, the user stares at a loading
-      spinner for 5-15 seconds while the agent runs multiple tool calls. Showing each
-      step as it happens builds trust and makes the agent feel responsive.
+      Apply to the icon circle when `visible && !exiting`:
+      ```
+      style={{ animation: visible && !exiting ? 'achievement-icon-bounce 500ms ease-out 200ms both' : undefined }}
+      ```
+
+      The 200ms delay means the icon pops AFTER the banner slides in, creating a
+      staggered entrance sequence: banner slides → icon bounces → particles burst.
+
+      **Part C — Subtle ring pulse in light mode**
+
+      In light mode, the glow animation is invisible on white backgrounds. Add an
+      alternative "ring pulse" effect for light mode:
+      ```css
+      @keyframes achievement-ring-pulse {
+        0%, 100% {
+          box-shadow: 0 8px 30px -4px rgba(0,0,0,0.1);
+        }
+        50% {
+          box-shadow: 0 8px 30px -4px rgba(0,0,0,0.1),
+                      0 0 0 3px var(--achievement-glow-color);
+        }
+      }
+      ```
+
+      Use this animation in light mode instead of `achievement-glow`:
+      ```css
+      .achievement-banner-enter {
+        animation: achievement-enter 600ms ease-out forwards,
+                   achievement-glow 2s ease-in-out 600ms infinite;
+      }
+      :where(:not(.dark)) .achievement-banner-enter {
+        animation: achievement-enter 600ms ease-out forwards,
+                   achievement-ring-pulse 2s ease-in-out 600ms infinite;
+      }
+      ```
+
+      This way dark mode gets the existing outer glow, and light mode gets a subtle
+      colored ring pulse that's visible on white backgrounds.
     </action>
     <verify>
       - npx tsc --noEmit passes
-      - npm test passes (150/150 tests)
-      - During streaming: tool events appear as animated pills below streaming text
-      - After completion: assistant messages show action badges from toolCalls
-      - Read tools (getCardDetails, searchProjectCards) show subtle styling
-      - Write tools (add/toggle/update/create) show emerald checkmarks
-      - No AI provider: shows configuration message (not a crash)
-      - Copy button works on assistant messages
-      - Keyboard hint visible below input
-      - Full dark/light mode support on all new elements
+      - npm test passes (150/150)
+      - globals.css has @keyframes: achievement-particle, achievement-icon-bounce, achievement-ring-pulse
+      - Particle spans render only during visible && !exiting state
+      - Particles use currentColor (no hardcoded colors)
+      - Icon bounce has 200ms delay (staggered after banner entrance)
+      - Light mode uses achievement-ring-pulse instead of achievement-glow
+      - No new npm dependencies added (pure CSS animations)
     </verify>
     <done>
-      Rich tool visualization during streaming and in message history,
-      error handling, copy functionality, and edge case polish
+      Achievement banner has celebration particle burst around icon, bouncing icon
+      entrance, and light-mode-appropriate ring pulse animation. All CSS-only,
+      no external libraries.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - ToolCallRecord.args contains the original tool arguments for description generation
-      - toast() function available from existing useToast hook
-      - Brainstorm's AI provider check pattern can be reused
+      - CSS custom properties (--px, --py) work with transform in Electron's Chromium (yes)
+      - 6-8 extra DOM elements for particles have negligible performance impact
+      - currentColor inheritance works through absolute positioning (yes — color is inherited)
     </assumptions>
   </task>
 </phase>

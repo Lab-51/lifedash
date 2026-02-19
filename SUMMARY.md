@@ -1,48 +1,41 @@
-# Plan E.2 — Card Agent UI (Chat Panel, Tool Visualization, Modal Integration)
+# Plan G.1 — Achievement Banner Visual Overhaul (Dark & Light Mode)
 
 ## Date: 2026-02-19
-## Status: COMPLETE (3/3 tasks)
+## Status: COMPLETE (2/2 tasks)
 
 ## What Was Built
 
-Full chat UI for per-card AI agents — a tabbed interface in CardDetailModal with streaming messages, real-time tool visualization, and automatic card data refresh.
+Complete visual overhaul of the AchievementBanner component — replaced runtime isDark checks with Tailwind dark: variants, redesigned layout with celebration effects, and improved light/dark mode treatments.
 
-### Task 1: cardAgentStore + CardAgentPanel (b7e0c95)
-- **Zustand store** (157 lines): streaming pattern with chunk/tool-event listeners, optimistic user messages, abort support, error toasts
-- **CardAgentPanel** (429 lines): vertically structured chat with markdown-rendered assistant responses
-- 4 starter prompts in 2x2 grid, textarea with auto-resize, Enter to send / Shift+Enter for newline
-- Send/Stop/Clear controls with auto-scroll (80px threshold for user scroll detection)
+### Task 1: Redesign banner layout + proper dark: variant classes (4f70dd5)
+- **Removed all isDark runtime checks** — 15+ conditional expressions replaced with Tailwind `dark:` variants
+- `dark:` prefix baked into CATEGORY_STYLES values for Tailwind CSS 4 scanner compatibility
+- **Wider banner** (480px, up from 420px), **larger icon** (w-12 h-12, up from w-10 h-10)
+- **Category label pill** next to "Achievement Unlocked" text
+- **Countdown progress bar** — 3px bar at bottom depletes over 5.6s via CSS transition
+- **Animation simplification** — 50+ lines of inline style ternaries → 3 CSS classes (enter/exit/hidden)
+- **Light mode depth** — bg-white, ring-1, shadow-xl, from-{color}-50/80, solid bg-{color}-100 icons
+- **Dark mode** unchanged — bg-surface-900, shadow-2xl, glow animation
+- CSS glow variable via `.achievement-banner` + `:where(.dark)` override in globals.css
+- Shimmer unified to single `.achievement-shimmer` class
 
-### Task 2: CardDetailModal Tab System (9b6dc0e)
-- 2-tab bar: Details (existing content, zero visual changes) + AI Agent (lazy-loaded panel)
-- Emerald message count badge on AI Agent tab
-- Agent store resets on modal close, message count loaded on mount
-- 60vh container for agent panel with Suspense spinner fallback
-
-### Task 3: Tool Visualization + Polish (3ab9cda)
-- **Streaming tool events**: animated pills below streaming text
-  - `call` type: Loader2 spinner in amber
-  - `result` type: CheckCircle2 in emerald
-  - Human-readable descriptions (e.g., "Adding checklist item: Set up JWT")
-- **Persisted action badges**: past-tense descriptions from toolCalls[] on assistant messages
-  - Success: emerald CheckCircle2, Failure: red XCircle
-- **Copy button**: hover-reveal on assistant messages (top-right corner)
-- **No-provider guard**: centered message + "Open Settings" link when no AI provider configured
-- **Error handling**: toast notifications for IPC errors
-- **Card data refresh**: auto-reloads card details after write tool mutations
-- **Message count sync**: updates tab badge after each agent turn
-
-## Files Created
-- `src/renderer/stores/cardAgentStore.ts` (157 lines)
-- `src/renderer/components/CardAgentPanel.tsx` (429 lines)
+### Task 2: Celebration particle effects + icon entrance animation (28ff382)
+- **6 sparkle particles** burst from icon on entrance (CSS-only, no dependencies)
+- Particles use `currentColor` — auto-match category color in both modes
+- **Icon bounce** animation (500ms, 200ms delay for staggered entrance)
+- **Entrance sequence**: banner slides → icon bounces → particles burst
+- **Light-mode ring pulse** replaces invisible-on-white glow animation
+- `:where(:not(.dark))` override keeps dark glow separate from light ring-pulse
 
 ## Files Modified
-- `src/renderer/components/CardDetailModal.tsx` (tab system, lazy import, cleanup)
+- `src/renderer/components/AchievementBanner.tsx` (339 lines)
+- `src/renderer/styles/globals.css` (+7 new CSS rules/keyframes)
 
 ## Verification
 - TypeScript: clean (zero errors)
 - Tests: 150/150 pass
-- 3 atomic commits
+- 2 atomic commits
+- No new dependencies
 
 ## Next Step
 TBD — user decides

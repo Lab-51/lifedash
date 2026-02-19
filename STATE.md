@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-19
-Session focus: Plan E.2 execution + 4 ad-hoc bug fixes for card agent
-Checkpoint reason: Plan E.2 complete, all fixes pushed, clean state
+Session focus: Plan G.1 — Achievement Banner Visual Overhaul
 
 ## Position
 Milestone: v2.0.0
-Latest commit: 142a054 (fix: suppress unhandled rejection from AI SDK continuation errors)
+Latest commit: 28ff382 (feat: celebration particle effects, icon bounce, light-mode ring pulse)
+Plan G.1: COMPLETE (2/2 tasks) — Achievement Banner Visual Overhaul
 Plan E.1: COMPLETE (3/3 tasks) — Card Agent Foundation (Backend + Tools + Schema)
 Plan E.2: COMPLETE (3/3 tasks) — Card Agent UI + 4 post-deploy fixes
 Plan F.1: COMPLETE (3/3 tasks)
@@ -152,6 +152,27 @@ Plan D.9: COMPLETE (3/3 tasks) — Dark Mode Polish (Projects & Cards)
   - Hover shadow now visible (shadow-lg + /30 opacity), dropdown floats above card (surface-800), menu hover items surface-700, divider visible, star icon brighter, dark focus ring on search
 - Task 3: Card detail modal dark mode depth & contrast fixes (d627b2d)
   - Deeper overlay (/60), brighter modal border (surface-600), priority active states /30 + /50, dropdown borders surface-600, action link hover brighter (surface-100), color picker ring /70
+
+## Plan G.1 Results — Achievement Banner Visual Overhaul
+- Task 1: Redesign banner layout + proper dark: variant classes (4f70dd5)
+  - Removed all runtime isDark checks — every themed element uses Tailwind dark: variants
+  - dark: prefix baked into CATEGORY_STYLES values for Tailwind CSS 4 detection
+  - Wider banner (480px), larger icon (w-12 h-12, size 26)
+  - Category label pill next to "Achievement Unlocked" text
+  - 3px countdown progress bar at bottom (CSS transition, depletes over DISPLAY_MS)
+  - Animation simplified: 50+ lines of inline styles → 3 CSS classes (enter/exit/hidden)
+  - Light mode: bg-white, ring-1, shadow-xl, from-{color}-50/80, solid bg-{color}-100 icon circles
+  - Dark mode: bg-surface-900, shadow-2xl, glow animation unchanged
+  - CSS glow variable: .achievement-banner sets --achievement-glow-color via :where(.dark) rule
+  - Shimmer unified to single .achievement-shimmer class (0.08 light, 0.15 dark)
+- Task 2: Celebration particle effects + icon entrance animation (28ff382)
+  - 6 CSS-only sparkle particles burst from icon on entrance (achievement-particle keyframes)
+  - Particles use currentColor — auto-match category color in both modes
+  - Icon bounce animation (500ms, 200ms delay for staggered entrance)
+  - Entrance sequence: banner slides → icon bounces → particles burst
+  - Light-mode ring pulse replaces invisible-on-white glow (achievement-ring-pulse)
+  - :where(:not(.dark)) .achievement-banner-enter overrides glow → ring-pulse
+  - No new dependencies — all pure CSS animations
 
 ## Plan F.1 Results — Focus Session History & Time Tracking
 - Task 1: Focus history backend — session list + period aggregation queries (a421156)
