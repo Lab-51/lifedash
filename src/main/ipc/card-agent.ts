@@ -93,7 +93,7 @@ export function registerCardAgentHandlers(): void {
         system: systemPrompt,
         tools,
         stopWhen: stepCountIs(5), // cap at 5 steps to prevent runaway loops
-        temperature: provider.temperature ?? 0.7,
+        temperature: provider.temperature,
         maxOutputTokens: provider.maxTokens ?? 2048,
         abortSignal: abortController.signal,
       });
