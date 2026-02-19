@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import type { CardAgentMessage, AgentAction } from '../../shared/types/card-agent';
+import { toast } from '../hooks/useToast';
 
 interface ToolEvent {
   toolName: string;
@@ -123,6 +124,8 @@ export const useCardAgentStore = create<CardAgentStore>((set, get) => ({
       }
     } catch (error) {
       console.error('Card agent sendMessage error:', error);
+      const msg = error instanceof Error ? error.message : 'Failed to send message';
+      toast(msg, 'error');
       // Remove optimistic message on error
       set({
         messages: get().messages.filter(m => m.id !== tempId),

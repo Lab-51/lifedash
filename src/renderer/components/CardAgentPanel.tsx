@@ -4,11 +4,14 @@
 // responses, streaming support, starter prompts, and input area.
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { SendHorizonal, Square, Trash2, Loader2, ListChecks, FileText, Search, Plus, Bot } from 'lucide-react';
+import { SendHorizonal, Square, Trash2, Loader2, ListChecks, FileText, Search, Plus, Bot, Copy, CheckCircle2, XCircle, Settings } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useNavigate } from 'react-router-dom';
 import { useCardAgentStore } from '../stores/cardAgentStore';
-import type { CardAgentMessage } from '../../shared/types/card-agent';
+import { useCardDetailStore } from '../stores/cardDetailStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import type { CardAgentMessage, ToolCallRecord } from '../../shared/types/card-agent';
 
 // Markdown component overrides for assistant messages
 const markdownComponents = {
@@ -67,15 +70,52 @@ const STARTER_PROMPTS = [
   { text: 'Create sub-tasks for this card', icon: Plus },
 ];
 
+// Write tools that modify card data — require detail refresh
+const WRITE_TOOLS = new Set(['addChecklistItem', 'toggleChecklistItem', 'addComment', 'updateDescription', 'createCard']);
+
+/** Generate a human-readable description for a live tool event (present tense) */
+function describeToolEvent(toolName: string, args?: unknown): string {
+  const a = (args ?? {}) as Record<string, unknown>;
+  switch (toolName) {
+    case 'getCardDetails': return 'Looking up card details';
+    case 'searchProjectCards': return 'Searching project cards';
+    case 'addChecklistItem': return `Adding checklist item: "${a.title ?? ''}"`;
+    case 'toggleChecklistItem': return a.completed ? 'Completing checklist item' : 'Uncompleting checklist item';
+    case 'addComment': return 'Adding comment';
+    case 'updateDescription': return 'Updating description';
+    case 'createCard': return `Creating card: "${a.title ?? ''}"`;
+    default: return `Running ${toolName}`;
+  }
+}
+
+/** Generate a human-readable description for a persisted tool call (past tense) */
+function describeToolCall(call: ToolCallRecord): string {
+  const a = call.args;
+  switch (call.name) {
+    case 'getCardDetails': return 'Looked up card details';
+    case 'searchProjectCards': return 'Searched project cards';
+    case 'addChecklistItem': return `Added checklist item: "${a.title ?? ''}"`;
+    case 'toggleChecklistItem': return a.completed ? 'Completed checklist item' : 'Uncompleted checklist item';
+    case 'addComment': return 'Added comment';
+    case 'updateDescription': return 'Updated description';
+    case 'createCard': return `Created card: "${a.title ?? ''}"`;
+    default: return `Ran ${call.name}`;
+  }
+}
+
 export default function CardAgentPanel({ cardId }: { cardId: string }) {
   const messages = useCardAgentStore(s => s.messages);
   const streaming = useCardAgentStore(s => s.streaming);
   const streamingText = useCardAgentStore(s => s.streamingText);
+  const toolEvents = useCardAgentStore(s => s.toolEvents);
+  const actions = useCardAgentStore(s => s.actions);
   const loading = useCardAgentStore(s => s.loading);
   const loadMessages = useCardAgentStore(s => s.loadMessages);
   const sendMessage = useCardAgentStore(s => s.sendMessage);
   const clearMessages = useCardAgentStore(s => s.clearMessages);
   const abort = useCardAgentStore(s => s.abort);
+  const providers = useSettingsStore(s => s.providers);
+  const navigate = useNavigate();
 
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -83,10 +123,13 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const userScrolledUpRef = useRef(false);
 
-  // Load messages on mount
+  // Load messages on mount + ensure providers are loaded for the empty-state check
   useEffect(() => {
     loadMessages(cardId);
-  }, [cardId, loadMessages]);
+    if (providers.length === 0) {
+      useSettingsStore.getState().loadProviders();
+    }
+  }, [cardId, loadMessages, providers.length]);
 
   // Track whether user has scrolled up
   useEffect(() => {
@@ -126,6 +169,13 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
     // Force scroll to bottom on user send
     userScrolledUpRef.current = false;
     await sendMessage(cardId, content);
+    // Refresh card details if the agent used write tools
+    const latestActions = useCardAgentStore.getState().actions;
+    if (latestActions.some(a => WRITE_TOOLS.has(a.toolName))) {
+      useCardDetailStore.getState().loadCardDetails(cardId);
+    }
+    // Update message count for the tab badge
+    useCardAgentStore.getState().loadMessageCount(cardId);
   }, [input, streaming, sendMessage, cardId]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -148,6 +198,25 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
         <div className="h-10 bg-surface-200 dark:bg-surface-800 rounded-xl w-3/4" />
         <div className="h-10 bg-surface-200 dark:bg-surface-800 rounded-xl w-1/2 self-end" />
         <div className="h-10 bg-surface-200 dark:bg-surface-800 rounded-xl w-2/3" />
+      </div>
+    );
+  }
+
+  // No AI provider configured
+  if (providers.length === 0 && messages.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
+        <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mb-4">
+          <Settings size={24} className="text-amber-600 dark:text-amber-400" />
+        </div>
+        <p className="text-sm font-medium text-surface-900 dark:text-surface-100 mb-2">No AI provider configured</p>
+        <p className="text-xs text-surface-500 mb-4">Configure an AI provider in Settings to use the card agent.</p>
+        <button
+          onClick={() => navigate('/settings')}
+          className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium"
+        >
+          Open Settings
+        </button>
       </div>
     );
   }
@@ -205,6 +274,24 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
                 <div className="flex items-center gap-2">
                   <Loader2 size={14} className="animate-spin text-primary-500" />
                   <span className="text-sm text-surface-500">Thinking...</span>
+                </div>
+              )}
+
+              {/* Streaming tool events */}
+              {toolEvents.length > 0 && (
+                <div className="border-l-2 border-surface-300 dark:border-surface-700 pl-3 ml-4 mt-3 space-y-1">
+                  {toolEvents.map((te, i) => (
+                    <div key={i} className="flex items-center gap-1.5 transition-opacity duration-150" style={{ opacity: 1 }}>
+                      {te.type === 'call' ? (
+                        <Loader2 size={12} className="animate-spin text-amber-500 shrink-0" />
+                      ) : (
+                        <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                      )}
+                      <span className={`text-xs ${te.type === 'call' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {describeToolEvent(te.toolName, te.args)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -272,6 +359,16 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
 // --- Message Bubble sub-component ---
 
 function MessageBubble({ message }: { message: CardAgentMessage }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    if (message.content) {
+      navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  }, [message.content]);
+
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -284,13 +381,46 @@ function MessageBubble({ message }: { message: CardAgentMessage }) {
 
   // Assistant message
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[90%] bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl rounded-tl-sm p-5 shadow-sm">
+    <div className="flex justify-start group/msg">
+      <div className="max-w-[90%] bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl rounded-tl-sm p-5 shadow-sm relative">
+        {/* Copy button — visible on hover */}
+        {message.content && (
+          <button
+            onClick={handleCopy}
+            className="absolute top-3 right-3 p-1 rounded-md text-surface-300 hover:text-surface-500 dark:text-surface-600 dark:hover:text-surface-400 opacity-0 group-hover/msg:opacity-100 transition-opacity hover:bg-surface-100 dark:hover:bg-surface-800"
+            title="Copy to clipboard"
+          >
+            {copied ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
+          </button>
+        )}
+
         {message.content && (
           <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-surface-800 dark:text-surface-200">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents as never}>
               {message.content}
             </ReactMarkdown>
+          </div>
+        )}
+
+        {/* Persisted action badges from toolCalls */}
+        {message.toolCalls && message.toolCalls.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-surface-100 dark:border-surface-800 space-y-1.5">
+            {message.toolCalls.map((call, i) => {
+              const hasResult = message.toolResults?.find(r => r.toolCallId === call.id);
+              const failed = hasResult && (hasResult.result as Record<string, unknown>)?.success === false;
+              return (
+                <div key={call.id || i} className="flex items-center gap-1.5">
+                  {failed ? (
+                    <XCircle size={12} className="text-red-500 shrink-0" />
+                  ) : (
+                    <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                  )}
+                  <span className="text-xs text-surface-600 dark:text-surface-400">
+                    {describeToolCall(call)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
