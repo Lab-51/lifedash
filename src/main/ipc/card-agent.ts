@@ -19,6 +19,10 @@ const log = createLogger('CardAgent');
 // Per-card abort controllers — allows multiple cards to stream simultaneously
 const activeStreams = new Map<string, AbortController>();
 
+// Only send the last N messages to the AI to keep token usage bounded.
+// All messages are still stored in DB and shown in the UI.
+const CONVERSATION_WINDOW = 20;
+
 export function registerCardAgentHandlers(): void {
   // --- Streaming agent chat ---
   ipcMain.handle(
@@ -62,8 +66,9 @@ export function registerCardAgentHandlers(): void {
       const abortController = new AbortController();
       activeStreams.set(validCardId, abortController);
 
-      // 7. Convert messages to AI SDK format
-      const aiMessages = messages.map(m => {
+      // 7. Convert messages to AI SDK format (windowed to last N messages)
+      const recentMessages = messages.slice(-CONVERSATION_WINDOW);
+      const aiMessages = recentMessages.map(m => {
         if (m.role === 'user') {
           return { role: 'user' as const, content: m.content ?? '' };
         }
