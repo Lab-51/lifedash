@@ -284,7 +284,7 @@ const DEFAULT_MODELS: Record<AIProviderName, string> = {
 
 /**
  * Resolve which AI provider + model to use for a given task type.
- * 1. Check the `task_models` setting (JSON map of taskType -> TaskModelConfig).
+ * 1. Check the `ai.taskModels` setting (JSON map of taskType -> TaskModelConfig).
  * 2. If config exists, look up the provider row.
  * 3. If no config (or provider is gone/disabled), fall back to first enabled provider.
  * 4. Returns null if no provider is available.
@@ -292,11 +292,11 @@ const DEFAULT_MODELS: Record<AIProviderName, string> = {
 export async function resolveTaskModel(taskType: string): Promise<ResolvedProvider | null> {
   const db = getDb();
 
-  // 1. Try task_models setting
+  // 1. Try ai.taskModels setting (matches the key used by the renderer settingsStore)
   const [settingRow] = await db
     .select()
     .from(settings)
-    .where(eq(settings.key, 'task_models'));
+    .where(eq(settings.key, 'ai.taskModels'));
 
   if (settingRow) {
     try {

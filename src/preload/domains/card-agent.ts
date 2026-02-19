@@ -17,6 +17,9 @@ export const cardAgentBridge = {
   cardAgentAbort: (cardId: string) =>
     ipcRenderer.invoke('card-agent:abort', cardId),
 
+  cardAgentGetModelInfo: () =>
+    ipcRenderer.invoke('card-agent:get-model-info'),
+
   onCardAgentChunk: (callback: (data: { cardId: string; chunk: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { cardId: string; chunk: string }) =>
       callback(data);

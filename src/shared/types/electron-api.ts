@@ -297,6 +297,7 @@ export interface ElectronAPI {
   cardAgentClearMessages: (cardId: string) => Promise<void>;
   cardAgentGetMessageCount: (cardId: string) => Promise<number>;
   cardAgentAbort: (cardId: string) => Promise<void>;
+  cardAgentGetModelInfo: () => Promise<{ providerName: string; model: string } | null>;
   onCardAgentChunk: (callback: (data: { cardId: string; chunk: string }) => void) => () => void;
   onCardAgentToolEvent: (callback: (data: {
     cardId: string;

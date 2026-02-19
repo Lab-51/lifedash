@@ -238,6 +238,13 @@ export function registerCardAgentHandlers(): void {
     return cardAgentService.getMessageCount(validCardId);
   });
 
+  // --- Resolved model info (for UI display) ---
+  ipcMain.handle('card-agent:get-model-info', async () => {
+    const provider = await resolveTaskModel('card_agent');
+    if (!provider) return null;
+    return { providerName: provider.providerName, model: provider.model };
+  });
+
   // --- Abort active stream ---
   ipcMain.handle('card-agent:abort', async (_event, cardId: unknown) => {
     const validCardId = validateInput(idParamSchema, cardId);

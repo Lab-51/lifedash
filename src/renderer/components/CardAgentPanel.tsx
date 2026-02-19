@@ -118,6 +118,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
   const navigate = useNavigate();
 
   const [input, setInput] = useState('');
+  const [modelInfo, setModelInfo] = useState<{ providerName: string; model: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -129,6 +130,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
     if (providers.length === 0) {
       useSettingsStore.getState().loadProviders();
     }
+    window.electronAPI.cardAgentGetModelInfo().then(setModelInfo).catch(() => {});
   }, [cardId, loadMessages, providers.length]);
 
   // Track whether user has scrolled up
@@ -235,7 +237,15 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
               <Bot size={24} className="text-primary-600 dark:text-primary-400" />
             </div>
             <p className="text-sm font-medium text-surface-900 dark:text-surface-100 mb-1">Card Agent</p>
-            <p className="text-xs text-surface-500 mb-5 text-center">Ask me anything about this card.</p>
+            <p className="text-xs text-surface-500 mb-1 text-center">Ask me anything about this card.</p>
+            {modelInfo && (
+              <p className="text-[10px] text-surface-400 mb-5 text-center">
+                Using <span className="font-medium text-surface-500 dark:text-surface-400">{modelInfo.model}</span>
+                <span className="text-surface-300 dark:text-surface-600"> via </span>
+                <span className="font-medium text-surface-500 dark:text-surface-400 capitalize">{modelInfo.providerName}</span>
+              </p>
+            )}
+            {!modelInfo && <div className="mb-5" />}
             <div className="grid grid-cols-2 gap-2 w-full">
               {STARTER_PROMPTS.map((prompt) => {
                 const Icon = prompt.icon;
@@ -350,7 +360,16 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
             </button>
           )}
         </div>
-        <p className="text-[10px] text-surface-400 mt-1">Enter to send &middot; Shift+Enter for new line</p>
+        <div className="flex items-center justify-between mt-1">
+          <p className="text-[10px] text-surface-400">Enter to send &middot; Shift+Enter for new line</p>
+          {modelInfo && (
+            <p className="text-[10px] text-surface-400">
+              <span className="font-medium">{modelInfo.model}</span>
+              <span className="text-surface-300 dark:text-surface-600"> · </span>
+              <span className="capitalize">{modelInfo.providerName}</span>
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

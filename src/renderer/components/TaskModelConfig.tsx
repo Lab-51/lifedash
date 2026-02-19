@@ -12,7 +12,6 @@ import type { AIProvider, AIProviderName, AITaskType, TaskModelConfig as TaskMod
 const TASK_TYPE_INFO: { type: AITaskType; label: string; description: string }[] = [
   { type: 'summarization', label: 'Summarization', description: 'Meeting briefs and transcript summaries' },
   { type: 'brainstorming', label: 'Brainstorming', description: 'AI-assisted ideation and exploration' },
-  { type: 'task_generation', label: 'Task Generation', description: 'Breaking projects into actionable tasks' },
   { type: 'idea_analysis', label: 'Idea Analysis', description: 'Evaluating feasibility and effort' },
   { type: 'card_agent', label: 'Card Agent', description: 'AI agent chat in card detail modals' },
   { type: 'meeting_prep', label: 'Meeting Prep', description: 'Pre-meeting briefing and context' },
