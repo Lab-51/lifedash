@@ -14,14 +14,20 @@ const TASK_TYPE_INFO: { type: AITaskType; label: string; description: string }[]
   { type: 'brainstorming', label: 'Brainstorming', description: 'AI-assisted ideation and exploration' },
   { type: 'task_generation', label: 'Task Generation', description: 'Breaking projects into actionable tasks' },
   { type: 'idea_analysis', label: 'Idea Analysis', description: 'Evaluating feasibility and effort' },
+  { type: 'card_agent', label: 'Card Agent', description: 'AI agent chat in card detail modals' },
+  { type: 'meeting_prep', label: 'Meeting Prep', description: 'Pre-meeting briefing and context' },
+  { type: 'standup', label: 'Daily Standup', description: 'Auto-generated standup reports' },
+  { type: 'card-description', label: 'Card Description', description: 'AI-generated card descriptions' },
+  { type: 'task_structuring', label: 'Task Structuring', description: 'AI project planning and breakdown' },
 ];
 
 // Known models per provider (v1 — hardcoded, expandable later)
 const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
   openai: [
-    { id: 'gpt-4o', label: 'GPT-4o' },
-    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-    { id: 'o1-mini', label: 'o1 Mini' },
+    { id: 'gpt-5.2', label: 'GPT-5.2 (Flagship)' },
+    { id: 'gpt-5-mini', label: 'GPT-5 Mini' },
+    { id: 'o4-mini', label: 'o4-mini (Reasoning)' },
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini (Budget)' },
   ],
   anthropic: [
     { id: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5' },

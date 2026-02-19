@@ -40,10 +40,16 @@ const TEST_MODELS: Record<AIProviderName, string> = {
 // Local models (Ollama) are free. Unknown models default to 0.
 interface TokenPricing { input: number; output: number }
 const MODEL_PRICING: Record<string, TokenPricing> = {
-  // OpenAI
-  'gpt-4o':          { input: 2.50 / 1e6, output: 10.00 / 1e6 },
-  'gpt-4o-mini':     { input: 0.15 / 1e6, output: 0.60 / 1e6 },
-  'o1-mini':         { input: 1.10 / 1e6, output: 4.40 / 1e6 },
+  // OpenAI — GPT-5 family
+  'gpt-5.2':        { input: 1.75 / 1e6, output: 14.00 / 1e6 },
+  'gpt-5':          { input: 1.25 / 1e6, output: 10.00 / 1e6 },
+  'gpt-5-mini':     { input: 0.25 / 1e6, output: 2.00 / 1e6 },
+  // OpenAI — Reasoning
+  'o4-mini':        { input: 1.10 / 1e6, output: 4.40 / 1e6 },
+  'o3-mini':        { input: 1.10 / 1e6, output: 4.40 / 1e6 },
+  // OpenAI — Legacy (still available in API)
+  'gpt-4o':         { input: 2.50 / 1e6, output: 10.00 / 1e6 },
+  'gpt-4o-mini':    { input: 0.15 / 1e6, output: 0.60 / 1e6 },
   // Anthropic
   'claude-sonnet-4-5-20250929': { input: 3.00 / 1e6, output: 15.00 / 1e6 },
   'claude-haiku-4-5-20251001':  { input: 0.80 / 1e6, output: 4.00 / 1e6 },
@@ -167,7 +173,7 @@ export async function testConnection(
     await generateText({
       model,
       prompt: 'Say "ok".',
-      maxOutputTokens: 5,
+      maxOutputTokens: 16,
     });
 
     return { success: true, latencyMs: Date.now() - start };
@@ -270,7 +276,7 @@ export interface ResolvedProvider {
 }
 
 const DEFAULT_MODELS: Record<AIProviderName, string> = {
-  openai: 'gpt-4o-mini',
+  openai: 'gpt-5-mini',
   anthropic: 'claude-haiku-4-5-20251001',
   ollama: 'llama3.2',
   kimi: 'kimi-k2.5',
@@ -332,7 +338,7 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
     providerName: fallbackProvider.name as AIProviderName,
     apiKeyEncrypted: fallbackProvider.apiKeyEncrypted,
     baseUrl: fallbackProvider.baseUrl,
-    model: DEFAULT_MODELS[fallbackProvider.name as AIProviderName] ?? 'gpt-4o-mini',
+    model: DEFAULT_MODELS[fallbackProvider.name as AIProviderName] ?? 'gpt-5-mini',
   };
 }
 
