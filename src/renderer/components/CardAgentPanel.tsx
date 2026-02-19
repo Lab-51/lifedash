@@ -1,0 +1,299 @@
+// === FILE PURPOSE ===
+// Chat panel for per-card AI agent conversations.
+// Renders a vertically structured chat UI with markdown-formatted assistant
+// responses, streaming support, starter prompts, and input area.
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { SendHorizonal, Square, Trash2, Loader2, ListChecks, FileText, Search, Plus, Bot } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { useCardAgentStore } from '../stores/cardAgentStore';
+import type { CardAgentMessage } from '../../shared/types/card-agent';
+
+// Markdown component overrides for assistant messages
+const markdownComponents = {
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 className="text-lg font-bold mt-4 mb-2 first:mt-0 text-surface-900 dark:text-surface-100">{children}</h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 className="text-base font-bold mt-3 mb-2 text-surface-900 dark:text-surface-100">{children}</h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className="text-sm font-bold mt-3 mb-1 text-surface-900 dark:text-surface-100">{children}</h3>
+  ),
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="mb-3 last:mb-0">{children}</p>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="list-disc pl-4 mb-3 space-y-1 marker:text-surface-400">{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="list-decimal pl-4 mb-3 space-y-1 marker:text-surface-400">{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="pl-1">{children}</li>
+  ),
+  code: ({ className, children, ...props }: { className?: string; children?: React.ReactNode }) => {
+    const isInline = !className;
+    return isInline
+      ? <code className="bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded text-xs font-mono text-primary-600 dark:text-primary-400 font-semibold border border-surface-200 dark:border-surface-700">{children}</code>
+      : <code className={`${className} block bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800 p-3 rounded-lg text-xs font-mono overflow-x-auto my-3`} {...props}>{children}</code>;
+  },
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <pre className="not-prose bg-transparent p-0 m-0">{children}</pre>
+  ),
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a href={href} className="text-primary-600 dark:text-primary-400 hover:underline font-medium" target="_blank" rel="noopener noreferrer">{children}</a>
+  ),
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote className="border-l-4 border-primary-200 dark:border-surface-700 pl-4 italic text-surface-500 my-3">{children}</blockquote>
+  ),
+  hr: () => <hr className="border-surface-200 dark:border-surface-800 my-4" />,
+  table: ({ children }: { children?: React.ReactNode }) => (
+    <div className="overflow-x-auto my-3"><table className="border-collapse border border-surface-200 dark:border-surface-700 w-full text-xs">{children}</table></div>
+  ),
+  th: ({ children }: { children?: React.ReactNode }) => (
+    <th className="border border-surface-200 dark:border-surface-700 px-3 py-2 bg-surface-50 dark:bg-surface-800 font-semibold text-left">{children}</th>
+  ),
+  td: ({ children }: { children?: React.ReactNode }) => (
+    <td className="border border-surface-200 dark:border-surface-700 px-3 py-2">{children}</td>
+  ),
+};
+
+const STARTER_PROMPTS = [
+  { text: 'Break this task into steps', icon: ListChecks },
+  { text: 'Draft acceptance criteria', icon: FileText },
+  { text: "What's the status of related work?", icon: Search },
+  { text: 'Create sub-tasks for this card', icon: Plus },
+];
+
+export default function CardAgentPanel({ cardId }: { cardId: string }) {
+  const messages = useCardAgentStore(s => s.messages);
+  const streaming = useCardAgentStore(s => s.streaming);
+  const streamingText = useCardAgentStore(s => s.streamingText);
+  const loading = useCardAgentStore(s => s.loading);
+  const loadMessages = useCardAgentStore(s => s.loadMessages);
+  const sendMessage = useCardAgentStore(s => s.sendMessage);
+  const clearMessages = useCardAgentStore(s => s.clearMessages);
+  const abort = useCardAgentStore(s => s.abort);
+
+  const [input, setInput] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const userScrolledUpRef = useRef(false);
+
+  // Load messages on mount
+  useEffect(() => {
+    loadMessages(cardId);
+  }, [cardId, loadMessages]);
+
+  // Track whether user has scrolled up
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 80;
+    };
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [cardId]);
+
+  // Auto-scroll on new messages/streaming chunks
+  useEffect(() => {
+    if (!userScrolledUpRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, streamingText]);
+
+  // Textarea auto-resize
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 96) + 'px';
+    }
+  }, []);
+
+  const handleSend = useCallback(async (overrideContent?: string) => {
+    const content = overrideContent ?? input.trim();
+    if (!content || streaming) return;
+    if (!overrideContent) {
+      setInput('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    }
+    // Force scroll to bottom on user send
+    userScrolledUpRef.current = false;
+    await sendMessage(cardId, content);
+  }, [input, streaming, sendMessage, cardId]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }, [handleSend]);
+
+  const handleClear = useCallback(async () => {
+    if (window.confirm('Clear all messages with the AI agent?')) {
+      await clearMessages(cardId);
+    }
+  }, [clearMessages, cardId]);
+
+  // Loading skeleton
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3 p-4 animate-pulse">
+        <div className="h-10 bg-surface-200 dark:bg-surface-800 rounded-xl w-3/4" />
+        <div className="h-10 bg-surface-200 dark:bg-surface-800 rounded-xl w-1/2 self-end" />
+        <div className="h-10 bg-surface-200 dark:bg-surface-800 rounded-xl w-2/3" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Message list */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth"
+      >
+        {/* Starter prompts */}
+        {messages.length === 0 && !streaming && (
+          <div className="flex flex-col items-center justify-center py-8 px-2">
+            <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mb-4">
+              <Bot size={24} className="text-primary-600 dark:text-primary-400" />
+            </div>
+            <p className="text-sm font-medium text-surface-900 dark:text-surface-100 mb-1">Card Agent</p>
+            <p className="text-xs text-surface-500 mb-5 text-center">Ask me anything about this card.</p>
+            <div className="grid grid-cols-2 gap-2 w-full">
+              {STARTER_PROMPTS.map((prompt) => {
+                const Icon = prompt.icon;
+                return (
+                  <button
+                    key={prompt.text}
+                    onClick={() => handleSend(prompt.text)}
+                    className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl p-3 hover:border-primary-500/50 cursor-pointer transition-colors text-left group"
+                  >
+                    <Icon size={14} className="text-surface-400 group-hover:text-primary-500 mb-1.5 transition-colors" />
+                    <p className="text-xs text-surface-700 dark:text-surface-300 leading-snug">{prompt.text}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Messages */}
+        {messages.map((msg) => (
+          <MessageBubble key={msg.id} message={msg} />
+        ))}
+
+        {/* Streaming assistant bubble */}
+        {streaming && (
+          <div className="flex justify-start">
+            <div className="max-w-[90%] bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl rounded-tl-sm p-5 shadow-sm">
+              {streamingText ? (
+                <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-surface-800 dark:text-surface-200">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents as never}>
+                    {streamingText}
+                  </ReactMarkdown>
+                  <span className="inline-block w-1.5 h-4 bg-primary-500 animate-pulse ml-0.5 align-text-bottom" />
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin text-primary-500" />
+                  <span className="text-sm text-surface-500">Thinking...</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} className="h-2" />
+      </div>
+
+      {/* Input area */}
+      <div className="shrink-0 border-t border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 px-4 py-3">
+        <div className="flex items-end gap-2">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => { setInput(e.target.value); autoResize(); }}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask the agent..."
+            rows={1}
+            className="flex-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl px-3 py-2 text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 resize-none transition-all"
+            style={{ minHeight: '36px', maxHeight: '96px' }}
+          />
+
+          {/* Clear button */}
+          {messages.length > 0 && !streaming && (
+            <button
+              onClick={handleClear}
+              className="p-2 text-surface-400 hover:text-red-500 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+              title="Clear conversation"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+
+          {/* Send / Stop button */}
+          {streaming ? (
+            <button
+              onClick={() => abort(cardId)}
+              className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors"
+              title="Stop generating"
+            >
+              <Square size={16} fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              onClick={() => handleSend()}
+              disabled={!input.trim()}
+              className={`p-2 rounded-xl transition-colors ${
+                input.trim()
+                  ? 'bg-primary-600 text-white hover:bg-primary-700'
+                  : 'bg-surface-200 dark:bg-surface-700 text-surface-400 cursor-not-allowed'
+              }`}
+              title="Send message"
+            >
+              <SendHorizonal size={16} />
+            </button>
+          )}
+        </div>
+        <p className="text-[10px] text-surface-400 mt-1">Enter to send &middot; Shift+Enter for new line</p>
+      </div>
+    </div>
+  );
+}
+
+// --- Message Bubble sub-component ---
+
+function MessageBubble({ message }: { message: CardAgentMessage }) {
+  if (message.role === 'user') {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] bg-primary-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-md shadow-primary-900/10">
+          <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Assistant message
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[90%] bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl rounded-tl-sm p-5 shadow-sm">
+        {message.content && (
+          <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-surface-800 dark:text-surface-200">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents as never}>
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
