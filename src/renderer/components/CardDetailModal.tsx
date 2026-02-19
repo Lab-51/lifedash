@@ -7,8 +7,8 @@
 // react, lucide-react (X, Plus, FileText, Calendar), @tiptap/react, @tiptap/starter-kit,
 // @tiptap/extension-placeholder, shared types, boardStore, cardDetailStore, section components
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Plus, FileText, Calendar, Sparkles, Check, RefreshCw, BookmarkPlus } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { X, Plus, FileText, Calendar, Sparkles, Check, RefreshCw, BookmarkPlus, LayoutList, Bot } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -25,6 +25,7 @@ import ActivityLog from './ActivityLog';
 import TaskBreakdownSection from './TaskBreakdownSection';
 import { useTaskStructuringStore } from '../stores/taskStructuringStore';
 import { useGamificationStore } from '../stores/gamificationStore';
+import { useCardAgentStore } from '../stores/cardAgentStore';
 import { toast } from '../hooks/useToast';
 
 interface CardDetailModalProps {
@@ -151,6 +152,8 @@ function toDateTimeLocalValue(isoStr: string): string {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+const CardAgentPanel = lazy(() => import('./CardAgentPanel'));
+
 function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(card.title);
@@ -162,6 +165,8 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const templateDropdownRef = useRef<HTMLDivElement>(null);
   const [generatingDescription, setGeneratingDescription] = useState(false);
   const [dbTemplates, setDbTemplates] = useState<CardTemplate[]>([]);
+  const [activeTab, setActiveTab] = useState<'details' | 'agent'>('details');
+  const agentMessageCount = useCardAgentStore(s => s.messageCount);
 
   const project = useBoardStore(s => s.project);
   const labels = useBoardStore(s => s.labels);
@@ -203,9 +208,11 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   // Load card details (comments, relationships, activities) on mount
   useEffect(() => {
     loadCardDetails(card.id);
+    useCardAgentStore.getState().loadMessageCount(card.id);
     return () => {
       clearCardDetails();
       clearBreakdown();
+      useCardAgentStore.getState().reset();
     };
   }, [card.id, loadCardDetails, clearCardDetails, clearBreakdown]);
 
@@ -399,351 +406,398 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
           </button>
         </div>
 
-        {/* Priority selector */}
-        <div className="mb-5">
-          <span className="text-sm text-surface-400 block mb-2">Priority</span>
-          <div className="flex items-center gap-2">
-            {PRIORITY_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => handlePriorityChange(opt.value)}
-                className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${card.priority === opt.value ? opt.activeClass : opt.inactiveClass
-                  }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+        {/* Tab bar */}
+        <div className="flex items-center gap-1 mb-5 border-b border-surface-200 dark:border-surface-700">
+          <button
+            onClick={() => setActiveTab('details')}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm transition-colors ${
+              activeTab === 'details'
+                ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-500 font-medium'
+                : 'text-surface-400 hover:text-surface-600 dark:hover:text-surface-300'
+            }`}
+          >
+            <LayoutList size={14} />
+            Details
+          </button>
+          <button
+            onClick={() => setActiveTab('agent')}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm transition-colors ${
+              activeTab === 'agent'
+                ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-500 font-medium'
+                : 'text-surface-400 hover:text-surface-600 dark:hover:text-surface-300'
+            }`}
+          >
+            <Bot size={14} />
+            AI Agent
+            {agentMessageCount > 0 && (
+              <span className="bg-emerald-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                {agentMessageCount}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Template selector + Save as template + AI generate */}
-        <div className="mb-5 flex items-center gap-4">
-          <div className="relative" ref={templateDropdownRef}>
-            <button
-              onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
-              className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors"
-            >
-              <FileText size={14} />
-              Apply Template
-            </button>
-
-            {showTemplateDropdown && (
-              <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-600 rounded-lg shadow-lg py-1 min-w-[220px] z-40">
-                {dbTemplates.length > 0 && (
-                  <>
-                    <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
-                      Your Templates
-                    </div>
-                    {dbTemplates.map(template => (
-                      <button
-                        key={template.id}
-                        onClick={() => applyTemplate(template)}
-                        className="group/tpl flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left"
-                      >
-                        <span className="truncate flex-1">{template.name}</span>
-                        <span
-                          onClick={(e) => handleDeleteDbTemplate(template.id, e)}
-                          className="opacity-0 group-hover/tpl:opacity-100 text-surface-500 hover:text-red-400 transition-all shrink-0 p-0.5"
-                          title="Delete template"
-                        >
-                          <X size={12} />
-                        </span>
-                      </button>
-                    ))}
-                    <div className="border-t border-surface-200 dark:border-surface-700 my-1" />
-                  </>
-                )}
-                {dbTemplates.length > 0 && (
-                  <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
-                    Built-in
-                  </div>
-                )}
-                {BUILTIN_TEMPLATES.map(template => (
+        {activeTab === 'details' && (
+          <>
+            {/* Priority selector */}
+            <div className="mb-5">
+              <span className="text-sm text-surface-400 block mb-2">Priority</span>
+              <div className="flex items-center gap-2">
+                {PRIORITY_OPTIONS.map(opt => (
                   <button
-                    key={template.id}
-                    onClick={() => applyTemplate(template)}
-                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left"
+                    key={opt.value}
+                    onClick={() => handlePriorityChange(opt.value)}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${card.priority === opt.value ? opt.activeClass : opt.inactiveClass
+                      }`}
                   >
-                    <span>{template.icon}</span>
-                    {template.name}
+                    {opt.label}
                   </button>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
 
-          <button
-            onClick={handleSaveAsTemplate}
-            className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors"
-            title="Save as template"
-          >
-            <BookmarkPlus size={14} />
-            Save as Template
-          </button>
-
-          <button
-            onClick={handleGenerateDescription}
-            disabled={generatingDescription}
-            className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors disabled:opacity-50"
-            title="Generate description from card title using AI"
-          >
-            <Sparkles size={14} className={generatingDescription ? 'animate-spin' : ''} />
-            {generatingDescription ? 'Generating...' : 'Generate with AI'}
-          </button>
-        </div>
-
-        {/* Description — TipTap editor */}
-        <div className="mb-5">
-          <span className="text-sm text-surface-400 block mb-2">Description</span>
-          <div className="tiptap-editor bg-surface-100/50 dark:bg-surface-800/50 rounded-lg border border-surface-200 dark:border-surface-700">
-            <EditorContent editor={editor} />
-          </div>
-        </div>
-
-        {/* Labels */}
-        <div className="mb-5">
-          <span className="text-sm text-surface-400 block mb-2">Labels</span>
-          <div className="flex flex-wrap items-center gap-2">
-            {card.labels?.map(label => (
-              <span
-                key={label.id}
-                className="inline-flex items-center gap-1.5 bg-surface-50 dark:bg-surface-800 rounded-full px-2.5 py-1 text-xs text-surface-800 dark:text-surface-200"
-              >
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ backgroundColor: label.color }}
-                />
-                {label.name}
+            {/* Template selector + Save as template + AI generate */}
+            <div className="mb-5 flex items-center gap-4">
+              <div className="relative" ref={templateDropdownRef}>
                 <button
-                  onClick={() => handleDetachLabel(label.id)}
-                  className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors ml-0.5"
+                  onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
+                  className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors"
                 >
-                  <X size={12} />
+                  <FileText size={14} />
+                  Apply Template
                 </button>
-              </span>
-            ))}
 
-            {/* Add label button + dropdown */}
-            <div className="relative" ref={labelDropdownRef}>
+                {showTemplateDropdown && (
+                  <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-600 rounded-lg shadow-lg py-1 min-w-[220px] z-40">
+                    {dbTemplates.length > 0 && (
+                      <>
+                        <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
+                          Your Templates
+                        </div>
+                        {dbTemplates.map(template => (
+                          <button
+                            key={template.id}
+                            onClick={() => applyTemplate(template)}
+                            className="group/tpl flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left"
+                          >
+                            <span className="truncate flex-1">{template.name}</span>
+                            <span
+                              onClick={(e) => handleDeleteDbTemplate(template.id, e)}
+                              className="opacity-0 group-hover/tpl:opacity-100 text-surface-500 hover:text-red-400 transition-all shrink-0 p-0.5"
+                              title="Delete template"
+                            >
+                              <X size={12} />
+                            </span>
+                          </button>
+                        ))}
+                        <div className="border-t border-surface-200 dark:border-surface-700 my-1" />
+                      </>
+                    )}
+                    {dbTemplates.length > 0 && (
+                      <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
+                        Built-in
+                      </div>
+                    )}
+                    {BUILTIN_TEMPLATES.map(template => (
+                      <button
+                        key={template.id}
+                        onClick={() => applyTemplate(template)}
+                        className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left"
+                      >
+                        <span>{template.icon}</span>
+                        {template.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <button
-                onClick={() => setShowLabelDropdown(!showLabelDropdown)}
-                className="inline-flex items-center gap-1 text-xs text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 bg-surface-50 dark:bg-surface-800 rounded-full px-2.5 py-1 transition-colors"
+                onClick={handleSaveAsTemplate}
+                className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors"
+                title="Save as template"
               >
-                <Plus size={12} />
-                Add
+                <BookmarkPlus size={14} />
+                Save as Template
               </button>
 
-              {showLabelDropdown && (
-                <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-600 rounded-lg shadow-lg p-2 min-w-[220px] z-40">
-                  {/* Existing unattached labels */}
-                  {unattachedLabels.length > 0 && (
-                    <div className="mb-2">
-                      {unattachedLabels.map(label => (
-                        <button
-                          key={label.id}
-                          onClick={() => handleAttachLabel(label.id)}
-                          className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
-                        >
-                          <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: label.color }}
-                          />
-                          {label.name}
-                          <Plus size={12} className="ml-auto text-surface-500" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
+              <button
+                onClick={handleGenerateDescription}
+                disabled={generatingDescription}
+                className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors disabled:opacity-50"
+                title="Generate description from card title using AI"
+              >
+                <Sparkles size={14} className={generatingDescription ? 'animate-spin' : ''} />
+                {generatingDescription ? 'Generating...' : 'Generate with AI'}
+              </button>
+            </div>
 
-                  {/* Divider */}
-                  {unattachedLabels.length > 0 && (
-                    <div className="border-t border-surface-200 dark:border-surface-700 my-2" />
-                  )}
+            {/* Description — TipTap editor */}
+            <div className="mb-5">
+              <span className="text-sm text-surface-400 block mb-2">Description</span>
+              <div className="tiptap-editor bg-surface-100/50 dark:bg-surface-800/50 rounded-lg border border-surface-200 dark:border-surface-700">
+                <EditorContent editor={editor} />
+              </div>
+            </div>
 
-                  {/* Create new label */}
-                  <div className="space-y-2">
-                    <span className="text-[10px] uppercase tracking-wider text-surface-500 font-medium">
-                      Create new
-                    </span>
-                    <input
-                      type="text"
-                      value={newLabelName}
-                      onChange={e => setNewLabelName(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') handleCreateAndAttach(); }}
-                      placeholder="Label name..."
-                      className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded px-2 py-1 text-xs text-surface-900 dark:text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 w-full"
+            {/* Labels */}
+            <div className="mb-5">
+              <span className="text-sm text-surface-400 block mb-2">Labels</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {card.labels?.map(label => (
+                  <span
+                    key={label.id}
+                    className="inline-flex items-center gap-1.5 bg-surface-50 dark:bg-surface-800 rounded-full px-2.5 py-1 text-xs text-surface-800 dark:text-surface-200"
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: label.color }}
                     />
-                    <div className="flex items-center gap-1.5">
-                      {LABEL_COLORS.map(color => (
-                        <button
-                          key={color}
-                          onClick={() => setNewLabelColor(color)}
-                          className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-white/70 scale-110' : 'hover:scale-110'
-                            }`}
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
+                    {label.name}
                     <button
-                      onClick={handleCreateAndAttach}
-                      disabled={!newLabelName.trim()}
-                      className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs px-3 py-1 rounded transition-colors w-full"
+                      onClick={() => handleDetachLabel(label.id)}
+                      className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors ml-0.5"
                     >
-                      Add Label
+                      <X size={12} />
                     </button>
-                  </div>
+                  </span>
+                ))}
+
+                {/* Add label button + dropdown */}
+                <div className="relative" ref={labelDropdownRef}>
+                  <button
+                    onClick={() => setShowLabelDropdown(!showLabelDropdown)}
+                    className="inline-flex items-center gap-1 text-xs text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 bg-surface-50 dark:bg-surface-800 rounded-full px-2.5 py-1 transition-colors"
+                  >
+                    <Plus size={12} />
+                    Add
+                  </button>
+
+                  {showLabelDropdown && (
+                    <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-600 rounded-lg shadow-lg p-2 min-w-[220px] z-40">
+                      {/* Existing unattached labels */}
+                      {unattachedLabels.length > 0 && (
+                        <div className="mb-2">
+                          {unattachedLabels.map(label => (
+                            <button
+                              key={label.id}
+                              onClick={() => handleAttachLabel(label.id)}
+                              className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                            >
+                              <span
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: label.color }}
+                              />
+                              {label.name}
+                              <Plus size={12} className="ml-auto text-surface-500" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Divider */}
+                      {unattachedLabels.length > 0 && (
+                        <div className="border-t border-surface-200 dark:border-surface-700 my-2" />
+                      )}
+
+                      {/* Create new label */}
+                      <div className="space-y-2">
+                        <span className="text-[10px] uppercase tracking-wider text-surface-500 font-medium">
+                          Create new
+                        </span>
+                        <input
+                          type="text"
+                          value={newLabelName}
+                          onChange={e => setNewLabelName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleCreateAndAttach(); }}
+                          placeholder="Label name..."
+                          className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded px-2 py-1 text-xs text-surface-900 dark:text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 w-full"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          {LABEL_COLORS.map(color => (
+                            <button
+                              key={color}
+                              onClick={() => setNewLabelColor(color)}
+                              className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-white/70 scale-110' : 'hover:scale-110'
+                                }`}
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                        <button
+                          onClick={handleCreateAndAttach}
+                          disabled={!newLabelName.trim()}
+                          className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs px-3 py-1 rounded transition-colors w-full"
+                        >
+                          Add Label
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Completion */}
+            <div className="mb-5">
+              <span className="text-sm text-surface-400 block mb-2">Status</span>
+              <button
+                onClick={() => onUpdate(card.id, { completed: !card.completed })}
+                className="flex items-center gap-2.5 group/check"
+              >
+                <div
+                  className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                    card.completed
+                      ? 'bg-emerald-600 border-emerald-500'
+                      : 'border-surface-300 dark:border-surface-600 bg-surface-50 dark:bg-surface-800 group-hover/check:border-surface-400'
+                  }`}
+                >
+                  {card.completed && <Check size={12} className="text-white" />}
+                </div>
+                <span className={`text-sm ${card.completed ? 'text-emerald-400' : 'text-surface-700 dark:text-surface-300'}`}>
+                  {card.completed ? 'Completed' : 'Mark as complete'}
+                </span>
+              </button>
+            </div>
+
+            {/* Due Date */}
+            <div className="mb-5">
+              <span className="text-sm text-surface-400 block mb-2">Due Date</span>
+              <div className="flex items-center gap-3">
+                <Calendar size={16} className="text-surface-400 shrink-0" />
+                <input
+                  type="datetime-local"
+                  value={card.dueDate ? toDateTimeLocalValue(card.dueDate) : ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onUpdate(card.id, {
+                      dueDate: val ? new Date(val).toISOString() : null,
+                    });
+                  }}
+                  className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
+                />
+                {card.dueDate && (
+                  <>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${card.completed ? 'bg-emerald-500/20 text-emerald-400' : getDueDateBadge(card.dueDate).classes}`}>
+                      {card.completed ? 'Done' : getDueDateBadge(card.dueDate).label}
+                    </span>
+                    <button
+                      onClick={() => onUpdate(card.id, { dueDate: null })}
+                      className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Repeat / Recurrence */}
+            <div className="mb-5">
+              <span className="text-sm text-surface-400 flex items-center gap-1.5 mb-2">
+                <RefreshCw size={14} />
+                Repeat
+              </span>
+              <select
+                value={card.recurrenceType ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  onUpdate(card.id, { recurrenceType: val || null });
+                }}
+                className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
+              >
+                <option value="">None</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Bi-weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+
+              {/* Next date preview */}
+              {card.recurrenceType && card.dueDate && (
+                <p className="text-xs text-surface-400 mt-2">
+                  Next: {formatNextDate(getNextRecurrenceDate(card.dueDate, card.recurrenceType))}
+                </p>
+              )}
+              {card.recurrenceType && !card.dueDate && (
+                <p className="text-xs text-amber-400 mt-2">
+                  Set a due date for auto-scheduling
+                </p>
+              )}
+
+              {/* End repeat date */}
+              {card.recurrenceType && (
+                <div className="flex items-center gap-3 mt-3">
+                  <span className="text-xs text-surface-500">End repeat:</span>
+                  <input
+                    type="datetime-local"
+                    value={card.recurrenceEndDate ? toDateTimeLocalValue(card.recurrenceEndDate) : ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      onUpdate(card.id, {
+                        recurrenceEndDate: val ? new Date(val).toISOString() : null,
+                      });
+                    }}
+                    className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
+                  />
+                  {card.recurrenceEndDate && (
+                    <button
+                      onClick={() => onUpdate(card.id, { recurrenceEndDate: null })}
+                      className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* Completion */}
-        <div className="mb-5">
-          <span className="text-sm text-surface-400 block mb-2">Status</span>
-          <button
-            onClick={() => onUpdate(card.id, { completed: !card.completed })}
-            className="flex items-center gap-2.5 group/check"
-          >
-            <div
-              className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                card.completed
-                  ? 'bg-emerald-600 border-emerald-500'
-                  : 'border-surface-300 dark:border-surface-600 bg-surface-50 dark:bg-surface-800 group-hover/check:border-surface-400'
-              }`}
-            >
-              {card.completed && <Check size={12} className="text-white" />}
-            </div>
-            <span className={`text-sm ${card.completed ? 'text-emerald-400' : 'text-surface-700 dark:text-surface-300'}`}>
-              {card.completed ? 'Completed' : 'Mark as complete'}
-            </span>
-          </button>
-        </div>
-
-        {/* Due Date */}
-        <div className="mb-5">
-          <span className="text-sm text-surface-400 block mb-2">Due Date</span>
-          <div className="flex items-center gap-3">
-            <Calendar size={16} className="text-surface-400 shrink-0" />
-            <input
-              type="datetime-local"
-              value={card.dueDate ? toDateTimeLocalValue(card.dueDate) : ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                onUpdate(card.id, {
-                  dueDate: val ? new Date(val).toISOString() : null,
-                });
-              }}
-              className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
-            />
-            {card.dueDate && (
+            {/* Card Details: Comments, Relationships, Activity */}
+            {loadingCardDetails ? (
+              <div className="text-sm text-surface-500 py-4 text-center">Loading details...</div>
+            ) : (
               <>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${card.completed ? 'bg-emerald-500/20 text-emerald-400' : getDueDateBadge(card.dueDate).classes}`}>
-                  {card.completed ? 'Done' : getDueDateBadge(card.dueDate).label}
-                </span>
-                <button
-                  onClick={() => onUpdate(card.id, { dueDate: null })}
-                  className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
-                >
-                  Clear
-                </button>
+                <div className="mb-5">
+                  <ChecklistSection cardId={card.id} />
+                </div>
+                <div className="mb-5">
+                  <AttachmentsSection cardId={card.id} />
+                </div>
+                <div className="mb-5">
+                  <CommentsSection cardId={card.id} />
+                </div>
+                <div className="mb-5">
+                  <RelationshipsSection cardId={card.id} />
+                </div>
+                <div className="mb-5">
+                  <ActivityLog cardId={card.id} />
+                </div>
+                <div className="mb-5">
+                  <TaskBreakdownSection cardId={card.id} columnId={card.columnId} />
+                </div>
               </>
             )}
-          </div>
-        </div>
 
-        {/* Repeat / Recurrence */}
-        <div className="mb-5">
-          <span className="text-sm text-surface-400 flex items-center gap-1.5 mb-2">
-            <RefreshCw size={14} />
-            Repeat
-          </span>
-          <select
-            value={card.recurrenceType ?? ''}
-            onChange={(e) => {
-              const val = e.target.value;
-              onUpdate(card.id, { recurrenceType: val || null });
-            }}
-            className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
-          >
-            <option value="">None</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="biweekly">Bi-weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-
-          {/* Next date preview */}
-          {card.recurrenceType && card.dueDate && (
-            <p className="text-xs text-surface-400 mt-2">
-              Next: {formatNextDate(getNextRecurrenceDate(card.dueDate, card.recurrenceType))}
-            </p>
-          )}
-          {card.recurrenceType && !card.dueDate && (
-            <p className="text-xs text-amber-400 mt-2">
-              Set a due date for auto-scheduling
-            </p>
-          )}
-
-          {/* End repeat date */}
-          {card.recurrenceType && (
-            <div className="flex items-center gap-3 mt-3">
-              <span className="text-xs text-surface-500">End repeat:</span>
-              <input
-                type="datetime-local"
-                value={card.recurrenceEndDate ? toDateTimeLocalValue(card.recurrenceEndDate) : ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  onUpdate(card.id, {
-                    recurrenceEndDate: val ? new Date(val).toISOString() : null,
-                  });
-                }}
-                className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
-              />
-              {card.recurrenceEndDate && (
-                <button
-                  onClick={() => onUpdate(card.id, { recurrenceEndDate: null })}
-                  className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Card Details: Comments, Relationships, Activity */}
-        {loadingCardDetails ? (
-          <div className="text-sm text-surface-500 py-4 text-center">Loading details...</div>
-        ) : (
-          <>
-            <div className="mb-5">
-              <ChecklistSection cardId={card.id} />
-            </div>
-            <div className="mb-5">
-              <AttachmentsSection cardId={card.id} />
-            </div>
-            <div className="mb-5">
-              <CommentsSection cardId={card.id} />
-            </div>
-            <div className="mb-5">
-              <RelationshipsSection cardId={card.id} />
-            </div>
-            <div className="mb-5">
-              <ActivityLog cardId={card.id} />
-            </div>
-            <div className="mb-5">
-              <TaskBreakdownSection cardId={card.id} columnId={card.columnId} />
+            {/* Timestamps */}
+            <div className="text-xs text-surface-500 flex items-center gap-1">
+              <span>Created: {formatDate(card.createdAt)} ({formatRelativeTime(card.createdAt)})</span>
+              <span>·</span>
+              <span>Updated: {formatDate(card.updatedAt)} ({formatRelativeTime(card.updatedAt)})</span>
             </div>
           </>
         )}
 
-        {/* Timestamps */}
-        <div className="text-xs text-surface-500 flex items-center gap-1">
-          <span>Created: {formatDate(card.createdAt)} ({formatRelativeTime(card.createdAt)})</span>
-          <span>·</span>
-          <span>Updated: {formatDate(card.updatedAt)} ({formatRelativeTime(card.updatedAt)})</span>
-        </div>
+        {activeTab === 'agent' && (
+          <div className="h-[60vh]">
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-32">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary-500 border-t-transparent" />
+              </div>
+            }>
+              <CardAgentPanel cardId={card.id} />
+            </Suspense>
+          </div>
+        )}
       </div>
     </div>
   );
