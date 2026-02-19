@@ -92,11 +92,16 @@ export function registerCardAgentHandlers(): void {
         messages: aiMessages,
         system: systemPrompt,
         tools,
-        stopWhen: stepCountIs(5), // cap at 5 steps to prevent runaway loops
+        stopWhen: stepCountIs(5), // multi-step: GPT-4o gets summaries after tool calls
         temperature: provider.temperature,
         maxOutputTokens: provider.maxTokens ?? 2048,
         abortSignal: abortController.signal,
       });
+
+      // Prevent unhandled promise rejections from internal result promises.
+      // When a continuation step fails (e.g. Kimi K2.5 thinking mode), these
+      // promises reject independently of our fullStream catch block.
+      result.usage.then(null, () => {});
 
       // 9. Iterate fullStream for text chunks and tool events
       let fullText = '';
@@ -154,9 +159,10 @@ export function registerCardAgentHandlers(): void {
         } else if (!fullText && collectedToolCalls.length === 0) {
           throw streamErr;
         } else {
-          // Continuation step failed but we have partial results — keep them
-          log.warn('Card agent stream error (partial results kept):',
-            streamErr instanceof Error ? streamErr.message : streamErr);
+          // Continuation step failed (e.g. Kimi thinking mode) — keep partial results.
+          // Models like GPT-4o handle multi-step fine; this is a graceful fallback.
+          const errMsg = streamErr instanceof Error ? streamErr.message : String(streamErr);
+          log.info('Card agent continuation unavailable (partial results kept):', errMsg);
         }
       } finally {
         activeStreams.delete(validCardId);
