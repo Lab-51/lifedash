@@ -338,6 +338,17 @@ export const whisperModelNameSchema = z.string().min(1).max(200);
 // Card Checklist Items
 // ============================================================================
 
+// ============================================================================
+// Card Agent
+// ============================================================================
+
+/** For card-agent:send-message — validates the content parameter */
+export const cardAgentMessageContentSchema = z.string().min(1).max(10000);
+
+// ============================================================================
+// Card Checklist Items
+// ============================================================================
+
 export const addChecklistItemSchema = z.object({
   cardId: uuid,
   title: z.string().min(1).max(500),

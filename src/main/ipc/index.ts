@@ -23,6 +23,7 @@ import { registerDiarizationHandlers } from './diarization';
 import { registerDashboardHandlers } from './dashboard';
 import { registerFocusHandlers } from './focus';
 import { registerGamificationHandlers } from './gamification';
+import { registerCardAgentHandlers } from './card-agent';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -49,4 +50,5 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerDashboardHandlers();
   registerFocusHandlers();
   registerGamificationHandlers();
+  registerCardAgentHandlers();
 }

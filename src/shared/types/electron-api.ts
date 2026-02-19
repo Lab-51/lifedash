@@ -49,6 +49,7 @@ import type { TranscriptionProviderType, TranscriptionProviderStatus } from './t
 import type { MeetingAnalytics } from './analytics';
 import type { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats, FocusTimeReport } from './focus';
 import type { GamificationStats, Achievement, XpEventType, XpDailyData } from './gamification';
+import type { CardAgentMessage, AgentAction } from './card-agent';
 
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
@@ -288,6 +289,22 @@ export interface ElectronAPI {
   gamificationGetStats: () => Promise<GamificationStats>;
   gamificationGetAchievements: () => Promise<Achievement[]>;
   gamificationGetDaily: (days?: number) => Promise<XpDailyData[]>;
+
+  // Card Agent
+  cardAgentSendMessage: (cardId: string, content: string) =>
+    Promise<{ assistantMessage: CardAgentMessage; actions: AgentAction[] } | null>;
+  cardAgentGetMessages: (cardId: string) => Promise<CardAgentMessage[]>;
+  cardAgentClearMessages: (cardId: string) => Promise<void>;
+  cardAgentGetMessageCount: (cardId: string) => Promise<number>;
+  cardAgentAbort: (cardId: string) => Promise<void>;
+  onCardAgentChunk: (callback: (data: { cardId: string; chunk: string }) => void) => () => void;
+  onCardAgentToolEvent: (callback: (data: {
+    cardId: string;
+    type: 'call' | 'result';
+    toolName: string;
+    args?: unknown;
+    result?: unknown;
+  }) => void) => () => void;
 
   // App-level events
   onShowCommandPalette: (callback: () => void) => () => void;

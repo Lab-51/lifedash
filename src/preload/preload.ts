@@ -22,6 +22,7 @@ import { appBridge } from './domains/app';
 import { dashboardBridge } from './domains/dashboard';
 import { focusBridge } from './domains/focus';
 import { gamificationBridge } from './domains/gamification';
+import { cardAgentBridge } from './domains/card-agent';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -42,4 +43,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...dashboardBridge,
   ...focusBridge,
   ...gamificationBridge,
+  ...cardAgentBridge,
 });
