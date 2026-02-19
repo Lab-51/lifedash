@@ -52,6 +52,7 @@ export const meetingsBridge = {
   downloadWhisperModel: (fileName: string) =>
     ipcRenderer.invoke('whisper:download-model', fileName),
   hasWhisperModel: () => ipcRenderer.invoke('whisper:has-model'),
+  whisperGetActiveModel: () => ipcRenderer.invoke('whisper:get-active-model') as Promise<string | null>,
   onWhisperDownloadProgress: (callback: (progress: WhisperDownloadProgress) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: WhisperDownloadProgress) => {
       callback(progress);

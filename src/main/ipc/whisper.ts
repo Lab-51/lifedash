@@ -8,6 +8,7 @@
 // - Single download at a time (no parallel downloads)
 // - No download cancellation from renderer yet
 
+import path from 'node:path';
 import { ipcMain, BrowserWindow } from 'electron';
 import * as whisperModelManager from '../services/whisperModelManager';
 import { validateInput } from '../../shared/validation/ipc-validator';
@@ -38,5 +39,11 @@ export function registerWhisperHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('whisper:has-model', async () => {
     return whisperModelManager.getDefaultModelPath() !== null;
+  });
+
+  ipcMain.handle('whisper:get-active-model', async () => {
+    const modelPath = whisperModelManager.getDefaultModelPath();
+    if (!modelPath) return null;
+    return path.basename(modelPath);
   });
 }

@@ -12,7 +12,7 @@ import { useRecordingStore } from '../stores/recordingStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
 import { onAudioLevel } from '../services/audioCaptureService';
-import { MEETING_TEMPLATES } from '../../shared/types';
+import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
 import MeetingPrepSection from './MeetingPrepSection';
 
@@ -199,6 +199,51 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
   const [title, setTitle] = useState(suggestMeetingTitle);
   const [selectedTemplate, setSelectedTemplate] = useState<MeetingTemplateType>('none');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
+  const [activeModelName, setActiveModelName] = useState<string | null>(null);
+  const [transcriptionProvider, setTranscriptionProvider] = useState<string>('local');
+
+  // Load saved language, active model, and transcription provider on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const [savedLang, model, config] = await Promise.all([
+          window.electronAPI.getSetting('transcription:language'),
+          window.electronAPI.whisperGetActiveModel(),
+          window.electronAPI.transcriptionGetConfig(),
+        ]);
+        if (savedLang) setSelectedLanguage(savedLang);
+        setActiveModelName(model);
+        if (config) setTranscriptionProvider(config.type);
+      } catch {
+        // Settings or model unavailable — keep defaults
+      }
+    })();
+  }, []);
+
+  // Re-check model when language changes
+  useEffect(() => {
+    (async () => {
+      try {
+        const model = await window.electronAPI.whisperGetActiveModel();
+        setActiveModelName(model);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [selectedLanguage]);
+
+  const handleLanguageChange = async (value: string) => {
+    setSelectedLanguage(value);
+    try {
+      await window.electronAPI.setSetting('transcription:language', value);
+    } catch {
+      // Settings save failed — non-critical
+    }
+  };
+
+  const isEnglishOnlyModel = activeModelName?.includes('.en') ?? false;
+  const showModelWarning = transcriptionProvider === 'local' && isEnglishOnlyModel && selectedLanguage !== 'en';
 
   const handleStart = async () => {
     if (!title.trim()) return;
@@ -278,6 +323,23 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
               </option>
             ))}
           </select>
+          <select
+            value={selectedLanguage}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+            className="w-full"
+            disabled={starting}
+          >
+            {TRANSCRIPTION_LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.label}
+              </option>
+            ))}
+          </select>
+          {showModelWarning && (
+            <p className="text-xs text-amber-400">
+              {'\u26A0'} Current Whisper model ({activeModelName}) is English-only. Download a multilingual model in Settings for {TRANSCRIPTION_LANGUAGES.find(l => l.code === selectedLanguage)?.label ?? selectedLanguage} transcription.
+            </p>
+          )}
           {selectedTemplate !== 'none' && (
             <div className="text-xs text-surface-400 space-y-0.5">
               <span className="font-medium">Suggested agenda:</span>

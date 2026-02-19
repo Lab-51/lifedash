@@ -200,6 +200,7 @@ export interface ElectronAPI {
   getWhisperModels: () => Promise<WhisperModel[]>;
   downloadWhisperModel: (fileName: string) => Promise<string>;
   hasWhisperModel: () => Promise<boolean>;
+  whisperGetActiveModel: () => Promise<string | null>;
   onWhisperDownloadProgress: (callback: (progress: WhisperDownloadProgress) => void) => () => void;
 
   // Meeting Intelligence

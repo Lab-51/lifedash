@@ -9,6 +9,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Mic, Loader2, Check, Eye, EyeOff } from 'lucide-react';
 import type { TranscriptionProviderStatus, TranscriptionProviderType } from '../../../shared/types';
+import { TRANSCRIPTION_LANGUAGES } from '../../../shared/types';
 
 /** Provider option metadata for rendering */
 const PROVIDERS: Array<{
@@ -47,6 +48,8 @@ export default function TranscriptionProviderSection() {
     latencyMs?: number;
   } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
+  const [activeModelName, setActiveModelName] = useState<string | null>(null);
 
   const testResultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -64,6 +67,46 @@ export default function TranscriptionProviderSection() {
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  // Load saved language and active model on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const [savedLang, model] = await Promise.all([
+          window.electronAPI.getSetting('transcription:language'),
+          window.electronAPI.whisperGetActiveModel(),
+        ]);
+        if (savedLang) setSelectedLanguage(savedLang);
+        setActiveModelName(model);
+      } catch {
+        // Non-critical — keep defaults
+      }
+    })();
+  }, []);
+
+  // Re-check model when language changes
+  useEffect(() => {
+    (async () => {
+      try {
+        const model = await window.electronAPI.whisperGetActiveModel();
+        setActiveModelName(model);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [selectedLanguage]);
+
+  const handleLanguageChange = async (value: string) => {
+    setSelectedLanguage(value);
+    try {
+      await window.electronAPI.setSetting('transcription:language', value);
+    } catch {
+      // Settings save failed — non-critical
+    }
+  };
+
+  const isEnglishOnlyModel = activeModelName?.includes('.en') ?? false;
+  const showModelWarning = config?.type === 'local' && isEnglishOnlyModel && selectedLanguage !== 'en';
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -301,6 +344,32 @@ export default function TranscriptionProviderSection() {
             ) && renderApiKeyInput('assemblyai')}
           </div>
         ))}
+
+        {/* Transcription Language */}
+        <div className="pt-3 border-t border-surface-200 dark:border-surface-700">
+          <label className="block text-sm font-medium text-surface-800 dark:text-surface-200 mb-1.5">
+            Transcription Language
+          </label>
+          <select
+            value={selectedLanguage}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+            className="w-full max-w-xs bg-surface-700 border border-surface-600 text-surface-800 dark:text-surface-200 text-sm rounded-lg px-2 py-1.5 focus:ring-primary-500 focus:border-primary-500"
+          >
+            {TRANSCRIPTION_LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.label}
+              </option>
+            ))}
+          </select>
+          {showModelWarning && (
+            <p className="mt-1.5 text-xs text-amber-400">
+              {'\u26A0'} Current Whisper model ({activeModelName}) is English-only. Download a multilingual model above for {TRANSCRIPTION_LANGUAGES.find(l => l.code === selectedLanguage)?.label ?? selectedLanguage} transcription.
+            </p>
+          )}
+          <p className="mt-1 text-xs text-surface-500">
+            For mixed Czech/English meetings, use &ldquo;Auto-detect&rdquo; with a multilingual Whisper model.
+          </p>
+        </div>
 
         {/* Test connection button */}
         <div className="pt-2 border-t border-surface-200 dark:border-surface-700">
