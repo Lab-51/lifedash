@@ -30,7 +30,7 @@ interface RecordingStore {
   // Actions
   setIncludeMic: (value: boolean) => void;
   setPrepBriefing: (text: string | null) => void;
-  startRecording: (title: string, projectId?: string, template?: MeetingTemplateType) => Promise<void>;
+  startRecording: (title: string, projectId?: string, template?: MeetingTemplateType, transcriptionLanguage?: string) => Promise<void>;
   stopRecording: () => Promise<void>;
   clearCompletedMeetingId: () => void;
   initListener: () => () => void;
@@ -51,7 +51,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   setIncludeMic: (value: boolean) => set({ includeMic: value }),
   setPrepBriefing: (text: string | null) => set({ prepBriefing: text }),
 
-  startRecording: async (title: string, projectId?: string, template?: MeetingTemplateType) => {
+  startRecording: async (title: string, projectId?: string, template?: MeetingTemplateType, transcriptionLanguage?: string) => {
     set({ starting: true, error: null });
     try {
       // Step 1: Create meeting in DB
@@ -60,6 +60,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         projectId,
         template: template ?? 'none',
         prepBriefing: get().prepBriefing ?? undefined,
+        transcriptionLanguage,
       });
 
       // Step 2: Tell main process to start recording

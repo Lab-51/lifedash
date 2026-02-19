@@ -74,6 +74,7 @@ export interface Meeting {
   audioPath: string | null;
   status: MeetingStatus;
   prepBriefing: string | null;
+  transcriptionLanguage: string | null;
   createdAt: string;
 }
 
@@ -99,6 +100,7 @@ export interface CreateMeetingInput {
   projectId?: string;
   template?: MeetingTemplateType;
   prepBriefing?: string;
+  transcriptionLanguage?: string;
 }
 
 export interface UpdateMeetingInput {

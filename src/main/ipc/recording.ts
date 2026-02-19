@@ -16,6 +16,7 @@
 
 import { ipcMain, BrowserWindow } from 'electron';
 import * as audioProcessor from '../services/audioProcessor';
+import * as meetingService from '../services/meetingService';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema } from '../../shared/validation/schemas';
 
@@ -27,7 +28,19 @@ export function registerRecordingHandlers(mainWindow: BrowserWindow): void {
     'recording:start',
     async (_event, meetingId: unknown) => {
       const validMeetingId = validateInput(idParamSchema, meetingId);
-      audioProcessor.startRecording(validMeetingId);
+
+      // Read the meeting's stored transcription language to pass to audio processor
+      let language: string | undefined;
+      try {
+        const meeting = await meetingService.getMeeting(validMeetingId);
+        if (meeting?.transcriptionLanguage) {
+          language = meeting.transcriptionLanguage;
+        }
+      } catch {
+        // Non-fatal — will fall back to DB setting in transcriptionService
+      }
+
+      audioProcessor.startRecording(validMeetingId, language);
     },
   );
 

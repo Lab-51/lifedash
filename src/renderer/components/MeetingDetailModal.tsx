@@ -18,7 +18,7 @@ import ConvertActionModal from './ConvertActionModal';
 import MeetingAnalyticsSection from './MeetingAnalyticsSection';
 import { getSpeakerColor } from './MeetingAnalyticsSection';
 import type { ActionItem, MeetingWithTranscript } from '../../shared/types';
-import { MEETING_TEMPLATES } from '../../shared/types';
+import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../shared/types';
 
 interface MeetingDetailModalProps {
   onClose: () => void;
@@ -476,6 +476,11 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
             <span className="text-surface-400">
               {formatDate(meeting.startedAt)} at {formatTime(meeting.startedAt)}
             </span>
+            {meeting.transcriptionLanguage && (
+              <span className="text-surface-400">
+                {TRANSCRIPTION_LANGUAGES.find(l => l.code === meeting.transcriptionLanguage)?.label ?? meeting.transcriptionLanguage}
+              </span>
+            )}
           </div>
 
           {/* Template info */}

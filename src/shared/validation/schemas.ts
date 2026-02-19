@@ -242,6 +242,7 @@ export const createMeetingInputSchema = z.object({
   projectId: uuid.optional(),
   template: meetingTemplateTypeSchema.optional(),
   prepBriefing: z.string().optional(),
+  transcriptionLanguage: z.string().max(10).optional(),
 });
 
 export const updateMeetingInputSchema = z.object({

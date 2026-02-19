@@ -62,7 +62,7 @@ export function isRecording(): boolean {
   return currentMeetingId !== null;
 }
 
-export function startRecording(meetingId: string): void {
+export function startRecording(meetingId: string, language?: string): void {
   if (currentMeetingId) {
     throw new Error('Already recording. Stop current recording first.');
   }
@@ -79,7 +79,7 @@ export function startRecording(meetingId: string): void {
   pushState();
 
   // Start transcription pipeline (non-blocking, may skip if no model)
-  transcriptionService.start(meetingId).catch((err) => {
+  transcriptionService.start(meetingId, language).catch((err) => {
     log.error('Transcription start failed:', err);
   });
 }

@@ -120,6 +120,13 @@
       "when": 1771900000000,
       "tag": "0016_long_namor",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1772000000000,
+      "tag": "0017_transcription_language",
+      "breakpoints": true
     }
   ]
 }

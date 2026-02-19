@@ -247,7 +247,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
 
   const handleStart = async () => {
     if (!title.trim()) return;
-    await startRecording(title.trim(), selectedProjectId || undefined, selectedTemplate);
+    await startRecording(title.trim(), selectedProjectId || undefined, selectedTemplate, selectedLanguage);
     setTitle(suggestMeetingTitle());
     setSelectedTemplate('none');
     setSelectedProjectId('');

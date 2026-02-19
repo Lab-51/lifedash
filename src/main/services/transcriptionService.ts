@@ -69,15 +69,19 @@ export function getLastTranscript(): string {
  * Resolves the configured provider, then either initializes local Whisper
  * or prepares for cloud API dispatching.
  */
-export async function start(meetingId: string): Promise<void> {
+export async function start(meetingId: string, language?: string): Promise<void> {
   // Resolve which provider to use from saved config
   const config = await transcriptionProviderService.getConfig();
   activeProvider = config.type;
 
-  // Read language setting from DB (default: 'en')
-  const db = getDb();
-  const langRows = await db.select().from(settings).where(eq(settings.key, 'transcription:language'));
-  activeLanguage = langRows.length > 0 ? langRows[0].value : 'en';
+  // Use per-recording language if provided, otherwise fall back to DB setting
+  if (language) {
+    activeLanguage = language;
+  } else {
+    const db = getDb();
+    const langRows = await db.select().from(settings).where(eq(settings.key, 'transcription:language'));
+    activeLanguage = langRows.length > 0 ? langRows[0].value : 'en';
+  }
 
   // Common state reset
   currentMeetingId = meetingId;

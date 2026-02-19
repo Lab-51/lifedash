@@ -35,6 +35,7 @@ function toMeeting(row: typeof meetings.$inferSelect): Meeting {
     audioPath: row.audioPath,
     status: row.status,
     prepBriefing: row.prepBriefing ?? null,
+    transcriptionLanguage: row.transcriptionLanguage ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -146,6 +147,7 @@ export async function createMeeting(data: CreateMeetingInput): Promise<Meeting> 
       projectId: data.projectId ?? null,
       template: data.template ?? 'none',
       prepBriefing: data.prepBriefing ?? null,
+      transcriptionLanguage: data.transcriptionLanguage ?? null,
       startedAt: new Date(),
       status: 'recording',
     })
