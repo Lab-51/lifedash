@@ -250,10 +250,10 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
           {card.labels?.map(label => (
             <span
               key={label.id}
-              className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full text-white/90"
-              style={{ backgroundColor: label.color }}
+              className="label-chip inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+              style={{ '--lc': label.color } as React.CSSProperties}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-white/40 shrink-0" />
+              <span className="label-dot w-1.5 h-1.5 rounded-full shrink-0" />
               {label.name}
             </span>
           ))}

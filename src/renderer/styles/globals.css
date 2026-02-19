@@ -358,6 +358,23 @@ html.light .animate-logo-pulse {
   animation: logo-pulse-light 3s ease-in-out infinite;
 }
 
+/* Label chips on Kanban cards — dark mode uses tinted translucent backgrounds */
+.label-chip {
+  background-color: var(--lc);
+  color: rgba(255, 255, 255, 0.9);
+}
+.label-chip .label-dot {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+:where(.dark) .label-chip {
+  background-color: color-mix(in srgb, var(--lc) 18%, transparent);
+  color: color-mix(in srgb, var(--lc) 70%, white);
+}
+:where(.dark) .label-chip .label-dot {
+  background-color: var(--lc);
+  opacity: 0.6;
+}
+
 /* Kanban card drag-and-drop animations */
 @keyframes card-grab {
 

@@ -16,7 +16,7 @@ Plan F.3: COMPLETE (3/3 tasks) — Session Edit, Delete, Chart Improvements
 Version: 1.9.0 → targeting 2.0.0
 Test suite: 150 tests across 7 files
 Packaged app: `npm run make` verified working on Windows (Squirrel installer)
-SELF-IMPROVE-NEW.md: 27 proposals, 22 implemented (Phase A: 5/5, Phase B: 4/4, Phase C: 4/4, Phase D: 10/?)
+SELF-IMPROVE-NEW.md: 27 proposals — 14 implemented, 13 parked (not planned)
 Plan A.1: COMPLETE (3/3 tasks)
 Plan A.2: COMPLETE (2/2 tasks)
 Plan B.1: COMPLETE (2/2 tasks)

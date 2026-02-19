@@ -356,27 +356,41 @@ Nudges appear as collapsible section on dashboard with one-click action buttons 
 
 ---
 
+## Implementation Status
+
+**Implemented (14):** F1, Q1, Q2, Q3, E1, F3, F14, F15, F4, F8, F12, E2, F7, F10
+
+**Not Planned — Parked Ideas (13):**
+These were considered but are not prioritized for implementation. Kept here for reference.
+
+| # | Feature | Why Parked |
+|---|---------|------------|
+| F2 | Morning Briefing / Daily Agenda | Nice-to-have, dashboard already covers daily view |
+| F5 | Smart Follow-Up Nudges | Partially covered by pending action count in status bar |
+| F6 | Weekly Review / Reflection Journal | Low urgency |
+| F9 | Meeting Cross-Reference | High effort, niche use case |
+| F11 | Decision Tracker | High effort, niche use case |
+| F13 | Idea Priority Queue with AI Ranking | Low urgency |
+| Q4 | Scratchpad / Quick Notes | Can use Ideas page instead |
+| Q5 | Screenshot Capture to Card | Low urgency |
+| Q6 | AI Suggest Related Cards | Card agent can do this now |
+| Q7 | Paste Image/URL to Create Card | Low urgency |
+| Q8 | Label Auto-Suggest from AI | Card agent can do this now |
+| Q9 | Board Statistics Modal | Low urgency |
+| Q10 | System Tray Quick Actions | Low urgency |
+| E3 | Calendar View for Due Dates | High effort |
+| E4 | Timeline / Gantt View | High effort, niche |
+| F16 | Knowledge Graph Visualization | High effort |
+| F17 | Custom Dashboard Widgets | High effort |
+
+---
+
 ## Summary
 
 - **Total new features proposed:** 27 (deduplicated across agents)
-- **HIGH impact:** 14
-- **MEDIUM impact:** 13
-- **Quick wins (< 1 day):** 11
-- **Medium effort (1-2 weeks):** 12
-- **High effort (2+ weeks):** 4
-- **Overall product maturity:** SOLID -- all core features work well, ready for feature expansion
-
-## Cross-Cutting Themes
-
-**1. Temporal Intelligence (biggest gap):** The app captures and analyzes data but doesn't help users understand *what matters right now*. Morning Briefing, Daily Agenda, Nudges, and Stale Detection all add time-awareness.
-
-**2. Capture Speed:** Global hotkey, screenshot capture, paste-to-card, and tray quick actions make the app the fastest way to capture any work thought from anywhere.
-
-**3. Accumulating Value:** Weekly reflections, decision tracking, productivity pulse, and meeting cross-references create data that gets more valuable over time -- switching cost becomes prohibitive.
-
-**4. AI Micro-Assists:** Generate descriptions, suggest labels, suggest related cards, standup generator, and meeting prep leverage existing AI infrastructure for quick "wow" moments.
-
-**5. Proactive Intelligence:** Smart nudges, stale detection, and prep briefings invert the user-tool relationship: the app tells you what needs attention instead of waiting to be checked.
+- **Implemented:** 14
+- **Parked (not planned):** 13
+- **Overall product maturity:** SOLID — feature-complete for v2.0
 
 ---
 
