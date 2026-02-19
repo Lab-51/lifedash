@@ -162,12 +162,40 @@
 | Phase 7: Advanced Features | R11, R13-R17 | 31 |
 | **Total** | **R1-R17** | **99** |
 
+---
+
+## Phase E: Agentic AI — Card-Level Agent
+**Goal:** AI agents that can take actions on cards via tool calling.
+**Plans:** E.1 (Backend + Tools + Schema), E.2 (Frontend UI)
+**Depends on:** Phase 3 (AI System), Phase 2 (Dashboard)
+
+### Deliverables
+- [ ] Card agent messages schema + migration
+- [ ] Card agent service with 7 AI-callable tools (Vercel AI SDK tool calling)
+- [ ] Streaming IPC with tool execution events
+- [ ] Agent chat panel in CardDetailModal
+- [ ] Tool call visualization (action badges, inline results)
+- [ ] Starter prompts + conversation management
+
+### Key Decisions
+- Vercel AI SDK `tool()` + `maxSteps` for agent loop (no custom orchestration)
+- Tools auto-execute (no mid-stream approval) — show results after
+- Agent conversation persists per-card (normalized messages table)
+- 7 initial tools: getCardDetails, searchProjectCards, addChecklistItem, toggleChecklistItem, addComment, updateDescription, createCard
+
+### Future Tiers (see .planning/phases/agentic-ai-vision.md)
+- Tier 2: Project-level agent (cross-board intelligence)
+- Tier 3: Autonomous background agents (proactive insights)
+
+---
+
 ## Critical Path
 ```
 Phase 1 (Foundation) → Phase 2 (Dashboard) → Phase 3 (AI System) → Phase 4 (Audio)
                                                                   → Phase 5 (Briefs)
 Phase 3 (AI System) → Phase 6 (Brainstorm & Ideas)
 Phase 5 (Briefs) → Phase 7 (Advanced)
+Phase 3 + Phase 2 → Phase E (Agentic AI)
 ```
 
-Phases 1-3 are sequential (each builds on the previous). Phase 4 and 5 are sequential. Phase 6 can start after Phase 3. Phase 7 is last.
+Phases 1-3 are sequential (each builds on the previous). Phase 4 and 5 are sequential. Phase 6 can start after Phase 3. Phase 7 is last. Phase E can start any time (Phase 2 + 3 are complete).

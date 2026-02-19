@@ -1,13 +1,15 @@
 # Current State
 
 ## Session Info
-Last updated: 2026-02-18
-Session focus: Plan F.3 — Focus Session Management
-Checkpoint reason: Plan F.3 complete + bug fixes, pushed to GitHub
+Last updated: 2026-02-19
+Session focus: Plan E.2 execution + 4 ad-hoc bug fixes for card agent
+Checkpoint reason: Plan E.2 complete, all fixes pushed, clean state
 
 ## Position
 Milestone: v2.0.0
-Latest commit: 9be488d (chore: update state files after Plan F.3 completion)
+Latest commit: 142a054 (fix: suppress unhandled rejection from AI SDK continuation errors)
+Plan E.1: COMPLETE (3/3 tasks) — Card Agent Foundation (Backend + Tools + Schema)
+Plan E.2: COMPLETE (3/3 tasks) — Card Agent UI + 4 post-deploy fixes
 Plan F.1: COMPLETE (3/3 tasks)
 Plan F.2: COMPLETE (3/3 tasks) — Focus Time Tracking Page
 Plan F.3: COMPLETE (3/3 tasks) — Session Edit, Delete, Chart Improvements
@@ -212,10 +214,65 @@ Plan D.9: COMPLETE (3/3 tasks) — Dark Mode Polish (Projects & Cards)
   - Delete with 5s undo toast (optimistic removal, actual delete after timeout)
   - focusStore: updateSession + deleteSession thin wrappers
 
+## Plan E.1 Results — Card Agent Foundation (Backend + Tools + Schema)
+- Task 1: Agent messages schema + migration + shared types (3fb806d)
+  - card_agent_messages table: 7 columns (id, cardId, role, content, toolCalls, toolResults, createdAt)
+  - Migration 0016 with corrected journal timestamp (PGlite monotonic fix)
+  - Shared types: CardAgentMessage, ToolCallRecord, ToolResultRecord, AgentAction
+  - AITaskType extended with 'card_agent'
+- Task 2: Card agent service with 7 tools + context builder (c0715ac)
+  - buildCardContext(): queries card + column + board + project + checklist + comments + relationships
+  - 7 tools: getCardDetails, searchProjectCards, addChecklistItem, toggleChecklistItem, addComment, updateDescription, createCard
+  - AI SDK v6 verified: tool() with inputSchema (Zod), streamText + stopWhen: stepCountIs(5)
+  - Message persistence: getMessages, addMessage, clearMessages, getMessageCount
+  - collectAgentActions helper for UI action badges
+- Task 3: IPC handlers for agent chat — streaming + tool events (ea25770)
+  - 5 IPC handlers: send-message (streaming), get-messages, clear-messages, get-message-count, abort
+  - fullStream iteration: text-delta + tool-call + tool-result events forwarded to renderer
+  - Per-card AbortController map (multiple simultaneous conversations)
+  - Preload bridge: 7 methods (5 invoke + 2 event listeners)
+  - ElectronAPI interface updated with card agent section
+
+## Plan E.2 Results — Card Agent UI
+- Task 1: cardAgentStore + CardAgentPanel (b7e0c95)
+  - Zustand store: 6 actions (loadMessages, sendMessage, clearMessages, abort, loadMessageCount, reset)
+  - Streaming pattern: onCardAgentChunk + onCardAgentToolEvent listeners, cleanup in finally block
+  - CardAgentPanel: markdown-rendered messages, 4 starter prompts (2x2 grid), auto-scroll, input area
+  - Send/Stop/Clear controls, textarea auto-resize, Shift+Enter for newline
+- Task 2: CardDetailModal tab system (9b6dc0e)
+  - 2-tab bar: Details (LayoutList icon) + AI Agent (Bot icon) with emerald message count badge
+  - Existing content wrapped in Details tab conditional (zero visual changes)
+  - CardAgentPanel lazy-loaded in 60vh container with Suspense spinner
+  - Agent store resets on modal close, message count loaded on mount
+- Task 3: Tool visualization + polish (3ab9cda)
+  - Streaming tool events: animated pills (Loader2 amber for 'call', CheckCircle2 emerald for 'result')
+  - Human-readable tool descriptions (present tense during streaming, past tense on persisted)
+  - Action badges on assistant messages from toolCalls[] with success/failure icons
+  - Copy button on assistant messages (hover-reveal, top-right)
+  - No-provider guard: centered message + "Open Settings" link
+  - Error toast via store catch block (surfaces IPC errors like "No AI provider configured")
+  - Card data refresh after write tool mutations (loadCardDetails)
+  - Message count update after each turn (for tab badge)
+
+## Ad-hoc Fixes After E.2
+- Fix: streaming state getting stuck — reset on load, abort resets state, 90s timeout (e3901f5)
+- Fix: Kimi K2.5 temperature error — don't force 0.7, let provider decide (10cbf1d)
+- Fix: agent panel input unreachable — flex modal layout when agent tab active (1f84a4b)
+- Fix: suppress unhandled rejection from AI SDK continuation errors (142a054)
+  - Kimi K2.5 "thinking mode" rejects multi-step tool continuations
+  - Multi-step stays enabled (stepCountIs(5)) for GPT-4o/Claude full summaries
+  - Kimi gracefully degrades: initial text + tool execution, no summary
+
+## Known Limitation: Kimi K2.5 + Multi-Step Tool Calling
+- Kimi K2.5's "thinking mode" requires `reasoning_content` on assistant tool call messages
+- AI SDK v6 doesn't include this field → continuation step fails
+- Graceful degradation: partial results kept (initial text + tool badges)
+- GPT-4o / Claude handle multi-step correctly → full summaries after tool calls
+
 ## Resume Context
-Plan F.3 COMPLETE — all 3 tasks verified (tsc clean, 150/150 tests pass)
-All pushed to GitHub (9be488d)
-Next action: TBD — user decides next feature/plan
+Plan E.2 COMPLETE + 4 bug fixes pushed
+Card Agent feature is end-to-end operational (schema → service → IPC → store → UI)
+Next action: TBD — user decides
 
 ## Plan D.2 Results
 - Task 1: Focus sessions DB + service + IPC for gamification foundation (4e6b206)

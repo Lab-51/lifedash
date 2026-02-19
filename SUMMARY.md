@@ -1,36 +1,48 @@
-# Plan F.3 — Focus Session Management
+# Plan E.2 — Card Agent UI (Chat Panel, Tool Visualization, Modal Integration)
 
-## Date: 2026-02-18
+## Date: 2026-02-19
 ## Status: COMPLETE (3/3 tasks)
 
-## What Changed
+## What Was Built
 
-Enhanced the Focus Time Tracking page with more chart period options, full-week display, inline session editing (project + note), and delete with undo toast.
+Full chat UI for per-card AI agents — a tabbed interface in CardDetailModal with streaming messages, real-time tool visualization, and automatic card data refresh.
 
-### Task 1: Activity Chart Period Options + Full-Week Display (d4cb97d)
-- **6 period options**: This Week, Last Week, Last 7 Days, This Month, Last Month, Custom
-- **Full-week display**: "This Week" now shows Mon-Sun (future days show 0-value bars)
-- **Day-of-week labels**: Mon, Tue, Wed... for 7-day periods; numeric dates for longer ranges
-- **Footer label**: "Weekly Activity" for 7-day charts, "{N}-Day Activity" otherwise
+### Task 1: cardAgentStore + CardAgentPanel (b7e0c95)
+- **Zustand store** (157 lines): streaming pattern with chunk/tool-event listeners, optimistic user messages, abort support, error toasts
+- **CardAgentPanel** (429 lines): vertically structured chat with markdown-rendered assistant responses
+- 4 starter prompts in 2x2 grid, textarea with auto-resize, Enter to send / Shift+Enter for newline
+- Send/Stop/Clear controls with auto-scroll (80px threshold for user scroll detection)
 
-### Task 2: Backend — Session Update/Delete + Direct Project Assignment (1c19404)
-- **Migration 0015**: Added `project_id` column to `focus_sessions` with FK to `projects`
-- **COALESCE queries**: All time report queries now prefer direct `projectId` over card-chain-derived project using `aliasedTable` + `COALESCE`
-- **updateSession()**: Updates project and/or note on a session
-- **deleteSession()**: Hard-deletes a session (XP not reversed by design)
-- IPC handlers, preload bridge, and ElectronAPI types for both operations
+### Task 2: CardDetailModal Tab System (9b6dc0e)
+- 2-tab bar: Details (existing content, zero visual changes) + AI Agent (lazy-loaded panel)
+- Emerald message count badge on AI Agent tab
+- Agent store resets on modal close, message count loaded on mount
+- 60vh container for agent panel with Suspense spinner fallback
 
-### Task 3: Session Edit + Delete UI (13c5d94)
-- **Hover-reveal actions**: Pencil (edit) and Trash2 (delete) icons appear on session row hover
-- **Inline edit form**: Project dropdown + note input with Save/Cancel buttons (Enter/Escape keys)
-- **Delete with undo**: Optimistic removal + 5s undo toast; actual delete fires after timeout
-- **focusStore**: `updateSession` and `deleteSession` actions bump `lastSavedAt` for auto re-fetch
+### Task 3: Tool Visualization + Polish (3ab9cda)
+- **Streaming tool events**: animated pills below streaming text
+  - `call` type: Loader2 spinner in amber
+  - `result` type: CheckCircle2 in emerald
+  - Human-readable descriptions (e.g., "Adding checklist item: Set up JWT")
+- **Persisted action badges**: past-tense descriptions from toolCalls[] on assistant messages
+  - Success: emerald CheckCircle2, Failure: red XCircle
+- **Copy button**: hover-reveal on assistant messages (top-right corner)
+- **No-provider guard**: centered message + "Open Settings" link when no AI provider configured
+- **Error handling**: toast notifications for IPC errors
+- **Card data refresh**: auto-reloads card details after write tool mutations
+- **Message count sync**: updates tab badge after each agent turn
+
+## Files Created
+- `src/renderer/stores/cardAgentStore.ts` (157 lines)
+- `src/renderer/components/CardAgentPanel.tsx` (429 lines)
+
+## Files Modified
+- `src/renderer/components/CardDetailModal.tsx` (tab system, lazy import, cleanup)
 
 ## Verification
-- TypeScript: Pass (zero errors)
-- Tests: Pass (150/150)
-- All 3 commits atomic and clean
+- TypeScript: clean (zero errors)
+- Tests: 150/150 pass
+- 3 atomic commits
 
-## Files Changed
-- 8 files modified, 2 new files (migration SQL + snapshot)
-- ~2,070 lines added, ~30 lines removed
+## Next Step
+TBD — user decides
