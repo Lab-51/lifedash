@@ -13,3 +13,4 @@ export * from './settings';
 export * from './ai-providers';
 export * from './focus';
 export * from './gamification';
+export * from './card-agent';

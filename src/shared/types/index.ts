@@ -16,4 +16,5 @@ export * from './diarization';
 export * from './analytics';
 export * from './focus';
 export * from './gamification';
+export * from './card-agent';
 export * from './electron-api';

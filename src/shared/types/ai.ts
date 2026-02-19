@@ -1,7 +1,7 @@
 // === AI provider, usage, and configuration types ===
 
 export type AIProviderName = 'openai' | 'anthropic' | 'ollama' | 'kimi';
-export type AITaskType = 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis' | 'task_structuring' | 'transcription';
+export type AITaskType = 'summarization' | 'brainstorming' | 'task_generation' | 'idea_analysis' | 'task_structuring' | 'transcription' | 'card_agent';
 
 /** AI provider as seen by renderer (no decrypted keys — only hasApiKey boolean) */
 export interface AIProvider {
