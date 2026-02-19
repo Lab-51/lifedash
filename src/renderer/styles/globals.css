@@ -475,6 +475,35 @@ html.light .animate-logo-pulse {
   }
 }
 
+/* Achievement banner — glow CSS variable (light vs dark) */
+.achievement-banner {
+  --achievement-glow-color: var(--glow-light);
+}
+:where(.dark) .achievement-banner {
+  --achievement-glow-color: var(--glow-dark);
+}
+
+/* Achievement banner — animation state classes */
+.achievement-banner-enter {
+  animation: achievement-enter 600ms ease-out forwards,
+             achievement-glow 2s ease-in-out 600ms infinite;
+}
+.achievement-banner-exit {
+  animation: achievement-exit 400ms ease-in forwards;
+}
+.achievement-banner-hidden {
+  opacity: 0;
+  transform: translateY(-100%) scale(0.95);
+}
+
+/* Achievement shimmer — reduced opacity in light mode, brighter in dark */
+.achievement-shimmer {
+  opacity: 0.08;
+}
+:where(.dark) .achievement-shimmer {
+  opacity: 0.15;
+}
+
 /* ECG heartbeat monitor — dual staggered sweeps with opacity crossfade */
 @keyframes ecg-sweep-trail {
   0%   { mask-position: -100% 0; -webkit-mask-position: -100% 0; opacity: 0; }
