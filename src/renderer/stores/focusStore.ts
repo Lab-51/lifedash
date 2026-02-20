@@ -33,7 +33,7 @@ interface FocusState {
   loadSettings: () => Promise<void>;
   setShowStartModal: (show: boolean) => void;
   clearFocusedCard: () => void;
-  saveSession: (input: { cardId?: string; durationMinutes: number; note?: string }) =>
+  saveSession: (input: { cardId?: string; durationMinutes: number; note?: string; billable?: boolean }) =>
     Promise<{ newAchievements: Achievement[] }>;
   updateSession: (id: string, input: { projectId?: string | null; note?: string | null; billable?: boolean }) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;

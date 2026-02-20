@@ -7,6 +7,7 @@ import { X, Search, Timer, Clock, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBoardStore } from '../stores/boardStore';
 import { useFocusStore } from '../stores/focusStore';
+import { useProjectStore } from '../stores/projectStore';
 import { useGamificationStore } from '../stores/gamificationStore';
 import { toast } from '../hooks/useToast';
 
@@ -27,6 +28,7 @@ function formatDuration(minutes: number): string {
 function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
   const navigate = useNavigate();
   const allCards = useBoardStore(s => s.allCards);
+  const projects = useProjectStore(s => s.projects);
   const workDuration = useFocusStore(s => s.workDuration);
   const breakDuration = useFocusStore(s => s.breakDuration);
   const stats = useGamificationStore(s => s.stats);
@@ -130,15 +132,26 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
               Link a card (optional)
             </label>
             {selectedCard ? (
-              <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700">
-                <span className="text-sm text-surface-800 dark:text-surface-200 truncate flex-1">{selectedCard.title}</span>
-                <button
-                  onClick={() => setSelectedCard(null)}
-                  className="p-0.5 rounded hover:bg-surface-600 text-surface-400 hover:text-surface-200 transition-colors"
-                  aria-label="Remove card"
-                >
-                  <X size={14} />
-                </button>
+              <div>
+                <div className="flex items-center gap-2 px-3 py-2 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700">
+                  <span className="text-sm text-surface-800 dark:text-surface-200 truncate flex-1">{selectedCard.title}</span>
+                  <button
+                    onClick={() => setSelectedCard(null)}
+                    className="p-0.5 rounded hover:bg-surface-600 text-surface-400 hover:text-surface-200 transition-colors"
+                    aria-label="Remove card"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {(() => {
+                  const card = allCards.find(c => c.id === selectedCard.id);
+                  const project = card ? projects.find(p => p.id === card.projectId) : null;
+                  return project?.hourlyRate ? (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                      ${project.hourlyRate}/hr — {project.name}
+                    </p>
+                  ) : null;
+                })()}
               </div>
             ) : (
               <div>

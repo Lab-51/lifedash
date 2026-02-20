@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 import { X, CheckCircle, Trophy } from 'lucide-react';
 import { useFocusStore } from '../stores/focusStore';
 import { useGamificationStore } from '../stores/gamificationStore';
+import { useProjectStore } from '../stores/projectStore';
+import { useBoardStore } from '../stores/boardStore';
 import { toast } from '../hooks/useToast';
 import { getTier } from '../../shared/types/gamification';
 import type { GamificationStats, Achievement } from '../../shared/types/gamification';
@@ -28,17 +30,31 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
   // Use completedDuration (actual elapsed time) — falls back to workDuration for safety
   const actualDuration = completedDuration || workDuration;
 
+  const allCards = useBoardStore(s => s.allCards);
+  const projects = useProjectStore(s => s.projects);
+
   const [note, setNote] = useState('');
+  const [billable, setBillable] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showReward, setShowReward] = useState(false);
   const [rewardStats, setRewardStats] = useState<GamificationStats | null>(null);
   const [newAchievements, setNewAchievements] = useState<Achievement[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Look up hourly rate from the focused card's project
+  const focusedProject = (() => {
+    if (!focusedCardId) return null;
+    const card = allCards.find(c => c.id === focusedCardId);
+    if (!card) return null;
+    return projects.find(p => p.id === card.projectId) ?? null;
+  })();
+  const hourlyRate = focusedProject?.hourlyRate ?? null;
+
   // Reset state and auto-focus textarea when modal opens
   useEffect(() => {
     if (isOpen) {
       setNote('');
+      setBillable(true);
       setSaving(false);
       setShowReward(false);
       setRewardStats(null);
@@ -69,6 +85,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
       const { newAchievements: earned } = await useFocusStore.getState().saveSession({
         cardId: focusedCardId || undefined,
         durationMinutes: actualDuration,
+        billable,
       });
       // Toast achievements even on skip
       if (earned.length > 0) {
@@ -102,6 +119,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
         cardId: focusedCardId || undefined,
         durationMinutes: actualDuration,
         note: note.trim() || undefined,
+        billable,
       });
 
       // Log comment to the linked card if one exists
@@ -259,6 +277,24 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
                   className="w-full px-3 py-2 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg text-sm text-surface-800 dark:text-surface-200 placeholder-surface-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-none"
                 />
               </div>
+
+              {/* Billable toggle */}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={billable}
+                  onChange={e => setBillable(e.target.checked)}
+                  className="w-4 h-4 rounded border-surface-300 dark:border-surface-600 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-sm text-surface-600 dark:text-surface-400">Mark as billable</span>
+              </label>
+
+              {/* Cost preview when project has hourly rate */}
+              {hourlyRate && billable && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 text-center">
+                  ~${((actualDuration / 60) * hourlyRate).toFixed(2)} ({actualDuration} min @ ${hourlyRate}/hr)
+                </p>
+              )}
 
               {/* Session count */}
               <p className="text-xs text-surface-500 text-center">

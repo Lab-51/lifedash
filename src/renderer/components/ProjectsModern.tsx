@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useMemo, lazy, Suspense } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2, LayoutList, Copy, Star, MoreVertical, Search, Filter } from 'lucide-react';
+import { FolderKanban, Plus, Archive, Sparkles, Pencil, Trash2, LayoutList, Copy, Star, MoreVertical, Search, Filter, DollarSign } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useBoardStore } from '../stores/boardStore';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -45,6 +45,8 @@ export default function ProjectsModern() {
     const [planningProjectId, setPlanningProjectId] = useState<string | null>(null);
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [editingRateId, setEditingRateId] = useState<string | null>(null);
+    const [editRate, setEditRate] = useState('');
 
     const [formData, setFormData] = useState<CreateProjectInput>({
         name: '',
@@ -176,6 +178,17 @@ export default function ProjectsModern() {
         const newProject = await duplicateProject(id);
         await loadAllCards();
         toast(`Duplicated as "${newProject.name}"`);
+    };
+
+    const handleSaveRate = async (id: string) => {
+        const val = editRate.trim();
+        const rate = val ? parseFloat(val) : null;
+        if (rate !== null && (isNaN(rate) || rate < 0)) {
+            setEditingRateId(null);
+            return;
+        }
+        await updateProject(id, { hourlyRate: rate });
+        setEditingRateId(null);
     };
 
     const formatDate = (dateStr: string) => {
@@ -440,6 +453,41 @@ export default function ProjectsModern() {
                                         <LayoutList size={14} />
                                         {cardCountByProject[project.id] || 0} Tasks
                                     </div>
+                                    {editingRateId === project.id ? (
+                                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                            <span className="text-surface-400">$</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={editRate}
+                                                onChange={e => setEditRate(e.target.value)}
+                                                onBlur={() => handleSaveRate(project.id)}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') handleSaveRate(project.id);
+                                                    if (e.key === 'Escape') setEditingRateId(null);
+                                                }}
+                                                autoFocus
+                                                className="w-16 text-xs bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-emerald-500"
+                                                placeholder="0"
+                                            />
+                                            <span className="text-surface-400 text-xs">/hr</span>
+                                        </div>
+                                    ) : project.hourlyRate ? (
+                                        <button
+                                            onClick={e => { e.stopPropagation(); setEditingRateId(project.id); setEditRate(String(project.hourlyRate)); }}
+                                            className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md text-xs font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
+                                        >
+                                            <DollarSign size={12} />{project.hourlyRate}/hr
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={e => { e.stopPropagation(); setEditingRateId(project.id); setEditRate(''); }}
+                                            className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-surface-400 hover:text-emerald-500 px-2 py-1 rounded-md text-xs transition-all"
+                                        >
+                                            <DollarSign size={12} />Rate
+                                        </button>
+                                    )}
                                     <span>
                                         Updated {formatDate(project.updatedAt)}
                                     </span>
