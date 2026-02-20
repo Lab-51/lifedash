@@ -161,10 +161,12 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
   return (
     <div className="bg-surface-800/50 rounded-lg border border-surface-700">
       {/* Header */}
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-3 text-left hover:bg-surface-700/30 transition-colors rounded-lg"
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded); } }}
+        className="w-full flex items-center justify-between p-3 text-left hover:bg-surface-700/30 transition-colors rounded-lg cursor-pointer"
       >
         <span className="text-sm font-medium text-surface-800 dark:text-surface-200 truncate">
           Meeting Prep for &ldquo;{prepData.projectName}&rdquo;
@@ -187,7 +189,7 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
             <ChevronRight size={16} className="text-surface-400" />
           )}
         </div>
-      </button>
+      </div>
 
       {/* Collapsible content */}
       {expanded && (
