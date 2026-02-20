@@ -232,8 +232,8 @@ export default function FocusStatsWidget() {
                   <LevelBadge level={stats.level} size="lg" />
                   <div className="w-full h-1.5 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden mt-1">
                     <div
-                      className={`h-full ${getTier(stats.level).colors.text.replace('text-', 'bg-')} rounded-full transition-all duration-500`}
-                      style={{ width: `${stats.xpProgress * 100}%` }}
+                      className={`h-full ${getTier(stats.level).colors.text} rounded-full transition-all duration-500`}
+                      style={{ width: `${stats.xpProgress * 100}%`, backgroundColor: 'currentColor' }}
                     />
                   </div>
                   <p className="text-[10px] text-surface-500 mt-0.5">

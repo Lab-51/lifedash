@@ -188,8 +188,8 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
                   </div>
                   <div className="w-48 mx-auto h-2 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
                     <div
-                      className={`h-full ${getTier(rewardStats.level).colors.text.replace('text-', 'bg-')} rounded-full transition-all duration-1000`}
-                      style={{ width: `${rewardStats.xpProgress * 100}%` }}
+                      className={`h-full ${getTier(rewardStats.level).colors.text} rounded-full transition-all duration-1000`}
+                      style={{ width: `${rewardStats.xpProgress * 100}%`, backgroundColor: 'currentColor' }}
                     />
                   </div>
                   <p className="text-xs text-surface-500 mt-1">
