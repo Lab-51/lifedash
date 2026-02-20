@@ -53,26 +53,26 @@ export default function RecordingIndicator() {
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 bg-white dark:bg-surface-800 rounded-xl shadow-xl border border-surface-200 dark:border-surface-700 py-1.5 z-50">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 flex gap-1.5 bg-white dark:bg-surface-800 rounded-xl shadow-xl border border-surface-200 dark:border-surface-700 p-1.5 z-50">
           <button
             onClick={() => {
               stopRecording();
               setOpen(false);
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            title="Stop Recording"
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
-            <Square size={13} fill="currentColor" />
-            Stop Recording
+            <Square size={16} fill="currentColor" />
           </button>
           <button
             onClick={() => {
               navigate('/meetings');
               setOpen(false);
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+            title="Go to Recording"
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
           >
-            <Mic size={13} />
-            Go to Recording
+            <Mic size={16} />
           </button>
         </div>
       )}
