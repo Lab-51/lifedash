@@ -51,7 +51,7 @@ export default function BrainstormModern() {
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [renamingId, setRenamingId] = useState<string | null>(null);
     const [renameTitle, setRenameTitle] = useState('');
-    const [showArchived, setShowArchived] = useState(false);
+    const [sidebarTab, setSidebarTab] = useState<'active' | 'archived'>('active');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -67,8 +67,8 @@ export default function BrainstormModern() {
         }
     }, [searchParams, setSearchParams]);
 
-    // Derived state: filter sessions by archive status
-    const filteredSessions = showArchived ? sessions : sessions.filter(s => s.status === 'active');
+    // Derived state: filter sessions by tab
+    const filteredSessions = sessions.filter(s => s.status === sidebarTab);
 
     // Load sessions on mount
     useEffect(() => {
@@ -231,17 +231,27 @@ export default function BrainstormModern() {
             <div className="flex-1 flex overflow-hidden">
                 {/* Left Sidebar - Modern */}
                 <div className="w-80 flex-shrink-0 border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 flex flex-col z-10">
-                    <div className="p-4 border-b border-surface-100 dark:border-surface-800 flex items-center justify-between">
-                        <h3 className="text-xs font-bold text-surface-400 uppercase tracking-widest">History</h3>
-                        <label className="flex items-center gap-1.5 text-xs text-surface-500 cursor-pointer hover:text-surface-800 dark:hover:text-surface-200 transition-colors">
-                            <input
-                                type="checkbox"
-                                checked={showArchived}
-                                onChange={(e) => setShowArchived(e.target.checked)}
-                                className="rounded border-surface-300 dark:border-surface-600 w-3 h-3 text-primary-600 focus:ring-primary-500"
-                            />
-                            Show Archived
-                        </label>
+                    <div className="px-2 pt-3 pb-1 border-b border-surface-100 dark:border-surface-800">
+                        <div className="flex rounded-lg bg-surface-100 dark:bg-surface-800 p-0.5">
+                            <button
+                                onClick={() => setSidebarTab('active')}
+                                className={`flex-1 text-xs font-semibold py-1.5 rounded-md transition-all ${sidebarTab === 'active'
+                                    ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-surface-100 shadow-sm'
+                                    : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+                                    }`}
+                            >
+                                Active
+                            </button>
+                            <button
+                                onClick={() => setSidebarTab('archived')}
+                                className={`flex-1 text-xs font-semibold py-1.5 rounded-md transition-all ${sidebarTab === 'archived'
+                                    ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-surface-100 shadow-sm'
+                                    : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+                                    }`}
+                            >
+                                Archived
+                            </button>
+                        </div>
                     </div>
 
                     {/* Session List */}
@@ -250,13 +260,20 @@ export default function BrainstormModern() {
                             <div className="flex justify-center p-8">
                                 <Loader2 size={24} className="animate-spin text-surface-300" />
                             </div>
-                        ) : sessions.length === 0 ? (
+                        ) : filteredSessions.length === 0 ? (
                             <div className="text-center py-10 px-4">
                                 <div className="w-12 h-12 bg-surface-100 dark:bg-surface-800 rounded-full flex items-center justify-center mx-auto mb-3">
-                                    <MessageSquare size={20} className="text-surface-400" />
+                                    {sidebarTab === 'archived'
+                                        ? <Archive size={20} className="text-surface-400" />
+                                        : <MessageSquare size={20} className="text-surface-400" />
+                                    }
                                 </div>
-                                <p className="text-sm font-medium text-surface-900 dark:text-surface-100">No sessions yet</p>
-                                <p className="text-xs text-surface-500 mt-1">Start a new chat to begin.</p>
+                                <p className="text-sm font-medium text-surface-900 dark:text-surface-100">
+                                    {sidebarTab === 'archived' ? 'No archived sessions' : 'No sessions yet'}
+                                </p>
+                                <p className="text-xs text-surface-500 mt-1">
+                                    {sidebarTab === 'archived' ? 'Archived sessions will appear here.' : 'Start a new chat to begin.'}
+                                </p>
                             </div>
                         ) : (
                             filteredSessions.map((session) => (
@@ -269,7 +286,7 @@ export default function BrainstormModern() {
                                     className={`group relative rounded-xl p-3 cursor-pointer transition-all border ${activeSession?.id === session.id
                                         ? 'bg-primary-50 dark:bg-primary-900/10 border-primary-200 dark:border-primary-800 shadow-sm'
                                         : 'bg-transparent border-transparent hover:bg-surface-50 dark:hover:bg-surface-800'
-                                        } ${session.status === 'archived' ? 'opacity-60 grayscale' : ''}`}
+                                        }`}
                                 >
                                     <div className="flex justify-between items-start gap-2">
                                         <div className="flex-1 min-w-0">
