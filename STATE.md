@@ -1,12 +1,12 @@
 # Current State
 
 ## Session Info
-Last updated: 2026-02-19
-Session focus: Plan H.1 — Transcription Language Selection
+Last updated: 2026-02-20
+Session focus: Ad-hoc UX fixes and polish
 
 ## Position
 Milestone: v2.0.0
-Latest commit: 56b7b31 (feat: per-recording language storage + full pipeline from UI to provider)
+Latest commit: 008d337 (fix: brainstorm auto-select only picks active sessions)
 Plan H.1: COMPLETE (3/3 tasks) — Transcription Language Selection
 Plan G.1: COMPLETE (2/2 tasks) — Achievement Banner Visual Overhaul
 Plan E.1: COMPLETE (3/3 tasks) — Card Agent Foundation (Backend + Tools + Schema)
@@ -195,6 +195,20 @@ Plan D.9: COMPLETE (3/3 tasks) — Dark Mode Polish (Projects & Cards)
   - Light-mode ring pulse replaces invisible-on-white glow (achievement-ring-pulse)
   - :where(:not(.dark)) .achievement-banner-enter overrides glow → ring-pulse
   - No new dependencies — all pure CSS animations
+
+## Ad-hoc Fixes (2026-02-20)
+- Fix: Level progress bar invisible — dynamic .replace('text-','bg-') produced classes Tailwind CSS 4 JIT never detected; switched to backgroundColor:'currentColor' (39876f9)
+- Feat: Brainstorm archive checkbox → Active/Archived tab system (5f04696)
+- Feat: Per-page accent colors on sidebar nav items — matches dashboard quick actions (7a8f219)
+- Feat: Clickable sidebar recording indicator with stop popover (0fbdf43 → ef41374 → 6a8acc1)
+- Feat: Sidebar recording indicator shows amber "Saving" processing state, navigates to meetings after completion (b3703c3)
+- Feat: Meeting cards with action items highlighted with amber border + prominent badge; removed All/Active/Done filter tabs (a43a96e)
+- Fix: Meeting card title overlap — increased right padding for badges (1f3e3fa)
+- Fix: Brainstorm auto-select only picks active sessions, not archived (008d337)
+
+## Resume Context
+8 ad-hoc UX fixes/features pushed this session.
+Next action: TBD — user decides
 
 ## Plan F.1 Results — Focus Session History & Time Tracking
 - Task 1: Focus history backend — session list + period aggregation queries (a421156)
