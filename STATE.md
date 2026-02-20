@@ -1,12 +1,13 @@
 # Current State
 
 ## Session Info
-Last updated: 2026-02-20
-Session focus: Ad-hoc UX fixes and polish
+Last updated: 2026-02-21
+Session focus: AI usage dashboard improvements
+Checkpoint reason: Session end
 
 ## Position
 Milestone: v2.0.0
-Latest commit: 008d337 (fix: brainstorm auto-select only picks active sessions)
+Latest commit: 8a4cc11 (feat: add "By Model" token breakdown to AI usage dashboard)
 Plan H.1: COMPLETE (3/3 tasks) — Transcription Language Selection
 Plan G.1: COMPLETE (2/2 tasks) — Achievement Banner Visual Overhaul
 Plan E.1: COMPLETE (3/3 tasks) — Card Agent Foundation (Backend + Tools + Schema)
@@ -206,8 +207,12 @@ Plan D.9: COMPLETE (3/3 tasks) — Dark Mode Polish (Projects & Cards)
 - Fix: Meeting card title overlap — increased right padding for badges (1f3e3fa)
 - Fix: Brainstorm auto-select only picks active sessions, not archived (008d337)
 
+## Ad-hoc Fixes (2026-02-21)
+- Fix: Usage dashboard shows provider display names instead of UUIDs (0afcffd)
+- Feat: "By Model" token consumption breakdown in AI usage dashboard (8a4cc11)
+
 ## Resume Context
-8 ad-hoc UX fixes/features pushed this session.
+2 AI usage dashboard improvements pushed this session.
 Next action: TBD — user decides
 
 ## Plan F.1 Results — Focus Session History & Time Tracking
