@@ -111,10 +111,12 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
     // Do NOT call onClose/stop here — that would immediately kill the break timer.
   };
 
-  const handleSaveAndBreak = async () => {
+  const willBreakRef = useRef(false);
+
+  const doSave = async (startBreak: boolean) => {
     setSaving(true);
+    willBreakRef.current = startBreak;
     try {
-      // Save session to persistent storage and get reward data
       const { newAchievements: earned } = await useFocusStore.getState().saveSession({
         cardId: focusedCardId || undefined,
         durationMinutes: actualDuration,
@@ -122,25 +124,18 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
         billable,
       });
 
-      // Log comment to the linked card if one exists
       if (focusedCardId) {
         const trimmed = note.trim();
         const content = trimmed
           ? `\uD83C\uDF45 Focus session completed (${actualDuration} min)\n\n${trimmed}`
           : `\uD83C\uDF45 Focus session completed (${actualDuration} min)`;
-
-        await window.electronAPI.addCardComment({
-          cardId: focusedCardId,
-          content,
-        });
+        await window.electronAPI.addCardComment({ cardId: focusedCardId, content });
       }
 
-      // Show reward feedback
       setRewardStats(useGamificationStore.getState().stats);
       setNewAchievements(earned);
       setShowReward(true);
 
-      // Toast each new achievement with staggered timing
       if (earned.length > 0) {
         earned.forEach((a, i) => {
           setTimeout(() => {
@@ -149,9 +144,12 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
         });
       }
 
-      // Auto-transition to break after 2 seconds
       setTimeout(() => {
-        handleStartBreak();
+        if (willBreakRef.current) {
+          handleStartBreak();
+        } else {
+          useFocusStore.getState().stop();
+        }
       }, 2000);
     } catch (error) {
       console.error('Failed to save focus session:', error);
@@ -307,17 +305,26 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
                 <button
                   onClick={handleSkip}
                   disabled={saving}
-                  className="px-4 py-2 text-sm text-surface-400 hover:text-surface-200 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 text-sm text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 transition-colors disabled:opacity-50"
                 >
                   Skip
                 </button>
-                <button
-                  onClick={handleSaveAndBreak}
-                  disabled={saving}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-surface-900 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Save & Start Break'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => doSave(false)}
+                    disabled={saving}
+                    className="px-4 py-2 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => doSave(true)}
+                    disabled={saving}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 dark:focus:ring-offset-surface-900 disabled:opacity-50"
+                  >
+                    {saving ? 'Saving...' : 'Save & Break'}
+                  </button>
+                </div>
               </div>
             </>
           )}
