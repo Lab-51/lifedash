@@ -1,14 +1,14 @@
 // === FILE PURPOSE ===
 // Compact recording indicator for sidebar -- pulsing dot + elapsed time.
-// Clickable popover with Stop Recording and Go to Meeting actions.
-// Only renders when a recording is active; returns null otherwise.
+// Clickable popover with Stop action. Shows processing state after stop.
+// Only renders when recording or processing; returns null otherwise.
 //
 // === DEPENDENCIES ===
 // recordingStore, react-router-dom
 
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Square } from 'lucide-react';
+import { Square, Loader2 } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
 
 function formatElapsed(seconds: number): string {
@@ -19,6 +19,7 @@ function formatElapsed(seconds: number): string {
 
 export default function RecordingIndicator() {
   const isRecording = useRecordingStore(s => s.isRecording);
+  const isProcessing = useRecordingStore(s => s.isProcessing);
   const elapsed = useRecordingStore(s => s.elapsed);
   const stopRecording = useRecordingStore(s => s.stopRecording);
   const navigate = useNavigate();
@@ -37,8 +38,29 @@ export default function RecordingIndicator() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
-  if (!isRecording) return null;
+  // Navigate to meetings when processing finishes (after sidebar-initiated stop)
+  const pendingNavigateRef = useRef(false);
+  useEffect(() => {
+    if (pendingNavigateRef.current && !isProcessing) {
+      pendingNavigateRef.current = false;
+      navigate('/meetings');
+    }
+  }, [isProcessing, navigate]);
 
+  if (!isRecording && !isProcessing) return null;
+
+  // Processing state — amber indicator
+  if (isProcessing) {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-500/20
+                      border border-amber-500/30">
+        <Loader2 size={12} className="text-amber-400 animate-spin" />
+        <span className="text-[10px] font-medium text-amber-400">Saving</span>
+      </div>
+    );
+  }
+
+  // Recording state — red indicator with stop popover
   return (
     <div ref={popoverRef} className="relative">
       <button
@@ -56,9 +78,9 @@ export default function RecordingIndicator() {
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white dark:bg-surface-800 rounded-xl shadow-xl border border-surface-200 dark:border-surface-700 p-1.5 z-50">
           <button
             onClick={() => {
+              pendingNavigateRef.current = true;
               stopRecording();
               setOpen(false);
-              navigate('/meetings');
             }}
             title="Stop Recording"
             className="w-9 h-9 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
