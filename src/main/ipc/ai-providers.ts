@@ -167,6 +167,7 @@ export function registerAIProviderHandlers(): void {
       totalCost: 0,
       byProvider: {} as Record<string, { tokens: number; cost: number }>,
       byTaskType: {} as Record<string, { tokens: number; cost: number }>,
+      byModel: {} as Record<string, { tokens: number; cost: number }>,
     };
     for (const row of rows) {
       summary.totalTokens += row.totalTokens;
@@ -184,6 +185,13 @@ export function registerAIProviderHandlers(): void {
       }
       summary.byTaskType[row.taskType].tokens += row.totalTokens;
       summary.byTaskType[row.taskType].cost += row.estimatedCost ?? 0;
+
+      const model = row.model || 'Unknown';
+      if (!summary.byModel[model]) {
+        summary.byModel[model] = { tokens: 0, cost: 0 };
+      }
+      summary.byModel[model].tokens += row.totalTokens;
+      summary.byModel[model].cost += row.estimatedCost ?? 0;
     }
     return summary;
   });

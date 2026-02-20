@@ -52,6 +52,7 @@ export interface AIUsageSummary {
   totalCost: number;
   byProvider: Record<string, { tokens: number; cost: number }>;
   byTaskType: Record<string, { tokens: number; cost: number }>;
+  byModel: Record<string, { tokens: number; cost: number }>;
 }
 
 /** Aggregated daily usage for the usage dashboard chart */

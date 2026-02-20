@@ -211,8 +211,10 @@ export default function UsageSummary() {
   // Computed values
   const taskEntries = Object.entries(summary.byTaskType).sort((a, b) => b[1].tokens - a[1].tokens);
   const providerEntries = Object.entries(summary.byProvider).sort((a, b) => b[1].tokens - a[1].tokens);
+  const modelEntries = Object.entries(summary.byModel ?? {}).sort((a, b) => b[1].tokens - a[1].tokens);
   const maxTaskTokens = taskEntries.length > 0 ? taskEntries[0][1].tokens : 0;
   const maxProviderTokens = providerEntries.length > 0 ? providerEntries[0][1].tokens : 0;
+  const maxModelTokens = modelEntries.length > 0 ? modelEntries[0][1].tokens : 0;
   const maxDayTokens = Math.max(...daily.map(d => d.tokens), 0);
   const totalDailyTokens = daily.reduce((sum, d) => sum + d.tokens, 0);
 
@@ -320,7 +322,7 @@ export default function UsageSummary() {
           </div>
         )}
 
-        {/* By Provider / Model */}
+        {/* By Provider */}
         {providerEntries.length > 0 && (
           <div className="bg-surface-900 rounded-2xl border border-surface-800 p-4">
             <h4 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">By Provider</h4>
@@ -343,6 +345,29 @@ export default function UsageSummary() {
           </div>
         )}
       </div>
+
+      {/* Section 4 — By Model */}
+      {modelEntries.length > 0 && (
+        <div className="bg-surface-900 rounded-2xl border border-surface-800 p-4">
+          <h4 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">By Model</h4>
+          <div className="space-y-3">
+            {modelEntries.map(([model, data], idx) => {
+              const colors = MODEL_COLORS[idx % MODEL_COLORS.length];
+              return (
+                <BreakdownRow
+                  key={model}
+                  label={model}
+                  value={data.tokens}
+                  maxValue={maxModelTokens}
+                  barColor={colors.bar}
+                  bgColor={colors.bg}
+                  suffix={`${formatCompactNumber(data.tokens)} · ${formatCost(data.cost)}`}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
