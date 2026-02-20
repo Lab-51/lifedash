@@ -157,7 +157,11 @@ export function registerAIProviderHandlers(): void {
   // Get aggregated usage summary across all providers and task types
   ipcMain.handle('ai:get-usage-summary', async () => {
     const db = getDb();
-    const rows = await db.select().from(aiUsage);
+    const [rows, providers] = await Promise.all([
+      db.select().from(aiUsage),
+      db.select({ id: aiProviders.id, name: aiProviders.name, displayName: aiProviders.displayName }).from(aiProviders),
+    ]);
+    const providerNameMap = new Map(providers.map(p => [p.id, p.displayName || p.name]));
     const summary = {
       totalTokens: 0,
       totalCost: 0,
@@ -168,12 +172,12 @@ export function registerAIProviderHandlers(): void {
       summary.totalTokens += row.totalTokens;
       summary.totalCost += row.estimatedCost ?? 0;
 
-      const pid = row.providerId ?? 'unknown';
-      if (!summary.byProvider[pid]) {
-        summary.byProvider[pid] = { tokens: 0, cost: 0 };
+      const providerLabel = row.providerId ? (providerNameMap.get(row.providerId) ?? row.providerId) : 'Unknown';
+      if (!summary.byProvider[providerLabel]) {
+        summary.byProvider[providerLabel] = { tokens: 0, cost: 0 };
       }
-      summary.byProvider[pid].tokens += row.totalTokens;
-      summary.byProvider[pid].cost += row.estimatedCost ?? 0;
+      summary.byProvider[providerLabel].tokens += row.totalTokens;
+      summary.byProvider[providerLabel].cost += row.estimatedCost ?? 0;
 
       if (!summary.byTaskType[row.taskType]) {
         summary.byTaskType[row.taskType] = { tokens: 0, cost: 0 };
