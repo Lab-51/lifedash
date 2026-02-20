@@ -44,6 +44,7 @@ export function registerProjectHandlers(): void {
           name: input.name,
           description: input.description ?? null,
           color: input.color ?? null,
+          hourlyRate: input.hourlyRate ?? null,
         })
         .returning();
       return project;
@@ -89,6 +90,7 @@ export function registerProjectHandlers(): void {
         name: `${source.name} (copy)`,
         description: source.description,
         color: source.color,
+        hourlyRate: source.hourlyRate,
       })
       .returning();
 

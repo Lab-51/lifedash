@@ -272,16 +272,16 @@ export interface ElectronAPI {
   getActivityData: () => Promise<{ dayCounts: Record<string, number> }>;
 
   // Focus Sessions
-  focusSaveSession: (input: { cardId?: string; durationMinutes: number; note?: string }) =>
+  focusSaveSession: (input: { cardId?: string; durationMinutes: number; note?: string; billable?: boolean }) =>
     Promise<{ session: FocusSession; stats: GamificationStats; newAchievements: Achievement[] }>;
   focusGetStats: () => Promise<GamificationStats>;
   focusGetDaily: (days?: number) => Promise<FocusDailyData[]>;
   focusGetHistory: (options?: { offset?: number; limit?: number }) =>
     Promise<{ sessions: FocusSessionWithCard[]; total: number }>;
   focusGetPeriodStats: () => Promise<FocusPeriodStats>;
-  focusGetTimeReport: (options: { startDate: string; endDate: string; projectId?: string }) =>
+  focusGetTimeReport: (options: { startDate: string; endDate: string; projectId?: string; billableOnly?: boolean }) =>
     Promise<FocusTimeReport>;
-  focusUpdateSession: (id: string, input: { projectId?: string | null; note?: string | null }) => Promise<void>;
+  focusUpdateSession: (id: string, input: { projectId?: string | null; note?: string | null; billable?: boolean }) => Promise<void>;
   focusDeleteSession: (id: string) => Promise<void>;
 
   // Gamification

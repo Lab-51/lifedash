@@ -9,6 +9,7 @@ export interface Project {
   color: string | null;
   archived: boolean;
   pinned: boolean;
+  hourlyRate: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -64,6 +65,7 @@ export interface CreateProjectInput {
   name: string;
   description?: string;
   color?: string;
+  hourlyRate?: number | null;
 }
 
 export interface UpdateProjectInput {
@@ -72,6 +74,7 @@ export interface UpdateProjectInput {
   color?: string | null;
   archived?: boolean;
   pinned?: boolean;
+  hourlyRate?: number | null;
 }
 
 export interface CreateBoardInput {

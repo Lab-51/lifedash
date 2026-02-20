@@ -65,6 +65,7 @@ export const createProjectInputSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   color: z.string().max(50).optional(),
+  hourlyRate: z.number().nullable().optional(),
 });
 
 export const updateProjectInputSchema = z.object({
@@ -73,6 +74,7 @@ export const updateProjectInputSchema = z.object({
   color: z.string().max(50).nullable().optional(),
   archived: z.boolean().optional(),
   pinned: z.boolean().optional(),
+  hourlyRate: z.number().nullable().optional(),
 });
 
 // ============================================================================

@@ -6,6 +6,7 @@ export interface FocusSession {
   id: string;
   cardId: string | null;
   durationMinutes: number;
+  billable: boolean;
   note: string | null;
   completedAt: string;
 }
@@ -37,12 +38,14 @@ export interface FocusTimeReportOptions {
   startDate: string;   // ISO date YYYY-MM-DD
   endDate: string;     // ISO date YYYY-MM-DD
   projectId?: string;  // optional project filter
+  billableOnly?: boolean; // true = only billable, false = only non-billable, undefined = all
 }
 
 export interface FocusSessionFull extends FocusSessionWithCard {
   projectId: string | null;
   projectName: string | null;
   projectColor: string | null;
+  hourlyRate: number | null;
 }
 
 export interface FocusProjectTime {
@@ -51,6 +54,7 @@ export interface FocusProjectTime {
   projectColor: string | null;
   sessions: number;
   minutes: number;
+  cost: number | null;
 }
 
 export interface FocusTimeReport {
@@ -62,6 +66,8 @@ export interface FocusTimeReport {
     avgSessionMinutes: number;
     longestSessionMinutes: number;
     activeDays: number;
+    billableMinutes: number;
+    billableCost: number;
   };
   dailyData: FocusDailyData[];
 }

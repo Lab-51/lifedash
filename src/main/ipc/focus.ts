@@ -10,7 +10,7 @@ import { createLogger } from '../services/logger';
 const log = createLogger('Focus');
 
 export function registerFocusHandlers(): void {
-  ipcMain.handle('focus:save-session', async (_, input: { cardId?: string; durationMinutes: number; note?: string }) => {
+  ipcMain.handle('focus:save-session', async (_, input: { cardId?: string; durationMinutes: number; note?: string; billable?: boolean }) => {
     log.info(`Saving focus session: ${input.durationMinutes} min`);
     const session = await focusService.saveSession(input);
 
@@ -44,11 +44,11 @@ export function registerFocusHandlers(): void {
     return focusService.getPeriodStats();
   });
 
-  ipcMain.handle('focus:get-time-report', async (_, options: { startDate: string; endDate: string; projectId?: string }) => {
+  ipcMain.handle('focus:get-time-report', async (_, options: { startDate: string; endDate: string; projectId?: string; billableOnly?: boolean }) => {
     return focusService.getTimeReport(options);
   });
 
-  ipcMain.handle('focus:update-session', async (_, id: string, input: { projectId?: string | null; note?: string | null }) => {
+  ipcMain.handle('focus:update-session', async (_, id: string, input: { projectId?: string | null; note?: string | null; billable?: boolean }) => {
     log.info(`Updating focus session: ${id}`);
     await focusService.updateSession(id, input);
   });

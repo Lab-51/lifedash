@@ -12,18 +12,21 @@ export async function saveSession(input: {
   cardId?: string;
   durationMinutes: number;
   note?: string;
+  billable?: boolean;
 }): Promise<FocusSession> {
   const db = getDb();
   const [row] = await db.insert(focusSessions).values({
     cardId: input.cardId || null,
     durationMinutes: input.durationMinutes,
     note: input.note || null,
+    billable: input.billable ?? true,
   }).returning();
 
   return {
     id: row.id,
     cardId: row.cardId,
     durationMinutes: row.durationMinutes,
+    billable: row.billable,
     note: row.note,
     completedAt: row.completedAt.toISOString(),
   };
@@ -85,6 +88,7 @@ export async function getSessionHistory(options: { offset?: number; limit?: numb
       id: focusSessions.id,
       cardId: focusSessions.cardId,
       durationMinutes: focusSessions.durationMinutes,
+      billable: focusSessions.billable,
       note: focusSessions.note,
       completedAt: focusSessions.completedAt,
       cardTitle: cards.title,
@@ -100,6 +104,7 @@ export async function getSessionHistory(options: { offset?: number; limit?: numb
       id: r.id,
       cardId: r.cardId,
       durationMinutes: r.durationMinutes,
+      billable: r.billable,
       note: r.note,
       completedAt: r.completedAt.toISOString(),
       cardTitle: r.cardTitle ?? null,
@@ -159,17 +164,21 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
   // Single projects join using COALESCE in ON: prefers direct projectId, falls back to card-chain
   const projectJoin = sql`${projects.id} = COALESCE(${focusSessions.projectId}, ${boards.projectId})`;
 
+  // Build billable filter condition
+  const billableCondition = options.billableOnly === true
+    ? eq(focusSessions.billable, true)
+    : options.billableOnly === false
+      ? eq(focusSessions.billable, false)
+      : undefined;
+
   // Build base WHERE conditions
-  const baseWhere = options.projectId
-    ? and(
-        gte(focusSessions.completedAt, startDate),
-        lte(focusSessions.completedAt, endDate),
-        eq(projects.id, options.projectId),
-      )
-    : and(
-        gte(focusSessions.completedAt, startDate),
-        lte(focusSessions.completedAt, endDate),
-      );
+  const baseConditions = [
+    gte(focusSessions.completedAt, startDate),
+    lte(focusSessions.completedAt, endDate),
+  ];
+  if (options.projectId) baseConditions.push(eq(projects.id, options.projectId));
+  if (billableCondition) baseConditions.push(billableCondition);
+  const baseWhere = and(...baseConditions);
 
   // 1. Session list with project info via JOIN chain
   const sessionRows = await db
@@ -177,12 +186,14 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
       id: focusSessions.id,
       cardId: focusSessions.cardId,
       durationMinutes: focusSessions.durationMinutes,
+      billable: focusSessions.billable,
       note: focusSessions.note,
       completedAt: focusSessions.completedAt,
       cardTitle: cards.title,
       projectId: projects.id,
       projectName: projects.name,
       projectColor: projects.color,
+      hourlyRate: projects.hourlyRate,
     })
     .from(focusSessions)
     .leftJoin(cards, eq(focusSessions.cardId, cards.id))
@@ -196,33 +207,40 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
     id: r.id,
     cardId: r.cardId,
     durationMinutes: r.durationMinutes,
+    billable: r.billable,
     note: r.note,
     completedAt: r.completedAt.toISOString(),
     cardTitle: r.cardTitle ?? null,
     projectId: r.projectId ?? null,
     projectName: r.projectName ?? null,
     projectColor: r.projectColor ?? null,
+    hourlyRate: r.hourlyRate ?? null,
   }));
 
-  // 2. Per-project aggregation
+  // 2. Per-project aggregation (always uses date range, not billable filter, for full breakdown)
+  const projectWhereConditions = [
+    gte(focusSessions.completedAt, startDate),
+    lte(focusSessions.completedAt, endDate),
+  ];
+  if (billableCondition) projectWhereConditions.push(billableCondition);
+
   const projectRows = await db
     .select({
       projectId: projects.id,
       projectName: projects.name,
       projectColor: projects.color,
+      hourlyRate: projects.hourlyRate,
       sessions: sql<number>`count(*)::int`,
       minutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
+      billableMinutes: sql<number>`coalesce(sum(case when ${focusSessions.billable} then ${focusSessions.durationMinutes} else 0 end), 0)::int`,
     })
     .from(focusSessions)
     .leftJoin(cards, eq(focusSessions.cardId, cards.id))
     .leftJoin(columns, eq(cards.columnId, columns.id))
     .leftJoin(boards, eq(columns.boardId, boards.id))
     .leftJoin(projects, projectJoin)
-    .where(and(
-      gte(focusSessions.completedAt, startDate),
-      lte(focusSessions.completedAt, endDate),
-    ))
-    .groupBy(projects.id, projects.name, projects.color)
+    .where(and(...projectWhereConditions))
+    .groupBy(projects.id, projects.name, projects.color, projects.hourlyRate)
     .orderBy(sql`coalesce(sum(${focusSessions.durationMinutes}), 0) desc`);
 
   const projectBreakdown: FocusProjectTime[] = projectRows.map(r => ({
@@ -231,30 +249,33 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
     projectColor: r.projectColor ?? null,
     sessions: r.sessions,
     minutes: r.minutes,
+    cost: r.hourlyRate != null ? (r.billableMinutes / 60) * r.hourlyRate : null,
   }));
 
   // 3. Summary stats
-  const summaryWhere = options.projectId
-    ? and(
-        gte(focusSessions.completedAt, startDate),
-        lte(focusSessions.completedAt, endDate),
-        eq(projects.id, options.projectId),
-      )
-    : and(
-        gte(focusSessions.completedAt, startDate),
-        lte(focusSessions.completedAt, endDate),
-      );
+  const summaryConditions = [
+    gte(focusSessions.completedAt, startDate),
+    lte(focusSessions.completedAt, endDate),
+  ];
+  if (options.projectId) summaryConditions.push(eq(projects.id, options.projectId));
+  if (billableCondition) summaryConditions.push(billableCondition);
+  const summaryWhere = and(...summaryConditions);
 
-  // For summary with project filter, we need the JOIN chain
-  const summaryQuery = options.projectId
+  // For summary with project filter or billable filter, we need the JOIN chain
+  const needsJoins = !!options.projectId || billableCondition !== undefined;
+
+  const summarySelectFields = {
+    totalSessions: sql<number>`count(*)::int`,
+    totalMinutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
+    avgSessionMinutes: sql<number>`coalesce(round(avg(${focusSessions.durationMinutes})::numeric), 0)::int`,
+    longestSessionMinutes: sql<number>`coalesce(max(${focusSessions.durationMinutes}), 0)::int`,
+    activeDays: sql<number>`count(distinct to_char(${focusSessions.completedAt}, 'YYYY-MM-DD'))::int`,
+    billableMinutes: sql<number>`coalesce(sum(case when ${focusSessions.billable} then ${focusSessions.durationMinutes} else 0 end), 0)::int`,
+  };
+
+  const summaryQuery = needsJoins
     ? db
-        .select({
-          totalSessions: sql<number>`count(*)::int`,
-          totalMinutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
-          avgSessionMinutes: sql<number>`coalesce(round(avg(${focusSessions.durationMinutes})::numeric), 0)::int`,
-          longestSessionMinutes: sql<number>`coalesce(max(${focusSessions.durationMinutes}), 0)::int`,
-          activeDays: sql<number>`count(distinct to_char(${focusSessions.completedAt}, 'YYYY-MM-DD'))::int`,
-        })
+        .select(summarySelectFields)
         .from(focusSessions)
         .leftJoin(cards, eq(focusSessions.cardId, cards.id))
         .leftJoin(columns, eq(cards.columnId, columns.id))
@@ -262,17 +283,14 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
         .leftJoin(projects, projectJoin)
         .where(summaryWhere)
     : db
-        .select({
-          totalSessions: sql<number>`count(*)::int`,
-          totalMinutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
-          avgSessionMinutes: sql<number>`coalesce(round(avg(${focusSessions.durationMinutes})::numeric), 0)::int`,
-          longestSessionMinutes: sql<number>`coalesce(max(${focusSessions.durationMinutes}), 0)::int`,
-          activeDays: sql<number>`count(distinct to_char(${focusSessions.completedAt}, 'YYYY-MM-DD'))::int`,
-        })
+        .select(summarySelectFields)
         .from(focusSessions)
         .where(summaryWhere);
 
-  const [summary] = await summaryQuery;
+  const [summaryRow] = await summaryQuery;
+
+  // Compute billable cost from project breakdown totals
+  const billableCost = projectBreakdown.reduce((sum, p) => sum + (p.cost ?? 0), 0);
 
   // 4. Daily data for the date range
   const dayCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -282,11 +300,13 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
     sessions,
     projectBreakdown,
     summary: {
-      totalSessions: summary.totalSessions,
-      totalMinutes: summary.totalMinutes,
-      avgSessionMinutes: summary.avgSessionMinutes,
-      longestSessionMinutes: summary.longestSessionMinutes,
-      activeDays: summary.activeDays,
+      totalSessions: summaryRow.totalSessions,
+      totalMinutes: summaryRow.totalMinutes,
+      avgSessionMinutes: summaryRow.avgSessionMinutes,
+      longestSessionMinutes: summaryRow.longestSessionMinutes,
+      activeDays: summaryRow.activeDays,
+      billableMinutes: summaryRow.billableMinutes,
+      billableCost,
     },
     dailyData,
   };
@@ -355,12 +375,13 @@ async function getDailyDataForRange(
 
 export async function updateSession(
   id: string,
-  input: { projectId?: string | null; note?: string | null },
+  input: { projectId?: string | null; note?: string | null; billable?: boolean },
 ): Promise<void> {
   const db = getDb();
   const updates: Record<string, unknown> = {};
   if ('projectId' in input) updates.projectId = input.projectId || null;
   if ('note' in input) updates.note = input.note || null;
+  if ('billable' in input) updates.billable = input.billable;
   await db.update(focusSessions).set(updates).where(eq(focusSessions.id, id));
 }
 
