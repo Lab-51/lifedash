@@ -26,16 +26,17 @@ interface NavItem {
     path: string;
     label: string;
     icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+    activeClass: string;
 }
 
 const navItems: NavItem[] = [
-    { path: '/', label: 'Home', icon: LayoutDashboard },
-    { path: '/projects', label: 'Projects', icon: FolderKanban },
-    { path: '/meetings', label: 'Meetings', icon: Mic },
-    { path: '/ideas', label: 'Ideas', icon: Lightbulb },
-    { path: '/brainstorm', label: 'Brainstorm', icon: Brain },
-    { path: '/focus', label: 'Focus', icon: Clock },
-    { path: '/settings', label: 'Settings', icon: Settings },
+    { path: '/', label: 'Home', icon: LayoutDashboard, activeClass: 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 ring-1 ring-primary-100 dark:ring-primary-800' },
+    { path: '/projects', label: 'Projects', icon: FolderKanban, activeClass: 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 ring-1 ring-primary-100 dark:ring-primary-800' },
+    { path: '/meetings', label: 'Meetings', icon: Mic, activeClass: 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 ring-1 ring-rose-100 dark:ring-rose-800' },
+    { path: '/ideas', label: 'Ideas', icon: Lightbulb, activeClass: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 ring-1 ring-amber-100 dark:ring-amber-800' },
+    { path: '/brainstorm', label: 'Brainstorm', icon: Brain, activeClass: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-100 dark:ring-indigo-800' },
+    { path: '/focus', label: 'Focus', icon: Clock, activeClass: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-100 dark:ring-emerald-800' },
+    { path: '/settings', label: 'Settings', icon: Settings, activeClass: 'bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-200 ring-1 ring-surface-200 dark:ring-surface-700' },
 ];
 
 const SHORTCUT_KEYS: Record<string, string> = {
@@ -81,7 +82,7 @@ export default function SidebarModern() {
             </div>
 
             <div className="flex flex-col gap-3 px-3 flex-1">
-                {navItems.map(({ path, label, icon: Icon }) => {
+                {navItems.map(({ path, label, icon: Icon, activeClass }) => {
                     const isHome = path === '/';
                     const isActive = isHome
                         ? location.pathname === '/'
@@ -93,7 +94,7 @@ export default function SidebarModern() {
                             to={path}
                             title={SHORTCUT_KEYS[path] ? `${label} (${SHORTCUT_KEYS[path]})` : label}
                             className={`group relative w-full h-12 flex items-center justify-center rounded-xl transition-all duration-200 ${isActive
-                                    ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 shadow-sm ring-1 ring-primary-100 dark:ring-primary-800'
+                                    ? `shadow-sm ${activeClass}`
                                     : 'text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800'
                                 }`}
                         >
