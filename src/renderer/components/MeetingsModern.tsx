@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Mic, Info, Search, X, Filter, BarChart2 } from 'lucide-react';
+import { Mic, Info, Search, X } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useProjectStore } from '../stores/projectStore';
@@ -13,7 +13,7 @@ import MeetingCardModern from '../components/MeetingCardModern';
 const MeetingDetailModal = lazy(() => import('../components/MeetingDetailModal'));
 import LoadingSpinner from '../components/LoadingSpinner';
 
-type FilterTab = 'all' | 'recording' | 'completed';
+type SortOption = 'newest' | 'oldest' | 'title';
 
 export default function MeetingsModern() {
     const meetings = useMeetingStore(s => s.meetings);
@@ -30,9 +30,8 @@ export default function MeetingsModern() {
     const clearCompletedMeetingId = useRecordingStore(s => s.clearCompletedMeetingId);
     const projects = useProjectStore(s => s.projects);
     const loadProjects = useProjectStore(s => s.loadProjects);
-    const [filter, setFilter] = useState<FilterTab>('all');
     const [searchQuery, setSearchQuery] = useState('');
-    const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
+    const [sortBy, setSortBy] = useState<SortOption>('newest');
     const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
     const [autoOpenedMeetingId, setAutoOpenedMeetingId] = useState<string | null>(null);
     const [initialTranscriptSearch, setInitialTranscriptSearch] = useState<string | undefined>(undefined);
@@ -142,18 +141,12 @@ export default function MeetingsModern() {
         return map;
     }, [projects]);
 
-    // Filter meetings by status and search query
+    // Filter meetings by search query
     const filteredMeetings = meetings.filter(m => {
-        // Status filter
-        if (filter === 'recording' && m.status !== 'recording') return false;
-        if (filter === 'completed' && m.status !== 'completed') return false;
-
-        // Search filter (case-insensitive title match)
         if (searchQuery.trim()) {
             const query = searchQuery.trim().toLowerCase();
             if (!m.title.toLowerCase().includes(query)) return false;
         }
-
         return true;
     });
 
@@ -220,28 +213,6 @@ export default function MeetingsModern() {
 
                 {/* Filters & Search Toolbar */}
                 <div className="flex bg-white dark:bg-surface-900 p-1.5 rounded-xl border border-surface-200 dark:border-surface-800 shadow-sm items-center gap-2 mb-2">
-
-                    <div className="flex p-1 bg-surface-100 dark:bg-surface-800 rounded-lg">
-                        {[
-                            { id: 'all', label: 'All' },
-                            { id: 'recording', label: 'Active' },
-                            { id: 'completed', label: 'Done' }
-                        ].map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setFilter(tab.id as FilterTab)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${filter === tab.id
-                                    ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-surface-100 shadow-sm'
-                                    : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
-                                    }`}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="h-6 w-px bg-surface-200 dark:bg-surface-700 mx-1" />
-
                     <div className="relative flex-1">
                         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-400" />
                         <input

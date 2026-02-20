@@ -56,13 +56,17 @@ const MeetingCardModern = memo(function MeetingCardModern({ meeting, projectName
     return (
         <div
             onClick={onClick}
-            className={`group relative flex flex-col bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-5 shadow-sm hover:shadow-lg dark:hover:shadow-primary-900/10 hover:border-primary-500/30 transition-all cursor-pointer ${meeting.status === 'recording' ? 'ring-2 ring-rose-500/20 border-rose-500/30' : ''
+            className={`group relative flex flex-col bg-white dark:bg-surface-900 border rounded-2xl p-5 shadow-sm hover:shadow-lg dark:hover:shadow-primary-900/10 transition-all cursor-pointer ${meeting.status === 'recording'
+                    ? 'ring-2 ring-rose-500/20 border-rose-500/30'
+                    : actionItemCount && actionItemCount > 0
+                        ? 'border-amber-300 dark:border-amber-700/50 hover:border-amber-400 dark:hover:border-amber-600'
+                        : 'border-surface-200 dark:border-surface-800 hover:border-primary-500/30'
                 }`}
         >
             {/* Date Badge */}
             <div className="absolute top-5 right-5 flex items-center gap-2">
                 {actionItemCount != null && actionItemCount > 0 && (
-                    <span className="flex items-center gap-1 text-[10px] font-semibold bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 px-2 py-1 rounded-full">
+                    <span className="flex items-center gap-1 text-[10px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-1 rounded-full">
                         <ListChecks size={12} /> {actionItemCount}
                     </span>
                 )}
