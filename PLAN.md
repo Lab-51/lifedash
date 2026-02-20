@@ -1,250 +1,251 @@
-# Plan H.1 — Transcription Language Selection
+# Plan I.1 — Billable Time Tracking
 
-<phase n="H.1" name="Transcription Language Selection">
+<phase n="I.1" name="Billable Time Tracking for Entrepreneurs">
   <context>
-    The transcription system currently hardcodes language as 'en' (English) in 3 places:
-    - transcriptionService.ts:232 — `language: 'en'` passed to Whisper
-    - deepgramTranscriber.ts:57,135 — `language=en` in API URL
-    - assemblyaiTranscriber.ts:102,256 — `language_code: 'en'` in request body
+    The Focus Time Tracking feature (Plans F.1-F.3) is a solid personal productivity tool
+    but lacks billing-oriented features that entrepreneurs need:
+    - No way to mark sessions as billable vs. non-billable
+    - No hourly rate on projects (can't compute cost)
+    - No cost columns in reports or CSV export
+    - No billable hours summary or utilization metrics
 
-    The user wants to support Czech ('cs') and English ('en') transcription, plus
-    mixed-language recordings. Whisper supports auto-detection when the language
-    parameter is omitted — it detects per-segment, which works well for bilingual
-    meetings since audio is already chunked into 10-second segments.
+    This plan adds a lean billing layer on top of the existing focus system:
+    billable flag on sessions, hourly rate on projects, cost calculations in reports,
+    and billing-aware UI (filters, stats, export).
 
-    IMPORTANT: English-only models (*.en) cannot transcribe Czech or auto-detect.
-    The user must use a multilingual model (tiny, base, small) for non-English.
-    The UI must warn about this incompatibility.
+    The approach is modular — billing data is optional. Existing sessions default to
+    billable=true (entrepreneurs' most common case). Projects without a rate simply
+    show time without cost. No invoice generation or payment integration (out of scope).
 
-    Language options:
-    - English ('en') — works with all models
-    - Czech ('cs') — requires multilingual model
-    - Auto-detect ('auto') — requires multilingual model; best for mixed Czech/English
-
-    Cloud providers:
-    - Deepgram: supports `language=cs`, auto-detect via `detect_language=true`
-    - AssemblyAI: supports `language_code` param, auto-detect via `language_detection: true`
-
-    Settings pattern: key-value in settings table (e.g. 'transcription:language' → 'en')
-
-    @PROJECT.md @STATE.md
-    @src/main/services/transcriptionService.ts
-    @src/main/services/deepgramTranscriber.ts
-    @src/main/services/assemblyaiTranscriber.ts
-    @src/main/services/audioProcessor.ts
-    @src/main/services/whisperModelManager.ts
-    @src/main/ipc/recording.ts
-    @src/renderer/stores/recordingStore.ts
-    @src/renderer/components/RecordingControls.tsx
-    @src/renderer/components/settings/TranscriptionProviderSection.tsx
-    @src/shared/types/meetings.ts
+    @src/main/db/schema/focus.ts
+    @src/main/db/schema/projects.ts
+    @src/shared/types/focus.ts
+    @src/main/services/focusService.ts
+    @src/main/ipc/focus.ts
+    @src/preload/domains/focus.ts
+    @src/renderer/pages/FocusPage.tsx
+    @src/renderer/components/FocusCompleteModal.tsx
+    @src/renderer/components/FocusStartModal.tsx
+    @src/renderer/stores/focusStore.ts
   </context>
 
   <task type="auto" n="1">
-    <n>Backend — make transcription language configurable across all providers</n>
+    <n>Schema + backend — billable sessions and project hourly rates</n>
     <files>
-      src/main/services/transcriptionService.ts
-      src/main/services/deepgramTranscriber.ts
-      src/main/services/assemblyaiTranscriber.ts
-      src/shared/types/meetings.ts (or shared/types/index.ts)
+      src/main/db/schema/focus.ts
+      src/main/db/schema/projects.ts
+      drizzle/0018_billable_time.sql
+      src/shared/types/focus.ts
+      src/shared/types/project.ts
+      src/main/services/focusService.ts
+      src/main/ipc/focus.ts
+      src/main/ipc/projects.ts
+      src/preload/domains/focus.ts
+      src/shared/types/electron-api.ts
     </files>
     <action>
-      WHY: Language is hardcoded to 'en' in 3 services. We need to read a configurable
-      language setting and pass it through to each provider, including an 'auto' mode
-      for mixed-language recordings.
+      ## Schema changes
 
-      1. Add a TranscriptionLanguage type to shared types:
-         `type TranscriptionLanguage = 'en' | 'cs' | 'auto';`
-         Add a TRANSCRIPTION_LANGUAGES constant array with {code, label} for UI use:
-         [{ code: 'en', label: 'English' }, { code: 'cs', label: 'Czech (Čeština)' }, { code: 'auto', label: 'Auto-detect (mixed)' }]
+      1. **focus_sessions** — add `billable` boolean column (default true, not null).
+         Default true because most entrepreneur sessions are billable; they opt-out
+         for internal/admin work.
 
-      2. In transcriptionService.ts:
-         - Add a module-level `activeLanguage: string = 'en'` variable
-         - In `start()`: read the language setting from DB via settings table directly:
-           ```typescript
-           const db = getDb();
-           const langRows = await db.select().from(settings).where(eq(settings.key, 'transcription:language'));
-           activeLanguage = langRows.length > 0 ? langRows[0].value : 'en';
-           ```
-         - In `dispatchToWhisper()`: replace `language: 'en'` with:
-           - If activeLanguage === 'auto': omit the language option entirely (Whisper auto-detects)
-           - Otherwise: `language: activeLanguage`
-         - In `dispatchToApi()`: pass activeLanguage to the cloud transcriber functions
+      2. **projects** — add `hourlyRate` real column (nullable).
+         Null means "no rate set" — time is tracked but cost isn't computed.
+         Real (float) is sufficient for hourly rates (no sub-cent precision needed).
 
-      3. In deepgramTranscriber.ts:
-         - Add `language` parameter to `transcribeSegment(pcmBuffer, startTimeMs, language)`
-           and `transcribeFileWithDiarization(wavBuffer, language)`
-         - Default language param to 'en' for backwards compatibility
-         - For the URL: if language === 'auto', replace `language=en` with `detect_language=true`
-         - Otherwise: use `language=${language}`
+      3. Generate migration 0018_billable_time.sql:
+         ```sql
+         ALTER TABLE "focus_sessions" ADD COLUMN "billable" boolean DEFAULT true NOT NULL;
+         ALTER TABLE "projects" ADD COLUMN "hourly_rate" real;
+         ```
+         IMPORTANT: Check drizzle/meta/_journal.json for the last `when` timestamp
+         and ensure 0018's timestamp is strictly greater (PGlite monotonic requirement).
 
-      4. In assemblyaiTranscriber.ts:
-         - Add `language` parameter to `transcribeSegment(...)` and `transcribeFileWithDiarization(...)`
-         - Default language param to 'en' for backwards compatibility
-         - For the request body: if language === 'auto', replace `language_code: 'en'` with
-           `language_detection: true`
-         - Otherwise: `language_code: language`
+      ## Type changes
 
-      5. Update the file header comment in transcriptionService.ts to remove
-         "English-only for v1 (language is hardcoded)"
+      4. **FocusSession** — add `billable: boolean`
+      5. **FocusSessionFull** — add `billable: boolean` + `hourlyRate: number | null`
+         (hourlyRate comes from the joined project)
+      6. **FocusProjectTime** — add `cost: number | null`
+         (computed as minutes/60 * hourlyRate, null if no rate)
+      7. **FocusTimeReport.summary** — add:
+         - `billableMinutes: number`
+         - `billableCost: number` (sum of billable session costs)
+      8. Add to project types (CreateProjectInput / Project): `hourlyRate?: number | null`
+
+      ## Service changes (focusService.ts)
+
+      9. **getTimeReport()** — update queries:
+         - Session query: SELECT billable flag + project hourlyRate
+         - Project breakdown: compute cost = SUM(minutes) / 60 * hourlyRate for billable sessions
+         - Summary: add billableMinutes (SUM where billable=true) and billableCost
+         - Accept optional `billableOnly?: boolean` filter in FocusTimeReportOptions
+         - When billableOnly=true, add WHERE billable = true to all queries
+
+      10. **saveSession()** — accept `billable?: boolean` in input (default true)
+
+      11. **updateSession()** — accept `billable?: boolean` in update input
+
+      ## IPC + preload
+
+      12. Update focus:save-session to pass billable field
+      13. Update focus:update-session to pass billable field
+      14. Update projects IPC — pass hourlyRate on create/update
+      15. Update preload bridge types if needed
     </action>
     <verify>
-      - `npx tsc --noEmit` passes with no errors
-      - All 5 hardcoded 'en' occurrences are replaced with dynamic language
-      - transcribeSegment and transcribeFileWithDiarization accept language param
-      - 'auto' mode correctly omits language for Whisper and uses detect_language for APIs
-      - `npm test` passes (150 tests)
+      - `npx tsc --noEmit` passes with zero errors
+      - Migration 0018 SQL file exists with correct ALTER statements
+      - Migration journal timestamp is monotonically greater than 0017
+      - FocusTimeReport type includes billableMinutes and billableCost
+      - focusService.getTimeReport returns cost data in projectBreakdown
     </verify>
     <done>
-      All 3 transcription providers accept configurable language.
-      'auto' mode enables per-segment language detection for mixed recordings.
-      No hardcoded 'en' remains in transcription code.
+      Schema has billable + hourlyRate columns, types updated, service computes costs,
+      IPC passes all new fields. All existing sessions default to billable=true.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - settings table is importable and queryable in transcriptionService
-      - Deepgram Nova-2 supports Czech ('cs') and detect_language param
-      - AssemblyAI supports language_detection: true for auto-detect
-      - @fugood/whisper.node auto-detects when language option is omitted
+      - PGlite handles ALTER TABLE ADD COLUMN with DEFAULT correctly (verified in prior migrations)
+      - Float precision is acceptable for hourly rates (no accounting-grade decimals needed)
+      - Existing sessions defaulting to billable=true is the right UX for entrepreneurs
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>UI — language selector in RecordingControls + default in Settings + model warnings</n>
+    <n>FocusPage billing UI — filters, cost stats, and enhanced export</n>
     <files>
-      src/renderer/components/RecordingControls.tsx
-      src/renderer/components/settings/TranscriptionProviderSection.tsx
-      src/main/ipc/recording.ts (add whisper:get-active-model IPC)
-      src/preload/domains/meetings.ts (or appropriate preload file)
-      src/shared/types/electron-api.d.ts (or wherever ElectronAPI is defined)
+      src/renderer/pages/FocusPage.tsx
     </files>
     <action>
-      WHY: Users need to choose the transcription language per-recording and set a default.
-      Critical: must warn when English-only Whisper model is selected with non-English language.
+      ## Billable filter toggle
 
-      1. Add IPC to check active whisper model:
-         - In recording.ts (or a new whisper IPC file): add handler `whisper:get-active-model`
-           that returns the model filename string from whisperModelManager.getDefaultModelPath()
-           (extract basename) or null if no model.
-         - Add to preload bridge + ElectronAPI type.
+      1. Add a billable filter to the controls bar (next to project dropdown):
+         Three-way select: "All" | "Billable" | "Non-billable"
+         - Pass billableOnly flag to getTimeReport when "Billable" selected
+         - When "Non-billable" selected, pass billableOnly=false
+         - Default: "All" (shows everything)
 
-      2. RecordingControls.tsx — add language dropdown:
-         - Import TRANSCRIPTION_LANGUAGES from shared types
-         - Add state: `const [selectedLanguage, setSelectedLanguage] = useState('en');`
-         - On mount, load default from settings:
-           `const savedLang = await window.electronAPI.getSetting('transcription:language');`
-           `if (savedLang) setSelectedLanguage(savedLang);`
-         - Add a `<select>` for language between the template selector and microphone toggle:
-           Options: map TRANSCRIPTION_LANGUAGES to option elements
-         - When language changes, save to settings immediately (becomes new default):
-           `await window.electronAPI.setSetting('transcription:language', value);`
-         - Style: same as existing selects (w-full, same classes)
+      ## Summary stats enhancement
 
-      3. Model compatibility warning in RecordingControls:
-         - On mount (and when selectedLanguage changes), check the active whisper model name
-         - If model name contains '.en' AND selectedLanguage !== 'en':
-           Show amber warning below the language selector:
-           "Current Whisper model ({modelName}) is English-only. Download a multilingual
-           model in Settings for {language} transcription."
-         - Only show when transcription provider is 'local' (not relevant for cloud APIs)
+      2. When any project in the report has an hourly rate, show a 5th stat card
+         (shift from 4-col to 5-col grid):
+         - "Billable Amount" showing formatted cost (e.g. "$1,250.00")
+         - DollarSign icon with emerald accent
+         - Only visible when there's actual cost data (billableCost > 0)
 
-      4. TranscriptionProviderSection.tsx — add default language selector:
-         - Below the provider radio buttons, before Test Connection, add "Transcription Language"
-         - Import TRANSCRIPTION_LANGUAGES
-         - Load current value from settings on mount, save on change
-         - If provider is 'local', show same model compatibility warning
-         - Add helper text: "For mixed Czech/English meetings, use 'Auto-detect' with a
-           multilingual Whisper model."
+      3. Add a small "billable" sub-stat under Total Time:
+         e.g. "12h 30m (10h 15m billable)" — only when billable filter is "All"
+         and there are non-billable sessions
+
+      ## Project breakdown enhancement
+
+      4. In the project breakdown bars, append cost to the right side:
+         "ProjectName  ████████  4h 30m  12 sessions  $675.00"
+         Only show cost when the project has an hourly rate set.
+
+      ## Session list enhancement
+
+      5. Add a small billable indicator on each session row:
+         - Green DollarSign icon (size 12) for billable sessions
+         - Gray minus icon for non-billable
+         - Placed before the project color dot
+
+      6. In the inline edit form, add a billable checkbox toggle
+
+      ## CSV export enhancement
+
+      7. Add columns to CSV export:
+         - "Billable" (Yes/No)
+         - "Hourly Rate" (number or empty)
+         - "Cost" (calculated, or empty if no rate)
+         Keep existing columns intact, append new ones at the end.
     </action>
     <verify>
       - `npx tsc --noEmit` passes
-      - RecordingControls shows language dropdown with 3 options
-      - Changing language saves to settings (persists across restarts)
-      - Settings page shows language selector in Transcription Provider section
-      - Amber warning shows when .en model + non-English language + local provider
-      - Warning does NOT show when using cloud providers
-      - `npm test` passes (150 tests)
+      - FocusPage renders without errors
+      - Billable filter select is visible in controls bar
+      - When a project has an hourlyRate, cost appears in breakdown and summary
+      - CSV export includes Billable, Hourly Rate, Cost columns
+      - Session rows show billable indicator
+      - Inline edit includes billable toggle
     </verify>
     <done>
-      Language selector visible in both RecordingControls and Settings.
-      Selection persists via settings table.
-      Model compatibility warning shows when .en model + non-English + local provider.
+      FocusPage shows billing data throughout: filter, stats, breakdown, session list,
+      and CSV export. All billing UI is conditional — hidden when no rates are set.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - getSetting/setSetting IPC already works (verified in codebase)
-      - whisperModelManager.getDefaultModelPath() returns full path (basename extractable)
-      - .en suffix in model filename reliably indicates English-only model
+      - 5-column stat grid fits in the existing max-w-6xl layout
+      - Billable filter can reuse the same getTimeReport IPC (just adds a WHERE clause)
     </assumptions>
   </task>
 
   <task type="auto" n="3">
-    <n>Per-recording language storage + transcription service reads from meeting record</n>
+    <n>Session flow — billable toggle in modals + project hourly rate editing</n>
     <files>
-      src/main/db/schema/meetings.ts
-      src/shared/types/meetings.ts
-      src/shared/validation/schemas.ts
-      src/main/services/meetingService.ts
-      src/main/services/transcriptionService.ts
-      src/renderer/stores/recordingStore.ts
-      src/renderer/components/RecordingControls.tsx
-      src/renderer/components/MeetingDetailModal.tsx (or equivalent meeting detail view)
-      drizzle/ (new migration)
+      src/renderer/components/FocusCompleteModal.tsx
+      src/renderer/components/FocusStartModal.tsx
+      src/renderer/stores/focusStore.ts
+      src/renderer/pages/ProjectsPage.tsx
     </files>
     <action>
-      WHY: Each recording should store its language setting so the transcription service
-      uses exactly what was selected at recording time (not whatever the global default
-      happens to be), and so users can see what language was used when reviewing past meetings.
+      ## FocusCompleteModal — billable toggle
 
-      1. Schema migration (next available number):
-         - Add `transcriptionLanguage` varchar(10) column to meetings table, nullable
-         - null = legacy meetings before this feature (treated as 'en')
-         - Ensure migration journal timestamp is monotonically increasing (PGlite constraint)
+      1. Add a small toggle/checkbox below the accomplishment textarea:
+         "Mark as billable" — checked by default
+         Pass the billable value to saveSession()
 
-      2. Update CreateMeetingInput type + validation schema:
-         - Add `transcriptionLanguage?: string` to CreateMeetingInput interface
-         - Add to Zod schema: `transcriptionLanguage: z.string().max(10).optional()`
+      2. When the focused card's project has an hourly rate, show a subtle
+         cost preview: "~$12.50 (30 min @ $25/hr)" below the duration display.
+         This gives immediate feedback on what they're billing.
 
-      3. meetingService.createMeeting:
-         - Accept and persist transcriptionLanguage from input
+      ## FocusStartModal — rate context
 
-      4. recordingStore.startRecording:
-         - Add `language?: string` parameter
-         - Pass to createMeeting as transcriptionLanguage
-         - In RecordingControls, pass selectedLanguage to startRecording()
+      3. When a card is selected and its project has an hourly rate, show a small
+         info line: "$150/hr — ProjectName"
+         This reminds the user which rate will apply before they start.
 
-      5. transcriptionService.start():
-         - Accept optional `language?: string` parameter
-         - If provided, use it as activeLanguage
-         - If not provided (backwards compat), fall back to reading from settings
-         - Update audioProcessor.startRecording to query the meeting's language and pass it
+      ## focusStore — carry billable flag
 
-      6. Display in meeting detail view:
-         - Show the transcription language as a small metadata item
-         - e.g., "Language: English" or "Language: Auto-detect"
-         - Use TRANSCRIPTION_LANGUAGES to look up the display label
-         - Only show when transcriptionLanguage is not null (hide for legacy meetings)
+      4. Add `billable: boolean` to the store state (default true).
+         FocusCompleteModal reads/sets it; saveSession passes it to IPC.
+
+      ## Project hourly rate editing
+
+      5. Add hourly rate editing to ProjectsPage:
+         - On project card hover (where Pencil/Trash/Star already live), add a
+           DollarSign icon button that opens a small inline input.
+         - OR: Add hourly rate as an editable field in the project card itself
+           (e.g. small "$0/hr" text that becomes an input on click, like rename).
+         - Save via existing projects:update IPC with the new hourlyRate field.
+         - Show the rate on the card when set: "$150/hr" badge.
+
+      ## Dark/light mode
+
+      6. Ensure all new UI elements have proper dark: variants following
+         the existing pattern in these components.
     </action>
     <verify>
-      - Migration generates and runs without errors (check drizzle journal timestamps)
       - `npx tsc --noEmit` passes
-      - New meetings have transcriptionLanguage populated in DB
-      - transcriptionService uses per-meeting language (not just global setting)
-      - Meeting detail view shows language for new meetings
-      - Legacy meetings (null transcriptionLanguage) don't show language badge
-      - `npm test` passes (150 tests)
+      - FocusCompleteModal shows billable toggle (default checked)
+      - When project has hourlyRate, cost preview appears in completion modal
+      - FocusStartModal shows rate info when card's project has a rate
+      - focusStore carries billable field through save flow
+      - Project hourly rate can be set and persisted from ProjectsPage
+      - Rate badge visible on project cards
+      - Light and dark mode both render correctly
     </verify>
     <done>
-      Each meeting stores its transcription language.
-      Full pipeline: UI selection → meeting record → audioProcessor → transcriptionService → provider.
-      Past meetings display what language was used.
+      Complete billable workflow: set rate on project → start focus → see rate context →
+      complete session → toggle billable → see cost → data flows to FocusPage reports.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - Next migration number is available (check drizzle journal for latest)
-      - meetingService.createMeeting can accept the new field via spread/insert
-      - audioProcessor can query meetingService for the meeting's language before starting transcription
+      - Project card hover actions can accommodate one more icon button
+      - focusStore.saveSession already calls the IPC — just needs the extra field
+      - Card → project resolution for rate display reuses existing project store data
     </assumptions>
   </task>
-
 </phase>

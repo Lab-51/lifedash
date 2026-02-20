@@ -2,12 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-21
-Session focus: AI usage dashboard improvements
-Checkpoint reason: Session end
+Session focus: Billable Time Tracking (Plan I.1)
 
 ## Position
 Milestone: v2.0.0
-Latest commit: 8a4cc11 (feat: add "By Model" token breakdown to AI usage dashboard)
+Latest commit: 87fe606 (feat: billable toggle in modals + project hourly rate editing)
+Plan I.1: COMPLETE (3/3 tasks) — Billable Time Tracking
 Plan H.1: COMPLETE (3/3 tasks) — Transcription Language Selection
 Plan G.1: COMPLETE (2/2 tasks) — Achievement Banner Visual Overhaul
 Plan E.1: COMPLETE (3/3 tasks) — Card Agent Foundation (Backend + Tools + Schema)
@@ -211,8 +211,29 @@ Plan D.9: COMPLETE (3/3 tasks) — Dark Mode Polish (Projects & Cards)
 - Fix: Usage dashboard shows provider display names instead of UUIDs (0afcffd)
 - Feat: "By Model" token consumption breakdown in AI usage dashboard (8a4cc11)
 
+## Plan I.1 Results — Billable Time Tracking
+- Task 1: Schema + backend — billable boolean on focus_sessions, hourlyRate on projects (9608748)
+  - Migration 0018: billable boolean (default true), hourly_rate real (nullable)
+  - Types: FocusSession.billable, FocusSessionFull.hourlyRate, FocusProjectTime.cost
+  - FocusTimeReport.summary: billableMinutes + billableCost
+  - focusService: getTimeReport computes costs, supports billableOnly filter
+  - IPC/preload: all new fields wired through save, update, report endpoints
+  - Zod schemas: hourlyRate on create/update project schemas
+- Task 2: FocusPage billing UI (1bafda1)
+  - Billable filter toggle (All/Billable/Non-billable) in controls bar
+  - 5th stat card "Billable Amount" when cost data exists (dynamic grid-cols-4/5)
+  - Billable sub-stat under Total Time when mixed sessions
+  - Cost display in project breakdown bars (emerald text)
+  - DollarSign/Minus billable indicators on session rows
+  - Billable checkbox in inline edit form
+  - CSV export: 3 new columns (Billable, Hourly Rate, Cost)
+- Task 3: Session flow + project rate editing (87fe606)
+  - FocusCompleteModal: billable checkbox (default checked), cost preview with rate context
+  - FocusStartModal: shows "$XXX/hr — ProjectName" when card's project has a rate
+  - ProjectsModern: inline hourly rate editing with emerald badge display on cards
+
 ## Resume Context
-2 AI usage dashboard improvements pushed this session.
+Plan I.1 COMPLETE — all 3 tasks committed.
 Next action: TBD — user decides
 
 ## Plan F.1 Results — Focus Session History & Time Tracking
