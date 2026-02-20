@@ -1,12 +1,12 @@
 # Current State
 
 ## Session Info
-Last updated: 2026-02-21
-Session focus: Billable Time Tracking (Plan I.1)
+Last updated: 2026-02-22
+Session focus: Billing Rate UX + Project-Session Linking Fix
 
 ## Position
 Milestone: v2.0.0
-Latest commit: 87fe606 (feat: billable toggle in modals + project hourly rate editing)
+Latest commit: 660555e (feat: improve billing rate UX and fix project-session linking)
 Plan I.1: COMPLETE (3/3 tasks) — Billable Time Tracking
 Plan H.1: COMPLETE (3/3 tasks) — Transcription Language Selection
 Plan G.1: COMPLETE (2/2 tasks) — Achievement Banner Visual Overhaul
@@ -232,8 +232,22 @@ Plan D.9: COMPLETE (3/3 tasks) — Dark Mode Polish (Projects & Cards)
   - FocusStartModal: shows "$XXX/hr — ProjectName" when card's project has a rate
   - ProjectsModern: inline hourly rate editing with emerald badge display on cards
 
+## Ad-hoc: Billing Rate UX Improvements (660555e)
+- Hourly rate field added to project creation form (optional, with hint text)
+- Rate editing moved to board page top bar: "Set rate" dashed button / green $N/hr badge
+- Project list cards: read-only $N/hr badge (no editing), removed inline rate editor
+- Fix: focus sessions now store projectId directly via startFocus → saveSession pipeline
+  - Previously relied on card→column→board→project JOIN chain — sessions without cards had no project link
+  - focusStore: new focusedProjectId state threaded through start/save/stop/clear
+  - FocusStartModal passes selectedProjectId, FocusCompleteModal reads it for rate lookup + save
+  - Backend saveSession accepts projectId, IPC/preload/ElectronAPI types updated
+- 30-min billing rule: sessions >30 min rounded up to nearest hour
+  - New shared/utils/billing.ts: billableHours() — ≤30m proportional, >30m ceil(m/60)
+  - Applied in focusService (SQL per-session rounding), FocusPage CSV export, FocusCompleteModal preview
+  - Completion modal shows "45m → 1h @ $150/hr" format for clarity
+
 ## Resume Context
-Plan I.1 COMPLETE — all 3 tasks committed.
+All billing improvements committed and pushed (660555e).
 Next action: TBD — user decides
 
 ## Plan F.1 Results — Focus Session History & Time Tracking
