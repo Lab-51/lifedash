@@ -7,9 +7,11 @@ import { eq, gte, lte, and, sql, desc } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { focusSessions, cards, columns, boards, projects } from '../db/schema';
 import { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats, FocusTimeReportOptions, FocusSessionFull, FocusProjectTime, FocusTimeReport } from '../../shared/types/focus';
+import { billableHours } from '../../shared/utils/billing';
 
 export async function saveSession(input: {
   cardId?: string;
+  projectId?: string;
   durationMinutes: number;
   note?: string;
   billable?: boolean;
@@ -17,6 +19,7 @@ export async function saveSession(input: {
   const db = getDb();
   const [row] = await db.insert(focusSessions).values({
     cardId: input.cardId || null,
+    projectId: input.projectId || null,
     durationMinutes: input.durationMinutes,
     note: input.note || null,
     billable: input.billable ?? true,
@@ -233,6 +236,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
       sessions: sql<number>`count(*)::int`,
       minutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
       billableMinutes: sql<number>`coalesce(sum(case when ${focusSessions.billable} then ${focusSessions.durationMinutes} else 0 end), 0)::int`,
+      billableHoursSum: sql<number>`coalesce(sum(case when ${focusSessions.billable} then (case when ${focusSessions.durationMinutes} > 30 then ceil(${focusSessions.durationMinutes}::numeric / 60) else ${focusSessions.durationMinutes}::numeric / 60 end) else 0 end), 0)::numeric`,
     })
     .from(focusSessions)
     .leftJoin(cards, eq(focusSessions.cardId, cards.id))
@@ -249,7 +253,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
     projectColor: r.projectColor ?? null,
     sessions: r.sessions,
     minutes: r.minutes,
-    cost: r.hourlyRate != null ? (r.billableMinutes / 60) * r.hourlyRate : null,
+    cost: r.hourlyRate != null ? Number(r.billableHoursSum) * r.hourlyRate : null,
   }));
 
   // 3. Summary stats

@@ -8,6 +8,7 @@ import { X, CheckCircle, Trophy } from 'lucide-react';
 import { useFocusStore } from '../stores/focusStore';
 import { useGamificationStore } from '../stores/gamificationStore';
 import { useProjectStore } from '../stores/projectStore';
+import { billableHours } from '../../shared/utils/billing';
 import { useBoardStore } from '../stores/boardStore';
 import { toast } from '../hooks/useToast';
 import { getTier } from '../../shared/types/gamification';
@@ -25,6 +26,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
   const breakDuration = useFocusStore(s => s.breakDuration);
   const focusedCardId = useFocusStore(s => s.focusedCardId);
   const focusedCardTitle = useFocusStore(s => s.focusedCardTitle);
+  const focusedProjectId = useFocusStore(s => s.focusedProjectId);
   const sessionCount = useFocusStore(s => s.sessionCount);
 
   // Use completedDuration (actual elapsed time) — falls back to workDuration for safety
@@ -41,8 +43,9 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
   const [newAchievements, setNewAchievements] = useState<Achievement[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Look up hourly rate from the focused card's project
+  // Look up hourly rate: prefer direct projectId, fall back to card's project
   const focusedProject = (() => {
+    if (focusedProjectId) return projects.find(p => p.id === focusedProjectId) ?? null;
     if (!focusedCardId) return null;
     const card = allCards.find(c => c.id === focusedCardId);
     if (!card) return null;
@@ -84,6 +87,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
     try {
       const { newAchievements: earned } = await useFocusStore.getState().saveSession({
         cardId: focusedCardId || undefined,
+        projectId: focusedProjectId || undefined,
         durationMinutes: actualDuration,
         billable,
       });
@@ -119,6 +123,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
     try {
       const { newAchievements: earned } = await useFocusStore.getState().saveSession({
         cardId: focusedCardId || undefined,
+        projectId: focusedProjectId || undefined,
         durationMinutes: actualDuration,
         note: note.trim() || undefined,
         billable,
@@ -290,7 +295,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
                 </label>
                 {hourlyRate != null && billable && (
                   <span className="text-xs text-emerald-600 dark:text-emerald-400">
-                    ~${((actualDuration / 60) * hourlyRate).toFixed(2)} ({actualDuration}m @ ${hourlyRate}/hr)
+                    ~${(billableHours(actualDuration) * hourlyRate).toFixed(2)} ({actualDuration}m → {billableHours(actualDuration)}h @ ${hourlyRate}/hr)
                   </span>
                 )}
               </div>

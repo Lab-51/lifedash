@@ -45,8 +45,6 @@ export default function ProjectsModern() {
     const [planningProjectId, setPlanningProjectId] = useState<string | null>(null);
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [editingRateId, setEditingRateId] = useState<string | null>(null);
-    const [editRate, setEditRate] = useState('');
 
     const [formData, setFormData] = useState<CreateProjectInput>({
         name: '',
@@ -107,6 +105,7 @@ export default function ProjectsModern() {
             name: formData.name.trim(),
             description: formData.description?.trim() || undefined,
             color: formData.color,
+            hourlyRate: formData.hourlyRate ?? undefined,
         });
         setFormData({ name: '', description: '', color: PRESET_COLORS[0] });
         setShowCreateForm(false);
@@ -178,17 +177,6 @@ export default function ProjectsModern() {
         const newProject = await duplicateProject(id);
         await loadAllCards();
         toast(`Duplicated as "${newProject.name}"`);
-    };
-
-    const handleSaveRate = async (id: string) => {
-        const val = editRate.trim();
-        const rate = val ? parseFloat(val) : null;
-        if (rate !== null && (isNaN(rate) || rate < 0)) {
-            setEditingRateId(null);
-            return;
-        }
-        await updateProject(id, { hourlyRate: rate });
-        setEditingRateId(null);
     };
 
     const formatDate = (dateStr: string) => {
@@ -302,6 +290,24 @@ export default function ProjectsModern() {
                                                 {formData.color === color && <div className="w-2 h-2 bg-white rounded-full shadow-sm" />}
                                             </button>
                                         ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-surface-500 uppercase tracking-wider mb-1.5">Hourly Rate <span className="normal-case font-normal">(optional — for billable time tracking)</span></label>
+                                    <div className="flex items-center gap-2">
+                                        <div className="relative w-40">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 text-sm">$</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                placeholder="0.00"
+                                                value={formData.hourlyRate ?? ''}
+                                                onChange={e => setFormData({ ...formData, hourlyRate: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                                className="w-full pl-7 pr-10 py-3 text-sm bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 text-sm">/hr</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 pt-2">
@@ -453,40 +459,10 @@ export default function ProjectsModern() {
                                         <LayoutList size={14} />
                                         {cardCountByProject[project.id] || 0} Tasks
                                     </div>
-                                    {editingRateId === project.id ? (
-                                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                                            <span className="text-surface-400">$</span>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
-                                                value={editRate}
-                                                onChange={e => setEditRate(e.target.value)}
-                                                onBlur={() => handleSaveRate(project.id)}
-                                                onKeyDown={e => {
-                                                    if (e.key === 'Enter') handleSaveRate(project.id);
-                                                    if (e.key === 'Escape') setEditingRateId(null);
-                                                }}
-                                                autoFocus
-                                                className="w-16 text-xs bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-emerald-500"
-                                                placeholder="0"
-                                            />
-                                            <span className="text-surface-400 text-xs">/hr</span>
-                                        </div>
-                                    ) : project.hourlyRate ? (
-                                        <button
-                                            onClick={e => { e.stopPropagation(); setEditingRateId(project.id); setEditRate(String(project.hourlyRate)); }}
-                                            className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md text-xs font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
-                                        >
+                                    {project.hourlyRate != null && (
+                                        <span className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md text-xs font-medium">
                                             <DollarSign size={12} />{project.hourlyRate}/hr
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={e => { e.stopPropagation(); setEditingRateId(project.id); setEditRate(''); }}
-                                            className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-surface-400 hover:text-emerald-500 px-2 py-1 rounded-md text-xs transition-all"
-                                        >
-                                            <DollarSign size={12} />Rate
-                                        </button>
+                                        </span>
                                     )}
                                     <span>
                                         Updated {formatDate(project.updatedAt)}

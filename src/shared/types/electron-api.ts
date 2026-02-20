@@ -273,7 +273,7 @@ export interface ElectronAPI {
   getActivityData: () => Promise<{ dayCounts: Record<string, number> }>;
 
   // Focus Sessions
-  focusSaveSession: (input: { cardId?: string; durationMinutes: number; note?: string; billable?: boolean }) =>
+  focusSaveSession: (input: { cardId?: string; projectId?: string; durationMinutes: number; note?: string; billable?: boolean }) =>
     Promise<{ session: FocusSession; stats: GamificationStats; newAchievements: Achievement[] }>;
   focusGetStats: () => Promise<GamificationStats>;
   focusGetDaily: (days?: number) => Promise<FocusDailyData[]>;

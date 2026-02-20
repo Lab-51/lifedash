@@ -10,7 +10,7 @@ import { createLogger } from '../services/logger';
 const log = createLogger('Focus');
 
 export function registerFocusHandlers(): void {
-  ipcMain.handle('focus:save-session', async (_, input: { cardId?: string; durationMinutes: number; note?: string; billable?: boolean }) => {
+  ipcMain.handle('focus:save-session', async (_, input: { cardId?: string; projectId?: string; durationMinutes: number; note?: string; billable?: boolean }) => {
     log.info(`Saving focus session: ${input.durationMinutes} min`);
     const session = await focusService.saveSession(input);
 

@@ -4,10 +4,11 @@
 
 import { Suspense, lazy, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, X, Search, ChevronDown, Download, LayoutTemplate, SlidersHorizontal, Settings2, Pencil, Trash2, Check, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, Plus, X, Search, ChevronDown, Download, LayoutTemplate, SlidersHorizontal, Settings2, Pencil, Trash2, Check, ChevronsDownUp, ChevronsUpDown, DollarSign } from 'lucide-react';
 
 const LABEL_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 import { useBoardController, exportBoardAsCsv } from '../hooks/useBoardController';
+import { useProjectStore } from '../stores/projectStore';
 import LoadingSpinner from '../components/LoadingSpinner';
 import BoardColumnModern from '../components/BoardColumnModern';
 import type { CardPriority } from '../../shared/types';
@@ -64,6 +65,21 @@ export default function BoardPageModern() {
         dependencyCountMap,
         getCardsByColumn,
     } = useBoardController();
+
+    // Hourly rate — read from projectStore so updates reflect immediately
+    const updateProject = useProjectStore(s => s.updateProject);
+    const storeProjects = useProjectStore(s => s.projects);
+    const liveProject = storeProjects.find(p => p.id === projectId) ?? project;
+    const [editingRate, setEditingRate] = useState(false);
+    const [editRate, setEditRate] = useState('');
+    const handleSaveRate = async () => {
+        if (!projectId) return;
+        const val = editRate.trim();
+        const rate = val ? parseFloat(val) : null;
+        if (rate !== null && (isNaN(rate) || rate < 0)) { setEditingRate(false); return; }
+        await updateProject(projectId, { hourlyRate: rate });
+        setEditingRate(false);
+    };
 
     // Collapsed columns state
     const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
@@ -175,6 +191,52 @@ export default function BoardPageModern() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {editingRate ? (
+                            <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl px-3 py-1.5 animate-in fade-in zoom-in-95 duration-150">
+                                <div className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
+                                    <DollarSign size={16} strokeWidth={2.5} />
+                                </div>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={editRate}
+                                    onChange={e => setEditRate(e.target.value)}
+                                    onBlur={handleSaveRate}
+                                    onKeyDown={e => { if (e.key === 'Enter') handleSaveRate(); if (e.key === 'Escape') setEditingRate(false); }}
+                                    autoFocus
+                                    placeholder="0.00"
+                                    className="w-24 text-sm font-semibold bg-white dark:bg-surface-900 border border-green-300 dark:border-green-700 rounded-lg px-3 py-1.5 outline-none focus:outline-none focus:ring-0 focus:border-green-500 focus-visible:outline-none text-surface-900 dark:text-surface-100 placeholder-surface-400 shadow-sm transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
+                                <span className="text-sm font-medium text-emerald-600/70 dark:text-emerald-400/70">/hr</span>
+                                <button
+                                    onClick={handleSaveRate}
+                                    className="ml-1 p-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors shadow-sm"
+                                >
+                                    <Check size={14} />
+                                </button>
+                                <button
+                                    onClick={() => setEditingRate(false)}
+                                    className="p-1 rounded-lg text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-200/50 dark:hover:bg-surface-700/50 transition-colors"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        ) : liveProject?.hourlyRate ? (
+                            <button
+                                onClick={() => { setEditingRate(true); setEditRate(String(liveProject.hourlyRate)); }}
+                                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded-xl transition-all"
+                            >
+                                <DollarSign size={16} />{liveProject.hourlyRate}/hr
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => { setEditingRate(true); setEditRate(''); }}
+                                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-surface-500 dark:text-surface-400 border border-dashed border-surface-300 dark:border-surface-700 hover:border-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-xl transition-all"
+                            >
+                                <DollarSign size={16} />Set rate
+                            </button>
+                        )}
                         <button
                             onClick={() => exportBoardAsCsv(columns, allCards, labels)}
                             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 rounded-xl transition-all"

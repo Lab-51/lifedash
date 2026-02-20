@@ -8,6 +8,7 @@ import { useProjectStore } from '../stores/projectStore';
 import { useFocusStore } from '../stores/focusStore';
 import { toast } from '../hooks/useToast';
 import type { FocusTimeReport, FocusSessionFull } from '../../shared/types/focus';
+import { billableHours } from '../../shared/utils/billing';
 
 type Period = 'thisWeek' | 'lastWeek' | 'last7Days' | 'thisMonth' | 'lastMonth' | 'custom';
 
@@ -67,7 +68,7 @@ function exportCSV(sessions: FocusSessionFull[], startDate: string, endDate: str
   const hdr = ['Date', 'Time', 'Duration (min)', 'Project', 'Card', 'Note', 'Billable', 'Hourly Rate', 'Cost'];
   const rows = sessions.map(s => {
     const dt = new Date(s.completedAt);
-    const cost = s.billable && s.hourlyRate ? ((s.durationMinutes / 60) * s.hourlyRate).toFixed(2) : '';
+    const cost = s.billable && s.hourlyRate ? (billableHours(s.durationMinutes) * s.hourlyRate).toFixed(2) : '';
     return [
       dt.toLocaleDateString('en-US'),
       dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),

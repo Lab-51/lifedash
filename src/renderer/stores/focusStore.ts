@@ -14,6 +14,7 @@ interface FocusState {
   timeRemaining: number; // seconds
   focusedCardId: string | null;
   focusedCardTitle: string | null;
+  focusedProjectId: string | null;
   workDuration: number; // minutes (default 25)
   breakDuration: number; // minutes (default 5)
   sessionCount: number; // completed focus sessions this app run
@@ -23,7 +24,7 @@ interface FocusState {
   lastSavedAt: number; // timestamp of last successful save (triggers FocusPage re-fetch)
   completedDuration: number; // actual minutes focused (may be < workDuration if stopped early)
   // Actions
-  startFocus: (cardId: string | null, cardTitle: string | null) => void;
+  startFocus: (cardId: string | null, cardTitle: string | null, projectId?: string | null) => void;
   startBreak: () => void;
   pause: () => void;
   resume: () => void;
@@ -33,7 +34,7 @@ interface FocusState {
   loadSettings: () => Promise<void>;
   setShowStartModal: (show: boolean) => void;
   clearFocusedCard: () => void;
-  saveSession: (input: { cardId?: string; durationMinutes: number; note?: string; billable?: boolean }) =>
+  saveSession: (input: { cardId?: string; projectId?: string; durationMinutes: number; note?: string; billable?: boolean }) =>
     Promise<{ newAchievements: Achievement[] }>;
   updateSession: (id: string, input: { projectId?: string | null; note?: string | null; billable?: boolean }) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
@@ -44,6 +45,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   timeRemaining: 0,
   focusedCardId: null,
   focusedCardTitle: null,
+  focusedProjectId: null,
   workDuration: 25,
   breakDuration: 5,
   sessionCount: 0,
@@ -52,7 +54,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   showStartModal: false,
   lastSavedAt: 0,
   completedDuration: 0,
-  startFocus: (cardId, cardTitle) => {
+  startFocus: (cardId, cardTitle, projectId) => {
     const state = get();
     if (state.intervalId) clearInterval(state.intervalId);
 
@@ -61,6 +63,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
       mode: 'focus',
       focusedCardId: cardId,
       focusedCardTitle: cardTitle,
+      focusedProjectId: projectId ?? null,
       timeRemaining: state.workDuration * 60,
       isPaused: false,
       intervalId,
@@ -122,6 +125,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
       intervalId: null,
       focusedCardId: null,
       focusedCardTitle: null,
+      focusedProjectId: null,
       completedDuration: 0,
     });
   },
@@ -188,7 +192,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   },
 
   clearFocusedCard: () => {
-    set({ focusedCardId: null, focusedCardTitle: null });
+    set({ focusedCardId: null, focusedCardTitle: null, focusedProjectId: null });
   },
 
   saveSession: async (input) => {

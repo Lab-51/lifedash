@@ -85,6 +85,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
     useFocusStore.getState().startFocus(
       selectedCard?.id ?? null,
       selectedCard?.title ?? null,
+      selectedProjectId || null,
     );
     onClose();
     toast(`Focus mode started — ${duration} min`, 'success');
