@@ -32,6 +32,7 @@ interface AllCardsItem {
   description: string | null;
   priority: string;
   archived: boolean;
+  completed: boolean;
   updatedAt: string;
   projectId: string;
 }

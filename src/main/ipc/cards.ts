@@ -196,6 +196,7 @@ export function registerCardHandlers(): void {
         description: cards.description,
         priority: cards.priority,
         archived: cards.archived,
+        completed: cards.completed,
         updatedAt: cards.updatedAt,
         projectId: boards.projectId,
       })

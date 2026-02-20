@@ -72,7 +72,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
   // Cards for the selected project, filtered by search
   const projectCards = useMemo(() => {
     if (!selectedProjectId) return [];
-    const cards = allCards.filter(c => !c.archived && c.projectId === selectedProjectId);
+    const cards = allCards.filter(c => !c.archived && !c.completed && c.projectId === selectedProjectId);
     if (!searchQuery.trim()) return cards;
     const q = searchQuery.toLowerCase();
     return cards.filter(c => c.title.toLowerCase().includes(q));
