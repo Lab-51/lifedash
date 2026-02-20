@@ -420,7 +420,7 @@ export default function FocusPage() {
                                   onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
                                 />
                                 <label className="flex items-center gap-1.5 text-sm text-surface-700 dark:text-surface-300 shrink-0 cursor-pointer">
-                                  <input type="checkbox" checked={editBillable} onChange={e => setEditBillable(e.target.checked)} className="rounded border-surface-300 dark:border-surface-600 text-emerald-600 focus:ring-emerald-500" />
+                                  <input type="checkbox" checked={editBillable} onChange={e => setEditBillable(e.target.checked)} className="accent-emerald-500 cursor-pointer" />
                                   Billable
                                 </label>
                                 <button onClick={saveEdit} className="p-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white transition-colors" title="Save">

@@ -278,23 +278,24 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
                 />
               </div>
 
-              {/* Billable toggle */}
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={billable}
-                  onChange={e => setBillable(e.target.checked)}
-                  className="w-4 h-4 rounded border-surface-300 dark:border-surface-600 text-emerald-600 focus:ring-emerald-500"
-                />
-                <span className="text-sm text-surface-600 dark:text-surface-400">Mark as billable</span>
-              </label>
-
-              {/* Cost preview when project has hourly rate */}
-              {hourlyRate && billable && (
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 text-center">
-                  ~${((actualDuration / 60) * hourlyRate).toFixed(2)} ({actualDuration} min @ ${hourlyRate}/hr)
-                </p>
-              )}
+              {/* Billable toggle + cost preview */}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <button
+                    type="button"
+                    onClick={() => setBillable(!billable)}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${billable ? 'bg-emerald-500' : 'bg-surface-300 dark:bg-surface-600'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${billable ? 'translate-x-4' : ''}`} />
+                  </button>
+                  <span className="text-sm text-surface-600 dark:text-surface-400">Billable</span>
+                </label>
+                {hourlyRate != null && billable && (
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400">
+                    ~${((actualDuration / 60) * hourlyRate).toFixed(2)} ({actualDuration}m @ ${hourlyRate}/hr)
+                  </span>
+                )}
+              </div>
 
               {/* Session count */}
               <p className="text-xs text-surface-500 text-center">
