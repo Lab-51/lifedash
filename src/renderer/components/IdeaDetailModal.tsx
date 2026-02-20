@@ -190,6 +190,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
+      onClick={handleOverlayClick}
     >
       <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto p-5">
         {/* Header row */}

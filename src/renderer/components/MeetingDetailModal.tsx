@@ -423,6 +423,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
     <>
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
+        onClick={handleOverlayClick}
       >
         <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 w-full max-w-2xl max-h-[80vh] overflow-y-auto mx-4 p-6">
           {/* Header: Title + Close */}

@@ -374,6 +374,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/60"
+      onClick={handleOverlayClick}
     >
       <div className={`bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-600 w-full max-w-3xl max-h-[80vh] mx-4 p-6 ${
         activeTab === 'agent' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'
