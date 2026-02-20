@@ -77,7 +77,7 @@ const MeetingCardModern = memo(function MeetingCardModern({ meeting, projectName
             </div>
 
             {/* Main Content */}
-            <div className="mb-4 pr-16">
+            <div className="mb-4 pr-32">
                 <h3 className="text-lg font-bold text-surface-900 dark:text-surface-100 truncate mb-1">
                     {meeting.title || 'Untitled Meeting'}
                 </h3>
