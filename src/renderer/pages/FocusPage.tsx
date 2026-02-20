@@ -3,7 +3,7 @@
 // session list with date grouping, and CSV export.
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Timer, Download, Play, Clock, Calendar, BarChart3, Pencil, Trash2, Check, X } from 'lucide-react';
+import { Timer, Download, Play, Clock, Calendar, BarChart3, Pencil, Trash2, Check, X, DollarSign, Minus } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useFocusStore } from '../stores/focusStore';
 import { toast } from '../hooks/useToast';
@@ -59,16 +59,23 @@ function fmtTime(iso: string): string {
 function fmtDateHdr(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 }
+function fmtCost(amount: number): string {
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 function exportCSV(sessions: FocusSessionFull[], startDate: string, endDate: string, projectName?: string) {
-  const hdr = ['Date', 'Time', 'Duration (min)', 'Project', 'Card', 'Note'];
+  const hdr = ['Date', 'Time', 'Duration (min)', 'Project', 'Card', 'Note', 'Billable', 'Hourly Rate', 'Cost'];
   const rows = sessions.map(s => {
     const dt = new Date(s.completedAt);
+    const cost = s.billable && s.hourlyRate ? ((s.durationMinutes / 60) * s.hourlyRate).toFixed(2) : '';
     return [
       dt.toLocaleDateString('en-US'),
       dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       String(s.durationMinutes), s.projectName || 'No project',
       s.cardTitle || '', (s.note || '').replace(/,/g, ';'),
+      s.billable ? 'Yes' : 'No',
+      s.hourlyRate != null ? String(s.hourlyRate) : '',
+      cost,
     ].join(',');
   });
   const blob = new Blob([[hdr.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' });
@@ -100,10 +107,12 @@ export default function FocusPage() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [billableFilter, setBillableFilter] = useState<'' | 'true' | 'false'>('');
   const [displayCount, setDisplayCount] = useState(PAGE);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editProject, setEditProject] = useState('');
   const [editNote, setEditNote] = useState('');
+  const [editBillable, setEditBillable] = useState(true);
   const pendingDeleteRef = useRef<{ id: string; timeout: ReturnType<typeof setTimeout> } | null>(null);
 
   useEffect(() => {
@@ -118,6 +127,7 @@ export default function FocusPage() {
     setEditingId(s.id);
     setEditProject(s.projectId || '');
     setEditNote(s.note || '');
+    setEditBillable(s.billable);
   }, []);
 
   const cancelEdit = useCallback(() => {
@@ -129,9 +139,10 @@ export default function FocusPage() {
     await useFocusStore.getState().updateSession(editingId, {
       projectId: editProject || null,
       note: editNote || null,
+      billable: editBillable,
     });
     setEditingId(null);
-  }, [editingId, editProject, editNote]);
+  }, [editingId, editProject, editNote, editBillable]);
 
   const handleDelete = useCallback((session: FocusSessionFull) => {
     // Cancel any previous pending delete
@@ -180,11 +191,15 @@ export default function FocusPage() {
     setLoading(true);
     setDisplayCount(PAGE);
     window.electronAPI
-      .focusGetTimeReport({ startDate, endDate, projectId: projectId || undefined })
+      .focusGetTimeReport({
+        startDate, endDate,
+        projectId: projectId || undefined,
+        billableOnly: billableFilter === 'true' ? true : billableFilter === 'false' ? false : undefined,
+      })
       .then(data => { if (!cancelled) setReport(data); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [startDate, endDate, projectId, focusMode, lastSavedAt]);
+  }, [startDate, endDate, projectId, billableFilter, focusMode, lastSavedAt]);
 
   const grouped = useMemo(() => {
     if (!report) return [];
@@ -228,6 +243,11 @@ export default function FocusPage() {
       <select value={projectId} onChange={e => setProjectId(e.target.value)} className={`px-3 py-1.5 text-sm rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-900 dark:text-surface-100`}>
         <option value="">All Projects</option>
         {activeProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+      <select value={billableFilter} onChange={e => setBillableFilter(e.target.value as '' | 'true' | 'false')} className={`px-3 py-1.5 text-sm rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-900 dark:text-surface-100`}>
+        <option value="">All Sessions</option>
+        <option value="true">Billable</option>
+        <option value="false">Non-billable</option>
       </select>
       <button onClick={() => useFocusStore.getState().setShowStartModal(true)} className="ml-auto inline-flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors">
         <Play size={14} /> Start Focus
@@ -273,7 +293,7 @@ export default function FocusPage() {
       {loading ? (
         <div className="space-y-4">
           <div className="grid grid-cols-4 gap-4">
-            {[0,1,2,3].map(i => <div key={i} className="h-20 bg-surface-100 dark:bg-surface-800 rounded-2xl animate-pulse" />)}
+            {[0, 1, 2, 3].map(i => <div key={i} className="h-20 bg-surface-100 dark:bg-surface-800 rounded-2xl animate-pulse" />)}
           </div>
           <div className="h-40 bg-surface-100 dark:bg-surface-800 rounded-2xl animate-pulse" />
           <div className="h-32 bg-surface-100 dark:bg-surface-800 rounded-2xl animate-pulse" />
@@ -281,18 +301,32 @@ export default function FocusPage() {
       ) : summary ? (
         <>
           {/* Summary Stats */}
-          <div className="grid grid-cols-4 gap-4">
-            {([
-              ['Total Sessions', String(summary.totalSessions), <BarChart3 key="b" size={16} className="text-emerald-500" />],
-              ['Total Time', fmt(summary.totalMinutes), <Clock key="c" size={16} className="text-emerald-500" />],
-              ['Avg Session', `${summary.avgSessionMinutes}m`, <Timer key="t" size={16} className="text-emerald-500" />],
-              ['Active Days', `${summary.activeDays} of ${totalDays}`, <Calendar key="d" size={16} className="text-emerald-500" />],
-            ] as [string, string, React.ReactNode][]).map(([label, value, icon]) => (
-              <div key={label} className={`${cardCls} p-4`}>
-                <div className="flex items-center gap-1.5 mb-1">{icon}<span className="text-xs font-medium text-surface-500 uppercase tracking-wider">{label}</span></div>
-                <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">{value}</p>
+          <div className={`grid gap-4 ${summary.billableCost > 0 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+            <div className={`${cardCls} p-4`}>
+              <div className="flex items-center gap-1.5 mb-1"><BarChart3 size={16} className="text-emerald-500" /><span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Total Sessions</span></div>
+              <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">{summary.totalSessions}</p>
+            </div>
+            <div className={`${cardCls} p-4`}>
+              <div className="flex items-center gap-1.5 mb-1"><Clock size={16} className="text-emerald-500" /><span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Total Time</span></div>
+              <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">{fmt(summary.totalMinutes)}</p>
+              {billableFilter === '' && summary.billableMinutes > 0 && summary.billableMinutes < summary.totalMinutes && (
+                <p className="text-xs text-surface-400 mt-0.5">{fmt(summary.billableMinutes)} billable</p>
+              )}
+            </div>
+            <div className={`${cardCls} p-4`}>
+              <div className="flex items-center gap-1.5 mb-1"><Timer size={16} className="text-emerald-500" /><span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Avg Session</span></div>
+              <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">{summary.avgSessionMinutes}m</p>
+            </div>
+            <div className={`${cardCls} p-4`}>
+              <div className="flex items-center gap-1.5 mb-1"><Calendar size={16} className="text-emerald-500" /><span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Active Days</span></div>
+              <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">{summary.activeDays} of {totalDays}</p>
+            </div>
+            {summary.billableCost > 0 && (
+              <div className={`${cardCls} p-4`}>
+                <div className="flex items-center gap-1.5 mb-1"><DollarSign size={16} className="text-emerald-500" /><span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Billable Amount</span></div>
+                <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">{fmtCost(summary.billableCost)}</p>
               </div>
-            ))}
+            )}
           </div>
 
           {/* Project Breakdown */}
@@ -311,6 +345,7 @@ export default function FocusPage() {
                       </div>
                       <span className="text-sm font-medium text-surface-900 dark:text-surface-100 w-20 text-right shrink-0">{fmt(pb.minutes)}</span>
                       <span className="text-xs text-surface-500 w-20 text-right shrink-0">{pb.sessions} session{pb.sessions !== 1 ? 's' : ''}</span>
+                      {pb.cost !== null && pb.cost > 0 && <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 w-20 text-right shrink-0">{fmtCost(pb.cost)}</span>}
                     </div>
                   );
                 })}
@@ -384,6 +419,10 @@ export default function FocusPage() {
                                   className={`flex-1 ${inputCls}`}
                                   onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
                                 />
+                                <label className="flex items-center gap-1.5 text-sm text-surface-700 dark:text-surface-300 shrink-0 cursor-pointer">
+                                  <input type="checkbox" checked={editBillable} onChange={e => setEditBillable(e.target.checked)} className="rounded border-surface-300 dark:border-surface-600 text-emerald-600 focus:ring-emerald-500" />
+                                  Billable
+                                </label>
                                 <button onClick={saveEdit} className="p-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white transition-colors" title="Save">
                                   <Check size={14} />
                                 </button>
@@ -398,6 +437,9 @@ export default function FocusPage() {
                               <span className="text-xs text-surface-500 w-16 shrink-0">{fmtTime(s.completedAt)}</span>
                               <span className="flex items-center gap-1 text-sm font-medium text-surface-900 dark:text-surface-100 w-16 shrink-0">
                                 <Timer size={12} className="text-emerald-500" />{s.durationMinutes} min
+                              </span>
+                              <span className="shrink-0" title={s.billable ? 'Billable' : 'Non-billable'}>
+                                {s.billable ? <DollarSign size={12} className="text-emerald-500" /> : <Minus size={12} className="text-surface-400" />}
                               </span>
                               {s.projectColor && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.projectColor }} />}
                               <span className="text-xs text-surface-400 w-28 truncate shrink-0">{s.projectName || 'No project'}</span>

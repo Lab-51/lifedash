@@ -35,7 +35,7 @@ interface FocusState {
   clearFocusedCard: () => void;
   saveSession: (input: { cardId?: string; durationMinutes: number; note?: string }) =>
     Promise<{ newAchievements: Achievement[] }>;
-  updateSession: (id: string, input: { projectId?: string | null; note?: string | null }) => Promise<void>;
+  updateSession: (id: string, input: { projectId?: string | null; note?: string | null; billable?: boolean }) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
 }
 
