@@ -107,12 +107,17 @@ export default function BrainstormModern() {
         prevMessageCountRef.current = count;
     }, [activeSession?.messages.length]);
 
-    // Auto-select last active brainstorm session on mount
+    // Auto-select most recent active session on mount
     useEffect(() => {
         if (sessions.length > 0 && !activeSession && !loadingSession) {
             const lastId = localStorage.getItem('lastBrainstormSessionId');
-            if (lastId && sessions.some(s => s.id === lastId)) {
-                loadSession(lastId);
+            const lastSession = lastId ? sessions.find(s => s.id === lastId) : null;
+            if (lastSession && lastSession.status === 'active') {
+                loadSession(lastSession.id);
+            } else {
+                // Fall back to most recent active session
+                const mostRecent = sessions.find(s => s.status === 'active');
+                if (mostRecent) loadSession(mostRecent.id);
             }
         }
     }, [sessions, activeSession, loadingSession, loadSession]);
