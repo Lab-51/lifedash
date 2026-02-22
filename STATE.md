@@ -2,11 +2,12 @@
 
 ## Session Info
 Last updated: 2026-02-22
-Session focus: Billing Rate UX + Project-Session Linking Fix
+Session focus: Card Agent Side Panel (Plan J.1)
 
 ## Position
 Milestone: v2.0.0
-Latest commit: 660555e (feat: improve billing rate UX and fix project-session linking)
+Latest commit: 0f2845a (feat: card agent side panel — replace tabs with side-by-side layout)
+Plan J.1: COMPLETE (2/2 tasks) — Card Agent Side Panel
 Plan I.1: COMPLETE (3/3 tasks) — Billable Time Tracking
 Plan H.1: COMPLETE (3/3 tasks) — Transcription Language Selection
 Plan G.1: COMPLETE (2/2 tasks) — Achievement Banner Visual Overhaul
@@ -246,9 +247,27 @@ Plan D.9: COMPLETE (3/3 tasks) — Dark Mode Polish (Projects & Cards)
   - Applied in focusService (SQL per-session rounding), FocusPage CSV export, FocusCompleteModal preview
   - Completion modal shows "45m → 1h @ $150/hr" format for clarity
 
+## Plan J.1 Results — Card Agent Side Panel
+- Task 1: Remove tab system, implement side-by-side layout (0f2845a)
+  - Removed activeTab state, tab bar JSX, and all tab-conditional rendering
+  - Added showAgent boolean state with "AI Agent" header button (Bot icon + emerald badge)
+  - Modal expands from max-w-3xl to max-w-[90vw]/xl:max-w-7xl when agent open
+  - Flex row layout: details always visible left, agent panel 360px/420px right
+  - Agent panel has its own header bar with close button (PanelRightClose)
+  - Dark/light mode support on all new elements
+- Task 2: Polish transitions, responsive behavior, keyboard shortcut (0f2845a)
+  - Width-based panel animation (w-0 → w-[360px]/xl:w-[420px]) with transition-all 300ms
+  - Two-stage Escape: close agent panel first, then modal on second press
+  - Escape handler skips when focus is in input/textarea/contenteditable
+  - Border transitions via border-transparent (no flash on close)
+  - Active button state: emerald bg/text when panel open
+  - agentEverOpened flag preserves lazy loading of CardAgentPanel
+  - Responsive: 360px on <1280px, 420px on xl+
+- Code review fixes: Escape input guard, border-transparent transition, stale comment
+
 ## Resume Context
-All billing improvements committed and pushed (660555e).
-Next action: TBD — user decides
+Plan J.1 COMPLETE. Card agent now uses side-by-side layout instead of tabs.
+Next action: TBD — user decides.
 
 ## Plan F.1 Results — Focus Session History & Time Tracking
 - Task 1: Focus history backend — session list + period aggregation queries (a421156)

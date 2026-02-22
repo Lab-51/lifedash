@@ -189,12 +189,12 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 dark:bg-black/80 backdrop-blur-[2px]"
       onClick={handleOverlayClick}
     >
-      <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto p-5">
+      <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700/60 shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto p-6 md:p-8">
         {/* Header row */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between gap-4 mb-2">
           <input
             type="text"
             value={title}
@@ -205,14 +205,16 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
               }
             }}
             placeholder="Idea title..."
-            className="flex-1 bg-transparent text-lg font-semibold text-surface-100 focus:outline-none border-b border-transparent focus:border-primary-500 pb-1"
+            className="flex-1 bg-transparent text-xl md:text-2xl font-bold text-surface-900 dark:text-surface-50 focus:outline-none border-b-2 border-transparent focus:border-primary-500 pb-1 transition-colors w-full"
           />
-          <button
-            onClick={onClose}
-            className="text-surface-500 hover:text-surface-700 dark:text-surface-300 p-1 transition-colors"
-          >
-            <X size={18} />
-          </button>
+          <div className="bg-surface-100/50 dark:bg-surface-800/50 p-1 rounded-lg shrink-0">
+            <button
+              onClick={onClose}
+              className="text-surface-500 hover:text-surface-800 dark:hover:text-surface-200 p-1.5 rounded-md hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Loading state */}
@@ -226,9 +228,9 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
         {selectedIdea && (
           <>
             {/* Metadata row */}
-            <div className="flex items-center gap-3 mt-4">
-              <div>
-                <label className="text-xs text-surface-400 mb-1 block">Status</label>
+            <div className="flex flex-wrap items-center gap-4 mt-6">
+              <div className="flex-1 min-w-[120px]">
+                <label className="text-xs font-semibold text-surface-500 mb-1.5 block">Status</label>
                 <select
                   value={status}
                   onChange={(e) => {
@@ -236,7 +238,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                     setStatus(newStatus);
                     if (selectedIdea) updateIdea(selectedIdea.id, { status: newStatus });
                   }}
-                  className=""
+                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
                 >
                   {STATUS_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -245,8 +247,8 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-xs text-surface-400 mb-1 block">Effort</label>
+              <div className="flex-1 min-w-[120px]">
+                <label className="text-xs font-semibold text-surface-500 mb-1.5 block">Effort</label>
                 <select
                   value={effort}
                   onChange={(e) => {
@@ -254,7 +256,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                     setEffort(newEffort);
                     if (selectedIdea) updateIdea(selectedIdea.id, { effort: newEffort || null });
                   }}
-                  className=""
+                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
                 >
                   <option value="">--</option>
                   {EFFORT_OPTIONS.map((opt) => (
@@ -264,8 +266,8 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-xs text-surface-400 mb-1 block">Impact</label>
+              <div className="flex-1 min-w-[120px]">
+                <label className="text-xs font-semibold text-surface-500 mb-1.5 block">Impact</label>
                 <select
                   value={impact}
                   onChange={(e) => {
@@ -273,7 +275,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                     setImpact(newImpact);
                     if (selectedIdea) updateIdea(selectedIdea.id, { impact: newImpact || null });
                   }}
-                  className=""
+                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
                 >
                   <option value="">--</option>
                   {IMPACT_OPTIONS.map((opt) => (
@@ -308,7 +310,9 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
               analyzing={analyzing}
               analysisError={analysisError}
               analysis={analysis}
-              onAnalyze={() => analyzeIdea(selectedIdea.id)}
+              onAnalyze={() => {
+                if (selectedIdea) analyzeIdea(selectedIdea.id);
+              }}
               onClearAnalysis={clearAnalysis}
               onApplyEffort={(newEffort) => {
                 setEffort(newEffort);
@@ -422,7 +426,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
               )}
 
               {/* Convert to card wizard */}
-              {convertMode === 'card' && (
+              {convertMode === 'card' && selectedIdea && (
                 <IdeaConvertWizard
                   ideaId={selectedIdea.id}
                   onComplete={onClose}
@@ -439,28 +443,29 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   {!confirmDelete ? (
                     <button
                       onClick={() => setConfirmDelete(true)}
-                      className="text-surface-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                      className="flex items-center gap-1.5 text-sm font-medium text-surface-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 px-3 py-1.5 rounded-md transition-colors"
                     >
                       <Trash2 size={16} />
+                      Delete Idea
                     </button>
                   ) : (
-                    <>
-                      <span className="text-sm text-red-400">Delete?</span>
-                      <button
-                        onClick={() => setConfirmDelete(false)}
-                        className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
-                      >
-                        Cancel
-                      </button>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-surface-600 dark:text-surface-300">Delete this idea?</span>
                       <button
                         onClick={handleDelete}
                         disabled={deleting}
-                        className="bg-red-500/20 text-red-400 hover:bg-red-500/30 text-sm px-3 py-1 rounded-lg transition-colors flex items-center gap-1.5"
+                        className="text-sm font-medium bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5"
                       >
                         {deleting && <Loader2 size={14} className="animate-spin" />}
-                        Confirm
+                        Yes, delete
                       </button>
-                    </>
+                      <button
+                        onClick={() => setConfirmDelete(false)}
+                        className="text-sm font-medium text-surface-500 hover:text-surface-800 dark:text-surface-400 dark:hover:text-surface-200 px-3 py-1.5 rounded-md transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

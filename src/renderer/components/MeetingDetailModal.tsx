@@ -150,7 +150,7 @@ function formatMeetingAsMarkdown(
     for (const item of meeting.actionItems) {
       const checkbox = item.status === 'converted' ? '[x]'
         : item.status === 'dismissed' ? '[~]'
-        : '[ ]';
+          : '[ ]';
       lines.push(`- ${checkbox} ${item.description}`);
     }
   }
@@ -422,12 +422,12 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 dark:bg-black/80 backdrop-blur-[2px]"
         onClick={handleOverlayClick}
       >
-        <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 w-full max-w-2xl max-h-[80vh] overflow-y-auto mx-4 p-6">
+        <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700/60 shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto mx-4 p-8">
           {/* Header: Title + Close */}
-          <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-start justify-between gap-3 mb-6">
             <div className="flex-1 min-w-0">
               {isEditingTitle ? (
                 <input
@@ -437,44 +437,47 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                   onKeyDown={handleTitleKeyDown}
                   onBlur={saveTitleEdit}
                   autoFocus
-                  className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-xl font-bold text-surface-100 focus:outline-none focus:border-primary-500 w-full"
+                  className="bg-white dark:bg-surface-900 border border-surface-300 dark:border-surface-600 rounded-lg px-3 py-2 text-2xl font-bold text-surface-900 dark:text-surface-50 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 w-full shadow-sm"
                 />
               ) : (
                 <h2
-                  className="text-xl font-bold text-surface-100 cursor-pointer hover:text-surface-800 dark:text-surface-200"
+                  className="text-2xl font-bold text-surface-900 dark:text-surface-50 cursor-text hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
                   onClick={startEditingTitle}
                 >
                   {meeting.title}
                 </h2>
               )}
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1 shrink-0 bg-surface-100/50 dark:bg-surface-800/50 p-1 rounded-lg">
               <button
                 onClick={handleExport}
-                className="text-surface-500 hover:text-surface-700 dark:text-surface-300 p-1 transition-colors"
+                className="text-surface-500 hover:text-surface-800 dark:hover:text-surface-200 p-1.5 rounded-md hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
                 title="Export as Markdown"
               >
-                <Download size={18} />
+                <Download size={16} />
               </button>
+              <div className="w-px h-4 bg-surface-200 dark:bg-surface-700 mx-0.5" />
               <button
                 onClick={handleClose}
-                className="text-surface-500 hover:text-surface-700 dark:text-surface-300 p-1 transition-colors"
+                className="text-surface-500 hover:text-surface-800 dark:hover:text-surface-200 p-1.5 rounded-md hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
           </div>
 
           {/* Metadata row */}
-          <div className="flex flex-wrap items-center gap-3 mb-5 text-sm">
-            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${status.className}`}>
+          <div className="flex flex-wrap items-center gap-3 mb-8 text-sm bg-surface-50 dark:bg-surface-800/30 p-3 rounded-xl border border-surface-100 dark:border-surface-800">
+            <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${status.className}`}>
               {status.label}
             </span>
-            <span className="flex items-center gap-1 text-surface-400">
-              <Clock size={14} />
+            <div className="w-1 h-1 rounded-full bg-surface-300 dark:bg-surface-700" />
+            <span className="flex items-center gap-1.5 font-medium text-surface-600 dark:text-surface-300">
+              <Clock size={14} className="text-surface-400" />
               {formatDuration(meeting.startedAt, meeting.endedAt)}
             </span>
-            <span className="text-surface-400">
+            <div className="w-1 h-1 rounded-full bg-surface-300 dark:bg-surface-700" />
+            <span className="font-medium text-surface-600 dark:text-surface-300">
               {formatDate(meeting.startedAt)} at {formatTime(meeting.startedAt)}
             </span>
             {meeting.transcriptionLanguage && (
@@ -502,14 +505,14 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
           })()}
 
           {/* Project linking */}
-          <div className="flex items-center gap-3 mb-5">
-            <span className="text-sm text-surface-400">Project:</span>
+          <div className="flex items-center gap-3 mb-8">
+            <span className="text-sm font-semibold text-surface-500">Linked Project</span>
             <select
               value={meeting.projectId || ''}
               onChange={(e) => updateMeeting(meeting.id, {
                 projectId: e.target.value || null,
               })}
-              className=""
+              className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark] transition-colors appearance-none shadow-sm min-w-[200px]"
             >
               <option value="">No project</option>
               {projects.map(p => (
@@ -522,11 +525,11 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                   navigate(`/projects/${meeting.projectId}`);
                   handleClose();
                 }}
-                className="flex items-center gap-1 text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                className="flex items-center gap-1.5 text-xs font-bold bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-2.5 py-1.5 rounded-md transition-colors"
                 title="Go to project board"
               >
-                Open board
-                <ArrowRight size={13} />
+                Open Board
+                <ArrowRight size={14} />
               </button>
             )}
           </div>
@@ -656,25 +659,25 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
             </div>
 
             {meeting.segments.length === 0 ? (
-              <div className="text-center py-8 text-surface-500 text-sm">
+              <div className="text-center py-12 bg-surface-50 dark:bg-surface-800/20 rounded-xl border border-dashed border-surface-200 dark:border-surface-700 text-surface-500 text-sm">
                 {meeting.status === 'recording'
                   ? 'Transcription in progress...'
                   : 'No transcript available'}
               </div>
             ) : filteredSegments.length === 0 ? (
-              <div className="text-center py-6 text-surface-500 text-sm">
+              <div className="text-center py-10 bg-surface-50 dark:bg-surface-800/20 rounded-xl border border-dashed border-surface-200 dark:border-surface-700 text-surface-500 text-sm">
                 No segments match &ldquo;{transcriptSearch}&rdquo;
               </div>
             ) : (
-              <div className="max-h-64 overflow-y-auto rounded-lg bg-surface-800/50 border border-surface-700 p-3 space-y-2">
+              <div className="max-h-80 overflow-y-auto rounded-xl bg-surface-50/50 dark:bg-surface-800/30 border border-surface-200 dark:border-surface-700 p-4 space-y-3 shadow-inner">
                 {filteredSegments.map(segment => {
                   const speakerColor = segment.speaker ? getSpeakerColor(segment.speaker) : null;
                   return (
-                    <div key={segment.id} className="flex gap-3 text-sm">
-                      <span className="font-mono text-xs text-surface-500 pt-0.5 shrink-0 w-12 text-right">
+                    <div key={segment.id} className="flex gap-4 text-sm hover:bg-white dark:hover:bg-surface-800/80 p-2 -mx-2 rounded-lg transition-colors">
+                      <span className="font-mono text-xs text-surface-400 dark:text-surface-500 pt-0.5 shrink-0 w-12 text-right">
                         {formatTimestamp(segment.startTime)}
                       </span>
-                      <p className="text-surface-800 dark:text-surface-200 flex-1">
+                      <p className="text-surface-800 dark:text-surface-200 flex-1 leading-relaxed">
                         {segment.speaker && speakerColor && (
                           <span className={`${speakerColor.text} font-medium text-xs mr-1.5`}>
                             [{segment.speaker}]
@@ -694,16 +697,16 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
           <div className="pt-3 border-t border-surface-200 dark:border-surface-700">
             {confirmDelete ? (
               <div className="flex items-center gap-3">
-                <span className="text-sm text-surface-400">Are you sure?</span>
+                <span className="text-sm font-medium text-surface-600 dark:text-surface-300">Delete this meeting?</span>
                 <button
                   onClick={handleDelete}
-                  className="text-sm text-red-400 hover:text-red-300 font-medium transition-colors"
+                  className="text-sm font-medium bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-md transition-colors"
                 >
-                  Confirm Delete
+                  Yes, delete
                 </button>
                 <button
                   onClick={() => setConfirmDelete(false)}
-                  className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
+                  className="text-sm font-medium text-surface-500 hover:text-surface-800 dark:text-surface-400 dark:hover:text-surface-200 px-3 py-1.5 rounded-md transition-colors"
                 >
                   Cancel
                 </button>
@@ -711,9 +714,9 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
             ) : (
               <button
                 onClick={() => setConfirmDelete(true)}
-                className="flex items-center gap-1.5 text-sm text-surface-500 hover:text-red-400 transition-colors"
+                className="flex items-center gap-1.5 text-sm font-medium text-surface-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 px-3 py-1.5 rounded-md transition-colors -ml-3"
               >
-                <Trash2 size={14} />
+                <Trash2 size={16} />
                 Delete Meeting
               </button>
             )}

@@ -1,0 +1,2 @@
+src/renderer/components/CardDetailModal.tsx(610,1): error TS1005: ',' expected.
+src/renderer/components/CardDetailModal.tsx(611,1): error TS1005: '}' expected.

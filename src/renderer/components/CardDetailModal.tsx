@@ -387,15 +387,29 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/60"
-    >
-      <div className={`bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-600 w-full ${
-        showAgent ? 'max-w-[90vw] xl:max-w-7xl' : 'max-w-3xl'
-      } max-h-[85vh] mx-4 flex flex-col overflow-hidden transition-all duration-300 ease-out`}>
-        {/* Header: Title + AI Agent toggle + Close button */}
-        <div className="flex items-start justify-between gap-3 p-6 pb-4 shrink-0">
-          <div className="flex-1 min-w-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 dark:bg-black/80 backdrop-blur-[2px]">
+      <div className={`bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700/60 shadow-2xl w-full flex flex-col overflow-hidden transition-all duration-300 ease-out ${showAgent ? 'max-w-[95vw] xl:max-w-[1400px]' : 'max-w-5xl'
+        } max-h-[90vh] mx-4`}>
+        {/* Header: Breadcrumb + Title + Close button */}
+        <div className="flex flex-col gap-2 px-8 pt-6 pb-4 border-b border-surface-100 dark:border-surface-800 shrink-0 bg-surface-50/50 dark:bg-surface-800/30">
+          <div className="flex items-center justify-between w-full text-surface-500">
+            <div className="flex items-center gap-2 text-sm font-medium tracking-wide">
+              <div className="w-5 h-5 rounded bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 flex items-center justify-center">
+                <span className="text-[10px]">●</span>
+              </div>
+              {project?.name || 'Project'} <span className="text-surface-300 dark:text-surface-600">/</span> Card Details
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onClose}
+                className="text-surface-500 hover:text-surface-800 dark:hover:text-surface-200 p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors shrink-0"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          <div className="w-full mt-2">
             {isEditingTitle ? (
               <input
                 type="text"
@@ -404,425 +418,370 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                 onKeyDown={handleTitleKeyDown}
                 onBlur={saveTitleEdit}
                 autoFocus
-                className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-xl font-bold text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 w-full"
+                className="bg-white dark:bg-surface-900 border border-surface-300 dark:border-surface-600 rounded-lg px-3 py-2 text-3xl font-bold text-surface-900 dark:text-surface-50 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 w-full shadow-sm"
               />
             ) : (
               <h2
-                className={`text-xl font-bold cursor-pointer hover:text-surface-800 dark:hover:text-surface-200 ${card.completed ? 'text-surface-500 line-through' : 'text-surface-900 dark:text-surface-100'}`}
+                className={`text-3xl font-bold cursor-text hover:text-surface-700 dark:hover:text-surface-300 transition-colors ${card.completed ? 'text-surface-500 line-through' : 'text-surface-900 dark:text-surface-50'}`}
                 onClick={startEditingTitle}
               >
                 {card.title}
               </h2>
             )}
           </div>
-          <button
-            onClick={() => setShowAgent(!showAgent)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors duration-200 shrink-0 ${
-              showAgent
-                ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
-                : 'text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800'
-            }`}
-          >
-            <Bot size={16} />
-            AI Agent
-            {agentMessageCount > 0 && (
-              <span className="text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                {agentMessageCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={onClose}
-            className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 p-1 transition-colors shrink-0"
-          >
-            <X size={20} />
-          </button>
         </div>
 
-        {/* Content area: details (left) + agent panel (right) */}
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Left: Details (always visible) */}
-          <div className="flex-1 overflow-y-auto min-w-0 px-6 pb-6 pr-5">
-            {/* Priority selector */}
-            <div className="mb-5">
-              <span className="text-sm text-surface-400 block mb-2">Priority</span>
-              <div className="flex items-center gap-2">
-                {PRIORITY_OPTIONS.map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => handlePriorityChange(opt.value)}
-                    className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${card.priority === opt.value ? opt.activeClass : opt.inactiveClass
-                      }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+        {/* Content area: main, properties sidebar, agent panel */}
+        <div className="flex flex-1 min-h-0 overflow-hidden bg-white dark:bg-surface-900">
 
-            {/* Template selector + Save as template + AI generate */}
-            <div className="mb-5 flex items-center gap-4">
-              <div className="relative" ref={templateDropdownRef}>
-                <button
-                  onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
-                  className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors"
-                >
-                  <FileText size={14} />
-                  Apply Template
-                </button>
+          <div className="flex-1 overflow-y-auto min-w-0 flex flex-col md:flex-row">
 
-                {showTemplateDropdown && (
-                  <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-600 rounded-lg shadow-lg py-1 min-w-[220px] z-40">
-                    {dbTemplates.length > 0 && (
-                      <>
-                        <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
-                          Your Templates
-                        </div>
-                        {dbTemplates.map(template => (
-                          <button
-                            key={template.id}
-                            onClick={() => applyTemplate(template)}
-                            className="group/tpl flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left"
-                          >
-                            <span className="truncate flex-1">{template.name}</span>
-                            <span
-                              onClick={(e) => handleDeleteDbTemplate(template.id, e)}
-                              className="opacity-0 group-hover/tpl:opacity-100 text-surface-500 hover:text-red-400 transition-all shrink-0 p-0.5"
-                              title="Delete template"
-                            >
-                              <X size={12} />
-                            </span>
-                          </button>
-                        ))}
-                        <div className="border-t border-surface-200 dark:border-surface-700 my-1" />
-                      </>
-                    )}
-                    {dbTemplates.length > 0 && (
-                      <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
-                        Built-in
-                      </div>
-                    )}
-                    {BUILTIN_TEMPLATES.map(template => (
-                      <button
-                        key={template.id}
-                        onClick={() => applyTemplate(template)}
-                        className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left"
-                      >
-                        <span>{template.icon}</span>
-                        {template.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+            {/* Left: Main Content */}
+            <div className="flex-1 px-8 py-8 overflow-y-auto min-w-0 flex flex-col gap-10">
 
-              <button
-                onClick={handleSaveAsTemplate}
-                className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors"
-                title="Save as template"
-              >
-                <BookmarkPlus size={14} />
-                Save as Template
-              </button>
-
-              <button
-                onClick={handleGenerateDescription}
-                disabled={generatingDescription}
-                className="inline-flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-100 transition-colors disabled:opacity-50"
-                title="Generate description from card title using AI"
-              >
-                <Sparkles size={14} className={generatingDescription ? 'animate-spin' : ''} />
-                {generatingDescription ? 'Generating...' : 'Generate with AI'}
-              </button>
-            </div>
-
-            {/* Description — TipTap editor */}
-            <div className="mb-5">
-              <span className="text-sm text-surface-400 block mb-2">Description</span>
-              <div className="tiptap-editor bg-surface-100/50 dark:bg-surface-800/50 rounded-lg border border-surface-200 dark:border-surface-700">
-                <EditorContent editor={editor} />
-              </div>
-            </div>
-
-            {/* Labels */}
-            <div className="mb-5">
-              <span className="text-sm text-surface-400 block mb-2">Labels</span>
-              <div className="flex flex-wrap items-center gap-2">
-                {card.labels?.map(label => (
-                  <span
-                    key={label.id}
-                    className="inline-flex items-center gap-1.5 bg-surface-50 dark:bg-surface-800 rounded-full px-2.5 py-1 text-xs text-surface-800 dark:text-surface-200"
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: label.color }}
-                    />
-                    {label.name}
-                    <button
-                      onClick={() => handleDetachLabel(label.id)}
-                      className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors ml-0.5"
-                    >
-                      <X size={12} />
-                    </button>
+              {/* Description Section */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-surface-900 dark:text-surface-100 flex items-center gap-2">
+                    <FileText size={16} className="text-surface-400" />
+                    Description
                   </span>
-                ))}
-
-                {/* Add label button + dropdown */}
-                <div className="relative" ref={labelDropdownRef}>
-                  <button
-                    onClick={() => setShowLabelDropdown(!showLabelDropdown)}
-                    className="inline-flex items-center gap-1 text-xs text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 bg-surface-50 dark:bg-surface-800 rounded-full px-2.5 py-1 transition-colors"
-                  >
-                    <Plus size={12} />
-                    Add
-                  </button>
-
-                  {showLabelDropdown && (
-                    <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-600 rounded-lg shadow-lg p-2 min-w-[220px] z-40">
-                      {/* Existing unattached labels */}
-                      {unattachedLabels.length > 0 && (
-                        <div className="mb-2">
-                          {unattachedLabels.map(label => (
-                            <button
-                              key={label.id}
-                              onClick={() => handleAttachLabel(label.id)}
-                              className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-xs text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
-                            >
-                              <span
-                                className="w-2.5 h-2.5 rounded-full shrink-0"
-                                style={{ backgroundColor: label.color }}
-                              />
-                              {label.name}
-                              <Plus size={12} className="ml-auto text-surface-500" />
+                  <div className="flex items-center gap-3">
+                    {/* Template selector */}
+                    <div className="relative" ref={templateDropdownRef}>
+                      <button
+                        onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-surface-500 hover:text-surface-800 dark:text-surface-400 dark:hover:text-surface-200 transition-colors bg-surface-100 dark:bg-surface-800 px-2.5 py-1.5 rounded-md"
+                      >
+                        Templates
+                      </button>
+                      {showTemplateDropdown && (
+                        <div className="absolute top-full right-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-600 rounded-lg shadow-lg py-1 min-w-[220px] z-40">
+                          {dbTemplates.length > 0 && (
+                            <>
+                              <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">Your Templates</div>
+                              {dbTemplates.map(template => (
+                                <button key={template.id} onClick={() => applyTemplate(template)} className="group/tpl flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left">
+                                  <span className="truncate flex-1">{template.name}</span>
+                                  <span onClick={(e) => handleDeleteDbTemplate(template.id, e)} className="opacity-0 group-hover/tpl:opacity-100 text-surface-500 hover:text-red-400 transition-all shrink-0 p-0.5" title="Delete template">
+                                    <X size={12} />
+                                  </span>
+                                </button>
+                              ))}
+                              <div className="border-t border-surface-200 dark:border-surface-700 my-1" />
+                            </>
+                          )}
+                          <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">Built-in</div>
+                          {BUILTIN_TEMPLATES.map(template => (
+                            <button key={template.id} onClick={() => applyTemplate(template)} className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left">
+                              <span>{template.icon}</span> {template.name}
                             </button>
                           ))}
                         </div>
                       )}
+                    </div>
 
-                      {/* Divider */}
-                      {unattachedLabels.length > 0 && (
-                        <div className="border-t border-surface-200 dark:border-surface-700 my-2" />
-                      )}
+                    <button
+                      onClick={handleSaveAsTemplate}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-surface-500 hover:text-surface-800 dark:text-surface-400 dark:hover:text-surface-200 transition-colors px-2.5 py-1.5 rounded-md hover:bg-surface-100 dark:hover:bg-surface-800"
+                    >
+                      <BookmarkPlus size={14} /> Save Template
+                    </button>
 
-                      {/* Create new label */}
-                      <div className="space-y-2">
-                        <span className="text-[10px] uppercase tracking-wider text-surface-500 font-medium">
-                          Create new
+                    <button
+                      onClick={handleGenerateDescription}
+                      disabled={generatingDescription}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-50"
+                    >
+                      <Sparkles size={14} className={generatingDescription ? 'animate-spin' : ''} />
+                      {generatingDescription ? 'Generating...' : 'AI Generate'}
+                    </button>
+                  </div>
+                </div>
+                <div className="tiptap-editor bg-surface-50/30 dark:bg-surface-900/30 rounded-lg border border-surface-200 dark:border-surface-700/50 hover:border-surface-300 dark:hover:border-surface-600 transition-colors min-h-[140px] focus-within:border-primary-500/50 focus-within:bg-white dark:focus-within:bg-surface-900 focus-within:ring-1 focus-within:ring-primary-500/50 text-base">
+                  <EditorContent editor={editor} />
+                </div>
+              </div>
+
+              {/* Extra Sections */}
+              {loadingCardDetails ? (
+                <div className="text-sm text-surface-500 py-12 text-center animate-pulse">Loading details...</div>
+              ) : (
+                <div className="flex flex-col gap-10">
+                  <TaskBreakdownSection cardId={card.id} columnId={card.columnId} />
+                  <ChecklistSection cardId={card.id} />
+                  <AttachmentsSection cardId={card.id} />
+                  <RelationshipsSection cardId={card.id} />
+                  <CommentsSection cardId={card.id} />
+                  <ActivityLog cardId={card.id} />
+                </div>
+              )}
+            </div>
+
+            {/* Right: Properties Sidebar */}
+            <div className="w-full md:w-[320px] bg-surface-50/30 dark:bg-surface-800/20 border-l border-surface-200 dark:border-surface-700/50 p-6 overflow-y-auto flex flex-col gap-8 shrink-0">
+
+              <div className="flex flex-col gap-6">
+                {/* AI Agent Button */}
+                <button
+                  onClick={() => setShowAgent(!showAgent)}
+                  className={`group/agent flex items-center justify-between p-3 rounded-xl border transition-all text-left w-full shadow-sm relative overflow-hidden ${showAgent
+                    ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 shadow-emerald-500/10'
+                    : 'border-primary-200 dark:border-primary-800 bg-gradient-to-r from-primary-50 to-white dark:from-primary-900/20 dark:to-surface-800 hover:border-primary-400 dark:hover:border-primary-600 hover:shadow-primary-500/10'
+                    }`}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 dark:via-white/5 to-transparent -translate-x-full group-hover/agent:animate-[shimmer_1.5s_infinite]" />
+                  <div className="relative flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm transition-colors ${showAgent ? 'bg-emerald-500 border-emerald-500' : 'bg-white dark:bg-surface-800 border-primary-200 dark:border-primary-700 group-hover/agent:border-primary-400 dark:group-hover/agent:border-primary-500'}`}>
+                      <Bot size={16} className={`transition-colors ${showAgent ? 'text-white' : 'text-primary-600 dark:text-primary-400 group-hover/agent:text-primary-500'}`} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`text-sm font-bold ${showAgent ? 'text-emerald-800 dark:text-emerald-300' : 'text-primary-900 dark:text-primary-100'}`}>
+                        AI Agent
+                      </span>
+                      <span className={`text-[11px] font-semibold transition-colors ${showAgent ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary-600/70 dark:text-primary-400/70 group-hover/agent:text-primary-600 dark:group-hover/agent:text-primary-400'}`}>
+                        {showAgent ? 'Panel open' : 'Get AI assistance'}
+                      </span>
+                    </div>
+                  </div>
+                  {agentMessageCount > 0 && (
+                    <div className="relative">
+                      <span className={`text-xs font-bold rounded-full min-w-[24px] h-[24px] flex items-center justify-center px-1.5 shadow-sm border ${showAgent
+                        ? 'bg-emerald-100 dark:bg-emerald-800/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700'
+                        : 'bg-primary-100 dark:bg-primary-800/50 text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-700'
+                        }`}>
+                        {agentMessageCount}
+                      </span>
+                    </div>
+                  )}
+                </button>
+
+                <div className="w-full h-px bg-surface-200 dark:bg-surface-700/50 my-1" />
+
+                {/* Status Action Button */}
+                <div className="flex flex-col gap-2.5">
+                  <span className="text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest pl-1">Status</span>
+                  <button
+                    onClick={() => onUpdate(card.id, { completed: !card.completed })}
+                    className={`group/check flex items-center gap-3 p-3 rounded-xl border transition-all text-left w-full ${card.completed
+                      ? 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-900/10 hover:border-emerald-300 dark:hover:border-emerald-700'
+                      : 'border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 hover:border-surface-300 dark:hover:border-surface-600 hover:shadow-sm'
+                      }`}
+                  >
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-colors ${card.completed ? 'bg-emerald-500 border-emerald-500' : 'border-surface-300 dark:border-surface-600 bg-surface-50 dark:bg-surface-900 group-hover/check:border-emerald-400 group-hover/check:bg-white dark:group-hover/check:bg-surface-800'}`}>
+                      <Check size={14} className={`transition-opacity ${card.completed ? 'text-white opacity-100' : 'text-emerald-500 opacity-0 group-hover/check:opacity-100'}`} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`text-sm font-semibold ${card.completed ? 'text-emerald-700 dark:text-emerald-400' : 'text-surface-900 dark:text-surface-100'}`}>
+                        {card.completed ? 'Completed' : 'Active Task'}
+                      </span>
+                      {!card.completed && <span className="text-[11px] font-medium text-surface-500 group-hover/check:text-emerald-600 dark:group-hover/check:text-emerald-400 transition-colors">Click to mark complete</span>}
+                    </div>
+                  </button>
+                </div>
+
+                {/* Priority */}
+                <div className="flex flex-col gap-2.5">
+                  <span className="text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest pl-1">Priority</span>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {PRIORITY_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => handlePriorityChange(opt.value)}
+                        className={`text-[11px] font-bold px-2 py-1.5 rounded-md transition-colors ${card.priority === opt.value ? opt.activeClass : 'bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-500 hover:border-surface-300 dark:hover:border-surface-600 hover:text-surface-800 dark:hover:text-surface-200'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Due Date */}
+                <div className="flex flex-col gap-2.5">
+                  <span className="text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest pl-1">Due Date</span>
+                  <div className="flex flex-col gap-2">
+                    <div className="relative">
+                      <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
+                      <input
+                        type="datetime-local"
+                        value={card.dueDate ? toDateTimeLocalValue(card.dueDate) : ''}
+                        onChange={(e) => onUpdate(card.id, { dueDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                        className="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark] transition-colors shadow-sm"
+                      />
+                    </div>
+                    {card.dueDate && (
+                      <div className="flex items-center justify-between px-1">
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${card.completed ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : getDueDateBadge(card.dueDate).classes}`}>
+                          {card.completed ? 'Done' : getDueDateBadge(card.dueDate).label}
                         </span>
-                        <input
-                          type="text"
-                          value={newLabelName}
-                          onChange={e => setNewLabelName(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') handleCreateAndAttach(); }}
-                          placeholder="Label name..."
-                          className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded px-2 py-1 text-xs text-surface-900 dark:text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 w-full"
-                        />
-                        <div className="flex items-center gap-1.5">
-                          {LABEL_COLORS.map(color => (
-                            <button
-                              key={color}
-                              onClick={() => setNewLabelColor(color)}
-                              className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-white/70 scale-110' : 'hover:scale-110'
-                                }`}
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
-                        </div>
-                        <button
-                          onClick={handleCreateAndAttach}
-                          disabled={!newLabelName.trim()}
-                          className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs px-3 py-1 rounded transition-colors w-full"
-                        >
-                          Add Label
+                        <button onClick={() => onUpdate(card.id, { dueDate: null })} className="text-xs font-medium text-surface-400 hover:text-red-500 transition-colors">
+                          Clear
                         </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Repeat */}
+                <div className="flex flex-col gap-2.5">
+                  <span className="text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest pl-1">Repeat</span>
+                  <div className="relative">
+                    <RefreshCw size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
+                    <select
+                      value={card.recurrenceType ?? ''}
+                      onChange={(e) => onUpdate(card.id, { recurrenceType: e.target.value || null })}
+                      className="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark] transition-colors appearance-none shadow-sm"
+                    >
+                      <option value="">None</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="biweekly">Bi-weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+                  {card.recurrenceType && (
+                    <div className="flex flex-col gap-2 px-1 mt-1 bg-surface-100/50 dark:bg-surface-800/50 rounded-lg p-2 border border-surface-200 dark:border-surface-700">
+                      {card.dueDate ? (
+                        <p className="text-xs text-surface-500">Next: <span className="font-semibold text-surface-700 dark:text-surface-300">{formatNextDate(getNextRecurrenceDate(card.dueDate, card.recurrenceType))}</span></p>
+                      ) : (
+                        <p className="text-xs font-medium text-amber-500">Set due date to schedule</p>
+                      )}
+                      <div className="flex items-center justify-between gap-2 mt-1 pt-2 border-t border-surface-200 dark:border-surface-700">
+                        <span className="text-xs font-medium text-surface-500 shrink-0">End Repeat:</span>
+                        <input
+                          type="date"
+                          value={card.recurrenceEndDate ? card.recurrenceEndDate.split('T')[0] : ''}
+                          onChange={(e) => onUpdate(card.id, { recurrenceEndDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                          className="bg-transparent border-none text-xs font-semibold text-surface-800 dark:text-surface-200 focus:outline-none dark:[color-scheme:dark] flex-1 text-right"
+                        />
                       </div>
                     </div>
                   )}
                 </div>
+
+                {/* Labels */}
+                <div className="flex flex-col gap-2.5">
+                  <span className="text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest pl-1">Labels</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {card.labels?.map(label => (
+                      <span
+                        key={label.id}
+                        className="inline-flex items-center gap-1.5 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-md px-2 py-1 text-xs font-medium text-surface-800 dark:text-surface-200 shadow-sm"
+                      >
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: label.color }} />
+                        {label.name}
+                        <button onClick={() => handleDetachLabel(label.id)} className="text-surface-400 hover:text-red-500 transition-colors ml-0.5">
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+
+                    <div className="relative" ref={labelDropdownRef}>
+                      <button
+                        onClick={() => setShowLabelDropdown(!showLabelDropdown)}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-surface-500 hover:text-surface-800 dark:hover:text-surface-200 border border-dashed border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 hover:bg-surface-50 dark:hover:bg-surface-700 rounded-md px-2 py-1 transition-colors shadow-sm"
+                      >
+                        <Plus size={12} /> Add
+                      </button>
+
+                      {showLabelDropdown && (
+                        <div className="absolute top-full left-0 mt-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-600 rounded-xl shadow-xl p-2 min-w-[220px] z-40">
+                          {unattachedLabels.length > 0 && (
+                            <div className="max-h-32 overflow-y-auto mb-2 pr-1 scrollbar-thin">
+                              {unattachedLabels.map(label => (
+                                <button
+                                  key={label.id}
+                                  onClick={() => handleAttachLabel(label.id)}
+                                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs font-medium text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                                >
+                                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: label.color }} />
+                                  {label.name}
+                                  <Plus size={12} className="ml-auto text-surface-400 opacity-0 group-hover:opacity-100" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {unattachedLabels.length > 0 && <div className="border-t border-surface-200 dark:border-surface-700 my-2" />}
+                          <div className="space-y-2">
+                            <span className="text-[10px] uppercase tracking-wider text-surface-500 font-bold ml-1">Create new</span>
+                            <input
+                              type="text"
+                              value={newLabelName}
+                              onChange={e => setNewLabelName(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') handleCreateAndAttach(); }}
+                              placeholder="Label name..."
+                              className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-2 py-1.5 text-xs font-medium text-surface-900 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:border-primary-500 w-full"
+                            />
+                            <div className="flex items-center gap-1.5 pt-1 px-1">
+                              {LABEL_COLORS.map(color => (
+                                <button
+                                  key={color}
+                                  onClick={() => setNewLabelColor(color)}
+                                  className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-primary-500 ring-offset-1 dark:ring-offset-surface-800 scale-110' : 'hover:scale-110'}`}
+                                  style={{ backgroundColor: color }}
+                                />
+                              ))}
+                            </div>
+                            <button
+                              onClick={handleCreateAndAttach}
+                              disabled={!newLabelName.trim()}
+                              className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs px-3 py-1.5 rounded-lg transition-colors w-full mt-2 font-bold"
+                            >
+                              Create Label
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-auto pt-6 border-t border-surface-200 dark:border-surface-700/50 flex flex-col gap-2">
+                  <div className="flex justify-between text-[11px] font-medium text-surface-500">
+                    <span>Created</span>
+                    <span className="text-surface-800 dark:text-surface-300" title={formatDate(card.createdAt)}>{formatRelativeTime(card.createdAt)}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] font-medium text-surface-500">
+                    <span>Updated</span>
+                    <span className="text-surface-800 dark:text-surface-300" title={formatDate(card.updatedAt)}>{formatRelativeTime(card.updatedAt)}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Completion */}
-            <div className="mb-5">
-              <span className="text-sm text-surface-400 block mb-2">Status</span>
-              <button
-                onClick={() => onUpdate(card.id, { completed: !card.completed })}
-                className="flex items-center gap-2.5 group/check"
-              >
-                <div
-                  className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                    card.completed
-                      ? 'bg-emerald-600 border-emerald-500'
-                      : 'border-surface-300 dark:border-surface-600 bg-surface-50 dark:bg-surface-800 group-hover/check:border-surface-400'
-                  }`}
-                >
-                  {card.completed && <Check size={12} className="text-white" />}
-                </div>
-                <span className={`text-sm ${card.completed ? 'text-emerald-400' : 'text-surface-700 dark:text-surface-300'}`}>
-                  {card.completed ? 'Completed' : 'Mark as complete'}
-                </span>
-              </button>
-            </div>
-
-            {/* Due Date */}
-            <div className="mb-5">
-              <span className="text-sm text-surface-400 block mb-2">Due Date</span>
-              <div className="flex items-center gap-3">
-                <Calendar size={16} className="text-surface-400 shrink-0" />
-                <input
-                  type="datetime-local"
-                  value={card.dueDate ? toDateTimeLocalValue(card.dueDate) : ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    onUpdate(card.id, {
-                      dueDate: val ? new Date(val).toISOString() : null,
-                    });
-                  }}
-                  className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
-                />
-                {card.dueDate && (
-                  <>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${card.completed ? 'bg-emerald-500/20 text-emerald-400' : getDueDateBadge(card.dueDate).classes}`}>
-                      {card.completed ? 'Done' : getDueDateBadge(card.dueDate).label}
-                    </span>
-                    <button
-                      onClick={() => onUpdate(card.id, { dueDate: null })}
-                      className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
-                    >
-                      Clear
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Repeat / Recurrence */}
-            <div className="mb-5">
-              <span className="text-sm text-surface-400 flex items-center gap-1.5 mb-2">
-                <RefreshCw size={14} />
-                Repeat
-              </span>
-              <select
-                value={card.recurrenceType ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  onUpdate(card.id, { recurrenceType: val || null });
-                }}
-                className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
-              >
-                <option value="">None</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Bi-weekly</option>
-                <option value="monthly">Monthly</option>
-              </select>
-
-              {/* Next date preview */}
-              {card.recurrenceType && card.dueDate && (
-                <p className="text-xs text-surface-400 mt-2">
-                  Next: {formatNextDate(getNextRecurrenceDate(card.dueDate, card.recurrenceType))}
-                </p>
-              )}
-              {card.recurrenceType && !card.dueDate && (
-                <p className="text-xs text-amber-400 mt-2">
-                  Set a due date for auto-scheduling
-                </p>
-              )}
-
-              {/* End repeat date */}
-              {card.recurrenceType && (
-                <div className="flex items-center gap-3 mt-3">
-                  <span className="text-xs text-surface-500">End repeat:</span>
-                  <input
-                    type="datetime-local"
-                    value={card.recurrenceEndDate ? toDateTimeLocalValue(card.recurrenceEndDate) : ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      onUpdate(card.id, {
-                        recurrenceEndDate: val ? new Date(val).toISOString() : null,
-                      });
-                    }}
-                    className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark]"
-                  />
-                  {card.recurrenceEndDate && (
-                    <button
-                      onClick={() => onUpdate(card.id, { recurrenceEndDate: null })}
-                      className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Card Details: Comments, Relationships, Activity */}
-            {loadingCardDetails ? (
-              <div className="text-sm text-surface-500 py-4 text-center">Loading details...</div>
-            ) : (
-              <>
-                <div className="mb-5">
-                  <ChecklistSection cardId={card.id} />
-                </div>
-                <div className="mb-5">
-                  <AttachmentsSection cardId={card.id} />
-                </div>
-                <div className="mb-5">
-                  <CommentsSection cardId={card.id} />
-                </div>
-                <div className="mb-5">
-                  <RelationshipsSection cardId={card.id} />
-                </div>
-                <div className="mb-5">
-                  <ActivityLog cardId={card.id} />
-                </div>
-                <div className="mb-5">
-                  <TaskBreakdownSection cardId={card.id} columnId={card.columnId} />
-                </div>
-              </>
-            )}
-
-            {/* Timestamps */}
-            <div className="text-xs text-surface-500 flex items-center gap-1">
-              <span>Created: {formatDate(card.createdAt)} ({formatRelativeTime(card.createdAt)})</span>
-              <span>·</span>
-              <span>Updated: {formatDate(card.updatedAt)} ({formatRelativeTime(card.updatedAt)})</span>
-            </div>
-          </div>
-
-          {/* Right: Agent panel (always rendered, width-animated) */}
-          <div className={`shrink-0 overflow-hidden transition-all duration-300 ease-out border-l ${
-            showAgent
+            {/* Right: Agent panel (always rendered, width-animated) */}
+            <div className={`shrink-0 overflow-hidden transition-all duration-300 ease-out border-l ${showAgent
               ? 'w-[360px] xl:w-[420px] border-surface-200 dark:border-surface-700'
               : 'w-0 border-transparent'
-          }`}>
-            <div className="min-w-[360px] xl:min-w-[420px] h-full flex flex-col bg-surface-50 dark:bg-surface-800/50">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-surface-200 dark:border-surface-700 shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-sm text-surface-900 dark:text-surface-100">AI Agent</span>
-                  {agentMessageCount > 0 && (
-                    <span className="text-xs bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">
-                      {agentMessageCount}
-                    </span>
+              }`}>
+              <div className="min-w-[360px] xl:min-w-[420px] h-full flex flex-col bg-white dark:bg-surface-800/50">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100 dark:border-surface-700 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-surface-900 dark:text-surface-100">AI Agent</span>
+                    {agentMessageCount > 0 && (
+                      <span className="text-xs bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">
+                        {agentMessageCount}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowAgent(false)}
+                    className="p-1.5 rounded-lg text-surface-400 hover:text-surface-700 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                  >
+                    <PanelRightClose size={16} />
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 bg-surface-50/50 dark:bg-transparent">
+                  {agentEverOpened && (
+                    <Suspense fallback={
+                      <div className="flex items-center justify-center h-full">
+                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-500 border-t-transparent" />
+                      </div>
+                    }>
+                      <CardAgentPanel cardId={card.id} />
+                    </Suspense>
                   )}
                 </div>
-                <button
-                  onClick={() => setShowAgent(false)}
-                  className="p-1 rounded text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
-                >
-                  <PanelRightClose size={16} />
-                </button>
-              </div>
-              <div className="flex-1 min-h-0">
-                {agentEverOpened && (
-                  <Suspense fallback={
-                    <div className="flex items-center justify-center h-32">
-                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary-500 border-t-transparent" />
-                    </div>
-                  }>
-                    <CardAgentPanel cardId={card.id} />
-                  </Suspense>
-                )}
               </div>
             </div>
           </div>

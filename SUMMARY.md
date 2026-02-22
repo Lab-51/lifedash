@@ -1,41 +1,41 @@
-# Plan G.1 — Achievement Banner Visual Overhaul (Dark & Light Mode)
+# Plan J.1 — Card Agent Side Panel
 
-## Date: 2026-02-19
+## Date: 2026-02-22
 ## Status: COMPLETE (2/2 tasks)
 
 ## What Was Built
 
-Complete visual overhaul of the AchievementBanner component — replaced runtime isDark checks with Tailwind dark: variants, redesigned layout with celebration effects, and improved light/dark mode treatments.
+Replaced the tab system in CardDetailModal with a side-by-side layout. Card details are always visible on the left. The AI Agent panel slides in from the right when the user clicks the "AI Agent" button in the modal header.
 
-### Task 1: Redesign banner layout + proper dark: variant classes (4f70dd5)
-- **Removed all isDark runtime checks** — 15+ conditional expressions replaced with Tailwind `dark:` variants
-- `dark:` prefix baked into CATEGORY_STYLES values for Tailwind CSS 4 scanner compatibility
-- **Wider banner** (480px, up from 420px), **larger icon** (w-12 h-12, up from w-10 h-10)
-- **Category label pill** next to "Achievement Unlocked" text
-- **Countdown progress bar** — 3px bar at bottom depletes over 5.6s via CSS transition
-- **Animation simplification** — 50+ lines of inline style ternaries → 3 CSS classes (enter/exit/hidden)
-- **Light mode depth** — bg-white, ring-1, shadow-xl, from-{color}-50/80, solid bg-{color}-100 icons
-- **Dark mode** unchanged — bg-surface-900, shadow-2xl, glow animation
-- CSS glow variable via `.achievement-banner` + `:where(.dark)` override in globals.css
-- Shimmer unified to single `.achievement-shimmer` class
+### Task 1: Remove tab system + side-by-side layout (0f2845a)
+- Removed activeTab state, tab bar JSX, and all tab-conditional rendering
+- Added showAgent boolean state with "AI Agent" header button (Bot icon + emerald badge)
+- Modal expands from max-w-3xl to max-w-[90vw]/xl:max-w-7xl when agent open
+- Flex row layout: details always visible left, agent panel right
+- Agent panel has its own header bar with close button (PanelRightClose)
+- Dark/light mode support on all new elements
 
-### Task 2: Celebration particle effects + icon entrance animation (28ff382)
-- **6 sparkle particles** burst from icon on entrance (CSS-only, no dependencies)
-- Particles use `currentColor` — auto-match category color in both modes
-- **Icon bounce** animation (500ms, 200ms delay for staggered entrance)
-- **Entrance sequence**: banner slides → icon bounces → particles burst
-- **Light-mode ring pulse** replaces invisible-on-white glow animation
-- `:where(:not(.dark))` override keeps dark glow separate from light ring-pulse
+### Task 2: Polish transitions + behavior (0f2845a)
+- Width-based panel animation (w-0 → w-[360px]/xl:w-[420px]) with transition-all 300ms
+- Two-stage Escape: close agent panel first, then modal on second press
+- Escape handler skips when focus is in input/textarea/contenteditable
+- Border transitions via border-transparent (no flash on close)
+- Active button state: emerald bg/text when panel open
+- agentEverOpened flag preserves lazy loading of CardAgentPanel
+- Responsive: 360px on <1280px, 420px on xl+
+
+### Code Review Fixes
+- Escape key input guard (prevent closing modal while editing title/description)
+- Border-transparent transition (prevent flash during panel close animation)
+- Stale "tab badge" comment → "agent button badge" in CardAgentPanel
 
 ## Files Modified
-- `src/renderer/components/AchievementBanner.tsx` (339 lines)
-- `src/renderer/styles/globals.css` (+7 new CSS rules/keyframes)
+- `src/renderer/components/CardDetailModal.tsx` — Main layout refactor
+- `src/renderer/components/CardAgentPanel.tsx` — Comment fix
 
 ## Verification
 - TypeScript: clean (zero errors)
-- Tests: 150/150 pass
-- 2 atomic commits
-- No new dependencies
+- 1 atomic commit
 
 ## Next Step
 TBD — user decides

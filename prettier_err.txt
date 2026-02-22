@@ -1,0 +1,6 @@
+[[31merror[39m] src/renderer/components/CardDetailModal.tsx: SyntaxError: ',' expected. (610:1)
+[[31merror[39m] [0m [90m 608 |[39m }
+[[31merror[39m]  [90m 609 |[39m
+[[31merror[39m] [31m[1m>[22m[39m[90m 610 |[39m [36mexport[39m [36mdefault[39m [33mCardDetailModal[39m[33m;[39m
+[[31merror[39m]  [90m     |[39m [31m[1m^[22m[39m
+[[31merror[39m]  [90m 611 |[39m[0m

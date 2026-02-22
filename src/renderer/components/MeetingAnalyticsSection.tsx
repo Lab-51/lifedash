@@ -83,38 +83,38 @@ export default function MeetingAnalyticsSection({
 
   return (
     <div>
-      <h3 className="text-sm font-medium text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5">
-        <BarChart3 size={14} />
+      <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100 mb-4 flex items-center gap-2">
+        <BarChart3 size={16} className="text-primary-500" />
         Meeting Analytics
       </h3>
 
-      <div className="bg-surface-100/50 dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700 rounded-lg p-3 space-y-4">
+      <div className="bg-white dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700/60 rounded-2xl p-5 space-y-6 shadow-sm">
         {/* Top stats row */}
-        <div className="grid grid-cols-4 gap-3 text-center">
-          <div>
-            <div className="flex items-center justify-center gap-1 text-surface-400 text-xs mb-1">
-              <Clock size={12} />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+          <div className="bg-surface-50 dark:bg-surface-900/50 rounded-xl p-3 border border-surface-100 dark:border-surface-800">
+            <div className="flex items-center justify-center gap-1.5 text-surface-500 text-xs font-semibold mb-1">
+              <Clock size={14} />
               Duration
             </div>
-            <div className="text-surface-800 dark:text-surface-200 text-sm font-medium">
+            <div className="text-surface-900 dark:text-surface-50 text-xl font-bold tracking-tight">
               {formatDurationLong(analytics.durationMs)}
             </div>
           </div>
-          <div>
-            <div className="text-surface-400 text-xs mb-1">Segments</div>
-            <div className="text-surface-800 dark:text-surface-200 text-sm font-medium">
+          <div className="bg-surface-50 dark:bg-surface-900/50 rounded-xl p-3 border border-surface-100 dark:border-surface-800">
+            <div className="text-surface-500 text-xs font-semibold mb-1">Segments</div>
+            <div className="text-surface-900 dark:text-surface-50 text-xl font-bold tracking-tight">
               {analytics.totalSegments.toLocaleString()}
             </div>
           </div>
-          <div>
-            <div className="text-surface-400 text-xs mb-1">Words</div>
-            <div className="text-surface-800 dark:text-surface-200 text-sm font-medium">
+          <div className="bg-surface-50 dark:bg-surface-900/50 rounded-xl p-3 border border-surface-100 dark:border-surface-800">
+            <div className="text-surface-500 text-xs font-semibold mb-1">Words</div>
+            <div className="text-surface-900 dark:text-surface-50 text-xl font-bold tracking-tight">
               {analytics.totalWords.toLocaleString()}
             </div>
           </div>
-          <div>
-            <div className="text-surface-400 text-xs mb-1">WPM</div>
-            <div className="text-surface-800 dark:text-surface-200 text-sm font-medium">
+          <div className="bg-surface-50 dark:bg-surface-900/50 rounded-xl p-3 border border-surface-100 dark:border-surface-800">
+            <div className="text-surface-500 text-xs font-semibold mb-1">WPM</div>
+            <div className="text-surface-900 dark:text-surface-50 text-xl font-bold tracking-tight">
               {analytics.wordsPerMinute}
             </div>
           </div>
@@ -122,25 +122,32 @@ export default function MeetingAnalyticsSection({
 
         {/* Speaker breakdown */}
         {analytics.hasDiarization ? (
-          <div>
-            <div className="flex items-center gap-1.5 text-xs text-surface-400 mb-2">
-              <Users size={12} />
+          <div className="pt-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-surface-700 dark:text-surface-300 mb-4">
+              <Users size={16} className="text-surface-400" />
               Speaker Breakdown
             </div>
-            <div className="space-y-2">
+            <div className="space-y-4">
               {analytics.speakers.map((spkr) => {
                 const color = getSpeakerColor(spkr.speaker);
                 return (
-                  <div key={spkr.speaker}>
-                    <div className="flex items-center justify-between text-xs mb-0.5">
-                      <span className={`font-medium ${color.text}`}>{spkr.speaker}</span>
-                      <span className="text-surface-400">
-                        {spkr.talkTimePercent}% &middot; {spkr.wordCount.toLocaleString()} words &middot; {formatDurationLong(spkr.talkTimeMs)}
+                  <div key={spkr.speaker} className="group">
+                    <div className="flex flex-wrap items-end justify-between text-sm mb-2 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${color.bg.replace('bg-', 'bg-').replace('-500', '-500/10')} ${color.text}`}>
+                          {spkr.speaker}
+                        </span>
+                        <span className="text-surface-600 dark:text-surface-300 font-medium">
+                          {spkr.talkTimePercent}%
+                        </span>
+                      </div>
+                      <span className="text-surface-400 text-xs font-medium">
+                        {spkr.wordCount.toLocaleString()} words &middot; {formatDurationLong(spkr.talkTimeMs)}
                       </span>
                     </div>
-                    <div className="h-2 bg-surface-700 rounded-full overflow-hidden">
+                    <div className="h-2.5 bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden border border-surface-200 dark:border-surface-700/50">
                       <div
-                        className={`h-full ${color.bar} rounded-full transition-all`}
+                        className={`h-full ${color.bg} rounded-full transition-all duration-1000 ease-out`}
                         style={{ width: `${spkr.talkTimePercent}%` }}
                       />
                     </div>
@@ -150,64 +157,66 @@ export default function MeetingAnalyticsSection({
             </div>
           </div>
         ) : (
-          <div>
-            <div className="flex items-center gap-1.5 text-xs text-surface-400 mb-2">
-              <Users size={12} />
-              Speaker Data
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-surface-500">
-                Speaker data not available.
-              </span>
-              <button
-                onClick={() => diarizeMeeting(meetingId)}
-                disabled={diarizing}
-                className="text-xs text-primary-400 hover:text-primary-300 disabled:opacity-50 flex items-center gap-1"
-              >
-                {diarizing ? (
-                  <>
-                    <Loader2 size={12} className="animate-spin" />
-                    Identifying speakers...
-                  </>
-                ) : (
-                  'Identify Speakers'
-                )}
-              </button>
+          <div className="pt-2 border-t border-surface-100 dark:border-surface-700/50 mt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-surface-700 dark:text-surface-300">
+                <Users size={16} className="text-surface-400" />
+                Speaker Data
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-surface-500">
+                  Not available
+                </span>
+                <button
+                  onClick={() => diarizeMeeting(meetingId)}
+                  disabled={diarizing}
+                  className="bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  {diarizing ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Identifying...
+                    </>
+                  ) : (
+                    'Identify Speakers'
+                  )}
+                </button>
+              </div>
             </div>
             {diarizationError && (
-              <p className="text-xs text-red-400 mt-1">{diarizationError}</p>
+              <p className="text-sm text-red-500 dark:text-red-400 mt-2 bg-red-50 dark:bg-red-500/10 p-2 rounded-md">{diarizationError}</p>
             )}
           </div>
         )}
 
         {/* Action item counts */}
         {analytics.actionItemCounts.total > 0 && (
-          <div>
-            <div className="flex items-center gap-1.5 text-xs text-surface-400 mb-2">
-              <MessageSquare size={12} />
-              Action Items
+          <div className="pt-6 border-t border-surface-100 dark:border-surface-700/50 mt-6">
+            <div className="flex items-center gap-2 text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3">
+              <MessageSquare size={16} className="text-surface-400" />
+              Action Items Profile
             </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="text-surface-700 dark:text-surface-300">
-                Total: <strong className="text-surface-800 dark:text-surface-200">{analytics.actionItemCounts.total}</strong>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="bg-surface-100 dark:bg-surface-700 text-surface-800 dark:text-surface-200 text-xs font-bold px-3 py-1.5 rounded-lg border border-surface-200 dark:border-surface-600">
+                Total: {analytics.actionItemCounts.total}
               </span>
               {analytics.actionItemCounts.pending > 0 && (
-                <span className="text-amber-400">
+                <span className="bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-500/20">
                   Pending: {analytics.actionItemCounts.pending}
                 </span>
               )}
               {analytics.actionItemCounts.approved > 0 && (
-                <span className="text-emerald-400">
+                <span className="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
                   Approved: {analytics.actionItemCounts.approved}
                 </span>
               )}
               {analytics.actionItemCounts.dismissed > 0 && (
-                <span className="text-surface-500">
+                <span className="bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-surface-200 dark:border-surface-700">
                   Dismissed: {analytics.actionItemCounts.dismissed}
                 </span>
               )}
               {analytics.actionItemCounts.converted > 0 && (
-                <span className="text-blue-400">
+                <span className="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-500/20">
                   Converted: {analytics.actionItemCounts.converted}
                 </span>
               )}
