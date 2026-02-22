@@ -21,6 +21,7 @@ import {
     X,
     Loader2,
     Timer,
+    Star,
 } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -79,7 +80,15 @@ export default function DashboardModern() {
     const focusMode = useFocusStore(s => s.mode);
 
     const activeProjects = useMemo(
-        () => projects.filter(p => !p.archived).slice(0, MAX_PROJECTS),
+        () => projects
+            .filter(p => !p.archived)
+            .sort((a, b) => {
+                // Pinned first
+                if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+                // Then latest to oldest
+                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            })
+            .slice(0, MAX_PROJECTS),
         [projects],
     );
 
@@ -352,8 +361,13 @@ export default function DashboardModern() {
                                             className="group relative bg-surface-50 dark:bg-surface-800/50 rounded-xl p-4 cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors border border-surface-100 dark:border-surface-700/50 shadow-sm hover:shadow-md"
                                         >
                                             <div className="flex justify-between items-start mb-3">
-                                                <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-sm" style={{ backgroundColor: project.color || '#3b82f6' }}>
-                                                    {project.name.charAt(0).toUpperCase()}
+                                                <div className="relative">
+                                                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-sm" style={{ backgroundColor: project.color || '#3b82f6' }}>
+                                                        {project.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    {project.pinned && (
+                                                        <Star size={12} className="absolute -top-1 -right-1 text-amber-400 fill-amber-400 drop-shadow-sm" />
+                                                    )}
                                                 </div>
                                                 <div className="bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] px-2 py-1 rounded-full font-bold uppercase transition-colors group-hover:bg-primary-100 group-hover:text-primary-600 dark:group-hover:bg-primary-900/30 dark:group-hover:text-primary-400">
                                                     {cardCountByProject[project.id] || 0} Tasks
