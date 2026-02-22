@@ -171,42 +171,53 @@ export default function ProductivityPulse({ data }: Props) {
     const svgWidth = (numWeeks * WEEK_WIDTH) + DAY_LABEL_WIDTH;
     const svgHeight = (7 * WEEK_WIDTH) + MONTH_LABEL_HEIGHT;
 
+    // Summary stats to fill vertical space
+    const todayStr = toLocalDateStr(new Date());
+    const todayCount = data[todayStr] || 0;
+
+    // Best day
+    const bestDay = useMemo(() => {
+        let max = 0;
+        let bestDate = '';
+        for (const [date, count] of Object.entries(data)) {
+            if (count > max) { max = count; bestDate = date; }
+        }
+        return { count: max, date: bestDate };
+    }, [data]);
+
+    // Weekly average
+    const weeklyAvg = useMemo(() => {
+        const weeks = Math.max(1, Math.round(numWeeks));
+        return (totalActivities / weeks).toFixed(1);
+    }, [totalActivities, numWeeks]);
+
+    // Active days count
+    const activeDays = useMemo(() => {
+        return Object.values(data).filter(c => c > 0).length;
+    }, [data]);
+
     return (
         <div
             ref={containerRef}
             className="w-full h-full bg-white dark:bg-surface-900/50 border border-surface-200 dark:border-surface-800 rounded-2xl p-6 shadow-sm flex flex-col overflow-hidden"
         >
             {/* Header */}
-            <div className="flex items-center justify-between mb-6 shrink-0">
-                <div className="flex items-center gap-6">
-                    <div>
-                        <h3 className="font-bold text-lg text-surface-900 dark:text-surface-100">Productivity Pulse</h3>
-                        <p className="text-sm text-surface-500">
-                            {totalActivities} contributions in the last {Math.round(numWeeks / 4.3)} months
-                        </p>
-                    </div>
-
-                    <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-100 dark:border-surface-700/50">
-                        <Flame size={16} className={streak > 0 ? "text-amber-500 fill-amber-500/20" : "text-surface-300"} />
-                        <span className="text-sm font-semibold text-surface-700 dark:text-surface-200">{streak} day streak</span>
-                    </div>
+            <div className="flex items-center justify-between mb-4 shrink-0">
+                <div>
+                    <h3 className="font-bold text-lg text-surface-900 dark:text-surface-100">Productivity Pulse</h3>
+                    <p className="text-sm text-surface-500">
+                        {totalActivities} contributions in the last {Math.round(numWeeks / 4.3)} months
+                    </p>
                 </div>
 
-                <div className="flex items-center gap-2 text-xs text-surface-400">
-                    <span>Less</span>
-                    <div className="flex gap-1">
-                        <div className="w-3 h-3 rounded-[2px] bg-surface-100 dark:bg-surface-800/50" />
-                        <div className="w-3 h-3 rounded-[2px] bg-emerald-200 dark:bg-emerald-900/60" />
-                        <div className="w-3 h-3 rounded-[2px] bg-emerald-300 dark:bg-emerald-700" />
-                        <div className="w-3 h-3 rounded-[2px] bg-emerald-400 dark:bg-emerald-600" />
-                        <div className="w-3 h-3 rounded-[2px] bg-emerald-500 dark:bg-emerald-500" />
-                    </div>
-                    <span>More</span>
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-100 dark:border-surface-700/50">
+                    <Flame size={16} className={streak > 0 ? "text-amber-500 fill-amber-500/20" : "text-surface-300"} />
+                    <span className="text-sm font-semibold text-surface-700 dark:text-surface-200">{streak} day streak</span>
                 </div>
             </div>
 
             {/* SVG Chart */}
-            <div className="w-full overflow-hidden">
+            <div className="w-full overflow-hidden shrink-0">
                 <svg
                     width="100%"
                     viewBox={`0 0 ${svgWidth} ${svgHeight}`}
@@ -266,6 +277,45 @@ export default function ProductivityPulse({ data }: Props) {
                         ))}
                     </g>
                 </svg>
+            </div>
+
+            {/* Legend + Stats row — fills remaining vertical space */}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-100 dark:border-surface-800 shrink-0">
+                <div className="flex items-center gap-2 text-xs text-surface-400">
+                    <span>Less</span>
+                    <div className="flex gap-1">
+                        <div className="w-3 h-3 rounded-[2px] bg-surface-100 dark:bg-surface-800/50" />
+                        <div className="w-3 h-3 rounded-[2px] bg-emerald-200 dark:bg-emerald-900/60" />
+                        <div className="w-3 h-3 rounded-[2px] bg-emerald-300 dark:bg-emerald-700" />
+                        <div className="w-3 h-3 rounded-[2px] bg-emerald-400 dark:bg-emerald-600" />
+                        <div className="w-3 h-3 rounded-[2px] bg-emerald-500 dark:bg-emerald-500" />
+                    </div>
+                    <span>More</span>
+                </div>
+            </div>
+
+            {/* Summary Stats — fills the remaining vertical space */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 flex-1">
+                <div className="bg-surface-50 dark:bg-surface-800/40 rounded-xl p-3 flex flex-col justify-center border border-surface-100 dark:border-surface-800">
+                    <p className="text-[10px] uppercase tracking-wider text-surface-400 font-bold">Today</p>
+                    <p className="text-xl font-bold text-surface-900 dark:text-surface-100 mt-1">{todayCount}</p>
+                    <p className="text-[10px] text-surface-500">activities</p>
+                </div>
+                <div className="bg-surface-50 dark:bg-surface-800/40 rounded-xl p-3 flex flex-col justify-center border border-surface-100 dark:border-surface-800">
+                    <p className="text-[10px] uppercase tracking-wider text-surface-400 font-bold">Best Day</p>
+                    <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{bestDay.count}</p>
+                    <p className="text-[10px] text-surface-500">{bestDay.date ? new Date(bestDay.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</p>
+                </div>
+                <div className="bg-surface-50 dark:bg-surface-800/40 rounded-xl p-3 flex flex-col justify-center border border-surface-100 dark:border-surface-800">
+                    <p className="text-[10px] uppercase tracking-wider text-surface-400 font-bold">Weekly Avg</p>
+                    <p className="text-xl font-bold text-surface-900 dark:text-surface-100 mt-1">{weeklyAvg}</p>
+                    <p className="text-[10px] text-surface-500">per week</p>
+                </div>
+                <div className="bg-surface-50 dark:bg-surface-800/40 rounded-xl p-3 flex flex-col justify-center border border-surface-100 dark:border-surface-800">
+                    <p className="text-[10px] uppercase tracking-wider text-surface-400 font-bold">Active Days</p>
+                    <p className="text-xl font-bold text-surface-900 dark:text-surface-100 mt-1">{activeDays}</p>
+                    <p className="text-[10px] text-surface-500">of {numWeeks * 7}</p>
+                </div>
             </div>
         </div>
     );
