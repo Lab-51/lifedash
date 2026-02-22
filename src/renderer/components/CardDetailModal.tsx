@@ -386,15 +386,9 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     setNewLabelColor(LABEL_COLORS[0]);
   };
 
-  // Click overlay (not modal) to close
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose();
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/60"
-      onClick={handleOverlayClick}
     >
       <div className={`bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-600 w-full ${
         showAgent ? 'max-w-[90vw] xl:max-w-7xl' : 'max-w-3xl'
