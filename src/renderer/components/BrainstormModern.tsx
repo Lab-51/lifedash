@@ -617,7 +617,7 @@ export default function BrainstormModern() {
                                             onKeyDown={handleKeyDown}
                                             placeholder="Message AI..."
                                             rows={1}
-                                            className="w-full bg-transparent px-4 py-3 pr-12 text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-0 border-transparent focus:border-transparent resize-none max-h-48"
+                                            className="w-full bg-transparent px-4 py-3 pr-12 text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-0 border-transparent focus:border-transparent focus:ring-offset-0 resize-none max-h-48"
                                             style={{ minHeight: '48px' }}
                                         />
                                         <button
