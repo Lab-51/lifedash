@@ -397,7 +397,7 @@ export default function BrainstormModern() {
                                         value={newSessionTitle}
                                         onChange={(e) => setNewSessionTitle(e.target.value)}
                                         placeholder="e.g., Marketing Strategy Q1"
-                                        className="w-full bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-all"
+                                        className="w-full bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-all"
                                         autoFocus
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') handleCreateSession();
@@ -411,7 +411,7 @@ export default function BrainstormModern() {
                                     <select
                                         value={selectedProjectId}
                                         onChange={(e) => setSelectedProjectId(e.target.value)}
-                                        className="w-full bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 appearance-none transition-all"
+                                        className="w-full bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 appearance-none transition-all"
                                     >
                                         <option value="">No linked project</option>
                                         {projects.map((p) => (

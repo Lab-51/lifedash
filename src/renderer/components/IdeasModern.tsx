@@ -129,7 +129,7 @@ export default function IdeasModern() {
                             placeholder="Capture a new idea..."
                             value={newTitle}
                             onChange={e => setNewTitle(e.target.value)}
-                            className="w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl pl-12 pr-32 py-4 shadow-sm text-lg text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                            className="w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl pl-12 pr-32 py-4 shadow-sm text-lg text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-all"
                         />
                         <button
                             type="submit"

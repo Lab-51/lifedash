@@ -321,7 +321,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
             onKeyDown={handleKeyDown}
             placeholder="Ask the agent..."
             rows={1}
-            className="flex-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl px-3 py-2 text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 resize-none transition-all"
+            className="flex-1 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl px-3 py-2 text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-none transition-all"
             style={{ minHeight: '36px', maxHeight: '96px' }}
           />
 

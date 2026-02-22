@@ -222,7 +222,7 @@ export default function ProjectsModern() {
                             placeholder="Search projects..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-lg text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:focus:ring-primary-500/40 focus:border-primary-500 transition-all"
+                            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-lg text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-500 focus:border-primary-500 transition-all"
                         />
                     </div>
 
@@ -259,7 +259,7 @@ export default function ProjectsModern() {
                                         placeholder="e.g. Website Redesign"
                                         value={formData.name}
                                         onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                        className="w-full text-base bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                                        className="w-full text-base bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-all"
                                         autoFocus
                                     />
                                 </div>
@@ -270,7 +270,7 @@ export default function ProjectsModern() {
                                         value={formData.description || ''}
                                         onChange={e => setFormData({ ...formData, description: e.target.value })}
                                         rows={2}
-                                        className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 resize-none transition-all"
+                                        className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 resize-none transition-all"
                                     />
                                 </div>
                                 <div>
@@ -304,7 +304,7 @@ export default function ProjectsModern() {
                                                 placeholder="0.00"
                                                 value={formData.hourlyRate ?? ''}
                                                 onChange={e => setFormData({ ...formData, hourlyRate: e.target.value ? parseFloat(e.target.value) : undefined })}
-                                                className="w-full pl-7 pr-10 py-3 text-sm bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                                                className="w-full pl-7 pr-10 py-3 text-sm bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
                                             />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 text-sm">/hr</span>
                                         </div>
@@ -423,7 +423,7 @@ export default function ProjectsModern() {
                                                 if (e.key === 'Escape') setEditingProjectId(null);
                                             }}
                                             autoFocus
-                                            className="w-full text-lg font-bold bg-surface-50 dark:bg-surface-800 border-none rounded px-2 -ml-2 outline-none focus:ring-2 focus:ring-primary-500/50"
+                                            className="w-full text-lg font-bold bg-surface-50 dark:bg-surface-800 border-none rounded px-2 -ml-2 outline-none focus:ring-1 focus:ring-primary-500"
                                             onClick={(e) => e.stopPropagation()}
                                         />
                                     ) : (
@@ -441,7 +441,7 @@ export default function ProjectsModern() {
                                             autoFocus
                                             rows={2}
                                             placeholder="Add a description..."
-                                            className="w-full text-sm mt-1 bg-surface-50 dark:bg-surface-800 border-none rounded px-2 py-1 -ml-2 outline-none focus:ring-2 focus:ring-primary-500/50 resize-none text-surface-700 dark:text-surface-300 placeholder-surface-400"
+                                            className="w-full text-sm mt-1 bg-surface-50 dark:bg-surface-800 border-none rounded px-2 py-1 -ml-2 outline-none focus:ring-1 focus:ring-primary-500 resize-none text-surface-700 dark:text-surface-300 placeholder-surface-400"
                                             onClick={(e) => e.stopPropagation()}
                                         />
                                     ) : (

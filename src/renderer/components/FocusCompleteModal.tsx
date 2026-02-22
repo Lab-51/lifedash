@@ -244,7 +244,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
               <div className="pt-2">
                 <button
                   onClick={handleStartBreak}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-surface-900"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-surface-900"
                 >
                   Start Break
                 </button>
@@ -325,7 +325,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
                   <button
                     onClick={() => doSave(true)}
                     disabled={saving}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 dark:focus:ring-offset-surface-900 disabled:opacity-50"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:ring-offset-2 dark:focus:ring-offset-surface-900 disabled:opacity-50"
                   >
                     {saving ? 'Saving...' : 'Save & Break'}
                   </button>

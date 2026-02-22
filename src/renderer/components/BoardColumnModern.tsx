@@ -460,7 +460,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                             onChange={e => setNewCardTitle(e.target.value)}
                             onKeyDown={handleCardKeyDown}
                             placeholder="Enter card title..."
-                            className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:focus:ring-primary-500/40 focus:border-primary-500 transition-all font-medium placeholder:font-normal"
+                            className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-500 focus:border-primary-500 transition-all font-medium placeholder:font-normal"
                         />
 
                         {/* Template selector for card creation */}

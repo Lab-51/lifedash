@@ -437,7 +437,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                   onKeyDown={handleTitleKeyDown}
                   onBlur={saveTitleEdit}
                   autoFocus
-                  className="bg-white dark:bg-surface-900 border border-surface-300 dark:border-surface-600 rounded-lg px-3 py-2 text-2xl font-bold text-surface-900 dark:text-surface-50 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 w-full shadow-sm"
+                  className="bg-white dark:bg-surface-900 border border-surface-300 dark:border-surface-600 rounded-lg px-3 py-2 text-2xl font-bold text-surface-900 dark:text-surface-50 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 w-full shadow-sm"
                 />
               ) : (
                 <h2

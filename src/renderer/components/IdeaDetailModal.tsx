@@ -238,7 +238,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                     setStatus(newStatus);
                     if (selectedIdea) updateIdea(selectedIdea.id, { status: newStatus });
                   }}
-                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
+                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
                 >
                   {STATUS_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -256,7 +256,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                     setEffort(newEffort);
                     if (selectedIdea) updateIdea(selectedIdea.id, { effort: newEffort || null });
                   }}
-                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
+                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
                 >
                   <option value="">--</option>
                   {EFFORT_OPTIONS.map((opt) => (
@@ -275,7 +275,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                     setImpact(newImpact);
                     if (selectedIdea) updateIdea(selectedIdea.id, { impact: newImpact || null });
                   }}
-                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
+                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
                 >
                   <option value="">--</option>
                   {IMPACT_OPTIONS.map((opt) => (

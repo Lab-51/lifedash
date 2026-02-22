@@ -274,7 +274,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
           {/* Start button */}
           <button
             onClick={handleStart}
-            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 dark:focus:ring-offset-surface-900"
+            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:ring-offset-2 dark:focus:ring-offset-surface-900"
           >
             Start Focus — {duration} min
           </button>

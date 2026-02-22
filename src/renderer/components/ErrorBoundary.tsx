@@ -67,7 +67,7 @@ class ErrorBoundary extends Component<Props, State> {
             type="button"
             onClick={this.handleReset}
             className="mt-6 px-5 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium
-                       hover:bg-primary-500 transition-colors focus:outline-none focus:ring-2
+                       hover:bg-primary-500 transition-colors focus:outline-none focus:ring-1
                        focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-surface-900"
           >
             Try Again
