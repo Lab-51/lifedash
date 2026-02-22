@@ -110,23 +110,23 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: 
 
 // Tailwind color classes for each category
 const CATEGORY_CLASS_MAP: Record<string, { bg: string; text: string; dot: string }> = {
-  focus:     { bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-400' },
-  cards:     { bg: 'bg-blue-500/10',    text: 'text-blue-400',    dot: 'bg-blue-400' },
-  projects:  { bg: 'bg-purple-500/10',  text: 'text-purple-400',  dot: 'bg-purple-400' },
-  meetings:  { bg: 'bg-amber-500/10',   text: 'text-amber-400',   dot: 'bg-amber-400' },
-  ideas:     { bg: 'bg-pink-500/10',    text: 'text-pink-400',    dot: 'bg-pink-400' },
-  brainstorm:{ bg: 'bg-cyan-500/10',    text: 'text-cyan-400',    dot: 'bg-cyan-400' },
+  focus: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-400' },
+  cards: { bg: 'bg-blue-500/10', text: 'text-blue-400', dot: 'bg-blue-400' },
+  projects: { bg: 'bg-purple-500/10', text: 'text-purple-400', dot: 'bg-purple-400' },
+  meetings: { bg: 'bg-amber-500/10', text: 'text-amber-400', dot: 'bg-amber-400' },
+  ideas: { bg: 'bg-pink-500/10', text: 'text-pink-400', dot: 'bg-pink-400' },
+  brainstorm: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', dot: 'bg-cyan-400' },
 };
 
 // Map category names from CATEGORY_COLORS to achievement icon bg classes
 const ACHIEVEMENT_CATEGORY_CLASS: Record<string, string> = {
-  focus:     'bg-emerald-500/15 text-emerald-400',
-  cards:     'bg-blue-500/15 text-blue-400',
-  projects:  'bg-purple-500/15 text-purple-400',
-  meetings:  'bg-amber-500/15 text-amber-400',
-  ideas:     'bg-pink-500/15 text-pink-400',
-  brainstorm:'bg-cyan-500/15 text-cyan-400',
-  cross:     'bg-yellow-500/15 text-yellow-400',
+  focus: 'bg-emerald-500/15 text-emerald-400',
+  cards: 'bg-blue-500/15 text-blue-400',
+  projects: 'bg-purple-500/15 text-purple-400',
+  meetings: 'bg-amber-500/15 text-amber-400',
+  ideas: 'bg-pink-500/15 text-pink-400',
+  brainstorm: 'bg-cyan-500/15 text-cyan-400',
+  cross: 'bg-yellow-500/15 text-yellow-400',
 };
 
 const CATEGORIES_ORDER = ['focus', 'cards', 'projects', 'meetings', 'ideas', 'brainstorm'];
@@ -165,7 +165,7 @@ export default function FocusStatsWidget() {
 
   return (
     <>
-      <div className="bg-white dark:bg-surface-900/50 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-surface-900/50 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm overflow-hidden h-full flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-surface-100 dark:border-surface-800">
           <div className="flex items-center gap-2">
@@ -184,9 +184,9 @@ export default function FocusStatsWidget() {
 
         {/* Stats Grid */}
         <div className="p-5">
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-12 gap-4 lg:gap-6">
             {/* Column 1: Today's XP */}
-            <div className="space-y-1">
+            <div className="col-span-6 sm:col-span-3 lg:col-span-2 flex flex-col justify-between bg-surface-50 dark:bg-surface-800/40 p-3 rounded-xl border border-surface-100 dark:border-surface-800 shadow-sm">
               <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold">Today's XP</p>
               {stats && stats.todayXp > 0 ? (
                 <>
@@ -206,7 +206,7 @@ export default function FocusStatsWidget() {
             </div>
 
             {/* Column 2: Activity Streak */}
-            <div className="space-y-1">
+            <div className="col-span-6 sm:col-span-3 lg:col-span-2 flex flex-col justify-between bg-surface-50 dark:bg-surface-800/40 p-3 rounded-xl border border-surface-100 dark:border-surface-800 shadow-sm">
               <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold">Streak</p>
               {stats && stats.currentStreak > 0 ? (
                 <>
@@ -225,28 +225,34 @@ export default function FocusStatsWidget() {
             </div>
 
             {/* Column 3: Level Progress */}
-            <div className="space-y-1">
-              <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold">Level</p>
+            <div className="col-span-12 sm:col-span-6 lg:col-span-4 flex flex-col bg-surface-50 dark:bg-surface-800/40 p-3 rounded-xl border border-surface-100 dark:border-surface-800 shadow-sm">
+              <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold mb-2">Level Progress</p>
               {stats ? (
-                <>
-                  <LevelBadge level={stats.level} size="lg" />
-                  <div className="w-full h-1.5 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden mt-1">
-                    <div
-                      className={`h-full ${getTier(stats.level).colors.text} rounded-full transition-all duration-500`}
-                      style={{ width: `${stats.xpProgress * 100}%`, backgroundColor: 'currentColor' }}
-                    />
+                <div className="flex flex-col justify-end flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <LevelBadge level={stats.level} size="lg" />
+                    <div className="flex-1">
+                      <p className="text-[10px] text-surface-500 mb-0.5 font-medium text-right">
+                        {stats.xpNextLevel - stats.totalXp} XP to next
+                      </p>
+                      <div className="w-full h-1.5 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${getTier(stats.level).colors.text} rounded-full transition-all duration-500`}
+                          style={{ width: `${stats.xpProgress * 100}%`, backgroundColor: 'currentColor' }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-[10px] text-surface-500 mt-0.5">
-                    {stats.xpNextLevel - stats.totalXp} XP to next
-                  </p>
-                </>
+                </div>
               ) : (
-                <LevelBadge level={1} size="lg" />
+                <div className="flex items-end flex-1">
+                  <LevelBadge level={1} size="lg" />
+                </div>
               )}
             </div>
 
             {/* Column 4: This Week (XP bar chart) */}
-            <div className="space-y-1">
+            <div className="col-span-12 lg:col-span-4 flex flex-col justify-between bg-surface-50 dark:bg-surface-800/40 p-3 rounded-xl border border-surface-100 dark:border-surface-800 shadow-sm">
               <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold">This Week</p>
               {dailyXP.length > 0 ? (
                 <>
@@ -305,11 +311,10 @@ export default function FocusStatsWidget() {
                   return (
                     <div
                       key={cat}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                        isZero
-                          ? 'bg-surface-100 dark:bg-surface-800 text-surface-400 dark:text-surface-600'
-                          : `${colors.bg} ${colors.text}`
-                      }`}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${isZero
+                        ? 'bg-surface-100 dark:bg-surface-800 text-surface-400 dark:text-surface-600'
+                        : `${colors.bg} ${colors.text}`
+                        }`}
                     >
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${isZero ? 'bg-surface-400 dark:bg-surface-600' : colors.dot}`}
@@ -347,11 +352,10 @@ export default function FocusStatsWidget() {
                 return (
                   <div
                     key={ach.id}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-                      unlocked
-                        ? categoryClass
-                        : 'bg-surface-100 dark:bg-surface-800 text-surface-400 dark:text-surface-600'
-                    } group-hover:scale-105`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${unlocked
+                      ? categoryClass
+                      : 'bg-surface-100 dark:bg-surface-800 text-surface-400 dark:text-surface-600'
+                      } group-hover:scale-105`}
                     title={unlocked ? `${ach.name}: ${ach.description}` : `Locked: ${ach.description}`}
                   >
                     <Icon size={14} />

@@ -194,19 +194,19 @@ export default function DashboardModern() {
 
                     <div className="flex gap-3 shrink-0">
                         {[
-                            { icon: Mic, label: 'Record', path: '/meetings?action=record', color: 'bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white' },
-                            { icon: Plus, label: 'Project', path: '/projects?action=create', color: 'bg-primary-500/10 text-primary-500 hover:bg-primary-500 hover:text-white' },
-                            { icon: Brain, label: 'Brainstorm', path: '/brainstorm?action=create', color: 'bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white' },
-                            { icon: Lightbulb, label: 'Idea', path: '/ideas?action=create', color: 'bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-white' },
-                        ].map(({ icon: Icon, label, path, color }) => (
+                            { icon: Mic, label: 'Record', path: '/meetings?action=record', colors: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-600 hover:border-transparent' },
+                            { icon: Plus, label: 'Project', path: '/projects?action=create', colors: 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-500/10 border-primary-200 dark:border-primary-500/20 hover:bg-primary-500 hover:text-white dark:hover:bg-primary-600 hover:border-transparent' },
+                            { icon: Brain, label: 'Brainstorm', path: '/brainstorm?action=create', colors: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-500 hover:text-white dark:hover:bg-indigo-600 hover:border-transparent' },
+                            { icon: Lightbulb, label: 'Idea', path: '/ideas?action=create', colors: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20 hover:bg-amber-500 hover:text-white dark:hover:bg-amber-600 hover:border-transparent' },
+                        ].map(({ icon: Icon, label, path, colors }) => (
                             <button
                                 key={label}
                                 onClick={() => navigate(path)}
-                                className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-black/10 dark:border-white/10 hover:scale-105 hover:shadow-lg ${color}`}
+                                className={`group flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-300 border hover:scale-105 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-white/5 ${colors}`}
                                 title={`New ${label}`}
                             >
-                                <Icon size={24} className="mb-2" />
-                                <span className="text-xs font-semibold">{label}</span>
+                                <Icon size={24} className="mb-2 transition-transform duration-300 group-hover:scale-110" />
+                                <span className="text-xs font-bold">{label}</span>
                             </button>
                         ))}
                         {/* Focus button */}
@@ -217,15 +217,14 @@ export default function DashboardModern() {
                                     focusState.setShowStartModal(true);
                                 }
                             }}
-                            className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-black/10 dark:border-white/10 hover:scale-105 hover:shadow-lg ${
-                                focusMode === 'focus' || focusMode === 'break'
-                                    ? 'bg-emerald-500 text-white animate-pulse'
-                                    : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white'
-                            }`}
+                            className={`group flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-300 border hover:scale-105 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-white/5 hover:border-transparent ${focusMode === 'focus' || focusMode === 'break'
+                                ? 'bg-emerald-500 text-white border-transparent shadow-md shadow-emerald-500/20'
+                                : 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600'
+                                }`}
                             title={focusMode === 'idle' ? 'Start Focus Session' : 'In Focus'}
                         >
-                            <Timer size={24} className="mb-2" />
-                            <span className="text-xs font-semibold">
+                            <Timer size={24} className={`mb-2 transition-transform duration-300 group-hover:scale-110 ${focusMode === 'focus' || focusMode === 'break' ? 'animate-[spin_4s_linear_infinite]' : ''}`} />
+                            <span className="text-xs font-bold">
                                 {focusMode === 'focus' || focusMode === 'break' ? 'In Focus' : 'Focus'}
                             </span>
                         </button>
@@ -235,15 +234,15 @@ export default function DashboardModern() {
                                 ref={standupBtnRef}
                                 onClick={() => generatingStandup ? undefined : setStandupPickerOpen(o => !o)}
                                 disabled={generatingStandup}
-                                className="flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 border border-black/10 dark:border-white/10 hover:scale-105 hover:shadow-lg disabled:opacity-50 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white"
+                                className={`group flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-300 border hover:scale-105 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-white/5 disabled:opacity-50 disabled:hover:scale-100 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 hover:border-emerald-500 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 disabled:hover:bg-emerald-50 dark:disabled:hover:bg-emerald-500/10 disabled:hover:border-emerald-200 dark:disabled:hover:border-emerald-500/20 disabled:hover:text-emerald-600 dark:disabled:hover:text-emerald-400`}
                                 title="Generate Standup"
                             >
                                 {generatingStandup ? (
                                     <Loader2 size={24} className="mb-2 animate-spin" />
                                 ) : (
-                                    <ClipboardList size={24} className="mb-2" />
+                                    <ClipboardList size={24} className="mb-2 transition-transform duration-300 group-hover:scale-110" />
                                 )}
-                                <span className="text-xs font-semibold">
+                                <span className="text-xs font-bold">
                                     {generatingStandup ? 'Loading...' : 'Standup'}
                                 </span>
                             </button>
@@ -294,66 +293,55 @@ export default function DashboardModern() {
 
                     {/* Stats Row */}
                     <div className="col-span-12 sm:col-span-4 lg:col-span-4">
-                        <div className="bg-white dark:bg-surface-900 rounded-2xl p-5 border border-surface-200 dark:border-surface-800 shadow-sm flex items-center justify-between group cursor-default hover:border-primary-500/30 transition-colors">
-                            <div>
-                                <p className="text-surface-400 text-xs font-semibold uppercase tracking-wider mb-1">Active Projects</p>
-                                <p className="text-3xl font-bold text-surface-900 dark:text-surface-50">{projects.length}</p>
+                        <div className="bg-gradient-to-br from-white to-surface-50 dark:from-surface-900 dark:to-surface-800/80 rounded-2xl p-6 border border-surface-200/60 dark:border-surface-700/50 shadow-sm flex items-center justify-between group cursor-default hover:shadow-md hover:border-primary-500/30 transition-all duration-300 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-8 w-32 h-32 bg-primary-500/5 dark:bg-primary-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary-500/10 transition-colors" />
+                            <div className="flex flex-col gap-1 relative z-10">
+                                <p className="text-surface-500 dark:text-surface-400 text-[11px] font-bold uppercase tracking-widest drop-shadow-sm">Active Projects</p>
+                                <p className="text-4xl font-light tracking-tight text-surface-900 dark:text-surface-50 drop-shadow-sm">{projects.length}</p>
                             </div>
-                            <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 flex items-center justify-center">
-                                <Layers size={24} />
-                            </div>
-                        </div>
-                    </div>
-                    <div className="col-span-12 sm:col-span-4 lg:col-span-4">
-                        <div className="bg-white dark:bg-surface-900 rounded-2xl p-5 border border-surface-200 dark:border-surface-800 shadow-sm flex items-center justify-between group cursor-default hover:border-emerald-500/30 transition-colors">
-                            <div>
-                                <p className="text-surface-400 text-xs font-semibold uppercase tracking-wider mb-1">Meetings Info</p>
-                                <p className="text-3xl font-bold text-surface-900 dark:text-surface-50">{meetings.length}</p>
-                            </div>
-                            <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                                <Activity size={24} />
+                            <div className="relative z-10 w-14 h-14 rounded-2xl bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 flex items-center justify-center border border-primary-100 dark:border-primary-800/50 group-hover:scale-110 group-hover:-rotate-3 transition-transform shadow-sm">
+                                <Layers size={26} strokeWidth={1.5} />
                             </div>
                         </div>
                     </div>
                     <div className="col-span-12 sm:col-span-4 lg:col-span-4">
-                        <div className="bg-white dark:bg-surface-900 rounded-2xl p-5 border border-surface-200 dark:border-surface-800 shadow-sm flex items-center justify-between group cursor-default hover:border-amber-500/30 transition-colors">
-                            <div>
-                                <p className="text-surface-400 text-xs font-semibold uppercase tracking-wider mb-1">Total Ideas</p>
-                                <p className="text-3xl font-bold text-surface-900 dark:text-surface-50">{ideas.length}</p>
+                        <div className="bg-gradient-to-br from-white to-surface-50 dark:from-surface-900 dark:to-surface-800/80 rounded-2xl p-6 border border-surface-200/60 dark:border-surface-700/50 shadow-sm flex items-center justify-between group cursor-default hover:shadow-md hover:border-emerald-500/30 transition-all duration-300 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-8 w-32 h-32 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
+                            <div className="flex flex-col gap-1 relative z-10">
+                                <p className="text-surface-500 dark:text-surface-400 text-[11px] font-bold uppercase tracking-widest drop-shadow-sm">Meetings Logged</p>
+                                <p className="text-4xl font-light tracking-tight text-surface-900 dark:text-surface-50 drop-shadow-sm">{meetings.length}</p>
                             </div>
-                            <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                                <Zap size={24} />
+                            <div className="relative z-10 w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-800/50 group-hover:scale-110 group-hover:-rotate-3 transition-transform shadow-sm">
+                                <Activity size={26} strokeWidth={1.5} />
                             </div>
                         </div>
                     </div>
-
-                    {/* Productivity Pulse */}
-                    {(projects.length > 0 || meetings.length > 0) && (
-                        <div className="col-span-12 bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm p-5 overflow-hidden">
-                            <div className="mb-4">
-                                <h3 className="font-semibold text-surface-900 dark:text-surface-100">Productivity Pulse</h3>
+                    <div className="col-span-12 sm:col-span-4 lg:col-span-4">
+                        <div className="bg-gradient-to-br from-white to-surface-50 dark:from-surface-900 dark:to-surface-800/80 rounded-2xl p-6 border border-surface-200/60 dark:border-surface-700/50 shadow-sm flex items-center justify-between group cursor-default hover:shadow-md hover:border-amber-500/30 transition-all duration-300 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-8 w-32 h-32 bg-amber-500/5 dark:bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-amber-500/10 transition-colors" />
+                            <div className="flex flex-col gap-1 relative z-10">
+                                <p className="text-surface-500 dark:text-surface-400 text-[11px] font-bold uppercase tracking-widest drop-shadow-sm">Total Ideas</p>
+                                <p className="text-4xl font-light tracking-tight text-surface-900 dark:text-surface-50 drop-shadow-sm">{ideas.length}</p>
                             </div>
-                            <ProductivityPulse data={activityData} />
+                            <div className="relative z-10 w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-100 dark:border-amber-800/50 group-hover:scale-110 group-hover:-rotate-3 transition-transform shadow-sm">
+                                <Zap size={26} strokeWidth={1.5} />
+                            </div>
                         </div>
-                    )}
-
-                    {/* Focus Stats */}
-                    <div className="col-span-12">
-                        <FocusStatsWidget />
                     </div>
 
                     {/* Left Col: Projects & Priority */}
                     <div className="col-span-12 lg:col-span-8 space-y-6">
-                        <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm overflow-hidden">
-                            <div className="p-5 border-b border-surface-100 dark:border-surface-800 flex justify-between items-center">
+                        <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm overflow-hidden h-full flex flex-col">
+                            <div className="p-5 border-b border-surface-100 dark:border-surface-800 flex justify-between items-center shrink-0">
                                 <h3 className="font-semibold text-lg text-surface-900 dark:text-surface-100">Current Projects</h3>
-                                <button onClick={() => navigate('/projects')} className="text-sm text-primary-500 hover:text-primary-600 font-medium flex items-center gap-1">
+                                <button onClick={() => navigate('/projects')} className="text-sm text-primary-500 hover:text-primary-600 font-medium flex items-center gap-1 transition-colors">
                                     View All <ArrowRight size={14} />
                                 </button>
                             </div>
-                            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
                                 {activeProjects.length === 0 ? (
-                                    <div className="col-span-2 text-center py-10 text-surface-500">
+                                    <div className="col-span-2 text-center py-10 text-surface-500 flex flex-col items-center justify-center">
+                                        <Layers size={24} className="mb-2 opacity-30" />
                                         No active projects. Start something new!
                                     </div>
                                 ) : (
@@ -361,17 +349,17 @@ export default function DashboardModern() {
                                         <div
                                             key={project.id}
                                             onClick={() => navigate(`/projects/${project.id}`)}
-                                            className="group relative bg-surface-50 dark:bg-surface-800/50 rounded-xl p-4 cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors border border-surface-100 dark:border-surface-700/50"
+                                            className="group relative bg-surface-50 dark:bg-surface-800/50 rounded-xl p-4 cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors border border-surface-100 dark:border-surface-700/50 shadow-sm hover:shadow-md"
                                         >
                                             <div className="flex justify-between items-start mb-3">
                                                 <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-sm" style={{ backgroundColor: project.color || '#3b82f6' }}>
                                                     {project.name.charAt(0).toUpperCase()}
                                                 </div>
-                                                <div className="bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] px-2 py-1 rounded-full font-bold uppercase">
+                                                <div className="bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] px-2 py-1 rounded-full font-bold uppercase transition-colors group-hover:bg-primary-100 group-hover:text-primary-600 dark:group-hover:bg-primary-900/30 dark:group-hover:text-primary-400">
                                                     {cardCountByProject[project.id] || 0} Tasks
                                                 </div>
                                             </div>
-                                            <h4 className="font-bold text-surface-900 dark:text-surface-100 mb-1 group-hover:text-primary-500 transition-colors">{project.name}</h4>
+                                            <h4 className="font-bold text-surface-900 dark:text-surface-100 mb-1 group-hover:text-primary-500 transition-colors line-clamp-1">{project.name}</h4>
                                             <p className="text-xs text-surface-500 line-clamp-2">
                                                 {project.description || 'No description provided.'}
                                             </p>
@@ -384,11 +372,11 @@ export default function DashboardModern() {
 
                     {/* Right Col: Timeline/Feed */}
                     <div className="col-span-12 lg:col-span-4 space-y-6">
-                        <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm h-full max-h-[500px] flex flex-col">
-                            <div className="p-5 border-b border-surface-100 dark:border-surface-800">
+                        <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm h-full flex flex-col">
+                            <div className="p-5 border-b border-surface-100 dark:border-surface-800 shrink-0">
                                 <h3 className="font-semibold text-lg text-surface-900 dark:text-surface-100">Recent Meetings</h3>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-2">
+                            <div className="flex-1 overflow-y-auto p-2 max-h-[400px]">
                                 {recentMeetings.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center text-surface-400 text-sm py-10">
                                         <Mic size={24} className="mb-2 opacity-50" />
@@ -411,7 +399,7 @@ export default function DashboardModern() {
                                                         {meeting.title}
                                                     </h5>
                                                     <div className="flex items-center gap-2 mt-1.5">
-                                                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-surface-100 dark:bg-surface-700 text-surface-500">
+                                                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-surface-100 dark:bg-surface-700 text-surface-500 group-hover:bg-surface-200 dark:group-hover:bg-surface-600 transition-colors">
                                                             {formatDate(meeting.createdAt)}
                                                         </span>
                                                         {meeting.endedAt && (
@@ -426,13 +414,25 @@ export default function DashboardModern() {
                                     </div>
                                 )}
                             </div>
-                            <div className="p-3 border-t border-surface-100 dark:border-surface-800">
-                                <button onClick={() => navigate('/meetings')} className="w-full py-2 text-xs font-medium text-surface-500 hover:text-surface-900 dark:hover:text-surface-100 transition-colors uppercase tracking-wide">
-                                    View All Activities
+                            <div className="p-3 border-t border-surface-100 dark:border-surface-800 shrink-0 mt-auto">
+                                <button onClick={() => navigate('/meetings')} className="w-full py-2 flex items-center justify-center gap-1 text-xs font-medium text-surface-500 hover:text-surface-900 dark:hover:text-surface-100 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors uppercase tracking-wide">
+                                    View All Activities <ArrowRight size={12} />
                                 </button>
                             </div>
                         </div>
                     </div>
+
+                    {/* Focus Stats */}
+                    <div className="col-span-12 xl:col-span-6">
+                        <FocusStatsWidget />
+                    </div>
+
+                    {/* Productivity Pulse */}
+                    {(projects.length > 0 || meetings.length > 0) && (
+                        <div className="col-span-12 xl:col-span-6 flex items-stretch">
+                            <ProductivityPulse data={activityData} />
+                        </div>
+                    )}
 
                 </div>
             </div>

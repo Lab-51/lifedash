@@ -174,13 +174,13 @@ export default function ProductivityPulse({ data }: Props) {
     return (
         <div
             ref={containerRef}
-            className="w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-6 shadow-sm flex flex-col"
+            className="w-full h-full bg-white dark:bg-surface-900/50 border border-surface-200 dark:border-surface-800 rounded-2xl p-6 shadow-sm flex flex-col overflow-hidden"
         >
             {/* Header */}
             <div className="flex items-center justify-between mb-6 shrink-0">
                 <div className="flex items-center gap-6">
                     <div>
-                        <h3 className="font-bold text-lg text-surface-900 dark:text-surface-100">Activity</h3>
+                        <h3 className="font-bold text-lg text-surface-900 dark:text-surface-100">Productivity Pulse</h3>
                         <p className="text-sm text-surface-500">
                             {totalActivities} contributions in the last {Math.round(numWeeks / 4.3)} months
                         </p>
