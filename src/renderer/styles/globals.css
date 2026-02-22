@@ -627,3 +627,5 @@ html.light .animate-logo-pulse {
   }
 }
 
+/* override forms */
+textarea:focus { box-shadow: none !important; }
