@@ -4,11 +4,12 @@
 // labels, due date picker with status badge, comments, relationships, and activity log sections.
 
 // === DEPENDENCIES ===
-// react, lucide-react (X, Plus, FileText, Calendar), @tiptap/react, @tiptap/starter-kit,
-// @tiptap/extension-placeholder, shared types, boardStore, cardDetailStore, section components
+// react, lucide-react (X, Plus, FileText, Calendar, Bot, PanelRightClose), @tiptap/react,
+// @tiptap/starter-kit, @tiptap/extension-placeholder, shared types, boardStore,
+// cardDetailStore, section components
 
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { X, Plus, FileText, Calendar, Sparkles, Check, RefreshCw, BookmarkPlus, LayoutList, Bot } from 'lucide-react';
+import { X, Plus, FileText, Calendar, Sparkles, Check, RefreshCw, BookmarkPlus, Bot, PanelRightClose } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -165,7 +166,9 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const templateDropdownRef = useRef<HTMLDivElement>(null);
   const [generatingDescription, setGeneratingDescription] = useState(false);
   const [dbTemplates, setDbTemplates] = useState<CardTemplate[]>([]);
-  const [activeTab, setActiveTab] = useState<'details' | 'agent'>('details');
+  const [showAgent, setShowAgent] = useState(false);
+  const [agentEverOpened, setAgentEverOpened] = useState(false);
+  const showAgentRef = useRef(false);
   const agentMessageCount = useCardAgentStore(s => s.messageCount);
 
   const project = useBoardStore(s => s.project);
@@ -196,10 +199,26 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     },
   });
 
-  // Close on Escape key
+  // Keep ref in sync with state (avoids stale closures in keydown handler)
+  useEffect(() => {
+    showAgentRef.current = showAgent;
+    if (showAgent && !agentEverOpened) {
+      setAgentEverOpened(true);
+    }
+  }, [showAgent, agentEverOpened]);
+
+  // Close on Escape key — two-stage: first close agent panel, then close modal
+  // Skip when focus is inside an input/textarea/contenteditable to avoid conflicts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      if (showAgentRef.current) {
+        setShowAgent(false);
+      } else {
+        onClose();
+      }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
@@ -274,6 +293,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     if (e.key === 'Enter') {
       saveTitleEdit();
     } else if (e.key === 'Escape') {
+      e.stopPropagation();
       setEditTitle(card.title);
       setIsEditingTitle(false);
     }
@@ -376,11 +396,11 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/60"
       onClick={handleOverlayClick}
     >
-      <div className={`bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-600 w-full max-w-3xl max-h-[80vh] mx-4 p-6 ${
-        activeTab === 'agent' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'
-      }`}>
-        {/* Header: Title + Close button */}
-        <div className="flex items-start justify-between gap-3 mb-4">
+      <div className={`bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-600 w-full ${
+        showAgent ? 'max-w-[90vw] xl:max-w-7xl' : 'max-w-3xl'
+      } max-h-[85vh] mx-4 flex flex-col overflow-hidden transition-all duration-300 ease-out`}>
+        {/* Header: Title + AI Agent toggle + Close button */}
+        <div className="flex items-start justify-between gap-3 p-6 pb-4 shrink-0">
           <div className="flex-1 min-w-0">
             {isEditingTitle ? (
               <input
@@ -402,6 +422,22 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
             )}
           </div>
           <button
+            onClick={() => setShowAgent(!showAgent)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors duration-200 shrink-0 ${
+              showAgent
+                ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                : 'text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800'
+            }`}
+          >
+            <Bot size={16} />
+            AI Agent
+            {agentMessageCount > 0 && (
+              <span className="text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                {agentMessageCount}
+              </span>
+            )}
+          </button>
+          <button
             onClick={onClose}
             className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 p-1 transition-colors shrink-0"
           >
@@ -409,39 +445,10 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
           </button>
         </div>
 
-        {/* Tab bar */}
-        <div className="flex items-center gap-1 mb-5 border-b border-surface-200 dark:border-surface-700">
-          <button
-            onClick={() => setActiveTab('details')}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm transition-colors ${
-              activeTab === 'details'
-                ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-500 font-medium'
-                : 'text-surface-400 hover:text-surface-600 dark:hover:text-surface-300'
-            }`}
-          >
-            <LayoutList size={14} />
-            Details
-          </button>
-          <button
-            onClick={() => setActiveTab('agent')}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm transition-colors ${
-              activeTab === 'agent'
-                ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-500 font-medium'
-                : 'text-surface-400 hover:text-surface-600 dark:hover:text-surface-300'
-            }`}
-          >
-            <Bot size={14} />
-            AI Agent
-            {agentMessageCount > 0 && (
-              <span className="bg-emerald-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                {agentMessageCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {activeTab === 'details' && (
-          <>
+        {/* Content area: details (left) + agent panel (right) */}
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          {/* Left: Details (always visible) */}
+          <div className="flex-1 overflow-y-auto min-w-0 px-6 pb-6 pr-5">
             {/* Priority selector */}
             <div className="mb-5">
               <span className="text-sm text-surface-400 block mb-2">Priority</span>
@@ -787,20 +794,45 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               <span>·</span>
               <span>Updated: {formatDate(card.updatedAt)} ({formatRelativeTime(card.updatedAt)})</span>
             </div>
-          </>
-        )}
-
-        {activeTab === 'agent' && (
-          <div className="flex-1 min-h-0">
-            <Suspense fallback={
-              <div className="flex items-center justify-center h-32">
-                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary-500 border-t-transparent" />
-              </div>
-            }>
-              <CardAgentPanel cardId={card.id} />
-            </Suspense>
           </div>
-        )}
+
+          {/* Right: Agent panel (always rendered, width-animated) */}
+          <div className={`shrink-0 overflow-hidden transition-all duration-300 ease-out border-l ${
+            showAgent
+              ? 'w-[360px] xl:w-[420px] border-surface-200 dark:border-surface-700'
+              : 'w-0 border-transparent'
+          }`}>
+            <div className="min-w-[360px] xl:min-w-[420px] h-full flex flex-col bg-surface-50 dark:bg-surface-800/50">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-surface-200 dark:border-surface-700 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm text-surface-900 dark:text-surface-100">AI Agent</span>
+                  {agentMessageCount > 0 && (
+                    <span className="text-xs bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">
+                      {agentMessageCount}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowAgent(false)}
+                  className="p-1 rounded text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+                >
+                  <PanelRightClose size={16} />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0">
+                {agentEverOpened && (
+                  <Suspense fallback={
+                    <div className="flex items-center justify-center h-32">
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary-500 border-t-transparent" />
+                    </div>
+                  }>
+                    <CardAgentPanel cardId={card.id} />
+                  </Suspense>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

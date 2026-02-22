@@ -176,7 +176,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
     if (latestActions.some(a => WRITE_TOOLS.has(a.toolName))) {
       useCardDetailStore.getState().loadCardDetails(cardId);
     }
-    // Update message count for the tab badge
+    // Update message count for the agent button badge
     useCardAgentStore.getState().loadMessageCount(cardId);
   }, [input, streaming, sendMessage, cardId]);
 

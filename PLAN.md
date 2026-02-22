@@ -1,251 +1,217 @@
-# Plan I.1 — Billable Time Tracking
+# Plan J.1 — Card Agent Side Panel
 
-<phase n="I.1" name="Billable Time Tracking for Entrepreneurs">
+<phase n="J.1" name="Card Agent Side Panel">
   <context>
-    The Focus Time Tracking feature (Plans F.1-F.3) is a solid personal productivity tool
-    but lacks billing-oriented features that entrepreneurs need:
-    - No way to mark sessions as billable vs. non-billable
-    - No hourly rate on projects (can't compute cost)
-    - No cost columns in reports or CSV export
-    - No billable hours summary or utilization metrics
+    The Card Agent (Plan E.1 backend + E.2 UI) currently lives as a tab inside
+    CardDetailModal. The user switches between "Details" and "AI Agent" tabs,
+    losing visibility of card details while chatting with the agent.
 
-    This plan adds a lean billing layer on top of the existing focus system:
-    billable flag on sessions, hourly rate on projects, cost calculations in reports,
-    and billing-aware UI (filters, stats, export).
+    This plan moves the agent to a **side-by-side layout**: card details on the
+    left, agent panel sliding in on the right. The modal widens from max-w-3xl
+    to max-w-[90vw] (capped at ~1400px) when the agent panel is open, giving
+    both views full visibility simultaneously.
 
-    The approach is modular — billing data is optional. Existing sessions default to
-    billable=true (entrepreneurs' most common case). Projects without a rate simply
-    show time without cost. No invoice generation or payment integration (out of scope).
+    Key design decisions:
+    - Remove the tab system entirely — details are always visible
+    - Add "Ask AI Agent" button in the modal header (Bot icon + label)
+    - When clicked, modal expands rightward with the agent panel
+    - Agent panel has its own header bar with close (collapse) button
+    - Smooth CSS transition on width change (300ms)
+    - CardAgentPanel component stays unchanged — just its container changes
 
-    @src/main/db/schema/focus.ts
-    @src/main/db/schema/projects.ts
-    @src/shared/types/focus.ts
-    @src/main/services/focusService.ts
-    @src/main/ipc/focus.ts
-    @src/preload/domains/focus.ts
-    @src/renderer/pages/FocusPage.tsx
-    @src/renderer/components/FocusCompleteModal.tsx
-    @src/renderer/components/FocusStartModal.tsx
-    @src/renderer/stores/focusStore.ts
+    Current implementation:
+    - CardDetailModal.tsx (809 lines): tab system at line 168, tab bar at 412-441,
+      agent render at 793-803
+    - CardAgentPanel.tsx (448 lines): standalone chat component, takes cardId prop
+    - cardAgentStore.ts (173 lines): Zustand store, messageCount used for badge
+
+    @src/renderer/components/CardDetailModal.tsx
+    @src/renderer/components/CardAgentPanel.tsx
+    @src/renderer/stores/cardAgentStore.ts
   </context>
 
   <task type="auto" n="1">
-    <n>Schema + backend — billable sessions and project hourly rates</n>
+    <n>Remove tab system and implement side-by-side layout</n>
     <files>
-      src/main/db/schema/focus.ts
-      src/main/db/schema/projects.ts
-      drizzle/0018_billable_time.sql
-      src/shared/types/focus.ts
-      src/shared/types/project.ts
-      src/main/services/focusService.ts
-      src/main/ipc/focus.ts
-      src/main/ipc/projects.ts
-      src/preload/domains/focus.ts
-      src/shared/types/electron-api.ts
+      src/renderer/components/CardDetailModal.tsx
     </files>
     <action>
-      ## Schema changes
+      ## Remove tab system
 
-      1. **focus_sessions** — add `billable` boolean column (default true, not null).
-         Default true because most entrepreneur sessions are billable; they opt-out
-         for internal/admin work.
+      1. Remove the `activeTab` state (line 168) — no longer needed.
+      2. Remove the entire tab bar JSX block (lines 412-441).
+      3. Remove the `activeTab === 'details'` conditional wrapper around details
+         content (line 443) — details are now always visible.
+      4. Remove the `activeTab === 'agent'` conditional block (lines 793-803).
+      5. Remove the conditional flex/overflow class switching based on activeTab
+         (line 379-381).
 
-      2. **projects** — add `hourlyRate` real column (nullable).
-         Null means "no rate set" — time is tracked but cost isn't computed.
-         Real (float) is sufficient for hourly rates (no sub-cent precision needed).
+      ## Add agent panel toggle
 
-      3. Generate migration 0018_billable_time.sql:
-         ```sql
-         ALTER TABLE "focus_sessions" ADD COLUMN "billable" boolean DEFAULT true NOT NULL;
-         ALTER TABLE "projects" ADD COLUMN "hourly_rate" real;
+      6. Add `showAgent` boolean state (default false).
+      7. In the modal header (line 383-410), add an "Ask AI Agent" button between
+         the title and the close button:
+         - Bot icon (size 16) + "AI Agent" text
+         - When agentMessageCount > 0, show the emerald count badge (reuse existing)
+         - onClick toggles `showAgent`
+         - Active state: emerald bg/text styling when showAgent is true
+         - Inactive: ghost button with surface colors
+
+      ## Side-by-side layout
+
+      8. The outer modal container class changes based on showAgent:
+         - Default: `max-w-3xl` (current behavior, details only)
+         - Agent open: `max-w-[90vw] xl:max-w-7xl` (expanded, capped)
+         - Add `transition-all duration-300` for smooth width animation
+
+      9. Inside the modal content area (below header), use a flex row layout:
          ```
-         IMPORTANT: Check drizzle/meta/_journal.json for the last `when` timestamp
-         and ensure 0018's timestamp is strictly greater (PGlite monotonic requirement).
+         <div class="flex flex-1 min-h-0 overflow-hidden">
+           <!-- Left: Details (always visible) -->
+           <div class="flex-1 overflow-y-auto min-w-0 pr-1">
+             {/* existing details content */}
+           </div>
 
-      ## Type changes
+           <!-- Right: Agent panel (conditional) -->
+           {showAgent && (
+             <div class="w-[420px] shrink-0 border-l flex flex-col">
+               <div class="agent-header">
+                 <span>AI Agent</span>
+                 <button onClick={() => setShowAgent(false)}>
+                   <PanelRightClose icon />
+                 </button>
+               </div>
+               <div class="flex-1 min-h-0">
+                 <Suspense fallback={spinner}>
+                   <CardAgentPanel cardId={card.id} />
+                 </Suspense>
+               </div>
+             </div>
+           )}
+         </div>
+         ```
 
-      4. **FocusSession** — add `billable: boolean`
-      5. **FocusSessionFull** — add `billable: boolean` + `hourlyRate: number | null`
-         (hourlyRate comes from the joined project)
-      6. **FocusProjectTime** — add `cost: number | null`
-         (computed as minutes/60 * hourlyRate, null if no rate)
-      7. **FocusTimeReport.summary** — add:
-         - `billableMinutes: number`
-         - `billableCost: number` (sum of billable session costs)
-      8. Add to project types (CreateProjectInput / Project): `hourlyRate?: number | null`
+      10. The modal itself needs to be `flex flex-col` always (not just in agent
+          tab mode). Set: `flex flex-col max-h-[85vh]` — the header is shrink-0,
+          the content flex row takes flex-1.
 
-      ## Service changes (focusService.ts)
+      ## Agent panel header
 
-      9. **getTimeReport()** — update queries:
-         - Session query: SELECT billable flag + project hourlyRate
-         - Project breakdown: compute cost = SUM(minutes) / 60 * hourlyRate for billable sessions
-         - Summary: add billableMinutes (SUM where billable=true) and billableCost
-         - Accept optional `billableOnly?: boolean` filter in FocusTimeReportOptions
-         - When billableOnly=true, add WHERE billable = true to all queries
+      11. The agent panel's right column has a small header bar:
+          - "AI Agent" label (bold, sm text)
+          - Message count badge if > 0
+          - PanelRightClose (or X) icon button to close the panel
+          - Border-bottom, same surface styling as the card header
 
-      10. **saveSession()** — accept `billable?: boolean` in input (default true)
+      ## State management
 
-      11. **updateSession()** — accept `billable?: boolean` in update input
+      12. Keep the existing cardAgentStore integration:
+          - loadMessageCount on mount (already done)
+          - reset on modal close (already done)
+          - agentMessageCount subscription for badge (already done)
+          Just remove any tab-specific logic.
 
-      ## IPC + preload
+      ## Dark/light mode
 
-      12. Update focus:save-session to pass billable field
-      13. Update focus:update-session to pass billable field
-      14. Update projects IPC — pass hourlyRate on create/update
-      15. Update preload bridge types if needed
+      13. All new elements follow existing patterns:
+          - Border: `border-surface-200 dark:border-surface-700`
+          - Agent panel bg: `bg-surface-50 dark:bg-surface-800/50` (subtle differentiation)
+          - Button hover states with `dark:` variants
     </action>
     <verify>
       - `npx tsc --noEmit` passes with zero errors
-      - Migration 0018 SQL file exists with correct ALTER statements
-      - Migration journal timestamp is monotonically greater than 0017
-      - FocusTimeReport type includes billableMinutes and billableCost
-      - focusService.getTimeReport returns cost data in projectBreakdown
+      - CardDetailModal opens with details visible (no tabs)
+      - "AI Agent" button visible in header with Bot icon
+      - Clicking the button expands modal and shows agent panel on the right
+      - Card details remain scrollable on the left
+      - Agent panel has its own header with close button
+      - Closing agent panel shrinks modal back to normal width
+      - Both dark and light modes render correctly
+      - Message count badge shows on the button when messages exist
     </verify>
     <done>
-      Schema has billable + hourlyRate columns, types updated, service computes costs,
-      IPC passes all new fields. All existing sessions default to billable=true.
+      Tab system replaced with side-by-side layout. Details always visible on left.
+      Agent panel opens/closes via header button with smooth width transition.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - PGlite handles ALTER TABLE ADD COLUMN with DEFAULT correctly (verified in prior migrations)
-      - Float precision is acceptable for hourly rates (no accounting-grade decimals needed)
-      - Existing sessions defaulting to billable=true is the right UX for entrepreneurs
+      - CardAgentPanel works unchanged as a child component (just needs cardId prop)
+      - 420px is sufficient width for the agent chat panel
+      - 90vw / max-w-7xl provides enough room for both panels
+      - CSS transition on max-width works smoothly in Electron's Chromium
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>FocusPage billing UI — filters, cost stats, and enhanced export</n>
+    <n>Polish — transitions, responsive behavior, keyboard shortcut</n>
     <files>
-      src/renderer/pages/FocusPage.tsx
+      src/renderer/components/CardDetailModal.tsx
+      src/renderer/globals.css (if animation needed)
     </files>
     <action>
-      ## Billable filter toggle
+      ## Smooth panel entrance
 
-      1. Add a billable filter to the controls bar (next to project dropdown):
-         Three-way select: "All" | "Billable" | "Non-billable"
-         - Pass billableOnly flag to getTimeReport when "Billable" selected
-         - When "Non-billable" selected, pass billableOnly=false
-         - Default: "All" (shows everything)
+      1. Instead of a hard show/hide, animate the agent panel entrance:
+         - Always render the panel wrapper div when showAgent changes
+         - Use CSS transition: panel slides in from right (translate-x + opacity)
+         - Or use a width transition: 0 → 420px with overflow-hidden
+         - Keep it simple — CSS transitions, no animation library
 
-      ## Summary stats enhancement
+      2. The modal width transition should feel smooth:
+         - `transition-[max-width] duration-300 ease-out` on the modal container
+         - The modal content reflows naturally as space opens up
 
-      2. When any project in the report has an hourly rate, show a 5th stat card
-         (shift from 4-col to 5-col grid):
-         - "Billable Amount" showing formatted cost (e.g. "$1,250.00")
-         - DollarSign icon with emerald accent
-         - Only visible when there's actual cost data (billableCost > 0)
+      ## Agent panel close behavior
 
-      3. Add a small "billable" sub-stat under Total Time:
-         e.g. "12h 30m (10h 15m billable)" — only when billable filter is "All"
-         and there are non-billable sessions
+      3. When the card modal is closed (Escape or overlay click), the agent panel
+         should also close gracefully — the existing reset() call on unmount
+         already handles state cleanup.
 
-      ## Project breakdown enhancement
+      4. If the user presses Escape:
+         - If agent panel is open, close the agent panel first (not the whole modal)
+         - Second Escape closes the modal
+         - Update the Escape keydown handler to check showAgent state
 
-      4. In the project breakdown bars, append cost to the right side:
-         "ProjectName  ████████  4h 30m  12 sessions  $675.00"
-         Only show cost when the project has an hourly rate set.
+      ## Visual refinements
 
-      ## Session list enhancement
+      5. Add a subtle vertical divider between details and agent panel:
+         - The border-l on the agent panel already handles this
+         - Ensure proper spacing: details have pr-4, agent panel has no pl
 
-      5. Add a small billable indicator on each session row:
-         - Green DollarSign icon (size 12) for billable sessions
-         - Gray minus icon for non-billable
-         - Placed before the project color dot
+      6. The "Ask AI Agent" button should have a visual state change when active:
+         - Active: `bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400`
+         - Inactive: `text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200`
+         - Transition between states
 
-      6. In the inline edit form, add a billable checkbox toggle
+      7. When agent panel is open and has no messages, the starter prompts
+         (2x2 grid in CardAgentPanel) should be immediately visible — verify
+         the panel height is sufficient for this.
 
-      ## CSV export enhancement
+      ## Width optimization
 
-      7. Add columns to CSV export:
-         - "Billable" (Yes/No)
-         - "Hourly Rate" (number or empty)
-         - "Cost" (calculated, or empty if no rate)
-         Keep existing columns intact, append new ones at the end.
+      8. On smaller screens (< 1200px viewport), the agent panel could be slightly
+         narrower (360px instead of 420px). Use responsive Tailwind:
+         `w-[360px] xl:w-[420px]`
     </action>
     <verify>
-      - `npx tsc --noEmit` passes
-      - FocusPage renders without errors
-      - Billable filter select is visible in controls bar
-      - When a project has an hourlyRate, cost appears in breakdown and summary
-      - CSV export includes Billable, Hourly Rate, Cost columns
-      - Session rows show billable indicator
-      - Inline edit includes billable toggle
+      - Modal width transitions smoothly when agent panel opens/closes (no jank)
+      - Escape key closes agent panel first, then modal on second press
+      - Agent panel slides in smoothly (not a hard pop)
+      - "Ask AI Agent" button shows active emerald state when panel is open
+      - On narrow screens, panel is 360px; on wider screens, 420px
+      - Starter prompts are fully visible when panel opens with no messages
+      - All transitions work in both dark and light modes
+      - No visual glitches during transition (no content reflow jank)
     </verify>
     <done>
-      FocusPage shows billing data throughout: filter, stats, breakdown, session list,
-      and CSV export. All billing UI is conditional — hidden when no rates are set.
+      Side panel has polished transitions, proper Escape handling (close panel first),
+      responsive widths, and active button state. UX feels smooth and intentional.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - 5-column stat grid fits in the existing max-w-6xl layout
-      - Billable filter can reuse the same getTimeReport IPC (just adds a WHERE clause)
-    </assumptions>
-  </task>
-
-  <task type="auto" n="3">
-    <n>Session flow — billable toggle in modals + project hourly rate editing</n>
-    <files>
-      src/renderer/components/FocusCompleteModal.tsx
-      src/renderer/components/FocusStartModal.tsx
-      src/renderer/stores/focusStore.ts
-      src/renderer/pages/ProjectsPage.tsx
-    </files>
-    <action>
-      ## FocusCompleteModal — billable toggle
-
-      1. Add a small toggle/checkbox below the accomplishment textarea:
-         "Mark as billable" — checked by default
-         Pass the billable value to saveSession()
-
-      2. When the focused card's project has an hourly rate, show a subtle
-         cost preview: "~$12.50 (30 min @ $25/hr)" below the duration display.
-         This gives immediate feedback on what they're billing.
-
-      ## FocusStartModal — rate context
-
-      3. When a card is selected and its project has an hourly rate, show a small
-         info line: "$150/hr — ProjectName"
-         This reminds the user which rate will apply before they start.
-
-      ## focusStore — carry billable flag
-
-      4. Add `billable: boolean` to the store state (default true).
-         FocusCompleteModal reads/sets it; saveSession passes it to IPC.
-
-      ## Project hourly rate editing
-
-      5. Add hourly rate editing to ProjectsPage:
-         - On project card hover (where Pencil/Trash/Star already live), add a
-           DollarSign icon button that opens a small inline input.
-         - OR: Add hourly rate as an editable field in the project card itself
-           (e.g. small "$0/hr" text that becomes an input on click, like rename).
-         - Save via existing projects:update IPC with the new hourlyRate field.
-         - Show the rate on the card when set: "$150/hr" badge.
-
-      ## Dark/light mode
-
-      6. Ensure all new UI elements have proper dark: variants following
-         the existing pattern in these components.
-    </action>
-    <verify>
-      - `npx tsc --noEmit` passes
-      - FocusCompleteModal shows billable toggle (default checked)
-      - When project has hourlyRate, cost preview appears in completion modal
-      - FocusStartModal shows rate info when card's project has a rate
-      - focusStore carries billable field through save flow
-      - Project hourly rate can be set and persisted from ProjectsPage
-      - Rate badge visible on project cards
-      - Light and dark mode both render correctly
-    </verify>
-    <done>
-      Complete billable workflow: set rate on project → start focus → see rate context →
-      complete session → toggle billable → see cost → data flows to FocusPage reports.
-    </done>
-    <confidence>HIGH</confidence>
-    <assumptions>
-      - Project card hover actions can accommodate one more icon button
-      - focusStore.saveSession already calls the IPC — just needs the extra field
-      - Card → project resolution for rate display reuses existing project store data
+      - CSS max-width transitions work smoothly in Electron Chromium
+      - 300ms is a good duration for the expand/collapse feel
+      - Two-stage Escape (panel → modal) is the expected UX pattern
     </assumptions>
   </task>
 </phase>
