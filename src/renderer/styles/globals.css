@@ -186,6 +186,13 @@ html.light select option {
   outline-offset: 2px;
 }
 
+/* Inputs/textareas inside wrapper containers should NOT draw their own outline */
+textarea:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
 :focus:not(:focus-visible) {
   outline: none;
 }
