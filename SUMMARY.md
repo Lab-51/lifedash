@@ -1,41 +1,38 @@
-# Plan J.1 — Card Agent Side Panel
+# Plan K.1 Summary — Dev-only Figma Capture via Browser
 
-## Date: 2026-02-22
+## Date: 2026-02-24
 ## Status: COMPLETE (2/2 tasks)
 
-## What Was Built
+## What Changed
 
-Replaced the tab system in CardDetailModal with a side-by-side layout. Card details are always visible on the left. The AI Agent panel slides in from the right when the user clicks the "AI Agent" button in the modal header.
+### Task 1: Vite plugin for Figma capture mode
+- **File:** `vite.renderer.config.ts`
+- Added `figmaCapturePlugin()` — dev-serve-only Vite plugin gated behind `FIGMA_CAPTURE` env var
+- Injects a Proxy-based `window.electronAPI` mock that handles all 258 IPC methods automatically:
+  - `platform`/`appVersion`: static values
+  - `on*` listeners: return cleanup function
+  - `get*` data fetchers: return `Promise.resolve([])`
+  - Everything else: return `Promise.resolve(null)`
+- Injects the Figma HTML-to-Design capture script (`capture.js`)
+- Conditionally spread into plugins array — zero overhead when not in capture mode
 
-### Task 1: Remove tab system + side-by-side layout (0f2845a)
-- Removed activeTab state, tab bar JSX, and all tab-conditional rendering
-- Added showAgent boolean state with "AI Agent" header button (Bot icon + emerald badge)
-- Modal expands from max-w-3xl to max-w-[90vw]/xl:max-w-7xl when agent open
-- Flex row layout: details always visible left, agent panel right
-- Agent panel has its own header bar with close button (PanelRightClose)
-- Dark/light mode support on all new elements
+### Task 2: npm script + cross-env
+- **File:** `package.json`
+- Installed `cross-env@^10.1.0` as devDependency (cross-platform env var support)
+- Added script: `"figma:capture": "cross-env FIGMA_CAPTURE=1 electron-forge start"`
 
-### Task 2: Polish transitions + behavior (0f2845a)
-- Width-based panel animation (w-0 → w-[360px]/xl:w-[420px]) with transition-all 300ms
-- Two-stage Escape: close agent panel first, then modal on second press
-- Escape handler skips when focus is in input/textarea/contenteditable
-- Border transitions via border-transparent (no flash on close)
-- Active button state: emerald bg/text when panel open
-- agentEverOpened flag preserves lazy loading of CardAgentPanel
-- Responsive: 360px on <1280px, 420px on xl+
+## Usage
+```bash
+npm run figma:capture
+# Then open http://localhost:5173 in Chrome for Figma capture
+```
 
-### Code Review Fixes
-- Escape key input guard (prevent closing modal while editing title/description)
-- Border-transparent transition (prevent flash during panel close animation)
-- Stale "tab badge" comment → "agent button badge" in CardAgentPanel
-
-## Files Modified
-- `src/renderer/components/CardDetailModal.tsx` — Main layout refactor
-- `src/renderer/components/CardAgentPanel.tsx` — Comment fix
+## Production Impact: NONE
+- Plugin uses `apply: 'serve'` and conditional spread — never in production builds
+- `npm start` and `npm run make` completely unaffected
 
 ## Verification
 - TypeScript: clean (zero errors)
-- 1 atomic commit
 
 ## Next Step
-TBD — user decides
+Manual verification: run `npm run figma:capture`, open Chrome to localhost:5173, use Figma MCP to capture

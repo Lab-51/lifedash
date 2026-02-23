@@ -1,217 +1,147 @@
-# Plan J.1 — Card Agent Side Panel
-
-<phase n="J.1" name="Card Agent Side Panel">
+<phase n="K.1" name="Dev-only Figma Capture via Browser">
   <context>
-    The Card Agent (Plan E.1 backend + E.2 UI) currently lives as a tab inside
-    CardDetailModal. The user switches between "Details" and "AI Agent" tabs,
-    losing visibility of card details while chatting with the agent.
+    Figma's HTML-to-design capture script does not work inside Electron's renderer
+    (tested: script injection via executeJavaScript, inline eval, Vite plugin —
+    all failed to show toolbar or trigger capture in Electron).
 
-    This plan moves the agent to a **side-by-side layout**: card details on the
-    left, agent panel sliding in on the right. The modal widens from max-w-3xl
-    to max-w-[90vw] (capped at ~1400px) when the agent panel is open, giving
-    both views full visibility simultaneously.
+    New approach: open the Vite dev server (localhost:5173) in Chrome/Edge for capture.
+    The dev server already runs during `npm start` — Electron loads from it.
+    In a real browser the Figma capture script works as designed.
 
-    Key design decisions:
-    - Remove the tab system entirely — details are always visible
-    - Add "Ask AI Agent" button in the modal header (Bot icon + label)
-    - When clicked, modal expands rightward with the agent panel
-    - Agent panel has its own header bar with close (collapse) button
-    - Smooth CSS transition on width change (300ms)
-    - CardAgentPanel component stays unchanged — just its container changes
+    Challenge: the app has 258 IPC methods on `window.electronAPI` with 242 direct calls
+    across the renderer. Without Electron, `window.electronAPI` is undefined and the app
+    crashes immediately. Solution: a Proxy-based mock injected before React boots.
 
-    Current implementation:
-    - CardDetailModal.tsx (809 lines): tab system at line 168, tab bar at 412-441,
-      agent render at 793-803
-    - CardAgentPanel.tsx (448 lines): standalone chat component, takes cardId prop
-    - cardAgentStore.ts (173 lines): Zustand store, messageCount used for badge
+    Zero changes to main.ts, preload.ts, or any production code paths.
+    Everything lives in the Vite plugin — dev-serve-only, env-gated.
 
-    @src/renderer/components/CardDetailModal.tsx
-    @src/renderer/components/CardAgentPanel.tsx
-    @src/renderer/stores/cardAgentStore.ts
+    @vite.renderer.config.ts
+    @src/renderer/index.html
+    @src/shared/types/electron-api.ts (reference — full ElectronAPI interface)
+    @src/renderer/App.tsx (lines 101-110 — store initialization via Promise.allSettled)
   </context>
 
   <task type="auto" n="1">
-    <n>Remove tab system and implement side-by-side layout</n>
-    <files>
-      src/renderer/components/CardDetailModal.tsx
-    </files>
+    <n>Create Vite plugin for Figma capture mode</n>
+    <files>vite.renderer.config.ts</files>
     <action>
-      ## Remove tab system
+      Add a `figmaCapturePlugin()` Vite plugin with `apply: 'serve'` (dev only).
+      Gated behind `process.env.FIGMA_CAPTURE` — does nothing when env var is absent.
 
-      1. Remove the `activeTab` state (line 168) — no longer needed.
-      2. Remove the entire tab bar JSX block (lines 412-441).
-      3. Remove the `activeTab === 'details'` conditional wrapper around details
-         content (line 443) — details are now always visible.
-      4. Remove the `activeTab === 'agent'` conditional block (lines 793-803).
-      5. Remove the conditional flex/overflow class switching based on activeTab
-         (line 379-381).
+      The plugin uses `transformIndexHtml` to inject TWO things before `&lt;/head&gt;`:
 
-      ## Add agent panel toggle
+      1. **Inline shim script** (synchronous, runs before React):
+         Creates `window.electronAPI` as a Proxy that auto-mocks every method:
 
-      6. Add `showAgent` boolean state (default false).
-      7. In the modal header (line 383-410), add an "Ask AI Agent" button between
-         the title and the close button:
-         - Bot icon (size 16) + "AI Agent" text
-         - When agentMessageCount > 0, show the emerald count badge (reuse existing)
-         - onClick toggles `showAgent`
-         - Active state: emerald bg/text styling when showAgent is true
-         - Inactive: ghost button with surface colors
-
-      ## Side-by-side layout
-
-      8. The outer modal container class changes based on showAgent:
-         - Default: `max-w-3xl` (current behavior, details only)
-         - Agent open: `max-w-[90vw] xl:max-w-7xl` (expanded, capped)
-         - Add `transition-all duration-300` for smooth width animation
-
-      9. Inside the modal content area (below header), use a flex row layout:
-         ```
-         <div class="flex flex-1 min-h-0 overflow-hidden">
-           <!-- Left: Details (always visible) -->
-           <div class="flex-1 overflow-y-auto min-w-0 pr-1">
-             {/* existing details content */}
-           </div>
-
-           <!-- Right: Agent panel (conditional) -->
-           {showAgent && (
-             <div class="w-[420px] shrink-0 border-l flex flex-col">
-               <div class="agent-header">
-                 <span>AI Agent</span>
-                 <button onClick={() => setShowAgent(false)}>
-                   <PanelRightClose icon />
-                 </button>
-               </div>
-               <div class="flex-1 min-h-0">
-                 <Suspense fallback={spinner}>
-                   <CardAgentPanel cardId={card.id} />
-                 </Suspense>
-               </div>
-             </div>
-           )}
-         </div>
+         ```js
+         window.electronAPI = new Proxy(
+           { platform: 'browser', appVersion: '0.0.0-capture' },
+           {
+             get(target, prop) {
+               if (prop in target) return target[prop];
+               if (typeof prop === 'string' &amp;&amp; prop.startsWith('on'))
+                 return () => () => {};          // event listeners → cleanup fn
+               return () => Promise.resolve(
+                 typeof prop === 'string' &amp;&amp; prop.startsWith('get') ? [] : null
+               );                                 // data fetchers → [], rest → null
+             }
+           }
+         );
          ```
 
-      10. The modal itself needs to be `flex flex-col` always (not just in agent
-          tab mode). Set: `flex flex-col max-h-[85vh]` — the header is shrink-0,
-          the content flex row takes flex-1.
+         This handles all 258 methods automatically:
+         - `platform`/`appVersion`: static values
+         - `on*` (event listeners like `onCardAgentChunk`): return cleanup fn
+         - `get*` (data fetchers like `getProjects`): return `Promise.resolve([])`
+         - Everything else (`createCard`, `deleteProject`, etc.): return `Promise.resolve(null)`
 
-      ## Agent panel header
+         The React app boots, stores initialize via `Promise.allSettled()` with empty data,
+         and the UI renders its layout/navigation with empty states — perfect for capture.
 
-      11. The agent panel's right column has a small header bar:
-          - "AI Agent" label (bold, sm text)
-          - Message count badge if > 0
-          - PanelRightClose (or X) icon button to close the panel
-          - Border-bottom, same surface styling as the card header
+      2. **Figma capture script tag**:
+         `&lt;script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async&gt;&lt;/script&gt;`
 
-      ## State management
+      WHY this approach:
+      - `transformIndexHtml` modifies HTML at serve time only — zero source files touched
+      - `apply: 'serve'` ensures zero impact on production builds or `npm run make`
+      - Proxy handles all 258 methods in ~15 lines without listing them
+      - Inline script runs before any module — critical for store initialization
+      - No CSP concerns: Chrome loads from Vite dev server which sets no CSP headers
 
-      12. Keep the existing cardAgentStore integration:
-          - loadMessageCount on mount (already done)
-          - reset on modal close (already done)
-          - agentMessageCount subscription for badge (already done)
-          Just remove any tab-specific logic.
-
-      ## Dark/light mode
-
-      13. All new elements follow existing patterns:
-          - Border: `border-surface-200 dark:border-surface-700`
-          - Agent panel bg: `bg-surface-50 dark:bg-surface-800/50` (subtle differentiation)
-          - Button hover states with `dark:` variants
+      Also log to console when the shim is active so the dev knows capture mode is on:
+      `console.log('[Figma Capture] electronAPI mock active — running in browser mode');`
     </action>
     <verify>
-      - `npx tsc --noEmit` passes with zero errors
-      - CardDetailModal opens with details visible (no tabs)
-      - "AI Agent" button visible in header with Bot icon
-      - Clicking the button expands modal and shows agent panel on the right
-      - Card details remain scrollable on the left
-      - Agent panel has its own header with close button
-      - Closing agent panel shrinks modal back to normal width
-      - Both dark and light modes render correctly
-      - Message count badge shows on the button when messages exist
+      1. `npx tsc --noEmit` — zero type errors
+      2. Run `npm start` (no FIGMA_CAPTURE) → open DevTools in Electron → Elements tab →
+         confirm NO capture script tag and NO shim in the HTML
+      3. Run with FIGMA_CAPTURE=1 → open `http://localhost:5173` in Chrome →
+         Elements tab → confirm BOTH the inline shim and capture.js script tag are present
+      4. Chrome console → `window.electronAPI.getProjects()` → resolves to `[]`
+      5. Chrome console → `window.electronAPI.onCardAgentChunk(() => {})` → returns a function
+      6. React app renders in Chrome: sidebar, navigation visible, empty data states
+      7. Chrome Network tab → capture.js loads with 200 OK
     </verify>
     <done>
-      Tab system replaced with side-by-side layout. Details always visible on left.
-      Agent panel opens/closes via header button with smooth width transition.
+      Vite plugin injects electronAPI mock shim + Figma capture script in dev serve mode
+      when FIGMA_CAPTURE is set. App renders in Chrome with mocked API.
+      Normal `npm start` and production builds are completely unaffected.
     </done>
     <confidence>HIGH</confidence>
     <assumptions>
-      - CardAgentPanel works unchanged as a child component (just needs cardId prop)
-      - 420px is sufficient width for the agent chat panel
-      - 90vw / max-w-7xl provides enough room for both panels
-      - CSS transition on max-width works smoothly in Electron's Chromium
+      - Vite dev server runs at localhost:5173 (Electron Forge + Vite default)
+      - Promise.allSettled in App.tsx handles empty arrays gracefully (it should — that's its purpose)
+      - Some components may show empty/error states — acceptable for UI structure capture
+      - The Proxy get() trap handles all access patterns used in the renderer
     </assumptions>
   </task>
 
   <task type="auto" n="2">
-    <n>Polish — transitions, responsive behavior, keyboard shortcut</n>
-    <files>
-      src/renderer/components/CardDetailModal.tsx
-      src/renderer/globals.css (if animation needed)
-    </files>
+    <n>Add npm script and verify end-to-end capture</n>
+    <files>package.json</files>
     <action>
-      ## Smooth panel entrance
+      1. Check if `cross-env` is already in devDependencies. If not, install it.
 
-      1. Instead of a hard show/hide, animate the agent panel entrance:
-         - Always render the panel wrapper div when showAgent changes
-         - Use CSS transition: panel slides in from right (translate-x + opacity)
-         - Or use a width transition: 0 → 420px with overflow-hidden
-         - Keep it simple — CSS transitions, no animation library
+      2. Add npm script to package.json:
+         ```
+         "figma:capture": "cross-env FIGMA_CAPTURE=1 electron-forge start"
+         ```
+         This eliminates shell-specific env var syntax (bash vs CMD vs PowerShell).
 
-      2. The modal width transition should feel smooth:
-         - `transition-[max-width] duration-300 ease-out` on the modal container
-         - The modal content reflows naturally as space opens up
+      3. Verify the full capture workflow end-to-end:
+         a. Run `npm run figma:capture`
+         b. Open Chrome to http://localhost:5173
+         c. Confirm app renders with sidebar/navigation and empty states
+         d. Use the Figma MCP `generate_figma_design` tool to get a capture URL
+         e. Open that URL (localhost:5173#figmacapture=...) in Chrome
+         f. Poll for capture completion
+         g. Confirm design appears in Figma
 
-      ## Agent panel close behavior
+      4. Verify zero production impact:
+         - `npm start` (without figma:capture) → no Figma artifacts in Electron
+         - `npm run make` → packaged app has no Figma code
 
-      3. When the card modal is closed (Escape or overlay click), the agent panel
-         should also close gracefully — the existing reset() call on unmount
-         already handles state cleanup.
-
-      4. If the user presses Escape:
-         - If agent panel is open, close the agent panel first (not the whole modal)
-         - Second Escape closes the modal
-         - Update the Escape keydown handler to check showAgent state
-
-      ## Visual refinements
-
-      5. Add a subtle vertical divider between details and agent panel:
-         - The border-l on the agent panel already handles this
-         - Ensure proper spacing: details have pr-4, agent panel has no pl
-
-      6. The "Ask AI Agent" button should have a visual state change when active:
-         - Active: `bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400`
-         - Inactive: `text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200`
-         - Transition between states
-
-      7. When agent panel is open and has no messages, the starter prompts
-         (2x2 grid in CardAgentPanel) should be immediately visible — verify
-         the panel height is sufficient for this.
-
-      ## Width optimization
-
-      8. On smaller screens (< 1200px viewport), the agent panel could be slightly
-         narrower (360px instead of 420px). Use responsive Tailwind:
-         `w-[360px] xl:w-[420px]`
+      WHY cross-env: the user works on Windows and switches between CMD, PowerShell,
+      and Git Bash. cross-env normalizes env var syntax across all shells.
     </action>
     <verify>
-      - Modal width transitions smoothly when agent panel opens/closes (no jank)
-      - Escape key closes agent panel first, then modal on second press
-      - Agent panel slides in smoothly (not a hard pop)
-      - "Ask AI Agent" button shows active emerald state when panel is open
-      - On narrow screens, panel is 360px; on wider screens, 420px
-      - Starter prompts are fully visible when panel opens with no messages
-      - All transitions work in both dark and light modes
-      - No visual glitches during transition (no content reflow jank)
+      1. `npm run figma:capture` starts the app with FIGMA_CAPTURE=1
+      2. localhost:5173 in Chrome shows the app layout with empty data states
+      3. Figma capture triggers and completes successfully via MCP
+      4. `npm start` still works normally — no Figma artifacts
+      5. `npm run make` produces clean packaged build
     </verify>
     <done>
-      Side panel has polished transitions, proper Escape handling (close panel first),
-      responsive widths, and active button state. UX feels smooth and intentional.
+      npm script exists for one-command capture mode. Full workflow verified end-to-end:
+      dev server serves capture-ready page in Chrome, Figma MCP captures it successfully.
+      Zero impact on production builds.
     </done>
-    <confidence>HIGH</confidence>
+    <confidence>MEDIUM</confidence>
     <assumptions>
-      - CSS max-width transitions work smoothly in Electron Chromium
-      - 300ms is a good duration for the expand/collapse feel
-      - Two-stage Escape (panel → modal) is the expected UX pattern
+      - cross-env is available on npm (it is — 50M+ weekly downloads)
+      - Figma capture script works on localhost:5173 in Chrome (standard browser — should work)
+      - The Proxy mock is sufficient for the app to render without crashes
+      - Some visual differences between Electron and Chrome are acceptable (no frameless window)
     </assumptions>
   </task>
 </phase>

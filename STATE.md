@@ -1,9 +1,9 @@
 # Current State
 
 ## Session Info
-Last updated: 2026-02-23
-Session focus: Checkpoint — no active plan
-Checkpoint reason: Session boundary, STATE.md compaction
+Last updated: 2026-02-24
+Session focus: Figma Capture Mode — attempted and reverted
+Active plan: none
 
 ## Position
 Milestone: v2.0.0
@@ -26,6 +26,11 @@ Packaged app: `npm run make` verified working on Windows (Squirrel installer)
 
 ## Recent Sessions (brief)
 
+### 2026-02-24 — Figma Capture Mode (attempted, reverted)
+- Plan K.1: Proxy-based electronAPI mock caused cascading runtime errors in browser
+  (null vs [] mismatch for non-`get*` IPC methods → component crashes outside ErrorBoundary)
+- All code changes reverted — approach needs rethinking
+
 ### 2026-02-22 — Card Agent Side Panel + Ad-hoc Fixes
 - Plan J.1 (2/2): Replaced tab system with side-by-side layout in CardDetailModal
 - Ad-hoc: StatusBar level badge fix, pending action count refresh fix
@@ -42,13 +47,14 @@ Packaged app: `npm run make` verified working on Windows (Squirrel installer)
 ## Known Limitations
 - Kimi K2.5 "thinking mode" rejects multi-step tool continuations (graceful degradation)
 - PGlite cannot join same table twice (COALESCE workaround documented in MEMORY.md)
+- Figma capture script does NOT work in Electron's renderer (tested 4 approaches, all failed)
+- Proxy-based browser mock also failed — too many IPC methods return non-array data that crashes components
 
 ## Deferred Items
 See ISSUES.md: Calendar integration, VAD, real-time diarization, Agentic AI Tiers 2-3
 
 ## Confidence Levels
 Overall approach: HIGH
-All tasks: HIGH — verified with tsc + 150/150 tests
 
 ## Blockers
 - None
