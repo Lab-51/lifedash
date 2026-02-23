@@ -10,7 +10,7 @@ import { toast } from '../hooks/useToast';
 import type { FocusTimeReport, FocusSessionFull } from '../../shared/types/focus';
 import { billableHours } from '../../shared/utils/billing';
 
-type Period = 'thisWeek' | 'lastWeek' | 'last7Days' | 'thisMonth' | 'lastMonth' | 'custom';
+type Period = 'thisWeek' | 'lastWeek' | 'last7Days' | 'thisMonth' | 'lastMonth' | 'allTime' | 'custom';
 
 function getMonday(d: Date): Date {
   const day = d.getDay();
@@ -42,6 +42,7 @@ function periodRange(period: Period, cs: string, ce: string): [string, string] {
   if (period === 'lastMonth') {
     return [toISO(new Date(now.getFullYear(), now.getMonth() - 1, 1)), toISO(new Date(now.getFullYear(), now.getMonth(), 0))];
   }
+  if (period === 'allTime') return ['2020-01-01', toISO(now)];
   return [cs || toISO(now), ce || toISO(now)];
 }
 
@@ -92,7 +93,7 @@ function exportCSV(sessions: FocusSessionFull[], startDate: string, endDate: str
 const PERIODS: { key: Period; label: string }[] = [
   { key: 'thisWeek', label: 'This Week' }, { key: 'lastWeek', label: 'Last Week' },
   { key: 'last7Days', label: 'Last 7 Days' }, { key: 'thisMonth', label: 'This Month' },
-  { key: 'lastMonth', label: 'Last Month' }, { key: 'custom', label: 'Custom' },
+  { key: 'lastMonth', label: 'Last Month' }, { key: 'allTime', label: 'All Time' }, { key: 'custom', label: 'Custom' },
 ];
 const PAGE = 50;
 const cardCls = 'bg-white dark:bg-surface-900/50 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm';
@@ -220,9 +221,43 @@ export default function FocusPage() {
   }, [report, projectId, activeProjects, startDate, endDate]);
 
   const summary = report?.summary;
-  const daily = report?.dailyData ?? [];
-  const maxMin = Math.max(...daily.map(d => d.minutes), 1);
-  const totalChart = daily.reduce((s, d) => s + d.minutes, 0);
+  const rawDaily = report?.dailyData ?? [];
+
+  type ChartBucket = { key: string; label: string; minutes: number; sessions: number };
+  type Granularity = 'daily' | 'weekly' | 'monthly';
+  const chartInfo = useMemo<{ data: ChartBucket[]; granularity: Granularity }>(() => {
+    const len = rawDaily.length;
+    if (len <= 31) {
+      return { granularity: 'daily', data: rawDaily.map(d => ({ key: d.date, label: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }), minutes: d.minutes, sessions: d.sessions })) };
+    }
+    if (len <= 180) {
+      // Weekly buckets (Mon-Sun)
+      const map = new Map<string, ChartBucket>();
+      for (const d of rawDaily) {
+        const dt = new Date(d.date);
+        const mon = getMonday(dt);
+        const k = toISO(mon);
+        const cur = map.get(k);
+        if (cur) { cur.minutes += d.minutes; cur.sessions += d.sessions; }
+        else map.set(k, { key: k, label: `Week of ${mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, minutes: d.minutes, sessions: d.sessions });
+      }
+      return { granularity: 'weekly', data: [...map.values()] };
+    }
+    // Monthly buckets
+    const map = new Map<string, ChartBucket>();
+    for (const d of rawDaily) {
+      const k = d.date.slice(0, 7); // YYYY-MM
+      const cur = map.get(k);
+      if (cur) { cur.minutes += d.minutes; cur.sessions += d.sessions; }
+      else map.set(k, { key: k, label: new Date(k + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }), minutes: d.minutes, sessions: d.sessions });
+    }
+    return { granularity: 'monthly', data: [...map.values()] };
+  }, [rawDaily]);
+
+  const chartData = chartInfo.data;
+  const chartGranularity = chartInfo.granularity;
+  const maxMin = Math.max(...chartData.map(d => d.minutes), 1);
+  const totalChart = chartData.reduce((s, d) => s + d.minutes, 0);
 
   // Controls bar (inline to save lines)
   const controls = (
@@ -355,29 +390,29 @@ export default function FocusPage() {
           )}
 
           {/* Activity Chart */}
-          {daily.length > 0 && (
+          {chartData.length > 0 && (
             <div className={`${cardCls} p-5`}>
               <div className="flex items-end gap-px h-28">
-                {daily.map(day => {
-                  const h = day.minutes > 0 ? Math.max((day.minutes / maxMin) * 100, 4) : 2;
-                  const tip = new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                  return <div key={day.date} className="flex-1 rounded-t-sm transition-all duration-200 hover:opacity-80 cursor-default" style={{ height: `${h}%`, backgroundColor: day.minutes > 0 ? 'rgb(16 185 129)' : 'var(--color-surface-300)' }} title={`${tip}: ${day.minutes} min (${day.sessions} session${day.sessions !== 1 ? 's' : ''})`} />;
+                {chartData.map(b => {
+                  const h = b.minutes > 0 ? Math.max((b.minutes / maxMin) * 100, 4) : 2;
+                  return <div key={b.key} className="flex-1 rounded-t-sm transition-all duration-200 hover:opacity-80 cursor-default" style={{ height: `${h}%`, backgroundColor: b.minutes > 0 ? 'rgb(16 185 129)' : 'var(--color-surface-300)' }} title={`${b.label}: ${fmt(b.minutes)} (${b.sessions} session${b.sessions !== 1 ? 's' : ''})`} />;
                 })}
               </div>
               <div className="flex gap-px mt-1">
-                {daily.length === 7
-                  ? daily.map(day => (
-                      <div key={day.date} className="flex-1 text-center">
-                        <span className="text-[8px] text-surface-500">{new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                {chartData.length <= 7
+                  ? chartData.map(b => (
+                      <div key={b.key} className="flex-1 text-center">
+                        <span className="text-[8px] text-surface-500">{chartGranularity === 'daily' ? new Date(b.key).toLocaleDateString('en-US', { weekday: 'short' }) : b.label}</span>
                       </div>
                     ))
-                  : daily.map((day, i) => {
-                      const iv = Math.max(Math.floor(daily.length / 10), 1);
-                      return <div key={day.date} className="flex-1 text-center">{i % iv === 0 ? <span className="text-[8px] text-surface-500">{new Date(day.date).getDate()}</span> : null}</div>;
+                  : chartData.map((b, i) => {
+                      const iv = Math.max(Math.floor(chartData.length / 10), 1);
+                      const lbl = chartGranularity === 'monthly' ? new Date(b.key + '-01').toLocaleDateString('en-US', { month: 'short' }) : String(new Date(b.key).getDate());
+                      return <div key={b.key} className="flex-1 text-center">{i % iv === 0 ? <span className="text-[8px] text-surface-500">{lbl}</span> : null}</div>;
                     })}
               </div>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-surface-200 dark:border-surface-700">
-                <span className="text-xs text-surface-500 font-medium">{daily.length === 7 ? 'Weekly Activity' : `${daily.length}-Day Activity`}</span>
+                <span className="text-xs text-surface-500 font-medium">{chartGranularity === 'daily' && chartData.length === 7 ? 'Weekly Activity' : chartGranularity === 'monthly' ? 'Monthly Activity' : chartGranularity === 'weekly' ? 'Weekly Activity' : `${chartData.length}-Day Activity`}</span>
                 <span className="text-xs text-surface-400">{fmt(totalChart)} total</span>
               </div>
             </div>

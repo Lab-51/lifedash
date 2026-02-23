@@ -297,7 +297,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
   const billableCost = projectBreakdown.reduce((sum, p) => sum + (p.cost ?? 0), 0);
 
   // 4. Daily data for the date range
-  const dayCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const dayCount = Math.round((new Date(options.endDate).getTime() - new Date(options.startDate).getTime()) / 86_400_000) + 1;
   const dailyData = await getDailyDataForRange(startDate, endDate, dayCount, options.projectId);
 
   return {
