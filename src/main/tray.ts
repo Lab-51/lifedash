@@ -8,30 +8,40 @@
 
 import { app, BrowserWindow, Menu, nativeImage, Tray } from 'electron';
 import * as path from 'node:path';
-import icon from '../assets/icon.png';
 
 let tray: Tray | null = null;
+
+/**
+ * Resolve the tray icon path for both dev and packaged environments.
+ * In production, the icon lives in the resources directory (via extraResource).
+ * In dev, it lives in the source tree.
+ */
+function resolveIconPath(): string {
+  if (app.isPackaged) {
+    // In packaged app, extraResource copies files to the resources directory
+    return path.join(process.resourcesPath, 'icon.png');
+  }
+
+  // Dev fallback: source assets directory
+  return path.join(__dirname, '../../src/assets/icon.png');
+}
 
 /**
  * Create the system tray with a context menu.
  * Single-click on the tray icon toggles window visibility.
  */
 export function createTray(mainWindow: BrowserWindow): Tray {
-  // Try to load from imported path (Vite asset)
-  let trayIcon = nativeImage.createFromPath(icon);
-
-  // If that fails (e.g. dev server URL issue), try absolute path in source for dev
-  if (trayIcon.isEmpty()) {
-    const devIconPath = path.join(__dirname, '../../src/assets/icon.png');
-    trayIcon = nativeImage.createFromPath(devIconPath);
-  }
+  const iconPath = resolveIconPath();
+  let trayIcon = nativeImage.createFromPath(iconPath);
 
   // Windows tray: 32x32 looks sharp on standard and HiDPI displays
   // macOS tray: 22x22 template
   const traySize = process.platform === 'darwin' ? 22 : 32;
-  const resizedIcon = trayIcon.resize({ width: traySize, height: traySize });
+  if (!trayIcon.isEmpty()) {
+    trayIcon = trayIcon.resize({ width: traySize, height: traySize });
+  }
 
-  tray = new Tray(resizedIcon);
+  tray = new Tray(trayIcon);
 
   const contextMenu = Menu.buildFromTemplate([
     {

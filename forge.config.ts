@@ -27,7 +27,7 @@ const config: ForgeConfig = {
     // Extract PGlite from the asar so its WASM binary loads as a real file
     // @ts-ignore
     asarUnpack: ['**/node_modules/@electric-sql/pglite/**'],
-    extraResource: ['./drizzle'],
+    extraResource: ['./drizzle', './src/assets/icon.png'],
   },
   rebuildConfig: {},
   hooks: {
