@@ -49,8 +49,20 @@ tmp/
 temp/
 *.tmp
 
-# NEXUS planning (keep tracked separately)
-# .planning/ is tracked
+# NEXUS framework (private — not for public repo)
+STATE.md
+PLAN.md
+SUMMARY.md
+PROJECT.md
+ROADMAP.md
+REQUIREMENTS.md
+ISSUES.md
+HANDOFF.md
+REVIEW.md
+SELF-IMPROVE*.md
+CHEATSHEET.md
+WEBSITE-PROMPT.md
+.planning/
 
 # Code signing certificates
 certs/

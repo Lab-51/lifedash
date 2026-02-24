@@ -24,8 +24,8 @@ AI-powered desktop dashboard for meeting intelligence, project management, brain
 ## Quick Start
 
 ```bash
-git clone <repository-url>
-cd living-dashboard
+git clone https://github.com/Lab-51/lifedash.git
+cd lifedash
 npm install
 npm start                # Launch in development mode
 ```
@@ -121,6 +121,10 @@ src/
 
 **Transcription providers:** Deepgram and AssemblyAI can be configured as cloud transcription alternatives to local Whisper.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues and submitting pull requests.
+
 ## License
 
-This project is not currently licensed for public distribution. No LICENSE file is included.
+This project is licensed under the [MIT License](LICENSE).

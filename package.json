@@ -1,8 +1,14 @@
 {
   "name": "lifedash",
+  "private": true,
   "version": "1.7.0",
   "description": "AI-powered Electron desktop dashboard for professionals",
   "author": "LifeDash",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lab-51/lifedash.git"
+  },
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
