@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.7.0",
   "description": "AI-powered Electron desktop dashboard for professionals",
-  "author": "LifeDash",
+  "author": "Daniel Rieger",
   "license": "MIT",
   "repository": {
     "type": "git",
