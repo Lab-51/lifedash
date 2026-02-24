@@ -88,10 +88,10 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
     <div>
       {/* Section header */}
       <div className="flex items-center gap-1.5 mb-1">
-        <CheckSquare size={14} className="text-surface-400" />
-        <span className="text-sm text-surface-400">Checklist</span>
+        <CheckSquare size={14} className="text-[var(--color-accent-dim)]" />
+        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Checklist</span>
         {total > 0 && (
-          <span className="bg-surface-200 dark:bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
+          <span className="font-data text-xs px-1.5 py-0.5 rounded-full ml-1.5 text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)]">
             {done}/{total}
           </span>
         )}
@@ -99,9 +99,9 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
 
       {/* Progress bar */}
       {total > 0 && (
-        <div className="h-0.5 bg-surface-200 dark:bg-surface-700 rounded-full mt-2 mb-3">
+        <div className="h-0.5 bg-[var(--color-border)] rounded-full mt-2 mb-3">
           <div
-            className="h-full bg-emerald-500 rounded-full transition-all"
+            className="h-full bg-[var(--color-accent)] rounded-full transition-all shadow-[0_0_4px_rgba(62,232,228,0.4)]"
             style={{ width: `${percentage}%` }}
           />
         </div>

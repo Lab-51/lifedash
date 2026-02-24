@@ -89,10 +89,10 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
     <div>
       {/* Section header */}
       <div className="flex items-center gap-1.5 mb-3">
-        <MessageSquare size={14} className="text-surface-400" />
-        <span className="text-sm text-surface-400">Comments</span>
+        <MessageSquare size={14} className="text-[var(--color-accent-dim)]" />
+        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Comments</span>
         {selectedCardComments.length > 0 && (
-          <span className="bg-surface-200 dark:bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
+          <span className="font-data text-xs px-1.5 py-0.5 rounded-full ml-1.5 text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)]">
             {selectedCardComments.length}
           </span>
         )}
@@ -106,13 +106,13 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
           onKeyDown={handleAddKeyDown}
           placeholder="Write a comment..."
           rows={3}
-          className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg p-3 text-sm text-surface-900 dark:text-surface-100 placeholder:text-surface-500 resize-none w-full focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+          className="bg-[var(--color-accent-subtle)]/30 border border-[var(--color-border)] rounded-lg p-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] resize-none w-full focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] focus:border-[var(--color-accent-dim)] transition-colors"
         />
         <div className="flex justify-end mt-2">
           <button
             onClick={handleAddComment}
             disabled={!newComment.trim()}
-            className="bg-primary-600 hover:bg-primary-500 text-white text-sm px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="bg-[var(--color-accent-dim)] hover:bg-[var(--color-accent)] text-white text-sm px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Add Comment
           </button>
@@ -128,7 +128,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
             {(expanded ? selectedCardComments : selectedCardComments.slice(0, 3)).map(comment => (
               <div
                 key={comment.id}
-                className="bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-3 py-2.5"
+                className="hud-panel rounded-lg px-3 py-2.5"
               >
                 {editingId === comment.id ? (
                   /* Edit mode */
@@ -160,11 +160,11 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
                 ) : (
                   /* Display mode */
                   <div>
-                    <p className="text-sm text-surface-800 dark:text-surface-200 whitespace-pre-wrap">
+                    <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap">
                       {comment.content}
                     </p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-xs text-surface-500">
+                      <span className="font-data text-xs text-[var(--color-text-muted)]">
                         {timeAgo(comment.createdAt)}
                       </span>
                       <span className="text-xs text-surface-600">·</span>

@@ -69,10 +69,10 @@ function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
       {/* Section header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1.5">
-          <Paperclip size={14} className="text-surface-400" />
-          <span className="text-sm text-surface-400">Attachments</span>
+          <Paperclip size={14} className="text-[var(--color-accent-dim)]" />
+          <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Attachments</span>
           {selectedCardAttachments.length > 0 && (
-            <span className="bg-surface-200 dark:bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
+            <span className="font-data text-xs px-1.5 py-0.5 rounded-full ml-1.5 text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)]">
               {selectedCardAttachments.length}
             </span>
           )}
@@ -98,7 +98,7 @@ function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
             return (
               <div
                 key={att.id}
-                className="bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-3 py-2.5 flex items-center gap-3 group hover:bg-surface-200/80 dark:hover:bg-surface-800/80 transition-colors"
+                className="hud-panel rounded-lg px-3 py-2.5 flex items-center gap-3 group hover:border-[var(--color-border-accent)] transition-colors"
               >
                 <Icon size={16} className="text-surface-400 shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -108,7 +108,7 @@ function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
                   >
                     {att.fileName}
                   </span>
-                  <span className="text-xs text-surface-500">
+                  <span className="font-data text-xs text-[var(--color-text-muted)]">
                     {formatFileSize(att.fileSize)} · {timeAgo(att.createdAt)}
                   </span>
                 </div>

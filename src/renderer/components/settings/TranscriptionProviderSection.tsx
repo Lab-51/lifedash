@@ -286,7 +286,7 @@ export default function TranscriptionProviderSection() {
     return (
       <section className="mb-10">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Transcription Provider</h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Transcription Provider</h2>
         </div>
         <div className="flex items-center justify-center py-6 text-surface-500">
           <Loader2 size={20} className="animate-spin" />
@@ -301,14 +301,14 @@ export default function TranscriptionProviderSection() {
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <Mic size={18} className="text-primary-400" />
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Transcription Provider</h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Transcription Provider</h2>
         </div>
         <p className="text-sm text-surface-500 mt-1">
           Select how meeting audio is transcribed.
         </p>
       </div>
 
-      <div className="p-4 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg space-y-4">
+      <div className="p-4 hud-panel clip-corner-cut-sm space-y-4">
         {/* Provider radio options */}
         {PROVIDERS.map((provider) => (
           <div key={provider.type}>
@@ -323,7 +323,7 @@ export default function TranscriptionProviderSection() {
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-surface-800 dark:text-surface-200">
+                  <span className="text-sm font-medium text-[var(--color-text-primary)]">
                     {provider.label}
                   </span>
                   {renderStatus(provider.type)}
@@ -346,8 +346,8 @@ export default function TranscriptionProviderSection() {
         ))}
 
         {/* Transcription Language */}
-        <div className="pt-3 border-t border-surface-200 dark:border-surface-700">
-          <label className="block text-sm font-medium text-surface-800 dark:text-surface-200 mb-1.5">
+        <div className="pt-3 border-t border-[var(--color-border)]">
+          <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">
             Transcription Language
           </label>
           <select
@@ -372,11 +372,11 @@ export default function TranscriptionProviderSection() {
         </div>
 
         {/* Test connection button */}
-        <div className="pt-2 border-t border-surface-200 dark:border-surface-700">
+        <div className="pt-2 border-t border-[var(--color-border)]">
           <button
             onClick={handleTest}
             disabled={testing}
-            className="flex items-center gap-2 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 disabled:cursor-not-allowed text-surface-800 dark:text-surface-200 px-3 py-1.5 rounded-lg text-sm transition-colors"
+            className="flex items-center gap-2 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-sm transition-all"
           >
             {testing ? (
               <Loader2 size={16} className="animate-spin" />

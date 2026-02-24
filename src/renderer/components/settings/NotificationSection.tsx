@@ -69,7 +69,7 @@ export default function NotificationSection() {
     return (
       <section className="mb-10">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Notifications</h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Notifications</h2>
         </div>
         <div className="flex items-center justify-center py-6 text-surface-500">
           <Loader2 size={20} className="animate-spin" />
@@ -84,14 +84,14 @@ export default function NotificationSection() {
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <Bell size={18} className="text-primary-400" />
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Notifications</h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Notifications</h2>
         </div>
         <p className="text-sm text-surface-500 mt-1">
           Configure desktop notifications for reminders and daily summaries.
         </p>
       </div>
 
-      <div className="p-4 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg space-y-4">
+      <div className="p-4 hud-panel clip-corner-cut-sm space-y-4">
         {/* Master toggle */}
         <label className="flex items-center gap-2 cursor-pointer">
           <input
@@ -100,11 +100,11 @@ export default function NotificationSection() {
             onChange={(e) => updatePreference({ enabled: e.target.checked })}
             className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
           />
-          <span className="text-sm font-medium text-surface-800 dark:text-surface-200">Enable notifications</span>
+          <span className="text-sm font-medium text-[var(--color-text-primary)]">Enable notifications</span>
         </label>
 
         {preferences.enabled && (
-          <div className="space-y-4 pl-6 border-l border-surface-700 ml-2">
+          <div className="space-y-4 pl-6 border-l border-[var(--color-border)] ml-2">
             {/* Due date reminders */}
             <div>
               <label className="flex items-center gap-2 cursor-pointer">
@@ -114,7 +114,7 @@ export default function NotificationSection() {
                   onChange={(e) => updatePreference({ dueDateReminders: e.target.checked })}
                   className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
                 />
-                <span className="text-sm text-surface-700 dark:text-surface-300">Due date reminders</span>
+                <span className="text-sm text-[var(--color-text-secondary)]">Due date reminders</span>
               </label>
               <p className="text-xs text-surface-500 mt-1 ml-6">
                 Notify when cards are due within 24 hours
@@ -130,7 +130,7 @@ export default function NotificationSection() {
                   onChange={(e) => updatePreference({ dailyDigest: e.target.checked })}
                   className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
                 />
-                <span className="text-sm text-surface-700 dark:text-surface-300">Daily digest</span>
+                <span className="text-sm text-[var(--color-text-secondary)]">Daily digest</span>
               </label>
               <p className="text-xs text-surface-500 mt-1 ml-6">
                 Receive a morning summary of tasks and meetings
@@ -165,7 +165,7 @@ export default function NotificationSection() {
                   onChange={(e) => updatePreference({ recordingReminders: e.target.checked })}
                   className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
                 />
-                <span className="text-sm text-surface-700 dark:text-surface-300">Recording reminders</span>
+                <span className="text-sm text-[var(--color-text-secondary)]">Recording reminders</span>
               </label>
               <p className="text-xs text-surface-500 mt-1 ml-6">
                 Remind to start recording for upcoming meetings
@@ -175,11 +175,11 @@ export default function NotificationSection() {
         )}
 
         {/* Test button */}
-        <div className="pt-2 border-t border-surface-200 dark:border-surface-700">
+        <div className="pt-2 border-t border-[var(--color-border)]">
           <button
             onClick={handleTestNotification}
             disabled={testing || !preferences.enabled}
-            className="flex items-center gap-2 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 disabled:cursor-not-allowed text-surface-800 dark:text-surface-200 px-3 py-1.5 rounded-lg text-sm transition-colors"
+            className="flex items-center gap-2 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-sm transition-all"
           >
             {testing ? (
               <Loader2 size={16} className="animate-spin" />

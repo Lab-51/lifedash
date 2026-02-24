@@ -205,9 +205,9 @@ export default function ConvertActionModal({
 
   // Step indicator dots
   const stepDots = [1, 2, 3].map((s) => {
-    if (s < step) return 'bg-primary-500/50';
-    if (s === step) return 'bg-primary-500';
-    return 'bg-surface-700';
+    if (s < step) return 'bg-[var(--color-accent-dim)]';
+    if (s === step) return 'bg-[var(--color-accent)]';
+    return 'bg-[var(--color-border)]';
   });
 
   // Determine the project name for the header when preselected
@@ -219,19 +219,19 @@ export default function ConvertActionModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 dark:bg-black/50"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80"
       onClick={handleOverlayClick}
     >
-      <div className="bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 w-full max-w-md mx-4 p-5">
+      <div className="hud-panel-accent clip-corner-cut w-full max-w-md mx-4 p-5">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-semibold text-surface-900 dark:text-surface-100">
+          <h3 className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)]">
             {isBatch ? 'Convert to Cards' : 'Convert to Card'}
           </h3>
           <button
             onClick={onClose}
             disabled={converting}
-            className="text-surface-500 hover:text-surface-700 dark:text-surface-300 p-1 transition-colors disabled:opacity-40"
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] p-1 transition-colors disabled:opacity-40"
           >
             <X size={18} />
           </button>
@@ -288,11 +288,11 @@ export default function ConvertActionModal({
                     onClick={() => setSelectedProjectId(p.id)}
                     className={`rounded-lg p-2.5 cursor-pointer border transition ${
                       selectedProjectId === p.id
-                        ? 'border-primary-500 bg-primary-500/10'
-                        : 'border-surface-700 hover:border-surface-600'
+                        ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)]'
+                        : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
                     }`}
                   >
-                    <span className="flex items-center text-sm text-surface-800 dark:text-surface-200">
+                    <span className="flex items-center text-sm text-[var(--color-text-primary)]">
                       <span
                         className="w-3 h-3 rounded-full inline-block mr-2 shrink-0"
                         style={{ backgroundColor: p.color || '#6b7280' }}
@@ -319,11 +319,11 @@ export default function ConvertActionModal({
                     onClick={() => setSelectedBoardId(b.id)}
                     className={`rounded-lg p-2.5 cursor-pointer border transition ${
                       selectedBoardId === b.id
-                        ? 'border-primary-500 bg-primary-500/10'
-                        : 'border-surface-700 hover:border-surface-600'
+                        ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)]'
+                        : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
                     }`}
                   >
-                    <span className="text-sm text-surface-800 dark:text-surface-200">{b.name}</span>
+                    <span className="text-sm text-[var(--color-text-primary)]">{b.name}</span>
                   </div>
                 ))}
                 {boards.length === 0 && (
@@ -344,11 +344,11 @@ export default function ConvertActionModal({
                     onClick={() => setSelectedColumnId(c.id)}
                     className={`rounded-lg p-2.5 cursor-pointer border transition ${
                       selectedColumnId === c.id
-                        ? 'border-primary-500 bg-primary-500/10'
-                        : 'border-surface-700 hover:border-surface-600'
+                        ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)]'
+                        : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
                     }`}
                   >
-                    <span className="text-sm text-surface-800 dark:text-surface-200">{c.name}</span>
+                    <span className="text-sm text-[var(--color-text-primary)]">{c.name}</span>
                   </div>
                 ))}
                 {columns.length === 0 && (
@@ -367,7 +367,7 @@ export default function ConvertActionModal({
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-surface-200 dark:border-surface-700">
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-[var(--color-border)]">
           <div>
             {step > 1 && !converting && (
               <button
@@ -391,7 +391,7 @@ export default function ConvertActionModal({
               <button
                 onClick={handleNext}
                 disabled={!canAdvance}
-                className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-1.5 rounded-lg transition-colors"
+                className="border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-40 disabled:cursor-not-allowed text-sm px-4 py-1.5 transition-all"
               >
                 Next
               </button>
@@ -399,7 +399,7 @@ export default function ConvertActionModal({
               <button
                 onClick={handleConvert}
                 disabled={!selectedColumnId || converting}
-                className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                className="border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-40 disabled:cursor-not-allowed text-sm px-4 py-1.5 transition-all flex items-center gap-1.5"
               >
                 {converting && <Loader2 size={14} className="animate-spin" />}
                 {isBatch

@@ -236,8 +236,8 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
             <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mb-4">
               <Bot size={24} className="text-primary-600 dark:text-primary-400" />
             </div>
-            <p className="text-sm font-medium text-surface-900 dark:text-surface-100 mb-1">Card Agent</p>
-            <p className="text-xs text-surface-500 mb-1 text-center">Ask me anything about this card.</p>
+            <p className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)] mb-1">Card Agent</p>
+            <p className="text-xs text-[var(--color-text-secondary)] mb-1 text-center font-data">Ask me anything about this card.</p>
             {modelInfo && (
               <p className="text-[10px] text-surface-400 mb-5 text-center">
                 Using <span className="font-medium text-surface-500 dark:text-surface-400">{modelInfo.model}</span>
@@ -253,10 +253,10 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
                   <button
                     key={prompt.text}
                     onClick={() => handleSend(prompt.text)}
-                    className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl p-3 hover:border-primary-500/50 cursor-pointer transition-colors text-left group"
+                    className="hud-panel clip-corner-cut-sm p-3 hover:border-[var(--color-accent-dim)] cursor-pointer transition-colors text-left group"
                   >
-                    <Icon size={14} className="text-surface-400 group-hover:text-primary-500 mb-1.5 transition-colors" />
-                    <p className="text-xs text-surface-700 dark:text-surface-300 leading-snug">{prompt.text}</p>
+                    <Icon size={14} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-accent)] mb-1.5 transition-colors" />
+                    <p className="text-xs text-[var(--color-text-secondary)] leading-snug font-data">{prompt.text}</p>
                   </button>
                 );
               })}
@@ -312,7 +312,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
       </div>
 
       {/* Input area */}
-      <div className="shrink-0 border-t border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 px-4 py-3">
+      <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-chrome)] px-4 py-3">
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}

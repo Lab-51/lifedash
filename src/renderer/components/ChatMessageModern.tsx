@@ -43,10 +43,10 @@ export default function ChatMessageModern({ message, onExportToIdea, onExportToC
             <div className="flex justify-end mb-4">
                 <div className="max-w-[85%]">
                     <div className="flex items-center justify-end gap-2 mb-1 px-1">
-                        <span className="text-[10px] font-medium text-surface-500 uppercase tracking-wider">You</span>
-                        <span className="text-[10px] text-surface-400">{formatTimestamp(message.createdAt)}</span>
+                        <span className="text-[10px] font-hud text-[var(--color-text-muted)]">You</span>
+                        <span className="font-data text-[10px] text-[var(--color-text-muted)]">{formatTimestamp(message.createdAt)}</span>
                     </div>
-                    <div className="bg-primary-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-md shadow-primary-900/10">
+                    <div className="bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-2xl rounded-tr-sm px-4 py-3 shadow-md border border-[var(--color-border-accent)]">
                         <div className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</div>
                     </div>
                 </div>
@@ -59,14 +59,14 @@ export default function ChatMessageModern({ message, onExportToIdea, onExportToC
         <div className="flex justify-start mb-6 group">
             <div className="max-w-[90%] w-full">
                 <div className="flex items-center gap-2 mb-1 px-1">
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
-                        <Bot size={12} className="text-white" />
+                    <div className="w-5 h-5 rounded-full bg-[var(--color-accent-muted)] border border-[var(--color-border-accent)] flex items-center justify-center shadow-sm">
+                        <Bot size={12} className="text-[var(--color-accent)]" />
                     </div>
-                    <span className="text-[10px] font-medium text-surface-500 uppercase tracking-wider">AI Assistant</span>
-                    <span className="text-[10px] text-surface-400">{formatTimestamp(message.createdAt)}</span>
+                    <span className="text-[10px] font-hud text-[var(--color-text-muted)]">AI Assistant</span>
+                    <span className="font-data text-[10px] text-[var(--color-text-muted)]">{formatTimestamp(message.createdAt)}</span>
                 </div>
 
-                <div className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl rounded-tl-sm p-5 shadow-sm">
+                <div className="hud-panel rounded-2xl rounded-tl-sm p-5">
                     <div className="text-sm text-surface-800 dark:text-surface-200 leading-relaxed prose prose-sm dark:prose-invert max-w-none">
                         <ReactMarkdown
                             remarkPlugins={[remarkGfm]}

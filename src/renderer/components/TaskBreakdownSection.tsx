@@ -159,7 +159,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
     <div>
       {/* Section title */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1.5 text-sm font-medium text-surface-700 dark:text-surface-300">
+        <div className="flex items-center gap-1.5 font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">
           <Sparkles size={14} />
           AI Task Breakdown
         </div>

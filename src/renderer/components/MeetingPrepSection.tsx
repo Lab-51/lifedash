@@ -122,14 +122,14 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
   // --- Loading skeleton ---
   if (loading) {
     return (
-      <div className="bg-surface-800/50 rounded-lg border border-surface-700 p-4 space-y-2">
+      <div className="hud-panel rounded-lg p-4 space-y-2">
         <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded bg-surface-600 animate-pulse" />
-          <div className="h-3 w-40 rounded bg-surface-600 animate-pulse" />
+          <div className="h-3 w-3 rounded bg-[var(--color-accent-muted)] animate-pulse" />
+          <div className="h-3 w-40 rounded bg-[var(--color-border)] animate-pulse" />
         </div>
-        <div className="h-2.5 w-full rounded bg-surface-700 animate-pulse" />
-        <div className="h-2.5 w-3/4 rounded bg-surface-700 animate-pulse" />
-        <div className="h-2.5 w-5/6 rounded bg-surface-700 animate-pulse" />
+        <div className="h-2.5 w-full rounded bg-[var(--color-border)] animate-pulse" />
+        <div className="h-2.5 w-3/4 rounded bg-[var(--color-border)] animate-pulse" />
+        <div className="h-2.5 w-5/6 rounded bg-[var(--color-border)] animate-pulse" />
       </div>
     );
   }
@@ -137,9 +137,9 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
   // --- Error state ---
   if (error) {
     return (
-      <div className="bg-surface-800/50 rounded-lg border border-surface-700 p-4">
+      <div className="hud-panel rounded-lg p-4">
         <div className="flex items-start gap-2">
-          <AlertCircle size={14} className="text-amber-400 mt-0.5 shrink-0" />
+          <AlertCircle size={14} className="text-[var(--color-warm)] mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-xs text-amber-400">{error}</p>
           </div>
@@ -159,14 +159,14 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
   if (!prepData) return null;
 
   return (
-    <div className="bg-surface-800/50 rounded-lg border border-surface-700">
+    <div className="hud-panel rounded-lg">
       {/* Header */}
       <div
         role="button"
         tabIndex={0}
         onClick={() => setExpanded(!expanded)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded); } }}
-        className="w-full flex items-center justify-between p-3 text-left hover:bg-surface-700/30 transition-colors rounded-lg cursor-pointer"
+        className="w-full flex items-center justify-between p-3 text-left hover:bg-[var(--color-accent-subtle)] transition-colors rounded-lg cursor-pointer"
       >
         <span className="text-sm font-medium text-surface-800 dark:text-surface-200 truncate">
           Meeting Prep for &ldquo;{prepData.projectName}&rdquo;

@@ -51,24 +51,23 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     return (
-      <div className="flex-1 flex items-center justify-center bg-surface-50/50 dark:bg-surface-900/50 p-6">
-        <div className="max-w-md w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl p-8 text-center">
-          <AlertTriangle size={40} className="mx-auto mb-4 text-warning" />
+      <div className="flex-1 flex items-center justify-center bg-surface-950/50 p-6">
+        <div className="max-w-md w-full hud-panel-accent clip-corner-cut p-8 text-center">
+          <AlertTriangle size={40} className="mx-auto mb-4 text-[var(--color-warm)]" />
 
-          <h2 className="text-xl font-semibold text-surface-900 dark:text-surface-100">
+          <h2 className="font-hud text-lg tracking-widest uppercase text-[var(--color-warm)]">
             Something went wrong
           </h2>
 
-          <p className="mt-2 text-sm text-surface-400">
+          <p className="mt-2 text-sm text-[var(--color-text-secondary)] font-data">
             {this.state.error?.message || 'An unexpected error occurred.'}
           </p>
 
           <button
             type="button"
             onClick={this.handleReset}
-            className="mt-6 px-5 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium
-                       hover:bg-primary-500 transition-colors focus:outline-none focus:ring-1
-                       focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-surface-900"
+            className="mt-6 px-5 py-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] text-sm font-medium
+                       hover:shadow-[0_0_12px_var(--color-chrome-glow)] transition-all focus:outline-none"
           >
             Try Again
           </button>

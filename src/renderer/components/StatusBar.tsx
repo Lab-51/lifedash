@@ -43,40 +43,45 @@ function StatusBar() {
   if (focusMode === 'focus' || focusMode === 'break') return null;
 
   return (
-    <div className="h-6 flex items-center justify-between bg-white dark:bg-surface-900 border-t border-surface-200 dark:border-surface-800 px-3 shrink-0">
-      {/* Left: database connection status */}
-      <div className="flex items-center gap-1.5">
-        <span
-          className={`w-2 h-2 rounded-full ${getIndicatorClass(connected, checking)}`}
-          aria-hidden="true"
-        />
-        <span className="text-xs text-surface-500">
-          {getStatusLabel(connected, checking)}
-        </span>
-      </div>
+    <div className="shrink-0">
+      {/* Top accent divider */}
+      <div className="ruled-line-accent" />
 
-      {/* Right: dynamic content */}
-      <div className="flex items-center gap-3 text-xs text-surface-600">
-        {pendingActionCount > 0 && (
-          <span className="text-amber-400/80">
-            {pendingActionCount} pending action{pendingActionCount !== 1 ? 's' : ''}
+      <div className="h-6 flex items-center justify-between bg-[var(--color-chrome)] border-t border-[var(--color-border)] px-3 font-data">
+        {/* Left: database connection status */}
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`w-2 h-2 rounded-full ${getIndicatorClass(connected, checking)}`}
+            aria-hidden="true"
+          />
+          <span className="text-xs text-[var(--color-text-secondary)]">
+            {getStatusLabel(connected, checking)}
           </span>
-        )}
+        </div>
 
-        {/* Completed state: brief "Done!" indicator before FocusCompleteModal opens */}
-        {focusMode === 'completed' && (
-          <div className="flex items-center gap-1.5">
-            <Timer size={14} className="text-emerald-400" />
-            <span className="text-emerald-400 font-mono">Done!</span>
-          </div>
-        )}
+        {/* Right: dynamic content */}
+        <div className="flex items-center gap-3 text-xs text-[var(--color-text-secondary)]">
+          {pendingActionCount > 0 && (
+            <span className="text-amber-400/80">
+              {pendingActionCount} pending action{pendingActionCount !== 1 ? 's' : ''}
+            </span>
+          )}
 
-        {/* Level indicator when idle */}
-        {focusMode === 'idle' && stats && (
-          <LevelBadge level={stats.level} size="sm" />
-        )}
+          {/* Completed state: brief "Done!" indicator before FocusCompleteModal opens */}
+          {focusMode === 'completed' && (
+            <div className="flex items-center gap-1.5">
+              <Timer size={14} className="text-emerald-400" />
+              <span className="text-emerald-400">Done!</span>
+            </div>
+          )}
 
-        <span>Ctrl+K: Commands</span>
+          {/* Level indicator when idle */}
+          {focusMode === 'idle' && stats && (
+            <LevelBadge level={stats.level} size="sm" />
+          )}
+
+          <span className="text-[var(--color-text-muted)]">Ctrl+K: Commands</span>
+        </div>
       </div>
     </div>
   );

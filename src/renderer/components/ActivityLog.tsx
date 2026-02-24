@@ -108,8 +108,8 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
     <div>
       {/* Section header */}
       <div className="flex items-center gap-1.5 mb-3">
-        <Activity size={14} className="text-surface-400" />
-        <span className="text-sm text-surface-400">Activity</span>
+        <Activity size={14} className="text-[var(--color-accent-dim)]" />
+        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Activity</span>
       </div>
 
       {/* Loading state */}
@@ -126,7 +126,7 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
       {selectedCardActivities.length > 0 && (
         <div className="relative pl-5">
           {/* Timeline connector line */}
-          <div className="absolute left-[6px] top-1 bottom-1 border-l-2 border-surface-200 dark:border-surface-700" />
+          <div className="absolute left-[6px] top-1 bottom-1 border-l-2 border-[var(--color-border-accent)]" />
 
           <div className="space-y-3">
             {visibleActivities.map(activity => {
@@ -149,7 +149,7 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
                   <span className="text-sm text-surface-700 dark:text-surface-300">
                     {describeActivity(activity.action, activity.details)}
                   </span>
-                  <span className="text-xs text-surface-500 ml-auto whitespace-nowrap">
+                  <span className="font-data text-xs text-[var(--color-text-muted)] ml-auto whitespace-nowrap">
                     {timeAgo(activity.createdAt)}
                   </span>
                 </div>

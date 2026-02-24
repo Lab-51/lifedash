@@ -152,7 +152,7 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
         <div
             ref={cardRef}
             onClick={onClick}
-            className={`group relative bg-white dark:bg-surface-800 rounded-xl p-3.5 border border-surface-200 dark:border-surface-700 cursor-pointer shadow-sm hover:shadow-md hover:border-primary-300 dark:hover:border-primary-600 transition-all ${isBlocked ? 'opacity-75 bg-surface-50 dark:bg-surface-900' : ''
+            className={`group relative hud-panel clip-corner-cut-sm p-3.5 cursor-pointer hover:border-[var(--color-accent-dim)] hover:shadow-[0_0_8px_rgba(62,232,228,0.1)] transition-all ${isBlocked ? 'opacity-75' : ''
                 }`}
             style={
                 isDragging
@@ -234,7 +234,7 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
 
                     {/* Due Date */}
                     {card.dueDate && (
-                        <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border ${getDueDateBadge(card.dueDate).classes.replace('text-', 'text-').replace('bg-', 'bg-').replace('/10', '/20')}`}>
+                        <span className={`font-data flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border ${getDueDateBadge(card.dueDate).classes.replace('text-', 'text-').replace('bg-', 'bg-').replace('/10', '/20')}`}>
                             <Clock size={10} />
                             {new Date(card.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                         </span>
@@ -257,7 +257,7 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
                 </div>
 
                 {/* Hover Actions */}
-                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 dark:bg-surface-800/90 rounded-lg p-1 shadow-sm border border-surface-100 dark:border-surface-600 backdrop-blur-sm">
+                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--color-chrome)]/90 rounded-lg p-1 shadow-sm border border-[var(--color-border)] backdrop-blur-sm">
                     {!isEditing && (
                         <button
                             onClick={e => { e.stopPropagation(); startEditing(); }}

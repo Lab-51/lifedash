@@ -96,7 +96,7 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: 'lastMonth', label: 'Last Month' }, { key: 'allTime', label: 'All Time' }, { key: 'custom', label: 'Custom' },
 ];
 const PAGE = 50;
-const cardCls = 'bg-white dark:bg-surface-900/50 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm';
+const cardCls = 'hud-panel-accent clip-corner-cut-sm';
 const inputCls = 'px-2 py-1.5 text-sm rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-900 dark:text-surface-100';
 
 export default function FocusPage() {
@@ -262,9 +262,9 @@ export default function FocusPage() {
   // Controls bar (inline to save lines)
   const controls = (
     <div className="flex flex-wrap items-center gap-3">
-      <div className="flex rounded-lg border border-surface-200 dark:border-surface-700 overflow-hidden">
+      <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
         {PERIODS.map(({ key, label }) => (
-          <button key={key} onClick={() => setPeriod(key)} className={`px-3 py-1.5 text-sm font-medium transition-colors ${period === key ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-surface-900 text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800'}`}>
+          <button key={key} onClick={() => setPeriod(key)} className={`px-3 py-1.5 text-sm font-medium transition-colors ${period === key ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]' : 'bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)]'}`}>
             {label}
           </button>
         ))}
@@ -285,7 +285,7 @@ export default function FocusPage() {
         <option value="true">Billable</option>
         <option value="false">Non-billable</option>
       </select>
-      <button onClick={() => useFocusStore.getState().setShowStartModal(true)} className="ml-auto inline-flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors">
+      <button onClick={() => useFocusStore.getState().setShowStartModal(true)} className="ml-auto inline-flex items-center gap-1.5 px-4 py-1.5 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] text-sm font-medium rounded-lg transition-colors">
         <Play size={14} /> Start Focus
       </button>
     </div>
@@ -294,8 +294,8 @@ export default function FocusPage() {
   const header = (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2.5">
-        <Timer size={22} className="text-emerald-500" />
-        <h1 className="text-xl font-bold text-surface-900 dark:text-surface-100">Focus Time Tracking</h1>
+        <Timer size={22} className="text-[var(--color-accent)]" />
+        <h1 className="font-hud text-xl text-[var(--color-accent)] text-glow">Focus Time Tracking</h1>
       </div>
       <button onClick={handleExport} disabled={!report || !allSessions.length} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
         <Download size={15} /> Export CSV
@@ -313,7 +313,7 @@ export default function FocusPage() {
           <Timer size={44} className="mx-auto mb-4 text-surface-300 dark:text-surface-600" />
           <p className="text-lg font-medium text-surface-900 dark:text-surface-100">No focus sessions in this period</p>
           <p className="text-sm text-surface-500 mt-2 max-w-md mx-auto">Try selecting a different date range or start a new focus session.</p>
-          <button onClick={() => useFocusStore.getState().setShowStartModal(true)} className="mt-5 inline-flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
+          <button onClick={() => useFocusStore.getState().setShowStartModal(true)} className="mt-5 inline-flex items-center gap-1.5 px-5 py-2.5 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] rounded-lg text-sm font-medium transition-colors">
             <Play size={14} /> Start Focus Session
           </button>
         </div>
@@ -339,28 +339,28 @@ export default function FocusPage() {
           {/* Summary Stats */}
           <div className={`grid gap-4 ${summary.billableCost > 0 ? 'grid-cols-5' : 'grid-cols-4'}`}>
             <div className={`${cardCls} p-4`}>
-              <div className="flex items-center gap-1.5 mb-1"><BarChart3 size={16} className="text-emerald-500" /><span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Total Sessions</span></div>
-              <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">{summary.totalSessions}</p>
+              <div className="flex items-center gap-1.5 mb-1"><BarChart3 size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[10px] text-[var(--color-text-muted)]">Total Sessions</span></div>
+              <p className="font-data text-2xl font-bold text-[var(--color-text-primary)]">{summary.totalSessions}</p>
             </div>
             <div className={`${cardCls} p-4`}>
-              <div className="flex items-center gap-1.5 mb-1"><Clock size={16} className="text-emerald-500" /><span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Total Time</span></div>
-              <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">{fmt(summary.totalMinutes)}</p>
+              <div className="flex items-center gap-1.5 mb-1"><Clock size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[10px] text-[var(--color-text-muted)]">Total Time</span></div>
+              <p className="font-data text-2xl font-bold text-[var(--color-text-primary)]">{fmt(summary.totalMinutes)}</p>
               {billableFilter === '' && summary.billableMinutes > 0 && summary.billableMinutes < summary.totalMinutes && (
                 <p className="text-xs text-surface-400 mt-0.5">{fmt(summary.billableMinutes)} billable</p>
               )}
             </div>
             <div className={`${cardCls} p-4`}>
-              <div className="flex items-center gap-1.5 mb-1"><Timer size={16} className="text-emerald-500" /><span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Avg Session</span></div>
-              <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">{summary.avgSessionMinutes}m</p>
+              <div className="flex items-center gap-1.5 mb-1"><Timer size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[10px] text-[var(--color-text-muted)]">Avg Session</span></div>
+              <p className="font-data text-2xl font-bold text-[var(--color-text-primary)]">{summary.avgSessionMinutes}m</p>
             </div>
             <div className={`${cardCls} p-4`}>
-              <div className="flex items-center gap-1.5 mb-1"><Calendar size={16} className="text-emerald-500" /><span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Active Days</span></div>
-              <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">{summary.activeDays} of {totalDays}</p>
+              <div className="flex items-center gap-1.5 mb-1"><Calendar size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[10px] text-[var(--color-text-muted)]">Active Days</span></div>
+              <p className="font-data text-2xl font-bold text-[var(--color-text-primary)]">{summary.activeDays} of {totalDays}</p>
             </div>
             {summary.billableCost > 0 && (
               <div className={`${cardCls} p-4`}>
-                <div className="flex items-center gap-1.5 mb-1"><DollarSign size={16} className="text-emerald-500" /><span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Billable Amount</span></div>
-                <p className="text-2xl font-bold text-surface-900 dark:text-surface-100">{fmtCost(summary.billableCost)}</p>
+                <div className="flex items-center gap-1.5 mb-1"><DollarSign size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[10px] text-[var(--color-text-muted)]">Billable Amount</span></div>
+                <p className="font-data text-2xl font-bold text-[var(--color-text-primary)]">{fmtCost(summary.billableCost)}</p>
               </div>
             )}
           </div>
@@ -368,7 +368,7 @@ export default function FocusPage() {
           {/* Project Breakdown */}
           {!projectId && report!.projectBreakdown.length > 0 && (
             <div className={`${cardCls} p-5`}>
-              <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100 mb-4">Project Breakdown</h3>
+              <h3 className="font-hud text-xs text-[var(--color-accent)] mb-4">Project Breakdown</h3>
               <div className="space-y-3">
                 {report!.projectBreakdown.map(pb => {
                   const pct = summary.totalMinutes > 0 ? (pb.minutes / summary.totalMinutes) * 100 : 0;
@@ -420,7 +420,7 @@ export default function FocusPage() {
 
           {/* Session List */}
           <div className={`${cardCls} p-5`}>
-            <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100 mb-4">Sessions</h3>
+            <h3 className="font-hud text-xs text-[var(--color-accent)] mb-4">Sessions</h3>
             {(() => {
               let rendered = 0;
               const els: React.ReactNode[] = [];

@@ -153,17 +153,17 @@ export default function DashboardModern() {
             <div className="relative p-8 pb-12 overflow-hidden">
 
                 <div className="relative z-10 flex items-end justify-between gap-4">
-                    <div className="shrink-0">
-                        <h1 className="text-4xl font-light tracking-tight text-surface-900 dark:text-surface-50">
+                    <div className="shrink-0 corner-brackets p-2">
+                        <h1 className="font-[var(--font-display)] text-3xl tracking-tight text-surface-900 dark:text-[var(--color-accent)] text-glow">
                             {getGreeting()}
                         </h1>
-                        <p className="text-surface-500 mt-2 font-medium">
+                        <p className="font-data text-[var(--color-text-secondary)] mt-2">
                             {formatToday()}
                         </p>
                     </div>
 
                     {/* Heartbeat monitor — two staggered sweeps for seamless loop */}
-                    <div className="flex-1 min-w-0 relative h-10 mb-1" aria-hidden="true">
+                    <div className="flex-1 min-w-0 relative h-10 mb-1 scanlines" aria-hidden="true">
                         {[false, true].map(delayed => (
                             <div key={delayed ? 'b' : 'a'} className="absolute inset-0">
                                 <svg
@@ -174,11 +174,12 @@ export default function DashboardModern() {
                                 >
                                     <path
                                         d={ECG_PATH}
-                                        className="stroke-emerald-500/80 dark:stroke-emerald-400/70"
+                                        stroke="var(--color-accent-dim)"
+                                        strokeOpacity="0.7"
                                         strokeWidth="2"
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
-                                        style={{ filter: 'drop-shadow(0 0 3px rgb(16 185 129 / 0.5))' }}
+                                        style={{ filter: 'drop-shadow(0 0 3px rgba(62, 232, 228, 0.4))' }}
                                     />
                                 </svg>
                                 <svg
@@ -189,11 +190,11 @@ export default function DashboardModern() {
                                 >
                                     <path
                                         d={ECG_PATH}
-                                        className="stroke-emerald-400 dark:stroke-emerald-300"
+                                        stroke="var(--color-accent)"
                                         strokeWidth="3"
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
-                                        style={{ filter: 'drop-shadow(0 0 5px rgb(16 185 129 / 0.7)) drop-shadow(0 0 10px rgb(16 185 129 / 0.3))' }}
+                                        style={{ filter: 'drop-shadow(0 0 5px rgba(62, 232, 228, 0.6)) drop-shadow(0 0 10px rgba(62, 232, 228, 0.2))' }}
                                     />
                                 </svg>
                             </div>
@@ -204,18 +205,18 @@ export default function DashboardModern() {
                     <div className="flex gap-3 shrink-0">
                         {[
                             { icon: Mic, label: 'Record', path: '/meetings?action=record', colors: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-600 hover:border-transparent' },
-                            { icon: Plus, label: 'Project', path: '/projects?action=create', colors: 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-500/10 border-primary-200 dark:border-primary-500/20 hover:bg-primary-500 hover:text-white dark:hover:bg-primary-600 hover:border-transparent' },
+                            { icon: Plus, label: 'Project', path: '/projects?action=create', colors: 'text-[var(--color-accent)] dark:text-[var(--color-accent)] bg-[var(--color-accent-subtle)] border-[var(--color-border-accent)] hover:bg-[var(--color-accent)] hover:text-white hover:border-transparent' },
                             { icon: Brain, label: 'Brainstorm', path: '/brainstorm?action=create', colors: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-500 hover:text-white dark:hover:bg-indigo-600 hover:border-transparent' },
-                            { icon: Lightbulb, label: 'Idea', path: '/ideas?action=create', colors: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20 hover:bg-amber-500 hover:text-white dark:hover:bg-amber-600 hover:border-transparent' },
+                            { icon: Lightbulb, label: 'Idea', path: '/ideas?action=create', colors: 'text-[var(--color-warm)] dark:text-[var(--color-warm)] bg-warm-50 dark:bg-warm-500/10 border-warm-200 dark:border-warm-500/20 hover:bg-[var(--color-warm)] hover:text-white hover:border-transparent' },
                         ].map(({ icon: Icon, label, path, colors }) => (
                             <button
                                 key={label}
                                 onClick={() => navigate(path)}
-                                className={`group flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-300 border hover:scale-105 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-white/5 ${colors}`}
+                                className={`group flex flex-col items-center justify-center w-20 h-20 clip-corner-cut-sm transition-all duration-300 border hover:scale-105 hover:shadow-lg hover:shadow-[rgba(62,232,228,0.1)] dark:hover:shadow-[rgba(62,232,228,0.15)] ${colors}`}
                                 title={`New ${label}`}
                             >
                                 <Icon size={24} className="mb-2 transition-transform duration-300 group-hover:scale-110" />
-                                <span className="text-xs font-bold">{label}</span>
+                                <span className="text-xs font-bold font-hud">{label}</span>
                             </button>
                         ))}
                         {/* Focus button */}
@@ -265,7 +266,7 @@ export default function DashboardModern() {
 
                 {/* Standup Result — above the grid so it's impossible to miss */}
                 {standupText !== null && standupText.length > 0 && (
-                    <div ref={standupRef} className="mb-6 bg-white dark:bg-surface-900 rounded-2xl border border-emerald-300 dark:border-emerald-800/60 shadow-md p-5">
+                    <div ref={standupRef} className="mb-6 hud-panel-accent clip-corner-cut-sm p-5">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
                                 <ClipboardList size={16} className="text-emerald-500" />
@@ -302,37 +303,34 @@ export default function DashboardModern() {
 
                     {/* Stats Row */}
                     <div className="col-span-12 sm:col-span-4 lg:col-span-4">
-                        <div className="bg-gradient-to-br from-white to-surface-50 dark:from-surface-900 dark:to-surface-800/80 rounded-2xl p-6 border border-surface-200/60 dark:border-surface-700/50 shadow-sm flex items-center justify-between group cursor-default hover:shadow-md hover:border-primary-500/30 transition-all duration-300 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-8 w-32 h-32 bg-primary-500/5 dark:bg-primary-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary-500/10 transition-colors" />
+                        <div className="hud-panel-accent clip-corner-cut-sm p-6 flex items-center justify-between group cursor-default hover:border-[var(--color-border-bright)] transition-all duration-300 relative overflow-hidden">
                             <div className="flex flex-col gap-1 relative z-10">
-                                <p className="text-surface-500 dark:text-surface-400 text-[11px] font-bold uppercase tracking-widest drop-shadow-sm">Active Projects</p>
-                                <p className="text-4xl font-light tracking-tight text-surface-900 dark:text-surface-50 drop-shadow-sm">{projects.length}</p>
+                                <p className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROJECTS</p>
+                                <p className="font-[var(--font-display)] text-3xl text-[var(--color-accent)] text-glow">{projects.length}</p>
                             </div>
-                            <div className="relative z-10 w-14 h-14 rounded-2xl bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 flex items-center justify-center border border-primary-100 dark:border-primary-800/50 group-hover:scale-110 group-hover:-rotate-3 transition-transform shadow-sm">
+                            <div className="relative z-10 w-14 h-14 clip-corner-cut-sm bg-[var(--color-accent-subtle)] text-[var(--color-accent)] flex items-center justify-center border border-[var(--color-border-accent)] group-hover:scale-110 group-hover:-rotate-3 transition-transform">
                                 <Layers size={26} strokeWidth={1.5} />
                             </div>
                         </div>
                     </div>
                     <div className="col-span-12 sm:col-span-4 lg:col-span-4">
-                        <div className="bg-gradient-to-br from-white to-surface-50 dark:from-surface-900 dark:to-surface-800/80 rounded-2xl p-6 border border-surface-200/60 dark:border-surface-700/50 shadow-sm flex items-center justify-between group cursor-default hover:shadow-md hover:border-emerald-500/30 transition-all duration-300 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-8 w-32 h-32 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
+                        <div className="hud-panel-accent clip-corner-cut-sm p-6 flex items-center justify-between group cursor-default hover:border-[var(--color-border-bright)] transition-all duration-300 relative overflow-hidden">
                             <div className="flex flex-col gap-1 relative z-10">
-                                <p className="text-surface-500 dark:text-surface-400 text-[11px] font-bold uppercase tracking-widest drop-shadow-sm">Meetings Logged</p>
-                                <p className="text-4xl font-light tracking-tight text-surface-900 dark:text-surface-50 drop-shadow-sm">{meetings.length}</p>
+                                <p className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.MEETINGS</p>
+                                <p className="font-[var(--font-display)] text-3xl text-[var(--color-accent)] text-glow">{meetings.length}</p>
                             </div>
-                            <div className="relative z-10 w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-800/50 group-hover:scale-110 group-hover:-rotate-3 transition-transform shadow-sm">
+                            <div className="relative z-10 w-14 h-14 clip-corner-cut-sm bg-[var(--color-accent-subtle)] text-[var(--color-accent)] flex items-center justify-center border border-[var(--color-border-accent)] group-hover:scale-110 group-hover:-rotate-3 transition-transform">
                                 <Activity size={26} strokeWidth={1.5} />
                             </div>
                         </div>
                     </div>
                     <div className="col-span-12 sm:col-span-4 lg:col-span-4">
-                        <div className="bg-gradient-to-br from-white to-surface-50 dark:from-surface-900 dark:to-surface-800/80 rounded-2xl p-6 border border-surface-200/60 dark:border-surface-700/50 shadow-sm flex items-center justify-between group cursor-default hover:shadow-md hover:border-amber-500/30 transition-all duration-300 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-8 w-32 h-32 bg-amber-500/5 dark:bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-amber-500/10 transition-colors" />
+                        <div className="hud-panel-accent clip-corner-cut-sm p-6 flex items-center justify-between group cursor-default hover:border-[var(--color-border-bright)] transition-all duration-300 relative overflow-hidden">
                             <div className="flex flex-col gap-1 relative z-10">
-                                <p className="text-surface-500 dark:text-surface-400 text-[11px] font-bold uppercase tracking-widest drop-shadow-sm">Total Ideas</p>
-                                <p className="text-4xl font-light tracking-tight text-surface-900 dark:text-surface-50 drop-shadow-sm">{ideas.length}</p>
+                                <p className="font-hud text-xs tracking-widest text-[var(--color-warm-dim)]">SYS.IDEAS</p>
+                                <p className="font-[var(--font-display)] text-3xl text-[var(--color-warm)] text-glow-warm">{ideas.length}</p>
                             </div>
-                            <div className="relative z-10 w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-100 dark:border-amber-800/50 group-hover:scale-110 group-hover:-rotate-3 transition-transform shadow-sm">
+                            <div className="relative z-10 w-14 h-14 clip-corner-cut-sm bg-warm-50 dark:bg-warm-900/20 text-[var(--color-warm)] flex items-center justify-center border border-warm-200 dark:border-warm-800/50 group-hover:scale-110 group-hover:-rotate-3 transition-transform">
                                 <Zap size={26} strokeWidth={1.5} />
                             </div>
                         </div>
@@ -340,16 +338,17 @@ export default function DashboardModern() {
 
                     {/* Left Col: Projects & Priority */}
                     <div className="col-span-12 lg:col-span-8 space-y-6">
-                        <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm overflow-hidden h-full flex flex-col">
-                            <div className="p-5 border-b border-surface-100 dark:border-surface-800 flex justify-between items-center shrink-0">
-                                <h3 className="font-semibold text-lg text-surface-900 dark:text-surface-100">Current Projects</h3>
-                                <button onClick={() => navigate('/projects')} className="text-sm text-primary-500 hover:text-primary-600 font-medium flex items-center gap-1 transition-colors">
+                        <div className="hud-panel clip-corner-cut-sm overflow-hidden h-full flex flex-col">
+                            <div className="p-5 flex justify-between items-center shrink-0">
+                                <h3 className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROJECTS</h3>
+                                <button onClick={() => navigate('/projects')} className="text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-dim)] font-medium flex items-center gap-1 transition-colors">
                                     View All <ArrowRight size={14} />
                                 </button>
                             </div>
+                            <div className="ruled-line-accent" />
                             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
                                 {activeProjects.length === 0 ? (
-                                    <div className="col-span-2 text-center py-10 text-surface-500 flex flex-col items-center justify-center">
+                                    <div className="col-span-2 text-center py-10 text-[var(--color-text-muted)] flex flex-col items-center justify-center">
                                         <Layers size={24} className="mb-2 opacity-30" />
                                         No active projects. Start something new!
                                     </div>
@@ -358,23 +357,23 @@ export default function DashboardModern() {
                                         <div
                                             key={project.id}
                                             onClick={() => navigate(`/projects/${project.id}`)}
-                                            className="group relative bg-surface-50 dark:bg-surface-800/50 rounded-xl p-4 cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors border border-surface-100 dark:border-surface-700/50 shadow-sm hover:shadow-md"
+                                            className="group relative hud-panel clip-corner-cut-sm p-4 cursor-pointer hover:border-[var(--color-accent-dim)] transition-all"
                                         >
                                             <div className="flex justify-between items-start mb-3">
                                                 <div className="relative">
-                                                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-sm" style={{ backgroundColor: project.color || '#3b82f6' }}>
+                                                    <div className="w-10 h-10 clip-corner-cut-sm flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: project.color || '#3b82f6' }}>
                                                         {project.name.charAt(0).toUpperCase()}
                                                     </div>
                                                     {project.pinned && (
                                                         <Star size={12} className="absolute -top-1 -right-1 text-amber-400 fill-amber-400 drop-shadow-sm" />
                                                     )}
                                                 </div>
-                                                <div className="bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] px-2 py-1 rounded-full font-bold uppercase transition-colors group-hover:bg-primary-100 group-hover:text-primary-600 dark:group-hover:bg-primary-900/30 dark:group-hover:text-primary-400">
+                                                <div className="font-data text-[10px] px-2 py-1 rounded-full text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] transition-colors group-hover:text-[var(--color-accent)] group-hover:border-[var(--color-accent-dim)]">
                                                     {cardCountByProject[project.id] || 0} Tasks
                                                 </div>
                                             </div>
-                                            <h4 className="font-bold text-surface-900 dark:text-surface-100 mb-1 group-hover:text-primary-500 transition-colors line-clamp-1">{project.name}</h4>
-                                            <p className="text-xs text-surface-500 line-clamp-2">
+                                            <h4 className="font-bold text-[var(--color-text-primary)] mb-1 group-hover:text-[var(--color-accent)] transition-colors line-clamp-1">{project.name}</h4>
+                                            <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">
                                                 {project.description || 'No description provided.'}
                                             </p>
                                         </div>
@@ -386,13 +385,14 @@ export default function DashboardModern() {
 
                     {/* Right Col: Timeline/Feed */}
                     <div className="col-span-12 lg:col-span-4 space-y-6">
-                        <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm h-full flex flex-col">
-                            <div className="p-5 border-b border-surface-100 dark:border-surface-800 shrink-0">
-                                <h3 className="font-semibold text-lg text-surface-900 dark:text-surface-100">Recent Meetings</h3>
+                        <div className="hud-panel clip-corner-cut-sm h-full flex flex-col">
+                            <div className="p-5 shrink-0">
+                                <h3 className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.MEETINGS</h3>
                             </div>
+                            <div className="ruled-line-accent" />
                             <div className="flex-1 overflow-y-auto p-2 max-h-[400px]">
                                 {recentMeetings.length === 0 ? (
-                                    <div className="h-full flex flex-col items-center justify-center text-surface-400 text-sm py-10">
+                                    <div className="h-full flex flex-col items-center justify-center text-[var(--color-text-muted)] text-sm py-10">
                                         <Mic size={24} className="mb-2 opacity-50" />
                                         No recent usage
                                     </div>
@@ -402,22 +402,22 @@ export default function DashboardModern() {
                                             <button
                                                 key={meeting.id}
                                                 onClick={() => navigate(`/meetings?openMeeting=${meeting.id}`)}
-                                                className="w-full text-left p-3 rounded-lg hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors flex gap-3 group"
+                                                className="w-full text-left p-3 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors flex gap-3 group"
                                             >
                                                 <div className="flex flex-col items-center gap-1 mt-1">
-                                                    <div className="w-2 h-2 rounded-full bg-primary-400 group-hover:scale-125 transition-transform" />
-                                                    {i !== recentMeetings.length - 1 && <div className="w-px h-full bg-surface-200 dark:bg-surface-700" />}
+                                                    <div className="node-point-sm" />
+                                                    {i !== recentMeetings.length - 1 && <div className="w-px h-full bg-[var(--color-border)]" />}
                                                 </div>
                                                 <div className="flex-1 pb-2">
-                                                    <h5 className="text-sm font-medium text-surface-900 dark:text-surface-100 group-hover:text-primary-500 transition-colors line-clamp-1">
+                                                    <h5 className="text-sm font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-accent)] transition-colors line-clamp-1">
                                                         {meeting.title}
                                                     </h5>
                                                     <div className="flex items-center gap-2 mt-1.5">
-                                                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-surface-100 dark:bg-surface-700 text-surface-500 group-hover:bg-surface-200 dark:group-hover:bg-surface-600 transition-colors">
+                                                        <span className="font-data text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-accent-subtle)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
                                                             {formatDate(meeting.createdAt)}
                                                         </span>
                                                         {meeting.endedAt && (
-                                                            <span className="text-[10px] text-surface-400 flex items-center gap-1">
+                                                            <span className="font-data text-[10px] text-[var(--color-text-muted)] flex items-center gap-1">
                                                                 <Clock size={10} /> {getDurationMinutes(meeting.startedAt, meeting.endedAt)}m
                                                             </span>
                                                         )}
@@ -428,8 +428,9 @@ export default function DashboardModern() {
                                     </div>
                                 )}
                             </div>
-                            <div className="p-3 border-t border-surface-100 dark:border-surface-800 shrink-0 mt-auto">
-                                <button onClick={() => navigate('/meetings')} className="w-full py-2 flex items-center justify-center gap-1 text-xs font-medium text-surface-500 hover:text-surface-900 dark:hover:text-surface-100 hover:bg-surface-50 dark:hover:bg-surface-800 rounded-lg transition-colors uppercase tracking-wide">
+                            <div className="ruled-line-accent" />
+                            <div className="p-3 shrink-0 mt-auto">
+                                <button onClick={() => navigate('/meetings')} className="w-full py-2 flex items-center justify-center gap-1 text-xs font-hud text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] rounded-lg transition-colors">
                                     View All Activities <ArrowRight size={12} />
                                 </button>
                             </div>
@@ -456,7 +457,7 @@ export default function DashboardModern() {
                 <>
                     <div className="fixed inset-0 z-50" onClick={() => setStandupPickerOpen(false)} />
                     <div
-                        className="fixed z-50 w-56 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl py-1 max-h-64 overflow-y-auto"
+                        className="fixed z-50 w-56 hud-panel clip-corner-cut-sm shadow-xl py-1 max-h-64 overflow-y-auto"
                         style={{
                             top: (standupBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 8,
                             right: window.innerWidth - (standupBtnRef.current?.getBoundingClientRect().right ?? 0),

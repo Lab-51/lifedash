@@ -108,14 +108,15 @@ export default function IdeasModern() {
 
     return (
         <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950">
-            {/* Modern Header */}
+            {/* HUD Header */}
             <div className="p-8 pb-4 shrink-0">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
                     <div>
-                        <h1 className="text-3xl font-light tracking-tight text-surface-900 dark:text-surface-50">Ideas</h1>
-                        <p className="text-surface-500 mt-1">Capture, refine, and track your flashes of brilliance.</p>
+                        <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Ideas</h1>
+                        <p className="text-[var(--color-text-secondary)] text-sm mt-1">Capture, refine, and track your flashes of brilliance.</p>
                     </div>
                 </div>
+                <div className="ruled-line-accent mb-6" />
 
                 {/* Quick Add Bar - Floating Style */}
                 <div className="mb-8">
@@ -129,12 +130,12 @@ export default function IdeasModern() {
                             placeholder="Capture a new idea..."
                             value={newTitle}
                             onChange={e => setNewTitle(e.target.value)}
-                            className="w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl pl-12 pr-32 py-4 shadow-sm text-lg text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-all"
+                            className="w-full hud-panel rounded-2xl pl-12 pr-32 py-4 text-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:!border-[var(--color-accent)] transition-all"
                         />
                         <button
                             type="submit"
                             disabled={newTitle.trim() === '' || creating}
-                            className="absolute right-2 top-2 bottom-2 bg-surface-900 dark:bg-surface-100 hover:bg-primary-600 dark:hover:bg-primary-500 text-white dark:text-surface-900 px-4 rounded-xl font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="absolute right-2 top-2 bottom-2 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] px-4 rounded-xl font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                             <span className="hidden sm:inline">Add Idea</span>
@@ -143,7 +144,7 @@ export default function IdeasModern() {
                 </div>
 
                 {/* Filters & Search Toolbar */}
-                <div className="flex bg-white dark:bg-surface-900 p-1.5 rounded-xl border border-surface-200 dark:border-surface-800 shadow-sm items-center gap-2 mb-2">
+                <div className="flex hud-panel p-1.5 rounded-xl items-center gap-2 mb-2">
 
                     <div className="flex p-1 bg-surface-100 dark:bg-surface-800 rounded-lg overflow-x-auto no-scrollbar">
                         {FILTER_TABS.map((tab) => (
@@ -224,10 +225,10 @@ export default function IdeasModern() {
                             <div
                                 key={idea.id}
                                 onClick={() => setSelectedIdeaId(idea.id)}
-                                className="break-inside-avoid group bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-5 hover:shadow-lg dark:hover:shadow-primary-900/10 hover:border-primary-500/30 transition-all cursor-pointer flex flex-col items-start"
+                                className="break-inside-avoid group hud-panel clip-corner-cut-sm corner-brackets p-5 hover:shadow-lg hover:!border-[var(--color-border-accent)] transition-all cursor-pointer flex flex-col items-start"
                             >
                                 <div className="flex justify-between items-start w-full gap-4 mb-2">
-                                    <h3 className="text-base font-bold text-surface-900 dark:text-surface-100 leading-snug group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                                    <h3 className="text-base font-bold text-[var(--color-text-primary)] leading-snug group-hover:text-[var(--color-accent)] transition-colors">
                                         {idea.title}
                                     </h3>
                                     <button className="opacity-0 group-hover:opacity-100 text-surface-400 hover:text-primary-500 transition-opacity">
@@ -247,7 +248,7 @@ export default function IdeasModern() {
                                     </span>
 
                                     {idea.tags.map(tag => (
-                                        <span key={tag} className="flex items-center gap-1 text-[10px] font-medium text-surface-500 bg-surface-100 dark:bg-surface-800 px-2 py-1 rounded-md">
+                                        <span key={tag} className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] px-2 py-1 rounded-md">
                                             <Tag size={10} /> {tag}
                                         </span>
                                     ))}

@@ -132,7 +132,7 @@ export default function ProxySettingsSection() {
     return (
       <section className="mb-10">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">
             Network Proxy
           </h2>
         </div>
@@ -149,7 +149,7 @@ export default function ProxySettingsSection() {
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <Globe size={18} className="text-primary-400" />
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">
             Network Proxy
           </h2>
         </div>
@@ -158,7 +158,7 @@ export default function ProxySettingsSection() {
         </p>
       </div>
 
-      <div className="p-4 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg space-y-4">
+      <div className="p-4 hud-panel clip-corner-cut-sm space-y-4">
         {/* Use system proxy toggle */}
         <label className="flex items-center gap-3 cursor-pointer">
           <input
@@ -168,7 +168,7 @@ export default function ProxySettingsSection() {
             className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-500 focus:ring-primary-500 focus:ring-offset-0"
           />
           <div>
-            <span className="text-sm font-medium text-surface-800 dark:text-surface-200">
+            <span className="text-sm font-medium text-[var(--color-text-primary)]">
               Use system proxy
             </span>
             <p className="text-xs text-surface-500">
@@ -181,9 +181,9 @@ export default function ProxySettingsSection() {
 
         {/* Manual proxy fields (shown when system proxy is off) */}
         {!useSystem && (
-          <div className="space-y-3 pt-2 border-t border-surface-200 dark:border-surface-700">
+          <div className="space-y-3 pt-2 border-t border-[var(--color-border)]">
             <div>
-              <label className="block text-sm font-medium text-surface-800 dark:text-surface-200 mb-1.5">
+              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">
                 Proxy URL
               </label>
               <input
@@ -191,7 +191,7 @@ export default function ProxySettingsSection() {
                 value={proxyUrl}
                 onChange={(e) => setProxyUrl(e.target.value)}
                 placeholder="http://proxy.corp.com:8080"
-                className="w-full text-sm text-surface-800 dark:text-surface-200 bg-surface-900 px-3 py-2 rounded border border-surface-700 focus:border-primary-500 focus:outline-none placeholder-surface-600"
+                className="w-full text-sm text-[var(--color-text-primary)] bg-surface-950 dark:bg-surface-950 px-3 py-2 rounded border border-[var(--color-border)] focus:border-[var(--color-accent-dim)] focus:outline-none placeholder-[var(--color-text-muted)]"
               />
               <p className="text-xs text-surface-500 mt-1">
                 Must start with http:// or https://
@@ -199,7 +199,7 @@ export default function ProxySettingsSection() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-surface-800 dark:text-surface-200 mb-1.5">
+              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">
                 No-proxy list
               </label>
               <input
@@ -207,7 +207,7 @@ export default function ProxySettingsSection() {
                 value={noProxy}
                 onChange={(e) => setNoProxy(e.target.value)}
                 placeholder="localhost, 127.0.0.1, .internal.corp.com"
-                className="w-full text-sm text-surface-800 dark:text-surface-200 bg-surface-900 px-3 py-2 rounded border border-surface-700 focus:border-primary-500 focus:outline-none placeholder-surface-600"
+                className="w-full text-sm text-[var(--color-text-primary)] bg-surface-950 dark:bg-surface-950 px-3 py-2 rounded border border-[var(--color-border)] focus:border-[var(--color-accent-dim)] focus:outline-none placeholder-[var(--color-text-muted)]"
               />
               <p className="text-xs text-surface-500 mt-1">
                 Comma-separated domains that bypass the proxy
@@ -221,7 +221,7 @@ export default function ProxySettingsSection() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 hover:bg-primary-500 disabled:bg-surface-700 disabled:text-surface-500 text-white rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 disabled:border-[var(--color-border)] disabled:text-[var(--color-text-muted)] transition-all"
           >
             {saving ? (
               <Loader2 size={14} className="animate-spin" />

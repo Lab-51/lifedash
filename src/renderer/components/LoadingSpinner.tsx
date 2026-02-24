@@ -27,11 +27,11 @@ function LoadingSpinner({ size = 'md', label }: LoadingSpinnerProps) {
     <div className="flex flex-col items-center justify-center gap-3" role="status">
       <Loader2
         size={px}
-        className="animate-spin text-primary-400"
+        className="animate-spin text-[var(--color-accent)]"
         aria-hidden="true"
       />
       {label && (
-        <span className="text-sm text-surface-400">{label}</span>
+        <span className="text-sm text-[var(--color-text-secondary)] font-data">{label}</span>
       )}
       {/* Screen-reader-only fallback when no visible label */}
       {!label && <span className="sr-only">Loading...</span>}

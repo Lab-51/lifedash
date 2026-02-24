@@ -192,7 +192,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
       className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 dark:bg-black/80 backdrop-blur-[2px]"
       onClick={handleOverlayClick}
     >
-      <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700/60 shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto p-6 md:p-8">
+      <div className="hud-panel-accent clip-corner-cut shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto p-6 md:p-8">
         {/* Header row */}
         <div className="flex items-start justify-between gap-4 mb-2">
           <input
@@ -384,14 +384,14 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setConvertMode('project')}
-                      className="flex-1 flex items-center justify-center gap-2 p-3 border border-surface-700 rounded-lg text-sm text-surface-800 dark:text-surface-200 hover:border-primary-500 hover:bg-primary-500/10 transition-colors cursor-pointer"
+                      className="flex-1 flex items-center justify-center gap-2 p-3 border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-primary)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors cursor-pointer"
                     >
                       <FolderPlus size={16} />
                       Create Project
                     </button>
                     <button
                       onClick={() => setConvertMode('card')}
-                      className="flex-1 flex items-center justify-center gap-2 p-3 border border-surface-700 rounded-lg text-sm text-surface-800 dark:text-surface-200 hover:border-primary-500 hover:bg-primary-500/10 transition-colors cursor-pointer"
+                      className="flex-1 flex items-center justify-center gap-2 p-3 border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-primary)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors cursor-pointer"
                     >
                       <ArrowRightCircle size={16} />
                       Add as Card

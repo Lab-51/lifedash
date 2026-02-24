@@ -212,20 +212,20 @@ export default function BrainstormModern() {
 
     return (
         <div className="h-full flex flex-col bg-surface-50 dark:bg-surface-950">
-            {/* Modern Header */}
-            <div className="px-6 py-5 shrink-0 border-b border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 sticky top-0 z-20">
+            {/* HUD Header */}
+            <div className="px-6 py-5 shrink-0 border-b border-[var(--color-border)] hud-chrome-bg sticky top-0 z-20">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-xl font-bold text-surface-900 dark:text-surface-100 flex items-center gap-2">
-                            <Brain size={24} className="text-primary-600 dark:text-primary-400" />
+                        <h1 className="font-hud text-xl text-[var(--color-accent)] text-glow flex items-center gap-2">
+                            <Brain size={24} />
                             Brainstorm
                         </h1>
-                        <p className="text-sm text-surface-500 mt-0.5">Collaborate with AI to refine your ideas.</p>
+                        <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">Collaborate with AI to refine your ideas.</p>
                     </div>
 
                     <button
                         onClick={() => setShowNewSession(true)}
-                        className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                        className="bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
                     >
                         <Plus size={16} />
                         New Session
@@ -235,7 +235,7 @@ export default function BrainstormModern() {
 
             <div className="flex-1 flex overflow-hidden">
                 {/* Left Sidebar - Modern */}
-                <div className="w-80 flex-shrink-0 border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 flex flex-col z-10">
+                <div className="w-80 flex-shrink-0 border-r border-[var(--color-border)] hud-chrome-bg flex flex-col z-10">
                     <div className="px-2 pt-3 pb-1 border-b border-surface-100 dark:border-surface-800">
                         <div className="flex rounded-lg bg-surface-100 dark:bg-surface-800 p-0.5">
                             <button
@@ -289,8 +289,8 @@ export default function BrainstormModern() {
                                         localStorage.setItem('lastBrainstormSessionId', session.id);
                                     }}
                                     className={`group relative rounded-xl p-3 cursor-pointer transition-all border ${activeSession?.id === session.id
-                                        ? 'bg-primary-50 dark:bg-primary-900/10 border-primary-200 dark:border-primary-800 shadow-sm'
-                                        : 'bg-transparent border-transparent hover:bg-surface-50 dark:hover:bg-surface-800'
+                                        ? 'bg-[var(--color-accent-subtle)] border-[var(--color-border-accent)] shadow-sm'
+                                        : 'bg-transparent border-transparent hover:bg-[var(--color-accent-subtle)]'
                                         }`}
                                 >
                                     <div className="flex justify-between items-start gap-2">
@@ -461,7 +461,7 @@ export default function BrainstormModern() {
                 {/* This div was extraneous and caused the syntax error. It's removed. */}
 
                 {/* Right Chat Area */}
-                <div className="flex-1 flex flex-col relative bg-surface-50/50 dark:bg-surface-950">
+                <div className="flex-1 flex flex-col relative bg-surface-50/50 dark:bg-surface-950 dark:grid-bg">
                     {!activeSession && !loadingSession ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
                             <div className="w-32 h-32 bg-white dark:bg-surface-900 rounded-full shadow-sm border border-surface-100 dark:border-surface-800 flex items-center justify-center mb-6">
@@ -503,8 +503,8 @@ export default function BrainstormModern() {
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="px-2 py-1 rounded-md bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-xs font-medium border border-green-100 dark:border-green-900/50 flex items-center gap-1">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                    <span className="px-2 py-1 rounded-md bg-[var(--color-accent-subtle)] text-[var(--color-accent)] text-xs font-data border border-[var(--color-border-accent)] flex items-center gap-1">
+                                        <span className="node-point-sm" />
                                         AI Ready
                                     </span>
                                 </div>
@@ -586,7 +586,7 @@ export default function BrainstormModern() {
                             </div>
 
                             {/* Input Area */}
-                            <div className="p-4 bg-white dark:bg-surface-900 border-t border-surface-200 dark:border-surface-800">
+                            <div className="p-4 bg-surface-50 dark:bg-[var(--color-chrome)] border-t border-[var(--color-border)]">
                                 <div className="max-w-3xl mx-auto relative">
                                     {streaming ? (
                                         <div className="absolute -top-12 left-1/2 -translate-x-1/2">
@@ -606,7 +606,7 @@ export default function BrainstormModern() {
                                         </div>
                                     )}
 
-                                    <div className="relative bg-surface-50 dark:bg-surface-800 border-2 border-surface-200 dark:border-surface-700 rounded-2xl focus-within:border-primary-500 focus-within:bg-white dark:focus-within:bg-surface-900 transition-all shadow-sm">
+                                    <div className="relative bg-surface-50 dark:bg-[var(--color-chrome)] border-2 border-[var(--color-border)] rounded-2xl focus-within:border-[var(--color-accent)] focus-within:bg-white dark:focus-within:bg-surface-900 transition-all shadow-sm">
                                         <textarea
                                             ref={textareaRef}
                                             value={input}
@@ -624,8 +624,8 @@ export default function BrainstormModern() {
                                             onClick={() => handleSendMessage()}
                                             disabled={!input.trim() || streaming}
                                             className={`absolute right-2 bottom-2 p-2 rounded-xl transition-all ${!input.trim() || streaming
-                                                ? 'bg-surface-200 dark:bg-surface-700 text-surface-400 cursor-not-allowed'
-                                                : 'bg-primary-600 text-white hover:bg-primary-700 shadow-md'
+                                                ? 'bg-[var(--color-border)] text-[var(--color-text-muted)] cursor-not-allowed'
+                                                : 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] shadow-md'
                                                 }`}
                                         >
                                             {streaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}

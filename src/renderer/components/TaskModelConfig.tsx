@@ -148,7 +148,7 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
 
   if (enabledProviders.length === 0) {
     return (
-      <div className="text-sm text-surface-500 py-4">
+      <div className="text-sm text-[var(--color-text-muted)] py-4 font-data">
         Enable at least one AI provider above to configure model assignments.
       </div>
     );
@@ -164,11 +164,11 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
 
         return (
           <div key={type}
-            className="p-3 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg">
+            className="p-3 hud-panel clip-corner-cut-sm">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="text-sm font-medium text-surface-800 dark:text-surface-200">{label}</div>
-                <div className="text-xs text-surface-500">{description}</div>
+                <div className="text-sm font-medium text-[var(--color-text-primary)]">{label}</div>
+                <div className="text-xs text-[var(--color-text-secondary)] font-data">{description}</div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {/* Provider selector */}
@@ -193,7 +193,7 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
                         updateDraft(type, 'model', e.target.value);
                       }}
                       placeholder="Model name..."
-                      className="text-xs bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded px-2 py-1.5 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500 w-36" />
+                      className="text-xs bg-surface-950 dark:bg-surface-950 border border-[var(--color-border)] rounded px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] w-36 font-data" />
                   ) : (
                     <select value={entry.model}
                       onChange={e => updateDraft(type, 'model', e.target.value)}
@@ -214,13 +214,13 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
       {/* Save / Reset buttons */}
       <div className="flex items-center gap-2 pt-2">
         <button onClick={handleSave} disabled={saving || !dirty}
-          className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-sm transition-colors">
+          className="flex items-center gap-1.5 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 px-3 py-1.5 text-sm transition-all">
           <Save size={14} />
           {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Assignments'}
         </button>
         {dirty && (
           <button onClick={handleReset}
-            className="flex items-center gap-1.5 text-surface-400 hover:text-surface-800 dark:text-surface-200 text-sm transition-colors">
+            className="flex items-center gap-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] text-sm transition-colors">
             <RotateCcw size={14} />
             Reset
           </button>

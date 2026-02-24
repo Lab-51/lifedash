@@ -265,7 +265,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
   };
 
   return (
-    <div className="bg-surface-50 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-4">
+    <div className="hud-panel clip-corner-cut-sm rounded-xl p-4">
       {isProcessing ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -372,8 +372,9 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
             onClick={handleStart}
             disabled={!title.trim() || starting}
             className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500
-                       disabled:bg-surface-700 disabled:text-surface-500
+                       disabled:bg-[var(--color-border)] disabled:text-[var(--color-text-muted)]
                        text-white rounded-lg px-3 py-2 text-sm font-medium
+                       ring-2 ring-[var(--color-border-accent)]
                        transition-colors"
           >
             {starting ? (
@@ -411,7 +412,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
               <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
               <span className="text-sm font-medium text-red-400">Recording</span>
             </div>
-            <span className="text-lg font-mono text-surface-800 dark:text-surface-200">
+            <span className="text-lg font-data text-[var(--color-accent)] text-glow">
               {formatElapsed(elapsed)}
             </span>
           </div>

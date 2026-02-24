@@ -387,27 +387,28 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 dark:bg-black/80 backdrop-blur-[2px]">
-      <div className={`bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700/60 shadow-2xl w-full flex flex-col overflow-hidden transition-all duration-300 ease-out ${showAgent ? 'max-w-[95vw] xl:max-w-[1400px]' : 'max-w-5xl'
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-[2px]">
+      <div className={`hud-panel-accent clip-corner-cut shadow-2xl w-full flex flex-col overflow-hidden transition-all duration-300 ease-out ${showAgent ? 'max-w-[95vw] xl:max-w-[1400px]' : 'max-w-5xl'
         } max-h-[90vh] mx-4`}>
         {/* Header: Breadcrumb + Title + Close button */}
-        <div className="flex flex-col gap-2 px-8 pt-6 pb-4 border-b border-surface-100 dark:border-surface-800 shrink-0 bg-surface-50/50 dark:bg-surface-800/30">
-          <div className="flex items-center justify-between w-full text-surface-500">
-            <div className="flex items-center gap-2 text-sm font-medium tracking-wide">
-              <div className="w-5 h-5 rounded bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 flex items-center justify-center">
-                <span className="text-[10px]">●</span>
-              </div>
-              {project?.name || 'Project'} <span className="text-surface-300 dark:text-surface-600">/</span> Card Details
+        <div className="flex flex-col gap-2 px-8 pt-6 pb-4 shrink-0">
+          <div className="flex items-center justify-between w-full text-[var(--color-text-secondary)]">
+            <div className="flex items-center gap-2 font-hud text-xs tracking-widest">
+              <div className="node-point-sm" />
+              <span className="text-[var(--color-accent-dim)]">{project?.name || 'Project'}</span>
+              <span className="text-[var(--color-text-muted)]">/</span>
+              <span className="text-[var(--color-text-secondary)]">Card Details</span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={onClose}
-                className="text-surface-500 hover:text-surface-800 dark:hover:text-surface-200 p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors shrink-0"
+                className="text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] p-1.5 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors shrink-0"
               >
                 <X size={18} />
               </button>
             </div>
           </div>
+          <div className="ruled-line-accent mt-2" />
 
           <div className="w-full mt-2">
             {isEditingTitle ? (
@@ -432,7 +433,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
         </div>
 
         {/* Content area: main, properties sidebar, agent panel */}
-        <div className="flex flex-1 min-h-0 overflow-hidden bg-white dark:bg-surface-900">
+        <div className="flex flex-1 min-h-0 overflow-hidden">
 
           <div className="flex-1 overflow-y-auto min-w-0 flex flex-col md:flex-row">
 
@@ -442,8 +443,8 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
               {/* Description Section */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-surface-900 dark:text-surface-100 flex items-center gap-2">
-                    <FileText size={16} className="text-surface-400" />
+                  <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                    <FileText size={14} className="text-[var(--color-accent-dim)]" />
                     Description
                   </span>
                   <div className="flex items-center gap-3">
@@ -498,7 +499,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                     </button>
                   </div>
                 </div>
-                <div className="tiptap-editor bg-surface-50/30 dark:bg-surface-900/30 rounded-lg border border-surface-200 dark:border-surface-700/50 hover:border-surface-300 dark:hover:border-surface-600 transition-colors min-h-[140px] focus-within:border-primary-500/50 focus-within:bg-white dark:focus-within:bg-surface-900 focus-within:ring-1 focus-within:ring-primary-500/50 text-base">
+                <div className="tiptap-editor bg-[var(--color-accent-subtle)]/30 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-accent)] transition-colors min-h-[140px] focus-within:border-[var(--color-accent-dim)] focus-within:ring-1 focus-within:ring-[var(--color-accent-dim)]/50 text-base">
                   <EditorContent editor={editor} />
                 </div>
               </div>
@@ -519,7 +520,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
             </div>
 
             {/* Right: Properties Sidebar */}
-            <div className="w-full md:w-[320px] bg-surface-50/30 dark:bg-surface-800/20 border-l border-surface-200 dark:border-surface-700/50 p-6 overflow-y-auto flex flex-col gap-8 shrink-0">
+            <div className="w-full md:w-[320px] bg-[var(--color-chrome)]/30 border-l border-[var(--color-border)] p-6 overflow-y-auto flex flex-col gap-8 shrink-0">
 
               <div className="flex flex-col gap-6">
                 {/* AI Agent Button */}
@@ -556,11 +557,11 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                   )}
                 </button>
 
-                <div className="w-full h-px bg-surface-200 dark:bg-surface-700/50 my-1" />
+                <div className="ruled-line-accent my-1" />
 
                 {/* Status Action Button */}
                 <div className="flex flex-col gap-2.5">
-                  <span className="text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest pl-1">Status</span>
+                  <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Status</span>
                   <button
                     onClick={() => onUpdate(card.id, { completed: !card.completed })}
                     className={`group/check flex items-center gap-3 p-3 rounded-xl border transition-all text-left w-full ${card.completed
@@ -582,7 +583,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
                 {/* Priority */}
                 <div className="flex flex-col gap-2.5">
-                  <span className="text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest pl-1">Priority</span>
+                  <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Priority</span>
                   <div className="grid grid-cols-4 gap-1.5">
                     {PRIORITY_OPTIONS.map(opt => (
                       <button
@@ -598,7 +599,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
                 {/* Due Date */}
                 <div className="flex flex-col gap-2.5">
-                  <span className="text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest pl-1">Due Date</span>
+                  <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Due Date</span>
                   <div className="flex flex-col gap-2">
                     <div className="relative">
                       <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
@@ -624,7 +625,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
                 {/* Repeat */}
                 <div className="flex flex-col gap-2.5">
-                  <span className="text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest pl-1">Repeat</span>
+                  <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Repeat</span>
                   <div className="relative">
                     <RefreshCw size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
                     <select
@@ -661,7 +662,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
                 {/* Labels */}
                 <div className="flex flex-col gap-2.5">
-                  <span className="text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-widest pl-1">Labels</span>
+                  <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Labels</span>
                   <div className="flex flex-wrap gap-1.5">
                     {card.labels?.map(label => (
                       <span
@@ -736,14 +737,15 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                   </div>
                 </div>
 
-                <div className="mt-auto pt-6 border-t border-surface-200 dark:border-surface-700/50 flex flex-col gap-2">
-                  <div className="flex justify-between text-[11px] font-medium text-surface-500">
+                <div className="mt-auto pt-6 flex flex-col gap-2">
+                  <div className="ruled-line-accent mb-2" />
+                  <div className="flex justify-between font-data text-[11px] text-[var(--color-text-muted)]">
                     <span>Created</span>
-                    <span className="text-surface-800 dark:text-surface-300" title={formatDate(card.createdAt)}>{formatRelativeTime(card.createdAt)}</span>
+                    <span className="text-[var(--color-text-secondary)]" title={formatDate(card.createdAt)}>{formatRelativeTime(card.createdAt)}</span>
                   </div>
-                  <div className="flex justify-between text-[11px] font-medium text-surface-500">
+                  <div className="flex justify-between font-data text-[11px] text-[var(--color-text-muted)]">
                     <span>Updated</span>
-                    <span className="text-surface-800 dark:text-surface-300" title={formatDate(card.updatedAt)}>{formatRelativeTime(card.updatedAt)}</span>
+                    <span className="text-[var(--color-text-secondary)]" title={formatDate(card.updatedAt)}>{formatRelativeTime(card.updatedAt)}</span>
                   </div>
                 </div>
               </div>

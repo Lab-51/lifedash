@@ -16,7 +16,7 @@ function AppLayout() {
     <div className="flex-1 flex overflow-hidden">
       {focusMode !== 'focus' && focusMode !== 'break' && <Sidebar />}
       <main
-        className="flex-1 overflow-auto transition-colors duration-300 bg-surface-50 dark:bg-surface-950 text-surface-900 dark:text-surface-50"
+        className="flex-1 overflow-auto transition-colors duration-300 bg-surface-50 dark:bg-surface-950 text-[var(--color-text-primary)]"
       >
         <ErrorBoundary>
           <Suspense fallback={<PageSkeleton />}>

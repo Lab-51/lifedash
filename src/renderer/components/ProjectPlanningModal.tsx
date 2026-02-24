@@ -313,19 +313,19 @@ export default function ProjectPlanningModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
       onClick={handleOverlayClick}
     >
-      <div className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl max-w-4xl w-full max-h-[85vh] overflow-y-auto p-6 mx-4">
+      <div className="hud-panel-accent clip-corner-cut max-w-4xl w-full max-h-[85vh] overflow-y-auto p-6 mx-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Sparkles size={20} className="text-primary-400" />
-            <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">AI Project Planning</h2>
+            <Sparkles size={20} className="text-[var(--color-accent)]" />
+            <h2 className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)]">AI Project Planning</h2>
           </div>
           <button
             onClick={handleClose}
-            className="text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
           >
             <X size={20} />
           </button>
@@ -346,7 +346,7 @@ export default function ProjectPlanningModal({
             onChange={e => setAdditionalContext(e.target.value)}
             placeholder="Describe goals, tech stack, constraints, or any specific requirements..."
             rows={3}
-            className="w-full text-sm bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-surface-800 dark:text-surface-200 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 resize-none"
+            className="w-full text-sm bg-surface-950 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] resize-none"
             disabled={planLoading}
           />
         </div>
@@ -356,7 +356,7 @@ export default function ProjectPlanningModal({
           <button
             onClick={handleGenerate}
             disabled={planLoading}
-            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm transition-colors"
+            className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm transition-all"
           >
             {planLoading ? (
               <>
@@ -411,7 +411,7 @@ export default function ProjectPlanningModal({
           <div className="space-y-5">
             {/* Summary */}
             <div>
-              <h3 className="text-sm font-medium text-surface-400 mb-1">Summary</h3>
+              <h3 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Summary</h3>
               <p className="text-sm text-surface-800 dark:text-surface-200">{editablePlan.summary}</p>
             </div>
 
@@ -423,7 +423,7 @@ export default function ProjectPlanningModal({
 
             {/* Pillar tabs */}
             <div>
-              <h3 className="text-sm font-medium text-surface-400 mb-2">Pillars (columns)</h3>
+              <h3 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">Pillars (columns)</h3>
               <div className="flex gap-1 mb-3 flex-wrap items-center">
                 {editablePlan.pillars.map((pillar, idx) => (
                   <button
@@ -452,7 +452,7 @@ export default function ProjectPlanningModal({
 
               {/* Active pillar content */}
               {currentPillar && (
-                <div className="bg-surface-100/50 dark:bg-surface-800/30 border border-surface-200 dark:border-surface-700/50 rounded-lg p-4">
+                <div className="hud-panel rounded-lg p-4">
                   {/* Pillar name + delete */}
                   <div className="flex items-center gap-2 mb-2">
                     <label className="text-xs text-surface-500 shrink-0">Column name:</label>
@@ -507,12 +507,12 @@ export default function ProjectPlanningModal({
             {/* Milestones */}
             {editablePlan.milestones.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-surface-400 mb-2">Milestones</h3>
+                <h3 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">Milestones</h3>
                 <div className="space-y-3">
                   {editablePlan.milestones.map(milestone => (
                     <div
                       key={milestone.name}
-                      className="bg-surface-100/50 dark:bg-surface-800/30 border border-surface-200 dark:border-surface-700/50 rounded-lg p-3"
+                      className="hud-panel rounded-lg p-3"
                     >
                       <h4 className="text-sm font-medium text-surface-800 dark:text-surface-200">{milestone.name}</h4>
                       <p className="text-xs text-surface-400 mt-1">{milestone.description}</p>
@@ -533,7 +533,7 @@ export default function ProjectPlanningModal({
             )}
 
             {/* Apply / Cancel actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-surface-200 dark:border-surface-700">
+            <div className="flex items-center justify-between pt-3 border-t border-[var(--color-border)]">
               <p className="text-xs text-surface-500">
                 {selectedCount} of {totalCount} tasks selected
               </p>
@@ -547,7 +547,7 @@ export default function ProjectPlanningModal({
                 <button
                   onClick={handleApply}
                   disabled={applying || selectedCount === 0}
-                  className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                  className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm transition-all"
                 >
                   {applying ? (
                     <>

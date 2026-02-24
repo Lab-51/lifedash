@@ -19,14 +19,14 @@ export default function ThemeSelector() {
     <div className="flex gap-3">
       {THEME_OPTIONS.map(({ mode, label, description, icon: Icon }) => (
         <button key={mode} onClick={() => setTheme(mode)}
-          className={`flex-1 p-3 rounded-lg border text-left transition-colors ${
+          className={`flex-1 p-3 rounded-lg border text-left transition-all ${
             themeMode === mode
-              ? 'border-primary-500 bg-primary-500/10 text-primary-400'
-              : 'border-surface-700 bg-surface-800 text-surface-300 hover:border-surface-600'
+              ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] text-[var(--color-accent)] shadow-[0_0_12px_var(--color-chrome-glow)]'
+              : 'border-[var(--color-border)] bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)]'
           }`}>
           <Icon size={20} className="mb-1.5" />
           <div className="text-sm font-medium">{label}</div>
-          <div className="text-xs text-surface-500 mt-0.5">{description}</div>
+          <div className="text-xs text-[var(--color-text-muted)] mt-0.5">{description}</div>
         </button>
       ))}
     </div>

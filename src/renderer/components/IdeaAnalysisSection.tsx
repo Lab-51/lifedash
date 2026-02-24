@@ -40,7 +40,7 @@ export default function IdeaAnalysisSection({
         <button
           onClick={onAnalyze}
           disabled={analyzing}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600/30 text-purple-300 rounded-lg text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] hover:bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-lg text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {analyzing ? (
             <Loader2 size={14} className="animate-spin" />
@@ -74,7 +74,7 @@ export default function IdeaAnalysisSection({
 
       {/* Analysis results */}
       {analysis && !analyzing && (
-        <div className="bg-surface-100/50 dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700 rounded-lg p-4 space-y-3">
+        <div className="hud-panel rounded-lg p-4 space-y-3 font-data">
           {/* Suggested Effort */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

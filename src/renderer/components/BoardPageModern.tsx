@@ -170,20 +170,20 @@ export default function BoardPageModern() {
     return (
         <div className="flex-1 flex flex-col bg-surface-50 dark:bg-surface-950">
             {/* Modern Header */}
-            <div className="px-8 pt-8 pb-6 shrink-0 bg-white dark:bg-surface-900 border-b border-surface-200 dark:border-surface-800">
+            <div className="px-8 pt-8 pb-6 shrink-0 hud-chrome-bg border-b border-[var(--color-border)]">
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-4">
                         <Link
                             to="/projects"
-                            className="p-2 -ml-2 rounded-xl text-surface-400 hover:text-surface-900 dark:hover:text-surface-100 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                            className="p-2 -ml-2 rounded-xl text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
                         >
                             <ArrowLeft size={24} />
                         </Link>
                         <div>
-                            <h1 className="text-3xl font-light tracking-tight text-surface-900 dark:text-surface-50 flex items-center gap-2">
+                            <h1 className="font-hud text-2xl tracking-wider text-[var(--color-text-primary)] flex items-center gap-2">
                                 {project?.name ?? 'Board'}
                             </h1>
-                            <p className="text-surface-500 mt-1 flex items-center gap-2 text-sm font-medium">
+                            <p className="font-data text-[var(--color-text-secondary)] mt-1 flex items-center gap-2 text-sm">
                                 <LayoutTemplate size={14} />
                                 Kanban View
                             </p>
@@ -251,14 +251,14 @@ export default function BoardPageModern() {
                 <div className="flex items-center gap-3">
                     {/* Search */}
                     <div className="relative flex-1 max-w-sm group">
-                        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-400 group-focus-within:text-primary-500 transition-colors" />
+                        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] group-focus-within:text-[var(--color-accent)] transition-colors" />
                         <input
                             ref={searchInputRef}
                             type="text"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             placeholder="Search cards..."
-                            className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl pl-10 pr-10 py-2.5 text-sm text-surface-900 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-all shadow-sm"
+                            className="w-full bg-[var(--color-accent-subtle)] border border-[var(--color-border)] rounded-xl pl-10 pr-10 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] focus:border-[var(--color-accent-dim)] transition-all"
                         />
                         {searchQuery && (
                             <button
@@ -270,7 +270,7 @@ export default function BoardPageModern() {
                         )}
                     </div>
 
-                    <div className="w-px h-8 bg-surface-200 dark:bg-surface-700 mx-1" />
+                    <div className="w-px h-8 bg-[var(--color-border-accent)] mx-1" />
 
                     {/* Filters */}
                     <div className="relative" ref={priorityDropdownRef}>
@@ -501,7 +501,7 @@ export default function BoardPageModern() {
 
                     {columns.length > 0 && (
                         <>
-                            <div className="w-px h-8 bg-surface-200 dark:bg-surface-700 mx-1" />
+                            <div className="w-px h-8 bg-[var(--color-border-accent)] mx-1" />
                             <button
                                 onClick={toggleCollapseAll}
                                 className="flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-xl border border-surface-200 bg-white text-surface-600 dark:bg-surface-800 dark:border-surface-700 dark:text-surface-300 hover:border-surface-300 dark:hover:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700 shadow-sm transition-all"
@@ -516,7 +516,7 @@ export default function BoardPageModern() {
             </div>
 
             {/* Board Layout */}
-            <div className="flex-1 flex items-start gap-6 overflow-x-auto px-8 pb-8 pt-6">
+            <div className="flex-1 flex items-start gap-6 overflow-x-auto px-8 pb-8 pt-6 grid-bg">
                 {columns.map(column => (
                     <BoardColumnModern
                         key={column.id}
@@ -575,12 +575,12 @@ export default function BoardPageModern() {
                 ) : (
                     <button
                         onClick={() => setAddingColumn(true)}
-                        className="w-80 shrink-0 h-[100px] border-2 border-dashed border-surface-300 dark:border-surface-700 hover:border-primary-400 dark:hover:border-primary-500 rounded-2xl flex flex-col items-center justify-center gap-2 text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-all group"
+                        className="w-80 shrink-0 h-[100px] border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-accent-dim)] clip-corner-cut-sm flex flex-col items-center justify-center gap-2 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-all group"
                     >
-                        <div className="w-10 h-10 rounded-full bg-surface-200 dark:bg-surface-800 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30 flex items-center justify-center transition-colors">
+                        <div className="w-10 h-10 rounded-full bg-[var(--color-accent-subtle)] group-hover:bg-[var(--color-accent-muted)] flex items-center justify-center transition-colors border border-[var(--color-border-accent)]">
                             <Plus size={20} className="group-hover:scale-110 transition-transform" />
                         </div>
-                        <span className="text-sm font-medium">Add Column</span>
+                        <span className="text-sm font-hud">Add Column</span>
                     </button>
                 )}
 

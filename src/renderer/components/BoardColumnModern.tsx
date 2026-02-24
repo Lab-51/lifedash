@@ -267,7 +267,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
             <div
                 ref={columnRef}
                 onClick={() => onToggleCollapse?.(column.id)}
-                className="w-12 shrink-0 flex flex-col items-center rounded-2xl border border-surface-200 dark:border-surface-800 cursor-pointer hover:border-primary-400 dark:hover:border-primary-600 transition-all relative group overflow-hidden"
+                className="w-12 shrink-0 flex flex-col items-center rounded-2xl border border-[var(--color-border)] cursor-pointer hover:border-[var(--color-accent-dim)] transition-all relative group overflow-hidden hud-panel"
                 style={column.color ? { backgroundColor: `${column.color}15`, borderColor: `${column.color}40` } : undefined}
             >
                 {/* Column reorder edge indicators */}
@@ -280,10 +280,10 @@ const BoardColumnModern = memo(function BoardColumnModern({
                 <div ref={headerRef} className="py-3 cursor-grab active:cursor-grabbing shrink-0">
                     <ChevronRight size={14} className="text-surface-400 group-hover:text-primary-500 transition-colors" />
                 </div>
-                <span className="bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded-full mb-2 shrink-0">
+                <span className="font-data text-[10px] text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] w-6 h-6 flex items-center justify-center rounded-full mb-2 shrink-0">
                     {columnCards.length}
                 </span>
-                <span className="text-xs font-bold text-surface-500 dark:text-surface-400 whitespace-nowrap [writing-mode:vertical-lr] rotate-180 pt-3 pb-5">
+                <span className="font-hud text-[10px] tracking-widest text-[var(--color-text-secondary)] whitespace-nowrap [writing-mode:vertical-lr] rotate-180 pt-3 pb-5">
                     {column.name}
                 </span>
             </div>
@@ -301,8 +301,8 @@ const BoardColumnModern = memo(function BoardColumnModern({
         <div
             ref={columnRef}
             className={`w-80 shrink-0 flex flex-col rounded-2xl border transition-all relative ${
-                column.color ? '' : 'bg-surface-50 dark:bg-surface-900 border-surface-200 dark:border-surface-800'
-            } ${isDragOver ? 'ring-2 ring-primary-500/30 bg-primary-50/50 dark:bg-primary-900/20' : ''
+                column.color ? '' : 'hud-panel'
+            } ${isDragOver ? 'ring-2 ring-[var(--color-accent-dim)]/30 bg-[var(--color-accent-subtle)]' : ''
                 } ${isDragging ? 'opacity-50 scale-95 rotate-1' : ''}`}
             style={column.color ? { ...columnBgStyle, ...columnBorderStyle } : undefined}
         >
@@ -315,7 +315,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
             )}
 
             {/* Column header (drag handle) */}
-            <div ref={headerRef} className="group px-4 py-3 flex items-center justify-between cursor-grab active:cursor-grabbing border-b border-transparent hover:border-surface-200 dark:hover:border-surface-700 transition-colors rounded-t-2xl">
+            <div ref={headerRef} className="group px-4 py-3 flex items-center justify-between cursor-grab active:cursor-grabbing border-b border-transparent hover:border-[var(--color-border)] transition-colors rounded-t-2xl">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     <GripVertical size={16} className="text-surface-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
 
@@ -342,10 +342,10 @@ const BoardColumnModern = memo(function BoardColumnModern({
                                 setRenameName(column.name);
                             }}
                         >
-                            <h3 className="font-bold text-sm text-surface-700 dark:text-surface-200 truncate cursor-text hover:text-surface-900 dark:hover:text-surface-100 transition-colors">
+                            <h3 className="font-hud text-xs tracking-widest text-[var(--color-text-secondary)] truncate cursor-text hover:text-[var(--color-accent)] transition-colors">
                                 {column.name}
                             </h3>
-                            <span className="bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            <span className="font-data text-[10px] px-1.5 py-0.5 rounded-full text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)]">
                                 {columnCards.length}
                             </span>
                         </div>

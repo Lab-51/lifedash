@@ -262,28 +262,28 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
   let flatIdx = 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/30 dark:bg-black/50" onClick={onClose} onKeyDown={handleKeyDown}>
-      <div className="w-full max-w-lg bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 shadow-xl dark:shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/80" onClick={onClose} onKeyDown={handleKeyDown}>
+      <div className="w-full max-w-lg hud-panel-accent clip-corner-cut shadow-[0_0_40px_rgba(62,232,228,0.15)] overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-200 dark:border-surface-700">
-          <Search className="w-5 h-5 text-surface-400 shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border-accent)]">
+          <Search className="w-5 h-5 text-[var(--color-accent-dim)] shrink-0" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
             placeholder="Search or jump to..."
-            className="flex-1 bg-transparent text-surface-900 dark:text-surface-100 placeholder-surface-500 outline-none text-sm"
+            className="flex-1 bg-transparent text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none text-sm font-data caret-[var(--color-accent)]"
           />
-          <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] text-surface-500 bg-surface-50 dark:bg-surface-800 rounded border border-surface-200 dark:border-surface-600">ESC</kbd>
+          <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-data text-[var(--color-text-muted)] bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">ESC</kbd>
         </div>
 
         {/* Results list */}
         <div ref={listRef} className="max-h-80 overflow-y-auto py-2">
-          {results.length === 0 && <div className="px-4 py-8 text-center text-surface-500 text-sm">No results found</div>}
+          {results.length === 0 && <div className="px-4 py-8 text-center text-[var(--color-text-muted)] text-sm font-data">No results found</div>}
           {grouped.map(group => (
             <div key={group.category}>
-              <div className="px-4 py-1.5 text-[11px] font-medium text-surface-500 uppercase tracking-wider">{group.category}</div>
+              <div className="px-4 py-1.5 font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)]">{group.category}</div>
               {group.items.map(item => {
                 const idx = flatIdx++;
                 const sel = idx === selectedIndex;
@@ -292,14 +292,14 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
                   <button
                     key={item.id}
                     data-cmd-item
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${sel ? 'bg-primary-600/20 text-surface-900 dark:text-surface-100' : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'}`}
+                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${sel ? 'bg-[var(--color-accent-subtle)] text-[var(--color-accent)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)] hover:text-[var(--color-accent)]'}`}
                     onClick={() => item.action()}
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >
-                    <Icon className="w-4 h-4 shrink-0 text-surface-400" />
+                    <Icon className={`w-4 h-4 shrink-0 ${sel ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`} />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm truncate">{item.label}</div>
-                      {item.sublabel && <div className="text-xs text-surface-500 truncate">{item.sublabel}</div>}
+                      {item.sublabel && <div className="text-xs text-[var(--color-text-muted)] truncate font-data">{item.sublabel}</div>}
                     </div>
                   </button>
                 );
@@ -309,10 +309,10 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
         </div>
 
         {/* Footer hints */}
-        <div className="flex items-center gap-4 px-4 py-2 border-t border-surface-200 dark:border-surface-700 text-[11px] text-surface-500">
-          <span><kbd className="px-1 py-0.5 bg-surface-50 dark:bg-surface-800 rounded border border-surface-200 dark:border-surface-600">Enter</kbd> select</span>
-          <span><kbd className="px-1 py-0.5 bg-surface-50 dark:bg-surface-800 rounded border border-surface-200 dark:border-surface-600">&uarr;&darr;</kbd> navigate</span>
-          <span><kbd className="px-1 py-0.5 bg-surface-50 dark:bg-surface-800 rounded border border-surface-200 dark:border-surface-600">Esc</kbd> close</span>
+        <div className="flex items-center gap-4 px-4 py-2 border-t border-[var(--color-border)] text-[11px] text-[var(--color-text-muted)] font-data">
+          <span><kbd className="px-1 py-0.5 bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">Enter</kbd> select</span>
+          <span><kbd className="px-1 py-0.5 bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">&uarr;&darr;</kbd> navigate</span>
+          <span><kbd className="px-1 py-0.5 bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">Esc</kbd> close</span>
         </div>
       </div>
     </div>

@@ -101,14 +101,14 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 shadow-xl dark:shadow-2xl overflow-hidden"
+        className="w-full max-w-md hud-panel-accent clip-corner-cut shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-700">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border-accent)]">
           <div className="flex items-center gap-2">
-            <Timer size={16} className="text-emerald-400" />
-            <h2 className="text-sm font-medium text-surface-800 dark:text-surface-200">Start Focus Session</h2>
+            <Timer size={16} className="text-[var(--color-accent)]" />
+            <h2 className="font-hud text-xs text-[var(--color-accent)]">Start Focus Session</h2>
           </div>
           <button
             onClick={onClose}
@@ -274,7 +274,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
           {/* Start button */}
           <button
             onClick={handleStart}
-            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:ring-offset-2 dark:focus:ring-offset-surface-900"
+            className="w-full py-2.5 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] rounded-lg text-sm font-medium transition-colors"
           >
             Start Focus — {duration} min
           </button>

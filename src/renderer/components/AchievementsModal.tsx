@@ -148,25 +148,25 @@ function AchievementsModal({ isOpen, onClose }: AchievementsModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-3xl max-h-[80vh] bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 shadow-xl dark:shadow-2xl overflow-hidden flex flex-col"
+        className="w-full max-w-3xl max-h-[80vh] hud-panel-accent clip-corner-cut overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 dark:border-surface-700 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border-accent)] shrink-0">
           <div className="flex items-center gap-2">
-            <Trophy size={18} className="text-emerald-400" />
-            <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Achievements</h2>
-            <span className="text-sm text-surface-400 ml-2">
+            <Trophy size={18} className="text-[var(--color-accent)]" />
+            <h2 className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)]">Achievements</h2>
+            <span className="text-sm text-[var(--color-text-secondary)] ml-2 font-data">
               {unlockedMap.size}/{ACHIEVEMENTS.length} unlocked
             </span>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 transition-colors"
+            className="p-1.5 rounded-md hover:bg-[var(--color-accent-subtle)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
             aria-label="Close"
           >
             <X size={18} />

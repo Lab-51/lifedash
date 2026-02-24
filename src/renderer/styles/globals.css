@@ -1,43 +1,95 @@
 @import "@fontsource-variable/inter";
+@import "@fontsource/orbitron/400.css";
+@import "@fontsource/orbitron/500.css";
+@import "@fontsource/orbitron/600.css";
+@import "@fontsource/orbitron/700.css";
+@import "@fontsource/orbitron/800.css";
+@import "@fontsource/rajdhani/300.css";
+@import "@fontsource/rajdhani/400.css";
+@import "@fontsource/rajdhani/500.css";
+@import "@fontsource/rajdhani/600.css";
+@import "@fontsource/rajdhani/700.css";
+@import "@fontsource/share-tech-mono/400.css";
 @import "tailwindcss";
 
 @variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
-  --color-primary-950: #172554;
+  /* Accent: Teal (primary interaction color) */
+  --color-primary-50: #ecfffe;
+  --color-primary-100: #d0fffe;
+  --color-primary-200: #a7fffd;
+  --color-primary-300: #6bfbf7;
+  --color-primary-400: #3ee8e4;
+  --color-primary-500: #1ac5c1;
+  --color-primary-600: #0d9e9b;
+  --color-primary-700: #107e7c;
+  --color-primary-800: #136463;
+  --color-primary-900: #155352;
+  --color-primary-950: #063333;
 
-  --color-surface-50: #f8fafc;
-  --color-surface-100: #f1f5f9;
-  --color-surface-200: #e2e8f0;
-  --color-surface-300: #cbd5e1;
-  --color-surface-400: #94a3b8;
-  --color-surface-500: #64748b;
+  /* Surface: Void blacks (dark space backgrounds) */
+  --color-surface-50: #f5f8fa;
+  --color-surface-100: #e8edf3;
+  --color-surface-200: #d1dce8;
+  --color-surface-300: #a8b8cc;
+  --color-surface-400: #7a8ba0;
+  --color-surface-500: #586a82;
   --color-surface-600: #475569;
   --color-surface-700: #334155;
   --color-surface-800: #1e293b;
-  --color-surface-900: #0f172a;
-  --color-surface-950: #020617;
+  --color-surface-900: #0d1117;
+  --color-surface-950: #06080d;
 
+  /* Warm accent (secondary) */
+  --color-warm-50: #fffbeb;
+  --color-warm-100: #fef3c7;
+  --color-warm-200: #fde68a;
+  --color-warm-300: #fcd34d;
+  --color-warm-400: #e8a33e;
+  --color-warm-500: #d97706;
+  --color-warm-600: #b45309;
+  --color-warm-700: #92400e;
+  --color-warm-800: #78350f;
+  --color-warm-900: #451a03;
+  --color-warm-950: #291004;
+
+  /* Semantic colors */
   --color-success: #22c55e;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  /* Accent direct references (for glow utilities) */
+  --color-accent: #3ee8e4;
+  --color-accent-dim: #1a8e8c;
+  --color-accent-muted: #0d4a49;
+  --color-accent-subtle: #0a2d2d;
+  --color-warm: #e8a33e;
+  --color-warm-dim: #8e6c1a;
+
+  /* Text (for use in HUD utilities) */
+  --color-text-primary: #e2e8f0;
+  --color-text-secondary: #7a8ba0;
+  --color-text-muted: #3d4f63;
+
+  /* Chrome (title bar, sidebar, status bar) */
+  --color-chrome: #0a0e17;
+  --color-chrome-glow: rgba(62, 232, 228, 0.2);
+
+  /* Border */
+  --color-border: #1a2332;
+  --color-border-accent: #1a4a49;
+  --color-border-bright: #3ee8e433;
+
+  /* Fonts */
+  --font-sans: 'Rajdhani', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Orbitron', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Share Tech Mono', ui-monospace, monospace;
 }
 
 html.light {
-  --color-surface-50: #f8fafc;
-  --color-surface-100: #f1f5f9;
+  --color-surface-50: #f8fafb;
+  --color-surface-100: #f0f4f8;
   --color-surface-200: #e2e8f0;
   --color-surface-300: #cbd5e1;
   --color-surface-400: #94a3b8;
@@ -49,57 +101,42 @@ html.light {
   --color-surface-950: #020617;
 }
 
-/* === Modern Design Variant (Zinc + Indigo) === */
+/* === Modern Design Variant (HUD — Teal Accent) === */
 html.design-modern {
-  /* Indigo Primary */
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-300: #a5b4fc;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
-  --color-primary-950: #1e1b4b;
-
-  /* Zinc Surface (Default / Dark Mode orientation) */
-  --color-surface-50: #fafafa;
-  --color-surface-100: #f4f4f5;
-  --color-surface-200: #e4e4e7;
-  --color-surface-300: #d4d4d8;
-  --color-surface-400: #a1a1aa;
-  --color-surface-500: #71717a;
-  --color-surface-600: #52525b;
-  --color-surface-700: #3f3f46;
-  --color-surface-800: #27272a;
-  --color-surface-900: #18181b;
-  --color-surface-950: #09090b;
-
-  /* Modern font: Inter is good, maybe set standard system font backup first to feel native? */
-  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* HUD design is now the modern variant — teal accent is already the default */
 }
 
 html.design-modern.light {
-  /* Slate Surface — warm blue-gray, polished and readable */
-  --color-surface-50: #f8fafc;
-  --color-surface-100: #f1f5f9;
+  --color-primary-400: #0d9694;
+  --color-primary-500: #0d9e9b;
+  --color-primary-600: #107e7c;
+
+  --color-surface-50: #f8fafb;
+  --color-surface-100: #f0f4f8;
   --color-surface-200: #e2e8f0;
   --color-surface-300: #cbd5e1;
-  --color-surface-400: #94a3b8;
-  --color-surface-500: #64748b;
-  --color-surface-600: #475569;
   --color-surface-700: #334155;
   --color-surface-800: #1e293b;
   --color-surface-900: #0f172a;
   --color-surface-950: #020617;
 
-  /* Darken primary for light-background contrast */
-  --color-primary-300: #6366f1;
-  --color-primary-400: #4f46e5;
-  --color-primary-500: #4338ca;
-  --color-primary-600: #3730a3;
+  --color-accent: #0d9694;
+  --color-accent-dim: #5eadab;
+  --color-accent-muted: #b8e0df;
+  --color-accent-subtle: #e6f5f5;
+  --color-warm: #c47a1a;
+  --color-warm-dim: #d4a054;
+
+  --color-text-primary: #0a1628;
+  --color-text-secondary: #4a5568;
+  --color-text-muted: #94a3b8;
+
+  --color-chrome: #ffffff;
+  --color-chrome-glow: transparent;
+
+  --color-border: #d1dce5;
+  --color-border-accent: #8ecfce;
+  --color-border-bright: #0d969433;
 }
 
 /* Custom scrollbar */
@@ -118,7 +155,7 @@ html.design-modern.light {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-surface-600);
+  background: var(--color-accent-muted);
 }
 
 html.light ::-webkit-scrollbar-thumb {
@@ -139,7 +176,7 @@ select {
   font-size: 0.875rem;
   line-height: 1.25rem;
   color: var(--color-surface-200);
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%237a8ba0' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
   background-repeat: no-repeat;
   background-position: right 0.5rem center;
   background-size: 1.25rem 1.25rem;
@@ -199,13 +236,13 @@ select:focus-visible {
 
 /* Text selection */
 ::selection {
-  background: var(--color-primary-600);
+  background: rgba(62, 232, 228, 0.25);
   color: white;
 }
 
 html.light ::selection {
-  background: #c7d2fe;
-  color: #1e1b4b;
+  background: #b8e0df;
+  color: #063333;
 }
 
 /* Base body/html styles */
@@ -213,13 +250,222 @@ html,
 body {
   overflow: hidden;
   background: var(--color-surface-950);
-  color: var(--color-surface-100);
+  color: var(--color-text-primary);
 }
 
 html.light,
 html.light body {
-  background: #f8fafc;
-  color: #0f172a;
+  background: #f5f8fa;
+  color: #0a1628;
+}
+
+/* ─── HUD Typography Utilities ─── */
+.font-hud {
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.font-data {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+.text-glow {
+  text-shadow: 0 0 12px rgba(62, 232, 228, 0.6), 0 0 40px rgba(62, 232, 228, 0.15);
+}
+html.light .text-glow {
+  text-shadow: 0 0 8px rgba(13, 150, 148, 0.3), 0 0 20px rgba(13, 150, 148, 0.08);
+}
+
+.text-glow-warm {
+  text-shadow: 0 0 12px rgba(232, 163, 62, 0.6), 0 0 40px rgba(232, 163, 62, 0.15);
+}
+html.light .text-glow-warm {
+  text-shadow: 0 0 8px rgba(196, 122, 26, 0.3), 0 0 20px rgba(196, 122, 26, 0.08);
+}
+
+/* ─── HUD Chrome (title bar / sidebar / status bar backgrounds) ─── */
+.hud-chrome-bg {
+  background: linear-gradient(135deg, rgba(13, 17, 23, 0.95), rgba(10, 14, 23, 0.85));
+}
+html.light .hud-chrome-bg {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.97), rgba(248, 250, 251, 0.92));
+}
+
+/* Active nav item glow — suppressed in light mode */
+.hud-nav-active {
+  background: var(--color-accent-subtle);
+  border: 1px solid var(--color-accent-dim);
+  color: var(--color-accent);
+  box-shadow: 0 0 12px var(--color-chrome-glow);
+}
+html.light .hud-nav-active {
+  box-shadow: none;
+  border-color: var(--color-accent-muted);
+}
+
+/* ─── HUD Panel ─── */
+.hud-panel {
+  background: linear-gradient(135deg, rgba(13, 17, 23, 0.95), rgba(10, 14, 23, 0.85));
+  border: 1px solid var(--color-border);
+  position: relative;
+}
+
+.hud-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
+  opacity: 0.4;
+}
+
+html.light .hud-panel {
+  background: linear-gradient(135deg, rgba(248, 250, 251, 0.95), rgba(240, 244, 248, 0.85));
+  border-color: var(--color-border);
+}
+
+html.light .hud-panel::before {
+  opacity: 0.5;
+}
+
+.hud-panel-accent {
+  background: linear-gradient(135deg, rgba(13, 17, 23, 0.95), rgba(10, 46, 45, 0.15));
+  border: 1px solid var(--color-border-accent);
+  position: relative;
+}
+
+.hud-panel-accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
+  opacity: 0.6;
+}
+
+html.light .hud-panel-accent {
+  background: linear-gradient(135deg, rgba(248, 250, 251, 0.95), rgba(230, 245, 245, 0.3));
+  border-color: var(--color-border-accent);
+}
+
+/* ─── Geometric Container Shapes ─── */
+.clip-corner-cut {
+  clip-path: polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px));
+}
+
+.clip-corner-cut-sm {
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+}
+
+.clip-corner-cut-tr {
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+}
+
+/* ─── Scanline Overlays ─── */
+.scanlines {
+  background-image: repeating-linear-gradient(0deg,
+      transparent,
+      transparent 2px,
+      rgba(62, 232, 228, 0.015) 2px,
+      rgba(62, 232, 228, 0.015) 4px);
+  pointer-events: none;
+}
+html.light .scanlines {
+  background-image: repeating-linear-gradient(0deg,
+      transparent,
+      transparent 2px,
+      rgba(13, 150, 148, 0.02) 2px,
+      rgba(13, 150, 148, 0.02) 4px);
+}
+
+/* ─── Hairline Grid Background ─── */
+.grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(62, 232, 228, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(62, 232, 228, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+html.light .grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(13, 150, 148, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(13, 150, 148, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* ─── Ruled Line Dividers ─── */
+.ruled-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-border), transparent);
+}
+
+.ruled-line-accent {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-border-accent), var(--color-accent-dim), var(--color-border-accent), transparent);
+}
+
+/* ─── Corner Brackets (decorative) ─── */
+.corner-brackets {
+  position: relative;
+}
+
+.corner-brackets::before,
+.corner-brackets::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-color: var(--color-accent);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.corner-brackets::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+}
+
+.corner-brackets::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid;
+  border-right: 2px solid;
+}
+
+html.light .corner-brackets::before,
+html.light .corner-brackets::after {
+  opacity: 0.5;
+}
+
+/* ─── Node Points ─── */
+.node-point {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 8px rgba(62, 232, 228, 0.6);
+  animation: node-pulse 2s ease-in-out infinite;
+}
+html.light .node-point {
+  box-shadow: 0 0 6px rgba(13, 150, 148, 0.4);
+}
+
+.node-point-sm {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 4px rgba(62, 232, 228, 0.4);
+}
+html.light .node-point-sm {
+  box-shadow: 0 0 3px rgba(13, 150, 148, 0.3);
 }
 
 /* TipTap rich text editor styles */
@@ -286,7 +532,7 @@ html.light body {
   border-radius: 0.25rem;
   padding: 0.125rem 0.375rem;
   font-size: 0.8125rem;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 
 .tiptap-editor .ProseMirror pre {
@@ -319,27 +565,27 @@ html.light .tiptap-editor .ProseMirror blockquote {
   color: #64748b;
 }
 
-/* Sidebar logo — slow heartbeat glow */
+/* Sidebar logo — slow heartbeat glow (teal) */
 @keyframes logo-pulse {
   0%, 100% {
     box-shadow:
-      0 0 6px rgba(99, 102, 241, 0.15),
-      0 0 12px rgba(59, 130, 246, 0.05);
+      0 0 6px rgba(62, 232, 228, 0.15),
+      0 0 12px rgba(26, 142, 140, 0.05);
   }
   40% {
     box-shadow:
-      0 0 12px rgba(99, 102, 241, 0.45),
-      0 0 28px rgba(59, 130, 246, 0.2);
+      0 0 12px rgba(62, 232, 228, 0.45),
+      0 0 28px rgba(26, 142, 140, 0.2);
   }
   50% {
     box-shadow:
-      0 0 8px rgba(99, 102, 241, 0.3),
-      0 0 18px rgba(59, 130, 246, 0.12);
+      0 0 8px rgba(62, 232, 228, 0.3),
+      0 0 18px rgba(26, 142, 140, 0.12);
   }
   65% {
     box-shadow:
-      0 0 10px rgba(99, 102, 241, 0.35),
-      0 0 22px rgba(59, 130, 246, 0.15);
+      0 0 10px rgba(62, 232, 228, 0.35),
+      0 0 22px rgba(26, 142, 140, 0.15);
   }
 }
 
@@ -349,16 +595,16 @@ html.light .tiptap-editor .ProseMirror blockquote {
 
 @keyframes logo-pulse-light {
   0%, 100% {
-    box-shadow: 0 0 6px rgba(79, 70, 229, 0.1), 0 0 12px rgba(99, 102, 241, 0.05);
+    box-shadow: 0 0 6px rgba(13, 150, 148, 0.1), 0 0 12px rgba(13, 158, 155, 0.05);
   }
   40% {
-    box-shadow: 0 0 12px rgba(79, 70, 229, 0.3), 0 0 28px rgba(99, 102, 241, 0.12);
+    box-shadow: 0 0 12px rgba(13, 150, 148, 0.3), 0 0 28px rgba(13, 158, 155, 0.12);
   }
   50% {
-    box-shadow: 0 0 8px rgba(79, 70, 229, 0.2), 0 0 18px rgba(99, 102, 241, 0.08);
+    box-shadow: 0 0 8px rgba(13, 150, 148, 0.2), 0 0 18px rgba(13, 158, 155, 0.08);
   }
   65% {
-    box-shadow: 0 0 10px rgba(79, 70, 229, 0.25), 0 0 22px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 10px rgba(13, 150, 148, 0.25), 0 0 22px rgba(13, 158, 155, 0.1);
   }
 }
 html.light .animate-logo-pulse {
@@ -632,6 +878,40 @@ html.light .animate-logo-pulse {
     mask-image: none;
     opacity: 0.12;
   }
+}
+
+/* ─── HUD Animations ─── */
+@keyframes scanline-move {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes node-pulse {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(62, 232, 228, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(62, 232, 228, 0.8);
+    transform: scale(1.3);
+  }
+}
+
+@keyframes data-flicker {
+  0%, 90%, 100% { opacity: 1; }
+  92% { opacity: 0.3; }
+  94% { opacity: 0.8; }
+  96% { opacity: 0.4; }
+}
+
+@keyframes dash-flow {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -20; }
 }
 
 /* override forms */

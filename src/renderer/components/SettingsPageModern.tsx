@@ -66,9 +66,9 @@ export default function SettingsPageModern() {
     return (
         <div className="h-full flex flex-col bg-surface-50 dark:bg-surface-950 overflow-hidden">
             {/* Header */}
-            <div className="px-8 pt-8 pb-6 shrink-0 bg-white dark:bg-surface-900 border-b border-surface-200 dark:border-surface-800">
-                <h1 className="text-3xl font-light tracking-tight text-surface-900 dark:text-surface-50 mb-1">Settings</h1>
-                <p className="text-surface-500 font-medium text-sm">Manage preferences and configurations.</p>
+            <div className="px-8 pt-8 pb-6 shrink-0 bg-white dark:bg-[var(--color-chrome)] border-b border-surface-200 dark:border-[var(--color-border)]">
+                <h1 className="font-hud text-2xl tracking-widest text-surface-900 dark:text-[var(--color-accent)] mb-1">Settings</h1>
+                <p className="text-[var(--color-text-secondary)] font-data text-sm">Manage preferences and configurations.</p>
 
                 {/* Tabs */}
                 <div className="flex items-center gap-1 mt-6">
@@ -76,9 +76,9 @@ export default function SettingsPageModern() {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
-                                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 ring-1 ring-primary-200 dark:ring-primary-800'
-                                : 'text-surface-500 hover:text-surface-900 dark:hover:text-surface-100 hover:bg-surface-100 dark:hover:bg-surface-800'
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all ${activeTab === tab.id
+                                ? 'hud-nav-active rounded-lg'
+                                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] rounded-lg'
                                 }`}
                         >
                             {tab.icon}
@@ -92,57 +92,57 @@ export default function SettingsPageModern() {
                 <div className="max-w-4xl mx-auto space-y-8">
                     {/* Error banner */}
                     {error && (
-                        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 flex items-start gap-3 text-red-600 dark:text-red-400">
+                        <div className="p-4 hud-panel clip-corner-cut-sm bg-red-500/10 border-red-500/30 flex items-start gap-3 text-red-400">
                             <Info size={20} className="shrink-0 mt-0.5" />
-                            <p className="text-sm font-medium">{error}</p>
+                            <p className="text-sm font-data">{error}</p>
                         </div>
                     )}
 
                     {activeTab === 'general' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             {/* Appearance */}
-                            <section className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
-                                <div className="mb-6 pb-4 border-b border-surface-100 dark:border-surface-800">
-                                    <h2 className="text-lg font-bold text-surface-900 dark:text-surface-100 flex items-center gap-2">
-                                        <Monitor size={20} className="text-primary-500" />
+                            <section className="hud-panel-accent clip-corner-cut-sm p-6">
+                                <div className="mb-6 pb-4 border-b border-[var(--color-border)]">
+                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                        <Monitor size={16} className="text-[var(--color-accent)]" />
                                         Appearance
                                     </h2>
-                                    <p className="text-sm text-surface-500 mt-1">Customize the visual experience.</p>
+                                    <p className="text-sm text-[var(--color-text-secondary)] mt-1">Customize the visual experience.</p>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div>
-                                        <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100 mb-3">Theme Mode</h3>
+                                        <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Theme Mode</h3>
                                         <ThemeSelector />
                                     </div>
                                     <div>
-                                        <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100 mb-3">Themes</h3>
-                                        <p className="text-sm text-surface-400">More themes coming soon.</p>
+                                        <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Themes</h3>
+                                        <p className="text-sm text-[var(--color-text-muted)]">More themes coming soon.</p>
                                     </div>
                                 </div>
                             </section>
 
                             {/* Audio & Transcription */}
                             <div className="grid grid-cols-1 gap-6">
-                                <div className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
+                                <div className="hud-panel-accent clip-corner-cut-sm p-6">
                                     <div className="mb-4">
-                                        <h2 className="text-lg font-bold text-surface-900 dark:text-surface-100 flex items-center gap-2">
-                                            <Mic size={20} className="text-primary-500" />
+                                        <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                            <Mic size={16} className="text-[var(--color-accent)]" />
                                             Audio
                                         </h2>
                                     </div>
                                     <div className="space-y-6">
                                         <AudioDeviceSection />
-                                        <div className="h-px bg-surface-100 dark:bg-surface-800" />
+                                        <div className="ruled-line-accent" />
                                         <TranscriptionProviderSection />
                                     </div>
                                 </div>
                             </div>
 
                             {/* Network */}
-                            <div className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
+                            <div className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-4">
-                                    <h2 className="text-lg font-bold text-surface-900 dark:text-surface-100 flex items-center gap-2">
-                                        <Wifi size={20} className="text-primary-500" />
+                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                        <Wifi size={16} className="text-[var(--color-accent)]" />
                                         Network
                                     </h2>
                                 </div>
@@ -150,10 +150,10 @@ export default function SettingsPageModern() {
                             </div>
 
                             {/* Notifications */}
-                            <div className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
+                            <div className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-4">
-                                    <h2 className="text-lg font-bold text-surface-900 dark:text-surface-100 flex items-center gap-2">
-                                        <Bell size={20} className="text-primary-500" />
+                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                        <Bell size={16} className="text-[var(--color-accent)]" />
                                         Notifications
                                     </h2>
                                 </div>
@@ -165,19 +165,19 @@ export default function SettingsPageModern() {
                     {activeTab === 'ai' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             {/* Providers */}
-                            <section className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
-                                <div className="flex items-center justify-between mb-6 pb-4 border-b border-surface-100 dark:border-surface-800">
+                            <section className="hud-panel-accent clip-corner-cut-sm p-6">
+                                <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--color-border)]">
                                     <div>
-                                        <h2 className="text-lg font-bold text-surface-900 dark:text-surface-100 flex items-center gap-2">
-                                            <Bot size={20} className="text-primary-500" />
+                                        <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                            <Bot size={16} className="text-[var(--color-accent)]" />
                                             AI Providers
                                         </h2>
-                                        <p className="text-sm text-surface-500 mt-1">Configure models and API keys.</p>
+                                        <p className="text-sm text-[var(--color-text-secondary)] mt-1">Configure models and API keys.</p>
                                     </div>
                                     {!showAddForm && (
                                         <button
                                             onClick={() => setShowAddForm(true)}
-                                            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-all hover:translate-y-px"
+                                            className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] px-4 py-2 text-sm font-medium transition-all clip-corner-cut-sm"
                                         >
                                             <Plus size={16} />
                                             Add Provider
@@ -186,7 +186,7 @@ export default function SettingsPageModern() {
                                 </div>
 
                                 {showAddForm && (
-                                    <div className="mb-6 bg-surface-50 dark:bg-surface-800/50 p-4 rounded-xl border border-surface-200 dark:border-surface-700">
+                                    <div className="mb-6">
                                         <AddProviderForm onClose={() => setShowAddForm(false)} />
                                     </div>
                                 )}
@@ -198,28 +198,28 @@ export default function SettingsPageModern() {
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="flex flex-col items-center justify-center p-8 bg-surface-50 dark:bg-surface-800/30 rounded-xl border border-dashed border-surface-200 dark:border-surface-700">
-                                        <Bot size={32} className="text-surface-400 mb-2" />
-                                        <p className="text-sm font-medium text-surface-600 dark:text-surface-300">No providers configured</p>
-                                        <button onClick={() => setShowAddForm(true)} className="mt-2 text-xs text-primary-600 hover:underline">Add one now</button>
+                                    <div className="flex flex-col items-center justify-center p-8 border border-dashed border-[var(--color-border)] rounded-lg">
+                                        <Bot size={32} className="text-[var(--color-text-muted)] mb-2" />
+                                        <p className="text-sm font-medium text-[var(--color-text-secondary)]">No providers configured</p>
+                                        <button onClick={() => setShowAddForm(true)} className="mt-2 text-xs text-[var(--color-accent)] hover:underline">Add one now</button>
                                     </div>
                                 )}
                             </section>
 
                             {/* Model Assignments */}
-                            <section className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
+                            <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-6">
-                                    <h2 className="text-lg font-bold text-surface-900 dark:text-surface-100">Model Assignments</h2>
-                                    <p className="text-sm text-surface-500 mt-1">Route tasks to specific models.</p>
+                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Model Assignments</h2>
+                                    <p className="text-sm text-[var(--color-text-secondary)] mt-1">Route tasks to specific models.</p>
                                 </div>
                                 <TaskModelConfig providers={providers} />
                             </section>
 
                             {/* Usage */}
-                            <section className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
+                            <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-6">
-                                    <h2 className="text-lg font-bold text-surface-900 dark:text-surface-100">Usage & Costs</h2>
-                                    <p className="text-sm text-surface-500 mt-1">Track token consumption.</p>
+                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Usage & Costs</h2>
+                                    <p className="text-sm text-[var(--color-text-secondary)] mt-1">Track token consumption.</p>
                                 </div>
                                 <UsageSummary />
                             </section>
@@ -228,30 +228,30 @@ export default function SettingsPageModern() {
 
                     {activeTab === 'data' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <section className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
+                            <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-4">
-                                    <h2 className="text-lg font-bold text-surface-900 dark:text-surface-100 flex items-center gap-2">
-                                        <Save size={20} className="text-primary-500" />
+                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                        <Save size={16} className="text-[var(--color-accent)]" />
                                         Storage
                                     </h2>
                                 </div>
                                 <RecordingsSavePathSection />
                             </section>
 
-                            <section className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
+                            <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-4">
-                                    <h2 className="text-lg font-bold text-surface-900 dark:text-surface-100 flex items-center gap-2">
-                                        <Database size={20} className="text-primary-500" />
+                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                        <Database size={16} className="text-[var(--color-accent)]" />
                                         Backups
                                     </h2>
                                 </div>
                                 <BackupSection />
                             </section>
 
-                            <section className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm">
+                            <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-4">
-                                    <h2 className="text-lg font-bold text-surface-900 dark:text-surface-100 flex items-center gap-2">
-                                        <FileDown size={20} className="text-primary-500" />
+                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                        <FileDown size={16} className="text-[var(--color-accent)]" />
                                         Export
                                     </h2>
                                 </div>
@@ -262,27 +262,27 @@ export default function SettingsPageModern() {
 
                     {activeTab === 'about' && (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <section className="bg-white dark:bg-surface-900 p-8 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm text-center">
+                            <section className="hud-panel-accent clip-corner-cut p-8 text-center">
                                 <img src={dashIcon} alt="LifeDash" className="w-20 h-20 mx-auto mb-4 drop-shadow-lg" />
-                                <h2 className="text-2xl font-bold text-surface-900 dark:text-surface-100 mb-2">LifeDash</h2>
-                                <p className="text-surface-500 mb-8 max-w-md mx-auto">
+                                <h2 className="font-hud text-xl tracking-widest text-[var(--color-accent)] text-glow mb-2">LifeDash</h2>
+                                <p className="text-[var(--color-text-secondary)] mb-8 max-w-md mx-auto">
                                     AI-powered desktop dashboard for meeting intelligence, project management, brainstorming, and idea capture.
                                 </p>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
-                                    <div className="p-4 bg-surface-50 dark:bg-surface-800 rounded-xl">
-                                        <p className="text-xs text-surface-400 uppercase font-bold tracking-wider mb-1">Version</p>
-                                        <p className="text-surface-900 dark:text-surface-100 font-medium">{window.electronAPI.appVersion}</p>
+                                    <div className="p-4 hud-panel clip-corner-cut-sm">
+                                        <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Version</p>
+                                        <p className="font-[var(--font-display)] text-[var(--color-text-primary)] font-medium">{window.electronAPI.appVersion}</p>
                                     </div>
-                                    <div className="p-4 bg-surface-50 dark:bg-surface-800 rounded-xl">
-                                        <p className="text-xs text-surface-400 uppercase font-bold tracking-wider mb-1">Encryption</p>
-                                        <p className={`font-medium ${encryptionAvailable ? 'text-emerald-500' : 'text-surface-500'}`}>
+                                    <div className="p-4 hud-panel clip-corner-cut-sm">
+                                        <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Encryption</p>
+                                        <p className={`font-medium ${encryptionAvailable ? 'text-emerald-500' : 'text-[var(--color-text-secondary)]'}`}>
                                             {encryptionAvailable === null ? 'Checking...' : encryptionAvailable ? 'Active' : 'Unavailable'}
                                         </p>
                                     </div>
-                                    <div className="p-4 bg-surface-50 dark:bg-surface-800 rounded-xl">
-                                        <p className="text-xs text-surface-400 uppercase font-bold tracking-wider mb-1">Platform</p>
-                                        <p className="text-surface-900 dark:text-surface-100 font-medium capitalize">{window.electronAPI.platform}</p>
+                                    <div className="p-4 hud-panel clip-corner-cut-sm">
+                                        <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Platform</p>
+                                        <p className="font-[var(--font-display)] text-[var(--color-text-primary)] font-medium capitalize">{window.electronAPI.platform}</p>
                                     </div>
                                 </div>
                             </section>

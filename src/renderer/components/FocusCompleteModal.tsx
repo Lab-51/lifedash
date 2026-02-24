@@ -171,14 +171,14 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
       onClick={showReward ? undefined : handleSkip}
     >
       <div
-        className="w-full max-w-md bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 shadow-xl dark:shadow-2xl overflow-hidden"
+        className="w-full max-w-md hud-panel-accent clip-corner-cut shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-700">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border-accent)]">
           <div className="flex items-center gap-2">
-            <CheckCircle size={16} className="text-emerald-400" />
-            <h2 className="text-sm font-medium text-surface-800 dark:text-surface-200">Focus Session Complete!</h2>
+            <CheckCircle size={16} className="text-[var(--color-accent)]" />
+            <h2 className="font-hud text-xs text-[var(--color-accent)] text-glow">Focus Session Complete!</h2>
           </div>
           {!showReward && (
             <button
@@ -197,7 +197,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
             /* Reward View */
             <div className="text-center space-y-4 py-4">
               {/* XP Earned */}
-              <div className="text-3xl font-bold text-emerald-400">
+              <div className="font-data text-3xl font-bold text-[var(--color-accent)] text-glow">
                 +{actualDuration} XP
               </div>
 
@@ -244,7 +244,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
               <div className="pt-2">
                 <button
                   onClick={handleStartBreak}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-surface-900"
+                  className="px-4 py-2 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] rounded-lg text-sm font-medium transition-colors"
                 >
                   Start Break
                 </button>
@@ -325,7 +325,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
                   <button
                     onClick={() => doSave(true)}
                     disabled={saving}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:ring-offset-2 dark:focus:ring-offset-surface-900 disabled:opacity-50"
+                    className="px-4 py-2 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                   >
                     {saving ? 'Saving...' : 'Save & Break'}
                   </button>

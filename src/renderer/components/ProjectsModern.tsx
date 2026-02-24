@@ -201,12 +201,12 @@ export default function ProjectsModern() {
             <div className="p-8 pb-4 shrink-0">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
-                        <h1 className="text-3xl font-light tracking-tight text-surface-900 dark:text-surface-50">Projects</h1>
-                        <p className="text-surface-500 mt-1">Manage and track your work.</p>
+                        <h1 className="font-hud text-2xl tracking-widest text-surface-900 dark:text-[var(--color-accent)]">Projects</h1>
+                        <p className="text-[var(--color-text-secondary)] mt-1 font-data">Manage and track your work.</p>
                     </div>
                     <button
                         onClick={() => setShowCreateForm(true)}
-                        className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-all hover:scale-105 active:scale-95"
+                        className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] px-5 py-2.5 text-sm font-medium transition-all clip-corner-cut-sm"
                     >
                         <Plus size={18} />
                         New Project
@@ -216,13 +216,13 @@ export default function ProjectsModern() {
                 {/* Toolbar */}
                 <div className="flex items-center gap-3">
                     <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" size={16} />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" size={16} />
                         <input
                             type="text"
                             placeholder="Search projects..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-lg text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-500 focus:border-primary-500 transition-all"
+                            className="w-full pl-10 pr-4 py-2 bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] transition-all font-data"
                         />
                     </div>
 
@@ -248,8 +248,8 @@ export default function ProjectsModern() {
                 )}
 
                 {showCreateForm && (
-                    <div className="mb-8 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-6 shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
-                        <h3 className="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-4">Create New Project</h3>
+                    <div className="mb-8 hud-panel-accent clip-corner-cut-sm p-6 shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
+                        <h3 className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)] mb-4">Create New Project</h3>
                         <form onSubmit={handleCreate}>
                             <div className="space-y-4">
                                 <div>
@@ -360,7 +360,7 @@ export default function ProjectsModern() {
                             <div
                                 key={project.id}
                                 onClick={() => navigate(`/projects/${project.id}`)}
-                                className={`group relative flex flex-col bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl p-5 hover:shadow-lg dark:hover:shadow-lg dark:hover:shadow-primary-950/30 hover:border-primary-500/30 transition-all cursor-pointer ${project.archived ? 'opacity-60 grayscale' : ''}`}
+                                className={`group relative flex flex-col hud-panel-accent clip-corner-cut-sm corner-brackets p-5 hover:shadow-[0_0_20px_var(--color-chrome-glow)] hover:border-[var(--color-accent-dim)] transition-all cursor-pointer ${project.archived ? 'opacity-60 grayscale' : ''}`}
                             >
                                 {/* More Menu (Absolute) */}
                                 <div className="absolute top-4 right-4 z-10">
@@ -454,10 +454,10 @@ export default function ProjectsModern() {
                                     )}
                                 </div>
 
-                                <div className="mt-auto pt-4 border-t border-surface-100 dark:border-surface-800 flex items-center justify-between text-xs font-medium text-surface-500">
-                                    <div className="flex items-center gap-1.5 bg-surface-100 dark:bg-surface-800 px-2 py-1 rounded-md">
+                                <div className="mt-auto pt-4 border-t border-[var(--color-border)] flex items-center justify-between text-xs font-data text-[var(--color-text-secondary)]">
+                                    <div className="flex items-center gap-1.5 bg-[var(--color-accent-subtle)] px-2 py-1 rounded-md">
                                         <LayoutList size={14} />
-                                        {cardCountByProject[project.id] || 0} Tasks
+                                        <span className="font-[var(--font-display)]">{cardCountByProject[project.id] || 0}</span> Tasks
                                     </div>
                                     {project.hourlyRate != null && (
                                         <span className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md text-xs font-medium">

@@ -49,7 +49,7 @@ function statusIcon(status: ActionItemStatus) {
     case 'pending':
       return { Icon: Circle, className: 'text-surface-500' };
     case 'approved':
-      return { Icon: CheckCircle2, className: 'text-emerald-400' };
+      return { Icon: CheckCircle2, className: 'text-[var(--color-accent)]' };
     case 'dismissed':
       return { Icon: XCircle, className: 'text-surface-500 opacity-50' };
     case 'converted':
@@ -76,7 +76,7 @@ const ActionItemRow = memo(function ActionItemRow({
   const isDismissed = item.status === 'dismissed';
 
   return (
-    <div className="bg-surface-100/50 dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700 rounded-lg p-3 flex items-start gap-3">
+    <div className="hud-panel rounded-lg p-3 flex items-start gap-3">
       {/* Batch selection checkbox */}
       {showCheckbox && (
         <input
@@ -227,7 +227,7 @@ export default function ActionItemList({
     <div>
       {/* Header with optional count badge */}
       <div className="flex items-center mb-2">
-        <h3 className="text-sm font-medium text-surface-700 dark:text-surface-300">Action Items</h3>
+        <h3 className="font-hud text-xs text-[var(--color-text-secondary)]">Action Items</h3>
         {actionItems.length > 0 && (
           <span className="bg-surface-700 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-2">
             {actionItems.length}

@@ -55,19 +55,19 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
 
   return (
     <form onSubmit={handleSubmit}
-      className="mb-6 p-4 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg">
-      <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-4">Add AI Provider</h3>
+      className="hud-panel clip-corner-cut-sm p-4">
+      <h3 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] mb-4">Add AI Provider</h3>
 
       {error && (
-        <div className="mb-3 p-2 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+        <div className="mb-3 p-2 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-data">
           {error}
         </div>
       )}
 
       <div className="space-y-3">
-        {/* Provider type selection — button group */}
+        {/* Provider type selection -- button group */}
         <div>
-          <label className="block text-xs text-surface-400 mb-1.5">Provider</label>
+          <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">Provider</label>
           <div className="flex gap-2">
             {PROVIDER_OPTIONS.map(opt => (
               <button key={opt.value} type="button"
@@ -79,13 +79,13 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
                     setBaseUrl('https://api.moonshot.ai/v1');
                   }
                 }}
-                className={`flex-1 p-2.5 rounded-lg border text-left text-sm transition-colors ${
+                className={`flex-1 p-2.5 rounded-lg border text-left text-sm transition-all ${
                   name === opt.value
-                    ? 'border-primary-500 bg-primary-500/10 text-primary-400'
-                    : 'border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-300 hover:border-surface-300 dark:hover:border-surface-600'
+                    ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] text-[var(--color-accent)]'
+                    : 'border-[var(--color-border)] bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)]'
                 }`}>
                 <div className="font-medium">{opt.label}</div>
-                <div className="text-xs text-surface-500 mt-0.5">{opt.description}</div>
+                <div className="text-xs text-[var(--color-text-muted)] mt-0.5">{opt.description}</div>
               </button>
             ))}
           </div>
@@ -93,27 +93,27 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
 
         {/* Display name (optional) */}
         <div>
-          <label className="block text-xs text-surface-400 mb-1.5">
-            Display Name <span className="text-surface-600">(optional)</span>
+          <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">
+            Display Name <span className="text-[var(--color-text-muted)]">(optional)</span>
           </label>
           <input type="text" value={displayName}
             onChange={e => setDisplayName(e.target.value)}
             placeholder={`My ${PROVIDER_OPTIONS.find(o => o.value === name)?.label}`}
-            className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-surface-900 dark:text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
+            className="w-full text-sm bg-surface-950 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
         </div>
 
         {/* API Key (not shown for Ollama) */}
         {needsApiKey && (
           <div>
-            <label className="block text-xs text-surface-400 mb-1.5">API Key</label>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">API Key</label>
             <div className="relative">
               <input type={showApiKey ? 'text' : 'password'} value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
                 placeholder="sk-..."
-                className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 pr-10 text-surface-900 dark:text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
+                className="w-full text-sm bg-surface-950 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 pr-10 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
               <button type="button"
                 onClick={() => setShowApiKey(!showApiKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-700 dark:text-surface-300">
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]">
                 {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
@@ -122,24 +122,24 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
 
         {/* Base URL (always shown, pre-filled for Ollama) */}
         <div>
-          <label className="block text-xs text-surface-400 mb-1.5">
-            Base URL <span className="text-surface-600">(optional{name === 'ollama' ? ', default: localhost:11434' : ''})</span>
+          <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">
+            Base URL <span className="text-[var(--color-text-muted)]">(optional{name === 'ollama' ? ', default: localhost:11434' : ''})</span>
           </label>
           <input type="text" value={baseUrl}
             onChange={e => setBaseUrl(e.target.value)}
             placeholder={name === 'ollama' ? 'http://localhost:11434' : 'Leave blank for default'}
-            className="w-full text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-surface-900 dark:text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
+            className="w-full text-sm bg-surface-950 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
         </div>
 
         {/* Buttons */}
         <div className="flex items-center gap-2 pt-1">
           <button type="submit" disabled={submitting}
-            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+            className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 px-4 py-2 text-sm transition-all">
             <Bot size={16} />
             {submitting ? 'Adding...' : 'Add Provider'}
           </button>
           <button type="button" onClick={onClose}
-            className="text-surface-400 hover:text-surface-800 dark:text-surface-200 px-4 py-2 text-sm transition-colors">
+            className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-4 py-2 text-sm transition-colors">
             Cancel
           </button>
         </div>

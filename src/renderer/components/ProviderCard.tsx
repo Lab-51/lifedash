@@ -56,23 +56,23 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
   };
 
   return (
-    <div className={`p-4 bg-surface-800 border rounded-lg transition-colors ${
-      provider.enabled ? 'border-surface-700' : 'border-surface-700/50 opacity-60'
+    <div className={`hud-panel clip-corner-cut-sm p-4 transition-colors ${
+      provider.enabled ? '' : 'opacity-60'
     }`}>
       {/* Header row: provider name + enabled toggle */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: meta.color }} />
-          <span className="font-semibold text-surface-100 text-sm">{meta.label}</span>
+          <div className="node-point-sm" style={{ backgroundColor: meta.color, boxShadow: `0 0 4px ${meta.color}40` }} />
+          <span className="font-semibold text-[var(--color-text-primary)] text-sm">{meta.label}</span>
           {provider.displayName && (
-            <span className="text-xs text-surface-500">({provider.displayName})</span>
+            <span className="text-xs text-[var(--color-text-muted)] font-data">({provider.displayName})</span>
           )}
         </div>
         <button onClick={handleToggleEnabled}
           className={`p-1.5 rounded transition-colors ${
             provider.enabled
-              ? 'text-emerald-400 hover:bg-emerald-500/10'
-              : 'text-surface-500 hover:bg-surface-700'
+              ? 'text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
+              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-accent-subtle)]'
           }`}
           title={provider.enabled ? 'Disable provider' : 'Enable provider'}>
           <Power size={16} />
@@ -80,15 +80,15 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
       </div>
 
       {/* Status indicators */}
-      <div className="flex items-center gap-3 mb-3 text-xs">
+      <div className="flex items-center gap-3 mb-3 text-xs font-data">
         <span className={`flex items-center gap-1 ${
-          provider.hasApiKey ? 'text-emerald-400' : 'text-surface-500'
+          provider.hasApiKey ? 'text-emerald-400' : 'text-[var(--color-text-muted)]'
         }`}>
           <Key size={12} />
           {provider.hasApiKey ? 'API key set' : 'No API key'}
         </span>
         {provider.baseUrl && (
-          <span className="flex items-center gap-1 text-surface-400">
+          <span className="flex items-center gap-1 text-[var(--color-text-secondary)]">
             <Globe size={12} />
             {provider.baseUrl}
           </span>
@@ -97,25 +97,25 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
 
       {/* API Key edit section (inline, toggleable) */}
       {editingKey && (
-        <div className="mb-3 p-2 bg-surface-900 rounded-lg">
+        <div className="mb-3 p-2 bg-surface-950 dark:bg-surface-950 rounded-lg border border-[var(--color-border)]">
           <div className="relative">
             <input type={showKey ? 'text' : 'password'} value={newApiKey}
               onChange={e => setNewApiKey(e.target.value)}
               placeholder="Enter new API key..."
-              className="w-full text-xs bg-surface-950 border border-surface-700 rounded px-2.5 py-1.5 pr-8 text-surface-100 placeholder-surface-500 focus:outline-none focus:border-primary-500" />
+              className="w-full text-xs bg-surface-900 dark:bg-surface-900 border border-[var(--color-border)] rounded px-2.5 py-1.5 pr-8 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
             <button type="button"
               onClick={() => setShowKey(!showKey)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-700 dark:text-surface-300">
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]">
               {showKey ? <EyeOff size={12} /> : <Eye size={12} />}
             </button>
           </div>
           <div className="flex gap-2 mt-2">
             <button onClick={handleSaveApiKey}
-              className="text-xs bg-primary-600 hover:bg-primary-500 text-white px-2.5 py-1 rounded transition-colors">
+              className="text-xs border border-[var(--color-accent-dim)] text-[var(--color-accent)] hover:border-[var(--color-accent)] px-2.5 py-1 rounded transition-colors">
               Save
             </button>
             <button onClick={() => { setEditingKey(false); setNewApiKey(''); }}
-              className="text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors">
+              className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
               Cancel
             </button>
           </div>
@@ -124,7 +124,7 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
 
       {/* Connection test result */}
       {testState?.result && (
-        <div className={`mb-3 p-2 rounded text-xs flex items-center gap-1.5 ${
+        <div className={`mb-3 p-2 rounded text-xs font-data flex items-center gap-1.5 ${
           testState.result.success
             ? 'bg-emerald-500/10 text-emerald-400'
             : 'bg-red-500/10 text-red-400'
@@ -140,7 +140,7 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
       <div className="flex items-center gap-2">
         <button onClick={() => testConnection(provider.id)}
           disabled={testState?.loading}
-          className="flex items-center gap-1.5 text-xs text-surface-700 dark:text-surface-300 hover:text-primary-400 transition-colors disabled:opacity-50">
+          className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50 font-data">
           {testState?.loading
             ? <Loader2 size={14} className="animate-spin" />
             : <Zap size={14} />
@@ -148,15 +148,15 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
           {testState?.loading ? 'Testing...' : 'Test'}
         </button>
         <button onClick={() => setEditingKey(!editingKey)}
-          className="flex items-center gap-1.5 text-xs text-surface-700 dark:text-surface-300 hover:text-primary-400 transition-colors">
+          className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors font-data">
           <Key size={14} />
           {editingKey ? 'Close' : 'Edit Key'}
         </button>
         <button onClick={handleDelete}
-          className={`flex items-center gap-1.5 text-xs ml-auto transition-colors ${
+          className={`flex items-center gap-1.5 text-xs ml-auto transition-colors font-data ${
             confirmDelete
               ? 'text-red-400 hover:text-red-300'
-              : 'text-surface-500 hover:text-red-400'
+              : 'text-[var(--color-text-muted)] hover:text-red-400'
           }`}>
           <Trash2 size={14} />
           {confirmDelete ? 'Confirm?' : 'Delete'}

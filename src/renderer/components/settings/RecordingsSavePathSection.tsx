@@ -85,7 +85,7 @@ export default function RecordingsSavePathSection() {
     return (
       <section className="mb-10">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Recordings Folder</h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Recordings Folder</h2>
         </div>
         <div className="flex items-center justify-center py-6 text-surface-500">
           <Loader2 size={20} className="animate-spin" />
@@ -100,14 +100,14 @@ export default function RecordingsSavePathSection() {
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <FolderOpen size={18} className="text-primary-400" />
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-100">Recordings</h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Recordings</h2>
         </div>
         <p className="text-sm text-surface-500 mt-1">
           Configure audio recording storage. Transcripts are always saved regardless of this setting.
         </p>
       </div>
 
-      <div className="p-4 bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg space-y-4">
+      <div className="p-4 hud-panel clip-corner-cut-sm space-y-4">
         {/* Save audio toggle */}
         <label className="flex items-center gap-3 cursor-pointer">
           <input
@@ -117,7 +117,7 @@ export default function RecordingsSavePathSection() {
             className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
           />
           <div>
-            <span className="text-sm font-medium text-surface-800 dark:text-surface-200">Save audio recordings to disk</span>
+            <span className="text-sm font-medium text-[var(--color-text-primary)]">Save audio recordings to disk</span>
             <p className="text-xs text-surface-500 mt-0.5">
               When disabled, only transcripts are kept. Audio files won't be saved, so you won't be able to replay or re-transcribe.
             </p>
@@ -128,7 +128,7 @@ export default function RecordingsSavePathSection() {
         {saveEnabled && (
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-surface-800 dark:text-surface-200">
+              <label className="text-sm font-medium text-[var(--color-text-primary)]">
                 Save Location
                 {isCustom && (
                   <span className="ml-2 text-xs font-normal text-primary-400">(custom)</span>
@@ -137,19 +137,19 @@ export default function RecordingsSavePathSection() {
             </div>
 
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-sm text-surface-700 dark:text-surface-300 bg-surface-900 px-3 py-2 rounded border border-surface-700 truncate">
+              <code className="flex-1 text-sm text-[var(--color-text-secondary)] bg-surface-950 dark:bg-surface-950 px-3 py-2 rounded border border-[var(--color-border)] truncate font-data">
                 {currentPath}
               </code>
               <button
                 onClick={handleBrowse}
-                className="px-3 py-2 text-sm bg-surface-700 hover:bg-surface-600 text-surface-800 dark:text-surface-200 rounded transition-colors whitespace-nowrap"
+                className="px-3 py-2 text-sm border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-all whitespace-nowrap"
               >
                 Browse...
               </button>
               {isCustom && (
                 <button
                   onClick={handleReset}
-                  className="flex items-center gap-1 px-3 py-2 text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
+                  className="flex items-center gap-1 px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors"
                   title="Reset to default location"
                 >
                   <RotateCcw size={14} />

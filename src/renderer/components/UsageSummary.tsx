@@ -81,10 +81,10 @@ function StatCard({ label, value, icon: Icon, accentClass }: {
   accentClass: string;
 }) {
   return (
-    <div className="bg-surface-900 rounded-2xl p-4 border border-surface-800 flex items-center justify-between">
+    <div className="hud-panel clip-corner-cut-sm p-4 flex items-center justify-between">
       <div>
-        <p className="text-surface-400 text-xs font-semibold uppercase tracking-wider mb-1">{label}</p>
-        <p className="text-2xl font-bold text-surface-50">{value}</p>
+        <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">{label}</p>
+        <p className="text-2xl font-[var(--font-display)] font-bold text-[var(--color-text-primary)]">{value}</p>
       </div>
       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${accentClass}`}>
         <Icon size={20} />
@@ -225,10 +225,10 @@ export default function UsageSummary() {
     <div className="space-y-5">
       {/* Header with refresh */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200">AI Usage Dashboard</h3>
+        <h3 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">AI Usage Dashboard</h3>
         <button
           onClick={fetchUsage}
-          className="flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors font-data"
         >
           <RefreshCw size={14} />
           Refresh
@@ -258,10 +258,10 @@ export default function UsageSummary() {
       </div>
 
       {/* Section 2 — Daily Usage Bar Chart */}
-      <div className="bg-surface-900 rounded-2xl border border-surface-800 p-4">
+      <div className="hud-panel clip-corner-cut-sm p-4">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h4 className="text-xs font-semibold text-surface-700 dark:text-surface-300 uppercase tracking-wider">Last 30 Days</h4>
+            <h4 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)]">Last 30 Days</h4>
             <p className="text-xs text-surface-500 mt-0.5">{formatCompactNumber(totalDailyTokens)} tokens total</p>
           </div>
         </div>
@@ -301,8 +301,8 @@ export default function UsageSummary() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* By Task Type */}
         {taskEntries.length > 0 && (
-          <div className="bg-surface-900 rounded-2xl border border-surface-800 p-4">
-            <h4 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">By Task Type</h4>
+          <div className="hud-panel clip-corner-cut-sm p-4">
+            <h4 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Task Type</h4>
             <div className="space-y-3">
               {taskEntries.map(([type, data]) => {
                 const colors = getTaskColor(type);
@@ -324,8 +324,8 @@ export default function UsageSummary() {
 
         {/* By Provider */}
         {providerEntries.length > 0 && (
-          <div className="bg-surface-900 rounded-2xl border border-surface-800 p-4">
-            <h4 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">By Provider</h4>
+          <div className="hud-panel clip-corner-cut-sm p-4">
+            <h4 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Provider</h4>
             <div className="space-y-3">
               {providerEntries.map(([id, data], idx) => {
                 const colors = MODEL_COLORS[idx % MODEL_COLORS.length];
@@ -348,8 +348,8 @@ export default function UsageSummary() {
 
       {/* Section 4 — By Model */}
       {modelEntries.length > 0 && (
-        <div className="bg-surface-900 rounded-2xl border border-surface-800 p-4">
-          <h4 className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">By Model</h4>
+        <div className="hud-panel clip-corner-cut-sm p-4">
+          <h4 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Model</h4>
           <div className="space-y-3">
             {modelEntries.map(([model, data], idx) => {
               const colors = MODEL_COLORS[idx % MODEL_COLORS.length];

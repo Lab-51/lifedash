@@ -165,68 +165,69 @@ export default function FocusStatsWidget() {
 
   return (
     <>
-      <div className="bg-white dark:bg-surface-900/50 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm overflow-hidden h-full flex flex-col">
+      <div className="hud-panel clip-corner-cut-sm overflow-hidden h-full flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-surface-100 dark:border-surface-800">
+        <div className="flex items-center justify-between px-5 py-3.5">
           <div className="flex items-center gap-2">
-            <Trophy size={16} className="text-emerald-500" />
-            <h3 className="font-semibold text-surface-900 dark:text-surface-100">Your Progress</h3>
+            <Trophy size={16} className="text-[var(--color-accent)]" />
+            <h3 className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROGRESS</h3>
           </div>
           <div className="flex items-center gap-3">
             {/* Level pill */}
             {stats && <LevelBadge level={stats.level} size="md" />}
             {/* Total XP */}
             {stats && (
-              <span className="text-xs font-semibold text-surface-400">{stats.totalXp.toLocaleString()} XP</span>
+              <span className="font-data text-xs text-[var(--color-accent-dim)]">{stats.totalXp.toLocaleString()} XP</span>
             )}
           </div>
         </div>
+        <div className="ruled-line-accent" />
 
         {/* Stats Grid */}
         <div className="p-5">
           <div className="grid grid-cols-12 gap-4 lg:gap-6">
             {/* Column 1: Today's XP */}
-            <div className="col-span-6 sm:col-span-3 lg:col-span-2 flex flex-col justify-between bg-surface-50 dark:bg-surface-800/40 p-3 rounded-xl border border-surface-100 dark:border-surface-800 shadow-sm">
-              <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold">Today's XP</p>
+            <div className="col-span-6 sm:col-span-3 lg:col-span-2 flex flex-col justify-between hud-panel-accent clip-corner-cut-sm p-3">
+              <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Today's XP</p>
               {stats && stats.todayXp > 0 ? (
                 <>
-                  <p className="text-2xl font-bold text-emerald-500">
-                    {stats.todayXp} <span className="text-sm font-medium text-surface-400">XP</span>
+                  <p className="font-[var(--font-display)] text-2xl text-[var(--color-accent)] text-glow">
+                    {stats.todayXp} <span className="text-sm font-medium text-[var(--color-text-muted)]">XP</span>
                   </p>
-                  <p className="text-xs text-surface-500">
+                  <p className="font-data text-xs text-[var(--color-text-secondary)]">
                     {stats.focusTodaySessions} focus session{stats.focusTodaySessions !== 1 ? 's' : ''}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-2xl font-bold text-surface-600 dark:text-surface-400">0 <span className="text-sm font-medium text-surface-400">XP</span></p>
-                  <p className="text-xs text-surface-500">No activity yet</p>
+                  <p className="font-[var(--font-display)] text-2xl text-[var(--color-text-muted)]">0 <span className="text-sm font-medium text-[var(--color-text-muted)]">XP</span></p>
+                  <p className="font-data text-xs text-[var(--color-text-secondary)]">No activity yet</p>
                 </>
               )}
             </div>
 
             {/* Column 2: Activity Streak */}
-            <div className="col-span-6 sm:col-span-3 lg:col-span-2 flex flex-col justify-between bg-surface-50 dark:bg-surface-800/40 p-3 rounded-xl border border-surface-100 dark:border-surface-800 shadow-sm">
-              <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold">Streak</p>
+            <div className="col-span-6 sm:col-span-3 lg:col-span-2 flex flex-col justify-between hud-panel-accent clip-corner-cut-sm p-3">
+              <p className="font-hud text-[10px] tracking-wider text-[var(--color-warm-dim)]">Streak</p>
               {stats && stats.currentStreak > 0 ? (
                 <>
-                  <p className="text-2xl font-bold text-amber-500 flex items-center gap-1">
-                    <Flame size={20} className="text-amber-500" />
-                    {stats.currentStreak} <span className="text-sm font-medium text-surface-400">days</span>
+                  <p className="font-[var(--font-display)] text-2xl text-[var(--color-warm)] text-glow-warm flex items-center gap-1">
+                    <Flame size={20} className="text-[var(--color-warm)]" />
+                    {stats.currentStreak} <span className="text-sm font-medium text-[var(--color-text-muted)]">days</span>
                   </p>
-                  <p className="text-xs text-surface-500">Best: {stats.longestStreak}</p>
+                  <p className="font-data text-xs text-[var(--color-text-secondary)]">Best: {stats.longestStreak}</p>
                 </>
               ) : (
                 <>
-                  <p className="text-2xl font-bold text-surface-600 dark:text-surface-400">0 <span className="text-sm font-medium text-surface-400">days</span></p>
-                  <p className="text-xs text-surface-500">Start your streak!</p>
+                  <p className="font-[var(--font-display)] text-2xl text-[var(--color-text-muted)]">0 <span className="text-sm font-medium text-[var(--color-text-muted)]">days</span></p>
+                  <p className="font-data text-xs text-[var(--color-text-secondary)]">Start your streak!</p>
                 </>
               )}
             </div>
 
             {/* Column 3: Level Progress */}
-            <div className="col-span-12 sm:col-span-6 lg:col-span-4 flex flex-col bg-surface-50 dark:bg-surface-800/40 p-3 rounded-xl border border-surface-100 dark:border-surface-800 shadow-sm">
-              <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold mb-2">Level Progress</p>
+            <div className="col-span-12 sm:col-span-6 lg:col-span-4 flex flex-col hud-panel clip-corner-cut-sm p-3">
+              <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)] mb-2">Level Progress</p>
               {stats ? (
                 <div className="flex flex-col justify-end flex-1">
                   <div className="flex items-center gap-3 mb-2">
@@ -235,10 +236,10 @@ export default function FocusStatsWidget() {
                       <p className="text-[10px] text-surface-500 mb-0.5 font-medium text-right">
                         {stats.xpNextLevel - stats.totalXp} XP to next
                       </p>
-                      <div className="w-full h-1.5 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
+                      <div className="w-full h-1.5 bg-[var(--color-border)] rounded-full overflow-hidden">
                         <div
-                          className={`h-full ${getTier(stats.level).colors.text} rounded-full transition-all duration-500`}
-                          style={{ width: `${stats.xpProgress * 100}%`, backgroundColor: 'currentColor' }}
+                          className="h-full bg-[var(--color-accent)] rounded-full transition-all duration-500 shadow-[0_0_6px_rgba(62,232,228,0.4)]"
+                          style={{ width: `${stats.xpProgress * 100}%` }}
                         />
                       </div>
                     </div>
@@ -252,8 +253,8 @@ export default function FocusStatsWidget() {
             </div>
 
             {/* Column 4: This Week (XP bar chart) */}
-            <div className="col-span-12 lg:col-span-4 flex flex-col justify-between bg-surface-50 dark:bg-surface-800/40 p-3 rounded-xl border border-surface-100 dark:border-surface-800 shadow-sm">
-              <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold">This Week</p>
+            <div className="col-span-12 lg:col-span-4 flex flex-col justify-between hud-panel clip-corner-cut-sm p-3">
+              <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">This Week</p>
               {dailyXP.length > 0 ? (
                 <>
                   <div className="flex items-end gap-1 h-8">
@@ -302,7 +303,8 @@ export default function FocusStatsWidget() {
 
           {/* XP Breakdown Row */}
           {stats && (
-            <div className="mt-4 pt-4 border-t border-surface-100 dark:border-surface-800">
+            <div className="mt-4 pt-4">
+              <div className="ruled-line-accent mb-4" />
               <div className="flex flex-wrap gap-2">
                 {CATEGORIES_ORDER.map((cat) => {
                   const xp = stats.xpByCategory[cat] || 0;
@@ -331,16 +333,17 @@ export default function FocusStatsWidget() {
           )}
 
           {/* Achievements Row */}
+          <div className="ruled-line-accent mt-4" />
           <div
-            className="mt-4 pt-4 border-t border-surface-100 dark:border-surface-800 cursor-pointer group"
+            className="mt-4 pt-0 cursor-pointer group"
             onClick={() => setAchievementsModalOpen(true)}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setAchievementsModalOpen(true); }}
           >
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs uppercase tracking-wider text-surface-500 font-semibold">Achievements</p>
-              <p className="text-xs text-surface-500 group-hover:text-emerald-400 transition-colors">
+              <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Achievements</p>
+              <p className="font-data text-xs text-[var(--color-text-secondary)] group-hover:text-[var(--color-accent)] transition-colors">
                 {unlockedCount}/{ACHIEVEMENTS.length} unlocked
               </p>
             </div>

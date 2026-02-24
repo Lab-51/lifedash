@@ -425,7 +425,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
         className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 dark:bg-black/80 backdrop-blur-[2px]"
         onClick={handleOverlayClick}
       >
-        <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700/60 shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto mx-4 p-8">
+        <div className="hud-panel-accent clip-corner-cut shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto mx-4 p-8">
           {/* Header: Title + Close */}
           <div className="flex items-start justify-between gap-3 mb-6">
             <div className="flex-1 min-w-0">
@@ -441,7 +441,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                 />
               ) : (
                 <h2
-                  className="text-2xl font-bold text-surface-900 dark:text-surface-50 cursor-text hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
+                  className="font-hud text-xl text-[var(--color-accent)] text-glow cursor-text hover:opacity-80 transition-opacity"
                   onClick={startEditingTitle}
                 >
                   {meeting.title}
@@ -467,17 +467,17 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
           </div>
 
           {/* Metadata row */}
-          <div className="flex flex-wrap items-center gap-3 mb-8 text-sm bg-surface-50 dark:bg-surface-800/30 p-3 rounded-xl border border-surface-100 dark:border-surface-800">
+          <div className="flex flex-wrap items-center gap-3 mb-8 text-sm bg-[var(--color-accent-subtle)] p-3 rounded-xl border border-[var(--color-border-accent)]">
             <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${status.className}`}>
               {status.label}
             </span>
             <div className="w-1 h-1 rounded-full bg-surface-300 dark:bg-surface-700" />
-            <span className="flex items-center gap-1.5 font-medium text-surface-600 dark:text-surface-300">
-              <Clock size={14} className="text-surface-400" />
+            <span className="flex items-center gap-1.5 font-data text-[var(--color-text-secondary)]">
+              <Clock size={14} className="text-[var(--color-accent-dim)]" />
               {formatDuration(meeting.startedAt, meeting.endedAt)}
             </span>
-            <div className="w-1 h-1 rounded-full bg-surface-300 dark:bg-surface-700" />
-            <span className="font-medium text-surface-600 dark:text-surface-300">
+            <span className="node-point-sm" />
+            <span className="font-data text-[var(--color-text-secondary)]">
               {formatDate(meeting.startedAt)} at {formatTime(meeting.startedAt)}
             </span>
             {meeting.transcriptionLanguage && (
@@ -614,7 +614,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
           {/* Transcript section */}
           <div className="mb-5">
             <div className="flex items-center justify-between gap-2 mb-3">
-              <h3 className="text-sm font-medium text-surface-700 dark:text-surface-300 shrink-0">
+              <h3 className="font-hud text-xs text-[var(--color-text-secondary)] shrink-0">
                 Transcript
                 {meeting.segments.length > 0 && (
                   <span className="ml-2 text-surface-500">
@@ -669,12 +669,12 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                 No segments match &ldquo;{transcriptSearch}&rdquo;
               </div>
             ) : (
-              <div className="max-h-80 overflow-y-auto rounded-xl bg-surface-50/50 dark:bg-surface-800/30 border border-surface-200 dark:border-surface-700 p-4 space-y-3 shadow-inner">
+              <div className="max-h-80 overflow-y-auto rounded-xl bg-[var(--color-accent-subtle)] border border-[var(--color-border)] p-4 space-y-3 font-data">
                 {filteredSegments.map(segment => {
                   const speakerColor = segment.speaker ? getSpeakerColor(segment.speaker) : null;
                   return (
                     <div key={segment.id} className="flex gap-4 text-sm hover:bg-white dark:hover:bg-surface-800/80 p-2 -mx-2 rounded-lg transition-colors">
-                      <span className="font-mono text-xs text-surface-400 dark:text-surface-500 pt-0.5 shrink-0 w-12 text-right">
+                      <span className="font-data text-xs text-[var(--color-accent-dim)] pt-0.5 shrink-0 w-12 text-right">
                         {formatTimestamp(segment.startTime)}
                       </span>
                       <p className="text-surface-800 dark:text-surface-200 flex-1 leading-relaxed">
@@ -694,7 +694,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
           </div>
 
           {/* Delete button */}
-          <div className="pt-3 border-t border-surface-200 dark:border-surface-700">
+          <div className="pt-3 border-t border-[var(--color-border)]">
             {confirmDelete ? (
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium text-surface-600 dark:text-surface-300">Delete this meeting?</span>

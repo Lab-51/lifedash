@@ -95,10 +95,10 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
     <div>
       {/* Section header */}
       <div className="flex items-center gap-1.5 mb-3">
-        <Link2 size={14} className="text-surface-400" />
-        <span className="text-sm text-surface-400">Relationships</span>
+        <Link2 size={14} className="text-[var(--color-accent-dim)]" />
+        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Relationships</span>
         {selectedCardRelationships.length > 0 && (
-          <span className="bg-surface-800 text-surface-700 dark:text-surface-300 text-xs px-1.5 py-0.5 rounded-full ml-1.5">
+          <span className="font-data text-xs px-1.5 py-0.5 rounded-full ml-1.5 text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)]">
             {selectedCardRelationships.length}
           </span>
         )}
@@ -114,7 +114,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
 
       {/* Add relationship form */}
       {showAddForm && (
-        <div className="bg-surface-800/50 rounded-lg p-3 mt-2 mb-3">
+        <div className="hud-panel rounded-lg p-3 mt-2 mb-3">
           <div className="flex items-center gap-2">
             {/* Card picker */}
             <select
@@ -173,7 +173,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
 
                   return (
                     <div key={groupLabel}>
-                      <span className="text-xs uppercase tracking-wider text-surface-500 font-medium mt-3 mb-1 block">
+                      <span className="font-hud text-[10px] tracking-widest text-[var(--color-accent-dim)] mt-3 mb-1 block">
                         {groupLabel}
                       </span>
                       {visibleItems.map(item => (

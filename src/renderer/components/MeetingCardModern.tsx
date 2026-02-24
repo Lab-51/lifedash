@@ -24,12 +24,12 @@ const STATUS_STYLES: Record<string, { label: string; className: string; icon: ty
     },
     processing: {
         label: 'Processing',
-        className: 'bg-amber-500/10 text-amber-500',
+        className: 'bg-[var(--color-warm)]/10 text-[var(--color-warm)]',
         icon: Loader2,
     },
     completed: {
         label: 'Done',
-        className: 'bg-emerald-500/10 text-emerald-500',
+        className: 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]',
         icon: CheckCircle2,
     },
 };
@@ -56,11 +56,11 @@ const MeetingCardModern = memo(function MeetingCardModern({ meeting, projectName
     return (
         <div
             onClick={onClick}
-            className={`group relative flex flex-col bg-white dark:bg-surface-900 border rounded-2xl p-5 shadow-sm hover:shadow-lg dark:hover:shadow-primary-900/10 transition-all cursor-pointer ${meeting.status === 'recording'
-                    ? 'ring-2 ring-rose-500/20 border-rose-500/30'
+            className={`group relative flex flex-col hud-panel clip-corner-cut-sm p-5 transition-all cursor-pointer hover:shadow-lg ${meeting.status === 'recording'
+                    ? 'ring-2 ring-rose-500/20 !border-rose-500/30'
                     : actionItemCount && actionItemCount > 0
-                        ? 'border-amber-300 dark:border-amber-700/50 hover:border-amber-400 dark:hover:border-amber-600'
-                        : 'border-surface-200 dark:border-surface-800 hover:border-primary-500/30'
+                        ? '!border-[var(--color-warm-dim)] hover:!border-[var(--color-warm)]'
+                        : 'hover:!border-[var(--color-border-accent)]'
                 }`}
         >
             {/* Date Badge */}
@@ -78,20 +78,20 @@ const MeetingCardModern = memo(function MeetingCardModern({ meeting, projectName
 
             {/* Main Content */}
             <div className="mb-4 pr-32">
-                <h3 className="text-lg font-bold text-surface-900 dark:text-surface-100 truncate mb-1">
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)] truncate mb-1">
                     {meeting.title || 'Untitled Meeting'}
                 </h3>
-                <div className="flex items-center gap-2 text-xs text-surface-500 font-medium">
+                <div className="flex items-center gap-2 font-data text-xs text-[var(--color-text-secondary)]">
                     <Calendar size={12} />
                     {formatDate(meeting.createdAt)}
-                    <span className="w-1 h-1 rounded-full bg-surface-300 dark:bg-surface-600" />
+                    <span className="node-point-sm" />
                     <Clock size={12} />
                     {formatDuration(meeting.startedAt, meeting.endedAt)}
                 </div>
             </div>
 
             {/* Footer Tags */}
-            <div className="mt-auto pt-4 border-t border-surface-100 dark:border-surface-800 flex items-center justify-between">
+            <div className="mt-auto pt-4 border-t border-[var(--color-border)] flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     {projectName ? (
                         <span className="flex items-center gap-1.5 text-xs font-semibold text-surface-700 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-2.5 py-1 rounded-md">

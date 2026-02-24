@@ -94,12 +94,12 @@ export default function FocusOverlay() {
   const circumference = 2 * Math.PI * radius; // ~816.81
   const strokeDashoffset = circumference * (1 - progress);
 
-  // Colors by mode
-  const ringColor = isFocus ? 'text-emerald-500' : 'text-amber-500';
-  const timerColor = isFocus ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400';
+  // Colors by mode — teal accent for focus, warm for break
+  const ringColor = isFocus ? 'text-[var(--color-accent)]' : 'text-[var(--color-warm)]';
+  const timerColor = isFocus ? 'text-[var(--color-accent)]' : 'text-[var(--color-warm)]';
   const gradientBg = isFocus
-    ? 'radial-gradient(circle at 50% 40%, rgba(16, 185, 129, 0.07) 0%, transparent 70%)'
-    : 'radial-gradient(circle at 50% 40%, rgba(245, 158, 11, 0.07) 0%, transparent 70%)';
+    ? 'radial-gradient(circle at 50% 40%, rgba(62, 232, 228, 0.07) 0%, transparent 70%)'
+    : 'radial-gradient(circle at 50% 40%, rgba(232, 163, 62, 0.07) 0%, transparent 70%)';
 
   // Stats fallback
   const level = stats?.level ?? 1;
@@ -110,7 +110,7 @@ export default function FocusOverlay() {
   const todayXp = stats?.todayXp ?? 0;
 
   return (
-    <div className={`fixed inset-0 z-40 flex flex-col items-center bg-surface-50 dark:bg-surface-950 transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`fixed inset-0 z-40 flex flex-col items-center bg-surface-50 dark:bg-[#06080df2] scanlines transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}>
       {/* Breathing gradient overlay */}
       <div
         className="absolute inset-0 pointer-events-none"
@@ -176,10 +176,10 @@ export default function FocusOverlay() {
 
           {/* Timer text inside the ring */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={`font-mono text-8xl font-light tracking-wider ${timerColor}`}>
+            <span className={`font-[var(--font-display)] text-7xl font-bold tracking-wider ${timerColor} ${isFocus ? 'text-glow' : 'text-glow-warm'}`}>
               {formatTime(timeRemaining)}
             </span>
-            <span className="text-sm uppercase tracking-widest text-surface-500 mt-2">
+            <span className="font-hud text-sm text-[var(--color-text-muted)] mt-2">
               {isPaused ? (
                 'PAUSED'
               ) : isFocus ? (
@@ -203,16 +203,16 @@ export default function FocusOverlay() {
 
         {/* Today's stats row */}
         <div className="mt-8 flex items-center gap-6">
-          <div className="flex items-center gap-1.5 text-surface-500 dark:text-surface-400 text-sm">
-            <Timer className="w-4 h-4" />
+          <div className="flex items-center gap-1.5 font-data text-[var(--color-text-secondary)] text-sm">
+            <Timer className="w-4 h-4 text-[var(--color-accent-dim)]" />
             <span>{focusTodaySessions} sessions</span>
           </div>
-          <div className="flex items-center gap-1.5 text-surface-500 dark:text-surface-400 text-sm">
-            <Clock className="w-4 h-4" />
+          <div className="flex items-center gap-1.5 font-data text-[var(--color-text-secondary)] text-sm">
+            <Clock className="w-4 h-4 text-[var(--color-accent-dim)]" />
             <span>{focusTodayMinutes} min</span>
           </div>
-          <div className="flex items-center gap-1.5 text-surface-500 dark:text-surface-400 text-sm">
-            <Zap className="w-4 h-4" />
+          <div className="flex items-center gap-1.5 font-data text-[var(--color-text-secondary)] text-sm">
+            <Zap className="w-4 h-4 text-[var(--color-accent-dim)]" />
             <span>+{todayXp} XP</span>
           </div>
         </div>
@@ -233,7 +233,7 @@ export default function FocusOverlay() {
         <div className="flex flex-col items-center">
           <button
             onClick={isPaused ? resume : pause}
-            className="w-14 h-14 rounded-full bg-surface-200 dark:bg-surface-800 hover:bg-surface-300 dark:hover:bg-surface-700 flex items-center justify-center transition-colors"
+            className="w-14 h-14 rounded-full bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] hover:bg-[var(--color-accent-muted)] flex items-center justify-center transition-colors"
           >
             {isPaused ? (
               <Play className="w-6 h-6 text-surface-700 dark:text-surface-300" />
@@ -250,7 +250,7 @@ export default function FocusOverlay() {
         <div className="flex flex-col items-center">
           <button
             onClick={stop}
-            className="w-14 h-14 rounded-full bg-surface-200 dark:bg-surface-800 hover:bg-red-600 flex items-center justify-center transition-colors"
+            className="w-14 h-14 rounded-full bg-[var(--color-accent-subtle)] border border-[var(--color-border)] hover:bg-red-600 hover:border-red-500 flex items-center justify-center transition-colors"
           >
             <Square className="w-5 h-5 text-surface-700 dark:text-surface-300" />
           </button>
@@ -259,7 +259,7 @@ export default function FocusOverlay() {
       </div>
 
       {/* Keyboard hint */}
-      <span className="mb-4 text-xs text-surface-600">Ctrl+Shift+F to exit</span>
+      <span className="mb-4 font-data text-xs text-[var(--color-text-muted)]">Ctrl+Shift+F to exit</span>
     </div>
   );
 }

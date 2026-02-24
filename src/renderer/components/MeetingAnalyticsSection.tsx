@@ -83,38 +83,38 @@ export default function MeetingAnalyticsSection({
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100 mb-4 flex items-center gap-2">
-        <BarChart3 size={16} className="text-primary-500" />
+      <h3 className="font-hud text-xs text-[var(--color-accent)] text-glow mb-4 flex items-center gap-2">
+        <BarChart3 size={16} />
         Meeting Analytics
       </h3>
 
-      <div className="bg-white dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700/60 rounded-2xl p-5 space-y-6 shadow-sm">
+      <div className="hud-panel clip-corner-cut-sm p-5 space-y-6">
         {/* Top stats row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-          <div className="bg-surface-50 dark:bg-surface-900/50 rounded-xl p-3 border border-surface-100 dark:border-surface-800">
-            <div className="flex items-center justify-center gap-1.5 text-surface-500 text-xs font-semibold mb-1">
+          <div className="bg-[var(--color-accent-subtle)] rounded-xl p-3 border border-[var(--color-border-accent)]">
+            <div className="flex items-center justify-center gap-1.5 font-hud text-[10px] text-[var(--color-text-muted)] mb-1">
               <Clock size={14} />
               Duration
             </div>
-            <div className="text-surface-900 dark:text-surface-50 text-xl font-bold tracking-tight">
+            <div className="font-data text-[var(--color-accent)] text-xl font-bold tracking-tight text-center">
               {formatDurationLong(analytics.durationMs)}
             </div>
           </div>
-          <div className="bg-surface-50 dark:bg-surface-900/50 rounded-xl p-3 border border-surface-100 dark:border-surface-800">
-            <div className="text-surface-500 text-xs font-semibold mb-1">Segments</div>
-            <div className="text-surface-900 dark:text-surface-50 text-xl font-bold tracking-tight">
+          <div className="bg-[var(--color-accent-subtle)] rounded-xl p-3 border border-[var(--color-border-accent)]">
+            <div className="font-hud text-[10px] text-[var(--color-text-muted)] mb-1 text-center">Segments</div>
+            <div className="font-data text-[var(--color-text-primary)] text-xl font-bold tracking-tight text-center">
               {analytics.totalSegments.toLocaleString()}
             </div>
           </div>
-          <div className="bg-surface-50 dark:bg-surface-900/50 rounded-xl p-3 border border-surface-100 dark:border-surface-800">
-            <div className="text-surface-500 text-xs font-semibold mb-1">Words</div>
-            <div className="text-surface-900 dark:text-surface-50 text-xl font-bold tracking-tight">
+          <div className="bg-[var(--color-accent-subtle)] rounded-xl p-3 border border-[var(--color-border-accent)]">
+            <div className="font-hud text-[10px] text-[var(--color-text-muted)] mb-1 text-center">Words</div>
+            <div className="font-data text-[var(--color-text-primary)] text-xl font-bold tracking-tight text-center">
               {analytics.totalWords.toLocaleString()}
             </div>
           </div>
-          <div className="bg-surface-50 dark:bg-surface-900/50 rounded-xl p-3 border border-surface-100 dark:border-surface-800">
-            <div className="text-surface-500 text-xs font-semibold mb-1">WPM</div>
-            <div className="text-surface-900 dark:text-surface-50 text-xl font-bold tracking-tight">
+          <div className="bg-[var(--color-accent-subtle)] rounded-xl p-3 border border-[var(--color-border-accent)]">
+            <div className="font-hud text-[10px] text-[var(--color-text-muted)] mb-1 text-center">WPM</div>
+            <div className="font-data text-[var(--color-text-primary)] text-xl font-bold tracking-tight text-center">
               {analytics.wordsPerMinute}
             </div>
           </div>

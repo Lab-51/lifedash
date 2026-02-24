@@ -60,19 +60,19 @@ function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white dark:bg-surface-900 rounded-xl border border-surface-200 dark:border-surface-700 shadow-xl dark:shadow-2xl overflow-hidden"
+        className="w-full max-w-md hud-panel-accent clip-corner-cut overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 dark:border-surface-700">
-          <h2 className="text-sm font-medium text-surface-800 dark:text-surface-200">Keyboard Shortcuts</h2>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border-accent)]">
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent)]">Keyboard Shortcuts</h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-md hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 transition-colors"
+            className="p-1 rounded-md hover:bg-[var(--color-accent-subtle)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
             aria-label="Close"
           >
             <X size={16} />
@@ -83,7 +83,7 @@ function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps
         <div className="px-5 py-4 space-y-5">
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.label}>
-              <h3 className="text-xs text-surface-500 uppercase tracking-wider mb-2">
+              <h3 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">
                 {group.label}
               </h3>
               <div className="space-y-1.5">
@@ -92,8 +92,8 @@ function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps
                     key={shortcut.keys}
                     className="flex items-center justify-between py-1"
                   >
-                    <span className="text-sm text-surface-700 dark:text-surface-300">{shortcut.description}</span>
-                    <kbd className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono text-surface-800 dark:text-surface-200 bg-surface-100 dark:bg-surface-700 rounded border border-surface-200 dark:border-surface-600">
+                    <span className="text-sm text-[var(--color-text-secondary)]">{shortcut.description}</span>
+                    <kbd className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-data text-[var(--color-accent)] bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">
                       {shortcut.keys}
                     </kbd>
                   </div>

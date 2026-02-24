@@ -199,20 +199,20 @@ export default function ProductivityPulse({ data }: Props) {
     return (
         <div
             ref={containerRef}
-            className="w-full h-full bg-white dark:bg-surface-900/50 border border-surface-200 dark:border-surface-800 rounded-2xl p-6 shadow-sm flex flex-col overflow-hidden"
+            className="w-full h-full hud-panel clip-corner-cut-sm p-6 flex flex-col overflow-hidden"
         >
             {/* Header */}
             <div className="flex items-center justify-between mb-4 shrink-0">
                 <div>
-                    <h3 className="font-bold text-lg text-surface-900 dark:text-surface-100">Productivity Pulse</h3>
-                    <p className="text-sm text-surface-500">
+                    <h3 className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PULSE</h3>
+                    <p className="font-data text-sm text-[var(--color-text-secondary)] mt-1">
                         {totalActivities} contributions in the last {Math.round(numWeeks / 4.3)} months
                     </p>
                 </div>
 
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-100 dark:border-surface-700/50">
-                    <Flame size={16} className={streak > 0 ? "text-amber-500 fill-amber-500/20" : "text-surface-300"} />
-                    <span className="text-sm font-semibold text-surface-700 dark:text-surface-200">{streak} day streak</span>
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[var(--color-accent-subtle)] rounded-lg border border-[var(--color-border-accent)]">
+                    <Flame size={16} className={streak > 0 ? "text-[var(--color-warm)] fill-[var(--color-warm)]/20" : "text-[var(--color-text-muted)]"} />
+                    <span className="font-data text-sm text-[var(--color-text-primary)]">{streak} day streak</span>
                 </div>
             </div>
 
@@ -280,8 +280,9 @@ export default function ProductivityPulse({ data }: Props) {
             </div>
 
             {/* Legend + Stats row — fills remaining vertical space */}
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-100 dark:border-surface-800 shrink-0">
-                <div className="flex items-center gap-2 text-xs text-surface-400">
+            <div className="flex items-center justify-between mt-3 pt-3 shrink-0">
+                <div className="ruled-line-accent flex-1 mr-4" />
+                <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] font-data">
                     <span>Less</span>
                     <div className="flex gap-1">
                         <div className="w-3 h-3 rounded-[2px] bg-surface-100 dark:bg-surface-800/50" />
@@ -296,25 +297,25 @@ export default function ProductivityPulse({ data }: Props) {
 
             {/* Summary Stats — fills the remaining vertical space */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 flex-1">
-                <div className="bg-surface-50 dark:bg-surface-800/40 rounded-xl p-3 flex flex-col justify-center border border-surface-100 dark:border-surface-800">
-                    <p className="text-[10px] uppercase tracking-wider text-surface-400 font-bold">Today</p>
-                    <p className="text-xl font-bold text-surface-900 dark:text-surface-100 mt-1">{todayCount}</p>
-                    <p className="text-[10px] text-surface-500">activities</p>
+                <div className="hud-panel clip-corner-cut-sm p-3 flex flex-col justify-center">
+                    <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Today</p>
+                    <p className="font-[var(--font-display)] text-xl text-[var(--color-accent)] text-glow mt-1">{todayCount}</p>
+                    <p className="font-data text-[10px] text-[var(--color-text-muted)]">activities</p>
                 </div>
-                <div className="bg-surface-50 dark:bg-surface-800/40 rounded-xl p-3 flex flex-col justify-center border border-surface-100 dark:border-surface-800">
-                    <p className="text-[10px] uppercase tracking-wider text-surface-400 font-bold">Best Day</p>
-                    <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{bestDay.count}</p>
-                    <p className="text-[10px] text-surface-500">{bestDay.date ? new Date(bestDay.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</p>
+                <div className="hud-panel clip-corner-cut-sm p-3 flex flex-col justify-center">
+                    <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Best Day</p>
+                    <p className="font-[var(--font-display)] text-xl text-[var(--color-accent)] text-glow mt-1">{bestDay.count}</p>
+                    <p className="font-data text-[10px] text-[var(--color-text-muted)]">{bestDay.date ? new Date(bestDay.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</p>
                 </div>
-                <div className="bg-surface-50 dark:bg-surface-800/40 rounded-xl p-3 flex flex-col justify-center border border-surface-100 dark:border-surface-800">
-                    <p className="text-[10px] uppercase tracking-wider text-surface-400 font-bold">Weekly Avg</p>
-                    <p className="text-xl font-bold text-surface-900 dark:text-surface-100 mt-1">{weeklyAvg}</p>
-                    <p className="text-[10px] text-surface-500">per week</p>
+                <div className="hud-panel clip-corner-cut-sm p-3 flex flex-col justify-center">
+                    <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Weekly Avg</p>
+                    <p className="font-[var(--font-display)] text-xl text-[var(--color-text-primary)] mt-1">{weeklyAvg}</p>
+                    <p className="font-data text-[10px] text-[var(--color-text-muted)]">per week</p>
                 </div>
-                <div className="bg-surface-50 dark:bg-surface-800/40 rounded-xl p-3 flex flex-col justify-center border border-surface-100 dark:border-surface-800">
-                    <p className="text-[10px] uppercase tracking-wider text-surface-400 font-bold">Active Days</p>
-                    <p className="text-xl font-bold text-surface-900 dark:text-surface-100 mt-1">{activeDays}</p>
-                    <p className="text-[10px] text-surface-500">of {numWeeks * 7}</p>
+                <div className="hud-panel clip-corner-cut-sm p-3 flex flex-col justify-center">
+                    <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Active Days</p>
+                    <p className="font-[var(--font-display)] text-xl text-[var(--color-text-primary)] mt-1">{activeDays}</p>
+                    <p className="font-data text-[10px] text-[var(--color-text-muted)]">of {numWeeks * 7}</p>
                 </div>
             </div>
         </div>

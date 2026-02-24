@@ -74,7 +74,7 @@ export default function BriefSection({
 }: BriefSectionProps) {
   return (
     <div>
-      <h3 className="text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">Brief</h3>
+      <h3 className="font-hud text-xs text-[var(--color-text-secondary)] mb-2">Brief</h3>
 
       {generatingBrief && (
         <div className="flex items-center gap-2 text-amber-400 text-sm">
@@ -84,7 +84,7 @@ export default function BriefSection({
       )}
 
       {brief && !generatingBrief && (
-        <div className="bg-surface-100/50 dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700 rounded-lg p-3">
+        <div className="hud-panel rounded-lg p-3">
           <div>{brief.summary.split('\n').map(renderLine)}</div>
           <p className="text-xs text-surface-500 mt-3">
             {formatBriefDate(brief.createdAt)}

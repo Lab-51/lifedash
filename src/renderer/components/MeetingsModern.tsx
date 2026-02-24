@@ -167,20 +167,20 @@ export default function MeetingsModern() {
 
     return (
         <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950">
-            {/* Modern Header */}
+            {/* HUD Header */}
             <div className="p-8 pb-4 shrink-0">
-                <div className="flex items-center justify-between gap-4 mb-6">
+                <div className="flex items-center justify-between gap-4 mb-2">
                     <div>
-                        <h1 className="text-3xl font-light tracking-tight text-surface-900 dark:text-surface-50">Meetings</h1>
-                        <p className="text-surface-500 mt-1">Capture and analyze conversations.</p>
+                        <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Meetings</h1>
+                        <p className="text-[var(--color-text-secondary)] text-sm mt-1">Capture and analyze conversations.</p>
                     </div>
 
                     <button
                         onClick={() => setShowControls(!showControls)}
                         disabled={isRecording}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${showControls || isRecording
-                                ? 'bg-surface-200 dark:bg-surface-800 text-surface-900 dark:text-surface-100 cursor-default'
-                                : 'bg-primary-600 hover:bg-primary-700 text-white shadow-md hover:shadow-lg'
+                                ? 'bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] text-[var(--color-text-primary)] cursor-default'
+                                : 'bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] shadow-md hover:shadow-lg'
                             }`}
                     >
                         {isRecording ? (
@@ -201,6 +201,7 @@ export default function MeetingsModern() {
                         )}
                     </button>
                 </div>
+                <div className="ruled-line-accent mb-6" />
 
                 {/* Collapsible Recording Area */}
                 {(showControls || isRecording) && (
@@ -212,7 +213,7 @@ export default function MeetingsModern() {
                 )}
 
                 {/* Filters & Search Toolbar */}
-                <div className="flex bg-white dark:bg-surface-900 p-1.5 rounded-xl border border-surface-200 dark:border-surface-800 shadow-sm items-center gap-2 mb-2">
+                <div className="flex hud-panel p-1.5 rounded-xl items-center gap-2 mb-2">
                     <div className="relative flex-1">
                         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-400" />
                         <input
@@ -287,8 +288,8 @@ export default function MeetingsModern() {
             <div className="flex-1 overflow-y-auto px-8 pb-8">
                 {sortedMeetings.length === 0 ? (
                     <div className="mt-20 flex flex-col items-center justify-center text-center">
-                        <div className="w-24 h-24 bg-surface-100 dark:bg-surface-900 rounded-full flex items-center justify-center mb-6">
-                            <Mic size={40} className="text-surface-300 dark:text-surface-600" />
+                        <div className="w-24 h-24 bg-[var(--color-accent-subtle)] rounded-full flex items-center justify-center mb-6 border border-[var(--color-border-accent)]">
+                            <Mic size={40} className="text-[var(--color-accent-dim)]" />
                         </div>
                         <h3 className="text-xl font-medium text-surface-900 dark:text-surface-100 mb-2">
                             {searchQuery ? 'No matching meetings' : 'No recorded meetings'}

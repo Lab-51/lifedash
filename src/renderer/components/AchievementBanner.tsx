@@ -248,11 +248,11 @@ function AchievementBanner() {
     <div className="fixed top-4 left-0 right-0 z-[60] flex justify-center pointer-events-none">
       <div
         className={`
-          achievement-banner pointer-events-auto w-[480px] relative overflow-hidden rounded-xl
-          border bg-gradient-to-r
+          achievement-banner pointer-events-auto w-[480px] relative overflow-hidden
+          border bg-gradient-to-r clip-corner-cut-sm
           bg-white ${cats.borderLight} ${cats.gradientFromLight} to-white
           ring-1 ring-black/[0.04] shadow-xl shadow-surface-300/50
-          dark:bg-surface-900 dark:border-surface-700/50 ${cats.gradientFrom} dark:to-surface-900
+          dark:bg-surface-900 dark:border-[var(--color-border-accent)] ${cats.gradientFrom} dark:to-surface-900
           dark:ring-0 dark:shadow-2xl dark:shadow-black/30
           ${animClass}
         `}
