@@ -14,8 +14,8 @@ Docker Desktop is **not required**. The app uses PGlite (embedded WASM PostgreSQ
 ## First-Time Setup
 
 ```bash
-git clone <repository-url>
-cd living-dashboard
+git clone https://github.com/Lab-51/lifedash.git
+cd lifedash
 npm install
 npm start                      # Launch Electron in dev mode
 ```

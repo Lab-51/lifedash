@@ -2,6 +2,10 @@
 
 AI-powered desktop dashboard for meeting intelligence, project management, brainstorming, and idea tracking.
 
+<p align="center">
+  <img src="docs/lifedash.png" alt="LifeDash Dashboard" width="900" />
+</p>
+
 ## Features
 
 - Meeting recording with real-time transcription (local Whisper + API fallback via Deepgram/AssemblyAI)
@@ -16,34 +20,33 @@ AI-powered desktop dashboard for meeting intelligence, project management, brain
 - Desktop notifications for due dates and daily digest
 - Dark theme UI with system tray integration
 
-## Prerequisites
+## Installation
 
-- [Node.js](https://nodejs.org/) 18+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 18+ (includes npm)
 - [Git](https://git-scm.com/)
+- **Windows only:** [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload (required for native modules)
 
-## Quick Start
+### Setup
 
 ```bash
 git clone https://github.com/Lab-51/lifedash.git
 cd lifedash
 npm install
-npm start                # Launch in development mode
+npm start
 ```
 
-The database is embedded (PGlite) — no external setup needed. On first launch, the app runs migrations automatically.
+That's it — no database setup needed. The app uses an embedded database (PGlite) and runs migrations automatically on first launch.
 
-## Environment Variables
+### Troubleshooting
 
-Environment variables are only needed for development with drizzle-kit. Copy `.env.example` if using Docker for schema tools:
-
-```bash
-cp .env.example .env
-```
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DB_PASSWORD` | `localdev` | PostgreSQL password for Docker Compose |
-| `DATABASE_URL` | *(auto-derived)* | Connection string for drizzle-kit CLI |
+| Problem | Solution |
+|---------|----------|
+| `npm install` fails with `node-gyp` errors | Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with C++ workload |
+| `npm install` fails with Python errors | Install Python 3.x and set `npm config set python python3` |
+| Permission errors on clone | Ensure you have repo access — this is a private repository |
+| App shows white screen on start | Run `npm run lint` to check for TypeScript errors |
 
 ## Available Scripts
 
