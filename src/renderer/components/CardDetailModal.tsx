@@ -514,34 +514,26 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                 {/* AI Agent Button */}
                 <button
                   onClick={() => setShowAgent(!showAgent)}
-                  className={`group/agent flex items-center justify-between p-3 rounded-xl border transition-all text-left w-full shadow-sm relative overflow-hidden ${showAgent
-                    ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 shadow-emerald-500/10'
-                    : 'border-primary-200 dark:border-primary-800 bg-gradient-to-r from-primary-50 to-white dark:from-primary-900/20 dark:to-surface-800 hover:border-primary-400 dark:hover:border-primary-600 hover:shadow-primary-500/10'
+                  className={`group/agent flex items-center gap-3 p-3 rounded-xl border transition-all text-left w-full ${showAgent
+                    ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] hover:border-[var(--color-accent)]'
+                    : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
                     }`}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 dark:via-white/5 to-transparent -translate-x-full group-hover/agent:animate-[shimmer_1.5s_infinite]" />
-                  <div className="relative flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm transition-colors ${showAgent ? 'bg-emerald-500 border-emerald-500' : 'border-[var(--color-border)] group-hover/agent:border-primary-500'}`}>
-                      <Bot size={16} className={`transition-colors ${showAgent ? 'text-white' : 'text-primary-600 dark:text-primary-400 group-hover/agent:text-primary-500'}`} />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className={`text-sm font-bold ${showAgent ? 'text-emerald-800 dark:text-emerald-300' : 'text-primary-900 dark:text-primary-100'}`}>
-                        AI Agent
-                      </span>
-                      <span className={`text-[11px] font-semibold transition-colors ${showAgent ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary-600/70 dark:text-primary-400/70 group-hover/agent:text-primary-600 dark:group-hover/agent:text-primary-400'}`}>
-                        {showAgent ? 'Panel open' : 'Get AI assistance'}
-                      </span>
-                    </div>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-colors ${showAgent ? 'bg-[var(--color-accent)] border-[var(--color-accent)]' : 'border-[var(--color-border)] bg-surface-950 group-hover/agent:border-[var(--color-accent-dim)]'}`}>
+                    <Bot size={14} className={`transition-colors ${showAgent ? 'text-surface-950' : 'text-[var(--color-accent-dim)] group-hover/agent:text-[var(--color-accent)]'}`} />
+                  </div>
+                  <div className="flex flex-col flex-1">
+                    <span className={`text-sm font-semibold ${showAgent ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
+                      AI Agent
+                    </span>
+                    <span className={`text-[11px] font-medium transition-colors ${showAgent ? 'text-[var(--color-accent-dim)]' : 'text-[var(--color-text-muted)] group-hover/agent:text-[var(--color-accent-dim)]'}`}>
+                      {showAgent ? 'Panel open' : 'Get AI assistance'}
+                    </span>
                   </div>
                   {agentMessageCount > 0 && (
-                    <div className="relative">
-                      <span className={`text-xs font-bold rounded-full min-w-[24px] h-[24px] flex items-center justify-center px-1.5 shadow-sm border ${showAgent
-                        ? 'bg-emerald-100 dark:bg-emerald-800/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700'
-                        : 'bg-primary-100 dark:bg-primary-800/50 text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-700'
-                        }`}>
-                        {agentMessageCount}
-                      </span>
-                    </div>
+                    <span className="text-[10px] font-data bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5">
+                      {agentMessageCount}
+                    </span>
                   )}
                 </button>
 
@@ -667,7 +659,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                       </button>
 
                       {showLabelDropdown && (
-                        <div className="absolute top-full left-0 mt-1 bg-surface-900 border border-[var(--color-border)] rounded-xl shadow-xl p-2 min-w-[220px] z-40">
+                        <div className="absolute bottom-full left-0 mb-1 bg-surface-900 border border-[var(--color-border)] rounded-xl shadow-xl p-2 min-w-[220px] z-40">
                           {unattachedLabels.length > 0 && (
                             <div className="max-h-32 overflow-y-auto mb-2 pr-1 scrollbar-thin">
                               {unattachedLabels.map(label => (
@@ -734,31 +726,33 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
             {/* Right: Agent panel (always rendered, width-animated) */}
             <div className={`shrink-0 overflow-hidden transition-all duration-300 ease-out border-l ${showAgent
-              ? 'w-[360px] xl:w-[420px] border-surface-200 dark:border-surface-700'
+              ? 'w-[360px] xl:w-[420px] border-[var(--color-border)]'
               : 'w-0 border-transparent'
               }`}>
-              <div className="min-w-[360px] xl:min-w-[420px] h-full flex flex-col bg-white dark:bg-surface-800/50">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100 dark:border-surface-700 shrink-0">
+              <div className="min-w-[360px] xl:min-w-[420px] h-full flex flex-col bg-[var(--color-chrome)]/60">
+                <div className="flex items-center justify-between px-4 py-3 shrink-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-surface-900 dark:text-surface-100">AI Agent</span>
+                    <div className="node-point-sm" />
+                    <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Agent</span>
                     {agentMessageCount > 0 && (
-                      <span className="text-xs bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">
+                      <span className="text-[10px] font-data bg-[var(--color-accent-muted)] text-[var(--color-accent)] px-1.5 py-0.5 rounded-full">
                         {agentMessageCount}
                       </span>
                     )}
                   </div>
                   <button
                     onClick={() => setShowAgent(false)}
-                    className="p-1.5 rounded-lg text-surface-400 hover:text-surface-700 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                    className="p-1.5 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
                   >
                     <PanelRightClose size={16} />
                   </button>
                 </div>
-                <div className="flex-1 min-h-0 bg-surface-50/50 dark:bg-transparent">
+                <div className="ruled-line-accent mx-4" />
+                <div className="flex-1 min-h-0">
                   {agentEverOpened && (
                     <Suspense fallback={
                       <div className="flex items-center justify-center h-full">
-                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-500 border-t-transparent" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-[var(--color-accent)] border-t-transparent" />
                       </div>
                     }>
                       <CardAgentPanel cardId={card.id} />

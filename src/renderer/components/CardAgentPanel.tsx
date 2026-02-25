@@ -197,9 +197,9 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
   if (loading) {
     return (
       <div className="flex flex-col gap-3 p-4 animate-pulse">
-        <div className="h-10 bg-surface-200 dark:bg-surface-800 rounded-xl w-3/4" />
-        <div className="h-10 bg-surface-200 dark:bg-surface-800 rounded-xl w-1/2 self-end" />
-        <div className="h-10 bg-surface-200 dark:bg-surface-800 rounded-xl w-2/3" />
+        <div className="h-10 bg-[var(--color-accent-subtle)] rounded-xl w-3/4" />
+        <div className="h-10 bg-[var(--color-accent-subtle)] rounded-xl w-1/2 self-end" />
+        <div className="h-10 bg-[var(--color-accent-subtle)] rounded-xl w-2/3" />
       </div>
     );
   }
@@ -208,14 +208,14 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
   if (providers.length === 0 && messages.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
-        <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mb-4">
-          <Settings size={24} className="text-amber-600 dark:text-amber-400" />
+        <div className="w-12 h-12 bg-amber-500/10 rounded-full flex items-center justify-center mb-4">
+          <Settings size={24} className="text-amber-500" />
         </div>
-        <p className="text-sm font-medium text-surface-900 dark:text-surface-100 mb-2">No AI provider configured</p>
-        <p className="text-xs text-surface-500 mb-4">Configure an AI provider in Settings to use the card agent.</p>
+        <p className="text-sm font-medium text-[var(--color-text-primary)] mb-2">No AI provider configured</p>
+        <p className="text-xs text-[var(--color-text-muted)] mb-4">Configure an AI provider in Settings to use the card agent.</p>
         <button
           onClick={() => navigate('/settings')}
-          className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium"
+          className="text-xs text-[var(--color-accent)] hover:underline font-medium"
         >
           Open Settings
         </button>
@@ -233,16 +233,16 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
         {/* Starter prompts */}
         {messages.length === 0 && !streaming && (
           <div className="flex flex-col items-center justify-center py-8 px-2">
-            <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mb-4">
-              <Bot size={24} className="text-primary-600 dark:text-primary-400" />
+            <div className="w-12 h-12 bg-[var(--color-accent-muted)] rounded-full flex items-center justify-center mb-4">
+              <Bot size={24} className="text-[var(--color-accent)]" />
             </div>
             <p className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)] mb-1">Card Agent</p>
             <p className="text-xs text-[var(--color-text-secondary)] mb-1 text-center font-data">Ask me anything about this card.</p>
             {modelInfo && (
-              <p className="text-[10px] text-surface-400 mb-5 text-center">
-                Using <span className="font-medium text-surface-500 dark:text-surface-400">{modelInfo.model}</span>
-                <span className="text-surface-300 dark:text-surface-600"> via </span>
-                <span className="font-medium text-surface-500 dark:text-surface-400 capitalize">{modelInfo.providerName}</span>
+              <p className="text-[10px] text-[var(--color-text-muted)] mb-5 text-center font-data">
+                Using <span className="font-medium text-[var(--color-text-secondary)]">{modelInfo.model}</span>
+                <span className="text-[var(--color-text-muted)]"> via </span>
+                <span className="font-medium text-[var(--color-text-secondary)] capitalize">{modelInfo.providerName}</span>
               </p>
             )}
             {!modelInfo && <div className="mb-5" />}
@@ -272,24 +272,24 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
         {/* Streaming assistant bubble */}
         {streaming && (
           <div className="flex justify-start">
-            <div className="max-w-[90%] bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl rounded-tl-sm p-5 shadow-sm">
+            <div className="max-w-[90%] bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-2xl rounded-tl-sm p-5">
               {streamingText ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-surface-800 dark:text-surface-200">
+                <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-[var(--color-text-primary)]">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents as never}>
                     {streamingText}
                   </ReactMarkdown>
-                  <span className="inline-block w-1.5 h-4 bg-primary-500 animate-pulse ml-0.5 align-text-bottom" />
+                  <span className="inline-block w-1.5 h-4 bg-[var(--color-accent)] animate-pulse ml-0.5 align-text-bottom" />
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Loader2 size={14} className="animate-spin text-primary-500" />
-                  <span className="text-sm text-surface-500">Thinking...</span>
+                  <Loader2 size={14} className="animate-spin text-[var(--color-accent)]" />
+                  <span className="text-sm text-[var(--color-text-muted)] font-data">Thinking...</span>
                 </div>
               )}
 
               {/* Streaming tool events */}
               {toolEvents.length > 0 && (
-                <div className="border-l-2 border-surface-300 dark:border-surface-700 pl-3 ml-4 mt-3 space-y-1">
+                <div className="border-l-2 border-[var(--color-border)] pl-3 ml-4 mt-3 space-y-1">
                   {toolEvents.map((te, i) => (
                     <div key={i} className="flex items-center gap-1.5 transition-opacity duration-150" style={{ opacity: 1 }}>
                       {te.type === 'call' ? (
@@ -297,7 +297,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
                       ) : (
                         <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
                       )}
-                      <span className={`text-xs ${te.type === 'call' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      <span className={`text-xs font-data ${te.type === 'call' ? 'text-amber-500' : 'text-emerald-500'}`}>
                         {describeToolEvent(te.toolName, te.args)}
                       </span>
                     </div>
@@ -329,7 +329,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
           {messages.length > 0 && !streaming && (
             <button
               onClick={handleClear}
-              className="p-2 text-surface-400 hover:text-red-500 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+              className="p-2 text-[var(--color-text-muted)] hover:text-red-500 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors"
               title="Clear conversation"
             >
               <Trash2 size={16} />
@@ -351,8 +351,8 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
               disabled={!input.trim()}
               className={`p-2 rounded-xl transition-colors ${
                 input.trim()
-                  ? 'bg-primary-600 text-white hover:bg-primary-700'
-                  : 'bg-surface-200 dark:bg-surface-700 text-surface-400 cursor-not-allowed'
+                  ? 'btn-primary'
+                  : 'bg-surface-950 border border-[var(--color-border)] text-[var(--color-text-muted)] cursor-not-allowed'
               }`}
               title="Send message"
             >
@@ -361,11 +361,11 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
           )}
         </div>
         <div className="flex items-center justify-between mt-1">
-          <p className="text-[10px] text-surface-400">Enter to send &middot; Shift+Enter for new line</p>
+          <p className="text-[10px] text-[var(--color-text-muted)] font-data">Enter to send &middot; Shift+Enter for new line</p>
           {modelInfo && (
-            <p className="text-[10px] text-surface-400">
+            <p className="text-[10px] text-[var(--color-text-muted)] font-data">
               <span className="font-medium">{modelInfo.model}</span>
-              <span className="text-surface-300 dark:text-surface-600"> · </span>
+              <span className="text-[var(--color-text-muted)]"> · </span>
               <span className="capitalize">{modelInfo.providerName}</span>
             </p>
           )}
@@ -391,7 +391,7 @@ function MessageBubble({ message }: { message: CardAgentMessage }) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] bg-primary-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-md shadow-primary-900/10">
+        <div className="max-w-[85%] bg-[var(--color-accent-muted)] border border-[var(--color-accent-dim)]/30 text-[var(--color-text-primary)] rounded-2xl rounded-tr-sm px-4 py-3">
           <p className="whitespace-pre-wrap text-sm">{message.content}</p>
         </div>
       </div>
@@ -401,12 +401,12 @@ function MessageBubble({ message }: { message: CardAgentMessage }) {
   // Assistant message
   return (
     <div className="flex justify-start group/msg">
-      <div className="max-w-[90%] bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl rounded-tl-sm p-5 shadow-sm relative">
+      <div className="max-w-[90%] bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-2xl rounded-tl-sm p-5 relative">
         {/* Copy button — visible on hover */}
         {message.content && (
           <button
             onClick={handleCopy}
-            className="absolute top-3 right-3 p-1 rounded-md text-surface-300 hover:text-surface-500 dark:text-surface-600 dark:hover:text-surface-400 opacity-0 group-hover/msg:opacity-100 transition-opacity hover:bg-surface-100 dark:hover:bg-surface-800"
+            className="absolute top-3 right-3 p-1 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-accent)] opacity-0 group-hover/msg:opacity-100 transition-opacity hover:bg-[var(--color-accent-subtle)]"
             title="Copy to clipboard"
           >
             {copied ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
@@ -414,7 +414,7 @@ function MessageBubble({ message }: { message: CardAgentMessage }) {
         )}
 
         {message.content && (
-          <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-surface-800 dark:text-surface-200">
+          <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-[var(--color-text-primary)]">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents as never}>
               {message.content}
             </ReactMarkdown>
@@ -423,7 +423,7 @@ function MessageBubble({ message }: { message: CardAgentMessage }) {
 
         {/* Persisted action badges from toolCalls */}
         {message.toolCalls && message.toolCalls.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-surface-100 dark:border-surface-800 space-y-1.5">
+          <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-1.5">
             {message.toolCalls.map((call, i) => {
               const hasResult = message.toolResults?.find(r => r.toolCallId === call.id);
               const failed = hasResult && (hasResult.result as Record<string, unknown>)?.success === false;
@@ -434,7 +434,7 @@ function MessageBubble({ message }: { message: CardAgentMessage }) {
                   ) : (
                     <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
                   )}
-                  <span className="text-xs text-surface-600 dark:text-surface-400">
+                  <span className="text-xs font-data text-[var(--color-text-secondary)]">
                     {describeToolCall(call)}
                   </span>
                 </div>
