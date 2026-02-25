@@ -333,12 +333,12 @@ export default function DashboardModern() {
                         <div className="hud-panel-accent clip-corner-cut-sm p-6 flex items-center justify-between group cursor-default hover:border-[var(--color-border-bright)] transition-all duration-300 relative overflow-hidden">
                             <div className="flex flex-col gap-1 relative z-10">
                                 <div className="flex items-center gap-2">
-                                    <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.MEETINGS</span>
-                                    <div className="h-px w-8 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-40" />
+                                    <span className="font-hud text-xs tracking-widest text-[var(--color-magenta-dim)]">SYS.MEETINGS</span>
+                                    <div className="h-px w-8 bg-gradient-to-r from-[var(--color-magenta)] to-transparent opacity-40" />
                                 </div>
-                                <p className="font-[var(--font-display)] text-3xl text-[var(--color-accent)] text-glow">{meetings.length}</p>
+                                <p className="font-[var(--font-display)] text-3xl text-[var(--color-magenta)] text-glow-magenta">{meetings.length}</p>
                             </div>
-                            <div className="relative z-10 w-14 h-14 clip-corner-cut-sm bg-[var(--color-accent-subtle)] text-[var(--color-accent)] flex items-center justify-center border border-[var(--color-border-accent)] group-hover:scale-110 group-hover:-rotate-3 transition-transform">
+                            <div className="relative z-10 w-14 h-14 clip-corner-cut-sm bg-[var(--color-magenta-subtle)] text-[var(--color-magenta)] flex items-center justify-center border border-[var(--color-magenta-muted)] group-hover:scale-110 group-hover:-rotate-3 transition-transform">
                                 <Activity size={26} strokeWidth={1.5} />
                             </div>
                         </div>
@@ -413,8 +413,8 @@ export default function DashboardModern() {
                         <div className="hud-panel clip-corner-cut-sm h-full flex flex-col">
                             <div className="p-5 shrink-0">
                                 <div className="flex items-center gap-3">
-                                    <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.MEETINGS</span>
-                                    <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    <span className="font-hud text-xs tracking-widest text-[var(--color-magenta-dim)]">SYS.MEETINGS</span>
+                                    <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-magenta)] to-transparent opacity-30" />
                                 </div>
                             </div>
                             <div className="ruled-line-accent" />
@@ -430,14 +430,14 @@ export default function DashboardModern() {
                                             <button
                                                 key={meeting.id}
                                                 onClick={() => navigate(`/meetings?openMeeting=${meeting.id}`)}
-                                                className="w-full text-left p-3 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors flex gap-3 group"
+                                                className="w-full text-left p-3 rounded-lg hover:bg-[var(--color-magenta-subtle)] transition-colors flex gap-3 group"
                                             >
                                                 <div className="flex flex-col items-center gap-1 mt-1">
                                                     <div className="node-point-sm" />
                                                     {i !== recentMeetings.length - 1 && <div className="w-px h-full bg-[var(--color-border)]" />}
                                                 </div>
                                                 <div className="flex-1 pb-2">
-                                                    <h5 className="text-sm font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-accent)] transition-colors line-clamp-1">
+                                                    <h5 className="text-sm font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-magenta)] transition-colors line-clamp-1">
                                                         {meeting.title}
                                                     </h5>
                                                     <div className="flex items-center gap-2 mt-1.5">
@@ -458,7 +458,7 @@ export default function DashboardModern() {
                             </div>
                             <div className="ruled-line-accent" />
                             <div className="p-3 shrink-0 mt-auto">
-                                <button onClick={() => navigate('/meetings')} className="w-full py-2 flex items-center justify-center gap-1 text-xs font-hud text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] rounded-lg transition-colors">
+                                <button onClick={() => navigate('/meetings')} className="w-full py-2 flex items-center justify-center gap-1 text-xs font-hud text-[var(--color-text-secondary)] hover:text-[var(--color-magenta)] hover:bg-[var(--color-magenta-subtle)] rounded-lg transition-colors">
                                     View All Activities <ArrowRight size={12} />
                                 </button>
                             </div>

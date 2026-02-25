@@ -66,6 +66,10 @@
   --color-accent-subtle: #0a2d2d;
   --color-warm: #e8a33e;
   --color-warm-dim: #8e6c1a;
+  --color-magenta: #e84393;
+  --color-magenta-dim: #9b2c6a;
+  --color-magenta-muted: #4a1533;
+  --color-magenta-subtle: #2d0e1f;
 
   /* Text (for use in HUD utilities) */
   --color-text-primary: #e2e8f0;
@@ -126,6 +130,10 @@ html.design-modern.light {
   --color-accent-subtle: #e6f5f5;
   --color-warm: #c47a1a;
   --color-warm-dim: #d4a054;
+  --color-magenta: #be185d;
+  --color-magenta-dim: #d4609a;
+  --color-magenta-muted: #f5d0e3;
+  --color-magenta-subtle: #fdf2f8;
 
   --color-text-primary: #0a1628;
   --color-text-secondary: #4a5568;
@@ -288,6 +296,13 @@ html.light .text-glow {
 }
 html.light .text-glow-warm {
   text-shadow: 0 0 8px rgba(196, 122, 26, 0.3), 0 0 20px rgba(196, 122, 26, 0.08);
+}
+
+.text-glow-magenta {
+  text-shadow: 0 0 12px rgba(232, 67, 147, 0.6), 0 0 40px rgba(232, 67, 147, 0.15);
+}
+html.light .text-glow-magenta {
+  text-shadow: 0 0 8px rgba(190, 24, 93, 0.3), 0 0 20px rgba(190, 24, 93, 0.08);
 }
 
 /* ─── HUD Chrome (title bar / sidebar / status bar backgrounds) ─── */
