@@ -4,12 +4,12 @@
 // labels, due date picker with status badge, comments, relationships, and activity log sections.
 
 // === DEPENDENCIES ===
-// react, lucide-react (X, Plus, FileText, Calendar, Bot, PanelRightClose), @tiptap/react,
+// react, lucide-react (X, Plus, FileText, Bot, PanelRightClose), @tiptap/react,
 // @tiptap/starter-kit, @tiptap/extension-placeholder, shared types, boardStore,
 // cardDetailStore, section components
 
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { X, Plus, FileText, Calendar, Sparkles, Check, RefreshCw, BookmarkPlus, Bot, PanelRightClose } from 'lucide-react';
+import { X, Plus, FileText, Sparkles, Check, RefreshCw, BookmarkPlus, Bot, PanelRightClose } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -27,6 +27,8 @@ import TaskBreakdownSection from './TaskBreakdownSection';
 import { useGamificationStore } from '../stores/gamificationStore';
 import { useCardAgentStore } from '../stores/cardAgentStore';
 import { toast } from '../hooks/useToast';
+import HudDatePicker from './HudDatePicker';
+import HudSelect from './HudSelect';
 
 interface CardDetailModalProps {
   card: Card;
@@ -141,16 +143,6 @@ function formatNextDate(date: Date): string {
   });
 }
 
-/** Convert ISO string to datetime-local input value (YYYY-MM-DDTHH:mm) */
-function toDateTimeLocalValue(isoStr: string): string {
-  const d = new Date(isoStr);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
 
 const CardAgentPanel = lazy(() => import('./CardAgentPanel'));
 
@@ -596,60 +588,53 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                 {/* Due Date */}
                 <div className="flex flex-col gap-2.5">
                   <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Due Date</span>
-                  <div className="flex flex-col gap-2">
-                    <div className="relative">
-                      <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
-                      <input
-                        type="datetime-local"
-                        value={card.dueDate ? toDateTimeLocalValue(card.dueDate) : ''}
-                        onChange={(e) => onUpdate(card.id, { dueDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                        className="w-full pl-9 pr-3 py-1.5 text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)] dark:[color-scheme:dark] transition-colors"
-                      />
-                    </div>
-                    {card.dueDate && (
-                      <div className="flex items-center justify-between px-1">
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${card.completed ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : getDueDateBadge(card.dueDate).classes}`}>
-                          {card.completed ? 'Done' : getDueDateBadge(card.dueDate).label}
-                        </span>
-                        <button onClick={() => onUpdate(card.id, { dueDate: null })} className="text-xs font-medium text-surface-400 hover:text-red-500 transition-colors">
-                          Clear
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  {card.dueDate && !card.completed && (
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full self-start ${getDueDateBadge(card.dueDate).classes}`}>
+                      {getDueDateBadge(card.dueDate).label}
+                    </span>
+                  )}
+                  {card.dueDate && card.completed && (
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full self-start bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                      Done
+                    </span>
+                  )}
+                  <HudDatePicker
+                    value={card.dueDate}
+                    onChange={(iso) => onUpdate(card.id, { dueDate: iso })}
+                    placeholder="Set due date"
+                  />
                 </div>
 
                 {/* Repeat */}
                 <div className="flex flex-col gap-2.5">
                   <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Repeat</span>
-                  <div className="relative">
-                    <RefreshCw size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
-                    <select
-                      value={card.recurrenceType ?? ''}
-                      onChange={(e) => onUpdate(card.id, { recurrenceType: e.target.value || null })}
-                      className="w-full pl-9"
-                    >
-                      <option value="">None</option>
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="biweekly">Bi-weekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
-                  </div>
+                  <HudSelect
+                    value={card.recurrenceType ?? ''}
+                    onChange={(v) => onUpdate(card.id, { recurrenceType: v || null })}
+                    icon={RefreshCw}
+                    placeholder="None"
+                    options={[
+                      { value: '', label: 'None' },
+                      { value: 'daily', label: 'Daily', description: 'Every day' },
+                      { value: 'weekly', label: 'Weekly', description: 'Every 7 days' },
+                      { value: 'biweekly', label: 'Bi-weekly', description: 'Every 14 days' },
+                      { value: 'monthly', label: 'Monthly', description: 'Same day each month' },
+                    ]}
+                  />
                   {card.recurrenceType && (
-                    <div className="flex flex-col gap-2 px-1 mt-1 bg-surface-100/50 dark:bg-surface-800/50 rounded-lg p-2 border border-surface-200 dark:border-surface-700">
+                    <div className="flex flex-col gap-2 mt-1 bg-[var(--color-accent-subtle)]/30 rounded-lg p-2.5 border border-[var(--color-border)]">
                       {card.dueDate ? (
-                        <p className="text-xs text-surface-500">Next: <span className="font-semibold text-surface-700 dark:text-surface-300">{formatNextDate(getNextRecurrenceDate(card.dueDate, card.recurrenceType))}</span></p>
+                        <p className="text-xs text-[var(--color-text-muted)]">Next: <span className="font-semibold text-[var(--color-text-primary)]">{formatNextDate(getNextRecurrenceDate(card.dueDate, card.recurrenceType))}</span></p>
                       ) : (
                         <p className="text-xs font-medium text-amber-500">Set due date to schedule</p>
                       )}
-                      <div className="flex items-center justify-between gap-2 mt-1 pt-2 border-t border-surface-200 dark:border-surface-700">
-                        <span className="text-xs font-medium text-surface-500 shrink-0">End Repeat:</span>
-                        <input
-                          type="date"
-                          value={card.recurrenceEndDate ? card.recurrenceEndDate.split('T')[0] : ''}
-                          onChange={(e) => onUpdate(card.id, { recurrenceEndDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                          className="bg-transparent border-none text-xs font-semibold text-surface-800 dark:text-surface-200 focus:outline-none dark:[color-scheme:dark] flex-1 text-right"
+                      <div className="flex flex-col gap-1.5 mt-1 pt-2 border-t border-[var(--color-border)]">
+                        <span className="text-[10px] font-hud tracking-wider text-[var(--color-text-muted)]">End Repeat</span>
+                        <HudDatePicker
+                          value={card.recurrenceEndDate ?? null}
+                          onChange={(iso) => onUpdate(card.id, { recurrenceEndDate: iso })}
+                          placeholder="No end date"
+                          dateOnly
                         />
                       </div>
                     </div>

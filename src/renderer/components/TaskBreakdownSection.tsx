@@ -218,12 +218,12 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={handleGenerate}
-            className="text-xs bg-surface-800 hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-800 dark:text-surface-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+            className="text-xs border border-[var(--color-border)] hover:border-[var(--color-accent-dim)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
           >
             <ListTodo size={13} />
             Break into Subtasks
           </button>
-          <span className="text-xs text-surface-500">
+          <span className="text-xs text-[var(--color-text-muted)]">
             Use AI to break this task into smaller subtasks.
           </span>
         </div>
@@ -251,7 +251,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
           {/* Regenerate button */}
           <button
             onClick={handleGenerate}
-            className="text-xs bg-surface-800 hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-800 dark:text-surface-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors mb-3"
+            className="text-xs border border-[var(--color-border)] hover:border-[var(--color-accent-dim)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors mb-3"
           >
             <Sparkles size={13} />
             Regenerate
@@ -266,10 +266,10 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
               return (
                 <div
                   key={`${subtask.title}-${index}`}
-                  className={`flex items-center gap-2 w-full bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-3 py-2 text-left transition-colors group ${
+                  className={`flex items-center gap-2 w-full bg-[var(--color-accent-subtle)]/30 rounded-lg px-3 py-2 text-left transition-colors group border ${
                     isSelected
-                      ? 'ring-1 ring-surface-600'
-                      : 'opacity-50'
+                      ? 'border-[var(--color-border-accent)]'
+                      : 'border-transparent opacity-50'
                   }`}
                 >
                   {/* Move up/down */}
