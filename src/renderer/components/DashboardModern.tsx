@@ -34,6 +34,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ProductivityPulse from './ProductivityPulse';
 import FocusStatsWidget from './FocusStatsWidget';
+import Starfield from './Starfield';
 
 /** Return a time-based greeting string. */
 function getGreeting(): string {
@@ -148,22 +149,18 @@ export default function DashboardModern() {
     }, [allCards.length, meetings.length, ideas.length]);
 
     return (
-        <div ref={scrollContainerRef} className="h-full overflow-y-auto bg-surface-50/50 dark:bg-surface-950">
+        <div ref={scrollContainerRef} className="relative h-full overflow-y-auto bg-surface-50/50 dark:bg-surface-950">
+            {/* Full-page HUD background layers — dark mode only */}
+            <div className="fixed inset-0 pointer-events-none dark:block hidden z-0">
+                <div className="absolute inset-0 grid-bg" />
+                <div className="absolute inset-0 diagonal-lines" />
+                <div className="absolute inset-0 scanlines z-[1]" />
+                <Starfield />
+                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(62,232,228,0.06)_0%,transparent_70%)]" />
+            </div>
+
             {/* Hero Section */}
-            <div className="relative p-8 pb-12 overflow-hidden">
-                {/* Ambient node cluster — dark mode only */}
-                <div className="absolute inset-0 pointer-events-none overflow-hidden dark:block hidden">
-                    {[0, 1, 2, 3, 4].map(i => (
-                        <div key={i} className="absolute node-point-sm animate-node-pulse"
-                            style={{
-                                top: `${15 + i * 18}%`,
-                                left: `${8 + (i % 3) * 38}%`,
-                                animationDelay: `${i * 0.4}s`,
-                            }} />
-                    ))}
-                </div>
-                {/* Radial glow bloom — dark mode only */}
-                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(62,232,228,0.06)_0%,transparent_70%)] pointer-events-none dark:block hidden" />
+            <div className="relative p-8 pb-12">
 
                 <div className="relative z-10 flex items-end justify-between gap-4">
                     <div className="shrink-0 p-2">
