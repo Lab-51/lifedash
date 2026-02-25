@@ -407,11 +407,11 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                 onKeyDown={handleTitleKeyDown}
                 onBlur={saveTitleEdit}
                 autoFocus
-                className="bg-white dark:bg-surface-900 border border-surface-300 dark:border-surface-600 rounded-lg px-3 py-2 text-3xl font-bold text-surface-900 dark:text-surface-50 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 w-full shadow-sm"
+                className="bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-3xl font-bold text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] focus:border-[var(--color-accent-dim)] w-full"
               />
             ) : (
               <h2
-                className={`text-3xl font-bold cursor-text hover:text-surface-700 dark:hover:text-surface-300 transition-colors ${card.completed ? 'text-surface-500 line-through' : 'text-surface-900 dark:text-surface-50'}`}
+                className={`text-3xl font-bold cursor-text hover:text-[var(--color-text-secondary)] transition-colors ${card.completed ? 'text-[var(--color-text-muted)] line-through' : 'text-[var(--color-text-primary)]'}`}
                 onClick={startEditingTitle}
               >
                 {card.title}
@@ -480,14 +480,14 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                     <button
                       onClick={handleGenerateDescription}
                       disabled={generatingDescription}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium bg-[var(--color-accent-subtle)] text-[var(--color-accent)] hover:bg-[var(--color-accent-muted)] border border-[var(--color-border-accent)] px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-50"
                     >
                       <Sparkles size={14} className={generatingDescription ? 'animate-spin' : ''} />
                       {generatingDescription ? 'Generating...' : 'AI Generate'}
                     </button>
                   </div>
                 </div>
-                <div className="tiptap-editor bg-[var(--color-accent-subtle)]/30 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-accent)] transition-colors min-h-[140px] focus-within:border-[var(--color-accent-dim)] focus-within:ring-1 focus-within:ring-[var(--color-accent-dim)]/50 text-base">
+                <div className="tiptap-editor bg-surface-950/30 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-accent)] transition-colors min-h-[140px] focus-within:border-[var(--color-accent-dim)] focus-within:ring-1 focus-within:ring-[var(--color-accent-dim)]/50 text-base">
                   <EditorContent editor={editor} />
                 </div>
               </div>
@@ -691,7 +691,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                                 <button
                                   key={color}
                                   onClick={() => setNewLabelColor(color)}
-                                  className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-primary-500 ring-offset-1 ring-offset-surface-900 scale-110' : 'hover:scale-110'}`}
+                                  className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-[var(--color-accent-dim)] ring-offset-1 ring-offset-surface-900 scale-110' : 'hover:scale-110'}`}
                                   style={{ backgroundColor: color }}
                                 />
                               ))}
@@ -699,7 +699,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                             <button
                               onClick={handleCreateAndAttach}
                               disabled={!newLabelName.trim()}
-                              className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs px-3 py-1.5 rounded-lg transition-colors w-full mt-2 font-bold"
+                              className="bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--color-accent)] border border-[var(--color-border-accent)] text-xs px-3 py-1.5 rounded-lg transition-colors w-full mt-2 font-bold"
                             >
                               Create Label
                             </button>

@@ -438,7 +438,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                   onKeyDown={handleTitleKeyDown}
                   onBlur={saveTitleEdit}
                   autoFocus
-                  className="bg-white dark:bg-surface-900 border border-surface-300 dark:border-surface-600 rounded-lg px-3 py-2 text-2xl font-bold text-surface-900 dark:text-surface-50 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 w-full shadow-sm"
+                  className="bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-2xl font-bold text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] focus:border-[var(--color-accent-dim)] w-full"
                 />
               ) : (
                 <h2
@@ -468,7 +468,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
           </div>
 
           {/* Metadata row */}
-          <div className="flex flex-wrap items-center gap-3 mb-8 text-sm bg-[var(--color-accent-subtle)] p-3 rounded-xl border border-[var(--color-border-accent)]">
+          <div className="flex flex-wrap items-center gap-3 mb-8 text-sm bg-surface-950/50 p-3 rounded-xl border border-[var(--color-border)]">
             <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${status.className}`}>
               {status.label}
             </span>
@@ -670,11 +670,11 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                 No segments match &ldquo;{transcriptSearch}&rdquo;
               </div>
             ) : (
-              <div className="max-h-80 overflow-y-auto rounded-xl bg-[var(--color-accent-subtle)] border border-[var(--color-border)] p-4 space-y-3 font-data">
+              <div className="max-h-80 overflow-y-auto rounded-xl bg-surface-950/50 border border-[var(--color-border)] p-4 space-y-3 font-data">
                 {filteredSegments.map(segment => {
                   const speakerColor = segment.speaker ? getSpeakerColor(segment.speaker) : null;
                   return (
-                    <div key={segment.id} className="flex gap-4 text-sm hover:bg-white dark:hover:bg-surface-800/80 p-2 -mx-2 rounded-lg transition-colors">
+                    <div key={segment.id} className="flex gap-4 text-sm hover:bg-[var(--color-border)]/30 p-2 -mx-2 rounded-lg transition-colors">
                       <span className="font-data text-xs text-[var(--color-accent-dim)] pt-0.5 shrink-0 w-12 text-right">
                         {formatTimestamp(segment.startTime)}
                       </span>

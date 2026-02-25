@@ -255,7 +255,7 @@ export default function ConvertActionModal({
             <span className="text-surface-800 dark:text-surface-200 font-medium">{resolvedProjectName}</span>
             <button
               onClick={handleChangeProject}
-              className="text-primary-400 hover:text-primary-300 text-xs underline transition-colors"
+              className="text-[var(--color-accent)] hover:text-[var(--color-accent-dim)] text-xs underline transition-colors"
             >
               Change project
             </button>
@@ -280,7 +280,7 @@ export default function ConvertActionModal({
           {/* Step 1: Select Project */}
           {step === 1 && !loading && (
             <div>
-              <p className="text-sm text-surface-700 dark:text-surface-300 mb-2">Choose a project</p>
+              <p className="text-sm text-[var(--color-text-secondary)] mb-2">Choose a project</p>
               <div className="max-h-48 overflow-y-auto space-y-1.5">
                 {projects.map((p) => (
                   <div
@@ -302,7 +302,7 @@ export default function ConvertActionModal({
                   </div>
                 ))}
                 {projects.length === 0 && (
-                  <p className="text-sm text-surface-500 text-center py-4">No projects found</p>
+                  <p className="text-sm text-[var(--color-text-muted)] text-center py-4">No projects found</p>
                 )}
               </div>
             </div>
@@ -311,7 +311,7 @@ export default function ConvertActionModal({
           {/* Step 2: Select Board */}
           {step === 2 && !loading && (
             <div>
-              <p className="text-sm text-surface-700 dark:text-surface-300 mb-2">Choose a board</p>
+              <p className="text-sm text-[var(--color-text-secondary)] mb-2">Choose a board</p>
               <div className="max-h-48 overflow-y-auto space-y-1.5">
                 {boards.map((b) => (
                   <div
@@ -327,7 +327,7 @@ export default function ConvertActionModal({
                   </div>
                 ))}
                 {boards.length === 0 && (
-                  <p className="text-sm text-surface-500 text-center py-4">No boards found</p>
+                  <p className="text-sm text-[var(--color-text-muted)] text-center py-4">No boards found</p>
                 )}
               </div>
             </div>
@@ -336,7 +336,7 @@ export default function ConvertActionModal({
           {/* Step 3: Select Column */}
           {step === 3 && !loading && (
             <div>
-              <p className="text-sm text-surface-700 dark:text-surface-300 mb-2">Choose a column</p>
+              <p className="text-sm text-[var(--color-text-secondary)] mb-2">Choose a column</p>
               <div className="max-h-48 overflow-y-auto space-y-1.5">
                 {columns.map((c) => (
                   <div
@@ -352,7 +352,7 @@ export default function ConvertActionModal({
                   </div>
                 ))}
                 {columns.length === 0 && (
-                  <p className="text-sm text-surface-500 text-center py-4">No columns found</p>
+                  <p className="text-sm text-[var(--color-text-muted)] text-center py-4">No columns found</p>
                 )}
               </div>
             </div>
