@@ -125,22 +125,20 @@ export default function IdeasModern() {
 
                 {/* Quick Add Bar - Floating Style */}
                 <div className="mb-8">
-                    <form onSubmit={handleQuickAdd} className="relative group">
-                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                            <Sparkles size={18} className="text-primary-500" />
-                        </div>
+                    <form onSubmit={handleQuickAdd} className="flex items-center gap-3 hud-panel rounded-2xl pl-4 pr-2 py-2 group focus-within:!border-[var(--color-accent)] transition-all">
+                        <Sparkles size={18} className="text-primary-500 shrink-0" />
                         <input
                             ref={quickAddInputRef}
                             type="text"
                             placeholder="Capture a new idea..."
                             value={newTitle}
                             onChange={e => setNewTitle(e.target.value)}
-                            className="w-full hud-panel rounded-2xl pl-12 pr-32 py-4 text-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:!border-[var(--color-accent)] transition-all"
+                            className="flex-1 bg-transparent py-2 text-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none"
                         />
                         <button
                             type="submit"
                             disabled={newTitle.trim() === '' || creating}
-                            className="absolute right-2 top-2 bottom-2 btn-primary clip-corner-cut-sm px-4 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="btn-primary shrink-0 rounded-xl px-5 py-2.5 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                             <span className="hidden sm:inline">Add Idea</span>
