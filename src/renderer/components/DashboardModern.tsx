@@ -166,7 +166,7 @@ export default function DashboardModern() {
                 <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(62,232,228,0.06)_0%,transparent_70%)] pointer-events-none dark:block hidden" />
 
                 <div className="relative z-10 flex items-end justify-between gap-4">
-                    <div className="shrink-0 corner-brackets p-2">
+                    <div className="shrink-0 p-2">
                         <h1 className="font-[var(--font-display)] text-3xl tracking-tight text-surface-900 dark:text-[var(--color-accent)] text-glow">
                             {getGreeting()}
                         </h1>

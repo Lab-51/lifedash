@@ -361,15 +361,15 @@ html.light .hud-panel-accent {
 
 /* ─── Geometric Container Shapes ─── */
 .clip-corner-cut {
-  clip-path: polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px));
+  border-radius: 20px;
 }
 
 .clip-corner-cut-sm {
-  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  border-radius: 12px;
 }
 
 .clip-corner-cut-tr {
-  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+  border-radius: 0 16px 0 0;
 }
 .clip-trapezoid {
   clip-path: polygon(3% 0%, 97% 0%, 100% 100%, 0% 100%);
