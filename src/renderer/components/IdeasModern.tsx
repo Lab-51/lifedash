@@ -230,7 +230,7 @@ export default function IdeasModern() {
                             <div
                                 key={idea.id}
                                 onClick={() => setSelectedIdeaId(idea.id)}
-                                className="break-inside-avoid group hud-panel clip-corner-cut-sm corner-brackets p-5 hover:shadow-lg hover:!border-[var(--color-border-accent)] transition-all cursor-pointer flex flex-col items-start"
+                                className="break-inside-avoid group hud-panel clip-corner-cut-sm p-5 hover:shadow-lg hover:!border-[var(--color-border-accent)] transition-all cursor-pointer flex flex-col items-start"
                             >
                                 <div className="flex justify-between items-start w-full gap-4 mb-2">
                                     <h3 className="text-base font-bold text-[var(--color-text-primary)] leading-snug group-hover:text-[var(--color-accent)] transition-colors">

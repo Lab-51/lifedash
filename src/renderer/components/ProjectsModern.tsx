@@ -365,7 +365,7 @@ export default function ProjectsModern() {
                             <div
                                 key={project.id}
                                 onClick={() => navigate(`/projects/${project.id}`)}
-                                className={`group relative flex flex-col hud-panel-accent clip-corner-cut-sm corner-brackets p-5 hover:shadow-[0_0_20px_var(--color-chrome-glow)] hover:border-[var(--color-accent-dim)] transition-all cursor-pointer ${project.archived ? 'opacity-60 grayscale' : ''}`}
+                                className={`group relative flex flex-col hud-panel-accent clip-corner-cut-sm p-5 hover:shadow-[0_0_20px_var(--color-chrome-glow)] hover:border-[var(--color-accent-dim)] transition-all cursor-pointer ${project.archived ? 'opacity-60 grayscale' : ''}`}
                             >
                                 {/* More Menu (Absolute) */}
                                 <div className="absolute top-4 right-4 z-10">
