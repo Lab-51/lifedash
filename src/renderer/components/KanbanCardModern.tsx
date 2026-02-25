@@ -162,6 +162,9 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
                         : undefined
             }
         >
+            {/* Hover-reveal top gradient border */}
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--color-accent)] to-transparent opacity-0 group-hover:opacity-60 transition-opacity duration-700" />
+
             {/* Drop edge indicators */}
             {closestEdge === 'top' && (
                 <div className="absolute -top-1 left-0 right-0 h-1 bg-primary-500 rounded-full z-10" />

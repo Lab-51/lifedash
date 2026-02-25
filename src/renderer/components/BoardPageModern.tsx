@@ -180,6 +180,11 @@ export default function BoardPageModern() {
                             <ArrowLeft size={24} />
                         </Link>
                         <div>
+                            <div className="flex items-center gap-3 mb-1">
+                                <div className="h-px w-10 bg-gradient-to-r from-transparent to-[var(--color-accent)] opacity-40" />
+                                <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.BOARD</span>
+                                <div className="h-px w-10 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
+                            </div>
                             <h1 className="font-hud text-2xl tracking-wider text-[var(--color-text-primary)] flex items-center gap-2">
                                 {project?.name ?? 'Board'}
                             </h1>
@@ -557,7 +562,7 @@ export default function BoardPageModern() {
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={addColumn}
-                                className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition-all shadow-sm"
+                                className="flex-1 btn-primary clip-corner-cut-sm text-sm font-medium px-4 py-2"
                             >
                                 Create
                             </button>

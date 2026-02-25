@@ -112,6 +112,11 @@ export default function IdeasModern() {
             <div className="p-8 pb-4 shrink-0">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
                     <div>
+                        <div className="flex items-center gap-4 mb-1">
+                            <div className="h-px w-16 bg-gradient-to-r from-transparent to-[var(--color-accent)] opacity-40" />
+                            <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.IDEAS</span>
+                            <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
+                        </div>
                         <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Ideas</h1>
                         <p className="text-[var(--color-text-secondary)] text-sm mt-1">Capture, refine, and track your flashes of brilliance.</p>
                     </div>
@@ -135,7 +140,7 @@ export default function IdeasModern() {
                         <button
                             type="submit"
                             disabled={newTitle.trim() === '' || creating}
-                            className="absolute right-2 top-2 bottom-2 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] px-4 rounded-xl font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="absolute right-2 top-2 bottom-2 btn-primary clip-corner-cut-sm px-4 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                             <span className="hidden sm:inline">Add Idea</span>

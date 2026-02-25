@@ -101,9 +101,12 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md hud-panel-accent clip-corner-cut shadow-2xl overflow-hidden"
+        className="w-full max-w-md hud-panel-accent clip-corner-cut shadow-2xl overflow-hidden relative"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Radial glow bloom — dark mode only */}
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(62,232,228,0.06)_0%,transparent_70%)] pointer-events-none dark:block hidden opacity-50" />
+
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border-accent)]">
           <div className="flex items-center gap-2">
@@ -274,7 +277,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
           {/* Start button */}
           <button
             onClick={handleStart}
-            className="w-full py-2.5 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] rounded-lg text-sm font-medium transition-colors"
+            className="w-full py-2.5 btn-primary clip-corner-cut-sm text-sm font-medium"
           >
             Start Focus — {duration} min
           </button>

@@ -171,6 +171,11 @@ export default function MeetingsModern() {
             <div className="p-8 pb-4 shrink-0">
                 <div className="flex items-center justify-between gap-4 mb-2">
                     <div>
+                        <div className="flex items-center gap-4 mb-1">
+                            <div className="h-px w-16 bg-gradient-to-r from-transparent to-[var(--color-accent)] opacity-40" />
+                            <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.MEETINGS</span>
+                            <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
+                        </div>
                         <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Meetings</h1>
                         <p className="text-[var(--color-text-secondary)] text-sm mt-1">Capture and analyze conversations.</p>
                     </div>

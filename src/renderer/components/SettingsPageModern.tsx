@@ -103,10 +103,11 @@ export default function SettingsPageModern() {
                             {/* Appearance */}
                             <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-6 pb-4 border-b border-[var(--color-border)]">
-                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                    <div className="flex items-center gap-3 mb-1">
                                         <Monitor size={16} className="text-[var(--color-accent)]" />
-                                        Appearance
-                                    </h2>
+                                        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Appearance</span>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    </div>
                                     <p className="text-sm text-[var(--color-text-secondary)] mt-1">Customize the visual experience.</p>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -125,10 +126,11 @@ export default function SettingsPageModern() {
                             <div className="grid grid-cols-1 gap-6">
                                 <div className="hud-panel-accent clip-corner-cut-sm p-6">
                                     <div className="mb-4">
-                                        <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                        <div className="flex items-center gap-3">
                                             <Mic size={16} className="text-[var(--color-accent)]" />
-                                            Audio
-                                        </h2>
+                                            <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Audio</span>
+                                            <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                        </div>
                                     </div>
                                     <div className="space-y-6">
                                         <AudioDeviceSection />
@@ -141,10 +143,11 @@ export default function SettingsPageModern() {
                             {/* Network */}
                             <div className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-4">
-                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                    <div className="flex items-center gap-3">
                                         <Wifi size={16} className="text-[var(--color-accent)]" />
-                                        Network
-                                    </h2>
+                                        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Network</span>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    </div>
                                 </div>
                                 <ProxySettingsSection />
                             </div>
@@ -152,10 +155,11 @@ export default function SettingsPageModern() {
                             {/* Notifications */}
                             <div className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-4">
-                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                    <div className="flex items-center gap-3">
                                         <Bell size={16} className="text-[var(--color-accent)]" />
-                                        Notifications
-                                    </h2>
+                                        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Notifications</span>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    </div>
                                 </div>
                                 <NotificationSection />
                             </div>
@@ -168,10 +172,11 @@ export default function SettingsPageModern() {
                             <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--color-border)]">
                                     <div>
-                                        <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                        <div className="flex items-center gap-3 mb-1">
                                             <Bot size={16} className="text-[var(--color-accent)]" />
-                                            AI Providers
-                                        </h2>
+                                            <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">AI Providers</span>
+                                            <div className="h-px w-20 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                        </div>
                                         <p className="text-sm text-[var(--color-text-secondary)] mt-1">Configure models and API keys.</p>
                                     </div>
                                     {!showAddForm && (
@@ -209,7 +214,10 @@ export default function SettingsPageModern() {
                             {/* Model Assignments */}
                             <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-6">
-                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Model Assignments</h2>
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Model Assignments</span>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    </div>
                                     <p className="text-sm text-[var(--color-text-secondary)] mt-1">Route tasks to specific models.</p>
                                 </div>
                                 <TaskModelConfig providers={providers} />
@@ -218,7 +226,10 @@ export default function SettingsPageModern() {
                             {/* Usage */}
                             <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-6">
-                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Usage & Costs</h2>
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Usage & Costs</span>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    </div>
                                     <p className="text-sm text-[var(--color-text-secondary)] mt-1">Track token consumption.</p>
                                 </div>
                                 <UsageSummary />
@@ -230,30 +241,33 @@ export default function SettingsPageModern() {
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-4">
-                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                    <div className="flex items-center gap-3">
                                         <Save size={16} className="text-[var(--color-accent)]" />
-                                        Storage
-                                    </h2>
+                                        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Storage</span>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    </div>
                                 </div>
                                 <RecordingsSavePathSection />
                             </section>
 
                             <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-4">
-                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                    <div className="flex items-center gap-3">
                                         <Database size={16} className="text-[var(--color-accent)]" />
-                                        Backups
-                                    </h2>
+                                        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Backups</span>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    </div>
                                 </div>
                                 <BackupSection />
                             </section>
 
                             <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-4">
-                                    <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] flex items-center gap-2">
+                                    <div className="flex items-center gap-3">
                                         <FileDown size={16} className="text-[var(--color-accent)]" />
-                                        Export
-                                    </h2>
+                                        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Export</span>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    </div>
                                 </div>
                                 <ExportSection />
                             </section>

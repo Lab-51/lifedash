@@ -141,8 +141,8 @@ html.design-modern.light {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -150,7 +150,8 @@ html.design-modern.light {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-surface-700);
+  background: var(--color-border);
+  border: 1px solid var(--color-border-accent);
   border-radius: 4px;
 }
 
@@ -251,6 +252,10 @@ body {
   overflow: hidden;
   background: var(--color-surface-950);
   color: var(--color-text-primary);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html.light,
@@ -316,8 +321,8 @@ html.light .hud-nav-active {
   content: '';
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
+  left: 40px;
+  right: 40px;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
   opacity: 0.4;
@@ -342,8 +347,8 @@ html.light .hud-panel::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
+  left: 40px;
+  right: 40px;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
   opacity: 0.6;
@@ -365,6 +370,18 @@ html.light .hud-panel-accent {
 
 .clip-corner-cut-tr {
   clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+}
+.clip-trapezoid {
+  clip-path: polygon(3% 0%, 97% 0%, 100% 100%, 0% 100%);
+}
+.clip-trapezoid-inv {
+  clip-path: polygon(0% 0%, 100% 0%, 97% 100%, 3% 100%);
+}
+.clip-chevron-right {
+  clip-path: polygon(0% 0%, 85% 0%, 100% 50%, 85% 100%, 0% 100%);
+}
+.clip-parallelogram {
+  clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
 }
 
 /* ─── Scanline Overlays ─── */
@@ -398,6 +415,49 @@ html.light .grid-bg {
   background-size: 60px 60px;
 }
 
+/* Dense scanlines (2px cycle for CTA/highlight panels) */
+.scanlines-dense {
+  background-image: repeating-linear-gradient(0deg,
+      transparent, transparent 1px,
+      rgba(62, 232, 228, 0.02) 1px,
+      rgba(62, 232, 228, 0.02) 2px);
+  pointer-events: none;
+}
+html.light .scanlines-dense {
+  background-image: repeating-linear-gradient(0deg,
+      transparent, transparent 1px,
+      rgba(13, 150, 148, 0.01) 1px,
+      rgba(13, 150, 148, 0.01) 2px);
+}
+
+/* Fine grid (20px pitch for data-heavy sections) */
+.grid-bg-fine {
+  background-image:
+    linear-gradient(to right, rgba(62, 232, 228, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(62, 232, 228, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+html.light .grid-bg-fine {
+  background-image:
+    linear-gradient(to right, rgba(13, 150, 148, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(13, 150, 148, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Diagonal accent lines (-45deg texture) */
+.diagonal-lines {
+  background-image: repeating-linear-gradient(-45deg,
+      transparent, transparent 40px,
+      rgba(62, 232, 228, 0.03) 40px,
+      rgba(62, 232, 228, 0.03) 41px);
+}
+html.light .diagonal-lines {
+  background-image: repeating-linear-gradient(-45deg,
+      transparent, transparent 40px,
+      rgba(13, 150, 148, 0.02) 40px,
+      rgba(13, 150, 148, 0.02) 41px);
+}
+
 /* ─── Ruled Line Dividers ─── */
 .ruled-line {
   height: 1px;
@@ -409,6 +469,66 @@ html.light .grid-bg {
   background: linear-gradient(90deg, transparent, var(--color-border-accent), var(--color-accent-dim), var(--color-border-accent), transparent);
 }
 
+.ruled-line-bright {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-accent-muted), var(--color-accent), var(--color-accent-muted), transparent);
+}
+
+/* ─── HUD Button System ─── */
+.btn-primary {
+  background: linear-gradient(135deg, rgba(62, 232, 228, 0.15), rgba(62, 232, 228, 0.05));
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  font-family: var(--font-display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(62, 232, 228, 0.2), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.btn-primary:hover::before {
+  opacity: 1;
+}
+.btn-primary:hover {
+  box-shadow: 0 0 30px rgba(62, 232, 228, 0.3), inset 0 0 30px rgba(62, 232, 228, 0.05);
+  transform: translateY(-1px);
+}
+html.light .btn-primary {
+  background: linear-gradient(135deg, rgba(13, 150, 148, 0.1), rgba(13, 150, 148, 0.03));
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+html.light .btn-primary:hover {
+  box-shadow: 0 0 20px rgba(13, 150, 148, 0.15);
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--color-text-muted);
+  color: var(--color-text-secondary);
+  font-family: var(--font-display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+}
+.btn-secondary:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  box-shadow: 0 0 20px rgba(62, 232, 228, 0.15);
+  transform: translateY(-1px);
+}
+html.light .btn-secondary:hover {
+  box-shadow: 0 0 12px rgba(13, 150, 148, 0.1);
+}
+
 /* ─── Corner Brackets (decorative) ─── */
 .corner-brackets {
   position: relative;
@@ -418,25 +538,27 @@ html.light .grid-bg {
 .corner-brackets::after {
   content: '';
   position: absolute;
-  width: 20px;
-  height: 20px;
+  width: 40px;
+  height: 40px;
   border-color: var(--color-accent);
   opacity: 0.4;
   pointer-events: none;
 }
 
 .corner-brackets::before {
-  top: -1px;
-  left: -1px;
+  top: 0;
+  left: 0;
   border-top: 2px solid;
   border-left: 2px solid;
+  border-top-left-radius: 19px;
 }
 
 .corner-brackets::after {
-  bottom: -1px;
-  right: -1px;
+  bottom: 0;
+  right: 0;
   border-bottom: 2px solid;
   border-right: 2px solid;
+  border-bottom-right-radius: 19px;
 }
 
 html.light .corner-brackets::before,
@@ -466,6 +588,14 @@ html.light .node-point {
 }
 html.light .node-point-sm {
   box-shadow: 0 0 3px rgba(13, 150, 148, 0.3);
+}
+
+.wireframe-triangle {
+  width: 0;
+  height: 0;
+  border-left: 30px solid transparent;
+  border-right: 30px solid transparent;
+  border-bottom: 52px solid rgba(62, 232, 228, 0.08);
 }
 
 /* TipTap rich text editor styles */
@@ -912,6 +1042,31 @@ html.light .animate-logo-pulse {
 @keyframes dash-flow {
   0% { stroke-dashoffset: 0; }
   100% { stroke-dashoffset: -20; }
+}
+
+@keyframes rotate-slow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ─── Animation Utilities ─── */
+.animate-scanline {
+  animation: scanline-move 8s linear infinite;
+}
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+.animate-node-pulse {
+  animation: node-pulse 2s ease-in-out infinite;
+}
+.animate-rotate-slow {
+  animation: rotate-slow 30s linear infinite;
+}
+.animate-data-flicker {
+  animation: data-flicker 4s ease-in-out infinite;
+}
+.animate-dash-flow {
+  animation: dash-flow 1.5s linear infinite;
 }
 
 /* override forms */

@@ -201,12 +201,17 @@ export default function ProjectsModern() {
             <div className="p-8 pb-4 shrink-0">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
+                        <div className="flex items-center gap-4 mb-1">
+                            <div className="h-px w-16 bg-gradient-to-r from-transparent to-[var(--color-accent)] opacity-40" />
+                            <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.PROJECTS</span>
+                            <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
+                        </div>
                         <h1 className="font-hud text-2xl tracking-widest text-surface-900 dark:text-[var(--color-accent)]">Projects</h1>
                         <p className="text-[var(--color-text-secondary)] mt-1 font-data">Manage and track your work.</p>
                     </div>
                     <button
                         onClick={() => setShowCreateForm(true)}
-                        className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] px-5 py-2.5 text-sm font-medium transition-all clip-corner-cut-sm"
+                        className="btn-primary clip-corner-cut-sm flex items-center gap-2 px-5 py-2.5 text-sm font-medium"
                     >
                         <Plus size={18} />
                         New Project

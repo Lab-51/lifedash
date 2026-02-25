@@ -56,7 +56,7 @@ export default function LevelBadge({ level, size = 'md', showName = true, classN
       className={`inline-flex items-center rounded-full border font-bold ${SIZE_CLASSES[size]} ${bgClass} ${tier.colors.border} ${tier.colors.text} ${className}`}
       style={bgStyle}
     >
-      <span>Lv.{level}</span>
+      <span className="animate-data-flicker">Lv.{level}</span>
       {showName && <span className="font-medium opacity-80">{tier.name}</span>}
     </div>
   );

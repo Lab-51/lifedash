@@ -54,7 +54,7 @@ function StatusBar() {
             className={`w-2 h-2 rounded-full ${getIndicatorClass(connected, checking)}`}
             aria-hidden="true"
           />
-          <span className="text-xs text-[var(--color-text-secondary)]">
+          <span className="text-xs text-[var(--color-text-secondary)] animate-data-flicker">
             {getStatusLabel(connected, checking)}
           </span>
         </div>

@@ -140,7 +140,17 @@ export default function FocusOverlay() {
       </div>
 
       {/* CENTER — vertically + horizontally centered */}
-      <div className="flex flex-col items-center justify-center flex-1 pt-16 pb-4">
+      <div className="flex flex-col items-center justify-center flex-1 pt-16 pb-4 relative">
+        {/* Decorative rotating wireframe — dark mode only */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.04] animate-rotate-slow pointer-events-none dark:block hidden">
+          <svg viewBox="0 0 200 200" fill="none" stroke="currentColor" strokeWidth="0.5"
+            className="w-[300px] h-[300px] text-[var(--color-accent)]">
+            <polygon points="100,10 190,180 10,180" opacity="0.4" />
+            <polygon points="100,40 170,165 30,165" opacity="0.3" />
+            <polygon points="100,70 150,150 50,150" opacity="0.2" />
+            <line x1="100" y1="10" x2="100" y2="180" opacity="0.15" />
+          </svg>
+        </div>
         {/* SVG circular progress ring */}
         <div className="relative" style={{ width: diameter, height: diameter }}>
           <svg viewBox={`0 0 ${diameter} ${diameter}`} width={diameter} height={diameter}>

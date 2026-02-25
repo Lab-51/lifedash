@@ -14,6 +14,10 @@ function AppLayout() {
 
   return (
     <div className="flex-1 flex overflow-hidden">
+      {/* Global HUD scanline beam — dark mode only */}
+      <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden dark:block hidden">
+        <div className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--color-accent)] to-transparent opacity-[0.07] animate-scanline" />
+      </div>
       {focusMode !== 'focus' && focusMode !== 'break' && <Sidebar />}
       <main
         className="flex-1 overflow-auto transition-colors duration-300 bg-surface-50 dark:bg-surface-950 text-[var(--color-text-primary)]"

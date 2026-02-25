@@ -285,7 +285,7 @@ export default function FocusPage() {
         <option value="true">Billable</option>
         <option value="false">Non-billable</option>
       </select>
-      <button onClick={() => useFocusStore.getState().setShowStartModal(true)} className="ml-auto inline-flex items-center gap-1.5 px-4 py-1.5 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] text-sm font-medium rounded-lg transition-colors">
+      <button onClick={() => useFocusStore.getState().setShowStartModal(true)} className="ml-auto btn-primary clip-corner-cut-sm inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium">
         <Play size={14} /> Start Focus
       </button>
     </div>
@@ -293,9 +293,16 @@ export default function FocusPage() {
 
   const header = (
     <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2.5">
-        <Timer size={22} className="text-[var(--color-accent)]" />
-        <h1 className="font-hud text-xl text-[var(--color-accent)] text-glow">Focus Time Tracking</h1>
+      <div>
+        <div className="flex items-center gap-4 mb-1">
+          <div className="h-px w-12 bg-gradient-to-r from-transparent to-[var(--color-accent)] opacity-40" />
+          <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.FOCUS</span>
+          <div className="h-px w-12 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
+        </div>
+        <div className="flex items-center gap-2.5">
+          <Timer size={22} className="text-[var(--color-accent)]" />
+          <h1 className="font-hud text-xl text-[var(--color-accent)] text-glow">Focus Time Tracking</h1>
+        </div>
       </div>
       <button onClick={handleExport} disabled={!report || !allSessions.length} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
         <Download size={15} /> Export CSV
@@ -313,7 +320,7 @@ export default function FocusPage() {
           <Timer size={44} className="mx-auto mb-4 text-surface-300 dark:text-surface-600" />
           <p className="text-lg font-medium text-surface-900 dark:text-surface-100">No focus sessions in this period</p>
           <p className="text-sm text-surface-500 mt-2 max-w-md mx-auto">Try selecting a different date range or start a new focus session.</p>
-          <button onClick={() => useFocusStore.getState().setShowStartModal(true)} className="mt-5 inline-flex items-center gap-1.5 px-5 py-2.5 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] rounded-lg text-sm font-medium transition-colors">
+          <button onClick={() => useFocusStore.getState().setShowStartModal(true)} className="mt-5 btn-primary clip-corner-cut-sm inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium">
             <Play size={14} /> Start Focus Session
           </button>
         </div>

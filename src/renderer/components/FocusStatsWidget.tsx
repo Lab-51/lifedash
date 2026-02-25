@@ -170,7 +170,10 @@ export default function FocusStatsWidget() {
         <div className="flex items-center justify-between px-5 py-3.5">
           <div className="flex items-center gap-2">
             <Trophy size={16} className="text-[var(--color-accent)]" />
-            <h3 className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROGRESS</h3>
+            <div className="flex items-center gap-3">
+              <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROGRESS</span>
+              <div className="h-px w-16 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {/* Level pill */}
@@ -342,7 +345,10 @@ export default function FocusStatsWidget() {
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setAchievementsModalOpen(true); }}
           >
             <div className="flex items-center justify-between mb-2">
-              <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Achievements</p>
+              <div className="flex items-center gap-3">
+                <span className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Achievements</span>
+                <div className="h-px w-12 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+              </div>
               <p className="font-data text-xs text-[var(--color-text-secondary)] group-hover:text-[var(--color-accent)] transition-colors">
                 {unlockedCount}/{ACHIEVEMENTS.length} unlocked
               </p>

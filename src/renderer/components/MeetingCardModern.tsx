@@ -63,6 +63,9 @@ const MeetingCardModern = memo(function MeetingCardModern({ meeting, projectName
                         : 'hover:!border-[var(--color-border-accent)]'
                 }`}
         >
+            {/* Hover-reveal top gradient border */}
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--color-accent)] to-transparent opacity-0 group-hover:opacity-60 transition-opacity duration-700" />
+
             {/* Date Badge */}
             <div className="absolute top-5 right-5 flex items-center gap-2">
                 {actionItemCount != null && actionItemCount > 0 && (

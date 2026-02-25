@@ -216,6 +216,11 @@ export default function BrainstormModern() {
             <div className="px-6 py-5 shrink-0 border-b border-[var(--color-border)] hud-chrome-bg sticky top-0 z-20">
                 <div className="flex items-center justify-between">
                     <div>
+                        <div className="flex items-center gap-4 mb-1">
+                            <div className="h-px w-16 bg-gradient-to-r from-transparent to-[var(--color-accent)] opacity-40" />
+                            <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.BRAINSTORM</span>
+                            <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
+                        </div>
                         <h1 className="font-hud text-xl text-[var(--color-accent)] text-glow flex items-center gap-2">
                             <Brain size={24} />
                             Brainstorm
@@ -225,7 +230,7 @@ export default function BrainstormModern() {
 
                     <button
                         onClick={() => setShowNewSession(true)}
-                        className="bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                        className="btn-primary clip-corner-cut-sm px-4 py-2 text-sm font-medium flex items-center gap-2"
                     >
                         <Plus size={16} />
                         New Session
@@ -564,7 +569,7 @@ export default function BrainstormModern() {
                                                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                                             {streamingText}
                                                         </ReactMarkdown>
-                                                        <span className="inline-block w-2 h-4 bg-primary-500 ml-1 animate-pulse" />
+                                                        <span className="text-[var(--color-accent)] animate-pulse">▊</span>
                                                     </div>
                                                 </div>
                                             </div>
