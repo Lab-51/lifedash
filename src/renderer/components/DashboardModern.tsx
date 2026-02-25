@@ -219,7 +219,7 @@ export default function DashboardModern() {
                         {[
                             { icon: Mic, label: 'Record', path: '/meetings?action=record', colors: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-600 hover:border-transparent' },
                             { icon: Plus, label: 'Project', path: '/projects?action=create', colors: 'text-[var(--color-accent)] dark:text-[var(--color-accent)] bg-[var(--color-accent-subtle)] border-[var(--color-border-accent)] hover:bg-[var(--color-accent)] hover:text-white hover:border-transparent' },
-                            { icon: Brain, label: 'Brainstorm', path: '/brainstorm?action=create', colors: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-500 hover:text-white dark:hover:bg-indigo-600 hover:border-transparent' },
+                            { icon: Brain, label: 'Brain', path: '/brainstorm?action=create', colors: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-500 hover:text-white dark:hover:bg-indigo-600 hover:border-transparent' },
                             { icon: Lightbulb, label: 'Idea', path: '/ideas?action=create', colors: 'text-[var(--color-warm)] dark:text-[var(--color-warm)] bg-warm-50 dark:bg-warm-500/10 border-warm-200 dark:border-warm-500/20 hover:bg-[var(--color-warm)] hover:text-white hover:border-transparent' },
                         ].map(({ icon: Icon, label, path, colors }) => (
                             <button
@@ -229,7 +229,7 @@ export default function DashboardModern() {
                                 title={`New ${label}`}
                             >
                                 <Icon size={24} className="mb-2 transition-transform duration-300 group-hover:scale-110" />
-                                <span className="text-xs font-bold font-hud">{label}</span>
+                                <span className="text-[10px] font-bold font-hud">{label}</span>
                             </button>
                         ))}
                         {/* Focus button */}
@@ -247,7 +247,7 @@ export default function DashboardModern() {
                             title={focusMode === 'idle' ? 'Start Focus Session' : 'In Focus'}
                         >
                             <Timer size={24} className={`mb-2 transition-transform duration-300 group-hover:scale-110 ${focusMode === 'focus' || focusMode === 'break' ? 'animate-[spin_4s_linear_infinite]' : ''}`} />
-                            <span className="text-xs font-bold">
+                            <span className="text-[10px] font-bold font-hud">
                                 {focusMode === 'focus' || focusMode === 'break' ? 'In Focus' : 'Focus'}
                             </span>
                         </button>
@@ -265,7 +265,7 @@ export default function DashboardModern() {
                                 ) : (
                                     <ClipboardList size={24} className="mb-2 transition-transform duration-300 group-hover:scale-110" />
                                 )}
-                                <span className="text-xs font-bold">
+                                <span className="text-[10px] font-bold font-hud">
                                     {generatingStandup ? 'Loading...' : 'Standup'}
                                 </span>
                             </button>
