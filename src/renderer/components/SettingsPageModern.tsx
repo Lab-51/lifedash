@@ -278,7 +278,10 @@ export default function SettingsPageModern() {
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <section className="hud-panel-accent clip-corner-cut p-8 text-center">
                                 <img src={dashIcon} alt="LifeDash" className="w-20 h-20 mx-auto mb-4 drop-shadow-lg" />
-                                <h2 className="font-hud text-xl tracking-widest text-[var(--color-accent)] text-glow mb-2">LifeDash</h2>
+                                <h2 className="font-hud text-xl tracking-tight font-bold mb-2">
+                                    <span className="text-[var(--color-text-primary)]">LIFE</span>
+                                    <span className="text-[var(--color-accent)] text-glow">DASH</span>
+                                </h2>
                                 <p className="text-[var(--color-text-secondary)] mb-8 max-w-md mx-auto">
                                     AI-powered desktop dashboard for meeting intelligence, project management, brainstorming, and idea capture.
                                 </p>

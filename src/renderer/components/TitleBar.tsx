@@ -32,8 +32,9 @@ function TitleBar() {
       >
         <div className="flex items-center gap-2 pl-3">
           <img src={dashIcon} alt="LifeDash" className="w-5 h-5" />
-          <span className="font-[var(--font-display)] tracking-wider uppercase text-xs text-[var(--color-text-primary)] opacity-80">
-            LifeDash
+          <span className="font-hud text-xs tracking-tight font-bold">
+            <span className="text-[var(--color-text-primary)]">LIFE</span>
+            <span className="text-[var(--color-accent)] text-glow">DASH</span>
           </span>
         </div>
 
