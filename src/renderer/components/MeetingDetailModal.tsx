@@ -638,13 +638,13 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                 {/* Search input */}
                 {meeting.segments.length > 0 && (
                   <div className="relative">
-                    <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+                    <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
                     <input
                       type="text"
                       value={transcriptSearch}
                       onChange={e => setTranscriptSearch(e.target.value)}
                       placeholder="Search..."
-                      className="bg-surface-950 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] rounded-lg text-sm text-[var(--color-text-primary)] pl-8 pr-7 py-1.5 max-w-48 focus:outline-none focus:border-[var(--color-accent-dim)] placeholder:text-[var(--color-text-muted)] transition-colors"
+                      className="bg-surface-950 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] rounded-lg text-xs text-[var(--color-text-primary)] pl-7 pr-6 py-1 w-32 focus:outline-none focus:border-[var(--color-accent-dim)] placeholder:text-[var(--color-text-muted)] transition-colors"
                     />
                     {transcriptSearch && (
                       <button
