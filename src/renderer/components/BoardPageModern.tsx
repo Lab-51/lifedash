@@ -168,7 +168,7 @@ export default function BoardPageModern() {
     }
 
     return (
-        <div className="flex-1 flex flex-col bg-surface-50 dark:bg-surface-950">
+        <div className="h-full flex flex-col bg-surface-50 dark:bg-surface-950">
             {/* Modern Header */}
             <div className="px-8 pt-8 pb-6 shrink-0 hud-chrome-bg border-b border-[var(--color-border)]">
                 <div className="flex items-center justify-between mb-6">
