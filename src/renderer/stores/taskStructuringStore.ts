@@ -17,24 +17,26 @@ interface TaskStructuringState {
   plan: ProjectPlan | null;
   planLoading: boolean;
   planError: string | null;
-  // Card breakdown
-  breakdown: TaskBreakdown | null;
-  breakdownLoading: boolean;
+  // Card breakdowns — keyed by cardId so they survive modal close/reopen
+  breakdowns: Record<string, TaskBreakdown>;
+  breakdownLoadingCardId: string | null;
   breakdownError: string | null;
   // Actions
   generatePlan: (projectId: string, description?: string) => Promise<void>;
   generateQuickPlan: (name: string, description: string) => Promise<void>;
   generateBreakdown: (cardId: string) => Promise<void>;
   clearPlan: () => void;
-  clearBreakdown: () => void;
+  clearBreakdown: (cardId: string) => void;
+  deleteSubtask: (cardId: string, index: number) => void;
+  moveSubtask: (cardId: string, fromIndex: number, toIndex: number) => void;
 }
 
-export const useTaskStructuringStore = create<TaskStructuringState>((set) => ({
+export const useTaskStructuringStore = create<TaskStructuringState>((set, get) => ({
   plan: null,
   planLoading: false,
   planError: null,
-  breakdown: null,
-  breakdownLoading: false,
+  breakdowns: {},
+  breakdownLoadingCardId: null,
   breakdownError: null,
 
   generatePlan: async (projectId: string, description?: string) => {
@@ -69,19 +71,57 @@ export const useTaskStructuringStore = create<TaskStructuringState>((set) => ({
   },
 
   generateBreakdown: async (cardId: string) => {
-    set({ breakdownLoading: true, breakdownError: null });
+    set({ breakdownLoadingCardId: cardId, breakdownError: null });
     try {
       const breakdown = await window.electronAPI.taskStructuringBreakdown(cardId);
-      set({ breakdown, breakdownLoading: false });
+      set(state => ({
+        breakdowns: { ...state.breakdowns, [cardId]: breakdown },
+        breakdownLoadingCardId: null,
+      }));
       useGamificationStore.getState().awardXP('ai_breakdown');
     } catch (error) {
       set({
         breakdownError: error instanceof Error ? error.message : 'Failed to generate breakdown',
-        breakdownLoading: false,
+        breakdownLoadingCardId: null,
       });
     }
   },
 
   clearPlan: () => set({ plan: null, planLoading: false, planError: null }),
-  clearBreakdown: () => set({ breakdown: null, breakdownLoading: false, breakdownError: null }),
+
+  clearBreakdown: (cardId: string) => set(state => {
+    const { [cardId]: _, ...rest } = state.breakdowns;
+    return { breakdowns: rest, breakdownError: null };
+  }),
+
+  deleteSubtask: (cardId: string, index: number) => set(state => {
+    const breakdown = state.breakdowns[cardId];
+    if (!breakdown) return state;
+    const subtasks = breakdown.subtasks.filter((_, i) => i !== index);
+    // If no subtasks left, remove the breakdown entirely
+    if (subtasks.length === 0) {
+      const { [cardId]: _, ...rest } = state.breakdowns;
+      return { breakdowns: rest };
+    }
+    return {
+      breakdowns: {
+        ...state.breakdowns,
+        [cardId]: { ...breakdown, subtasks },
+      },
+    };
+  }),
+
+  moveSubtask: (cardId: string, fromIndex: number, toIndex: number) => set(state => {
+    const breakdown = state.breakdowns[cardId];
+    if (!breakdown) return state;
+    const subtasks = [...breakdown.subtasks];
+    const [moved] = subtasks.splice(fromIndex, 1);
+    subtasks.splice(toIndex, 0, moved);
+    return {
+      breakdowns: {
+        ...state.breakdowns,
+        [cardId]: { ...breakdown, subtasks },
+      },
+    };
+  }),
 }));

@@ -24,7 +24,6 @@ import CommentsSection from './CommentsSection';
 import RelationshipsSection from './RelationshipsSection';
 import ActivityLog from './ActivityLog';
 import TaskBreakdownSection from './TaskBreakdownSection';
-import { useTaskStructuringStore } from '../stores/taskStructuringStore';
 import { useGamificationStore } from '../stores/gamificationStore';
 import { useCardAgentStore } from '../stores/cardAgentStore';
 import { toast } from '../hooks/useToast';
@@ -179,8 +178,6 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const loadCardDetails = useCardDetailStore(s => s.loadCardDetails);
   const clearCardDetails = useCardDetailStore(s => s.clearCardDetails);
   const loadingCardDetails = useCardDetailStore(s => s.loadingCardDetails);
-  const clearBreakdown = useTaskStructuringStore(s => s.clearBreakdown);
-
   // TipTap editor setup
   const editor = useEditor({
     extensions: [
@@ -230,10 +227,9 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     useCardAgentStore.getState().loadMessageCount(card.id);
     return () => {
       clearCardDetails();
-      clearBreakdown();
       useCardAgentStore.getState().reset();
     };
-  }, [card.id, loadCardDetails, clearCardDetails, clearBreakdown]);
+  }, [card.id, loadCardDetails, clearCardDetails]);
 
   // Close label dropdown on outside click
   useEffect(() => {

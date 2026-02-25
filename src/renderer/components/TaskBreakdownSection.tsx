@@ -5,12 +5,8 @@
 // === DEPENDENCIES ===
 // react, lucide-react, taskStructuringStore, window.electronAPI
 
-// === LIMITATIONS ===
-// - Subtask suggestions are transient (not persisted until created as cards)
-// - Depends on AI provider being configured for 'task_structuring' task type
-
 import { useState, useEffect } from 'react';
-import { Sparkles, Loader2, AlertCircle, Check, ListTodo, ListChecks } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, Check, ListTodo, ListChecks, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { useTaskStructuringStore } from '../stores/taskStructuringStore';
 import { useCardDetailStore } from '../stores/cardDetailStore';
 import { toast } from '../hooks/useToast';
@@ -42,11 +38,13 @@ const EFFORT_LABEL: Record<SubtaskSuggestion['effort'], string> = {
 };
 
 function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
-  const breakdown = useTaskStructuringStore(s => s.breakdown);
-  const breakdownLoading = useTaskStructuringStore(s => s.breakdownLoading);
+  const breakdown = useTaskStructuringStore(s => s.breakdowns[cardId] ?? null);
+  const breakdownLoading = useTaskStructuringStore(s => s.breakdownLoadingCardId === cardId);
   const breakdownError = useTaskStructuringStore(s => s.breakdownError);
   const generateBreakdown = useTaskStructuringStore(s => s.generateBreakdown);
   const clearBreakdown = useTaskStructuringStore(s => s.clearBreakdown);
+  const deleteSubtask = useTaskStructuringStore(s => s.deleteSubtask);
+  const moveSubtask = useTaskStructuringStore(s => s.moveSubtask);
 
   const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(new Set());
   const [applying, setApplying] = useState(false);
@@ -88,6 +86,36 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
     }
   };
 
+  const handleDeleteSubtask = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    // Update selection: remove the deleted index and shift higher indices down
+    setSelectedSubtasks(prev => {
+      const next = new Set<number>();
+      for (const i of prev) {
+        if (i < index) next.add(i);
+        else if (i > index) next.add(i - 1);
+        // skip i === index (deleted)
+      }
+      return next;
+    });
+    deleteSubtask(cardId, index);
+  };
+
+  const handleMoveSubtask = (e: React.MouseEvent, fromIndex: number, toIndex: number) => {
+    e.stopPropagation();
+    // Update selection: swap indices
+    setSelectedSubtasks(prev => {
+      const next = new Set<number>();
+      for (const i of prev) {
+        if (i === fromIndex) next.add(toIndex);
+        else if (i === toIndex) next.add(fromIndex);
+        else next.add(i);
+      }
+      return next;
+    });
+    moveSubtask(cardId, fromIndex, toIndex);
+  };
+
   const handleApply = async () => {
     if (!breakdown || selectedSubtasks.size === 0) return;
 
@@ -114,7 +142,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
       // Brief success display, then clear
       setTimeout(() => {
         setApplied(false);
-        clearBreakdown();
+        clearBreakdown(cardId);
       }, 1500);
     } catch (error) {
       setApplyError(
@@ -145,7 +173,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
 
       setTimeout(() => {
         setApplied(false);
-        clearBreakdown();
+        clearBreakdown(cardId);
       }, 1500);
     } catch (error) {
       setApplyError(
@@ -165,14 +193,23 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
         </div>
 
         {breakdown && !breakdownLoading && (
-          <button
-            onClick={toggleAll}
-            className="text-[10px] text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
-          >
-            {selectedSubtasks.size === breakdown.subtasks.length
-              ? 'Deselect all'
-              : 'Select all'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleAll}
+              className="text-[10px] text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
+            >
+              {selectedSubtasks.size === breakdown.subtasks.length
+                ? 'Deselect all'
+                : 'Select all'}
+            </button>
+            <button
+              onClick={() => clearBreakdown(cardId)}
+              className="text-[10px] text-surface-500 hover:text-red-400 transition-colors"
+              title="Dismiss breakdown"
+            >
+              <X size={12} />
+            </button>
+          </div>
         )}
       </div>
 
@@ -224,34 +261,63 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
           <div className="space-y-1.5">
             {breakdown.subtasks.map((subtask, index) => {
               const isSelected = selectedSubtasks.has(index);
+              const isFirst = index === 0;
+              const isLast = index === breakdown.subtasks.length - 1;
               return (
-                <button
-                  key={index}
-                  onClick={() => toggleSubtask(index)}
-                  className={`flex items-center gap-2 w-full bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-3 py-2 text-left transition-colors ${
+                <div
+                  key={`${subtask.title}-${index}`}
+                  className={`flex items-center gap-2 w-full bg-surface-100/50 dark:bg-surface-800/50 rounded-lg px-3 py-2 text-left transition-colors group ${
                     isSelected
                       ? 'ring-1 ring-surface-600'
                       : 'opacity-50'
                   }`}
                 >
-                  {/* Checkbox */}
-                  <div
-                    className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                      isSelected
-                        ? 'bg-primary-600 border-primary-500'
-                        : 'border-surface-600 bg-surface-800'
-                    }`}
-                  >
-                    {isSelected && <Check size={10} className="text-white" />}
+                  {/* Move up/down */}
+                  <div className="flex flex-col shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => !isFirst && handleMoveSubtask(e, index, index - 1)}
+                      disabled={isFirst}
+                      className={`p-0 leading-none ${isFirst ? 'text-surface-700 cursor-default' : 'text-surface-500 hover:text-surface-300'}`}
+                      title="Move up"
+                    >
+                      <ChevronUp size={12} />
+                    </button>
+                    <button
+                      onClick={(e) => !isLast && handleMoveSubtask(e, index, index + 1)}
+                      disabled={isLast}
+                      className={`p-0 leading-none ${isLast ? 'text-surface-700 cursor-default' : 'text-surface-500 hover:text-surface-300'}`}
+                      title="Move down"
+                    >
+                      <ChevronDown size={12} />
+                    </button>
                   </div>
+
+                  {/* Checkbox — click to toggle selection */}
+                  <button
+                    onClick={() => toggleSubtask(index)}
+                    className="shrink-0"
+                  >
+                    <div
+                      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                        isSelected
+                          ? 'bg-primary-600 border-primary-500'
+                          : 'border-surface-600 bg-surface-800'
+                      }`}
+                    >
+                      {isSelected && <Check size={10} className="text-white" />}
+                    </div>
+                  </button>
 
                   {/* Order number */}
                   <span className="text-[10px] font-medium text-surface-500 w-4 text-center shrink-0">
-                    {subtask.order}
+                    {index + 1}
                   </span>
 
                   {/* Title */}
-                  <span className="text-sm text-surface-800 dark:text-surface-200 flex-1 truncate">
+                  <span
+                    className="text-sm text-surface-800 dark:text-surface-200 flex-1 truncate cursor-pointer"
+                    onClick={() => toggleSubtask(index)}
+                  >
                     {subtask.title}
                   </span>
 
@@ -266,7 +332,16 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
                   <span className="text-[10px] font-medium text-surface-400 bg-surface-700 rounded px-1.5 py-0.5 shrink-0">
                     {EFFORT_LABEL[subtask.effort]}
                   </span>
-                </button>
+
+                  {/* Delete button */}
+                  <button
+                    onClick={(e) => handleDeleteSubtask(e, index)}
+                    className="text-surface-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+                    title="Remove subtask"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               );
             })}
           </div>
