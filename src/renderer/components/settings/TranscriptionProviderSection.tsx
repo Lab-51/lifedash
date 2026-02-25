@@ -7,9 +7,10 @@
 // React, lucide-react icons, electronAPI (preload bridge)
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Mic, Loader2, Check, Eye, EyeOff } from 'lucide-react';
+import { Mic, Loader2, Check, Eye, EyeOff, Globe } from 'lucide-react';
 import type { TranscriptionProviderStatus, TranscriptionProviderType } from '../../../shared/types';
 import { TRANSCRIPTION_LANGUAGES } from '../../../shared/types';
+import HudSelect from '../HudSelect';
 
 /** Provider option metadata for rendering */
 const PROVIDERS: Array<{
@@ -264,7 +265,7 @@ export default function TranscriptionProviderSection() {
         <button
           onClick={() => handleSaveKey(provider)}
           disabled={saving || !key.trim()}
-          className="flex items-center gap-1 bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-2.5 py-1 rounded-lg text-xs transition-colors"
+          className="flex items-center gap-1 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] disabled:opacity-50 disabled:cursor-not-allowed px-2.5 py-1 rounded-lg text-xs transition-colors"
         >
           Save
         </button>
@@ -300,7 +301,7 @@ export default function TranscriptionProviderSection() {
       {/* Section header */}
       <div className="mb-4">
         <div className="flex items-center gap-2">
-          <Mic size={18} className="text-primary-400" />
+          <Mic size={18} className="text-[var(--color-accent-dim)]" />
           <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Transcription Provider</h2>
         </div>
         <p className="text-sm text-surface-500 mt-1">
@@ -319,7 +320,7 @@ export default function TranscriptionProviderSection() {
                 value={provider.type}
                 checked={config.type === provider.type}
                 onChange={() => handleProviderChange(provider.type)}
-                className="w-4 h-4 mt-0.5 text-primary-600 border-surface-600 bg-surface-700 focus:ring-primary-500 focus:ring-offset-0"
+                className="w-4 h-4 mt-0.5"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -350,17 +351,12 @@ export default function TranscriptionProviderSection() {
           <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">
             Transcription Language
           </label>
-          <select
+          <HudSelect
             value={selectedLanguage}
-            onChange={(e) => handleLanguageChange(e.target.value)}
-            className="w-full max-w-xs"
-          >
-            {TRANSCRIPTION_LANGUAGES.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => handleLanguageChange(v)}
+            icon={Globe}
+            options={TRANSCRIPTION_LANGUAGES.map(lang => ({ value: lang.code, label: lang.label }))}
+          />
           {showModelWarning && (
             <p className="mt-1.5 text-xs text-amber-400">
               {'\u26A0'} Current Whisper model ({activeModelName}) is English-only. Download a multilingual model above for {TRANSCRIPTION_LANGUAGES.find(l => l.code === selectedLanguage)?.label ?? selectedLanguage} transcription.

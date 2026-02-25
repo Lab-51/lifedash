@@ -25,6 +25,7 @@ import type {
 } from '../../shared/types';
 import IdeaAnalysisSection from './IdeaAnalysisSection';
 import IdeaConvertWizard from './IdeaConvertWizard';
+import HudSelect from './HudSelect';
 
 // === CONSTANTS ===
 
@@ -231,59 +232,47 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
             <div className="flex flex-wrap items-center gap-4 mt-6">
               <div className="flex-1 min-w-[120px]">
                 <label className="text-xs font-semibold text-surface-500 mb-1.5 block">Status</label>
-                <select
+                <HudSelect
                   value={status}
-                  onChange={(e) => {
-                    const newStatus = e.target.value as IdeaStatus;
+                  onChange={(v) => {
+                    const newStatus = v as IdeaStatus;
                     setStatus(newStatus);
                     if (selectedIdea) updateIdea(selectedIdea.id, { status: newStatus });
                   }}
-                  className="w-full"
-                >
-                  {STATUS_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  options={STATUS_OPTIONS.map(opt => ({ value: opt.value, label: opt.label }))}
+                />
               </div>
               <div className="flex-1 min-w-[120px]">
                 <label className="text-xs font-semibold text-surface-500 mb-1.5 block">Effort</label>
-                <select
+                <HudSelect
                   value={effort}
-                  onChange={(e) => {
-                    const newEffort = e.target.value as EffortLevel | '';
+                  onChange={(v) => {
+                    const newEffort = v as EffortLevel | '';
                     setEffort(newEffort);
                     if (selectedIdea) updateIdea(selectedIdea.id, { effort: newEffort || null });
                   }}
-                  className="w-full"
-                >
-                  <option value="">--</option>
-                  {EFFORT_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="--"
+                  options={[
+                    { value: '', label: '--' },
+                    ...EFFORT_OPTIONS.map(opt => ({ value: opt.value, label: opt.label })),
+                  ]}
+                />
               </div>
               <div className="flex-1 min-w-[120px]">
                 <label className="text-xs font-semibold text-surface-500 mb-1.5 block">Impact</label>
-                <select
+                <HudSelect
                   value={impact}
-                  onChange={(e) => {
-                    const newImpact = e.target.value as ImpactLevel | '';
+                  onChange={(v) => {
+                    const newImpact = v as ImpactLevel | '';
                     setImpact(newImpact);
                     if (selectedIdea) updateIdea(selectedIdea.id, { impact: newImpact || null });
                   }}
-                  className="w-full"
-                >
-                  <option value="">--</option>
-                  {IMPACT_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="--"
+                  options={[
+                    { value: '', label: '--' },
+                    ...IMPACT_OPTIONS.map(opt => ({ value: opt.value, label: opt.label })),
+                  ]}
+                />
               </div>
             </div>
 

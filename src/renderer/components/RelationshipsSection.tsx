@@ -12,6 +12,7 @@ import { Link2, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useBoardStore } from '../stores/boardStore';
 import { useCardDetailStore } from '../stores/cardDetailStore';
 import type { CardRelationshipType } from '../../shared/types';
+import HudSelect from './HudSelect';
 
 /** Display label for each relationship type (outgoing / incoming) */
 const TYPE_LABELS: Record<CardRelationshipType, { outgoing: string; incoming: string }> = {
@@ -117,29 +118,29 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
         <div className="hud-panel rounded-lg p-3 mt-2 mb-3">
           <div className="flex items-center gap-2">
             {/* Card picker */}
-            <select
-              value={selectedTargetId}
-              onChange={e => setSelectedTargetId(e.target.value)}
-              className="flex-1 min-w-0"
-            >
-              <option value="">Select a card...</option>
-              {availableCards.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
+            <div className="flex-1 min-w-0">
+              <HudSelect
+                value={selectedTargetId}
+                onChange={(v) => setSelectedTargetId(v)}
+                placeholder="Select a card..."
+                options={[
+                  { value: '', label: 'Select a card...' },
+                  ...availableCards.map(c => ({ value: c.id, label: c.title })),
+                ]}
+              />
+            </div>
 
             {/* Type selector */}
-            <select
+            <HudSelect
               value={selectedType}
-              onChange={e => setSelectedType(e.target.value as CardRelationshipType)}
-              className=""
-            >
-              <option value="blocks">Blocks</option>
-              <option value="depends_on">Depends on</option>
-              <option value="related_to">Related to</option>
-            </select>
+              onChange={(v) => setSelectedType(v as CardRelationshipType)}
+              compact
+              options={[
+                { value: 'blocks', label: 'Blocks' },
+                { value: 'depends_on', label: 'Depends on' },
+                { value: 'related_to', label: 'Related to' },
+              ]}
+            />
 
             {/* Add button */}
             <button

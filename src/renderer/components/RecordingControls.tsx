@@ -7,13 +7,14 @@
 // react, lucide-react (Mic, Square, Loader2), recordingStore, audioCaptureService
 
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Square, Loader2, Trash2 } from 'lucide-react';
+import { Mic, MicOff, Square, Loader2, Trash2, FolderOpen, FileText, Globe } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
 import { onAudioLevel } from '../services/audioCaptureService';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
+import HudSelect from './HudSelect';
 import MeetingPrepSection from './MeetingPrepSection';
 
 /** Generate a default meeting title with the current date and time. */
@@ -300,41 +301,31 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
               Last: {lastCompletedMeeting.title} — {formatLastDuration(lastCompletedMeeting.startedAt, lastCompletedMeeting.endedAt!)}
             </p>
           )}
-          <select
+          <HudSelect
             value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(e.target.value)}
-            className="w-full"
+            onChange={(v) => setSelectedProjectId(v)}
+            placeholder="No project (link later)"
+            icon={FolderOpen}
             disabled={starting}
-          >
-            <option value="">No project (link later)</option>
-            {activeProjects.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          <select
+            options={[
+              { value: '', label: 'No project (link later)' },
+              ...activeProjects.map(p => ({ value: p.id, label: p.name })),
+            ]}
+          />
+          <HudSelect
             value={selectedTemplate}
-            onChange={(e) => setSelectedTemplate(e.target.value as MeetingTemplateType)}
-            className="w-full"
+            onChange={(v) => setSelectedTemplate(v as MeetingTemplateType)}
+            icon={FileText}
             disabled={starting}
-          >
-            {MEETING_TEMPLATES.map((t) => (
-              <option key={t.type} value={t.type}>
-                {t.name} — {t.description}
-              </option>
-            ))}
-          </select>
-          <select
+            options={MEETING_TEMPLATES.map(t => ({ value: t.type, label: t.name, description: t.description }))}
+          />
+          <HudSelect
             value={selectedLanguage}
-            onChange={(e) => handleLanguageChange(e.target.value)}
-            className="w-full"
+            onChange={(v) => handleLanguageChange(v)}
+            icon={Globe}
             disabled={starting}
-          >
-            {TRANSCRIPTION_LANGUAGES.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.label}
-              </option>
-            ))}
-          </select>
+            options={TRANSCRIPTION_LANGUAGES.map(lang => ({ value: lang.code, label: lang.label }))}
+          />
           {showModelWarning && (
             <p className="text-xs text-amber-400">
               {'\u26A0'} Current Whisper model ({activeModelName}) is English-only. Download a multilingual model in Settings for {TRANSCRIPTION_LANGUAGES.find(l => l.code === selectedLanguage)?.label ?? selectedLanguage} transcription.

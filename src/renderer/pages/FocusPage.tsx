@@ -3,12 +3,13 @@
 // session list with date grouping, and CSV export.
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Timer, Download, Play, Clock, Calendar, BarChart3, Pencil, Trash2, Check, X, DollarSign, Minus } from 'lucide-react';
+import { Timer, Download, Play, Clock, Calendar, BarChart3, Pencil, Trash2, Check, X, DollarSign, Minus, FolderOpen } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useFocusStore } from '../stores/focusStore';
 import { toast } from '../hooks/useToast';
 import type { FocusTimeReport, FocusSessionFull } from '../../shared/types/focus';
 import { billableHours } from '../../shared/utils/billing';
+import HudSelect from '../components/HudSelect';
 
 type Period = 'thisWeek' | 'lastWeek' | 'last7Days' | 'thisMonth' | 'lastMonth' | 'allTime' | 'custom';
 
@@ -276,15 +277,29 @@ export default function FocusPage() {
           <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className={inputCls} />
         </div>
       )}
-      <select value={projectId} onChange={e => setProjectId(e.target.value)} className="">
-        <option value="">All Projects</option>
-        {activeProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </select>
-      <select value={billableFilter} onChange={e => setBillableFilter(e.target.value as '' | 'true' | 'false')} className="">
-        <option value="">All Sessions</option>
-        <option value="true">Billable</option>
-        <option value="false">Non-billable</option>
-      </select>
+      <HudSelect
+        value={projectId}
+        onChange={(v) => setProjectId(v)}
+        icon={FolderOpen}
+        placeholder="All Projects"
+        compact
+        options={[
+          { value: '', label: 'All Projects' },
+          ...activeProjects.map(p => ({ value: p.id, label: p.name })),
+        ]}
+      />
+      <HudSelect
+        value={billableFilter}
+        onChange={(v) => setBillableFilter(v as '' | 'true' | 'false')}
+        icon={DollarSign}
+        placeholder="All Sessions"
+        compact
+        options={[
+          { value: '', label: 'All Sessions' },
+          { value: 'true', label: 'Billable' },
+          { value: 'false', label: 'Non-billable' },
+        ]}
+      />
       <button onClick={() => useFocusStore.getState().setShowStartModal(true)} className="ml-auto btn-primary clip-corner-cut-sm inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium">
         <Play size={14} /> Start Focus
       </button>
@@ -444,16 +459,18 @@ export default function FocusPage() {
                             /* Inline edit form */
                             <div className="px-3 py-3 rounded-lg bg-surface-50 dark:bg-surface-800/50 space-y-2">
                               <div className="flex items-center gap-2">
-                                <select
-                                  value={editProject}
-                                  onChange={e => setEditProject(e.target.value)}
-                                  className={`flex-1 ${inputCls}`}
-                                >
-                                  <option value="">No project</option>
-                                  {activeProjects.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                  ))}
-                                </select>
+                                <div className="flex-1">
+                                  <HudSelect
+                                    value={editProject}
+                                    onChange={(v) => setEditProject(v)}
+                                    icon={FolderOpen}
+                                    placeholder="No project"
+                                    options={[
+                                      { value: '', label: 'No project' },
+                                      ...activeProjects.map(p => ({ value: p.id, label: p.name })),
+                                    ]}
+                                  />
+                                </div>
                                 <input
                                   type="text"
                                   value={editNote}

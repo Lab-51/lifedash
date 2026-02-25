@@ -4,8 +4,9 @@
 
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Lightbulb, Plus, Search, X, Zap, Target, Loader2, Sparkles, Tag, ArrowRight } from 'lucide-react';
+import { Lightbulb, Plus, Search, X, Zap, Target, Loader2, Sparkles, Tag, ArrowRight, ArrowDownWideNarrow } from 'lucide-react';
 import { useIdeaStore } from '../stores/ideaStore';
+import HudSelect from '../components/HudSelect';
 import type { IdeaStatus } from '../../shared/types';
 
 const IdeaDetailModal = lazy(() => import('../components/IdeaDetailModal'));
@@ -101,7 +102,7 @@ export default function IdeasModern() {
     if (loading && ideas.length === 0) {
         return (
             <div className="flex-1 flex items-center justify-center">
-                <Loader2 size={32} className="animate-spin text-primary-500" />
+                <Loader2 size={32} className="animate-spin text-[var(--color-accent)]" />
             </div>
         );
     }
@@ -126,7 +127,7 @@ export default function IdeasModern() {
                 {/* Quick Add Bar - Floating Style */}
                 <div className="mb-8">
                     <form onSubmit={handleQuickAdd} className="flex items-center gap-3 hud-panel rounded-2xl pl-4 pr-2 py-2 group focus-within:!border-[var(--color-accent)] transition-all">
-                        <Sparkles size={18} className="text-primary-500 shrink-0" />
+                        <Sparkles size={18} className="text-[var(--color-accent)] shrink-0" />
                         <input
                             ref={quickAddInputRef}
                             type="text"
@@ -149,14 +150,14 @@ export default function IdeasModern() {
                 {/* Filters & Search Toolbar */}
                 <div className="flex hud-panel p-1.5 rounded-xl items-center gap-2 mb-2">
 
-                    <div className="flex p-1 bg-surface-100 dark:bg-surface-800 rounded-lg overflow-x-auto no-scrollbar">
+                    <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
                         {FILTER_TABS.map((tab) => (
                             <button
                                 key={tab.value}
                                 onClick={() => setFilter(tab.value)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${filter === tab.value
-                                        ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-surface-100 shadow-sm'
-                                        : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+                                className={`px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${filter === tab.value
+                                        ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
+                                        : 'bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)]'
                                     }`}
                             >
                                 {tab.label}
@@ -164,38 +165,42 @@ export default function IdeasModern() {
                         ))}
                     </div>
 
-                    <div className="h-6 w-px bg-surface-200 dark:bg-surface-700 mx-1" />
+                    <div className="h-6 w-px bg-[var(--color-border)] mx-1" />
 
                     <div className="relative flex-1">
-                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-400" />
+                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
                         <input
                             type="text"
                             placeholder="Search ideas..."
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            className="w-full pl-8 pr-8 py-1.5 text-sm bg-transparent border-none focus:ring-0 text-surface-900 dark:text-surface-100 placeholder-surface-400"
+                            className="w-full pl-8 pr-8 py-1.5 text-sm bg-transparent border-none focus:ring-0 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
                         />
                         {searchQuery && (
                             <button
                                 onClick={() => setSearchQuery('')}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-accent)]"
                             >
                                 <X size={12} />
                             </button>
                         )}
                     </div>
 
-                    <div className="h-6 w-px bg-surface-200 dark:bg-surface-700 mx-1" />
+                    <div className="h-6 w-px bg-[var(--color-border)] mx-1" />
 
-                    <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                        className="bg-transparent text-xs font-medium text-surface-600 dark:text-surface-400 border-none focus:ring-0 cursor-pointer pr-8"
-                    >
-                        <option value="newest">Newest</option>
-                        <option value="oldest">Oldest</option>
-                        <option value="title">A-Z</option>
-                    </select>
+                    <div className="w-28">
+                        <HudSelect
+                            value={sortBy}
+                            onChange={(v) => setSortBy(v as typeof sortBy)}
+                            options={[
+                                { value: 'newest', label: 'Newest' },
+                                { value: 'oldest', label: 'Oldest' },
+                                { value: 'title', label: 'A-Z' },
+                            ]}
+                            icon={ArrowDownWideNarrow}
+                            compact
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -234,7 +239,7 @@ export default function IdeasModern() {
                                     <h3 className="text-base font-bold text-[var(--color-text-primary)] leading-snug group-hover:text-[var(--color-accent)] transition-colors">
                                         {idea.title}
                                     </h3>
-                                    <button className="opacity-0 group-hover:opacity-100 text-surface-400 hover:text-primary-500 transition-opacity">
+                                    <button className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-opacity">
                                         <ArrowRight size={16} />
                                     </button>
                                 </div>
@@ -267,7 +272,7 @@ export default function IdeasModern() {
                                         )}
                                         {idea.impact && (
                                             <div className="flex items-center gap-1.5 text-xs text-surface-500" title="Impact">
-                                                <Target size={12} className="text-primary-500" />
+                                                <Target size={12} className="text-[var(--color-accent)]" />
                                                 <span>{idea.impact}</span>
                                             </div>
                                         )}

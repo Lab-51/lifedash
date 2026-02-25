@@ -8,8 +8,9 @@
 // React, lucide-react icons, audioCaptureService (enumerateAudioDevices)
 
 import { useEffect, useState, useCallback } from 'react';
-import { Headphones, Loader2, RefreshCw } from 'lucide-react';
+import { Headphones, Loader2, RefreshCw, Mic } from 'lucide-react';
 import { enumerateAudioDevices, type AudioDeviceInfo } from '../../services/audioCaptureService';
+import HudSelect from '../HudSelect';
 
 /** Settings keys used for audio device configuration */
 const SETTINGS_KEY_MIC = 'audio:inputDeviceId';
@@ -114,18 +115,16 @@ export default function AudioDeviceSection() {
             </button>
           </div>
 
-          <select
+          <HudSelect
             value={selectedMicId}
-            onChange={(e) => handleMicChange(e.target.value)}
-            className="w-full"
-          >
-            <option value="">System Default</option>
-            {inputDevices.map((device) => (
-              <option key={device.deviceId} value={device.deviceId}>
-                {device.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => handleMicChange(v)}
+            icon={Mic}
+            placeholder="System Default"
+            options={[
+              { value: '', label: 'System Default' },
+              ...inputDevices.map(device => ({ value: device.deviceId, label: device.label })),
+            ]}
+          />
 
           <p className="text-xs text-surface-500 mt-2">
             {inputDevices.length === 0

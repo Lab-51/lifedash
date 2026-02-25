@@ -3,8 +3,9 @@
 // Project-first selection: pick a project, then optionally pick a card from that project.
 
 import { useEffect, useMemo, useState } from 'react';
-import { X, Search, Timer, Clock, ArrowRight, DollarSign } from 'lucide-react';
+import { X, Search, Timer, Clock, ArrowRight, DollarSign, FolderOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import HudSelect from '../components/HudSelect';
 import { useBoardStore } from '../stores/boardStore';
 import { useFocusStore } from '../stores/focusStore';
 import { useProjectStore } from '../stores/projectStore';
@@ -93,7 +94,6 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
 
   if (!isOpen) return null;
 
-  const selectCls = 'w-full';
 
   return (
     <div
@@ -145,22 +145,23 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
             <label className="text-xs text-surface-500 uppercase tracking-wider mb-2 block">
               Project (optional)
             </label>
-            <select
+            <HudSelect
               value={selectedProjectId}
-              onChange={e => {
-                setSelectedProjectId(e.target.value);
+              onChange={(v) => {
+                setSelectedProjectId(v);
                 setSelectedCard(null);
                 setSearchQuery('');
               }}
-              className={selectCls}
-            >
-              <option value="">No project — general focus</option>
-              {activeProjects.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.name}{p.hourlyRate != null ? ` ($${p.hourlyRate}/hr)` : ''}
-                </option>
-              ))}
-            </select>
+              placeholder="No project — general focus"
+              icon={FolderOpen}
+              options={[
+                { value: '', label: 'No project — general focus' },
+                ...activeProjects.map(p => ({
+                  value: p.id,
+                  label: p.hourlyRate != null ? `${p.name} ($${p.hourlyRate}/hr)` : p.name,
+                })),
+              ]}
+            />
             {selectedProject?.hourlyRate != null && (
               <div className="flex items-center gap-1.5 mt-1.5 text-xs text-emerald-600 dark:text-emerald-400">
                 <DollarSign size={12} />
@@ -238,8 +239,8 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                   }}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                     !isCustom && duration === preset
-                      ? 'bg-primary-600 text-white ring-2 ring-primary-400'
-                      : 'bg-surface-50 dark:bg-surface-800 text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700'
+                      ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] ring-2 ring-[var(--color-accent-dim)]'
+                      : 'bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-accent-subtle)]'
                   }`}
                 >
                   {preset}m
@@ -249,8 +250,8 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                 onClick={() => setIsCustom(true)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                   isCustom
-                    ? 'bg-primary-600 text-white ring-2 ring-primary-400'
-                    : 'bg-surface-50 dark:bg-surface-800 text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700'
+                    ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] ring-2 ring-[var(--color-accent-dim)]'
+                    : 'bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-accent-subtle)]'
                 }`}
               >
                 Custom

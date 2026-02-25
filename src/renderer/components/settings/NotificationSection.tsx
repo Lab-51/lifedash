@@ -7,8 +7,9 @@
 // React, lucide-react icons, electronAPI (preload bridge)
 
 import { useEffect, useState, useCallback } from 'react';
-import { Bell, Loader2 } from 'lucide-react';
+import { Bell, Loader2, Clock } from 'lucide-react';
 import type { NotificationPreferences } from '../../../shared/types';
+import HudSelect from '../HudSelect';
 
 /** Map hour (0-23) to a human-readable 12-hour time string */
 function formatHour(hour: number): string {
@@ -139,19 +140,15 @@ export default function NotificationSection() {
               {preferences.dailyDigest && (
                 <div className="flex items-center gap-3 mt-2 ml-6">
                   <label className="text-xs text-surface-400">Time</label>
-                  <select
-                    value={preferences.dailyDigestHour}
-                    onChange={(e) =>
-                      updatePreference({ dailyDigestHour: parseInt(e.target.value, 10) })
-                    }
-                    className=""
-                  >
-                    {Array.from({ length: 24 }, (_, i) => (
-                      <option key={i} value={i}>
-                        {formatHour(i)}
-                      </option>
-                    ))}
-                  </select>
+                  <HudSelect
+                    value={String(preferences.dailyDigestHour)}
+                    onChange={(v) => updatePreference({ dailyDigestHour: parseInt(v, 10) })}
+                    icon={Clock}
+                    options={Array.from({ length: 24 }, (_, i) => ({
+                      value: String(i),
+                      label: formatHour(i),
+                    }))}
+                  />
                 </div>
               )}
             </div>

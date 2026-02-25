@@ -14,6 +14,7 @@ import remarkGfm from 'remark-gfm';
 import { useBrainstormStore } from '../stores/brainstormStore';
 import { useProjectStore } from '../stores/projectStore';
 import ChatMessageModern from '../components/ChatMessageModern';
+import HudSelect from '../components/HudSelect';
 import { BRAINSTORM_TEMPLATES } from '../../shared/types/brainstorm';
 
 function formatRelativeTime(isoDate: string): string {
@@ -241,22 +242,22 @@ export default function BrainstormModern() {
             <div className="flex-1 flex overflow-hidden">
                 {/* Left Sidebar - Modern */}
                 <div className="w-80 flex-shrink-0 border-r border-[var(--color-border)] hud-chrome-bg flex flex-col z-10">
-                    <div className="px-2 pt-3 pb-1 border-b border-surface-100 dark:border-surface-800">
-                        <div className="flex rounded-lg bg-surface-100 dark:bg-surface-800 p-0.5">
+                    <div className="px-2 pt-3 pb-1 border-b border-[var(--color-border)]">
+                        <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
                             <button
                                 onClick={() => setSidebarTab('active')}
-                                className={`flex-1 text-xs font-semibold py-1.5 rounded-md transition-all ${sidebarTab === 'active'
-                                    ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-surface-100 shadow-sm'
-                                    : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+                                className={`flex-1 text-xs font-semibold py-1.5 transition-all ${sidebarTab === 'active'
+                                    ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)]'
+                                    : 'bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)]'
                                     }`}
                             >
                                 Active
                             </button>
                             <button
                                 onClick={() => setSidebarTab('archived')}
-                                className={`flex-1 text-xs font-semibold py-1.5 rounded-md transition-all ${sidebarTab === 'archived'
-                                    ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-surface-100 shadow-sm'
-                                    : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+                                className={`flex-1 text-xs font-semibold py-1.5 transition-all ${sidebarTab === 'archived'
+                                    ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)]'
+                                    : 'bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)]'
                                     }`}
                             >
                                 Archived
@@ -316,14 +317,14 @@ export default function BrainstormModern() {
                                                         if (renameTitle.trim()) updateSession(session.id, { title: renameTitle.trim() });
                                                         setRenamingId(null);
                                                     }}
-                                                    className="w-full bg-white dark:bg-surface-900 border border-primary-500 rounded px-1.5 py-0.5 text-sm focus:outline-none"
+                                                    className="w-full bg-surface-950 border border-[var(--color-accent-dim)] rounded px-1.5 py-0.5 text-sm focus:outline-none"
                                                     autoFocus
                                                     onClick={(e) => e.stopPropagation()}
                                                 />
                                             ) : (
                                                 <h4 className={`text-sm font-medium truncate mb-1 ${activeSession?.id === session.id
-                                                    ? 'text-primary-900 dark:text-primary-100'
-                                                    : 'text-surface-700 dark:text-surface-300'
+                                                    ? 'text-[var(--color-accent)]'
+                                                    : 'text-[var(--color-text-primary)]'
                                                     }`}>
                                                     {session.title}
                                                 </h4>
@@ -332,7 +333,7 @@ export default function BrainstormModern() {
                                             <div className="flex items-center gap-2 text-[10px] text-surface-400">
                                                 <span>{formatRelativeTime(session.updatedAt)}</span>
                                                 {session.projectId && (
-                                                    <span className="bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded text-surface-500 dark:text-surface-400 capitalize truncate max-w-[80px]">
+                                                    <span className="bg-[var(--color-accent-subtle)] px-1.5 py-0.5 rounded text-[var(--color-text-secondary)] capitalize truncate max-w-[80px]">
                                                         {projects.find(p => p.id === session.projectId)?.name ?? 'Linked'}
                                                     </span>
                                                 )}
@@ -340,14 +341,14 @@ export default function BrainstormModern() {
                                         </div>
 
                                         {/* Hover Actions */}
-                                        <div className="hidden group-hover:flex items-center gap-1 absolute right-2 top-2 bg-white/80 dark:bg-surface-900/80 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-surface-100 dark:border-surface-700">
+                                        <div className="hidden group-hover:flex items-center gap-1 absolute right-2 top-2 bg-[var(--color-chrome)]/80 backdrop-blur-sm rounded-lg p-0.5 shadow-sm border border-[var(--color-border)]">
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setRenamingId(session.id);
                                                     setRenameTitle(session.title);
                                                 }}
-                                                className="p-1 text-surface-400 hover:text-primary-500 rounded hover:bg-surface-100 dark:hover:bg-surface-800"
+                                                className="p-1 text-surface-400 hover:text-[var(--color-accent)] rounded hover:bg-[var(--color-accent-subtle)]"
                                                 title="Rename"
                                             >
                                                 <Edit2 size={12} />
@@ -357,7 +358,7 @@ export default function BrainstormModern() {
                                                     e.stopPropagation();
                                                     updateSession(session.id, { status: session.status === 'archived' ? 'active' : 'archived' });
                                                 }}
-                                                className="p-1 text-surface-400 hover:text-amber-500 rounded hover:bg-surface-100 dark:hover:bg-surface-800"
+                                                className="p-1 text-surface-400 hover:text-amber-500 rounded hover:bg-[var(--color-accent-subtle)]"
                                                 title={session.status === 'archived' ? 'Restore' : 'Archive'}
                                             >
                                                 <Archive size={12} />
@@ -367,7 +368,7 @@ export default function BrainstormModern() {
                                                     e.stopPropagation();
                                                     if (window.confirm('Delete this session?')) handleDeleteSession(session.id);
                                                 }}
-                                                className="p-1 text-surface-400 hover:text-red-500 rounded hover:bg-surface-100 dark:hover:bg-surface-800"
+                                                className="p-1 text-surface-400 hover:text-red-500 rounded hover:bg-[var(--color-accent-subtle)]"
                                                 title="Delete"
                                             >
                                                 <Trash2 size={12} />
@@ -383,12 +384,12 @@ export default function BrainstormModern() {
                 {/* New Session Modal - Moved OUT of sidebar */}
                 {showNewSession && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-surface-900 rounded-2xl shadow-2xl border border-surface-200 dark:border-surface-700 w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+                        <div className="hud-panel-accent clip-corner-cut shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
                             <div className="flex items-center justify-between mb-6">
-                                <h3 className="font-bold text-xl text-surface-900 dark:text-surface-100">New Session</h3>
+                                <h3 className="font-hud text-sm text-[var(--color-accent)]">New Session</h3>
                                 <button
                                     onClick={() => setShowNewSession(false)}
-                                    className="p-1 rounded-full hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 hover:text-surface-900 transition-colors"
+                                    className="p-1 rounded-full hover:bg-[var(--color-accent-subtle)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
                                 >
                                     <X size={20} />
                                 </button>
@@ -396,13 +397,13 @@ export default function BrainstormModern() {
 
                             <div className="space-y-5">
                                 <div>
-                                    <label className="block text-xs font-bold text-surface-500 mb-2 uppercase tracking-wide">Title</label>
+                                    <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-2 uppercase tracking-wider">Title</label>
                                     <input
                                         type="text"
                                         value={newSessionTitle}
                                         onChange={(e) => setNewSessionTitle(e.target.value)}
                                         placeholder="e.g., Marketing Strategy Q1"
-                                        className="w-full bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-all"
+                                        className="w-full bg-surface-950 border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
                                         autoFocus
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') handleCreateSession();
@@ -412,21 +413,21 @@ export default function BrainstormModern() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-surface-500 mb-2 uppercase tracking-wide">Project (Optional)</label>
-                                    <select
+                                    <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-2 uppercase tracking-wider">Project (Optional)</label>
+                                    <HudSelect
                                         value={selectedProjectId}
-                                        onChange={(e) => setSelectedProjectId(e.target.value)}
-                                        className="w-full bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 appearance-none transition-all"
-                                    >
-                                        <option value="">No linked project</option>
-                                        {projects.map((p) => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                        ))}
-                                    </select>
+                                        onChange={(v) => setSelectedProjectId(v)}
+                                        placeholder="No linked project"
+                                        options={[
+                                            { value: '', label: 'No linked project' },
+                                            ...projects.map((p) => ({ value: p.id, label: p.name })),
+                                        ]}
+                                        icon={Layers}
+                                    />
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-surface-500 mb-2 uppercase tracking-wide">Template</label>
+                                    <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-2 uppercase tracking-wider">Template</label>
                                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-surface-300 dark:scrollbar-thumb-surface-700">
                                         {BRAINSTORM_TEMPLATES.map((template) => (
                                             <button
@@ -434,13 +435,13 @@ export default function BrainstormModern() {
                                                 type="button"
                                                 onClick={() => setSelectedTemplateId(template.id)}
                                                 className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${selectedTemplateId === template.id
-                                                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-1 ring-primary-500'
-                                                    : 'border-surface-200 dark:border-surface-700 hover:bg-surface-800'
+                                                    ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] ring-1 ring-[var(--color-accent-dim)]'
+                                                    : 'border-[var(--color-border)] hover:bg-[var(--color-accent-subtle)]'
                                                     }`}
                                             >
                                                 <div className="mt-0.5">{templateIcons[template.icon]}</div>
                                                 <div>
-                                                    <p className={`text-sm font-semibold ${selectedTemplateId === template.id ? 'text-primary-700 dark:text-primary-300' : 'text-surface-900 dark:text-surface-100'}`}>
+                                                    <p className={`text-sm font-semibold ${selectedTemplateId === template.id ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
                                                         {template.name}
                                                     </p>
                                                     <p className="text-xs text-surface-500 leading-snug mt-0.5">{template.description}</p>
@@ -454,7 +455,7 @@ export default function BrainstormModern() {
                                     <button
                                         onClick={handleCreateSession}
                                         disabled={!newSessionTitle.trim()}
-                                        className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-500/20 hover:shadow-primary-500/40 transition-all hover:-translate-y-0.5"
+                                        className="w-full btn-primary clip-corner-cut-sm py-3 text-sm font-medium disabled:opacity-50"
                                     >
                                         Start Session
                                     </button>
@@ -469,30 +470,30 @@ export default function BrainstormModern() {
                 <div className="flex-1 flex flex-col relative bg-surface-50/50 dark:bg-surface-950 dark:grid-bg">
                     {!activeSession && !loadingSession ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-                            <div className="w-32 h-32 bg-white dark:bg-surface-900 rounded-full shadow-sm border border-surface-100 dark:border-surface-800 flex items-center justify-center mb-6">
-                                <Sparkles size={48} className="text-primary-300" />
+                            <div className="w-32 h-32 bg-[var(--color-chrome)] rounded-full border border-[var(--color-border)] flex items-center justify-center mb-6">
+                                <Sparkles size={48} className="text-[var(--color-accent-dim)]" />
                             </div>
-                            <h2 className="text-2xl font-bold text-surface-900 dark:text-surface-100 mb-2">Welcome to Brainstorm</h2>
-                            <p className="text-surface-500 max-w-md mx-auto mb-8">
+                            <h2 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">Welcome to Brainstorm</h2>
+                            <p className="text-[var(--color-text-secondary)] max-w-md mx-auto mb-8">
                                 Select a session from the sidebar or start a new one to collaborate with AI on your projects.
                             </p>
                             <button
                                 onClick={() => setShowNewSession(true)}
-                                className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-xl font-medium shadow-md transition-all hover:-translate-y-0.5"
+                                className="btn-primary clip-corner-cut-sm px-6 py-3 text-sm font-medium"
                             >
                                 Start New Session
                             </button>
                         </div>
                     ) : loadingSession ? (
                         <div className="flex-1 flex items-center justify-center">
-                            <Loader2 size={40} className="animate-spin text-primary-200" />
+                            <Loader2 size={40} className="animate-spin text-[var(--color-accent-dim)]" />
                         </div>
                     ) : activeSession ? (
                         <>
                             {/* Chat Header */}
-                            <div className="px-6 py-4 border-b border-surface-200 dark:border-surface-800 bg-white/50 dark:bg-surface-900/50 backdrop-blur-md flex items-center justify-between sticky top-0 z-10">
+                            <div className="px-6 py-4 border-b border-[var(--color-border)] bg-[var(--color-chrome)]/50 backdrop-blur-md flex items-center justify-between sticky top-0 z-10">
                                 <div>
-                                    <h2 className="text-lg font-bold text-surface-900 dark:text-surface-100 leading-none">
+                                    <h2 className="text-lg font-bold text-[var(--color-text-primary)] leading-none">
                                         {activeSession.title}
                                     </h2>
                                     {activeSession.projectId && (
@@ -534,9 +535,9 @@ export default function BrainstormModern() {
                                                 <button
                                                     key={i}
                                                     onClick={() => handleSendMessage(prompt)}
-                                                    className="text-left p-4 rounded-xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 hover:border-primary-400 dark:hover:border-primary-600 hover:shadow-md transition-all group"
+                                                    className="text-left p-4 rounded-xl hud-panel hover:!border-[var(--color-border-accent)] transition-all group"
                                                 >
-                                                    <p className="text-sm font-medium text-surface-700 dark:text-surface-200 group-hover:text-primary-600 dark:group-hover:text-primary-400">{prompt}</p>
+                                                    <p className="text-sm font-medium text-[var(--color-text-secondary)] group-hover:text-[var(--color-accent)]">{prompt}</p>
                                                 </button>
                                             ))}
                                         </div>
@@ -564,7 +565,7 @@ export default function BrainstormModern() {
                                                     <span className="text-[10px] font-medium text-surface-500 uppercase tracking-wider">AI Assistant</span>
                                                     <span className="text-[10px] text-surface-400">Typing...</span>
                                                 </div>
-                                                <div className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl rounded-tl-sm p-5 shadow-sm">
+                                                <div className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-2xl rounded-tl-sm p-5 shadow-sm">
                                                     <div className="prose prose-sm dark:prose-invert max-w-none text-surface-800 dark:text-surface-200">
                                                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                                             {streamingText}
@@ -579,8 +580,8 @@ export default function BrainstormModern() {
                                     {/* Thinking State */}
                                     {streaming && !streamingText && (
                                         <div className="flex justify-start mb-6">
-                                            <div className="bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl rounded-tl-sm p-4 shadow-sm flex items-center gap-3">
-                                                <Loader2 size={16} className="animate-spin text-primary-500" />
+                                            <div className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-2xl rounded-tl-sm p-4 shadow-sm flex items-center gap-3">
+                                                <Loader2 size={16} className="animate-spin text-[var(--color-accent)]" />
                                                 <span className="text-sm text-surface-500">Thinking...</span>
                                             </div>
                                         </div>

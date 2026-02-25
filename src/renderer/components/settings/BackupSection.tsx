@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useBackupStore } from '../../stores/backupStore';
 import type { AutoBackupFrequency } from '../../../shared/types';
+import HudSelect from '../HudSelect';
 
 /** Format byte sizes for display */
 function formatSize(bytes: number): string {
@@ -300,16 +301,14 @@ export default function BackupSection() {
               {/* Frequency */}
               <div className="flex items-center gap-3">
                 <label className="text-xs text-surface-400 w-20">Frequency</label>
-                <select
+                <HudSelect
                   value={autoSettings.frequency === 'off' ? 'daily' : autoSettings.frequency}
-                  onChange={(e) =>
-                    updateAutoSettings({ frequency: e.target.value as AutoBackupFrequency })
-                  }
-                  className=""
-                >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                </select>
+                  onChange={(v) => updateAutoSettings({ frequency: v as AutoBackupFrequency })}
+                  options={[
+                    { value: 'daily', label: 'Daily' },
+                    { value: 'weekly', label: 'Weekly' },
+                  ]}
+                />
               </div>
 
               {/* Retention */}

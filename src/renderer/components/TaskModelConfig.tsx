@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { Save, RotateCcw } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { AIProvider, AIProviderName, AITaskType, TaskModelConfig as TaskModelConfigType } from '../../shared/types';
+import HudSelect from './HudSelect';
 
 // Human-readable labels for task types
 const TASK_TYPE_INFO: { type: AITaskType; label: string; description: string }[] = [
@@ -172,16 +173,16 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {/* Provider selector */}
-                <select value={entry.providerId}
-                  onChange={e => updateDraft(type, 'providerId', e.target.value)}
-                  className="text-xs">
-                  <option value="">Select provider</option>
-                  {enabledProviders.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.displayName || p.name}
-                    </option>
-                  ))}
-                </select>
+                <HudSelect
+                  value={entry.providerId}
+                  onChange={(v) => updateDraft(type, 'providerId', v)}
+                  placeholder="Select provider"
+                  compact
+                  options={[
+                    { value: '', label: 'Select provider' },
+                    ...enabledProviders.map(p => ({ value: p.id, label: p.displayName || p.name })),
+                  ]}
+                />
 
                 {/* Model selector (dropdown for known models, text input for Ollama/custom) */}
                 {entry.providerId && (
@@ -195,14 +196,16 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
                       placeholder="Model name..."
                       className="text-xs bg-surface-950 dark:bg-surface-950 border border-[var(--color-border)] rounded px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] w-36 font-data" />
                   ) : (
-                    <select value={entry.model}
-                      onChange={e => updateDraft(type, 'model', e.target.value)}
-                      className="text-xs">
-                      <option value="">Select model</option>
-                      {models.map(m => (
-                        <option key={m.id} value={m.id}>{m.label}</option>
-                      ))}
-                    </select>
+                    <HudSelect
+                      value={entry.model}
+                      onChange={(v) => updateDraft(type, 'model', v)}
+                      placeholder="Select model"
+                      compact
+                      options={[
+                        { value: '', label: 'Select model' },
+                        ...models.map(m => ({ value: m.id, label: m.label })),
+                      ]}
+                    />
                   )
                 )}
               </div>
