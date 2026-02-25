@@ -634,8 +634,16 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                 </div>
 
                 {/* Labels */}
-                <div className="flex flex-col gap-2.5">
-                  <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Labels</span>
+                <div className="flex flex-col gap-2.5" ref={labelDropdownRef}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Labels</span>
+                    <button
+                      onClick={() => setShowLabelDropdown(!showLabelDropdown)}
+                      className={`inline-flex items-center gap-1 text-[10px] font-hud tracking-wider transition-colors ${showLabelDropdown ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}
+                    >
+                      <Plus size={12} /> {showLabelDropdown ? 'Close' : 'Add'}
+                    </button>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {card.labels?.map(label => (
                       <span
@@ -644,70 +652,65 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                       >
                         <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: label.color }} />
                         {label.name}
-                        <button onClick={() => handleDetachLabel(label.id)} className="text-surface-400 hover:text-red-500 transition-colors ml-0.5">
+                        <button onClick={() => handleDetachLabel(label.id)} className="text-[var(--color-text-muted)] hover:text-red-500 transition-colors ml-0.5">
                           <X size={12} />
                         </button>
                       </span>
                     ))}
-
-                    <div className="relative" ref={labelDropdownRef}>
-                      <button
-                        onClick={() => setShowLabelDropdown(!showLabelDropdown)}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] border border-dashed border-[var(--color-border)] hover:border-[var(--color-border-accent)] rounded-md px-2 py-1 transition-colors"
-                      >
-                        <Plus size={12} /> Add
-                      </button>
-
-                      {showLabelDropdown && (
-                        <div className="absolute bottom-full left-0 mb-1 bg-surface-900 border border-[var(--color-border)] rounded-xl shadow-xl p-2 min-w-[220px] z-40">
-                          {unattachedLabels.length > 0 && (
-                            <div className="max-h-32 overflow-y-auto mb-2 pr-1 scrollbar-thin">
-                              {unattachedLabels.map(label => (
-                                <button
-                                  key={label.id}
-                                  onClick={() => handleAttachLabel(label.id)}
-                                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs font-medium text-[var(--color-text-secondary)] hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors"
-                                >
-                                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: label.color }} />
-                                  {label.name}
-                                  <Plus size={12} className="ml-auto text-surface-400 opacity-0 group-hover:opacity-100" />
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          {unattachedLabels.length > 0 && <div className="border-t border-[var(--color-border)] my-2" />}
-                          <div className="space-y-2">
-                            <span className="text-[10px] uppercase tracking-wider text-surface-500 font-bold ml-1">Create new</span>
-                            <input
-                              type="text"
-                              value={newLabelName}
-                              onChange={e => setNewLabelName(e.target.value)}
-                              onKeyDown={e => { if (e.key === 'Enter') handleCreateAndAttach(); }}
-                              placeholder="Label name..."
-                              className="w-full text-xs bg-surface-950 border border-[var(--color-border)] rounded-lg px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
-                            />
-                            <div className="flex items-center gap-1.5 pt-1 px-1">
-                              {LABEL_COLORS.map(color => (
-                                <button
-                                  key={color}
-                                  onClick={() => setNewLabelColor(color)}
-                                  className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-[var(--color-accent-dim)] ring-offset-1 ring-offset-surface-900 scale-110' : 'hover:scale-110'}`}
-                                  style={{ backgroundColor: color }}
-                                />
-                              ))}
-                            </div>
-                            <button
-                              onClick={handleCreateAndAttach}
-                              disabled={!newLabelName.trim()}
-                              className="bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--color-accent)] border border-[var(--color-border-accent)] text-xs px-3 py-1.5 rounded-lg transition-colors w-full mt-2 font-bold"
-                            >
-                              Create Label
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    {(!card.labels || card.labels.length === 0) && !showLabelDropdown && (
+                      <span className="text-xs text-[var(--color-text-muted)]">No labels</span>
+                    )}
                   </div>
+
+                  {showLabelDropdown && (
+                    <div className="flex flex-col gap-2.5 bg-surface-950/50 rounded-lg p-3 border border-[var(--color-border)]">
+                      {unattachedLabels.length > 0 && (
+                        <>
+                          <span className="text-[10px] font-hud tracking-wider text-[var(--color-text-muted)]">Existing</span>
+                          <div className="flex flex-col gap-0.5 max-h-28 overflow-y-auto">
+                            {unattachedLabels.map(label => (
+                              <button
+                                key={label.id}
+                                onClick={() => handleAttachLabel(label.id)}
+                                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)] hover:text-[var(--color-text-primary)] transition-colors"
+                              >
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: label.color }} />
+                                {label.name}
+                                <Plus size={12} className="ml-auto text-[var(--color-text-muted)]" />
+                              </button>
+                            ))}
+                          </div>
+                          <div className="border-t border-[var(--color-border)]" />
+                        </>
+                      )}
+                      <span className="text-[10px] font-hud tracking-wider text-[var(--color-text-muted)]">Create new</span>
+                      <input
+                        type="text"
+                        value={newLabelName}
+                        onChange={e => setNewLabelName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleCreateAndAttach(); }}
+                        placeholder="Label name..."
+                        className="w-full text-xs bg-surface-950 border border-[var(--color-border)] rounded-lg px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+                      />
+                      <div className="flex items-center gap-1.5 px-0.5">
+                        {LABEL_COLORS.map(color => (
+                          <button
+                            key={color}
+                            onClick={() => setNewLabelColor(color)}
+                            className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-[var(--color-accent-dim)] ring-offset-1 ring-offset-surface-900 scale-110' : 'hover:scale-110'}`}
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        onClick={handleCreateAndAttach}
+                        disabled={!newLabelName.trim()}
+                        className="bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--color-accent)] border border-[var(--color-border-accent)] text-xs px-3 py-1.5 rounded-lg transition-colors w-full font-bold"
+                      >
+                        Create Label
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-auto pt-6 flex flex-col gap-2">
