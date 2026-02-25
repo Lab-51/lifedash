@@ -250,7 +250,7 @@ export default function TranscriptionProviderSection() {
             value={key}
             onChange={(e) => setKey(e.target.value)}
             placeholder={hasKey ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : 'Enter API key...'}
-            className="w-full bg-surface-700 border border-surface-600 text-surface-800 dark:text-surface-200 text-sm rounded-lg px-2 py-1 pr-8 focus:ring-primary-500 focus:border-primary-500"
+            className="w-full text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 pr-10 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
           />
           <button
             type="button"
@@ -272,7 +272,7 @@ export default function TranscriptionProviderSection() {
           <button
             onClick={() => handleClearKey(provider)}
             disabled={saving}
-            className="flex items-center gap-1 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 disabled:cursor-not-allowed text-red-400 hover:text-red-300 px-2.5 py-1 rounded-lg text-xs transition-colors"
+            className="flex items-center gap-1 border border-red-500/30 hover:border-red-500/50 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-red-400 px-2.5 py-1 rounded-lg text-xs transition-colors"
           >
             Clear
           </button>
@@ -353,7 +353,7 @@ export default function TranscriptionProviderSection() {
           <select
             value={selectedLanguage}
             onChange={(e) => handleLanguageChange(e.target.value)}
-            className="w-full max-w-xs bg-surface-700 border border-surface-600 text-surface-800 dark:text-surface-200 text-sm rounded-lg px-2 py-1.5 focus:ring-primary-500 focus:border-primary-500"
+            className="w-full max-w-xs"
           >
             {TRANSCRIPTION_LANGUAGES.map((lang) => (
               <option key={lang.code} value={lang.code}>

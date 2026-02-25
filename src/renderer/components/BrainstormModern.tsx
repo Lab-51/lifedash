@@ -435,7 +435,7 @@ export default function BrainstormModern() {
                                                 onClick={() => setSelectedTemplateId(template.id)}
                                                 className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${selectedTemplateId === template.id
                                                     ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-1 ring-primary-500'
-                                                    : 'border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800'
+                                                    : 'border-surface-200 dark:border-surface-700 hover:bg-surface-800'
                                                     }`}
                                             >
                                                 <div className="mt-0.5">{templateIcons[template.icon]}</div>
@@ -597,7 +597,7 @@ export default function BrainstormModern() {
                                         <div className="absolute -top-12 left-1/2 -translate-x-1/2">
                                             <button
                                                 onClick={() => abortStream()}
-                                                className="bg-surface-900 dark:bg-surface-100 text-white dark:text-surface-900 text-xs font-medium px-4 py-2 rounded-full shadow-lg flex items-center gap-2 hover:scale-105 transition-transform"
+                                                className="bg-surface-950 border border-[var(--color-accent-dim)] text-[var(--color-accent)] text-xs font-medium px-4 py-2 rounded-full shadow-lg flex items-center gap-2 hover:border-[var(--color-accent)] hover:scale-105 transition-transform"
                                             >
                                                 <Square size={10} fill="currentColor" />
                                                 Stop Generating

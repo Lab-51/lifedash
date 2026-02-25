@@ -75,7 +75,7 @@ export default function RecordingIndicator() {
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white dark:bg-surface-800 rounded-xl shadow-xl border border-surface-200 dark:border-surface-700 p-1.5 z-50">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-surface-900 rounded-xl shadow-xl border border-[var(--color-border)] p-1.5 z-50">
           <button
             onClick={() => {
               pendingNavigateRef.current = true;

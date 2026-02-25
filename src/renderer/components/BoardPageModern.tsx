@@ -282,8 +282,8 @@ export default function BoardPageModern() {
                         <button
                             onClick={() => { setShowPriorityDropdown(!showPriorityDropdown); setShowLabelDropdown(false); }}
                             className={`flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-xl border transition-all ${priorityFilter.length > 0
-                                    ? 'border-primary-200 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:border-primary-800 dark:text-primary-300 shadow-sm'
-                                    : 'border-surface-200 bg-white text-surface-600 dark:bg-surface-800 dark:border-surface-700 dark:text-surface-300 hover:border-surface-300 dark:hover:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700 shadow-sm'
+                                    ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] text-[var(--color-accent)]'
+                                    : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)]'
                                 }`}
                         >
                             <SlidersHorizontal size={16} />
@@ -297,7 +297,7 @@ export default function BoardPageModern() {
                         </button>
 
                         {showPriorityDropdown && (
-                            <div className="absolute top-full left-0 mt-2 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-2xl shadow-xl p-2 min-w-[200px] z-40 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="absolute top-full left-0 mt-2 bg-surface-900 border border-[var(--color-border)] rounded-2xl shadow-xl p-2 min-w-[200px] z-40 animate-in fade-in zoom-in-95 duration-200">
                                 <div className="px-3 py-2 text-xs font-semibold text-surface-400 uppercase tracking-wider">Filter by Priority</div>
                                 {([
                                     { value: 'low' as CardPriority, label: 'Low', dot: 'bg-emerald-500' },
@@ -308,9 +308,9 @@ export default function BoardPageModern() {
                                     <button
                                         key={opt.value}
                                         onClick={() => togglePriorityFilter(opt.value)}
-                                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-surface-700 dark:text-surface-200 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors group"
+                                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-[var(--color-text-secondary)] hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors group"
                                     >
-                                        <span className={`w-2.5 h-2.5 rounded-full ${opt.dot} ring-2 ring-white dark:ring-surface-800 shadow-sm`} />
+                                        <span className={`w-2.5 h-2.5 rounded-full ${opt.dot} ring-2 ring-surface-900 shadow-sm`} />
                                         <span className="flex-1 text-left">{opt.label}</span>
                                         {priorityFilter.includes(opt.value) && (
                                             <span className="text-primary-600 dark:text-primary-400 font-bold bg-primary-50 dark:bg-primary-900/20 px-2 py-0.5 rounded text-xs">Active</span>
@@ -325,8 +325,8 @@ export default function BoardPageModern() {
                         <button
                             onClick={() => { setShowLabelDropdown(!showLabelDropdown); setShowPriorityDropdown(false); if (showLabelDropdown) { setManagingLabels(false); setEditingLabelId(null); setAddingNewLabel(false); } }}
                             className={`flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-xl border transition-all ${labelFilter.length > 0
-                                    ? 'border-primary-200 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:border-primary-800 dark:text-primary-300 shadow-sm'
-                                    : 'border-surface-200 bg-white text-surface-600 dark:bg-surface-800 dark:border-surface-700 dark:text-surface-300 hover:border-surface-300 dark:hover:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700 shadow-sm'
+                                    ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] text-[var(--color-accent)]'
+                                    : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)]'
                                 }`}
                         >
                             Labels
@@ -339,7 +339,7 @@ export default function BoardPageModern() {
                         </button>
 
                         {showLabelDropdown && (
-                            <div className="absolute top-full left-0 mt-2 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-2xl shadow-xl p-2 min-w-[260px] z-40 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="absolute top-full left-0 mt-2 bg-surface-900 border border-[var(--color-border)] rounded-2xl shadow-xl p-2 min-w-[260px] z-40 animate-in fade-in zoom-in-95 duration-200">
                                 {!managingLabels ? (
                                     <>
                                         {/* Filter Mode */}
@@ -351,10 +351,10 @@ export default function BoardPageModern() {
                                                 <button
                                                     key={label.id}
                                                     onClick={() => toggleLabelFilter(label.id)}
-                                                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-surface-700 dark:text-surface-200 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors"
+                                                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-[var(--color-text-secondary)] hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors"
                                                 >
                                                     <span
-                                                        className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white dark:ring-surface-800 shadow-sm"
+                                                        className="w-3 h-3 rounded-full shrink-0 ring-2 ring-surface-900 shadow-sm"
                                                         style={{ backgroundColor: label.color }}
                                                     />
                                                     <span className="flex-1 text-left">{label.name}</span>
@@ -367,7 +367,7 @@ export default function BoardPageModern() {
                                         <div className="h-px bg-surface-100 dark:bg-surface-700 my-1" />
                                         <button
                                             onClick={() => { setManagingLabels(true); setEditingLabelId(null); setAddingNewLabel(false); }}
-                                            className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors"
+                                            className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-800 transition-colors"
                                         >
                                             <Settings2 size={14} />
                                             Manage Labels
@@ -424,10 +424,10 @@ export default function BoardPageModern() {
                                                 return (
                                                     <div
                                                         key={label.id}
-                                                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-sm hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors group"
+                                                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-sm hover:bg-surface-800 transition-colors group"
                                                     >
                                                         <span
-                                                            className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white dark:ring-surface-800 shadow-sm"
+                                                            className="w-3 h-3 rounded-full shrink-0 ring-2 ring-surface-900 shadow-sm"
                                                             style={{ backgroundColor: label.color }}
                                                         />
                                                         <span className="flex-1 text-left font-medium text-surface-700 dark:text-surface-200 truncate">{label.name}</span>
@@ -483,7 +483,7 @@ export default function BoardPageModern() {
                                         ) : (
                                             <button
                                                 onClick={() => setAddingNewLabel(true)}
-                                                className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors"
+                                                className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-surface-800 transition-colors"
                                             >
                                                 <Plus size={14} />
                                                 Add Label
@@ -509,7 +509,7 @@ export default function BoardPageModern() {
                             <div className="w-px h-8 bg-[var(--color-border-accent)] mx-1" />
                             <button
                                 onClick={toggleCollapseAll}
-                                className="flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-xl border border-surface-200 bg-white text-surface-600 dark:bg-surface-800 dark:border-surface-700 dark:text-surface-300 hover:border-surface-300 dark:hover:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-700 shadow-sm transition-all"
+                                className="flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)] transition-all"
                                 title={allColumnsCollapsed ? 'Expand all columns' : 'Collapse all columns'}
                             >
                                 {allColumnsCollapsed ? <ChevronsUpDown size={16} /> : <ChevronsDownUp size={16} />}

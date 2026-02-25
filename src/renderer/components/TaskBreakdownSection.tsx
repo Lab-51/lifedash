@@ -392,7 +392,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
               <button
                 onClick={handleAddToChecklist}
                 disabled={applying || addingToChecklist || selectedSubtasks.size === 0}
-                className="bg-surface-700 hover:bg-surface-600 disabled:opacity-40 disabled:cursor-not-allowed text-surface-800 dark:text-surface-200 text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                className="border border-[var(--color-border)] hover:border-[var(--color-border-accent)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
               >
                 {addingToChecklist ? (
                   <>

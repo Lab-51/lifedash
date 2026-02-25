@@ -97,7 +97,7 @@ const PERIODS: { key: Period; label: string }[] = [
 ];
 const PAGE = 50;
 const cardCls = 'hud-panel-accent clip-corner-cut-sm';
-const inputCls = 'px-2 py-1.5 text-sm rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-900 dark:text-surface-100';
+const inputCls = 'px-2 py-1.5 text-sm rounded-lg border border-[var(--color-border)] bg-surface-950 text-[var(--color-text-primary)] dark:[color-scheme:dark] focus:outline-none focus:border-[var(--color-accent-dim)]';
 
 export default function FocusPage() {
   const projects = useProjectStore(s => s.projects);
@@ -276,11 +276,11 @@ export default function FocusPage() {
           <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className={inputCls} />
         </div>
       )}
-      <select value={projectId} onChange={e => setProjectId(e.target.value)} className={`px-3 py-1.5 text-sm rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-900 dark:text-surface-100`}>
+      <select value={projectId} onChange={e => setProjectId(e.target.value)} className="">
         <option value="">All Projects</option>
         {activeProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
       </select>
-      <select value={billableFilter} onChange={e => setBillableFilter(e.target.value as '' | 'true' | 'false')} className={`px-3 py-1.5 text-sm rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 text-surface-900 dark:text-surface-100`}>
+      <select value={billableFilter} onChange={e => setBillableFilter(e.target.value as '' | 'true' | 'false')} className="">
         <option value="">All Sessions</option>
         <option value="true">Billable</option>
         <option value="false">Non-billable</option>
@@ -304,7 +304,7 @@ export default function FocusPage() {
           <h1 className="font-hud text-xl text-[var(--color-accent)] text-glow">Focus Time Tracking</h1>
         </div>
       </div>
-      <button onClick={handleExport} disabled={!report || !allSessions.length} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+      <button onClick={handleExport} disabled={!report || !allSessions.length} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
         <Download size={15} /> Export CSV
       </button>
     </div>
@@ -476,7 +476,7 @@ export default function FocusPage() {
                             </div>
                           ) : (
                             /* Normal display row */
-                            <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+                            <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-800/50 transition-colors">
                               <span className="text-xs text-surface-500 w-16 shrink-0">{fmtTime(s.completedAt)}</span>
                               <span className="flex items-center gap-1 text-sm font-medium text-surface-900 dark:text-surface-100 w-16 shrink-0">
                                 <Timer size={12} className="text-emerald-500" />{s.durationMinutes} min

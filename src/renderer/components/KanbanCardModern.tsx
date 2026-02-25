@@ -189,7 +189,7 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
                                 className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                                     card.completed
                                         ? 'bg-emerald-600 border-emerald-500'
-                                        : 'border-surface-300 dark:border-surface-500 bg-white dark:bg-surface-800 hover:border-surface-400'
+                                        : 'border-[var(--color-border)] bg-surface-950 hover:border-[var(--color-border-accent)]'
                                 }`}
                             >
                                 {card.completed && <Check size={10} className="text-white" />}

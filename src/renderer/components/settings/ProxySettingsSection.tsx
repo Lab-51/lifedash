@@ -165,7 +165,7 @@ export default function ProxySettingsSection() {
             type="checkbox"
             checked={useSystem}
             onChange={(e) => setUseSystem(e.target.checked)}
-            className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-500 focus:ring-primary-500 focus:ring-offset-0"
+            className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
           />
           <div>
             <span className="text-sm font-medium text-[var(--color-text-primary)]">
@@ -191,7 +191,7 @@ export default function ProxySettingsSection() {
                 value={proxyUrl}
                 onChange={(e) => setProxyUrl(e.target.value)}
                 placeholder="http://proxy.corp.com:8080"
-                className="w-full text-sm text-[var(--color-text-primary)] bg-surface-950 dark:bg-surface-950 px-3 py-2 rounded border border-[var(--color-border)] focus:border-[var(--color-accent-dim)] focus:outline-none placeholder-[var(--color-text-muted)]"
+                className="w-full text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
               />
               <p className="text-xs text-surface-500 mt-1">
                 Must start with http:// or https://
@@ -207,7 +207,7 @@ export default function ProxySettingsSection() {
                 value={noProxy}
                 onChange={(e) => setNoProxy(e.target.value)}
                 placeholder="localhost, 127.0.0.1, .internal.corp.com"
-                className="w-full text-sm text-[var(--color-text-primary)] bg-surface-950 dark:bg-surface-950 px-3 py-2 rounded border border-[var(--color-border)] focus:border-[var(--color-accent-dim)] focus:outline-none placeholder-[var(--color-text-muted)]"
+                className="w-full text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
               />
               <p className="text-xs text-surface-500 mt-1">
                 Comma-separated domains that bypass the proxy

@@ -512,7 +512,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
               onChange={(e) => updateMeeting(meeting.id, {
                 projectId: e.target.value || null,
               })}
-              className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:border-primary-500 dark:[color-scheme:dark] transition-colors appearance-none shadow-sm min-w-[200px]"
+              className="min-w-[200px]"
             >
               <option value="">No project</option>
               {projects.map(p => (

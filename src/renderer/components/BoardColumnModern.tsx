@@ -331,7 +331,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                                 else if (e.key === 'Escape') setIsRenaming(false);
                             }}
                             onClick={(e) => e.stopPropagation()}
-                            className="font-bold text-sm text-surface-900 dark:text-surface-100 bg-white dark:bg-surface-800 rounded px-2 py-1 w-full outline-none ring-2 ring-primary-500 shadow-sm"
+                            className="font-bold text-sm text-[var(--color-text-primary)] bg-surface-950 border border-[var(--color-accent-dim)] rounded px-2 py-1 w-full outline-none"
                         />
                     ) : (
                         <div
@@ -380,15 +380,15 @@ const BoardColumnModern = memo(function BoardColumnModern({
                                 <Palette size={14} />
                             </button>
                             {showColorPicker && (
-                                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100 min-w-[120px]">
+                                <div className="absolute right-0 top-full mt-1 bg-surface-900 border border-[var(--color-border)] rounded-xl shadow-lg py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100 min-w-[120px]">
                                     {COLUMN_COLORS.map(c => (
                                         <button
                                             key={c.label}
                                             onClick={(e) => { e.stopPropagation(); updateColumnColor(column.id, c.value); setShowColorPicker(false); }}
                                             className={`flex items-center gap-2.5 w-full px-3 py-1.5 text-xs font-medium transition-colors ${
                                                 column.color === c.value
-                                                    ? 'bg-surface-100 dark:bg-surface-700 text-surface-900 dark:text-surface-100'
-                                                    : 'text-surface-600 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
+                                                    ? 'bg-surface-800 text-[var(--color-text-primary)]'
+                                                    : 'text-[var(--color-text-secondary)] hover:bg-surface-800 hover:text-[var(--color-text-primary)]'
                                             }`}
                                         >
                                             <span
@@ -452,7 +452,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                 }`}
             >
                 {addingCard ? (
-                    <div className="flex flex-col gap-2 bg-white dark:bg-surface-800 p-2 rounded-xl shadow-lg border border-surface-200 dark:border-surface-700 animate-in slide-in-from-bottom-2">
+                    <div className="flex flex-col gap-2 bg-surface-900 p-2 rounded-xl shadow-lg border border-[var(--color-border)] animate-in slide-in-from-bottom-2">
                         <input
                             ref={cardInputRef}
                             type="text"
@@ -460,7 +460,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                             onChange={e => setNewCardTitle(e.target.value)}
                             onKeyDown={handleCardKeyDown}
                             placeholder="Enter card title..."
-                            className="w-full bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-500 focus:border-primary-500 transition-all font-medium placeholder:font-normal"
+                            className="w-full text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] transition-all font-medium placeholder:font-normal"
                         />
 
                         {/* Template selector for card creation */}
@@ -474,7 +474,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                                 </button>
 
                                 {showCreateTemplateDropdown && (
-                                    <div className="absolute bottom-full left-0 mb-1 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg py-1 min-w-[200px] z-40 max-h-48 overflow-y-auto">
+                                    <div className="absolute bottom-full left-0 mb-1 bg-surface-900 border border-[var(--color-border)] rounded-xl shadow-lg py-1 min-w-[200px] z-40 max-h-48 overflow-y-auto">
                                         {dbTemplates.length > 0 && (
                                             <>
                                                 <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
@@ -484,12 +484,12 @@ const BoardColumnModern = memo(function BoardColumnModern({
                                                     <button
                                                         key={t.id}
                                                         onClick={() => { setSelectedTemplate(t); setShowCreateTemplateDropdown(false); }}
-                                                        className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left"
+                                                        className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors text-left"
                                                     >
                                                         <span className="truncate">{t.name}</span>
                                                     </button>
                                                 ))}
-                                                <div className="border-t border-surface-200 dark:border-surface-700 my-1" />
+                                                <div className="border-t border-[var(--color-border)] my-1" />
                                             </>
                                         )}
                                         {dbTemplates.length > 0 && (
@@ -501,7 +501,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                                             <button
                                                 key={t.id}
                                                 onClick={() => { setSelectedTemplate(t); setShowCreateTemplateDropdown(false); }}
-                                                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-left"
+                                                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors text-left"
                                             >
                                                 <span>{t.icon}</span>
                                                 {t.name}

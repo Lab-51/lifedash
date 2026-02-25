@@ -238,7 +238,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                     setStatus(newStatus);
                     if (selectedIdea) updateIdea(selectedIdea.id, { status: newStatus });
                   }}
-                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
+                  className="w-full"
                 >
                   {STATUS_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -256,7 +256,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                     setEffort(newEffort);
                     if (selectedIdea) updateIdea(selectedIdea.id, { effort: newEffort || null });
                   }}
-                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
+                  className="w-full"
                 >
                   <option value="">--</option>
                   {EFFORT_OPTIONS.map((opt) => (
@@ -275,7 +275,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                     setImpact(newImpact);
                     if (selectedIdea) updateIdea(selectedIdea.id, { impact: newImpact || null });
                   }}
-                  className="w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 text-sm font-medium text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 appearance-none shadow-sm dark:[color-scheme:dark] transition-colors"
+                  className="w-full"
                 >
                   <option value="">--</option>
                   {IMPACT_OPTIONS.map((opt) => (
@@ -301,7 +301,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   }
                 }}
                 placeholder="Add a description..."
-                className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg p-3 text-sm text-surface-800 dark:text-surface-200 placeholder:text-surface-500 w-full min-h-[80px] resize-y focus:outline-none focus:border-primary-500"
+                className="w-full text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg p-3 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] min-h-[80px] resize-y focus:outline-none focus:border-[var(--color-accent-dim)]"
               />
             </div>
 
@@ -354,7 +354,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={handleTagKeyDown}
                   placeholder="Add tag..."
-                  className="bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1.5 text-sm text-surface-800 dark:text-surface-200 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 flex-1"
+                  className="flex-1 text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
                 />
                 <button
                   onClick={addTag}
@@ -376,7 +376,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                 <div className="space-y-2">
                   <button
                     onClick={handleBrainstormIdea}
-                    className="flex items-center gap-2 px-4 py-2 bg-surface-700 hover:bg-surface-600 text-surface-800 dark:text-surface-200 rounded-lg text-sm transition-colors w-full"
+                    className="flex items-center gap-2 px-4 py-2 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-lg text-sm transition-colors w-full"
                   >
                     <MessageSquare size={16} />
                     Brainstorm This Idea
