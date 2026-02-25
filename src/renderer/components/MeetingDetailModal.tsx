@@ -8,7 +8,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Clock, Trash2, Info, Search, Copy, Check, ArrowRight, Download, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
+import { X, Clock, Trash2, Info, Search, Copy, Check, ArrowRight, Download, ChevronDown, ChevronRight, ClipboardList, FolderOpen } from 'lucide-react';
+import HudSelect from './HudSelect';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
 import { toast } from '../hooks/useToast';
@@ -506,30 +507,30 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
 
           {/* Project linking */}
           <div className="flex items-center gap-3 mb-8">
-            <span className="text-sm font-semibold text-surface-500">Linked Project</span>
-            <select
-              value={meeting.projectId || ''}
-              onChange={(e) => updateMeeting(meeting.id, {
-                projectId: e.target.value || null,
-              })}
-              className="min-w-[200px]"
-            >
-              <option value="">No project</option>
-              {projects.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest shrink-0">Linked Project</span>
+            <div className="flex-1 min-w-[180px] max-w-[240px]">
+              <HudSelect
+                value={meeting.projectId || ''}
+                onChange={(v) => updateMeeting(meeting.id, { projectId: v || null })}
+                icon={FolderOpen}
+                placeholder="No project"
+                options={[
+                  { value: '', label: 'No project' },
+                  ...projects.map(p => ({ value: p.id, label: p.name })),
+                ]}
+              />
+            </div>
             {meeting.projectId && (
               <button
                 onClick={() => {
                   navigate(`/projects/${meeting.projectId}`);
                   handleClose();
                 }}
-                className="flex items-center gap-1.5 text-xs font-bold bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-2.5 py-1.5 rounded-md transition-colors"
+                className="flex items-center gap-1.5 text-[10px] font-hud tracking-wider border border-[var(--color-border)] hover:border-[var(--color-accent-dim)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] px-2.5 py-1.5 rounded-md transition-colors shrink-0"
                 title="Go to project board"
               >
                 Open Board
-                <ArrowRight size={14} />
+                <ArrowRight size={12} />
               </button>
             )}
           </div>
@@ -637,18 +638,18 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                 {/* Search input */}
                 {meeting.segments.length > 0 && (
                   <div className="relative">
-                    <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
+                    <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
                     <input
                       type="text"
                       value={transcriptSearch}
                       onChange={e => setTranscriptSearch(e.target.value)}
                       placeholder="Search..."
-                      className="bg-surface-800 border border-surface-700 rounded text-sm text-surface-800 dark:text-surface-200 pl-7 pr-7 py-1 max-w-48 focus:outline-none focus:border-primary-500 placeholder:text-surface-600"
+                      className="bg-surface-950 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] rounded-lg text-sm text-[var(--color-text-primary)] pl-8 pr-7 py-1.5 max-w-48 focus:outline-none focus:border-[var(--color-accent-dim)] placeholder:text-[var(--color-text-muted)] transition-colors"
                     />
                     {transcriptSearch && (
                       <button
                         onClick={() => setTranscriptSearch('')}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-700 dark:text-surface-300"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
                       >
                         <X size={13} />
                       </button>

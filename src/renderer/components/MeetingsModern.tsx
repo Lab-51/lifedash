@@ -4,7 +4,8 @@
 
 import { useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Mic, Info, Search, X } from 'lucide-react';
+import { Mic, Info, Search, X, ArrowDownWideNarrow } from 'lucide-react';
+import HudSelect from './HudSelect';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useProjectStore } from '../stores/projectStore';
@@ -220,35 +221,39 @@ export default function MeetingsModern() {
                 {/* Filters & Search Toolbar */}
                 <div className="flex hud-panel p-1.5 rounded-xl items-center gap-2 mb-2">
                     <div className="relative flex-1">
-                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-400" />
+                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
                         <input
                             type="text"
                             placeholder="Search transcripts..."
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            className="w-full pl-8 pr-8 py-1.5 text-sm bg-transparent border-none focus:ring-0 text-surface-900 dark:text-surface-100 placeholder-surface-400"
+                            className="w-full pl-8 pr-8 py-1.5 text-sm bg-transparent border-none focus:ring-0 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
                         />
                         {searchQuery && (
                             <button
                                 onClick={() => setSearchQuery('')}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
                             >
                                 <X size={12} />
                             </button>
                         )}
                     </div>
 
-                    <div className="h-6 w-px bg-surface-200 dark:bg-surface-700 mx-1" />
+                    <div className="h-6 w-px bg-[var(--color-border)] mx-1" />
 
-                    <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                        className="bg-transparent text-xs font-medium text-surface-600 dark:text-surface-400 border-none focus:ring-0 cursor-pointer pr-8"
-                    >
-                        <option value="newest">Newest</option>
-                        <option value="oldest">Oldest</option>
-                        <option value="title">A-Z</option>
-                    </select>
+                    <div className="w-[130px] shrink-0">
+                        <HudSelect
+                            value={sortBy}
+                            onChange={(v) => setSortBy(v as typeof sortBy)}
+                            icon={ArrowDownWideNarrow}
+                            compact
+                            options={[
+                                { value: 'newest', label: 'Newest' },
+                                { value: 'oldest', label: 'Oldest' },
+                                { value: 'title', label: 'A-Z' },
+                            ]}
+                        />
+                    </div>
                 </div>
             </div>
 

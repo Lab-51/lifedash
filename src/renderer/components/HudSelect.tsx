@@ -19,9 +19,10 @@ interface HudSelectProps {
   options: HudSelectOption[];
   icon?: LucideIcon;
   placeholder?: string;
+  compact?: boolean;  // Transparent background for inline/toolbar use
 }
 
-function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 'Select...' }: HudSelectProps) {
+function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 'Select...', compact = false }: HudSelectProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -50,7 +51,11 @@ function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-accent)] bg-surface-950 text-left text-sm transition-colors"
+        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
+          compact
+            ? 'bg-transparent hover:bg-[var(--color-accent-subtle)]/30 border-none'
+            : 'bg-surface-950 border border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
+        }`}
       >
         {TriggerIcon && <TriggerIcon size={14} className="text-[var(--color-text-muted)] shrink-0" />}
         <span className={`flex-1 truncate ${selectedOption ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>
