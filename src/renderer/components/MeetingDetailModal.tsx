@@ -20,6 +20,8 @@ import MeetingAnalyticsSection from './MeetingAnalyticsSection';
 import { getSpeakerColor } from './MeetingAnalyticsSection';
 import type { ActionItem, MeetingWithTranscript } from '../../shared/types';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../shared/types';
+import { useLicenseStore } from '../stores/licenseStore';
+import { ProBadge } from './ProBadge';
 
 interface MeetingDetailModalProps {
   onClose: () => void;
@@ -189,6 +191,10 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
   const clearAnalytics = useMeetingStore(s => s.clearAnalytics);
   const projects = useProjectStore(s => s.projects);
   const loadProjects = useProjectStore(s => s.loadProjects);
+  const isProEnabled = useLicenseStore(s => {
+    const info = s.info;
+    return info !== null && (info.status === 'active' || info.status === 'trial') && info.tier === 'pro';
+  });
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -596,6 +602,10 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
 
           {/* Action Items */}
           <div className="mb-5">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs text-[var(--color-text-muted)]">Auto-convert action items to cards requires</span>
+              <ProBadge />
+            </div>
             <ActionItemList
               meetingId={meeting.id}
               actionItems={meeting.actionItems}
@@ -603,11 +613,23 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
               generatingActions={generatingActions}
               onGenerate={() => generateActionItems(meeting.id)}
               onUpdateStatus={updateActionItemStatus}
-              onConvert={(item) => setConvertingAction(item)}
+              onConvert={(item) => {
+                if (!isProEnabled) {
+                  toast('Upgrade to Pro to auto-convert action items to cards', 'info');
+                  return;
+                }
+                setConvertingAction(item);
+              }}
               meetingProjectId={meeting.projectId ?? undefined}
               meetingProjectName={linkedProjectName}
-              onBatchConvert={(items) => setBatchConvertItems(items)}
-              onQuickPush={meeting.projectId ? handleQuickPush : undefined}
+              onBatchConvert={(items) => {
+                if (!isProEnabled) {
+                  toast('Upgrade to Pro to auto-convert action items to cards', 'info');
+                  return;
+                }
+                setBatchConvertItems(items);
+              }}
+              onQuickPush={meeting.projectId && isProEnabled ? handleQuickPush : undefined}
               quickPushing={quickPushing}
             />
           </div>

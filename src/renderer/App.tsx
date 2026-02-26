@@ -14,6 +14,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import TitleBar from './components/TitleBar';
+import TrialBanner from './components/TrialBanner';
 import AppLayout from './components/AppLayout';
 import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
@@ -27,6 +28,7 @@ import { useBrainstormStore } from './stores/brainstormStore';
 import { useBoardStore } from './stores/boardStore';
 import { useFocusStore } from './stores/focusStore';
 import { useGamificationStore } from './stores/gamificationStore';
+import { useLicenseStore } from './stores/licenseStore';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import ToastContainer from './components/ToastContainer';
@@ -106,6 +108,7 @@ function AppShell({ children }: { children: ReactNode }) {
       useBoardStore.getState().loadAllCards(),
       useFocusStore.getState().loadSettings(),
       useGamificationStore.getState().loadStats(),
+      useLicenseStore.getState().loadLicense(),
     ]).then(() => setAppReady(true));
   }, []);
 
@@ -170,6 +173,7 @@ function App() {
       <AppShell>
         <div className="h-screen flex flex-col overflow-hidden">
           <TitleBar />
+          <TrialBanner />
           <Routes>
             <Route element={<AppLayout />}>
               <Route index element={<DashboardPage />} />

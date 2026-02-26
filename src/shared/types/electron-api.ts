@@ -50,6 +50,7 @@ import type { MeetingAnalytics } from './analytics';
 import type { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats, FocusTimeReport } from './focus';
 import type { GamificationStats, Achievement, XpEventType, XpDailyData } from './gamification';
 import type { CardAgentMessage, AgentAction } from './card-agent';
+import type { LicenseInfo } from './license';
 
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
@@ -308,6 +309,13 @@ export interface ElectronAPI {
     args?: unknown;
     result?: unknown;
   }) => void) => () => void;
+
+  // License
+  licenseActivate: (key: string) => Promise<LicenseInfo>;
+  licenseCheck: () => Promise<LicenseInfo>;
+  licenseDeactivate: () => Promise<LicenseInfo>;
+  licenseGetInfo: () => Promise<LicenseInfo>;
+  licenseIsFeatureEnabled: (feature: string) => Promise<boolean>;
 
   // App-level events
   onShowCommandPalette: (callback: () => void) => () => void;

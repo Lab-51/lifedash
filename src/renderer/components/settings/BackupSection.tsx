@@ -20,6 +20,8 @@ import {
 import { useBackupStore } from '../../stores/backupStore';
 import type { AutoBackupFrequency } from '../../../shared/types';
 import HudSelect from '../HudSelect';
+import ProGate from '../ProGate';
+import { ProBadge } from '../ProBadge';
 
 /** Format byte sizes for display */
 function formatSize(bytes: number): string {
@@ -95,10 +97,14 @@ export default function BackupSection() {
   };
 
   return (
+    <ProGate feature="backupRestore">
     <section className="mb-10">
       {/* Section header */}
       <div className="mb-4">
-        <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Database Backups</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Database Backups</h2>
+          <ProBadge />
+        </div>
         <p className="text-sm text-surface-500">
           Create and manage database backups. Restore from a previous snapshot at any time.
         </p>
@@ -342,5 +348,6 @@ export default function BackupSection() {
         </div>
       )}
     </section>
+    </ProGate>
   );
 }

@@ -4,7 +4,7 @@
 // Features a cleaner layout with card-based sections and updated typography.
 
 import { useEffect, useState } from 'react';
-import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu } from 'lucide-react';
+import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Key } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useBackupStore } from '../stores/backupStore';
@@ -22,6 +22,7 @@ import TranscriptionProviderSection from '../components/settings/TranscriptionPr
 import AudioDeviceSection from '../components/settings/AudioDeviceSection';
 import RecordingsSavePathSection from '../components/settings/RecordingsSavePathSection';
 import ProxySettingsSection from '../components/settings/ProxySettingsSection';
+import LicenseSection from '../components/settings/LicenseSection';
 
 export default function SettingsPageModern() {
     const providers = useSettingsStore(s => s.providers);
@@ -60,6 +61,7 @@ export default function SettingsPageModern() {
         { id: 'general', label: 'General', icon: <Settings size={18} /> },
         { id: 'ai', label: 'AI & Models', icon: <Cpu size={18} /> },
         { id: 'data', label: 'Data & Storage', icon: <Database size={18} /> },
+        { id: 'license', label: 'License', icon: <Key size={18} /> },
         { id: 'about', label: 'About', icon: <Info size={18} /> },
     ];
 
@@ -271,6 +273,12 @@ export default function SettingsPageModern() {
                                 </div>
                                 <ExportSection />
                             </section>
+                        </div>
+                    )}
+
+                    {activeTab === 'license' && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <LicenseSection />
                         </div>
                     )}
 
