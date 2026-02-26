@@ -157,7 +157,7 @@ export default function LicenseSection() {
           </h3>
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={() => window.open(CUSTOMER_PORTAL_URL, '_blank')}
+              onClick={() => window.electronAPI.openExternal(CUSTOMER_PORTAL_URL)}
               className="flex items-center gap-2 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-3 py-1.5 text-sm transition-all"
             >
               <ExternalLink size={14} />

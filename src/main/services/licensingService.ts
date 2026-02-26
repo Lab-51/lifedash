@@ -12,7 +12,7 @@
 //
 // === LIMITATIONS ===
 // - Only usable in main process after app 'ready'
-// - LEMONSQUEEZY_STORE_ID / LEMONSQUEEZY_PRODUCT_ID are placeholders until LS is configured
+// - LEMONSQUEEZY_STORE_ID / LEMONSQUEEZY_PRODUCT_IDS are configured for the LifeDash store
 // - lemonSqueezySetup() requires an API key for admin endpoints; license public endpoints work without it
 
 import crypto from 'node:crypto';
@@ -32,10 +32,8 @@ import type { LicenseInfo, LicenseStatus, LicenseTier } from '../../shared/types
 import type { ProFeatureKey } from '../../shared/constants/features';
 
 // === CONSTANTS ===
-// TODO: Fill after LemonSqueezy store setup
-const LEMONSQUEEZY_STORE_ID = 0;
-// TODO: Fill after LemonSqueezy store setup
-const LEMONSQUEEZY_PRODUCT_ID = 0;
+const LEMONSQUEEZY_STORE_ID = 301928;
+const LEMONSQUEEZY_PRODUCT_IDS: readonly number[] = [855065, 855068]; // Pro Annual, Pro Lifetime
 const TRIAL_DURATION_DAYS = 14;
 const OFFLINE_GRACE_DAYS = 7;
 const MACHINE_ID_SALT = 'lifedash-v1';
@@ -277,13 +275,11 @@ export async function checkLicense(): Promise<LicenseInfo> {
         throw new Error('No data in validate response');
       }
 
-      // Verify this key belongs to our product
-      if (
-        LEMONSQUEEZY_STORE_ID !== 0 &&
-        LEMONSQUEEZY_PRODUCT_ID !== 0 &&
-        (data.meta.store_id !== LEMONSQUEEZY_STORE_ID ||
-          data.meta.product_id !== LEMONSQUEEZY_PRODUCT_ID)
-      ) {
+      // Verify this key belongs to our store/product
+      if (LEMONSQUEEZY_STORE_ID && data.meta.store_id !== LEMONSQUEEZY_STORE_ID) {
+        throw new Error('License key does not match this store');
+      }
+      if (LEMONSQUEEZY_PRODUCT_IDS.length && !LEMONSQUEEZY_PRODUCT_IDS.includes(data.meta.product_id)) {
         throw new Error('License key does not match this product');
       }
 
@@ -408,12 +404,10 @@ export async function activateLicenseKey(licenseKey: string): Promise<LicenseInf
   }
 
   // Verify store + product match
-  if (
-    LEMONSQUEEZY_STORE_ID !== 0 &&
-    LEMONSQUEEZY_PRODUCT_ID !== 0 &&
-    (data.meta.store_id !== LEMONSQUEEZY_STORE_ID ||
-      data.meta.product_id !== LEMONSQUEEZY_PRODUCT_ID)
-  ) {
+  if (LEMONSQUEEZY_STORE_ID && data.meta.store_id !== LEMONSQUEEZY_STORE_ID) {
+    throw new Error('License key does not match this store');
+  }
+  if (LEMONSQUEEZY_PRODUCT_IDS.length && !LEMONSQUEEZY_PRODUCT_IDS.includes(data.meta.product_id)) {
     throw new Error('License key does not match this product');
   }
 

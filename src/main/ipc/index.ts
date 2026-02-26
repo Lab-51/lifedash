@@ -2,7 +2,7 @@
 // Central registration point for all IPC handlers.
 // Call registerIpcHandlers() once after the main window is created.
 
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, ipcMain, shell } from 'electron';
 import { registerWindowControlHandlers } from './window-controls';
 import { registerDatabaseHandlers } from './database';
 import { registerProjectHandlers } from './projects';
@@ -53,4 +53,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerGamificationHandlers();
   registerCardAgentHandlers();
   registerLicenseHandlers();
+
+  // App-level: open URL in system browser (not Electron)
+  ipcMain.handle('app:open-external', async (_event, url: string) => {
+    if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+      await shell.openExternal(url);
+    }
+  });
 }

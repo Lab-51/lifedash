@@ -317,7 +317,8 @@ export interface ElectronAPI {
   licenseGetInfo: () => Promise<LicenseInfo>;
   licenseIsFeatureEnabled: (feature: string) => Promise<boolean>;
 
-  // App-level events
+  // App-level
+  openExternal: (url: string) => Promise<void>;
   onShowCommandPalette: (callback: () => void) => () => void;
 }
 

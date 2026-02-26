@@ -12,8 +12,8 @@ import { PRO_FEATURES } from '../../shared/constants/features';
 import type { ProFeatureKey } from '../../shared/constants/features';
 import type { LicenseInfo } from '../../shared/types/license';
 
-// TODO: Fill after LemonSqueezy store setup
-const CHECKOUT_URL = 'https://lifedash.lemonsqueezy.com/buy/lifedash-pro';
+const CHECKOUT_URL_ANNUAL = 'https://lifedash.lemonsqueezy.com/checkout/buy/a7c9d2dc-c9f1-4fd5-ba0c-4045e98d726c';
+const CHECKOUT_URL_LIFETIME = 'https://lifedash.lemonsqueezy.com/checkout/buy/9ada7049-fa58-4dae-a3cf-79c1fd3c4f7a';
 
 interface UpgradePromptProps {
   feature: ProFeatureKey;
@@ -26,8 +26,12 @@ function UpgradePrompt({ feature, info, children }: UpgradePromptProps) {
   const featureDef = PRO_FEATURES[feature];
   const isTrialExpired = info?.status === 'trial_expired';
 
-  function handleUpgrade() {
-    window.open(CHECKOUT_URL, '_blank');
+  function handleUpgradeAnnual() {
+    window.electronAPI.openExternal(CHECKOUT_URL_ANNUAL);
+  }
+
+  function handleUpgradeLifetime() {
+    window.electronAPI.openExternal(CHECKOUT_URL_LIFETIME);
   }
 
   return (
@@ -113,19 +117,33 @@ function UpgradePrompt({ feature, info, children }: UpgradePromptProps) {
           {featureDef.description}
         </p>
 
-        {/* Upgrade button */}
-        <button
-          onClick={handleUpgrade}
-          className="inline-flex items-center gap-2 px-5 py-2.5 clip-corner-cut font-hud font-semibold text-sm uppercase tracking-wider transition-opacity hover:opacity-90 active:opacity-75"
-          style={{
-            background: 'var(--color-accent)',
-            color: 'var(--color-surface-950)',
-          }}
-        >
-          <Zap size={15} />
-          Upgrade to Pro
-          <ExternalLink size={13} />
-        </button>
+        {/* Upgrade buttons */}
+        <div className="flex flex-col items-center gap-2 w-full">
+          <button
+            onClick={handleUpgradeAnnual}
+            className="inline-flex items-center gap-2 px-5 py-2.5 clip-corner-cut font-hud font-semibold text-sm uppercase tracking-wider transition-opacity hover:opacity-90 active:opacity-75"
+            style={{
+              background: 'var(--color-accent)',
+              color: 'var(--color-surface-950)',
+            }}
+          >
+            <Zap size={15} />
+            Pro — $29/year
+            <ExternalLink size={13} />
+          </button>
+          <button
+            onClick={handleUpgradeLifetime}
+            className="inline-flex items-center gap-2 px-4 py-2 font-hud font-medium text-xs uppercase tracking-wider transition-all hover:opacity-90 active:opacity-75"
+            style={{
+              background: 'transparent',
+              color: 'var(--color-text-secondary)',
+              border: '1px solid var(--color-border)',
+            }}
+          >
+            Or $99 once — forever
+            <ExternalLink size={12} />
+          </button>
+        </div>
 
         {children && (
           <div className="mt-4">
