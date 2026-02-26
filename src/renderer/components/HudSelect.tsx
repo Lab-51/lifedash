@@ -1,8 +1,10 @@
 // === FILE PURPOSE ===
 // Custom HUD-styled dropdown select component.
 // Replaces native <select> with a fully styled popover dropdown.
+// Uses React portal so the dropdown is never clipped by ancestor overflow.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -25,15 +27,28 @@ interface HudSelectProps {
 
 function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 'Select...', compact = false, disabled = false }: HudSelectProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
 
   const selectedOption = options.find(o => o.value === value);
+
+  // Compute dropdown position from trigger bounding rect
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+  }, []);
 
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        triggerRef.current && !triggerRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -41,17 +56,36 @@ function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  // Reposition on scroll/resize while open
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open, updatePosition]);
+
+  const handleToggle = () => {
+    if (disabled) return;
+    if (!open) updatePosition();
+    setOpen(!open);
+  };
+
   const handleSelect = (optValue: string) => {
     onChange(optValue);
     setOpen(false);
   };
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative">
       {/* Trigger */}
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => !disabled && setOpen(!open)}
+        onClick={handleToggle}
         disabled={disabled}
         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
           disabled
@@ -68,9 +102,13 @@ function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 
         <ChevronDown size={14} className={`text-[var(--color-text-muted)] shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Dropdown popover */}
-      {open && (
-        <div className="absolute top-full left-0 mt-1.5 z-50 w-full bg-surface-900 border border-[var(--color-border-accent)] rounded-xl shadow-2xl shadow-black/40 py-1.5 min-w-[180px]">
+      {/* Dropdown popover — rendered in portal to escape overflow clipping */}
+      {open && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-[9999] bg-surface-900 border border-[var(--color-border-accent)] rounded-xl shadow-2xl shadow-black/40 py-1.5 min-w-[180px] max-h-[280px] overflow-y-auto"
+          style={{ top: pos.top, left: pos.left, width: Math.max(pos.width, 180) }}
+        >
           {options.map(opt => {
             const isActive = opt.value === value;
             const OptIcon = opt.icon;
@@ -96,7 +134,8 @@ function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

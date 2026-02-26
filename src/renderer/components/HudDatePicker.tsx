@@ -1,8 +1,10 @@
 // === FILE PURPOSE ===
 // Custom HUD-styled calendar date picker with time selection.
 // Replaces native datetime-local inputs with a fully styled popover calendar.
+// Uses React portal so the popover is never clipped by ancestor overflow.
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react';
 
 interface HudDatePickerProps {
@@ -45,7 +47,9 @@ function formatDisplay(iso: string, showTime: boolean): string {
 
 function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set date', dateOnly = false }: HudDatePickerProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
 
   const now = new Date();
   const selected = value ? new Date(value) : null;
@@ -66,17 +70,40 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
     }
   }, [value]);
 
+  // Compute popover position from trigger bounding rect
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPos({ top: rect.bottom + 6, left: rect.left });
+  }, []);
+
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        triggerRef.current && !triggerRef.current.contains(target) &&
+        popoverRef.current && !popoverRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  // Reposition on scroll/resize while open
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open, updatePosition]);
 
   const effectiveShowTime = showTime && !dateOnly;
 
@@ -120,6 +147,11 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
     else setViewMonth(m => m + 1);
   };
 
+  const handleToggle = () => {
+    if (!open) updatePosition();
+    setOpen(!open);
+  };
+
   // Build calendar grid
   const firstDay = startOfMonth(viewYear, viewMonth);
   const totalDays = daysInMonth(viewYear, viewMonth);
@@ -128,11 +160,12 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
   for (let d = 1; d <= totalDays; d++) cells.push(d);
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative">
       {/* Trigger button */}
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={handleToggle}
         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left text-sm transition-colors ${
           value
             ? 'border-[var(--color-border)] hover:border-[var(--color-border-accent)] bg-surface-950 text-[var(--color-text-primary)]'
@@ -154,9 +187,13 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
         )}
       </button>
 
-      {/* Calendar popover */}
-      {open && (
-        <div className="absolute top-full left-0 mt-1.5 z-50 bg-surface-900 border border-[var(--color-border-accent)] rounded-xl shadow-2xl shadow-black/40 p-3 min-w-[280px]">
+      {/* Calendar popover — rendered in portal to escape overflow clipping */}
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed z-[9999] bg-surface-900 border border-[var(--color-border-accent)] rounded-xl shadow-2xl shadow-black/40 p-3 min-w-[280px]"
+          style={{ top: pos.top, left: pos.left }}
+        >
           {/* Quick presets */}
           {!dateOnly && (
             <div className="flex gap-1.5 mb-3">
@@ -285,7 +322,8 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
               </div>
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
