@@ -6,7 +6,6 @@ import { ipcMain } from 'electron';
 import * as focusService from '../services/focusService';
 import * as gamificationService from '../services/gamificationService';
 import { createLogger } from '../services/logger';
-import { requireProFeature } from './guards';
 
 const log = createLogger('Focus');
 
@@ -46,7 +45,8 @@ export function registerFocusHandlers(): void {
   });
 
   ipcMain.handle('focus:get-time-report', async (_, options: { startDate: string; endDate: string; projectId?: string; billableOnly?: boolean }) => {
-    await requireProFeature('billableExport');
+    // Note: This endpoint is NOT gated — it provides all focus page data (summary, chart, sessions).
+    // Only the CSV export action in the renderer is Pro-gated via ProGate component.
     return focusService.getTimeReport(options);
   });
 
