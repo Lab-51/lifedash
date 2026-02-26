@@ -23,6 +23,7 @@ import { initAutoBackup, stopAutoBackup } from './services/autoBackupScheduler';
 import { initNotificationScheduler, stopNotificationScheduler } from './services/notificationScheduler';
 import { createLogger } from './services/logger';
 import { getIsRecording, setIsRecording } from './services/recordingState';
+import { applyGlobalProxy } from './services/proxyService';
 
 const log = createLogger('App');
 
@@ -126,7 +127,6 @@ const createWindow = async () => {
     log.info('DB connected and migrations applied');
 
     // Apply proxy settings for enterprise networks (before any AI calls)
-    const { applyGlobalProxy } = await import('./services/proxyService');
     await applyGlobalProxy();
 
     // Start auto-backup scheduler (after DB is ready)

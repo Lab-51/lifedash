@@ -29,7 +29,7 @@ import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { encryptString, decryptString, isEncryptionAvailable } from './secure-storage';
 import type { LicenseInfo, LicenseStatus, LicenseTier } from '../../shared/types/license';
-import type { ProFeatureKey } from '../../shared/constants/features';
+import { PRO_FEATURES, type ProFeatureKey } from '../../shared/constants/features';
 
 // === CONSTANTS ===
 const LEMONSQUEEZY_STORE_ID = 301928;
@@ -580,7 +580,6 @@ export async function getLicenseInfo(): Promise<LicenseInfo> {
  */
 export async function isFeatureEnabled(feature: ProFeatureKey): Promise<boolean> {
   // Validate feature key exists (prevents arbitrary strings)
-  const { PRO_FEATURES } = await import('../../shared/constants/features');
   if (!(feature in PRO_FEATURES)) return false;
 
   const info = await getLicenseInfo();

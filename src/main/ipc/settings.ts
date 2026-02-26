@@ -16,6 +16,7 @@ import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { settingKeySchema, settingValueSchema } from '../../shared/validation/schemas';
+import { getProxyConfig, applyGlobalProxy } from '../services/proxyService';
 
 export function registerSettingsHandlers(mainWindow: BrowserWindow): void {
   // Get a single setting by key; returns null if not found
@@ -79,13 +80,11 @@ export function registerSettingsHandlers(mainWindow: BrowserWindow): void {
 
   // Get current proxy configuration (env + DB)
   ipcMain.handle('settings:getProxy', async () => {
-    const { getProxyConfig } = await import('../services/proxyService');
     return await getProxyConfig();
   });
 
   // Apply proxy after settings change
   ipcMain.handle('settings:applyProxy', async () => {
-    const { applyGlobalProxy } = await import('../services/proxyService');
     await applyGlobalProxy();
   });
 }

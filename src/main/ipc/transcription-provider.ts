@@ -13,6 +13,9 @@ import {
   transcriptionProviderTypeSchema,
   transcriptionApiKeyProviderSchema,
 } from '../../shared/validation/schemas';
+import { getDefaultModelPath } from '../services/whisperModelManager';
+import { testConnection as testDeepgram } from '../services/deepgramTranscriber';
+import { testConnection as testAssemblyai } from '../services/assemblyaiTranscriber';
 
 export function registerTranscriptionProviderHandlers(): void {
   ipcMain.handle('transcription:get-config', async () => {
@@ -44,7 +47,6 @@ export function registerTranscriptionProviderHandlers(): void {
       // 'local' -> check if whisperModelManager.getDefaultModelPath() returns non-null
       // 'deepgram' / 'assemblyai' -> wired in Task 2 (cloud provider adapters)
       if (validType === 'local') {
-        const { getDefaultModelPath } = await import('../services/whisperModelManager');
         const modelPath = getDefaultModelPath();
         return {
           success: !!modelPath,
@@ -54,12 +56,10 @@ export function registerTranscriptionProviderHandlers(): void {
 
       // Cloud providers: test actual API connectivity
       if (validType === 'deepgram') {
-        const { testConnection } = await import('../services/deepgramTranscriber');
-        return testConnection();
+        return testDeepgram();
       }
       if (validType === 'assemblyai') {
-        const { testConnection } = await import('../services/assemblyaiTranscriber');
-        return testConnection();
+        return testAssemblyai();
       }
 
       return { success: false, error: `Unknown provider type: ${validType}` };
