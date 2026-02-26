@@ -96,6 +96,63 @@ function safeDecrypt(value: string): string {
   return value;
 }
 
+// === HMAC TAMPER DETECTION ===
+
+/** Fields covered by the HMAC checksum — excludes lastValidated (changes every validation)
+ *  and customerName/customerEmail (metadata only). Includes trial fields (tamper-attractive). */
+const HMAC_FIELDS: readonly (keyof LicenseInfo)[] = [
+  'tier', 'status', 'licenseKey', 'instanceId', 'activatedAt', 'expiresAt',
+  'lastActiveVersion', 'trialStartedAt', 'trialEndsAt',
+] as const;
+
+/** Serialize HMAC_FIELDS into a deterministic payload and return HMAC-SHA256 hex digest. */
+function computeHmac(info: LicenseInfo, secret: string): string {
+  const payload = HMAC_FIELDS
+    .map((field) => `${field}=${info[field] ?? ''}`)
+    .join('|');
+  return crypto.createHmac('sha256', secret).update(payload).digest('hex');
+}
+
+/** Read or create the HMAC secret stored (encrypted) as license.hmacSecret. */
+async function getOrCreateHmacSecret(): Promise<string> {
+  const stored = await getSetting('license.hmacSecret');
+  if (stored) {
+    return safeDecrypt(stored);
+  }
+  // First time — generate a random 32-byte hex secret and persist it
+  const secret = crypto.randomBytes(32).toString('hex');
+  await setSetting('license.hmacSecret', safeEncrypt(secret));
+  return secret;
+}
+
+/** Verify the stored checksum against the current LicenseInfo.
+ *  Returns true when no checksum exists (pre-checksum installs — will backfill). */
+async function verifyChecksum(info: LicenseInfo): Promise<boolean> {
+  const stored = await getSetting('license.checksum');
+  if (!stored) {
+    // No checksum yet — trust the data and backfill on next write
+    return true;
+  }
+  const secret = await getOrCreateHmacSecret();
+  const expected = computeHmac(info, secret);
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(stored, 'hex'),
+      Buffer.from(expected, 'hex'),
+    );
+  } catch {
+    // Mismatched buffer lengths — treat as tampered
+    return false;
+  }
+}
+
+/** Compute and persist the HMAC checksum for the given LicenseInfo. */
+async function persistChecksum(info: LicenseInfo): Promise<void> {
+  const secret = await getOrCreateHmacSecret();
+  const checksum = computeHmac(info, secret);
+  await setSetting('license.checksum', checksum);
+}
+
 // === CACHE BUILDER ===
 
 /** Build a LicenseInfo from settings DB. Returns null if no license data exists. */
@@ -108,7 +165,7 @@ async function buildInfoFromSettings(): Promise<LicenseInfo | null> {
   const encryptedKey = await getSetting('license.key');
   const encryptedInstanceId = await getSetting('license.instanceId');
 
-  return {
+  const info: LicenseInfo = {
     tier,
     status,
     licenseKey: encryptedKey ? safeDecrypt(encryptedKey) : null,
@@ -122,6 +179,37 @@ async function buildInfoFromSettings(): Promise<LicenseInfo | null> {
     trialEndsAt: await getSetting('license.trialEndsAt'),
     lastActiveVersion: await getSetting('license.lastActiveVersion'),
   };
+
+  const hadChecksum = (await getSetting('license.checksum')) !== null;
+  const valid = await verifyChecksum(info);
+
+  if (!valid) {
+    // Tampered — reset to free/expired
+    const reset: LicenseInfo = {
+      tier: 'free',
+      status: 'expired',
+      licenseKey: null,
+      instanceId: null,
+      customerName: null,
+      customerEmail: null,
+      activatedAt: null,
+      expiresAt: null,
+      lastValidated: null,
+      trialStartedAt: null,
+      trialEndsAt: null,
+      lastActiveVersion: null,
+    };
+    // persistInfo already calls persistChecksum internally
+    await persistInfo(reset);
+    return reset;
+  }
+
+  // Valid — backfill checksum for pre-checksum installs
+  if (!hadChecksum) {
+    await persistChecksum(info);
+  }
+
+  return info;
 }
 
 /** Persist a LicenseInfo to settings DB (encrypt sensitive fields). */
@@ -186,6 +274,8 @@ async function persistInfo(info: LicenseInfo): Promise<void> {
   } else {
     await deleteSetting('license.lastActiveVersion');
   }
+
+  await persistChecksum(info);
 }
 
 // === TRIAL HELPERS ===

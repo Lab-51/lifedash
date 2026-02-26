@@ -13,6 +13,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { cards, columns, boards } from '../db/schema';
 import type { ToolCallRecord, ToolResultRecord } from '../../shared/types';
+import { requireProFeature } from './guards';
 
 const log = createLogger('CardAgent');
 
@@ -28,6 +29,7 @@ export function registerCardAgentHandlers(): void {
   ipcMain.handle(
     'card-agent:send-message',
     async (event, cardId: unknown, content: unknown) => {
+      await requireProFeature('cardAgent');
       const validCardId = validateInput(idParamSchema, cardId);
       const validContent = validateInput(cardAgentMessageContentSchema, content);
 
@@ -222,24 +224,28 @@ export function registerCardAgentHandlers(): void {
 
   // --- Get conversation history ---
   ipcMain.handle('card-agent:get-messages', async (_event, cardId: unknown) => {
+    await requireProFeature('cardAgent');
     const validCardId = validateInput(idParamSchema, cardId);
     return cardAgentService.getMessages(validCardId);
   });
 
   // --- Clear conversation ---
   ipcMain.handle('card-agent:clear-messages', async (_event, cardId: unknown) => {
+    await requireProFeature('cardAgent');
     const validCardId = validateInput(idParamSchema, cardId);
     await cardAgentService.clearMessages(validCardId);
   });
 
   // --- Message count (for badge) ---
   ipcMain.handle('card-agent:get-message-count', async (_event, cardId: unknown) => {
+    await requireProFeature('cardAgent');
     const validCardId = validateInput(idParamSchema, cardId);
     return cardAgentService.getMessageCount(validCardId);
   });
 
   // --- Resolved model info (for UI display) ---
   ipcMain.handle('card-agent:get-model-info', async () => {
+    await requireProFeature('cardAgent');
     const provider = await resolveTaskModel('card_agent');
     if (!provider) return null;
     return { providerName: provider.providerName, model: provider.model };
@@ -247,6 +253,7 @@ export function registerCardAgentHandlers(): void {
 
   // --- Abort active stream ---
   ipcMain.handle('card-agent:abort', async (_event, cardId: unknown) => {
+    await requireProFeature('cardAgent');
     const validCardId = validateInput(idParamSchema, cardId);
     const controller = activeStreams.get(validCardId);
     if (controller) {

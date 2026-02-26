@@ -9,6 +9,7 @@ import {
   idParamSchema,
   actionItemStatusSchema,
 } from '../../shared/validation/schemas';
+import { requireProFeature } from './guards';
 
 export function registerMeetingIntelligenceHandlers(): void {
   // Generate AI brief for a completed meeting
@@ -49,6 +50,7 @@ export function registerMeetingIntelligenceHandlers(): void {
   ipcMain.handle(
     'meetings:convert-action-to-card',
     async (_event, actionItemId: unknown, columnId: unknown) => {
+      await requireProFeature('meetingToCard');
       const validActionItemId = validateInput(idParamSchema, actionItemId);
       const validColumnId = validateInput(idParamSchema, columnId);
       return intelligence.convertActionToCard(validActionItemId, validColumnId);
