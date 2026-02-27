@@ -9,6 +9,8 @@ import { useIdeaStore } from '../stores/ideaStore';
 import HudSelect from '../components/HudSelect';
 import type { IdeaStatus } from '../../shared/types';
 
+import HudBackground from './HudBackground';
+
 const IdeaDetailModal = lazy(() => import('../components/IdeaDetailModal'));
 
 const FILTER_TABS: { label: string; value: IdeaStatus | 'all' }[] = [
@@ -108,7 +110,8 @@ export default function IdeasModern() {
     }
 
     return (
-        <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950">
+        <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950 relative">
+            <HudBackground />
             {/* HUD Header */}
             <div className="p-8 pb-4 shrink-0">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">

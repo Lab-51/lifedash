@@ -13,6 +13,7 @@ import RecordingControls from '../components/RecordingControls';
 import MeetingCardModern from '../components/MeetingCardModern';
 const MeetingDetailModal = lazy(() => import('../components/MeetingDetailModal'));
 import LoadingSpinner from '../components/LoadingSpinner';
+import HudBackground from './HudBackground';
 
 type SortOption = 'newest' | 'oldest' | 'title';
 
@@ -167,7 +168,8 @@ export default function MeetingsModern() {
     }
 
     return (
-        <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950">
+        <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950 relative">
+            <HudBackground />
             {/* HUD Header */}
             <div className="p-8 pb-4 shrink-0">
                 <div className="flex items-center justify-between gap-4 mb-2">

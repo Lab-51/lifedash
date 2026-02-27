@@ -11,6 +11,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 const ProjectPlanningModal = lazy(() => import('../components/ProjectPlanningModal'));
 import type { CreateProjectInput } from '../../shared/types';
 import { toast } from '../hooks/useToast';
+import HudBackground from './HudBackground';
 
 const PRESET_COLORS = [
     '#6366f1', // Indigo
@@ -196,7 +197,8 @@ export default function ProjectsModern() {
     }
 
     return (
-        <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950">
+        <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950 relative">
+            <HudBackground />
             {/* Modern Header */}
             <div className="p-8 pb-4 shrink-0">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">

@@ -24,6 +24,7 @@ import AudioDeviceSection from '../components/settings/AudioDeviceSection';
 import RecordingsSavePathSection from '../components/settings/RecordingsSavePathSection';
 import ProxySettingsSection from '../components/settings/ProxySettingsSection';
 import LicenseSection from '../components/settings/LicenseSection';
+import HudBackground from './HudBackground';
 
 export default function SettingsPageModern() {
     const providers = useSettingsStore(s => s.providers);
@@ -69,7 +70,8 @@ export default function SettingsPageModern() {
     ];
 
     return (
-        <div className="h-full flex flex-col bg-surface-50 dark:bg-surface-950 overflow-hidden">
+        <div className="h-full flex flex-col bg-surface-50 dark:bg-surface-950 overflow-hidden relative">
+            <HudBackground />
             {/* Header */}
             <div className="px-8 pt-8 pb-6 shrink-0 bg-white dark:bg-[var(--color-chrome)] border-b border-surface-200 dark:border-[var(--color-border)]">
                 <h1 className="font-hud text-2xl tracking-widest text-surface-900 dark:text-[var(--color-accent)] mb-1">Settings</h1>
