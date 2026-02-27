@@ -157,7 +157,7 @@ export default function DashboardModern() {
 
                 <div className="relative z-10 flex items-end justify-between gap-4">
                     <div className="shrink-0 p-2">
-                        <h1 className="font-[var(--font-display)] text-3xl tracking-tight text-surface-900 dark:text-[var(--color-accent)] text-glow">
+                        <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">
                             {getGreeting()}
                         </h1>
                         <p className="font-data text-[var(--color-text-secondary)] mt-2">

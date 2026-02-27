@@ -312,14 +312,10 @@ export default function FocusPage() {
     <div className="flex items-center justify-between">
       <div>
         <div className="flex items-center gap-4 mb-1">
-          <div className="h-px w-12 bg-gradient-to-r from-transparent to-[var(--color-accent)] opacity-40" />
           <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.FOCUS</span>
-          <div className="h-px w-12 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
+          <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
         </div>
-        <div className="flex items-center gap-2.5">
-          <Timer size={22} className="text-[var(--color-accent)]" />
-          <h1 className="font-hud text-xl text-[var(--color-accent)] text-glow">Focus Time Tracking</h1>
-        </div>
+        <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Focus Time Tracking</h1>
       </div>
       <ProGate
         feature="billableExport"
