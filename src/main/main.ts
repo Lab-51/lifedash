@@ -8,7 +8,7 @@
 // drizzle-orm, postgres (via ./db/connection and ./db/migrate),
 // electron-audio-loopback (system audio capture)
 
-import { app, BrowserWindow, dialog, globalShortcut } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from 'electron';
 import path from 'node:path';
 // @ts-ignore
 import icon from '../assets/icon.png';
@@ -25,6 +25,7 @@ import { createLogger } from './services/logger';
 import { getIsRecording, setIsRecording } from './services/recordingState';
 import { applyGlobalProxy } from './services/proxyService';
 import { updateElectronApp } from 'update-electron-app';
+import { autoUpdater } from 'electron';
 
 const log = createLogger('App');
 
@@ -213,10 +214,33 @@ app.on('will-quit', () => {
 
 // Auto-update — checks GitHub Releases for new versions (production only).
 // Uses Squirrel on Windows and Squirrel.Mac on macOS.
+// Sends status events to renderer so the title bar can show update state.
 if (app.isPackaged) {
+  const sendUpdateStatus = (status: string, releaseName?: string) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('app:update-status', { status, releaseName });
+    }
+  };
+
   updateElectronApp({
     repo: 'Lab-51/lifedash',
     updateInterval: '1 hour',
+    notifyUser: true,
+    onNotifyUser: (info) => {
+      log.info(`Update downloaded: ${info.releaseName}`);
+      sendUpdateStatus('ready', info.releaseName || 'New version');
+    },
+  });
+
+  // Forward autoUpdater lifecycle events to the renderer
+  autoUpdater.on('checking-for-update', () => sendUpdateStatus('checking'));
+  autoUpdater.on('update-not-available', () => sendUpdateStatus('up-to-date'));
+  autoUpdater.on('error', () => sendUpdateStatus('up-to-date')); // Fail silently — show as up-to-date
+
+  // Let the renderer trigger the update install + restart
+  ipcMain.handle('app:install-update', () => {
+    log.info('User accepted update — quitting and installing');
+    autoUpdater.quitAndInstall();
   });
 }
 

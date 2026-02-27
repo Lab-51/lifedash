@@ -3,17 +3,34 @@
 // HUD styled: void-dark gradient, teal accent line, Orbitron app name.
 
 import { useEffect, useState } from 'react';
-import { Minus, Square, Copy, X, Pin, PinOff } from 'lucide-react';
+import { Minus, Square, Copy, X, Pin, PinOff, Download, CheckCircle, Loader2 } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
+
+type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'ready';
 
 function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
+  const [releaseName, setReleaseName] = useState<string>('');
 
   useEffect(() => {
     window.electronAPI.windowIsMaximized().then(setIsMaximized);
     window.electronAPI.windowIsAlwaysOnTop().then(setIsAlwaysOnTop);
     return window.electronAPI.onWindowMaximizeChange(setIsMaximized);
+  }, []);
+
+  // Listen for auto-update status lifecycle events.
+  // In dev mode the auto-updater doesn't run, so default to "up-to-date".
+  useEffect(() => {
+    if (!window.electronAPI?.onUpdateStatus) {
+      setUpdateStatus('up-to-date');
+      return;
+    }
+    return window.electronAPI.onUpdateStatus((data) => {
+      setUpdateStatus(data.status as UpdateStatus);
+      if (data.releaseName) setReleaseName(data.releaseName);
+    });
   }, []);
 
   const toggleAlwaysOnTop = async () => {
@@ -42,6 +59,31 @@ function TitleBar() {
           className="flex h-full"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
+          {/* Update status indicator */}
+          {updateStatus === 'checking' && (
+            <div className="h-full inline-flex items-center gap-1.5 px-3 text-xs text-[var(--color-text-muted)]" title="Checking for updates...">
+              <Loader2 size={12} className="animate-spin" />
+              <span>Checking</span>
+            </div>
+          )}
+          {updateStatus === 'up-to-date' && (
+            <div className="h-full inline-flex items-center gap-1.5 px-3 text-xs text-emerald-500/70" title="You're on the latest version">
+              <CheckCircle size={12} />
+              <span>Up to date</span>
+            </div>
+          )}
+          {updateStatus === 'ready' && (
+            <button
+              type="button"
+              onClick={() => window.electronAPI.installUpdate()}
+              className="h-full inline-flex items-center gap-1.5 px-3 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/15 transition-colors"
+              title={`Update ${releaseName} ready — click to restart and install`}
+            >
+              <Download size={13} />
+              <span>Update</span>
+            </button>
+          )}
+
           {/* Pin on top */}
           <button
             type="button"

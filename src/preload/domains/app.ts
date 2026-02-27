@@ -11,4 +11,16 @@ export const appBridge = {
       ipcRenderer.removeListener('app:show-command-palette', handler);
     };
   },
+
+  // Auto-update: status lifecycle events (checking → up-to-date | ready)
+  onUpdateStatus: (callback: (data: { status: string; releaseName?: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { status: string; releaseName?: string }) => callback(data);
+    ipcRenderer.on('app:update-status', handler);
+    return () => {
+      ipcRenderer.removeListener('app:update-status', handler);
+    };
+  },
+
+  // Auto-update: quit the app and install the downloaded update
+  installUpdate: (): Promise<void> => ipcRenderer.invoke('app:install-update'),
 };

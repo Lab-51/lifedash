@@ -341,6 +341,8 @@ export interface ElectronAPI {
   // App-level
   openExternal: (url: string) => Promise<void>;
   onShowCommandPalette: (callback: () => void) => () => void;
+  onUpdateStatus: (callback: (data: { status: string; releaseName?: string }) => void) => () => void;
+  installUpdate: () => Promise<void>;
 }
 
 declare global {

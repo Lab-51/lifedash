@@ -152,6 +152,7 @@ function AppShell({ children }: { children: ReactNode }) {
     return cleanup;
   }, []);
 
+
   // Show toast when break timer ends (break -> idle transition)
   const prevModeRef = useRef(focusMode);
   useEffect(() => {
