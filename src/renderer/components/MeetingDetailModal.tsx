@@ -447,7 +447,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                   onKeyDown={handleTitleKeyDown}
                   onBlur={saveTitleEdit}
                   autoFocus
-                  className="bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-2xl font-bold text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] focus:border-[var(--color-accent-dim)] w-full"
+                  className="bg-white dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-2xl font-bold text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] focus:border-[var(--color-accent-dim)] w-full"
                 />
               ) : (
                 <h2
@@ -477,7 +477,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
           </div>
 
           {/* Metadata row */}
-          <div className="flex flex-wrap items-center gap-3 mb-8 text-sm bg-surface-950/50 p-3 rounded-xl border border-[var(--color-border)]">
+          <div className="flex flex-wrap items-center gap-3 mb-8 text-sm bg-surface-100/50 dark:bg-surface-950/50 p-3 rounded-xl border border-[var(--color-border)]">
             <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${status.className}`}>
               {status.label}
             </span>
@@ -678,7 +678,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                       value={transcriptSearch}
                       onChange={e => setTranscriptSearch(e.target.value)}
                       placeholder="Search..."
-                      className="bg-surface-950 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] rounded-lg text-xs text-[var(--color-text-primary)] pl-7 pr-6 py-1 w-32 focus:outline-none focus:border-[var(--color-accent-dim)] placeholder:text-[var(--color-text-muted)] transition-colors"
+                      className="bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] rounded-lg text-xs text-[var(--color-text-primary)] pl-7 pr-6 py-1 w-32 focus:outline-none focus:border-[var(--color-accent-dim)] placeholder:text-[var(--color-text-muted)] transition-colors"
                     />
                     {transcriptSearch && (
                       <button
@@ -704,7 +704,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                 No segments match &ldquo;{transcriptSearch}&rdquo;
               </div>
             ) : (
-              <div className="max-h-80 overflow-y-auto rounded-xl bg-surface-950/50 border border-[var(--color-border)] p-4 space-y-3 font-data">
+              <div className="max-h-80 overflow-y-auto rounded-xl bg-surface-100/50 dark:bg-surface-950/50 border border-[var(--color-border)] p-4 space-y-3 font-data">
                 {filteredSegments.map(segment => {
                   const speakerColor = segment.speaker ? getSpeakerColor(segment.speaker) : null;
                   return (

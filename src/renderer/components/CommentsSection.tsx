@@ -139,7 +139,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
                       onKeyDown={handleEditKeyDown}
                       rows={3}
                       autoFocus
-                      className="w-full text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg p-3 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] resize-none focus:outline-none focus:border-[var(--color-accent-dim)] transition-colors"
+                      className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg p-3 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] resize-none focus:outline-none focus:border-[var(--color-accent-dim)] transition-colors"
                     />
                     <div className="flex items-center gap-2 mt-2">
                       <button

@@ -289,7 +289,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Meeting title..."
-            className="w-full text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2
+            className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2
                        text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]
                        focus:outline-none focus:border-[var(--color-accent-dim)]"
             onKeyDown={(e) => e.key === 'Enter' && handleStart()}
@@ -350,7 +350,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
                         border transition-colors
                         ${includeMic
                           ? 'bg-surface-800 border-primary-600 text-surface-800 dark:text-surface-200'
-                          : 'bg-surface-900 border-surface-600 text-surface-500'}
+                          : 'bg-surface-100 dark:bg-surface-900 border-surface-300 dark:border-surface-600 text-surface-500'}
                         disabled:opacity-50 disabled:cursor-not-allowed
                         hover:border-primary-500`}
           >

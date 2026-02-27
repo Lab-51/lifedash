@@ -136,7 +136,7 @@ export default function LicenseSection() {
             onChange={e => setLicenseKey(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleActivate(); }}
             placeholder="XXXX-XXXX-XXXX-XXXX"
-            className="flex-1 text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] font-mono tracking-wider"
+            className="flex-1 text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] font-mono tracking-wider"
           />
           <button
             onClick={handleActivate}

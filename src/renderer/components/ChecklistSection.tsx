@@ -151,7 +151,7 @@ function ChecklistItem({
           onChange={e => setEditTitle(e.target.value)}
           onKeyDown={handleEditKeyDown}
           onBlur={onSaveEdit}
-          className="flex-1 text-sm bg-surface-950 border border-[var(--color-border)] rounded px-2 py-0.5 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+          className="flex-1 text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded px-2 py-0.5 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)]"
         />
       ) : (
         <span
@@ -312,7 +312,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
           onChange={e => setNewItemTitle(e.target.value)}
           onKeyDown={handleAddKeyDown}
           placeholder="Add a checklist item..."
-          className="flex-1 text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] transition-colors"
+          className="flex-1 text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] transition-colors"
         />
       </div>
     </div>

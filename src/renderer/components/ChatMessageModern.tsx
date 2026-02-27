@@ -105,7 +105,7 @@ export default function ChatMessageModern({ message, onExportToIdea, onExportToC
                                     onClick={handleExport}
                                     className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-all border ${exported
                                         ? 'text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-900 dark:text-emerald-400'
-                                        : 'text-surface-500 border-transparent hover:bg-surface-800 hover:text-amber-600 dark:hover:text-amber-400'
+                                        : 'text-surface-500 border-transparent hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-amber-600 dark:hover:text-amber-400'
                                         }`}
                                 >
                                     {exported ? <Check size={14} /> : <Lightbulb size={14} />}
@@ -117,7 +117,7 @@ export default function ChatMessageModern({ message, onExportToIdea, onExportToC
                                     onClick={handleExportToCard}
                                     className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-all border ${exportedCard
                                         ? 'text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-900 dark:text-emerald-400'
-                                        : 'text-surface-500 border-transparent hover:bg-surface-800 hover:text-primary-600 dark:hover:text-primary-400'
+                                        : 'text-surface-500 border-transparent hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-primary-600 dark:hover:text-primary-400'
                                         }`}
                                 >
                                     {exportedCard ? <Check size={14} /> : <LayoutList size={14} />}
@@ -128,7 +128,7 @@ export default function ChatMessageModern({ message, onExportToIdea, onExportToC
 
                         <button
                             onClick={() => navigator.clipboard.writeText(message.content)}
-                            className="p-1.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 rounded-md hover:bg-surface-800 transition-colors"
+                            className="p-1.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 rounded-md hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
                             title="Copy to clipboard"
                         >
                             <Copy size={14} />

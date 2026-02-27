@@ -319,7 +319,7 @@ export default function BrainstormModern() {
                                                         if (renameTitle.trim()) updateSession(session.id, { title: renameTitle.trim() });
                                                         setRenamingId(null);
                                                     }}
-                                                    className="w-full bg-surface-950 border border-[var(--color-accent-dim)] rounded px-1.5 py-0.5 text-sm focus:outline-none"
+                                                    className="w-full bg-surface-50 dark:bg-surface-950 border border-[var(--color-accent-dim)] rounded px-1.5 py-0.5 text-sm focus:outline-none"
                                                     autoFocus
                                                     onClick={(e) => e.stopPropagation()}
                                                 />
@@ -405,7 +405,7 @@ export default function BrainstormModern() {
                                         value={newSessionTitle}
                                         onChange={(e) => setNewSessionTitle(e.target.value)}
                                         placeholder="e.g., Marketing Strategy Q1"
-                                        className="w-full bg-surface-950 border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+                                        className="w-full bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
                                         autoFocus
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') handleCreateSession();
@@ -607,7 +607,7 @@ export default function BrainstormModern() {
                                         <div className="absolute -top-12 left-1/2 -translate-x-1/2">
                                             <button
                                                 onClick={() => abortStream()}
-                                                className="bg-surface-950 border border-[var(--color-accent-dim)] text-[var(--color-accent)] text-xs font-medium px-4 py-2 rounded-full shadow-lg flex items-center gap-2 hover:border-[var(--color-accent)] hover:scale-105 transition-transform"
+                                                className="bg-white dark:bg-surface-950 border border-[var(--color-accent-dim)] text-[var(--color-accent)] text-xs font-medium px-4 py-2 rounded-full shadow-lg flex items-center gap-2 hover:border-[var(--color-accent)] hover:scale-105 transition-transform"
                                             >
                                                 <Square size={10} fill="currentColor" />
                                                 Stop Generating

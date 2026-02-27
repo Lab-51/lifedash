@@ -89,10 +89,10 @@ function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 
         disabled={disabled}
         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
           disabled
-            ? 'opacity-50 cursor-not-allowed bg-surface-950 border border-[var(--color-border)]'
+            ? 'opacity-50 cursor-not-allowed bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)]'
             : compact
               ? 'bg-transparent hover:bg-[var(--color-accent-subtle)]/30 border-none'
-              : 'bg-surface-950 border border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
+              : 'bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
         }`}
       >
         {TriggerIcon && <TriggerIcon size={14} className="text-[var(--color-text-muted)] shrink-0" />}
@@ -106,7 +106,7 @@ function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 
       {open && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed z-[9999] bg-surface-900 border border-[var(--color-border-accent)] rounded-xl shadow-2xl shadow-black/40 py-1.5 min-w-[180px] max-h-[280px] overflow-y-auto"
+          className="fixed z-[9999] bg-white dark:bg-surface-900 border border-[var(--color-border-accent)] rounded-xl shadow-2xl shadow-black/40 py-1.5 min-w-[180px] max-h-[280px] overflow-y-auto"
           style={{ top: pos.top, left: pos.left, width: Math.max(pos.width, 180) }}
         >
           {options.map(opt => {

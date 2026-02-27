@@ -293,7 +293,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   }
                 }}
                 placeholder="Add a description..."
-                className="w-full text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg p-3 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] min-h-[80px] resize-y focus:outline-none focus:border-[var(--color-accent-dim)]"
+                className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg p-3 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] min-h-[80px] resize-y focus:outline-none focus:border-[var(--color-accent-dim)]"
               />
             </div>
 
@@ -330,12 +330,12 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   {tags.map((tag) => (
                     <span
                       key={tag}
-                      className="bg-surface-700 text-surface-700 dark:text-surface-300 text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+                      className="bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300 text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1"
                     >
                       #{tag}
                       <button
                         onClick={() => removeTag(tag)}
-                        className="text-surface-500 hover:text-surface-100 transition-colors"
+                        className="text-surface-400 hover:text-surface-900 dark:hover:text-surface-100 transition-colors"
                       >
                         <X size={10} />
                       </button>
@@ -350,7 +350,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={handleTagKeyDown}
                   placeholder="Add tag..."
-                  className="flex-1 text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+                  className="flex-1 text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
                 />
                 <button
                   onClick={addTag}

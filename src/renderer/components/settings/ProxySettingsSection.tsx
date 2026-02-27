@@ -191,7 +191,7 @@ export default function ProxySettingsSection() {
                 value={proxyUrl}
                 onChange={(e) => setProxyUrl(e.target.value)}
                 placeholder="http://proxy.corp.com:8080"
-                className="w-full text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+                className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
               />
               <p className="text-xs text-surface-500 mt-1">
                 Must start with http:// or https://
@@ -207,7 +207,7 @@ export default function ProxySettingsSection() {
                 value={noProxy}
                 onChange={(e) => setNoProxy(e.target.value)}
                 placeholder="localhost, 127.0.0.1, .internal.corp.com"
-                className="w-full text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+                className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
               />
               <p className="text-xs text-surface-500 mt-1">
                 Comma-separated domains that bypass the proxy

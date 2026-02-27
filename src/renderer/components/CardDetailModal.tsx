@@ -409,7 +409,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                 onKeyDown={handleTitleKeyDown}
                 onBlur={saveTitleEdit}
                 autoFocus
-                className="bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-3xl font-bold text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] focus:border-[var(--color-accent-dim)] w-full"
+                className="bg-white dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-3xl font-bold text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] focus:border-[var(--color-accent-dim)] w-full"
               />
             ) : (
               <h2
@@ -447,12 +447,12 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                         Templates
                       </button>
                       {showTemplateDropdown && (
-                        <div className="absolute top-full right-0 mt-1 bg-surface-900 border border-[var(--color-border)] rounded-lg shadow-lg py-1 min-w-[220px] z-40">
+                        <div className="absolute top-full right-0 mt-1 bg-white dark:bg-surface-900 border border-[var(--color-border)] rounded-lg shadow-lg py-1 min-w-[220px] z-40">
                           {dbTemplates.length > 0 && (
                             <>
                               <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">Your Templates</div>
                               {dbTemplates.map(template => (
-                                <button key={template.id} onClick={() => applyTemplate(template)} className="group/tpl flex items-center gap-2 w-full px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors text-left">
+                                <button key={template.id} onClick={() => applyTemplate(template)} className="group/tpl flex items-center gap-2 w-full px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors text-left">
                                   <span className="truncate flex-1">{template.name}</span>
                                   <span onClick={(e) => handleDeleteDbTemplate(template.id, e)} className="opacity-0 group-hover/tpl:opacity-100 text-surface-500 hover:text-red-400 transition-all shrink-0 p-0.5" title="Delete template">
                                     <X size={12} />
@@ -464,7 +464,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                           )}
                           <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">Built-in</div>
                           {BUILTIN_TEMPLATES.map(template => (
-                            <button key={template.id} onClick={() => applyTemplate(template)} className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors text-left">
+                            <button key={template.id} onClick={() => applyTemplate(template)} className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors text-left">
                               <span>{template.icon}</span> {template.name}
                             </button>
                           ))}
@@ -489,7 +489,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                     </button>
                   </div>
                 </div>
-                <div className="tiptap-editor bg-surface-950/30 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-accent)] transition-colors min-h-[140px] focus-within:border-[var(--color-accent-dim)] focus-within:ring-1 focus-within:ring-[var(--color-accent-dim)]/50 text-base">
+                <div className="tiptap-editor bg-surface-50/50 dark:bg-surface-950/30 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-accent)] transition-colors min-h-[140px] focus-within:border-[var(--color-accent-dim)] focus-within:ring-1 focus-within:ring-[var(--color-accent-dim)]/50 text-base">
                   <EditorContent editor={editor} />
                 </div>
               </div>
@@ -521,7 +521,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                     : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
                     }`}
                 >
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-colors ${showAgent ? 'bg-[var(--color-accent)] border-[var(--color-accent)]' : 'border-[var(--color-border)] bg-surface-950 group-hover/agent:border-[var(--color-accent-dim)]'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-colors ${showAgent ? 'bg-[var(--color-accent)] border-[var(--color-accent)]' : 'border-[var(--color-border)] bg-surface-100 dark:bg-surface-950 group-hover/agent:border-[var(--color-accent-dim)]'}`}>
                     <Bot size={14} className={`transition-colors ${showAgent ? 'text-surface-950' : 'text-[var(--color-accent-dim)] group-hover/agent:text-[var(--color-accent)]'}`} />
                   </div>
                   <div className="flex flex-col flex-1">
@@ -552,7 +552,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                       : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
                       }`}
                   >
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-colors ${card.completed ? 'bg-emerald-500 border-emerald-500' : 'border-[var(--color-border)] bg-surface-950 group-hover/check:border-emerald-400'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-colors ${card.completed ? 'bg-emerald-500 border-emerald-500' : 'border-[var(--color-border)] bg-surface-100 dark:bg-surface-950 group-hover/check:border-emerald-400'}`}>
                       <Check size={14} className={`transition-opacity ${card.completed ? 'text-white opacity-100' : 'text-emerald-500 opacity-0 group-hover/check:opacity-100'}`} />
                     </div>
                     <div className="flex flex-col">
@@ -666,7 +666,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                   </div>
 
                   {showLabelDropdown && (
-                    <div className="flex flex-col gap-2.5 bg-surface-950/50 rounded-lg p-3 border border-[var(--color-border)]">
+                    <div className="flex flex-col gap-2.5 bg-surface-50 dark:bg-surface-950/50 rounded-lg p-3 border border-[var(--color-border)]">
                       {unattachedLabels.length > 0 && (
                         <>
                           <span className="text-[10px] font-hud tracking-wider text-[var(--color-text-muted)]">Existing</span>
@@ -693,14 +693,14 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                         onChange={e => setNewLabelName(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') handleCreateAndAttach(); }}
                         placeholder="Label name..."
-                        className="w-full text-xs bg-surface-950 border border-[var(--color-border)] rounded-lg px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+                        className="w-full text-xs bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
                       />
                       <div className="flex items-center gap-1.5 px-0.5">
                         {LABEL_COLORS.map(color => (
                           <button
                             key={color}
                             onClick={() => setNewLabelColor(color)}
-                            className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-[var(--color-accent-dim)] ring-offset-1 ring-offset-surface-900 scale-110' : 'hover:scale-110'}`}
+                            className={`w-5 h-5 rounded-full transition-all ${newLabelColor === color ? 'ring-2 ring-[var(--color-accent-dim)] ring-offset-1 ring-offset-white dark:ring-offset-surface-900 scale-110' : 'hover:scale-110'}`}
                             style={{ backgroundColor: color }}
                           />
                         ))}

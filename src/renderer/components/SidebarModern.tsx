@@ -100,7 +100,7 @@ export default function SidebarModern() {
                             <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className="transition-transform group-hover:scale-110" />
 
                             {/* Tooltip on hover */}
-                            <span className="absolute left-full ml-4 px-2 py-1 bg-surface-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none shadow-lg translate-x-1 group-hover:translate-x-0">
+                            <span className="absolute left-full ml-4 px-2 py-1 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-xs rounded border border-surface-200 dark:border-transparent opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none shadow-lg translate-x-1 group-hover:translate-x-0">
                                 {label}
                             </span>
                         </NavLink>

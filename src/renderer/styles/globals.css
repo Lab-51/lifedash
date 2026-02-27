@@ -350,7 +350,7 @@ html.light .hud-nav-active {
 }
 
 html.light .hud-panel {
-  background: linear-gradient(135deg, rgba(248, 250, 251, 0.95), rgba(240, 244, 248, 0.85));
+  background: rgba(255, 255, 255, 0.97);
   border-color: var(--color-border);
 }
 
@@ -376,7 +376,7 @@ html.light .hud-panel::before {
 }
 
 html.light .hud-panel-accent {
-  background: linear-gradient(135deg, rgba(248, 250, 251, 0.95), rgba(230, 245, 245, 0.3));
+  background: rgba(255, 255, 255, 0.97);
   border-color: var(--color-border-accent);
 }
 
@@ -1029,6 +1029,22 @@ html.light .animate-logo-pulse {
     mask-image: none;
     opacity: 0.12;
   }
+}
+
+/* ─── ECG Glow Utilities ─── */
+.ecg-glow {
+  filter: drop-shadow(0 0 3px rgba(62, 232, 228, 0.4));
+}
+html.light .ecg-glow {
+  filter: drop-shadow(0 0 4px rgba(13, 150, 148, 0.5));
+}
+.ecg-glow-bright {
+  filter: drop-shadow(0 0 5px rgba(62, 232, 228, 0.6))
+          drop-shadow(0 0 10px rgba(62, 232, 228, 0.2));
+}
+html.light .ecg-glow-bright {
+  filter: drop-shadow(0 0 5px rgba(13, 150, 148, 0.6))
+          drop-shadow(0 0 10px rgba(13, 150, 148, 0.15));
 }
 
 /* ─── HUD Animations ─── */

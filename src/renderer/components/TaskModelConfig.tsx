@@ -194,7 +194,7 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
                         updateDraft(type, 'model', e.target.value);
                       }}
                       placeholder="Model name..."
-                      className="text-xs bg-surface-950 dark:bg-surface-950 border border-[var(--color-border)] rounded px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] w-36 font-data" />
+                      className="text-xs bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] w-36 font-data" />
                   ) : (
                     <HudSelect
                       value={entry.model}

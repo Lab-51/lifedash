@@ -331,7 +331,7 @@ export default function BackupSection() {
                       updateAutoSettings({ retention: val });
                     }
                   }}
-                  className="w-20 text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg px-2 py-1 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+                  className="w-20 text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-2 py-1 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)]"
                 />
                 <span className="text-xs text-surface-500">backups</span>
               </div>

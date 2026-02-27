@@ -84,7 +84,7 @@ export default function ChatMessage({ message, onExportToIdea, onExportToCard }:
                   ? <code className="bg-surface-700 px-1 py-0.5 rounded text-xs font-mono">{children}</code>
                   : <code className={`${className} block bg-surface-800 p-3 rounded-lg text-xs font-mono overflow-x-auto my-2`} {...props}>{children}</code>;
               },
-              pre: ({ children }) => <pre className="bg-surface-950 border border-surface-700 rounded-lg overflow-x-auto my-2">{children}</pre>,
+              pre: ({ children }) => <pre className="bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 rounded-lg overflow-x-auto my-2">{children}</pre>,
               a: ({ href, children }) => <a href={href} className="text-primary-400 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
               table: ({ children }) => <table className="border-collapse border border-surface-700 my-2 text-xs">{children}</table>,
               th: ({ children }) => <th className="border border-surface-700 px-2 py-1 bg-surface-800 font-semibold">{children}</th>,

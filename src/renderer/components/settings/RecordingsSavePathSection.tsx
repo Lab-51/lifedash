@@ -137,7 +137,7 @@ export default function RecordingsSavePathSection() {
             </div>
 
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-sm text-[var(--color-text-secondary)] bg-surface-950 dark:bg-surface-950 px-3 py-2 rounded border border-[var(--color-border)] truncate font-data">
+              <code className="flex-1 text-sm text-[var(--color-text-secondary)] bg-surface-50 dark:bg-surface-950 px-3 py-2 rounded border border-[var(--color-border)] truncate font-data">
                 {currentPath}
               </code>
               <button

@@ -196,7 +196,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search cards in this project..."
-                      className="w-full pl-8 pr-3 py-2 text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+                      className="w-full pl-8 pr-3 py-2 text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
                     />
                   </div>
                   <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800">
@@ -268,7 +268,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
                     const val = Math.min(120, Math.max(1, parseInt(e.target.value, 10) || 1));
                     setDuration(val);
                   }}
-                  className="w-20 px-3 py-1.5 text-sm bg-surface-950 border border-[var(--color-border)] rounded-lg text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+                  className="w-20 px-3 py-1.5 text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)]"
                 />
                 <span className="text-sm text-surface-500">minutes</span>
               </div>

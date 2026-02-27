@@ -97,12 +97,12 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
 
       {/* API Key edit section (inline, toggleable) */}
       {editingKey && (
-        <div className="mb-3 p-2 bg-surface-950 dark:bg-surface-950 rounded-lg border border-[var(--color-border)]">
+        <div className="mb-3 p-2 bg-surface-50 dark:bg-surface-950 rounded-lg border border-[var(--color-border)]">
           <div className="relative">
             <input type={showKey ? 'text' : 'password'} value={newApiKey}
               onChange={e => setNewApiKey(e.target.value)}
               placeholder="Enter new API key..."
-              className="w-full text-xs bg-surface-900 dark:bg-surface-900 border border-[var(--color-border)] rounded px-2.5 py-1.5 pr-8 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
+              className="w-full text-xs bg-white dark:bg-surface-900 border border-[var(--color-border)] rounded px-2.5 py-1.5 pr-8 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
             <button type="button"
               onClick={() => setShowKey(!showKey)}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]">

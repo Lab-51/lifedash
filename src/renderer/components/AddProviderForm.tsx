@@ -138,7 +138,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
           <input type="text" value={displayName}
             onChange={e => setDisplayName(e.target.value)}
             placeholder={`My ${PROVIDER_OPTIONS.find(o => o.value === name)?.label}`}
-            className="w-full text-sm bg-surface-950 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
+            className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
         </div>
 
         {/* API Key (not shown for Ollama) */}
@@ -149,7 +149,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
               <input type={showApiKey ? 'text' : 'password'} value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
                 placeholder="sk-..."
-                className="w-full text-sm bg-surface-950 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 pr-10 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
+                className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 pr-10 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
               <button type="button"
                 onClick={() => setShowApiKey(!showApiKey)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]">
@@ -167,7 +167,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
           <input type="text" value={baseUrl}
             onChange={e => setBaseUrl(e.target.value)}
             placeholder={name === 'ollama' ? 'http://localhost:11434' : 'Leave blank for default'}
-            className="w-full text-sm bg-surface-950 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
+            className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
         </div>
 
         {/* Buttons */}

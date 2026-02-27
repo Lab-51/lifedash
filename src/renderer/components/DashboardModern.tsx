@@ -182,7 +182,7 @@ export default function DashboardModern() {
                                         strokeWidth="2"
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
-                                        style={{ filter: 'drop-shadow(0 0 3px rgba(62, 232, 228, 0.4))' }}
+                                        className="ecg-glow"
                                     />
                                 </svg>
                                 <svg
@@ -197,7 +197,7 @@ export default function DashboardModern() {
                                         strokeWidth="3"
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
-                                        style={{ filter: 'drop-shadow(0 0 5px rgba(62, 232, 228, 0.6)) drop-shadow(0 0 10px rgba(62, 232, 228, 0.2))' }}
+                                        className="ecg-glow-bright"
                                     />
                                 </svg>
                             </div>

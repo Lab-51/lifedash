@@ -346,7 +346,7 @@ export default function ProjectPlanningModal({
             onChange={e => setAdditionalContext(e.target.value)}
             placeholder="Describe goals, tech stack, constraints, or any specific requirements..."
             rows={3}
-            className="w-full text-sm bg-surface-950 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] resize-none"
+            className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] resize-none"
             disabled={planLoading}
           />
         </div>
@@ -432,7 +432,7 @@ export default function ProjectPlanningModal({
                     className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                       idx === activePillar
                         ? 'bg-surface-700 text-surface-900 dark:text-surface-100'
-                        : 'text-surface-400 hover:text-surface-800 dark:text-surface-200 hover:bg-surface-800'
+                        : 'text-surface-400 hover:text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800'
                     }`}
                   >
                     {pillar.name}

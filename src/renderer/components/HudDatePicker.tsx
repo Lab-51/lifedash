@@ -168,8 +168,8 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
         onClick={handleToggle}
         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border text-left text-sm transition-colors ${
           value
-            ? 'border-[var(--color-border)] hover:border-[var(--color-border-accent)] bg-surface-950 text-[var(--color-text-primary)]'
-            : 'border-dashed border-[var(--color-border)] hover:border-[var(--color-border-accent)] bg-surface-950 text-[var(--color-text-muted)]'
+            ? 'border-[var(--color-border)] hover:border-[var(--color-border-accent)] bg-surface-50 dark:bg-surface-950 text-[var(--color-text-primary)]'
+            : 'border-dashed border-[var(--color-border)] hover:border-[var(--color-border-accent)] bg-surface-50 dark:bg-surface-950 text-[var(--color-text-muted)]'
         }`}
       >
         <Calendar size={14} className="text-[var(--color-text-muted)] shrink-0" />
@@ -191,7 +191,7 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
       {open && createPortal(
         <div
           ref={popoverRef}
-          className="fixed z-[9999] bg-surface-900 border border-[var(--color-border-accent)] rounded-xl shadow-2xl shadow-black/40 p-3 min-w-[280px]"
+          className="fixed z-[9999] bg-white dark:bg-surface-900 border border-[var(--color-border-accent)] rounded-xl shadow-2xl shadow-black/40 p-3 min-w-[280px]"
           style={{ top: pos.top, left: pos.left }}
         >
           {/* Quick presets */}
@@ -282,7 +282,7 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
                       const h = Math.max(0, Math.min(23, parseInt(e.target.value) || 0));
                       handleTimeChange(h, minutes);
                     }}
-                    className="w-10 text-center text-sm font-data bg-surface-950 border border-[var(--color-border)] rounded-md py-1 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)] transition-colors"
+                    className="w-10 text-center text-sm font-data bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-md py-1 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)] transition-colors"
                   />
                   <span className="text-[var(--color-text-muted)] font-bold">:</span>
                   <input
@@ -295,7 +295,7 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
                       const m = Math.max(0, Math.min(59, parseInt(e.target.value) || 0));
                       handleTimeChange(hours, m);
                     }}
-                    className="w-10 text-center text-sm font-data bg-surface-950 border border-[var(--color-border)] rounded-md py-1 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)] transition-colors"
+                    className="w-10 text-center text-sm font-data bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-md py-1 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)] transition-colors"
                   />
                 </div>
                 {/* Quick time presets */}

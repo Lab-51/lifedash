@@ -41,13 +41,7 @@ function UpgradePrompt({ feature, info, children }: UpgradePromptProps) {
     >
       {/* HUD panel */}
       <div
-        className="relative w-full max-w-md clip-corner-cut"
-        style={{
-          background: 'var(--color-surface-950)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '2px',
-          padding: '2rem',
-        }}
+        className="relative w-full max-w-md clip-corner-cut bg-white dark:bg-surface-950 border border-[var(--color-border)] rounded-sm p-8"
       >
         {/* Top accent line */}
         <div
