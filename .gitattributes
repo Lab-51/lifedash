@@ -1,0 +1,36 @@
+# Exclude dev/internal files from GitHub source archives (zip/tar.gz on Releases page).
+# These files are tracked in git but should NOT appear in customer-facing downloads.
+
+# Internal docs and planning
+BLOG-POST.md            export-ignore
+CONTRIBUTING.md         export-ignore
+PRICING.md              export-ignore
+RELEASING.md            export-ignore
+WEBSITE-CONTENT-UPDATE.md export-ignore
+WEBSITE-OVERHAUL.md     export-ignore
+lemonsetup.md           export-ignore
+docs/                   export-ignore
+
+# Dev artifacts
+prettier_err.txt        export-ignore
+tsc_out.txt             export-ignore
+tsc_out2.txt            export-ignore
+release-commands.txt    export-ignore
+
+# Build/dev scripts (not needed by customers)
+scripts/                export-ignore
+docker-compose.yml      export-ignore
+
+# Dev config
+.nexus/                 export-ignore
+.claude/                export-ignore
+
+# Code signing
+certs/                  export-ignore
+scripts/generate-cert.ps1 export-ignore
+
+# Test files
+src/**/*.test.ts        export-ignore
+src/**/*.test.tsx       export-ignore
+src/**/*.spec.ts        export-ignore
+vitest.config.*         export-ignore
