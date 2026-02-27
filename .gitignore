@@ -12,6 +12,7 @@ build/
 # Electron
 release/
 .vite/
+/main.js
 
 # Environment
 .env
