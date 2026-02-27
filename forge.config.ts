@@ -149,16 +149,16 @@ const config: ForgeConfig = {
     },
   },
   makers: [
-    new MakerSquirrel(
-      process.env.CERT_PASSWORD
+    new MakerSquirrel({
+      setupExe: `LifeDash-${require('./package.json').version}.exe`,
+      setupIcon: './src/assets/icon.ico',
+      ...(process.env.CERT_PASSWORD
         ? {
           certificateFile: './certs/living-dashboard.pfx',
           certificatePassword: process.env.CERT_PASSWORD,
         }
-        : {
-          setupIcon: './src/assets/icon.ico',
-        },
-    ),
+        : {}),
+    }),
     new MakerZIP({}, ['darwin']),
     new MakerDMG({
       format: 'ULFO',

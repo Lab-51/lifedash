@@ -45,7 +45,7 @@ GITHUB_TOKEN=ghp_... SKIP_OBFUSCATION=true npm run publish
 
 This will:
 - Build the app (Vite + Electron Forge)
-- Create installer artifacts (Setup.exe, .nupkg, RELEASES)
+- Create installer artifacts (LifeDash-X.X.X.exe, .nupkg, RELEASES)
 - Upload them as a **draft** release to https://github.com/Lab-51/lifedash/releases
 
 ### 3. Review and publish the release
@@ -68,7 +68,7 @@ Once published:
 
 | Platform | Artifact | Purpose |
 |----------|----------|---------|
-| Windows | `lifedash-X.X.X Setup.exe` | Squirrel installer for new installs |
+| Windows | `LifeDash-X.X.X.exe` | Squirrel installer for new installs |
 | Windows | `lifedash-X.X.X-full.nupkg` | Delta update package for existing installs |
 | Windows | `RELEASES` | Update manifest (Squirrel checks this) |
 | macOS | `LifeDash.dmg` | DMG installer for new installs |
@@ -120,10 +120,9 @@ In-app toast: "Update vX.X.X ready — restart to install"
 
 ### Windows
 
-1. Download `lifedash-X.X.X Setup.exe` from the [Releases page](https://github.com/Lab-51/lifedash/releases)
-2. Run the installer — it will install to `%LOCALAPPDATA%\lifedash\`
-3. LifeDash launches automatically after install
-4. A desktop shortcut and Start Menu entry are created by Squirrel
+1. Download `LifeDash-X.X.X.exe` from the [Releases page](https://github.com/Lab-51/lifedash/releases)
+2. Run it — LifeDash installs silently and launches automatically
+3. A desktop shortcut and Start Menu entry are created automatically
 
 **Install location:** `C:\Users\<username>\AppData\Local\lifedash\`
 **No admin rights required** — Squirrel installs per-user, not system-wide.
