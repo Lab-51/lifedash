@@ -24,6 +24,7 @@ import { initNotificationScheduler, stopNotificationScheduler } from './services
 import { createLogger } from './services/logger';
 import { getIsRecording, setIsRecording } from './services/recordingState';
 import { applyGlobalProxy } from './services/proxyService';
+import { updateElectronApp } from 'update-electron-app';
 
 const log = createLogger('App');
 
@@ -87,7 +88,7 @@ const createWindow = async () => {
   const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
   const connectSrc = isDev
     ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434"
-    : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434";
+    : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434 https://update.electronjs.org https://api.github.com https://github.com";
   const scriptSrc = isDev
     ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"  // Vite HMR needs eval + React preamble needs inline in dev
     : "script-src 'self'";
@@ -209,6 +210,15 @@ app.on('before-quit', async () => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
 });
+
+// Auto-update — checks GitHub Releases for new versions (production only).
+// Uses Squirrel on Windows and Squirrel.Mac on macOS.
+if (app.isPackaged) {
+  updateElectronApp({
+    repo: 'Lab-51/lifedash',
+    updateInterval: '1 hour',
+  });
+}
 
 // Create window when Electron is ready
 app.on('ready', () => {

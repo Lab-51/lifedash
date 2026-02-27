@@ -11,6 +11,7 @@ import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { PublisherGithub } from '@electron-forge/publisher-github';
 import { obfuscate as jsObfuscate } from 'javascript-obfuscator';
 
 // IPC channel prefixes and renderer bridge identifiers that must NOT be
@@ -173,6 +174,13 @@ const config: ForgeConfig = {
     //     chooseDirectory: true,
     //   },
     // }),
+  ],
+  publishers: [
+    new PublisherGithub({
+      repository: { owner: 'Lab-51', name: 'lifedash' },
+      prerelease: false,
+      draft: true, // Creates draft release — review on GitHub before publishing
+    }),
   ],
   plugins: [
     new VitePlugin({

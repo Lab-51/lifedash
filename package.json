@@ -14,6 +14,7 @@
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
+    "publish": "electron-forge publish",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -55,6 +56,7 @@
     "react-router-dom": "^7.13.0",
     "remark-gfm": "^4.0.1",
     "undici": "^7.22.0",
+    "update-electron-app": "^3.1.2",
     "wavefile": "^11.0.0",
     "zod": "^3.25.76",
     "zustand": "^5.0.11"
@@ -67,6 +69,7 @@
     "@electron-forge/maker-zip": "^7.11.1",
     "@electron-forge/plugin-fuses": "^7.11.1",
     "@electron-forge/plugin-vite": "^7.11.1",
+    "@electron-forge/publisher-github": "^7.11.1",
     "@electron/fuses": "^1.8.0",
     "@electron/notarize": "^3.1.1",
     "@electron/osx-sign": "^2.3.0",
