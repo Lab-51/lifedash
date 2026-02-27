@@ -21,7 +21,9 @@ import { getSpeakerColor } from './MeetingAnalyticsSection';
 import type { ActionItem, MeetingWithTranscript } from '../../shared/types';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../shared/types';
 import { useLicenseStore } from '../stores/licenseStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { ProBadge } from './ProBadge';
+import EmptyAIState from './EmptyAIState';
 
 interface MeetingDetailModalProps {
   onClose: () => void;
@@ -195,6 +197,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
     const info = s.info;
     return info !== null && (info.status === 'active' || info.status === 'trial') && info.tier === 'pro';
   });
+  const hasAnyEnabledProvider = useSettingsStore(s => s.hasAnyEnabledProvider);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -577,62 +580,71 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
             />
           </div>
 
-          {/* AI provider error hint (shown when auto-generate fails) */}
-          {autoGenerate && error && !meeting.brief && !generatingBrief && (
-            <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-              <div className="flex items-start gap-2">
-                <Info size={14} className="text-amber-400 mt-0.5 shrink-0" />
-                <p className="text-sm text-amber-300">
-                  Configure an AI provider in Settings to generate meeting intelligence.
-                </p>
+          {/* Meeting Intelligence (Brief + Action Items) */}
+          {hasAnyEnabledProvider() ? (
+            <>
+              {/* AI provider error hint (shown when auto-generate fails) */}
+              {autoGenerate && error && !meeting.brief && !generatingBrief && (
+                <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <div className="flex items-start gap-2">
+                    <Info size={14} className="text-amber-400 mt-0.5 shrink-0" />
+                    <p className="text-sm text-amber-300">
+                      Configure an AI provider in Settings to generate meeting intelligence.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* AI Brief */}
+              <div className="mb-5">
+                <BriefSection
+                  meetingId={meeting.id}
+                  brief={meeting.brief}
+                  isCompleted={meeting.status === 'completed'}
+                  generatingBrief={generatingBrief}
+                  onGenerate={() => generateBrief(meeting.id)}
+                />
               </div>
+
+              {/* Action Items */}
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs text-[var(--color-text-muted)]">Auto-convert action items to cards requires</span>
+                  <ProBadge />
+                </div>
+                <ActionItemList
+                  meetingId={meeting.id}
+                  actionItems={meeting.actionItems}
+                  isCompleted={meeting.status === 'completed'}
+                  generatingActions={generatingActions}
+                  onGenerate={() => generateActionItems(meeting.id)}
+                  onUpdateStatus={updateActionItemStatus}
+                  onConvert={(item) => {
+                    if (!isProEnabled) {
+                      toast('Upgrade to Pro to auto-convert action items to cards', 'info');
+                      return;
+                    }
+                    setConvertingAction(item);
+                  }}
+                  meetingProjectId={meeting.projectId ?? undefined}
+                  meetingProjectName={linkedProjectName}
+                  onBatchConvert={(items) => {
+                    if (!isProEnabled) {
+                      toast('Upgrade to Pro to auto-convert action items to cards', 'info');
+                      return;
+                    }
+                    setBatchConvertItems(items);
+                  }}
+                  onQuickPush={meeting.projectId && isProEnabled ? handleQuickPush : undefined}
+                  quickPushing={quickPushing}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="mb-5">
+              <EmptyAIState featureName="meeting intelligence" />
             </div>
           )}
-
-          {/* AI Brief */}
-          <div className="mb-5">
-            <BriefSection
-              meetingId={meeting.id}
-              brief={meeting.brief}
-              isCompleted={meeting.status === 'completed'}
-              generatingBrief={generatingBrief}
-              onGenerate={() => generateBrief(meeting.id)}
-            />
-          </div>
-
-          {/* Action Items */}
-          <div className="mb-5">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs text-[var(--color-text-muted)]">Auto-convert action items to cards requires</span>
-              <ProBadge />
-            </div>
-            <ActionItemList
-              meetingId={meeting.id}
-              actionItems={meeting.actionItems}
-              isCompleted={meeting.status === 'completed'}
-              generatingActions={generatingActions}
-              onGenerate={() => generateActionItems(meeting.id)}
-              onUpdateStatus={updateActionItemStatus}
-              onConvert={(item) => {
-                if (!isProEnabled) {
-                  toast('Upgrade to Pro to auto-convert action items to cards', 'info');
-                  return;
-                }
-                setConvertingAction(item);
-              }}
-              meetingProjectId={meeting.projectId ?? undefined}
-              meetingProjectName={linkedProjectName}
-              onBatchConvert={(items) => {
-                if (!isProEnabled) {
-                  toast('Upgrade to Pro to auto-convert action items to cards', 'info');
-                  return;
-                }
-                setBatchConvertItems(items);
-              }}
-              onQuickPush={meeting.projectId && isProEnabled ? handleQuickPush : undefined}
-              quickPushing={quickPushing}
-            />
-          </div>
 
           {/* Transcript section */}
           <div className="mb-5">

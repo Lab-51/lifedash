@@ -29,10 +29,12 @@ import { useBoardStore } from './stores/boardStore';
 import { useFocusStore } from './stores/focusStore';
 import { useGamificationStore } from './stores/gamificationStore';
 import { useLicenseStore } from './stores/licenseStore';
+import { useSettingsStore } from './stores/settingsStore';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import ToastContainer from './components/ToastContainer';
 import AchievementBanner from './components/AchievementBanner';
+import SetupWizard from './components/SetupWizard';
 import { toast } from './hooks/useToast';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -55,6 +57,7 @@ function AppShell({ children }: { children: ReactNode }) {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [appReady, setAppReady] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const showStartModal = useFocusStore(s => s.showStartModal);
   const focusMode = useFocusStore(s => s.mode);
 
@@ -112,6 +115,25 @@ function AppShell({ children }: { children: ReactNode }) {
     ]).then(() => setAppReady(true));
   }, []);
 
+  // Show the setup wizard if: no providers configured AND wizard not yet completed.
+  useEffect(() => {
+    if (!appReady) return;
+    async function checkWizard() {
+      const settingsStore = useSettingsStore.getState();
+      await Promise.all([
+        settingsStore.loadProviders(),
+        settingsStore.loadSettings(),
+      ]);
+      const providers = useSettingsStore.getState().providers;
+      const settings = useSettingsStore.getState().settings;
+      const wizardCompleted = settings['setupWizard.completed'] === 'true';
+      if (providers.length === 0 && !wizardCompleted) {
+        setShowWizard(true);
+      }
+    }
+    checkWizard();
+  }, [appReady]);
+
   // Dismiss the splash screen once the app is ready
   useEffect(() => {
     if (!appReady) return;
@@ -162,6 +184,9 @@ function AppShell({ children }: { children: ReactNode }) {
           onClose={() => useFocusStore.getState().stop()}
         />
       </Suspense>
+      {showWizard && (
+        <SetupWizard onClose={() => setShowWizard(false)} />
+      )}
       {appReady && children}
     </>
   );

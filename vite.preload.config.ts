@@ -1,110 +1,13 @@
 // === FILE PURPOSE ===
 // Vite config for the Electron preload script build.
-// Applies minification (previously missing) and MEDIUM obfuscation on production builds.
+// Applies esbuild minification on production builds.
+// Obfuscation is applied post-build in forge.config.ts packageAfterCopy hook.
 // contextBridge method names are preserved so the renderer can access window.electronAPI.*.
 
 import { defineConfig } from 'vite';
-import obfuscatorPlugin from 'vite-plugin-javascript-obfuscator';
-
-// IPC channel prefixes that must be preserved so main<->preload names stay in sync.
-const IPC_RESERVED_STRINGS = [
-  '^card-agent:',
-  '^backup:',
-  '^focus:',
-  '^meetings:',
-  '^license:',
-  '^brainstorm:',
-  '^recording:',
-  '^whisper:',
-  '^audio:',
-  '^meeting:',
-  '^db:',
-  '^window:',
-  '^app:',
-  '^settings:',
-  '^projects:',
-  '^cards:',
-  '^ideas:',
-  '^task-structuring:',
-  '^notifications:',
-  '^transcription:',
-  '^dashboard:',
-  '^gamification:',
-  '^enable-loopback',
-  '^disable-loopback',
-  'electronAPI',
-];
 
 export default defineConfig({
   build: {
     minify: 'esbuild',
   },
-  plugins: [
-    obfuscatorPlugin({
-      apply: 'build',
-      options: {
-        controlFlowFlattening: false,
-        deadCodeInjection: false,
-        stringArray: true,
-        stringArrayEncoding: ['base64'],
-        stringArrayThreshold: 0.75,
-        identifierNamesGenerator: 'hexadecimal',
-        renameGlobals: false,
-        target: 'node',
-        seed: 0,
-        reservedStrings: IPC_RESERVED_STRINGS,
-        reservedNames: [
-          '^window',
-          '^backup',
-          '^license',
-          '^cardAgent',
-          '^focus',
-          '^meeting',
-          '^brainstorm',
-          '^recording',
-          '^whisper',
-          '^idea',
-          '^setting',
-          '^project',
-          '^card',
-          '^task',
-          '^notification',
-          '^dashboard',
-          '^gamification',
-          '^transcription',
-          '^database',
-          '^on[A-Z]',
-          '^get[A-Z]',
-          '^create[A-Z]',
-          '^update[A-Z]',
-          '^delete[A-Z]',
-          '^send[A-Z]',
-          '^add[A-Z]',
-          '^pick[A-Z]',
-          '^enable',
-          '^disable',
-          '^abort',
-          '^diarize',
-          '^generate',
-          '^search',
-          '^move',
-          '^reorder',
-          '^attach',
-          '^detach',
-          '^duplicate',
-          '^convert',
-          '^export',
-          '^save',
-          '^open',
-          '^has',
-          '^is',
-          '^platform$',
-          '^appVersion$',
-          '^require$',
-          '^module$',
-          '^exports$',
-        ],
-      },
-    }),
-  ],
 });

@@ -22,7 +22,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:up": "docker compose up -d",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "make:icons": "node scripts/make-icons.js",
+    "verify:package": "node scripts/verify-package.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.43",
@@ -59,12 +61,15 @@
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.1",
+    "@electron-forge/maker-dmg": "^7.11.1",
     "@electron-forge/maker-squirrel": "^7.11.1",
     "@electron-forge/maker-wix": "^7.11.1",
     "@electron-forge/maker-zip": "^7.11.1",
     "@electron-forge/plugin-fuses": "^7.11.1",
     "@electron-forge/plugin-vite": "^7.11.1",
     "@electron/fuses": "^1.8.0",
+    "@electron/notarize": "^3.1.1",
+    "@electron/osx-sign": "^2.3.0",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/vite": "^4.1.18",
     "@types/electron-squirrel-startup": "^1.0.2",
@@ -74,11 +79,12 @@
     "@vitest/ui": "^4.0.18",
     "drizzle-kit": "^0.31.9",
     "electron": "^40.4.0",
+    "javascript-obfuscator": "^5.3.0",
     "png-to-ico": "^3.0.1",
+    "png2icons": "^2.0.1",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
-    "vite-plugin-javascript-obfuscator": "^3.1.0",
     "vitest": "^4.0.18"
   }
 }

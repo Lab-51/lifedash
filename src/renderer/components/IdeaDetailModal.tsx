@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useIdeaStore } from '../stores/ideaStore';
 import { useBrainstormStore } from '../stores/brainstormStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import type {
   IdeaStatus,
   EffortLevel,
@@ -26,6 +27,7 @@ import type {
 import IdeaAnalysisSection from './IdeaAnalysisSection';
 import IdeaConvertWizard from './IdeaConvertWizard';
 import HudSelect from './HudSelect';
+import EmptyAIState from './EmptyAIState';
 
 // === CONSTANTS ===
 
@@ -72,6 +74,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
   const analysisError = useIdeaStore(s => s.analysisError);
   const analyzeIdea = useIdeaStore(s => s.analyzeIdea);
   const clearAnalysis = useIdeaStore(s => s.clearAnalysis);
+  const hasAnyEnabledProvider = useSettingsStore(s => s.hasAnyEnabledProvider);
 
   // Local edit state — local for responsive UI, persisted on blur/change
   const [title, setTitle] = useState('');
@@ -295,23 +298,27 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
             </div>
 
             {/* AI Analysis */}
-            <IdeaAnalysisSection
-              analyzing={analyzing}
-              analysisError={analysisError}
-              analysis={analysis}
-              onAnalyze={() => {
-                if (selectedIdea) analyzeIdea(selectedIdea.id);
-              }}
-              onClearAnalysis={clearAnalysis}
-              onApplyEffort={(newEffort) => {
-                setEffort(newEffort);
-                if (selectedIdea) updateIdea(selectedIdea.id, { effort: newEffort });
-              }}
-              onApplyImpact={(newImpact) => {
-                setImpact(newImpact);
-                if (selectedIdea) updateIdea(selectedIdea.id, { impact: newImpact });
-              }}
-            />
+            {hasAnyEnabledProvider() ? (
+              <IdeaAnalysisSection
+                analyzing={analyzing}
+                analysisError={analysisError}
+                analysis={analysis}
+                onAnalyze={() => {
+                  if (selectedIdea) analyzeIdea(selectedIdea.id);
+                }}
+                onClearAnalysis={clearAnalysis}
+                onApplyEffort={(newEffort) => {
+                  setEffort(newEffort);
+                  if (selectedIdea) updateIdea(selectedIdea.id, { effort: newEffort });
+                }}
+                onApplyImpact={(newImpact) => {
+                  setImpact(newImpact);
+                  if (selectedIdea) updateIdea(selectedIdea.id, { impact: newImpact });
+                }}
+              />
+            ) : (
+              <EmptyAIState featureName="idea analysis" />
+            )}
 
             {/* Tags */}
             <div className="mt-4">

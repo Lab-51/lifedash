@@ -13,8 +13,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useBrainstormStore } from '../stores/brainstormStore';
 import { useProjectStore } from '../stores/projectStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import ChatMessageModern from '../components/ChatMessageModern';
 import HudSelect from '../components/HudSelect';
+import EmptyAIState from '../components/EmptyAIState';
 import { BRAINSTORM_TEMPLATES } from '../../shared/types/brainstorm';
 
 function formatRelativeTime(isoDate: string): string {
@@ -44,6 +46,7 @@ export default function BrainstormModern() {
     const exportToCard = useBrainstormStore(s => s.exportToCard);
     const projects = useProjectStore(s => s.projects);
     const loadProjects = useProjectStore(s => s.loadProjects);
+    const hasAnyEnabledProvider = useSettingsStore(s => s.hasAnyEnabledProvider);
     const [input, setInput] = useState('');
     const [newSessionTitle, setNewSessionTitle] = useState('');
     const [showNewSession, setShowNewSession] = useState(false);
@@ -590,6 +593,13 @@ export default function BrainstormModern() {
                                     <div ref={messagesEndRef} className="h-4" />
                                 </div>
                             </div>
+
+                            {/* No provider state — shown above input area */}
+                            {!hasAnyEnabledProvider() && (
+                                <div className="border-t border-[var(--color-border)]">
+                                    <EmptyAIState featureName="brainstorming" />
+                                </div>
+                            )}
 
                             {/* Input Area */}
                             <div className="p-4 bg-surface-50 dark:bg-[var(--color-chrome)] border-t border-[var(--color-border)]">

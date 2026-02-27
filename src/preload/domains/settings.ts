@@ -28,4 +28,7 @@ export const settingsBridge = {
   getAIUsage: () => ipcRenderer.invoke('ai:get-usage'),
   getAIUsageSummary: () => ipcRenderer.invoke('ai:get-usage-summary'),
   getAIUsageDaily: () => ipcRenderer.invoke('ai:get-usage-daily'),
+
+  // Ollama health check
+  checkOllama: () => ipcRenderer.invoke('ai:check-ollama'),
 };

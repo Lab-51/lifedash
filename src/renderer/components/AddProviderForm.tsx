@@ -2,8 +2,8 @@
 // Form component for adding a new AI provider configuration.
 // Shown inline on the Settings page when the user clicks "Add Provider".
 
-import { useState } from 'react';
-import { Bot, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Bot, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { AIProviderName } from '../../shared/types';
 
@@ -29,6 +29,21 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const needsApiKey = name !== 'ollama';
+  const [ollamaDetected, setOllamaDetected] = useState<boolean | null>(null);
+
+  // Auto-detect Ollama when Ollama is selected as the provider
+  useEffect(() => {
+    if (name !== 'ollama') {
+      setOllamaDetected(null);
+      return;
+    }
+    setOllamaDetected(null);
+    window.electronAPI.checkOllama().then(result => {
+      setOllamaDetected(result.running);
+    }).catch(() => {
+      setOllamaDetected(false);
+    });
+  }, [name]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,6 +105,30 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
             ))}
           </div>
         </div>
+
+        {/* Ollama detection hint */}
+        {name === 'ollama' && ollamaDetected !== null && (
+          <div className={`flex items-center gap-1.5 text-xs font-data px-1 ${ollamaDetected ? 'text-emerald-500' : 'text-amber-400'}`}>
+            {ollamaDetected ? (
+              <>
+                <CheckCircle size={13} />
+                Ollama detected
+              </>
+            ) : (
+              <>
+                <AlertCircle size={13} />
+                Not detected — download at{' '}
+                <button
+                  type="button"
+                  onClick={() => window.electronAPI.openExternal('https://ollama.com/download')}
+                  className="underline hover:no-underline"
+                >
+                  ollama.com
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Display name (optional) */}
         <div>

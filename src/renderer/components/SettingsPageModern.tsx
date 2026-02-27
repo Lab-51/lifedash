@@ -4,13 +4,14 @@
 // Features a cleaner layout with card-based sections and updated typography.
 
 import { useEffect, useState } from 'react';
-import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Key } from 'lucide-react';
+import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Key, Wand2 } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useBackupStore } from '../stores/backupStore';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProviderCard from '../components/ProviderCard';
 import AddProviderForm from '../components/AddProviderForm';
+import SetupWizard from '../components/SetupWizard';
 import TaskModelConfig from '../components/TaskModelConfig';
 import ThemeSelector from '../components/ThemeSelector';
 
@@ -34,6 +35,8 @@ export default function SettingsPageModern() {
     const checkEncryption = useSettingsStore(s => s.checkEncryption);
     const [showAddForm, setShowAddForm] = useState(false);
     const [activeTab, setActiveTab] = useState('general');
+    const [showWizard, setShowWizard] = useState(false);
+    const setSetting = useSettingsStore(s => s.setSetting);
 
     useEffect(() => {
         loadProviders();
@@ -170,6 +173,24 @@ export default function SettingsPageModern() {
 
                     {activeTab === 'ai' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {/* Re-run wizard banner */}
+                            <div className="flex items-center justify-between p-4 hud-panel clip-corner-cut-sm border-[var(--color-border)]">
+                                <div>
+                                    <p className="text-sm font-medium text-[var(--color-text-primary)]">Setup Wizard</p>
+                                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Re-run the guided AI provider setup.</p>
+                                </div>
+                                <button
+                                    onClick={async () => {
+                                        await setSetting('setupWizard.completed', 'false');
+                                        setShowWizard(true);
+                                    }}
+                                    className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] px-4 py-2 text-sm font-medium transition-all clip-corner-cut-sm"
+                                >
+                                    <Wand2 size={15} />
+                                    Re-run setup wizard
+                                </button>
+                            </div>
+
                             {/* Providers */}
                             <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--color-border)]">
@@ -315,6 +336,10 @@ export default function SettingsPageModern() {
                     )}
                 </div>
             </div>
+
+            {showWizard && (
+                <SetupWizard onClose={() => setShowWizard(false)} />
+            )}
         </div>
     );
 }

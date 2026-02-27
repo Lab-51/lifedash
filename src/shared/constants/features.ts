@@ -8,6 +8,7 @@ export const PRO_FEATURES = {
   billableExport: { key: 'billableExport', label: 'Billable Time Export', description: 'Export focus sessions as billable CSV' },
   backupRestore: { key: 'backupRestore', label: 'Backup & Restore', description: 'Full database backup and restore' },
   dataExport: { key: 'dataExport', label: 'Data Export', description: 'Export all data as JSON/CSV' },
+  projectAgent: { key: 'projectAgent', label: 'Project AI Agent', description: 'AI assistant with cross-board intelligence per project' },
 } as const;
 
 export type ProFeatureKey = keyof typeof PRO_FEATURES;

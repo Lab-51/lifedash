@@ -2,9 +2,9 @@
 // Board view page — Modern Design
 // Displays the Kanban board for a project with enhanced UI/UX.
 
-import { Suspense, lazy, useState } from 'react';
+import { Suspense, lazy, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, X, Search, ChevronDown, Download, LayoutTemplate, SlidersHorizontal, Settings2, Pencil, Trash2, Check, ChevronsDownUp, ChevronsUpDown, DollarSign } from 'lucide-react';
+import { ArrowLeft, Plus, X, Search, ChevronDown, Download, LayoutTemplate, SlidersHorizontal, Settings2, Pencil, Trash2, Check, ChevronsDownUp, ChevronsUpDown, DollarSign, Bot, Loader2 } from 'lucide-react';
 
 const LABEL_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 import { useBoardController, exportBoardAsCsv } from '../hooks/useBoardController';
@@ -14,6 +14,10 @@ import BoardColumnModern from '../components/BoardColumnModern';
 import type { CardPriority } from '../../shared/types';
 
 const CardDetailModal = lazy(() => import('../components/CardDetailModal'));
+import { useProjectAgentStore } from '../stores/projectAgentStore';
+import ProGate from './ProGate';
+import { ProBadge } from './ProBadge';
+const ProjectAgentPanel = lazy(() => import('./ProjectAgentPanel'));
 
 export default function BoardPageModern() {
     const {
@@ -65,6 +69,35 @@ export default function BoardPageModern() {
         dependencyCountMap,
         getCardsByColumn,
     } = useBoardController();
+
+    // Project Agent panel state
+    const [showAgent, setShowAgent] = useState(false);
+    const [agentEverOpened, setAgentEverOpened] = useState(false);
+    const agentMessageCount = useProjectAgentStore(s => s.messageCount);
+
+    // Load agent message count on mount
+    useEffect(() => {
+        const loadAgentCount = useProjectAgentStore.getState().loadMessageCount;
+        if (projectId) loadAgentCount(projectId);
+    }, [projectId]);
+
+    // Escape key closes agent panel before other handlers
+    useEffect(() => {
+        if (!showAgent) return;
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                setShowAgent(false);
+            }
+        };
+        document.addEventListener('keydown', handleEscape, true); // capture phase
+        return () => document.removeEventListener('keydown', handleEscape, true);
+    }, [showAgent]);
+
+    // Reset agent store on projectId change or unmount
+    useEffect(() => {
+        return () => useProjectAgentStore.getState().reset();
+    }, [projectId]);
 
     // Hourly rate — read from projectStore so updates reflect immediately
     const updateProject = useProjectStore(s => s.updateProject);
@@ -517,80 +550,140 @@ export default function BoardPageModern() {
                             </button>
                         </>
                     )}
+
                 </div>
             </div>
 
             {/* Board Layout */}
-            <div className="flex-1 flex items-start gap-6 overflow-x-auto px-8 pb-8 pt-6 grid-bg">
-                {columns.map(column => (
-                    <BoardColumnModern
-                        key={column.id}
-                        column={column}
-                        columnCards={getCardsByColumn(filteredCards, column.id)}
-                        totalCardCount={hasActiveFilters ? getCardsByColumn(allCards, column.id).length : undefined}
-                        isDragOver={dragOverColumnId === column.id}
-                        onDragOverChange={(isOver) => handleDragOverChange(column.id, isOver)}
-                        projectId={projectId}
-                        addCard={addCard}
-                        updateCard={updateCard}
-                        deleteCard={deleteCard}
-                        deleteColumn={deleteColumn}
-                        renameColumn={(id, name) => updateColumn(id, { name })}
-                        updateColumnColor={(id, color) => updateColumn(id, { color })}
-                        onCardClick={(cardId) => setSelectedCardId(cardId)}
-                        justDroppedCardId={justDroppedCardId}
-                        blockedCardIds={blockedCardIds}
-                        dependencyCountMap={dependencyCountMap}
-                        isCollapsed={collapsedColumns.has(column.id)}
-                        onToggleCollapse={toggleColumnCollapse}
-                    />
-                ))}
-
-                {/* Add column placeholder */}
-                {addingColumn ? (
-                    <div className="w-80 shrink-0 bg-surface-100 dark:bg-surface-800/50 rounded-2xl p-4 border border-surface-200 dark:border-surface-700 shadow-sm h-fit">
-                        <h3 className="text-sm font-bold text-surface-900 dark:text-surface-100 mb-3">New Column</h3>
-                        <input
-                            ref={columnInputRef}
-                            type="text"
-                            value={newColumnName}
-                            onChange={e => setNewColumnName(e.target.value)}
-                            onKeyDown={handleColumnKeyDown}
-                            placeholder="Enter column name..."
-                            className="w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-2.5 text-sm text-surface-900 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 mb-3 shadow-sm"
+            <div className="flex-1 flex overflow-hidden">
+                {/* Board columns area */}
+                <div className="flex-1 flex items-start gap-6 overflow-x-auto px-8 pb-8 pt-6 grid-bg">
+                    {columns.map(column => (
+                        <BoardColumnModern
+                            key={column.id}
+                            column={column}
+                            columnCards={getCardsByColumn(filteredCards, column.id)}
+                            totalCardCount={hasActiveFilters ? getCardsByColumn(allCards, column.id).length : undefined}
+                            isDragOver={dragOverColumnId === column.id}
+                            onDragOverChange={(isOver) => handleDragOverChange(column.id, isOver)}
+                            projectId={projectId}
+                            addCard={addCard}
+                            updateCard={updateCard}
+                            deleteCard={deleteCard}
+                            deleteColumn={deleteColumn}
+                            renameColumn={(id, name) => updateColumn(id, { name })}
+                            updateColumnColor={(id, color) => updateColumn(id, { color })}
+                            onCardClick={(cardId) => setSelectedCardId(cardId)}
+                            justDroppedCardId={justDroppedCardId}
+                            blockedCardIds={blockedCardIds}
+                            dependencyCountMap={dependencyCountMap}
+                            isCollapsed={collapsedColumns.has(column.id)}
+                            onToggleCollapse={toggleColumnCollapse}
                         />
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={addColumn}
-                                className="flex-1 btn-primary clip-corner-cut-sm text-sm font-medium px-4 py-2"
-                            >
-                                Create
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setNewColumnName('');
-                                    setAddingColumn(false);
-                                }}
-                                className="flex-1 bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 text-surface-600 dark:text-surface-300 text-sm font-medium px-4 py-2 rounded-xl transition-all"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                ) : (
-                    <button
-                        onClick={() => setAddingColumn(true)}
-                        className="w-80 shrink-0 h-[100px] border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-accent-dim)] clip-corner-cut-sm flex flex-col items-center justify-center gap-2 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-all group"
-                    >
-                        <div className="w-10 h-10 rounded-full bg-[var(--color-accent-subtle)] group-hover:bg-[var(--color-accent-muted)] flex items-center justify-center transition-colors border border-[var(--color-border-accent)]">
-                            <Plus size={20} className="group-hover:scale-110 transition-transform" />
-                        </div>
-                        <span className="text-sm font-hud">Add Column</span>
-                    </button>
-                )}
+                    ))}
 
-                {/* Spacer for right padding */}
-                <div className="w-2 shrink-0" />
+                    {/* Add column placeholder */}
+                    {addingColumn ? (
+                        <div className="w-80 shrink-0 bg-surface-100 dark:bg-surface-800/50 rounded-2xl p-4 border border-surface-200 dark:border-surface-700 shadow-sm h-fit">
+                            <h3 className="text-sm font-bold text-surface-900 dark:text-surface-100 mb-3">New Column</h3>
+                            <input
+                                ref={columnInputRef}
+                                type="text"
+                                value={newColumnName}
+                                onChange={e => setNewColumnName(e.target.value)}
+                                onKeyDown={handleColumnKeyDown}
+                                placeholder="Enter column name..."
+                                className="w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-xl px-4 py-2.5 text-sm text-surface-900 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 mb-3 shadow-sm"
+                            />
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={addColumn}
+                                    className="flex-1 btn-primary clip-corner-cut-sm text-sm font-medium px-4 py-2"
+                                >
+                                    Create
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setNewColumnName('');
+                                        setAddingColumn(false);
+                                    }}
+                                    className="flex-1 bg-surface-200 hover:bg-surface-300 dark:bg-surface-700 dark:hover:bg-surface-600 text-surface-600 dark:text-surface-300 text-sm font-medium px-4 py-2 rounded-xl transition-all"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setAddingColumn(true)}
+                            className="w-80 shrink-0 h-[100px] border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-accent-dim)] clip-corner-cut-sm flex flex-col items-center justify-center gap-2 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-all group"
+                        >
+                            <div className="w-10 h-10 rounded-full bg-[var(--color-accent-subtle)] group-hover:bg-[var(--color-accent-muted)] flex items-center justify-center transition-colors border border-[var(--color-border-accent)]">
+                                <Plus size={20} className="group-hover:scale-110 transition-transform" />
+                            </div>
+                            <span className="text-sm font-hud">Add Column</span>
+                        </button>
+                    )}
+
+                    {/* Spacer for right padding */}
+                    <div className="w-2 shrink-0" />
+
+                    {/* AI Agent FAB — hidden when panel is open */}
+                    {!showAgent && (
+                        <button
+                            onClick={() => { setShowAgent(true); if (!agentEverOpened) setAgentEverOpened(true); }}
+                            className="group/agent fixed bottom-[calc(2rem+15px)] right-6 z-30 flex items-center gap-2.5 pl-3 pr-4 py-2.5 rounded-full border border-[var(--color-border)] bg-surface-900 hover:border-[var(--color-accent-dim)] shadow-lg shadow-black/20 hover:shadow-[var(--color-accent)]/15 transition-all"
+                        >
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 border border-[var(--color-border)] bg-surface-950 group-hover/agent:border-[var(--color-accent-dim)] transition-colors">
+                                <Bot size={15} className="text-[var(--color-accent-dim)] group-hover/agent:text-[var(--color-accent)] transition-colors" />
+                            </div>
+                            <span className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+                                AI Agent
+                                <ProBadge />
+                            </span>
+                            {agentMessageCount > 0 && (
+                                <span className="text-[10px] font-data bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5">
+                                    {agentMessageCount}
+                                </span>
+                            )}
+                        </button>
+                    )}
+                </div>
+
+                {/* Agent panel — slide from right */}
+                <div className={`
+                    border-l border-[var(--color-border)] bg-surface-900
+                    transition-all duration-300 ease-out overflow-hidden shrink-0
+                    ${showAgent ? 'w-[380px] min-w-[380px]' : 'w-0 min-w-0'}
+                `}>
+                    {agentEverOpened && (
+                        <div className="flex flex-col h-full">
+                            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--color-border)] shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <Bot size={14} className="text-[var(--color-accent)]" />
+                                    <span className="text-sm font-semibold text-[var(--color-text-primary)]">Project Agent</span>
+                                </div>
+                                <button
+                                    onClick={() => setShowAgent(false)}
+                                    className="p-1 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+                                    title="Close panel"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                                <ProGate feature="projectAgent">
+                                    <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-[var(--color-accent)]" size={20} /></div>}>
+                                        <ProjectAgentPanel
+                                            projectId={projectId!}
+                                            onWriteAction={() => projectId && loadBoard(projectId)}
+                                        />
+                                    </Suspense>
+                                </ProGate>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Card detail modal */}

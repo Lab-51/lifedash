@@ -50,6 +50,7 @@ import type { MeetingAnalytics } from './analytics';
 import type { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats, FocusTimeReport } from './focus';
 import type { GamificationStats, Achievement, XpEventType, XpDailyData } from './gamification';
 import type { CardAgentMessage, AgentAction } from './card-agent';
+import type { ProjectAgentMessage, ProjectAgentAction } from './project-agent';
 import type { LicenseInfo } from './license';
 
 /** API exposed to the renderer via contextBridge in preload.ts */
@@ -178,6 +179,9 @@ export interface ElectronAPI {
   getAIUsageSummary: () => Promise<AIUsageSummary>;
   getAIUsageDaily: () => Promise<AIUsageDaily[]>;
 
+  // Ollama health check
+  checkOllama: () => Promise<{ running: boolean; models: string[] }>;
+
   // Meetings
   getMeetings: () => Promise<Meeting[]>;
   getMeeting: (id: string) => Promise<MeetingWithTranscript | null>;
@@ -304,6 +308,23 @@ export interface ElectronAPI {
   onCardAgentChunk: (callback: (data: { cardId: string; chunk: string }) => void) => () => void;
   onCardAgentToolEvent: (callback: (data: {
     cardId: string;
+    type: 'call' | 'result';
+    toolName: string;
+    args?: unknown;
+    result?: unknown;
+  }) => void) => () => void;
+
+  // Project Agent
+  projectAgentSendMessage: (projectId: string, content: string) =>
+    Promise<{ assistantMessage: ProjectAgentMessage; actions: ProjectAgentAction[] } | null>;
+  projectAgentGetMessages: (projectId: string) => Promise<ProjectAgentMessage[]>;
+  projectAgentClearMessages: (projectId: string) => Promise<void>;
+  projectAgentGetMessageCount: (projectId: string) => Promise<number>;
+  projectAgentAbort: (projectId: string) => Promise<void>;
+  projectAgentGetModelInfo: () => Promise<{ providerName: string; model: string } | null>;
+  onProjectAgentChunk: (callback: (data: { projectId: string; chunk: string }) => void) => () => void;
+  onProjectAgentToolEvent: (callback: (data: {
+    projectId: string;
     type: 'call' | 'result';
     toolName: string;
     args?: unknown;

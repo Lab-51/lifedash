@@ -47,6 +47,9 @@ interface SettingsStore {
   // Task model helpers
   getTaskModels: () => Record<AITaskType, TaskModelConfig> | null;
   setTaskModels: (models: Record<AITaskType, TaskModelConfig>) => Promise<void>;
+
+  // Provider helpers
+  hasAnyEnabledProvider: () => boolean;
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
@@ -153,5 +156,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setTaskModels: async (models) => {
     const json = JSON.stringify(models);
     await get().setSetting('ai.taskModels', json);
+  },
+
+  hasAnyEnabledProvider: () => {
+    return get().providers.some(p => p.enabled);
   },
 }));

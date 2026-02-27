@@ -138,6 +138,22 @@ export function registerAIProviderHandlers(): void {
     return isEncryptionAvailable();
   });
 
+  // Check if Ollama is running locally and list installed models
+  ipcMain.handle('ai:check-ollama', async () => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const resp = await fetch('http://localhost:11434/api/tags', { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!resp.ok) return { running: false, models: [] };
+      const data = await resp.json() as { models?: { name: string }[] };
+      const models = (data.models || []).map((m: { name: string }) => m.name);
+      return { running: true, models };
+    } catch {
+      return { running: false, models: [] };
+    }
+  });
+
   // --- Usage Tracking ---
 
   // Get recent usage entries (newest first, max 100)
