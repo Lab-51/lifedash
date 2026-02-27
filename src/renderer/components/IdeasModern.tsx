@@ -117,7 +117,6 @@ export default function IdeasModern() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
                     <div>
                         <div className="flex items-center gap-4 mb-1">
-                            <div className="h-px w-16 bg-gradient-to-r from-transparent to-[var(--color-accent)] opacity-40" />
                             <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.IDEAS</span>
                             <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
                         </div>
@@ -125,8 +124,8 @@ export default function IdeasModern() {
                         <p className="text-[var(--color-text-secondary)] text-sm mt-1">Capture, refine, and track your flashes of brilliance.</p>
                     </div>
                 </div>
-                <div className="ruled-line-accent mb-6" />
 
+                <div className="mb-6" />
                 {/* Quick Add Bar - Floating Style */}
                 <div className="mb-8">
                     <form onSubmit={handleQuickAdd} className="flex items-center gap-3 hud-panel rounded-2xl pl-4 pr-2 py-2 group focus-within:!border-[var(--color-accent)] transition-all">

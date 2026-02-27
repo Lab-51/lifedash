@@ -221,7 +221,6 @@ export default function BrainstormModern() {
                 <div className="flex items-center justify-between">
                     <div>
                         <div className="flex items-center gap-4 mb-1">
-                            <div className="h-px w-16 bg-gradient-to-r from-transparent to-[var(--color-accent)] opacity-40" />
                             <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.BRAINSTORM</span>
                             <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
                         </div>

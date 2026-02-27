@@ -74,8 +74,12 @@ export default function SettingsPageModern() {
             <HudBackground />
             {/* Header */}
             <div className="px-8 pt-8 pb-6 shrink-0 bg-white dark:bg-[var(--color-chrome)] border-b border-surface-200 dark:border-[var(--color-border)]">
-                <h1 className="font-hud text-2xl tracking-widest text-surface-900 dark:text-[var(--color-accent)] mb-1">Settings</h1>
-                <p className="text-[var(--color-text-secondary)] font-data text-sm">Manage preferences and configurations.</p>
+                <div className="flex items-center gap-4 mb-1">
+                    <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.SETTINGS</span>
+                    <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
+                </div>
+                <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Settings</h1>
+                <p className="text-[var(--color-text-secondary)] text-sm mt-1">Manage preferences and configurations.</p>
 
                 {/* Tabs */}
                 <div className="flex items-center gap-1 mt-6">

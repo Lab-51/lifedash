@@ -175,7 +175,6 @@ export default function MeetingsModern() {
                 <div className="flex items-center justify-between gap-4 mb-2">
                     <div>
                         <div className="flex items-center gap-4 mb-1">
-                            <div className="h-px w-16 bg-gradient-to-r from-transparent to-[var(--color-accent)] opacity-40" />
                             <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.MEETINGS</span>
                             <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
                         </div>
@@ -209,8 +208,8 @@ export default function MeetingsModern() {
                         )}
                     </button>
                 </div>
-                <div className="ruled-line-accent mb-6" />
 
+                <div className="mb-6" />
                 {/* Collapsible Recording Area */}
                 {(showControls || isRecording) && (
                     <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-300">
