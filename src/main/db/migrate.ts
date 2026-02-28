@@ -7,9 +7,7 @@
 
 // === LIMITATIONS ===
 // - In development, migrations are read from the project root ./drizzle/ folder.
-// - TODO: For production (asar packaging), migrations will need special handling.
-//   Options include: extracting from asar at runtime, shipping as extraResource,
-//   or bundling migration SQL as embedded strings. This is a Phase 7 concern.
+// - In production, migrations are shipped as an extraResource alongside the asar.
 
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { getDb } from './connection';
@@ -20,8 +18,7 @@ export async function runMigrations(): Promise<void> {
   const db = getDb();
 
   // In development, migrations folder is relative to project root.
-  // In production, we'd need to resolve from app resources.
-  // TODO: Handle asar packaging for production builds.
+  // In production, resolved from the extraResource path alongside the asar.
   const migrationsFolder = app.isPackaged
     ? path.join(process.resourcesPath, 'drizzle')
     : path.join(app.getAppPath(), 'drizzle');

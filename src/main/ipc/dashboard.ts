@@ -2,7 +2,7 @@
 // Dashboard IPC handlers — AI standup generation and activity data.
 
 import { ipcMain } from 'electron';
-import { eq, gte, desc, and, or, inArray } from 'drizzle-orm';
+import { eq, gte, desc, and, or, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import {
   cards, cardActivities, columns, boards, projects,
@@ -156,26 +156,25 @@ Today's date: ${now.toLocaleDateString()}`;
     const oneYearAgo = new Date();
     oneYearAgo.setDate(oneYearAgo.getDate() - 365);
 
-    const cardRows = await db
-      .select({ createdAt: cards.createdAt })
-      .from(cards)
-      .where(gte(cards.createdAt, oneYearAgo));
-
-    const meetingRows = await db
-      .select({ createdAt: meetings.createdAt })
-      .from(meetings)
-      .where(gte(meetings.createdAt, oneYearAgo));
-
-    const ideaRows = await db
-      .select({ createdAt: ideas.createdAt })
-      .from(ideas)
-      .where(gte(ideas.createdAt, oneYearAgo));
+    // Aggregate day counts in SQL using UNION ALL
+    const result = await db.execute(sql`
+      SELECT date_day, SUM(cnt)::int as count FROM (
+        SELECT DATE_TRUNC('day', created_at)::date as date_day, COUNT(*)::int as cnt
+        FROM cards WHERE created_at >= ${oneYearAgo} GROUP BY date_day
+        UNION ALL
+        SELECT DATE_TRUNC('day', created_at)::date as date_day, COUNT(*)::int as cnt
+        FROM meetings WHERE created_at >= ${oneYearAgo} GROUP BY date_day
+        UNION ALL
+        SELECT DATE_TRUNC('day', created_at)::date as date_day, COUNT(*)::int as cnt
+        FROM ideas WHERE created_at >= ${oneYearAgo} GROUP BY date_day
+      ) sub GROUP BY date_day ORDER BY date_day
+    `);
 
     const dayCounts: Record<string, number> = {};
-    for (const row of [...cardRows, ...meetingRows, ...ideaRows]) {
-      const d = new Date(row.createdAt);
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      dayCounts[dateStr] = (dayCounts[dateStr] || 0) + 1;
+    for (const row of result.rows) {
+      // PGlite returns date as string like "2026-01-15"
+      const dateStr = String(row.date_day);
+      dayCounts[dateStr] = Number(row.count);
     }
 
     return { dayCounts };

@@ -5,7 +5,7 @@
 // Meeting briefs store AI-generated summaries.
 // Action items can be converted to cards on a board.
 
-import { pgTable, uuid, varchar, text, integer, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 import { projects } from './projects';
 import { cards } from './cards';
 
@@ -37,7 +37,9 @@ export const transcripts = pgTable('transcripts', {
   endTime: integer('end_time').notNull(),
   speaker: varchar('speaker', { length: 50 }),  // nullable — null means not diarized
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('transcripts_meeting_id_idx').on(table.meetingId),
+]);
 
 export const meetingBriefs = pgTable('meeting_briefs', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -55,4 +57,7 @@ export const actionItems = pgTable('action_items', {
   description: text('description').notNull(),
   status: actionItemStatusEnum('status').default('pending').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('action_items_meeting_id_idx').on(table.meetingId),
+  index('action_items_status_idx').on(table.status),
+]);

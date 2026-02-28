@@ -238,7 +238,6 @@ export function registerCardAgentHandlers(): void {
 
   // --- Message count (for badge) ---
   ipcMain.handle('card-agent:get-message-count', async (_event, cardId: unknown) => {
-    await requireProFeature('cardAgent');
     const validCardId = validateInput(idParamSchema, cardId);
     return cardAgentService.getMessageCount(validCardId);
   });

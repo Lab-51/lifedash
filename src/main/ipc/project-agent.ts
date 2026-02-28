@@ -221,7 +221,6 @@ export function registerProjectAgentHandlers(): void {
 
   // --- Message count (for badge) ---
   ipcMain.handle('project-agent:get-message-count', async (_event, projectId: unknown) => {
-    await requireProFeature('projectAgent');
     const validProjectId = validateInput(idParamSchema, projectId);
     return projectAgentService.getMessageCount(validProjectId);
   });

@@ -8,11 +8,12 @@
 // === LIMITATIONS ===
 // - cards:list-by-board uses 5 batch queries (columns, cards, cardLabels, labels, checklists).
 // - No pagination on list queries yet.
-// - card:getRelationships fetches titles per relationship (N+1, acceptable for small counts)
+// - card:getRelationships batch-fetches all referenced card titles in one query
 // - card:getActivities limited to most recent 50 entries
 
 import { ipcMain } from 'electron';
 import { eq, and, or, asc, desc, inArray, isNull, count, sql } from 'drizzle-orm';
+import type { InferSelectModel } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { createLogger } from '../services/logger';
 import {
@@ -57,6 +58,8 @@ import {
 
 const log = createLogger('Cards');
 
+type CardRow = InferSelectModel<typeof cards>;
+
 /**
  * Fire-and-forget activity log insertion.
  * Does not throw — activity logging should never break primary operations.
@@ -81,7 +84,7 @@ function logCardActivity(
  * Calculates the next due date based on recurrence type and creates a clone.
  * Returns null if no recurrence, past end date, or no recurrence type.
  */
-async function spawnRecurringCard(completedCard: any, db: any): Promise<any | null> {
+async function spawnRecurringCard(completedCard: CardRow, db: ReturnType<typeof getDb>): Promise<CardRow | null> {
   if (!completedCard.recurrenceType) return null;
 
   // Calculate next due date
@@ -108,7 +111,7 @@ async function spawnRecurringCard(completedCard: any, db: any): Promise<any | nu
     description: completedCard.description,
     priority: completedCard.priority,
     position: 0,
-    dueDate: nextDueDate ? nextDueDate.toISOString() : null,
+    dueDate: nextDueDate,
     recurrenceType: completedCard.recurrenceType,
     recurrenceEndDate: completedCard.recurrenceEndDate,
     sourceRecurringId: completedCard.id,
@@ -213,11 +216,11 @@ export function registerCardHandlers(): void {
     async (_event, data: unknown) => {
       const input = validateInput(createCardInputSchema, data);
       const db = getDb();
-      // Get next position in the column
-      const existing = await db
-        .select()
+      // Get next position using count() — avoids fetching full rows and reduces race window
+      const [{ value: existingCount }] = await db
+        .select({ value: count() })
         .from(cards)
-        .where(eq(cards.columnId, input.columnId));
+        .where(and(eq(cards.columnId, input.columnId), eq(cards.archived, false)));
       const [card] = await db
         .insert(cards)
         .values({
@@ -225,7 +228,7 @@ export function registerCardHandlers(): void {
           title: input.title,
           description: input.description ?? null,
           priority: input.priority ?? 'medium',
-          position: existing.length,
+          position: Number(existingCount),
         })
         .returning();
       logCardActivity(card.id, 'created', { title: input.title });
@@ -316,20 +319,22 @@ export function registerCardHandlers(): void {
       const siblings = siblingsInTarget.map(c => ({ id: c.id, position: c.position }));
       const { clampedPosition, updates } = computeCardMove(validId, moveData.position, siblings);
 
-      // Apply updates to DB
-      for (const upd of updates) {
-        if (upd.id === validId) {
-          await db
-            .update(cards)
-            .set({ columnId: moveData.columnId, position: upd.position, updatedAt: new Date() })
-            .where(eq(cards.id, validId));
-        } else {
-          await db
-            .update(cards)
-            .set({ position: upd.position })
-            .where(eq(cards.id, upd.id));
+      // Apply all position updates in a single transaction for atomicity
+      await db.transaction(async (tx) => {
+        for (const upd of updates) {
+          if (upd.id === validId) {
+            await tx
+              .update(cards)
+              .set({ columnId: moveData.columnId, position: upd.position, updatedAt: new Date() })
+              .where(eq(cards.id, validId));
+          } else {
+            await tx
+              .update(cards)
+              .set({ position: upd.position })
+              .where(eq(cards.id, upd.id));
+          }
         }
-      }
+      });
 
       // Return the updated card
       const [updated] = await db.select().from(cards).where(eq(cards.id, validId));
@@ -484,24 +489,20 @@ export function registerCardHandlers(): void {
         .from(cardRelationships)
         .where(eq(cardRelationships.targetCardId, validCardId));
 
-      // Enrich with card titles
+      // Enrich with card titles — batch-fetch all referenced cards in one query
       const all = [...asSource, ...asTarget];
-      const enriched = [];
-      for (const rel of all) {
-        const [sourceCard] = await db
-          .select({ title: cards.title })
-          .from(cards)
-          .where(eq(cards.id, rel.sourceCardId));
-        const [targetCard] = await db
-          .select({ title: cards.title })
-          .from(cards)
-          .where(eq(cards.id, rel.targetCardId));
-        enriched.push({
-          ...rel,
-          sourceCardTitle: sourceCard?.title ?? 'Unknown',
-          targetCardTitle: targetCard?.title ?? 'Unknown',
-        });
-      }
+      const allCardIds = [...new Set(all.flatMap(r => [r.sourceCardId, r.targetCardId]))];
+      const cardTitleRows = allCardIds.length > 0
+        ? await db.select({ id: cards.id, title: cards.title })
+            .from(cards).where(inArray(cards.id, allCardIds))
+        : [];
+      const titleMap = new Map(cardTitleRows.map(c => [c.id, c.title]));
+
+      const enriched = all.map(rel => ({
+        ...rel,
+        sourceCardTitle: titleMap.get(rel.sourceCardId) ?? 'Unknown',
+        targetCardTitle: titleMap.get(rel.targetCardId) ?? 'Unknown',
+      }));
       return enriched;
     },
   );

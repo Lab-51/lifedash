@@ -24,7 +24,7 @@ import {
   deactivateLicense,
   lemonSqueezySetup,
 } from '@lemonsqueezy/lemonsqueezy.js';
-import { eq } from 'drizzle-orm';
+import { eq, like, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { encryptString, decryptString, isEncryptionAvailable } from './secure-storage';
@@ -157,30 +157,35 @@ async function persistChecksum(info: LicenseInfo): Promise<void> {
 
 /** Build a LicenseInfo from settings DB. Returns null if no license data exists. */
 async function buildInfoFromSettings(): Promise<LicenseInfo | null> {
-  const tier = (await getSetting('license.tier')) as LicenseTier | null;
-  const status = (await getSetting('license.status')) as LicenseStatus | null;
+  const db = getDb();
+  // Batch-read all license.* settings in one query
+  const rows = await db.select().from(settings).where(like(settings.key, 'license.%'));
+  const map = new Map(rows.map(r => [r.key, r.value]));
+
+  const tier = map.get('license.tier') as LicenseTier | null;
+  const status = map.get('license.status') as LicenseStatus | null;
 
   if (!tier || !status) return null;
 
-  const encryptedKey = await getSetting('license.key');
-  const encryptedInstanceId = await getSetting('license.instanceId');
+  const encryptedKey = map.get('license.key') ?? null;
+  const encryptedInstanceId = map.get('license.instanceId') ?? null;
 
   const info: LicenseInfo = {
     tier,
     status,
     licenseKey: encryptedKey ? safeDecrypt(encryptedKey) : null,
     instanceId: encryptedInstanceId ? safeDecrypt(encryptedInstanceId) : null,
-    customerName: await getSetting('license.customerName'),
-    customerEmail: await getSetting('license.customerEmail'),
-    activatedAt: await getSetting('license.activatedAt'),
-    expiresAt: await getSetting('license.expiresAt'),
-    lastValidated: await getSetting('license.lastValidated'),
-    trialStartedAt: await getSetting('license.trialStartedAt'),
-    trialEndsAt: await getSetting('license.trialEndsAt'),
-    lastActiveVersion: await getSetting('license.lastActiveVersion'),
+    customerName: map.get('license.customerName') ?? null,
+    customerEmail: map.get('license.customerEmail') ?? null,
+    activatedAt: map.get('license.activatedAt') ?? null,
+    expiresAt: map.get('license.expiresAt') ?? null,
+    lastValidated: map.get('license.lastValidated') ?? null,
+    trialStartedAt: map.get('license.trialStartedAt') ?? null,
+    trialEndsAt: map.get('license.trialEndsAt') ?? null,
+    lastActiveVersion: map.get('license.lastActiveVersion') ?? null,
   };
 
-  const hadChecksum = (await getSetting('license.checksum')) !== null;
+  const hadChecksum = map.has('license.checksum');
   const valid = await verifyChecksum(info);
 
   if (!valid) {
@@ -214,67 +219,65 @@ async function buildInfoFromSettings(): Promise<LicenseInfo | null> {
 
 /** Persist a LicenseInfo to settings DB (encrypt sensitive fields). */
 async function persistInfo(info: LicenseInfo): Promise<void> {
-  await setSetting('license.tier', info.tier);
-  await setSetting('license.status', info.status);
+  const db = getDb();
 
+  // Build all key-value pairs to upsert
+  const upserts: { key: string; value: string }[] = [
+    { key: 'license.tier', value: info.tier },
+    { key: 'license.status', value: info.status },
+  ];
+  const deletes: string[] = [];
+
+  // Encrypted fields
   if (info.licenseKey) {
-    await setSetting('license.key', safeEncrypt(info.licenseKey));
+    upserts.push({ key: 'license.key', value: safeEncrypt(info.licenseKey) });
   } else {
-    await deleteSetting('license.key');
+    deletes.push('license.key');
   }
-
   if (info.instanceId) {
-    await setSetting('license.instanceId', safeEncrypt(info.instanceId));
+    upserts.push({ key: 'license.instanceId', value: safeEncrypt(info.instanceId) });
   } else {
-    await deleteSetting('license.instanceId');
+    deletes.push('license.instanceId');
   }
 
-  if (info.customerName) {
-    await setSetting('license.customerName', info.customerName);
-  } else {
-    await deleteSetting('license.customerName');
+  // Plain text fields
+  const plainFields: [string, string | null][] = [
+    ['license.customerName', info.customerName],
+    ['license.customerEmail', info.customerEmail],
+    ['license.activatedAt', info.activatedAt],
+    ['license.expiresAt', info.expiresAt],
+    ['license.trialStartedAt', info.trialStartedAt],
+    ['license.trialEndsAt', info.trialEndsAt],
+    ['license.lastActiveVersion', info.lastActiveVersion],
+  ];
+  for (const [key, value] of plainFields) {
+    if (value) {
+      upserts.push({ key, value });
+    } else {
+      deletes.push(key);
+    }
   }
-
-  if (info.customerEmail) {
-    await setSetting('license.customerEmail', info.customerEmail);
-  } else {
-    await deleteSetting('license.customerEmail');
-  }
-
-  if (info.activatedAt) {
-    await setSetting('license.activatedAt', info.activatedAt);
-  } else {
-    await deleteSetting('license.activatedAt');
-  }
-
-  if (info.expiresAt) {
-    await setSetting('license.expiresAt', info.expiresAt);
-  } else {
-    await deleteSetting('license.expiresAt');
-  }
-
+  // lastValidated — only set, never delete
   if (info.lastValidated) {
-    await setSetting('license.lastValidated', info.lastValidated);
+    upserts.push({ key: 'license.lastValidated', value: info.lastValidated });
   }
 
-  if (info.trialStartedAt) {
-    await setSetting('license.trialStartedAt', info.trialStartedAt);
-  } else {
-    await deleteSetting('license.trialStartedAt');
-  }
+  // Execute all in a transaction
+  await db.transaction(async (tx) => {
+    // Batch upserts
+    for (const { key, value } of upserts) {
+      await tx
+        .insert(settings)
+        .values({ key, value })
+        .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
+    }
+    // Batch deletes
+    if (deletes.length > 0) {
+      await tx.delete(settings).where(inArray(settings.key, deletes));
+    }
+  });
 
-  if (info.trialEndsAt) {
-    await setSetting('license.trialEndsAt', info.trialEndsAt);
-  } else {
-    await deleteSetting('license.trialEndsAt');
-  }
-
-  if (info.lastActiveVersion) {
-    await setSetting('license.lastActiveVersion', info.lastActiveVersion);
-  } else {
-    await deleteSetting('license.lastActiveVersion');
-  }
-
+  // Compute and persist checksum AFTER the main transaction
   await persistChecksum(info);
 }
 

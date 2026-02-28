@@ -2,7 +2,7 @@
 // Schema for brainstorm sessions and messages.
 // Sessions can optionally belong to a project. Messages cascade delete with session.
 
-import { pgTable, uuid, varchar, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 import { projects } from './projects';
 
 export const brainstormSessionStatusEnum = pgEnum('brainstorm_session_status', ['active', 'archived']);
@@ -23,4 +23,6 @@ export const brainstormMessages = pgTable('brainstorm_messages', {
   role: brainstormMessageRoleEnum('role').notNull(),
   content: text('content').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('brainstorm_messages_session_id_idx').on(table.sessionId),
+]);

@@ -4,7 +4,7 @@
 // Guides the user through choosing a provider, configuring it, and testing the connection.
 // Stores a "setupWizard.completed" flag in settings so it only shows once.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   X,
   Bot,
@@ -617,10 +617,12 @@ function StepIndicator({ current }: { current: WizardStep }) {
 export default function SetupWizard({ onClose }: SetupWizardProps) {
   const navigate = useNavigate();
   const createProvider = useSettingsStore(s => s.createProvider);
+  const deleteProvider = useSettingsStore(s => s.deleteProvider);
   const loadProviders = useSettingsStore(s => s.loadProviders);
   const setSetting = useSettingsStore(s => s.setSetting);
 
   const [step, setStep] = useState<WizardStep>('welcome');
+  const [createdProviderId, setCreatedProviderId] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<AIProviderName | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -630,17 +632,21 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   const [testError, setTestError] = useState<string | null>(null);
   const [testLatency, setTestLatency] = useState<number | undefined>(undefined);
 
-  // Escape key closes the wizard (marks it as completed)
+  // Escape key closes the wizard (marks it as completed).
+  // Use a ref to always call the latest handleClose without listing it as a dep,
+  // avoiding both the stale-closure problem and infinite-effect loops.
+  const handleCloseRef = useRef(handleClose);
+  useEffect(() => { handleCloseRef.current = handleClose; }, [handleClose]);
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        handleClose();
+        handleCloseRef.current();
       }
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Pre-fill base URL when provider changes and reset Ollama state
@@ -703,6 +709,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         apiKey: apiKey.trim() || undefined,
         baseUrl: baseUrl.trim() || undefined,
       });
+      setCreatedProviderId(provider.id);
 
       const result = await window.electronAPI.testAIConnection(provider.id);
       if (result.success) {
@@ -725,24 +732,28 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     handleSaveAndTest();
   }
 
-  function handleTestBack() {
-    // Return to configure step — provider was already created; user should re-configure
+  async function handleTestBack() {
+    if (createdProviderId) {
+      await deleteProvider(createdProviderId);
+      setCreatedProviderId(null);
+      await loadProviders();
+    }
     setStep('configure');
   }
 
-  function handleDone() {
-    setSetting('setupWizard.completed', 'true');
+  async function handleDone() {
+    await setSetting('setupWizard.completed', 'true');
     onClose();
   }
 
-  function handleNavigateBrainstorm() {
-    setSetting('setupWizard.completed', 'true');
+  async function handleNavigateBrainstorm() {
+    await setSetting('setupWizard.completed', 'true');
     onClose();
     navigate('/brainstorm');
   }
 
-  function handleNavigateSettings() {
-    setSetting('setupWizard.completed', 'true');
+  async function handleNavigateSettings() {
+    await setSetting('setupWizard.completed', 'true');
     onClose();
     navigate('/settings');
   }

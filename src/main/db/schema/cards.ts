@@ -13,6 +13,7 @@ import {
   boolean,
   pgEnum,
   primaryKey,
+  index,
 } from 'drizzle-orm/pg-core';
 import { columns } from './boards';
 import { labels } from './labels';
@@ -35,13 +36,19 @@ export const cards = pgTable('cards', {
   sourceRecurringId: uuid('source_recurring_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('cards_column_id_idx').on(table.columnId),
+  index('cards_archived_idx').on(table.archived),
+  index('cards_updated_at_idx').on(table.updatedAt),
+  index('cards_created_at_idx').on(table.createdAt),
+]);
 
 export const cardLabels = pgTable('card_labels', {
   cardId: uuid('card_id').notNull().references(() => cards.id, { onDelete: 'cascade' }),
   labelId: uuid('label_id').notNull().references(() => labels.id, { onDelete: 'cascade' }),
 }, (table) => [
   primaryKey({ columns: [table.cardId, table.labelId] }),
+  index('card_labels_card_id_idx').on(table.cardId),
 ]);
 
 // --- Card Relationships ---
@@ -58,7 +65,10 @@ export const cardRelationships = pgTable('card_relationships', {
     .references(() => cards.id, { onDelete: 'cascade' }),
   type: cardRelationshipTypeEnum('type').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('card_relationships_source_card_id_idx').on(table.sourceCardId),
+  index('card_relationships_target_card_id_idx').on(table.targetCardId),
+]);
 
 // --- Card Comments ---
 
@@ -85,7 +95,10 @@ export const cardActivities = pgTable('card_activities', {
   action: cardActivityActionEnum('action').notNull(),
   details: text('details'), // JSON string with context-specific data
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('card_activities_card_id_idx').on(table.cardId),
+  index('card_activities_created_at_idx').on(table.createdAt),
+]);
 
 // --- Card Attachments ---
 
@@ -110,7 +123,9 @@ export const cardChecklistItems = pgTable('card_checklist_items', {
   completed: boolean('completed').default(false).notNull(),
   position: integer('position').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('card_checklist_items_card_id_idx').on(table.cardId),
+]);
 
 // --- Card Templates ---
 

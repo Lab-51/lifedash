@@ -3,7 +3,7 @@
 // Boards belong to projects; columns belong to boards.
 // Together they form the Kanban board structure.
 
-import { pgTable, uuid, varchar, integer, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, timestamp, index } from 'drizzle-orm/pg-core';
 import { projects } from './projects';
 
 export const boards = pgTable('boards', {
@@ -21,4 +21,6 @@ export const columns = pgTable('columns', {
   position: integer('position').default(0).notNull(),
   color: varchar('color', { length: 7 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index('columns_board_id_idx').on(table.boardId),
+]);
