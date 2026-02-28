@@ -4,7 +4,7 @@
 // Features a cleaner layout with card-based sections and updated typography.
 
 import { useEffect, useState } from 'react';
-import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Key, Wand2 } from 'lucide-react';
+import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Key, Wand2, RefreshCw, CheckCircle, Download, Loader2 } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useBackupStore } from '../stores/backupStore';
@@ -39,11 +39,30 @@ export default function SettingsPageModern() {
     const [showWizard, setShowWizard] = useState(false);
     const setSetting = useSettingsStore(s => s.setSetting);
 
+    // Update status for the About tab
+    const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'>('idle');
+    const [updateRelease, setUpdateRelease] = useState('');
+    const [updateProgress, setUpdateProgress] = useState(0);
+    const [updateError, setUpdateError] = useState('');
+
     useEffect(() => {
         loadProviders();
         loadSettings();
         checkEncryption();
     }, [loadProviders, loadSettings, checkEncryption]);
+
+    // Listen for update status events
+    useEffect(() => {
+        if (!window.electronAPI?.onUpdateStatus) return;
+        return window.electronAPI.onUpdateStatus((data) => {
+            const d = data as { status: string; releaseName?: string; progress?: number; errorMessage?: string };
+            setUpdateStatus(d.status as typeof updateStatus);
+            if (d.releaseName) setUpdateRelease(d.releaseName);
+            if (d.progress != null) setUpdateProgress(d.progress);
+            if (d.errorMessage) setUpdateError(d.errorMessage);
+            else setUpdateError('');
+        });
+    }, []);
 
     // Listen for backup progress events from the main process
     useEffect(() => {
@@ -335,6 +354,63 @@ export default function SettingsPageModern() {
                                     <div className="p-4 hud-panel clip-corner-cut-sm">
                                         <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Platform</p>
                                         <p className="font-[var(--font-display)] text-[var(--color-text-primary)] font-medium capitalize">{window.electronAPI.platform}</p>
+                                    </div>
+                                </div>
+
+                                {/* Update check section */}
+                                <div className="mt-8 pt-6 border-t border-[var(--color-border)]">
+                                    <div className="flex flex-col items-center gap-3">
+                                        {updateStatus === 'downloading' && (
+                                            <div className="flex flex-col items-center gap-2">
+                                                <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+                                                    <Loader2 size={16} className="animate-spin text-[var(--color-accent)]" />
+                                                    <span>Downloading {updateRelease}... {updateProgress > 0 ? `${updateProgress}%` : ''}</span>
+                                                </div>
+                                                {updateProgress > 0 && (
+                                                    <div className="w-48 h-1.5 bg-[var(--color-border)] rounded-full overflow-hidden">
+                                                        <div className="h-full bg-[var(--color-accent)] rounded-full transition-all" style={{ width: `${updateProgress}%` }} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        {updateStatus === 'ready' && (
+                                            <div className="flex flex-col items-center gap-2">
+                                                <p className="text-sm text-emerald-500 font-medium">{updateRelease} is ready to install</p>
+                                                <button
+                                                    onClick={() => window.electronAPI.installUpdate()}
+                                                    className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 text-sm font-medium rounded-lg transition-colors"
+                                                >
+                                                    <Download size={15} />
+                                                    Restart & Install
+                                                </button>
+                                            </div>
+                                        )}
+                                        {updateStatus === 'up-to-date' && (
+                                            <div className="flex items-center gap-2 text-sm text-emerald-500/70">
+                                                <CheckCircle size={16} />
+                                                <span>You're on the latest version</span>
+                                            </div>
+                                        )}
+                                        {updateStatus === 'error' && (
+                                            <p className="text-sm text-red-400">{updateError || 'Update check failed'}</p>
+                                        )}
+                                        {updateStatus !== 'downloading' && updateStatus !== 'ready' && (
+                                            <button
+                                                disabled={updateStatus === 'checking'}
+                                                onClick={() => window.electronAPI.checkForUpdates()}
+                                                className={`flex items-center gap-2 border px-4 py-2 text-sm font-medium transition-all clip-corner-cut-sm ${
+                                                    updateStatus === 'checking'
+                                                        ? 'border-[var(--color-accent)] text-[var(--color-accent)] opacity-80 cursor-wait'
+                                                        : 'border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)]'
+                                                }`}
+                                            >
+                                                {updateStatus === 'checking'
+                                                    ? <Loader2 size={15} className="animate-spin" />
+                                                    : <RefreshCw size={15} />
+                                                }
+                                                {updateStatus === 'checking' ? 'Checking...' : 'Check for Updates'}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </section>

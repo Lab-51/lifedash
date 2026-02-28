@@ -343,6 +343,7 @@ export interface ElectronAPI {
   onShowCommandPalette: (callback: () => void) => () => void;
   onUpdateStatus: (callback: (data: { status: string; releaseName?: string }) => void) => () => void;
   installUpdate: () => Promise<void>;
+  checkForUpdates: () => Promise<void>;
 }
 
 declare global {

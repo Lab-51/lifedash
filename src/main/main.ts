@@ -82,7 +82,7 @@ const createWindow = async () => {
   const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
   const connectSrc = isDev
     ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com https://api.lemonsqueezy.com http://localhost:11434"
-    : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com https://api.lemonsqueezy.com http://localhost:11434 https://api.github.com https://github.com https://objects.githubusercontent.com";
+    : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com https://api.lemonsqueezy.com http://localhost:11434 https://lifedash.space https://objects.githubusercontent.com";
   const scriptSrc = isDev
     ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"  // Vite HMR needs eval + React preamble needs inline in dev
     : "script-src 'self'";

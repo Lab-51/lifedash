@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Minus, Square, Copy, X, Pin, PinOff, Download, CheckCircle, Loader2 } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 
-type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'ready';
+type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'ready' | 'error';
 
 function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);

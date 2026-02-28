@@ -1,7 +1,6 @@
 // === FILE PURPOSE ===
-// Custom GitHub-based auto-updater for Inno Setup builds.
-// Replaces Squirrel's update-electron-app with direct GitHub Releases API polling,
-// download via Electron net, and silent Inno Setup install.
+// Custom auto-updater that checks lifedash.space for new versions.
+// Downloads the Inno Setup installer and installs silently in-place.
 
 import { app, BrowserWindow, ipcMain, net } from 'electron';
 import { createWriteStream } from 'node:fs';
@@ -16,18 +15,13 @@ const log = createLogger('AutoUpdater');
 export interface UpdateInfo {
   version: string;
   assetUrl: string;
-  assetId: number;
   releaseName: string;
 }
 
-interface GitHubRelease {
-  tag_name: string;
-  name: string;
-  assets: Array<{
-    id: number;
-    name: string;
-    browser_download_url: string;
-  }>;
+interface LatestVersionResponse {
+  version: string;
+  releaseName: string;
+  setupUrl: string | null;
 }
 
 type UpdateStatus = 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error';
@@ -37,7 +31,7 @@ type UpdateStatus = 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error
 let downloadedInstallerPath: string | null = null;
 let checkInterval: ReturnType<typeof setInterval> | null = null;
 
-const GITHUB_REPO = 'Lab-51/lifedash';
+const VERSION_API = 'https://lifedash.space/api/latest-version';
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const STARTUP_DELAY_MS = 10_000; // 10 seconds after startup
 
@@ -60,49 +54,36 @@ function isNewerVersion(current: string, remote: string): boolean {
 // --- Core functions ---
 
 /**
- * Check GitHub Releases for a newer version.
- * Returns UpdateInfo if a newer version with a matching asset is found, null otherwise.
+ * Check lifedash.space for a newer version.
+ * The website proxies the private GitHub repo with server-side auth.
+ * Returns UpdateInfo if a newer version is found, null otherwise.
  */
 export async function checkForUpdates(currentVersion: string): Promise<UpdateInfo | null> {
-  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
-  const headers: Record<string, string> = {
-    'Accept': 'application/vnd.github+json',
-    'User-Agent': `LifeDash/${currentVersion}`,
-  };
-
-  // Optional: use GITHUB_TOKEN for higher rate limits
-  const token = process.env.GITHUB_TOKEN;
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await net.fetch(url, { headers });
+  const response = await net.fetch(VERSION_API, {
+    headers: { 'User-Agent': `LifeDash/${currentVersion}` },
+  });
 
   if (!response.ok) {
-    throw new Error(`GitHub API returned ${response.status}: ${response.statusText}`);
+    throw new Error(`Version API returned ${response.status}: ${response.statusText}`);
   }
 
-  const release = (await response.json()) as GitHubRelease;
-  const remoteVersion = release.tag_name.replace(/^v/, '');
+  const data = (await response.json()) as LatestVersionResponse;
 
-  if (!isNewerVersion(currentVersion, remoteVersion)) {
-    log.info(`Up to date (current: ${currentVersion}, latest: ${remoteVersion})`);
+  if (!isNewerVersion(currentVersion, data.version)) {
+    log.info(`Up to date (current: ${currentVersion}, latest: ${data.version})`);
     return null;
   }
 
-  // Find the Setup.exe asset
-  const setupAsset = release.assets.find((a) => /LifeDash-.*-Setup\.exe$/.test(a.name));
-  if (!setupAsset) {
-    log.warn(`New version ${remoteVersion} found but no Setup.exe asset`);
+  if (!data.setupUrl) {
+    log.warn(`New version ${data.version} found but no Setup.exe download URL`);
     return null;
   }
 
-  log.info(`Update available: ${currentVersion} -> ${remoteVersion}`);
+  log.info(`Update available: ${currentVersion} -> ${data.version}`);
   return {
-    version: remoteVersion,
-    assetUrl: setupAsset.browser_download_url,
-    assetId: setupAsset.id,
-    releaseName: release.name || `v${remoteVersion}`,
+    version: data.version,
+    assetUrl: data.setupUrl,
+    releaseName: data.releaseName,
   };
 }
 
@@ -199,9 +180,9 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
   log.info(`Auto-updater initialized (v${currentVersion})`);
 
   // --- IPC status helper ---
-  const sendStatus = (status: UpdateStatus, releaseName?: string, progress?: number) => {
+  const sendStatus = (status: UpdateStatus, releaseName?: string, progress?: number, errorMessage?: string) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('app:update-status', { status, releaseName, progress });
+      mainWindow.webContents.send('app:update-status', { status, releaseName, progress, errorMessage });
     }
   };
 
@@ -215,9 +196,16 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
     }
   });
 
+  // --- IPC handler: manual "Check for Updates" ---
+  ipcMain.handle('app:check-for-updates', async () => {
+    log.info('Manual update check triggered');
+    await runUpdateCheck();
+  });
+
   // --- Check + download cycle ---
   const runUpdateCheck = async () => {
     try {
+      log.info(`Checking for updates (current: v${currentVersion})`);
       sendStatus('checking');
 
       const update = await checkForUpdates(currentVersion);
@@ -236,8 +224,9 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
       sendStatus('ready', update.releaseName);
       log.info(`Update ready to install: ${update.releaseName}`);
     } catch (error) {
-      log.error('Update check failed:', error);
-      sendStatus('up-to-date'); // Fail silently
+      const msg = error instanceof Error ? error.message : String(error);
+      log.error('Update check failed:', msg);
+      sendStatus('error', undefined, undefined, msg);
     }
   };
 

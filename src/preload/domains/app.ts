@@ -23,4 +23,7 @@ export const appBridge = {
 
   // Auto-update: quit the app and install the downloaded update
   installUpdate: (): Promise<void> => ipcRenderer.invoke('app:install-update'),
+
+  // Auto-update: manually trigger an update check
+  checkForUpdates: (): Promise<void> => ipcRenderer.invoke('app:check-for-updates'),
 };
