@@ -88,8 +88,8 @@ const createWindow = async () => {
   // Content Security Policy — defense-in-depth against XSS
   const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
   const connectSrc = isDev
-    ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434"
-    : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434 https://update.electronjs.org https://api.github.com https://github.com";
+    ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com https://api.lemonsqueezy.com http://localhost:11434"
+    : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com https://api.lemonsqueezy.com http://localhost:11434 https://update.electronjs.org https://api.github.com https://github.com";
   const scriptSrc = isDev
     ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"  // Vite HMR needs eval + React preamble needs inline in dev
     : "script-src 'self'";

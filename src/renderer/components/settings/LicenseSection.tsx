@@ -12,7 +12,6 @@ import { useLicenseStore } from '../../stores/licenseStore';
 import { PRO_FEATURES } from '../../../shared/constants/features';
 import { toast } from '../../hooks/useToast';
 
-// TODO: Replace with actual LemonSqueezy customer portal URL after store setup
 const CUSTOMER_PORTAL_URL = 'https://app.lemonsqueezy.com/my-orders';
 
 /** Returns badge class and label text for the given license status. */
