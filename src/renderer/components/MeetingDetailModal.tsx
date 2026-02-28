@@ -94,7 +94,7 @@ function renderPrepLine(line: string, idx: number): React.ReactNode {
 
   if (trimmed.startsWith('# ')) {
     return (
-      <p key={idx} className="text-xs font-bold text-surface-100 mt-2 mb-0.5">
+      <p key={idx} className="text-xs font-bold text-surface-900 dark:text-surface-100 mt-2 mb-0.5">
         {trimmed.slice(2)}
       </p>
     );
@@ -212,10 +212,13 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
   const autoGenerateBriefTriggered = useRef(false);
   const autoGenerateActionsTriggered = useRef(false);
 
-  // Close on Escape key
+  // Close on Escape key (skip when editing text inputs)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      onClose();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);

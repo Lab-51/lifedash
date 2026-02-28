@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SendHorizonal, Square, Trash2, Loader2, ListChecks, FileText, Search, Plus, Bot, Copy, CheckCircle2, XCircle, Settings } from 'lucide-react';
+import { ConfirmDialog } from './ConfirmDialog';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
@@ -118,6 +119,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
   const navigate = useNavigate();
 
   const [input, setInput] = useState('');
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [modelInfo, setModelInfo] = useState<{ providerName: string; model: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -187,10 +189,13 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
     }
   }, [handleSend]);
 
-  const handleClear = useCallback(async () => {
-    if (window.confirm('Clear all messages with the AI agent?')) {
-      await clearMessages(cardId);
-    }
+  const handleClear = useCallback(() => {
+    setClearConfirmOpen(true);
+  }, []);
+
+  const confirmClear = useCallback(async () => {
+    setClearConfirmOpen(false);
+    await clearMessages(cardId);
   }, [clearMessages, cardId]);
 
   // Loading skeleton
@@ -224,6 +229,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
   }
 
   return (
+    <>
     <div className="flex flex-col h-full">
       {/* Message list */}
       <div
@@ -372,6 +378,16 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
         </div>
       </div>
     </div>
+    <ConfirmDialog
+      open={clearConfirmOpen}
+      title="Clear Chat"
+      message="Clear all messages with the AI agent?"
+      confirmLabel="Clear"
+      variant="danger"
+      onConfirm={confirmClear}
+      onCancel={() => setClearConfirmOpen(false)}
+    />
+    </>
   );
 }
 

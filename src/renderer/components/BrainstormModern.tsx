@@ -18,6 +18,7 @@ import ChatMessageModern from '../components/ChatMessageModern';
 import HudSelect from '../components/HudSelect';
 import EmptyAIState from '../components/EmptyAIState';
 import { BRAINSTORM_TEMPLATES } from '../../shared/types/brainstorm';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 function formatRelativeTime(isoDate: string): string {
     const seconds = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
@@ -78,7 +79,7 @@ export default function BrainstormModern() {
     useEffect(() => {
         loadSessions();
         loadProjects();
-    }, []);
+    }, [loadSessions, loadProjects]);
 
     // Track whether user has scrolled up from the bottom
     useEffect(() => {
@@ -215,6 +216,7 @@ export default function BrainstormModern() {
     };
 
     return (
+        <>
         <div className="h-full flex flex-col bg-surface-50 dark:bg-surface-950">
             {/* HUD Header */}
             <div className="px-6 py-5 shrink-0 border-b border-[var(--color-border)] hud-chrome-bg sticky top-0 z-20">
@@ -368,7 +370,7 @@ export default function BrainstormModern() {
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    if (window.confirm('Delete this session?')) handleDeleteSession(session.id);
+                                                    setConfirmDeleteId(session.id);
                                                 }}
                                                 className="p-1 text-surface-400 hover:text-red-500 rounded hover:bg-[var(--color-accent-subtle)]"
                                                 title="Delete"
@@ -656,5 +658,15 @@ export default function BrainstormModern() {
                 </div>
             </div>
         </div >
+        <ConfirmDialog
+            open={!!confirmDeleteId}
+            title="Delete Session"
+            message="Delete this brainstorm session? This cannot be undone."
+            confirmLabel="Delete"
+            variant="danger"
+            onConfirm={() => { if (confirmDeleteId) handleDeleteSession(confirmDeleteId); }}
+            onCancel={() => setConfirmDeleteId(null)}
+        />
+        </>
     );
 }

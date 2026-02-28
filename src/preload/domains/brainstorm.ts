@@ -24,7 +24,7 @@ export const brainstormBridge = {
       ipcRenderer.removeListener('brainstorm:stream-chunk', handler);
     };
   },
-  abortBrainstorm: () => ipcRenderer.invoke('brainstorm:abort'),
+  abortBrainstorm: (sessionId: string) => ipcRenderer.invoke('brainstorm:abort', sessionId),
   exportBrainstormToIdea: (sessionId: string, messageId: string) =>
     ipcRenderer.invoke('brainstorm:export-to-idea', sessionId, messageId),
   exportBrainstormToCard: (sessionId: string, messageId: string) =>

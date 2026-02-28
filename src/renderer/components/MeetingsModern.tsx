@@ -14,6 +14,7 @@ import MeetingCardModern from '../components/MeetingCardModern';
 const MeetingDetailModal = lazy(() => import('../components/MeetingDetailModal'));
 import LoadingSpinner from '../components/LoadingSpinner';
 import HudBackground from './HudBackground';
+import { ConfirmDialog } from './ConfirmDialog';
 
 type SortOption = 'newest' | 'oldest' | 'title';
 
@@ -35,6 +36,7 @@ export default function MeetingsModern() {
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState<SortOption>('newest');
     const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
+    const [deleteMeetingConfirm, setDeleteMeetingConfirm] = useState<{ id: string; title: string } | null>(null);
     const [autoOpenedMeetingId, setAutoOpenedMeetingId] = useState<string | null>(null);
     const [initialTranscriptSearch, setInitialTranscriptSearch] = useState<string | undefined>(undefined);
     const prevIsRecording = useRef(isRecording);
@@ -319,11 +321,7 @@ export default function MeetingsModern() {
                                 projectColor={meeting.projectId ? projectColorMap.get(meeting.projectId) : undefined}
                                 actionItemCount={actionItemCounts[meeting.id] || 0}
                                 onClick={() => setSelectedMeetingId(meeting.id)}
-                                onDelete={() => {
-                                    if (window.confirm(`Delete "${meeting.title}"? This cannot be undone.`)) {
-                                        deleteMeeting(meeting.id);
-                                    }
-                                }}
+                                onDelete={() => setDeleteMeetingConfirm({ id: meeting.id, title: meeting.title })}
                             />
                         ))}
                     </div>
@@ -345,6 +343,16 @@ export default function MeetingsModern() {
                     />
                 )}
             </Suspense>
+
+            <ConfirmDialog
+                open={!!deleteMeetingConfirm}
+                title="Delete Meeting"
+                message={deleteMeetingConfirm ? `Delete "${deleteMeetingConfirm.title}"? This cannot be undone.` : ''}
+                confirmLabel="Delete"
+                variant="danger"
+                onConfirm={() => { if (deleteMeetingConfirm) { deleteMeeting(deleteMeetingConfirm.id); setDeleteMeetingConfirm(null); } }}
+                onCancel={() => setDeleteMeetingConfirm(null)}
+            />
         </div>
     );
 }

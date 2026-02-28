@@ -235,7 +235,7 @@ export interface ElectronAPI {
   deleteBrainstormSession: (id: string) => Promise<void>;
   sendBrainstormMessage: (sessionId: string, content: string) => Promise<BrainstormMessage>;
   onBrainstormChunk: (callback: (data: { sessionId: string; chunk: string }) => void) => () => void;
-  abortBrainstorm: () => Promise<void>;
+  abortBrainstorm: (sessionId: string) => Promise<void>;
   exportBrainstormToIdea: (sessionId: string, messageId: string) => Promise<Idea>;
   exportBrainstormToCard: (sessionId: string, messageId: string) => Promise<Card>;
 

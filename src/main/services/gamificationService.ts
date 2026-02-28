@@ -3,6 +3,7 @@
 // Handles XP awards, stats calculation, streak tracking, and achievements across all features.
 
 import { gte, sql, desc, eq } from 'drizzle-orm';
+import { formatDateStr } from '../../shared/utils/date-utils';
 import { getDb } from '../db/connection';
 import {
   xpEvents, focusSessions, focusAchievements,
@@ -491,6 +492,3 @@ export async function getDailyXP(_days?: number): Promise<XpDailyData[]> {
   return result;
 }
 
-function formatDateStr(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}

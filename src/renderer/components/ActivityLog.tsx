@@ -21,18 +21,7 @@ import {
 } from 'lucide-react';
 import type { CardActivityAction } from '../../shared/types';
 import { useCardDetailStore } from '../stores/cardDetailStore';
-
-function timeAgo(dateStr: string): string {
-  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
+import { formatRelativeTime } from '../utils/date-utils';
 
 /** Icon and color per activity action type */
 const ACTION_CONFIG: Record<CardActivityAction, { icon: React.ElementType; colorClass: string }> = {
@@ -150,7 +139,7 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
                     {describeActivity(activity.action, activity.details)}
                   </span>
                   <span className="font-data text-xs text-[var(--color-text-muted)] ml-auto whitespace-nowrap">
-                    {timeAgo(activity.createdAt)}
+                    {formatRelativeTime(activity.createdAt)}
                   </span>
                 </div>
               );

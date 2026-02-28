@@ -8,6 +8,7 @@ import { getDb } from '../db/connection';
 import { focusSessions, cards, columns, boards, projects } from '../db/schema';
 import { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats, FocusTimeReportOptions, FocusSessionFull, FocusProjectTime, FocusTimeReport } from '../../shared/types/focus';
 import { billableHours } from '../../shared/utils/billing';
+import { formatDateStr } from '../../shared/utils/date-utils';
 
 export async function saveSession(input: {
   cardId?: string;
@@ -69,10 +70,6 @@ export async function getDailyData(days: number = 30): Promise<FocusDailyData[]>
   }
 
   return result;
-}
-
-function formatDateStr(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 export async function getSessionHistory(options: { offset?: number; limit?: number } = {}): Promise<{ sessions: FocusSessionWithCard[]; total: number }> {

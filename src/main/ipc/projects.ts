@@ -275,15 +275,16 @@ export function registerProjectHandlers(): void {
       const validBoardId = validateInput(idParamSchema, boardId);
       const validColumnIds = validateInput(columnReorderSchema, columnIds);
       const db = getDb();
-      // Update position for each column in the given order
       // boardId validated for consistency; used for future scope constraints
       void validBoardId;
-      for (let i = 0; i < validColumnIds.length; i++) {
-        await db
-          .update(columns)
-          .set({ position: i })
-          .where(eq(columns.id, validColumnIds[i]));
-      }
+      await db.transaction(async (tx) => {
+        for (let i = 0; i < validColumnIds.length; i++) {
+          await tx
+            .update(columns)
+            .set({ position: i })
+            .where(eq(columns.id, validColumnIds[i]));
+        }
+      });
     },
   );
 }

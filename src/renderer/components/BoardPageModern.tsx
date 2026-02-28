@@ -18,6 +18,7 @@ import { useProjectAgentStore } from '../stores/projectAgentStore';
 import ProGate from './ProGate';
 import { ProBadge } from './ProBadge';
 const ProjectAgentPanel = lazy(() => import('./ProjectAgentPanel'));
+import { ConfirmDialog } from './ConfirmDialog';
 
 export default function BoardPageModern() {
     const {
@@ -133,6 +134,9 @@ export default function BoardPageModern() {
         }
     };
 
+    // Label delete confirmation state
+    const [deleteLabelConfirm, setDeleteLabelConfirm] = useState<{ id: string; count: number } | null>(null);
+
     // Label management state
     const [managingLabels, setManagingLabels] = useState(false);
     const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
@@ -156,9 +160,19 @@ export default function BoardPageModern() {
 
     const handleDeleteLabel = async (id: string) => {
         const count = labelUsageCounts.get(id) ?? 0;
-        if (count > 0 && !window.confirm(`This label is on ${count} card${count > 1 ? 's' : ''}. Delete it?`)) return;
+        if (count > 0) {
+            setDeleteLabelConfirm({ id, count });
+            return;
+        }
         await deleteLabel(id);
         if (labelFilter.includes(id)) toggleLabelFilter(id);
+    };
+
+    const confirmDeleteLabel = async () => {
+        if (!deleteLabelConfirm) return;
+        await deleteLabel(deleteLabelConfirm.id);
+        if (labelFilter.includes(deleteLabelConfirm.id)) toggleLabelFilter(deleteLabelConfirm.id);
+        setDeleteLabelConfirm(null);
     };
 
     const handleAddLabel = async () => {
@@ -695,6 +709,16 @@ export default function BoardPageModern() {
                     />
                 )}
             </Suspense>
+
+            <ConfirmDialog
+                open={!!deleteLabelConfirm}
+                title="Delete Label"
+                message={deleteLabelConfirm ? `This label is on ${deleteLabelConfirm.count} card${deleteLabelConfirm.count > 1 ? 's' : ''}. Delete it?` : ''}
+                confirmLabel="Delete"
+                variant="danger"
+                onConfirm={confirmDeleteLabel}
+                onCancel={() => setDeleteLabelConfirm(null)}
+            />
         </div>
     );
 }

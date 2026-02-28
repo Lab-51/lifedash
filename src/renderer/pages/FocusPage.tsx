@@ -211,8 +211,8 @@ export default function FocusPage() {
     const map = new Map<string, FocusSessionFull[]>();
     for (const s of report.sessions) {
       const d = s.completedAt.slice(0, 10);
-      if (!map.has(d)) map.set(d, []);
-      map.get(d)!.push(s);
+      const arr = map.get(d);
+      if (arr) { arr.push(s); } else { map.set(d, [s]); }
     }
     return [...map.entries()].map(([date, sessions]) => ({ date, label: fmtDateHdr(date), sessions }));
   }, [report]);

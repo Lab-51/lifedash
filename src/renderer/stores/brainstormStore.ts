@@ -167,8 +167,10 @@ export const useBrainstormStore = create<BrainstormStore>((set, get) => ({
 
   abortStream: async () => {
     if (!get().streaming) return;
+    const session = get().activeSession;
+    if (!session) return;
     try {
-      await window.electronAPI.abortBrainstorm();
+      await window.electronAPI.abortBrainstorm(session.id);
     } catch {
       // Abort is best-effort — stream may have already finished
     }

@@ -37,6 +37,7 @@ import * as attachmentService from '../services/attachmentService';
 import type { Card, Label } from '../../shared/types';
 import { buildCardLabelMap } from '../../shared/utils/card-utils';
 import { computeCardMove } from '../../shared/utils/card-move';
+import { getNextRecurrenceDate } from '../../shared/utils/date-utils';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import {
   idParamSchema,
@@ -90,13 +91,7 @@ async function spawnRecurringCard(completedCard: CardRow, db: ReturnType<typeof 
   // Calculate next due date
   let nextDueDate: Date | null = null;
   if (completedCard.dueDate) {
-    nextDueDate = new Date(completedCard.dueDate);
-    switch (completedCard.recurrenceType) {
-      case 'daily': nextDueDate.setDate(nextDueDate.getDate() + 1); break;
-      case 'weekly': nextDueDate.setDate(nextDueDate.getDate() + 7); break;
-      case 'biweekly': nextDueDate.setDate(nextDueDate.getDate() + 14); break;
-      case 'monthly': nextDueDate.setMonth(nextDueDate.getMonth() + 1); break;
-    }
+    nextDueDate = getNextRecurrenceDate(completedCard.dueDate.toISOString(), completedCard.recurrenceType);
   }
 
   // Check end date

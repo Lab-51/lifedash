@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Square, Loader2, Trash2, FolderOpen, FileText, Globe } from 'lucide-react';
+import { ConfirmDialog } from './ConfirmDialog';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
@@ -203,6 +204,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
   const [activeModelName, setActiveModelName] = useState<string | null>(null);
   const [transcriptionProvider, setTranscriptionProvider] = useState<string>('local');
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
 
   // Load saved language, active model, and transcription provider on mount
   useEffect(() => {
@@ -254,9 +256,14 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
     setSelectedProjectId('');
   };
 
-  const handleDiscard = async () => {
+  const handleDiscard = () => {
     if (!completedMeetingId) return;
-    if (!window.confirm('Discard this recording? The meeting and audio will be permanently deleted.')) return;
+    setDiscardConfirmOpen(true);
+  };
+
+  const confirmDiscard = async () => {
+    setDiscardConfirmOpen(false);
+    if (!completedMeetingId) return;
     await deleteMeeting(completedMeetingId);
     clearCompletedMeetingId();
   };
@@ -266,6 +273,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
   };
 
   return (
+    <>
     <div className="hud-panel clip-corner-cut-sm rounded-xl p-4">
       {isProcessing ? (
         <div className="space-y-3">
@@ -423,5 +431,15 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
         <p className="mt-2 text-xs text-red-400">{error}</p>
       )}
     </div>
+    <ConfirmDialog
+      open={discardConfirmOpen}
+      title="Discard Recording"
+      message="Discard this recording? The meeting and audio will be permanently deleted."
+      confirmLabel="Discard"
+      variant="danger"
+      onConfirm={confirmDiscard}
+      onCancel={() => setDiscardConfirmOpen(false)}
+    />
+    </>
   );
 }

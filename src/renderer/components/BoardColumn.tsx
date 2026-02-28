@@ -15,23 +15,7 @@ import KanbanCard from './KanbanCard';
 import type { Card, Column, UpdateCardInput, CardPriority } from '../../shared/types';
 import type { CardTemplate } from '../../shared/types/cards';
 import { toast } from '../hooks/useToast';
-
-/** Built-in template shape (non-DB). */
-interface BuiltinTemplate {
-  id: string;
-  name: string;
-  icon: string;
-  priority: CardPriority;
-  description: string;
-}
-
-/** Built-in templates shown in the creation dropdown. */
-const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
-  { id: 'bug', name: 'Bug Report', icon: '\u{1F41B}', priority: 'high', description: '<h2>Steps to Reproduce</h2><ol><li></li></ol><h2>Expected Behavior</h2><p></p><h2>Actual Behavior</h2><p></p>' },
-  { id: 'feature', name: 'Feature Request', icon: '\u2728', priority: 'medium', description: '<h2>User Story</h2><p>As a [user], I want [goal] so that [benefit].</p><h2>Acceptance Criteria</h2><ul><li></li></ul>' },
-  { id: 'action', name: 'Meeting Action', icon: '\u{1F4CB}', priority: 'medium', description: '<h2>Action Required</h2><p></p><h2>Assignee</h2><p></p><h2>Due Date</h2><p></p>' },
-  { id: 'note', name: 'Quick Note', icon: '\u{1F4DD}', priority: 'low', description: '<p></p>' },
-];
+import { BUILTIN_TEMPLATES, type BuiltinTemplate } from '../constants/card-templates';
 
 interface BoardColumnProps {
   column: Column;

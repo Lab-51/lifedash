@@ -35,6 +35,7 @@ import remarkGfm from 'remark-gfm';
 import ProductivityPulse from './ProductivityPulse';
 import FocusStatsWidget from './FocusStatsWidget';
 import HudBackground from './HudBackground';
+import { formatDate } from '../utils/date-utils';
 
 /** Return a time-based greeting string. */
 function getGreeting(): string {
@@ -53,13 +54,6 @@ function formatToday(): string {
     return new Date().toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'long',
-        day: 'numeric',
-    });
-}
-
-function formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-        month: 'short',
         day: 'numeric',
     });
 }

@@ -60,7 +60,7 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
   {
     value: 'openai',
     label: 'OpenAI',
-    tagline: 'GPT-5.2 and GPT-5 Mini — the industry standard',
+    tagline: 'GPT-4o and o3-mini — the industry standard',
     costLabel: 'Pay-per-use',
     icon: <Zap size={22} />,
   },

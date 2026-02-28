@@ -15,9 +15,11 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { Card, UpdateCardInput, CardPriority } from '../../shared/types';
 import type { CardTemplate } from '../../shared/types/cards';
+import { BUILTIN_TEMPLATES, type BuiltinTemplate } from '../constants/card-templates';
 import { useBoardStore } from '../stores/boardStore';
 import { useCardDetailStore } from '../stores/cardDetailStore';
-import { getDueDateBadge } from '../utils/date-utils';
+import { getDueDateBadge, formatDate, formatRelativeTime } from '../utils/date-utils';
+import { getNextRecurrenceDate } from '../../shared/utils/date-utils';
 import AttachmentsSection from './AttachmentsSection';
 import ChecklistSection from './ChecklistSection';
 import CommentsSection from './CommentsSection';
@@ -31,6 +33,7 @@ import HudDatePicker from './HudDatePicker';
 import HudSelect from './HudSelect';
 import ProGate from './ProGate';
 import { ProBadge } from './ProBadge';
+import { PromptDialog } from './PromptDialog';
 
 interface CardDetailModalProps {
   card: Card;
@@ -49,91 +52,6 @@ const LABEL_COLORS = [
   '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899',
 ];
 
-interface BuiltinTemplate {
-  id: string;
-  name: string;
-  icon: string;
-  priority: CardPriority;
-  description: string;
-}
-
-// Built-in templates (always available, not DB-backed)
-const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
-  {
-    id: 'bug',
-    name: 'Bug Report',
-    icon: '🐛',
-    priority: 'high',
-    description: '<h2>Steps to Reproduce</h2><ol><li></li></ol><h2>Expected Behavior</h2><p></p><h2>Actual Behavior</h2><p></p><h2>Environment</h2><p></p>',
-  },
-  {
-    id: 'feature',
-    name: 'Feature Request',
-    icon: '✨',
-    priority: 'medium',
-    description: '<h2>User Story</h2><p>As a [user], I want [goal] so that [benefit].</p><h2>Acceptance Criteria</h2><ul><li></li></ul><h2>Notes</h2><p></p>',
-  },
-  {
-    id: 'action',
-    name: 'Meeting Action',
-    icon: '📋',
-    priority: 'medium',
-    description: '<h2>Meeting</h2><p></p><h2>Action Required</h2><p></p><h2>Assignee</h2><p></p><h2>Due Date</h2><p></p>',
-  },
-  {
-    id: 'note',
-    name: 'Quick Note',
-    icon: '📝',
-    priority: 'low',
-    description: '<p></p>',
-  },
-  {
-    id: 'research',
-    name: 'Research Task',
-    icon: '🔍',
-    priority: 'medium',
-    description: '<h2>Topic</h2><p></p><h2>Key Questions</h2><ul><li></li></ul><h2>Findings</h2><p></p><h2>Next Steps</h2><p></p>',
-  },
-];
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-function formatRelativeTime(isoDate: string): string {
-  const seconds = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  const days = Math.floor(seconds / 86400);
-  if (days === 1) return 'yesterday';
-  if (days < 30) return `${days}d ago`;
-  return `${Math.floor(days / 30)}mo ago`;
-}
-
-/** Calculate the next recurrence date from a due date and recurrence type. */
-function getNextRecurrenceDate(dueDate: string, recurrenceType: string): Date {
-  const d = new Date(dueDate);
-  switch (recurrenceType) {
-    case 'daily':
-      d.setDate(d.getDate() + 1);
-      break;
-    case 'weekly':
-      d.setDate(d.getDate() + 7);
-      break;
-    case 'biweekly':
-      d.setDate(d.getDate() + 14);
-      break;
-    case 'monthly':
-      d.setMonth(d.getMonth() + 1);
-      break;
-  }
-  return d;
-}
 
 /** Format a Date as a friendly string like "Wed, Feb 25, 2026". */
 function formatNextDate(date: Date): string {
@@ -161,6 +79,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const [dbTemplates, setDbTemplates] = useState<CardTemplate[]>([]);
   const [showAgent, setShowAgent] = useState(false);
   const [agentEverOpened, setAgentEverOpened] = useState(false);
+  const [templatePromptOpen, setTemplatePromptOpen] = useState(false);
   const showAgentRef = useRef(false);
   const agentMessageCount = useCardAgentStore(s => s.messageCount);
 
@@ -321,9 +240,12 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   };
 
   // Save current card as template
-  const handleSaveAsTemplate = async () => {
-    const name = window.prompt('Template name:', card.title);
-    if (!name) return;
+  const handleSaveAsTemplate = () => {
+    setTemplatePromptOpen(true);
+  };
+
+  const handleTemplateSave = async (name: string) => {
+    setTemplatePromptOpen(false);
     try {
       await window.electronAPI.saveCardAsTemplate(card.id, name);
       toast('Saved template: ' + name, 'success');
@@ -377,6 +299,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-[2px]">
       <div className={`hud-panel-accent clip-corner-cut shadow-2xl w-full flex flex-col overflow-hidden transition-all duration-300 ease-out ${showAgent ? 'max-w-[95vw] xl:max-w-[1400px]' : 'max-w-5xl'
         } max-h-[90vh] mx-4`}>
@@ -720,11 +643,11 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                   <div className="ruled-line-accent mb-2" />
                   <div className="flex justify-between font-data text-[11px] text-[var(--color-text-muted)]">
                     <span>Created</span>
-                    <span className="text-[var(--color-text-secondary)]" title={formatDate(card.createdAt)}>{formatRelativeTime(card.createdAt)}</span>
+                    <span className="text-[var(--color-text-secondary)]" title={formatDate(card.createdAt, true)}>{formatRelativeTime(card.createdAt)}</span>
                   </div>
                   <div className="flex justify-between font-data text-[11px] text-[var(--color-text-muted)]">
                     <span>Updated</span>
-                    <span className="text-[var(--color-text-secondary)]" title={formatDate(card.updatedAt)}>{formatRelativeTime(card.updatedAt)}</span>
+                    <span className="text-[var(--color-text-secondary)]" title={formatDate(card.updatedAt, true)}>{formatRelativeTime(card.updatedAt)}</span>
                   </div>
                 </div>
               </div>
@@ -773,6 +696,16 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
         </div>
       </div>
     </div>
+    <PromptDialog
+      open={templatePromptOpen}
+      title="Save as Template"
+      message="Enter a name for this template"
+      defaultValue={card.title}
+      confirmLabel="Save"
+      onConfirm={handleTemplateSave}
+      onCancel={() => setTemplatePromptOpen(false)}
+    />
+    </>
   );
 }
 

@@ -17,8 +17,8 @@ import {
 
 const log = createLogger('Brainstorm');
 
-// Active stream abort controller — allows renderer to cancel in-progress generation
-let activeAbortController: AbortController | null = null;
+// Per-session abort controllers — allows multiple concurrent sessions to stream simultaneously
+const activeAbortControllers = new Map<string, AbortController>();
 
 export function registerBrainstormHandlers(): void {
   ipcMain.handle('brainstorm:list-sessions', async () => {
@@ -65,7 +65,7 @@ export function registerBrainstormHandlers(): void {
 
     // 4. Stream AI response with abort support
     const abortController = new AbortController();
-    activeAbortController = abortController;
+    activeAbortControllers.set(validSessionId, abortController);
 
     const result = streamGenerate({
       providerId: provider.providerId,
@@ -102,7 +102,7 @@ export function registerBrainstormHandlers(): void {
         log.warn('Stream ended with error but text was received:', streamErr instanceof Error ? streamErr.message : streamErr);
       }
     } finally {
-      activeAbortController = null;
+      activeAbortControllers.delete(validSessionId);
     }
 
     // If aborted with no text, return null (no assistant message to save)
@@ -129,12 +129,14 @@ export function registerBrainstormHandlers(): void {
     return assistantMsg;
   });
 
-  // Abort active brainstorm stream
-  ipcMain.handle('brainstorm:abort', async () => {
-    if (activeAbortController) {
-      activeAbortController.abort();
-      activeAbortController = null;
-      log.info('Brainstorm stream abort requested');
+  // Abort active brainstorm stream for a specific session
+  ipcMain.handle('brainstorm:abort', async (_event, sessionId: unknown) => {
+    const validSessionId = validateInput(idParamSchema, sessionId);
+    const controller = activeAbortControllers.get(validSessionId);
+    if (controller) {
+      controller.abort();
+      activeAbortControllers.delete(validSessionId);
+      log.info(`Brainstorm stream abort requested for session ${validSessionId.slice(0, 8)}`);
     }
   });
 
