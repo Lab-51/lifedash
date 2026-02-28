@@ -50,6 +50,7 @@ const FocusStartModal = lazy(() => import('./components/FocusStartModal'));
 const FocusCompleteModal = lazy(() => import('./components/FocusCompleteModal'));
 const FocusOverlay = lazy(() => import('./components/FocusOverlay'));
 
+const MIN_SPLASH_MS = 3000;
 
 /** Wrapper that lives inside HashRouter to enable useNavigate for shortcuts */
 function AppShell({ children }: { children: ReactNode }) {
@@ -93,6 +94,7 @@ function AppShell({ children }: { children: ReactNode }) {
 
   useKeyboardShortcuts(navigate, toggleCommandPalette, toggleShortcutsHelp, toggleFocusMode);
   useTheme();
+  const mountTime = useRef(Date.now());
   // Initialize recording state listener (always active regardless of page)
   useEffect(() => {
     const cleanup = useRecordingStore.getState().initListener();
@@ -112,7 +114,15 @@ function AppShell({ children }: { children: ReactNode }) {
       useFocusStore.getState().loadSettings(),
       useGamificationStore.getState().loadStats(),
       useLicenseStore.getState().loadLicense(),
-    ]).then(() => setAppReady(true));
+    ]).then(() => {
+      const elapsed = Date.now() - mountTime.current;
+      const remaining = Math.max(0, MIN_SPLASH_MS - elapsed);
+      if (remaining > 0) {
+        setTimeout(() => setAppReady(true), remaining);
+      } else {
+        setAppReady(true);
+      }
+    });
   }, []);
 
   // Show the setup wizard if: no providers configured AND wizard not yet completed.
