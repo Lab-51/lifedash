@@ -168,13 +168,16 @@ export function downloadUpdate(
 
 /**
  * Launch the Inno Setup installer in silent mode and exit the app.
- * The installer will close the running app, install, and relaunch.
+ * The installer will close the running app, install to the SAME directory
+ * (via /DIR=), and relaunch. This ensures ZIP-extracted installs get
+ * updated in-place rather than creating a second copy in the default dir.
  */
 export function installUpdate(installerPath: string): void {
-  log.info(`Installing update from: ${installerPath}`);
+  const appDir = path.dirname(process.execPath);
+  log.info(`Installing update from: ${installerPath} to: ${appDir}`);
   spawn(
     installerPath,
-    ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/CLOSEAPPLICATIONS', '/RESTARTAPPLICATIONS'],
+    [`/DIR=${appDir}`, '/VERYSILENT', '/SUPPRESSMSGBOXES', '/CLOSEAPPLICATIONS', '/RESTARTAPPLICATIONS'],
     { detached: true, stdio: 'ignore' },
   );
   process.exit(0);
