@@ -11,6 +11,34 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
+
+// Locate gh CLI — check PATH first, then known install locations
+function findGh() {
+  try {
+    execSync('gh --version', { stdio: 'pipe' });
+    return 'gh';
+  } catch (_) {
+    // Not in PATH
+  }
+  const candidates = [
+    'C:\\Program Files\\GitHub CLI\\gh.exe',
+    'C:\\Program Files (x86)\\GitHub CLI\\gh.exe',
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'GitHub CLI', 'gh.exe'),
+  ];
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate)) {
+      return `"${candidate}"`;
+    }
+  }
+  return null;
+}
+
+const gh = findGh();
+if (!gh) {
+  console.error('ERROR: gh CLI not found.');
+  console.error('Install it: winget install GitHub.cli');
+  process.exit(1);
+}
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
 const version = pkg.version;
 const tag = `v${version}`;
@@ -38,7 +66,7 @@ console.log(`  File: ${installerFile}`);
 // Create a draft release (fails gracefully if tag already exists)
 try {
   execSync(
-    `gh release create ${tag} --draft --repo ${repo} --title "${tag}"`,
+    `${gh} release create ${tag} --draft --repo ${repo} --title "${tag}"`,
     { stdio: 'inherit', cwd: ROOT }
   );
   console.log(`\nDraft release created: ${tag}`);
@@ -50,7 +78,7 @@ try {
 // Upload the installer asset
 try {
   execSync(
-    `gh release upload ${tag} "${installerFile}" --repo ${repo} --clobber`,
+    `${gh} release upload ${tag} "${installerFile}" --repo ${repo} --clobber`,
     { stdio: 'inherit', cwd: ROOT }
   );
 } catch (err) {
