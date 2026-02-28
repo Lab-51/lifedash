@@ -4,15 +4,14 @@
 // system tray integration, window state persistence, and single instance lock.
 
 // === DEPENDENCIES ===
-// electron, electron-squirrel-startup, electron-window-state, node:path,
+// electron, electron-window-state, node:path,
 // drizzle-orm, postgres (via ./db/connection and ./db/migrate),
 // electron-audio-loopback (system audio capture)
 
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut } from 'electron';
 import path from 'node:path';
 // @ts-ignore
 import icon from '../assets/icon.png';
-import started from 'electron-squirrel-startup';
 import windowStateKeeper from 'electron-window-state';
 import { registerIpcHandlers } from './ipc';
 import { createTray } from './tray';
@@ -24,15 +23,9 @@ import { initNotificationScheduler, stopNotificationScheduler } from './services
 import { createLogger } from './services/logger';
 import { getIsRecording, setIsRecording } from './services/recordingState';
 import { applyGlobalProxy } from './services/proxyService';
-import { updateElectronApp } from 'update-electron-app';
-import { autoUpdater } from 'electron';
+import { initAutoUpdater } from './autoUpdater';
 
 const log = createLogger('App');
-
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (started) {
-  app.quit();
-}
 
 // Initialize electron-audio-loopback for system audio capture.
 // Must be called before app is ready.
@@ -89,7 +82,7 @@ const createWindow = async () => {
   const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
   const connectSrc = isDev
     ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com https://api.lemonsqueezy.com http://localhost:11434"
-    : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com https://api.lemonsqueezy.com http://localhost:11434 https://update.electronjs.org https://api.github.com https://github.com";
+    : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com https://api.lemonsqueezy.com http://localhost:11434 https://api.github.com https://github.com https://objects.githubusercontent.com";
   const scriptSrc = isDev
     ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"  // Vite HMR needs eval + React preamble needs inline in dev
     : "script-src 'self'";
@@ -109,6 +102,9 @@ const createWindow = async () => {
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
   });
+
+  // Auto-updater: check GitHub Releases for new versions (production only)
+  initAutoUpdater(mainWindow);
 
   // Let electron-window-state track position/size changes
   mainWindowState.manage(mainWindow);
@@ -211,38 +207,6 @@ app.on('before-quit', async () => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
 });
-
-// Auto-update — checks GitHub Releases for new versions (production only).
-// Uses Squirrel on Windows and Squirrel.Mac on macOS.
-// Sends status events to renderer so the title bar can show update state.
-if (app.isPackaged) {
-  const sendUpdateStatus = (status: string, releaseName?: string) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('app:update-status', { status, releaseName });
-    }
-  };
-
-  updateElectronApp({
-    repo: 'Lab-51/lifedash',
-    updateInterval: '1 hour',
-    notifyUser: true,
-    onNotifyUser: (info) => {
-      log.info(`Update downloaded: ${info.releaseName}`);
-      sendUpdateStatus('ready', info.releaseName || 'New version');
-    },
-  });
-
-  // Forward autoUpdater lifecycle events to the renderer
-  autoUpdater.on('checking-for-update', () => sendUpdateStatus('checking'));
-  autoUpdater.on('update-not-available', () => sendUpdateStatus('up-to-date'));
-  autoUpdater.on('error', () => sendUpdateStatus('up-to-date')); // Fail silently — show as up-to-date
-
-  // Let the renderer trigger the update install + restart
-  ipcMain.handle('app:install-update', () => {
-    log.info('User accepted update — quitting and installing');
-    autoUpdater.quitAndInstall();
-  });
-}
 
 // Create window when Electron is ready
 app.on('ready', () => {

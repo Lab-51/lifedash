@@ -17,8 +17,9 @@ tsc_out.txt             export-ignore
 tsc_out2.txt            export-ignore
 release-commands.txt    export-ignore
 
-# Build/dev scripts (not needed by customers)
+# Build/dev scripts and installer (not needed by customers)
 scripts/                export-ignore
+installer/              export-ignore
 docker-compose.yml      export-ignore
 
 # Dev config

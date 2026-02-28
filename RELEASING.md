@@ -13,8 +13,13 @@
    npm version minor   # or: npm version patch / npm version major
    ```
 
-3. **Code signing (optional)**:
-   - **Windows**: Set `CERT_PASSWORD` env var (requires `certs/living-dashboard.pfx`)
+3. **Inno Setup 6** (Windows installer):
+   - Install via `choco install innosetup --yes` or download from https://jrsoftware.org/isdl.php
+   - ISCC.exe must be in PATH or at the default `C:\Program Files (x86)\Inno Setup 6\ISCC.exe`
+
+4. **gh CLI** — must be authenticated (`gh auth status`)
+
+5. **Code signing (optional)**:
    - **macOS**: Set `APPLE_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`
 
 ## Release Workflow
@@ -44,13 +49,13 @@ GITHUB_TOKEN=ghp_... SKIP_OBFUSCATION=true npm run publish
 ```
 
 This will:
-- Build the app (Vite + Electron Forge)
-- Create installer artifacts (LifeDash-X.X.X.exe, .nupkg, RELEASES)
-- Upload them as a **draft** release to https://github.com/Lab-51/lifedash/releases
+- Package the app (Vite + Electron Forge)
+- Create an Inno Setup installer (`LifeDash-X.X.X-Setup.exe`)
+- Upload it as a **draft** release to https://github.com/Lab-51/lifedash/releases via gh CLI
 
 ### 3. Publish the draft release
 
-Forge uploads artifacts to a hidden **draft** release. Publish it via the API (or ask Claude Code — it does this automatically):
+The upload script creates a hidden **draft** release. Publish it via the API (or ask Claude Code — it does this automatically):
 
 ```bash
 # Find the draft release ID
@@ -68,39 +73,38 @@ curl -s -X PATCH \
   "https://api.github.com/repos/Lab-51/lifedash/releases/$RELEASE_ID"
 ```
 
-> **Do NOT** publish from the GitHub Tags tab — it only shows source code archives. The Forge draft with the actual `.exe` is a separate entry that must be published via the API or from the Releases tab (look for "Draft" at the top).
+> **Do NOT** publish from the GitHub Tags tab — it only shows source code archives. The draft with the actual `.exe` is a separate entry that must be published via the API or from the Releases tab (look for "Draft" at the top).
 
 ### 4. Users auto-update
 
 Once published:
-- Existing installations check for updates **every hour**
-- When an update is found, it downloads silently in the background
+- Existing installations check the GitHub Releases API for updates **every hour**
+- When a newer version is found, the Setup.exe is downloaded in the background
 - An **in-app toast** appears: "Update vX.X.X ready — restart to install"
-- User clicks **Restart Now** to apply the update immediately
-- If dismissed, the update applies on next app restart
+- User clicks **Restart Now** — the app exits and Inno Setup silently installs the update
+- The app relaunches automatically after the update completes
 
 ## What Gets Published
 
 | Platform | Artifact | Purpose |
 |----------|----------|---------|
-| Windows | `LifeDash-X.X.X.exe` | Squirrel installer for new installs |
-| Windows | `lifedash-X.X.X-full.nupkg` | Delta update package for existing installs |
-| Windows | `RELEASES` | Update manifest (Squirrel checks this) |
+| Windows | `LifeDash-X.X.X-Setup.exe` | Inno Setup installer for new installs + updates |
 | macOS | `LifeDash.dmg` | DMG installer for new installs |
-| macOS | `LifeDash-darwin-x64-X.X.X.zip` | ZIP for Squirrel.Mac auto-update |
+| macOS | `LifeDash-darwin-x64-X.X.X.zip` | ZIP for macOS distribution |
 
 ## How Auto-Update Works
 
 ```
-update-electron-app (in main process)
-    ↓ checks every hour
-https://update.electronjs.org/Lab-51/lifedash/{platform}/{version}
-    ↓ proxies to
-GitHub Releases API → finds latest release with matching platform assets
-    ↓ downloads
-Squirrel applies update on next restart
-    ↓ notifies
-In-app toast: "Update vX.X.X ready — restart to install"
+autoUpdater.ts (in main process)
+    ↓ checks every hour (+ 10s after startup)
+https://api.github.com/repos/Lab-51/lifedash/releases/latest
+    ↓ compares tag_name with current version
+If newer: finds asset matching /LifeDash-.*-Setup\.exe$/
+    ↓ downloads via Electron net.request()
+Saves to temp dir, sends progress to renderer
+    ↓ user clicks "Restart Now"
+Spawns Inno Setup with /VERYSILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS
+    ↓ app exits, installer overwrites, app relaunches
 ```
 
 ## Commands Reference
@@ -109,8 +113,9 @@ In-app toast: "Update vX.X.X ready — restart to install"
 |---------|-------------|
 | `npm run start` | Run in development mode |
 | `npm run package` | Create unpacked app (no installer) |
-| `npm run make` | Create installer locally (no upload) |
-| `npm run publish` | Build + upload to GitHub Releases |
+| `npm run make` | Create macOS installers (DMG/ZIP) via Forge makers |
+| `npm run make:installer` | Package app + build Inno Setup installer |
+| `npm run publish` | Package + build installer + upload draft to GitHub |
 | `npm run make:icons` | Regenerate .ico and .icns from icon.png |
 | `npm run verify:package` | Run 18 packaging checks |
 
@@ -119,8 +124,8 @@ In-app toast: "Update vX.X.X ready — restart to install"
 **"GITHUB_TOKEN not set"**
 → Set the environment variable: `export GITHUB_TOKEN=ghp_...`
 
-**Squirrel error on Windows**
-→ Make sure `src/assets/icon.ico` exists. Run `npm run make:icons` if missing.
+**"ISCC.exe not found"**
+→ Install Inno Setup 6: `choco install innosetup --yes` or download from https://jrsoftware.org/isdl.php
 
 **Update not detected by users**
 → Check that the release is **published** (not draft). Draft releases are invisible to the auto-updater.
@@ -135,12 +140,14 @@ In-app toast: "Update vX.X.X ready — restart to install"
 
 ### Windows
 
-1. Download `LifeDash-X.X.X.exe` from the [Releases page](https://github.com/Lab-51/lifedash/releases)
-2. Run it — LifeDash installs silently and launches automatically
-3. A desktop shortcut and Start Menu entry are created automatically
+1. Download `LifeDash-X.X.X-Setup.exe` from the [Releases page](https://github.com/Lab-51/lifedash/releases)
+2. Run it — the setup wizard guides through installation
+3. Choose install location (default: `%APPDATA%\LifeDash`)
+4. Optionally create a desktop shortcut
+5. Click "Launch LifeDash" on the finish page
 
-**Install location:** `C:\Users\<username>\AppData\Local\lifedash\`
-**No admin rights required** — Squirrel installs per-user, not system-wide.
+**Default location:** `C:\Users\<username>\AppData\Roaming\LifeDash\`
+**No admin rights required** — installs per-user, not system-wide.
 
 ### macOS
 
@@ -163,23 +170,19 @@ On first launch:
 
 ### Auto-Updates
 
-LifeDash checks for updates automatically every hour:
+LifeDash checks for updates automatically every hour (and 10 seconds after startup):
 
-1. The app silently downloads the update in the background
-2. A notification appears in the title bar: **"Update vX.X.X ready"**
-3. Click **Restart Now** to apply immediately
-4. If dismissed, the update applies on the next app restart
+1. The app checks the GitHub Releases API for a newer version
+2. If found, it downloads the installer in the background (with progress)
+3. A notification appears in the title bar: **"Update vX.X.X ready"**
+4. Click **Restart Now** — the app exits, installs silently, and relaunches
 
-Updates are pulled from GitHub Releases via [update.electronjs.org](https://update.electronjs.org). Only **published** releases (not drafts) are visible to the auto-updater.
-
-**Windows:** Squirrel handles delta updates — only changed files are downloaded, not the entire app.
-**macOS:** The full ZIP is downloaded and replaces the app bundle.
+Updates are pulled from the [GitHub Releases API](https://api.github.com/repos/Lab-51/lifedash/releases/latest). Only **published** releases (not drafts) are visible to the auto-updater.
 
 ### Uninstalling
 
 **Windows:**
-- Open **Settings > Apps > LifeDash** and click Uninstall, or
-- Run `Update.exe --uninstall` from `%LOCALAPPDATA%\lifedash\`
+- Open **Settings > Apps > LifeDash** and click Uninstall
 
 **macOS:**
 - Drag LifeDash from Applications to the Trash
@@ -205,7 +208,7 @@ Updates are pulled from GitHub Releases via [update.electronjs.org](https://upda
 ### Customer Troubleshooting
 
 **App doesn't start on Windows**
-→ Check `%LOCALAPPDATA%\lifedash\` exists. If corrupt, delete the folder and reinstall.
+→ Check `%APPDATA%\LifeDash\` exists. If corrupt, uninstall via Settings > Apps and reinstall.
 
 **"Update available" but nothing happens**
 → Restart the app. Updates apply on restart, not while running.

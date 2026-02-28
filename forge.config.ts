@@ -2,8 +2,6 @@
 // Electron Forge configuration — defines build targets, makers, and plugins.
 
 import type { ForgeConfig } from '@electron-forge/shared-types';
-import { MakerSquirrel } from '@electron-forge/maker-squirrel';
-// import { MakerWix } from '@electron-forge/maker-wix';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDMG } from '@electron-forge/maker-dmg';
 import { VitePlugin } from '@electron-forge/plugin-vite';
@@ -11,7 +9,6 @@ import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { PublisherGithub } from '@electron-forge/publisher-github';
 import { obfuscate as jsObfuscate } from 'javascript-obfuscator';
 
 // IPC channel prefixes and renderer bridge identifiers that must NOT be
@@ -149,37 +146,10 @@ const config: ForgeConfig = {
     },
   },
   makers: [
-    new MakerSquirrel({
-      setupExe: `LifeDash-${require('./package.json').version}.exe`,
-      setupIcon: './src/assets/icon.ico',
-      ...(process.env.CERT_PASSWORD
-        ? {
-          certificateFile: './certs/living-dashboard.pfx',
-          certificatePassword: process.env.CERT_PASSWORD,
-        }
-        : {}),
-    }),
     new MakerZIP({}, ['darwin']),
     new MakerDMG({
       format: 'ULFO',
       name: 'LifeDash',
-    }),
-    // WiX MSI maker — requires WiX Toolset installed (candle.exe + light.exe).
-    // Uncomment when WiX is available for enterprise MSI distribution.
-    // new MakerWix({
-    //   name: 'LifeDash',
-    //   manufacturer: 'LifeDash',
-    //   upgradeCode: '570d3454-6859-4ff3-9f24-385a00bcc551',
-    //   ui: {
-    //     chooseDirectory: true,
-    //   },
-    // }),
-  ],
-  publishers: [
-    new PublisherGithub({
-      repository: { owner: 'Lab-51', name: 'lifedash' },
-      prerelease: false,
-      draft: true, // Creates draft release — review on GitHub before publishing
     }),
   ],
   plugins: [
