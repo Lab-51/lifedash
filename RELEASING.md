@@ -48,12 +48,27 @@ This will:
 - Create installer artifacts (LifeDash-X.X.X.exe, .nupkg, RELEASES)
 - Upload them as a **draft** release to https://github.com/Lab-51/lifedash/releases
 
-### 3. Review and publish the release
+### 3. Publish the draft release
 
-1. Go to https://github.com/Lab-51/lifedash/releases
-2. Find the draft release
-3. Edit the release notes (describe what changed)
-4. Click **Publish release**
+Forge uploads artifacts to a hidden **draft** release. Publish it via the API (or ask Claude Code — it does this automatically):
+
+```bash
+# Find the draft release ID
+RELEASE_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/Lab-51/lifedash/releases" \
+  | node -e "var r=JSON.parse(require('fs').readFileSync(0,'utf8')); \
+  var d=r.find(function(x){return x.draft}); \
+  console.log(d?d.id:'')")
+
+# Publish it
+curl -s -X PATCH \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"draft": false, "body": "## Changes\n- ..."}' \
+  "https://api.github.com/repos/Lab-51/lifedash/releases/$RELEASE_ID"
+```
+
+> **Do NOT** publish from the GitHub Tags tab — it only shows source code archives. The Forge draft with the actual `.exe` is a separate entry that must be published via the API or from the Releases tab (look for "Draft" at the top).
 
 ### 4. Users auto-update
 
