@@ -1,6 +1,8 @@
 // === FILE PURPOSE ===
-// Upload the LifeDash installer to GitHub Releases as a draft.
-// Replaces the old @electron-forge/publisher-github step.
+// Upload LifeDash release artifacts to GitHub Releases as a draft.
+// Uploads two artifacts:
+//   1. LifeDash-{version}.zip — primary download (no SmartScreen)
+//   2. LifeDash-{version}-Setup.exe — used by the in-app auto-updater
 // Uses the gh CLI (GitHub CLI) — requires GITHUB_TOKEN env var.
 // Usage: node scripts/upload-release.js
 
@@ -39,16 +41,24 @@ if (!gh) {
   console.error('Install it: winget install GitHub.cli');
   process.exit(1);
 }
+
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
 const version = pkg.version;
 const tag = `v${version}`;
 const repo = 'Lab-51/lifedash';
+
+const zipFile = path.join(ROOT, 'out', 'make', `LifeDash-${version}.zip`);
 const installerFile = path.join(ROOT, 'out', 'make', `LifeDash-${version}-Setup.exe`);
 
-// Verify installer exists before attempting upload
+// Verify artifacts exist
+if (!fs.existsSync(zipFile)) {
+  console.error(`ERROR: ZIP not found: ${zipFile}`);
+  console.error('Run "npm run make:dist" first.');
+  process.exit(1);
+}
 if (!fs.existsSync(installerFile)) {
   console.error(`ERROR: Installer not found: ${installerFile}`);
-  console.error('Run "npm run make:installer" first to build the installer.');
+  console.error('Run "npm run make:dist" first.');
   process.exit(1);
 }
 
@@ -61,7 +71,8 @@ if (!process.env.GITHUB_TOKEN) {
 
 console.log(`Uploading LifeDash ${tag} to GitHub Releases (draft)...`);
 console.log(`  Repo: ${repo}`);
-console.log(`  File: ${installerFile}`);
+console.log(`  ZIP:     ${zipFile}`);
+console.log(`  Installer: ${installerFile}`);
 
 // Create a draft release (fails gracefully if tag already exists)
 try {
@@ -71,20 +82,21 @@ try {
   );
   console.log(`\nDraft release created: ${tag}`);
 } catch (err) {
-  // Release may already exist — attempt to upload anyway
   console.warn(`Warning: release create may have failed (release may already exist). Attempting upload...`);
 }
 
-// Upload the installer asset
+// Upload both artifacts
 try {
   execSync(
-    `${gh} release upload ${tag} "${installerFile}" --repo ${repo} --clobber`,
+    `${gh} release upload ${tag} "${zipFile}" "${installerFile}" --repo ${repo} --clobber`,
     { stdio: 'inherit', cwd: ROOT }
   );
 } catch (err) {
-  console.error('ERROR: Failed to upload installer to GitHub Releases.');
+  console.error('ERROR: Failed to upload artifacts to GitHub Releases.');
   process.exit(1);
 }
 
 console.log(`\nDraft release URL: https://github.com/${repo}/releases/tag/${tag}`);
-console.log('Review and publish the release from the GitHub Releases page or via the GitHub API.');
+console.log('Artifacts uploaded:');
+console.log(`  - LifeDash-${version}.zip (primary download)`);
+console.log(`  - LifeDash-${version}-Setup.exe (auto-updater)`);
