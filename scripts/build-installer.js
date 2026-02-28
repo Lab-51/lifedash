@@ -24,10 +24,16 @@ function findIscc() {
     // Not in PATH
   }
 
-  // 2. Try default Inno Setup 6 install location
-  const defaultPath = 'C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe';
-  if (fs.existsSync(defaultPath)) {
-    return defaultPath;
+  // 2. Try common install locations
+  const candidates = [
+    'C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe',
+    'C:\\Program Files\\Inno Setup 6\\ISCC.exe',
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Inno Setup 6', 'ISCC.exe'),
+  ];
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate)) {
+      return candidate;
+    }
   }
 
   return null;

@@ -9,6 +9,7 @@
 #define MyAppExeName "lifedash.exe"
 
 [Setup]
+SourceDir=..
 AppId={{570d3454-6859-4ff3-9f24-385a00bcc551}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -32,7 +33,7 @@ CloseApplications=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checked
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
 Source: "out\lifedash-win32-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
