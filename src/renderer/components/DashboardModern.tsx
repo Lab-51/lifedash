@@ -35,6 +35,8 @@ import remarkGfm from 'remark-gfm';
 import ProductivityPulse from './ProductivityPulse';
 import FocusStatsWidget from './FocusStatsWidget';
 import HudBackground from './HudBackground';
+import InsightsPanel from './insights/InsightsPanel';
+import { useBackgroundAgentStore } from '../stores/backgroundAgentStore';
 import { formatDate } from '../utils/date-utils';
 
 /** Return a time-based greeting string. */
@@ -141,6 +143,24 @@ export default function DashboardModern() {
     useEffect(() => {
         window.electronAPI.getActivityData().then(r => setActivityData(r.dayCounts));
     }, [allCards.length, meetings.length, ideas.length]);
+
+    // Load insights for the first active project and set up real-time refresh
+    useEffect(() => {
+        const firstProject = projects.find(p => !p.archived);
+        if (firstProject) {
+            useBackgroundAgentStore.getState().loadInsights(firstProject.id);
+            useBackgroundAgentStore.getState().loadPreferences();
+        }
+        // Listen for new insights events to refresh badge count
+        const cleanup = window.electronAPI.onBackgroundAgentNewInsights(() => {
+            useBackgroundAgentStore.getState().refreshNewCount();
+            const currentFirstProject = useBackgroundAgentStore.getState().insights[0]?.projectId;
+            if (currentFirstProject) {
+                useBackgroundAgentStore.getState().loadInsights(currentFirstProject);
+            }
+        });
+        return cleanup;
+    }, [projects]);
 
     return (
         <div ref={scrollContainerRef} className="relative h-full overflow-y-auto bg-surface-50/50 dark:bg-surface-950">
@@ -340,6 +360,11 @@ export default function DashboardModern() {
                                 <Zap size={26} strokeWidth={1.5} />
                             </div>
                         </div>
+                    </div>
+
+                    {/* AI Insights Panel */}
+                    <div className="col-span-12">
+                        <InsightsPanel />
                     </div>
 
                     {/* Left Col: Projects & Priority */}

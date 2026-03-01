@@ -25,6 +25,7 @@ import { gamificationBridge } from './domains/gamification';
 import { cardAgentBridge } from './domains/card-agent';
 import { projectAgentBridge } from './domains/project-agent';
 import { licenseBridge } from './domains/licenses';
+import { backgroundAgentBridge } from './domains/background-agent';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -48,4 +49,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...cardAgentBridge,
   ...projectAgentBridge,
   ...licenseBridge,
+  ...backgroundAgentBridge,
 });

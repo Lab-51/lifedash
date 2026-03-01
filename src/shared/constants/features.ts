@@ -9,6 +9,7 @@ export const PRO_FEATURES = {
   backupRestore: { key: 'backupRestore', label: 'Backup & Restore', description: 'Full database backup and restore' },
   dataExport: { key: 'dataExport', label: 'Data Export', description: 'Export all data as JSON/CSV' },
   projectAgent: { key: 'projectAgent', label: 'Project AI Agent', description: 'AI assistant with cross-board intelligence per project' },
+  backgroundAgent: { key: 'backgroundAgent', label: 'Background AI Agents', description: 'Autonomous AI agents that analyze your projects in the background' },
 } as const;
 
 export type ProFeatureKey = keyof typeof PRO_FEATURES;

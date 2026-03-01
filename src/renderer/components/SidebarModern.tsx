@@ -1,6 +1,7 @@
 // === FILE PURPOSE ===
 // Sidebar Modern — Primary navigation with HUD-styled unified teal glow.
 
+import { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard,
@@ -18,6 +19,7 @@ import {
 import dashIcon from '../assets/icon.svg';
 import { useTheme } from '../hooks/useTheme';
 import { useFocusStore } from '../stores/focusStore';
+import { useBackgroundAgentStore } from '../stores/backgroundAgentStore';
 
 import type { ThemeMode } from '../hooks/useTheme';
 import RecordingIndicator from './RecordingIndicator';
@@ -64,6 +66,12 @@ export default function SidebarModern() {
     const location = useLocation();
     const { themeMode, setTheme } = useTheme();
     const focusMode = useFocusStore(s => s.mode);
+    const newInsightsCount = useBackgroundAgentStore(s => s.newInsightsCount);
+    const refreshNewCount = useBackgroundAgentStore(s => s.refreshNewCount);
+
+    useEffect(() => {
+        refreshNewCount();
+    }, [refreshNewCount]);
 
     const cycleTheme = () => {
         const idx = THEME_CYCLE.indexOf(themeMode);
@@ -98,6 +106,11 @@ export default function SidebarModern() {
                                 }`}
                         >
                             <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className="transition-transform group-hover:scale-110" />
+
+                            {/* New insights badge dot — only on Home */}
+                            {isHome && newInsightsCount > 0 && (
+                                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[var(--color-accent)]" />
+                            )}
 
                             {/* Tooltip on hover */}
                             <span className="absolute left-full ml-4 px-2 py-1 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-xs rounded border border-surface-200 dark:border-transparent opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none shadow-lg translate-x-1 group-hover:translate-x-0">

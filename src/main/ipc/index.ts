@@ -26,6 +26,7 @@ import { registerGamificationHandlers } from './gamification';
 import { registerCardAgentHandlers } from './card-agent';
 import { registerProjectAgentHandlers } from './project-agent';
 import { registerLicenseHandlers } from './licenses';
+import { registerBackgroundAgentHandlers } from './background-agent';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -55,6 +56,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerCardAgentHandlers();
   registerProjectAgentHandlers();
   registerLicenseHandlers();
+  registerBackgroundAgentHandlers();
 
   // App-level: open URL in system browser (not Electron)
   ipcMain.handle('app:open-external', async (_event, url: string) => {

@@ -52,6 +52,7 @@ import type { GamificationStats, Achievement, XpEventType, XpDailyData } from '.
 import type { CardAgentMessage, AgentAction } from './card-agent';
 import type { ProjectAgentMessage, ProjectAgentAction } from './project-agent';
 import type { LicenseInfo } from './license';
+import type { AgentInsight, BackgroundAgentPreferences, InsightType, InsightStatus } from './background-agent';
 
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
@@ -337,6 +338,18 @@ export interface ElectronAPI {
   licenseDeactivate: () => Promise<LicenseInfo>;
   licenseGetInfo: () => Promise<LicenseInfo>;
   licenseIsFeatureEnabled: (feature: string) => Promise<boolean>;
+
+  // Background Agent
+  backgroundAgentGetPreferences: () => Promise<BackgroundAgentPreferences>;
+  backgroundAgentUpdatePreferences: (prefs: Partial<BackgroundAgentPreferences>) => Promise<void>;
+  backgroundAgentGetInsights: (projectId: string, options?: { status?: InsightStatus; type?: InsightType; limit?: number }) => Promise<AgentInsight[]>;
+  backgroundAgentGetNewCount: () => Promise<number>;
+  backgroundAgentMarkRead: (id: string) => Promise<void>;
+  backgroundAgentDismiss: (id: string) => Promise<void>;
+  backgroundAgentMarkActedOn: (id: string) => Promise<void>;
+  backgroundAgentRunNow: () => Promise<{ ran: boolean; reason: string }>;
+  backgroundAgentGetDailyUsage: () => Promise<{ date: string; tokensUsed: number }>;
+  onBackgroundAgentNewInsights: (callback: (data: { projectId: string; count: number }) => void) => () => void;
 
   // App-level
   openExternal: (url: string) => Promise<void>;

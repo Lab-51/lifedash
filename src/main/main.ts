@@ -20,6 +20,7 @@ import { runMigrations } from './db/migrate';
 import { initMain } from 'electron-audio-loopback';
 import { initAutoBackup, stopAutoBackup } from './services/autoBackupScheduler';
 import { initNotificationScheduler, stopNotificationScheduler } from './services/notificationScheduler';
+import { initBackgroundAgentScheduler, stopBackgroundAgentScheduler } from './services/backgroundAgentScheduler';
 import { createLogger } from './services/logger';
 import { getIsRecording, setIsRecording } from './services/recordingState';
 import { applyGlobalProxy } from './services/proxyService';
@@ -132,6 +133,9 @@ const createWindow = async () => {
 
     // Start notification scheduler (after DB is ready)
     initNotificationScheduler();
+
+    // Start background agent scheduler (after DB is ready, lower priority than notifications)
+    initBackgroundAgentScheduler(mainWindow);
   } catch (error) {
     log.error('DB connection failed:', error);
   }
@@ -200,6 +204,7 @@ app.on('before-quit', async () => {
   globalShortcut.unregisterAll();
   stopAutoBackup();
   stopNotificationScheduler();
+  stopBackgroundAgentScheduler();
   await disconnectDatabase();
 });
 

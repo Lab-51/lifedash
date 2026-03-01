@@ -24,6 +24,7 @@ import AudioDeviceSection from '../components/settings/AudioDeviceSection';
 import RecordingsSavePathSection from '../components/settings/RecordingsSavePathSection';
 import ProxySettingsSection from '../components/settings/ProxySettingsSection';
 import LicenseSection from '../components/settings/LicenseSection';
+import BackgroundAgentSettings from '../components/settings/BackgroundAgentSettings';
 import HudBackground from './HudBackground';
 
 export default function SettingsPageModern() {
@@ -282,6 +283,9 @@ export default function SettingsPageModern() {
                                 </div>
                                 <UsageSummary />
                             </section>
+
+                            {/* Background Agents */}
+                            <BackgroundAgentSettings />
                         </div>
                     )}
 

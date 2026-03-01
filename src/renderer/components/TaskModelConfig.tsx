@@ -19,6 +19,8 @@ const TASK_TYPE_INFO: { type: AITaskType; label: string; description: string }[]
   { type: 'standup', label: 'Daily Standup', description: 'Auto-generated standup reports' },
   { type: 'card-description', label: 'Card Description', description: 'AI-generated card descriptions' },
   { type: 'task_structuring', label: 'Task Structuring', description: 'AI project planning and breakdown' },
+  { type: 'background_agent', label: 'Background Agent', description: 'Autonomous stale card detection and project insights' },
+  { type: 'project_agent', label: 'Project Agent', description: 'AI agent for cross-board project analysis' },
 ];
 
 // Known models per provider (v1 — hardcoded, expandable later)
