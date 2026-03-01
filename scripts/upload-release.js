@@ -1,7 +1,7 @@
 // === FILE PURPOSE ===
 // Upload LifeDash release artifacts to GitHub Releases as a draft.
 // Uploads two artifacts:
-//   1. LifeDash-{version}.zip — primary download (no SmartScreen)
+//   1. LifeDash-{version}.7z — primary download (7z avoids MOTW, no SmartScreen)
 //   2. LifeDash-{version}-Setup.exe — used by the in-app auto-updater
 // Uses the gh CLI (GitHub CLI) — requires GITHUB_TOKEN env var.
 // Usage: node scripts/upload-release.js
@@ -47,12 +47,12 @@ const version = pkg.version;
 const tag = `v${version}`;
 const repo = 'Lab-51/lifedash';
 
-const zipFile = path.join(ROOT, 'out', 'make', `LifeDash-${version}.zip`);
+const archiveFile = path.join(ROOT, 'out', 'make', `LifeDash-${version}.7z`);
 const installerFile = path.join(ROOT, 'out', 'make', `LifeDash-${version}-Setup.exe`);
 
 // Verify artifacts exist
-if (!fs.existsSync(zipFile)) {
-  console.error(`ERROR: ZIP not found: ${zipFile}`);
+if (!fs.existsSync(archiveFile)) {
+  console.error(`ERROR: Archive not found: ${archiveFile}`);
   console.error('Run "npm run make:dist" first.');
   process.exit(1);
 }
@@ -71,7 +71,7 @@ if (!process.env.GITHUB_TOKEN) {
 
 console.log(`Uploading LifeDash ${tag} to GitHub Releases (draft)...`);
 console.log(`  Repo: ${repo}`);
-console.log(`  ZIP:     ${zipFile}`);
+console.log(`  Archive:   ${archiveFile}`);
 console.log(`  Installer: ${installerFile}`);
 
 // Create a draft release (fails gracefully if tag already exists)
@@ -88,7 +88,7 @@ try {
 // Upload both artifacts
 try {
   execSync(
-    `${gh} release upload ${tag} "${zipFile}" "${installerFile}" --repo ${repo} --clobber`,
+    `${gh} release upload ${tag} "${archiveFile}" "${installerFile}" --repo ${repo} --clobber`,
     { stdio: 'inherit', cwd: ROOT }
   );
 } catch (err) {
@@ -98,5 +98,5 @@ try {
 
 console.log(`\nDraft release URL: https://github.com/${repo}/releases/tag/${tag}`);
 console.log('Artifacts uploaded:');
-console.log(`  - LifeDash-${version}.zip (primary download)`);
+console.log(`  - LifeDash-${version}.7z (primary download)`);
 console.log(`  - LifeDash-${version}-Setup.exe (auto-updater)`);
