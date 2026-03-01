@@ -69,9 +69,12 @@ export default function InsightCard({ insight }: InsightCardProps) {
       className={`hud-panel clip-corner-cut-sm overflow-hidden border ${severityBorderClass(insight.severity)} ${severityBgClass(insight.severity)} transition-all duration-200`}
     >
       {/* Header — always visible */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={handleExpand}
-        className="w-full text-left p-4 flex items-start gap-3 hover:bg-white/5 transition-colors"
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpand(); } }}
+        className="w-full text-left p-4 flex items-start gap-3 hover:bg-white/5 transition-colors cursor-pointer"
       >
         <SeverityIcon severity={insight.severity} />
 
@@ -117,7 +120,7 @@ export default function InsightCard({ insight }: InsightCardProps) {
             <ChevronDown size={14} />
           </div>
         </div>
-      </button>
+      </div>
 
       {/* Expanded content */}
       {expanded && (
