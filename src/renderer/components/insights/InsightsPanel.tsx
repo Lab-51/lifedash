@@ -1,14 +1,16 @@
 // === FILE PURPOSE ===
 // InsightsPanel — dashboard panel showing AI background agent insights.
+// Collapses when not Pro or disabled; expands to show UpgradePrompt or insights.
 // Includes filter tabs (All / New / Warning+Critical), empty state, loading skeleton,
-// and a "Run Now" button. Wraps all content in a Pro gate.
+// and a "Run Now" button.
 
 import { useState } from 'react';
-import { Bot, RefreshCw, Loader2, Settings } from 'lucide-react';
+import { Bot, RefreshCw, Loader2, Settings, Lock, ChevronDown, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBackgroundAgentStore } from '../../stores/backgroundAgentStore';
+import { useProFeature } from '../../hooks/useProFeature';
 import InsightCard from './InsightCard';
-import ProGate from '../ProGate';
+import UpgradePrompt from '../UpgradePrompt';
 import type { AgentInsight } from '../../../shared/types/background-agent';
 import { toast } from '../../hooks/useToast';
 
@@ -48,12 +50,17 @@ export default function InsightsPanel() {
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [running, setRunning] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
+  const { enabled: isPro, info } = useProFeature('backgroundAgent');
   const insights = useBackgroundAgentStore(s => s.insights);
   const loading = useBackgroundAgentStore(s => s.loading);
   const preferences = useBackgroundAgentStore(s => s.preferences);
   const runNow = useBackgroundAgentStore(s => s.runNow);
   const loadInsights = useBackgroundAgentStore(s => s.loadInsights);
+
+  const isDisabled = isPro && preferences !== null && !preferences.enabled;
+  const isCollapsed = !isPro || isDisabled;
 
   const handleRunNow = async () => {
     setRunning(true);
@@ -61,7 +68,6 @@ export default function InsightsPanel() {
       const result = await runNow();
       if (result.ran) {
         toast('Background agent ran successfully', 'success');
-        // Refresh insights for current project if we have them
         const currentInsights = useBackgroundAgentStore.getState().insights;
         if (currentInsights.length > 0) {
           await loadInsights(currentInsights[0].projectId);
@@ -98,65 +104,81 @@ export default function InsightsPanel() {
   return (
     <div className="hud-panel clip-corner-cut-sm overflow-hidden">
       {/* Panel header */}
-      <div className="p-5 flex items-center justify-between border-b border-[var(--color-border)]">
+      <div
+        className={`p-5 flex items-center justify-between${!isCollapsed || expanded ? ' border-b border-[var(--color-border)]' : ''}`}
+        {...(isCollapsed ? {
+          onClick: () => !isPro ? setExpanded(!expanded) : navigate('/settings'),
+          role: 'button',
+          tabIndex: 0,
+          style: { cursor: 'pointer' },
+        } : {})}
+      >
         <div className="flex items-center gap-3">
           <Bot size={16} className="text-[var(--color-accent)]" />
           <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">AI INSIGHTS</span>
           <div className="h-px w-16 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
         </div>
-        <button
-          onClick={handleRunNow}
-          disabled={running}
-          title="Run background agent now"
-          className="flex items-center gap-1.5 text-xs border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 transition-all clip-corner-cut-sm disabled:opacity-50 disabled:cursor-wait"
-        >
-          {running ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <RefreshCw size={12} />
-          )}
-          {running ? 'Running...' : 'Run Now'}
-        </button>
-      </div>
 
-      {/* Pro gate wraps the body */}
-      <ProGate feature="backgroundAgent">
-        <div className="p-5">
-          {/* Loading state before preferences are fetched */}
-          {preferences === null && loading && (
-            <LoadingSkeleton />
-          )}
-
-          {/* Not yet loaded preferences — show nothing */}
-          {preferences === null && !loading && (
-            <div className="text-center py-8 text-[var(--color-text-muted)] text-sm">
-              <Bot size={28} className="mx-auto mb-2 opacity-30" />
-              <p>Loading agent preferences...</p>
-            </div>
-          )}
-
-          {/* Feature not enabled */}
-          {preferences !== null && !preferences.enabled && (
-            <div className="text-center py-8">
-              <Bot size={28} className="mx-auto mb-3 text-[var(--color-text-muted)] opacity-50" />
-              <p className="text-sm font-medium text-[var(--color-text-secondary)] mb-1">Background agents are disabled</p>
-              <p className="text-xs text-[var(--color-text-muted)] mb-4 max-w-xs mx-auto">
-                Background agents periodically analyze your projects and surface insights like stale cards, risks, and suggestions.
-              </p>
+        {isCollapsed ? (
+          <div className="flex items-center gap-2.5">
+            {!isPro ? (
+              <>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-text-muted)]">Pro Feature</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+                  className="flex items-center gap-1.5 text-xs border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 transition-all clip-corner-cut-sm"
+                >
+                  <Lock size={12} />
+                  Unlock
+                </button>
+                {expanded
+                  ? <ChevronDown size={14} className="text-[var(--color-text-muted)]" />
+                  : <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
+                }
+              </>
+            ) : (
               <button
-                onClick={() => navigate('/settings')}
-                className="flex items-center gap-1.5 text-xs border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 mx-auto transition-all clip-corner-cut-sm"
+                onClick={(e) => { e.stopPropagation(); navigate('/settings'); }}
+                className="flex items-center gap-1.5 text-xs border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 transition-all clip-corner-cut-sm"
               >
                 <Settings size={12} />
                 Enable in Settings
               </button>
-            </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={handleRunNow}
+            disabled={running}
+            title="Run background agent now"
+            className="flex items-center gap-1.5 text-xs border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 transition-all clip-corner-cut-sm disabled:opacity-50 disabled:cursor-wait"
+          >
+            {running ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <RefreshCw size={12} />
+            )}
+            {running ? 'Running...' : 'Run Now'}
+          </button>
+        )}
+      </div>
+
+      {/* Not Pro — expandable upgrade prompt */}
+      {!isPro && expanded && (
+        <UpgradePrompt feature="backgroundAgent" info={info} />
+      )}
+
+      {/* Pro + enabled — full insights body */}
+      {isPro && preferences !== null && preferences.enabled && (
+        <div className="p-5">
+          {/* Loading state */}
+          {loading && insights.length === 0 && (
+            <LoadingSkeleton />
           )}
 
-          {/* Enabled — show insights */}
-          {preferences !== null && preferences.enabled && (
+          {/* Filter tabs */}
+          {!loading && (
             <>
-              {/* Filter tabs */}
               <div className="flex items-center gap-1 mb-4">
                 {FILTER_TABS.map(tab => (
                   <button
@@ -179,9 +201,7 @@ export default function InsightsPanel() {
               </div>
 
               {/* Insights list */}
-              {loading ? (
-                <LoadingSkeleton />
-              ) : filteredInsights.length === 0 ? (
+              {filteredInsights.length === 0 ? (
                 <div className="text-center py-8 text-[var(--color-text-muted)]">
                   <Bot size={28} className="mx-auto mb-2 opacity-30" />
                   <p className="text-sm">
@@ -200,7 +220,7 @@ export default function InsightsPanel() {
             </>
           )}
         </div>
-      </ProGate>
+      )}
     </div>
   );
 }
