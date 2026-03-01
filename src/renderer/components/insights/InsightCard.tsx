@@ -2,9 +2,11 @@
 // InsightCard — displays a single AgentInsight with severity icon, title,
 // summary, timestamp, and actions (Dismiss, View Cards).
 // Expands on click to show full details; auto-marks as read when expanded.
+// Related cards are clickable and navigate to the project board with the card open.
 
 import { useState } from 'react';
-import { AlertTriangle, AlertCircle, Info, ChevronDown, X, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, AlertCircle, Info, ChevronDown, X, ArrowRight, Clock, LayoutGrid, ArrowUpRight } from 'lucide-react';
 import type { AgentInsight, InsightSeverity } from '../../../shared/types/background-agent';
 import { useBackgroundAgentStore } from '../../stores/backgroundAgentStore';
 import { formatRelativeTime } from '../../utils/date-utils';
@@ -13,43 +15,56 @@ interface InsightCardProps {
   insight: AgentInsight;
 }
 
+interface StaleCardDetail {
+  id: string;
+  title: string;
+  column: string;
+  daysSinceUpdate: number;
+  priority?: string;
+}
+
+const PRIORITY_STYLES: Record<string, { color: string; bg: string; border: string; bar: string }> = {
+  low: { color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800', bar: 'bg-emerald-500' },
+  medium: { color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800', bar: 'bg-blue-500' },
+  high: { color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', bar: 'bg-amber-500' },
+  urgent: { color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800', bar: 'bg-red-500' },
+};
+
 function SeverityIcon({ severity }: { severity: InsightSeverity }) {
   if (severity === 'critical') {
-    return <AlertCircle size={16} className="text-red-400 shrink-0" />;
+    return <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />;
   }
   if (severity === 'warning') {
-    return <AlertTriangle size={16} className="text-amber-400 shrink-0" />;
+    return <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />;
   }
-  return <Info size={16} className="text-[var(--color-accent)] shrink-0" />;
+  return <Info size={16} className="text-[var(--color-accent)] shrink-0 mt-0.5" />;
 }
 
-function severityBorderClass(severity: InsightSeverity): string {
-  if (severity === 'critical') return 'border-red-500/40';
-  if (severity === 'warning') return 'border-amber-500/40';
-  return 'border-[var(--color-border)]';
-}
-
-function severityBgClass(severity: InsightSeverity): string {
-  if (severity === 'critical') return 'bg-red-500/5';
-  if (severity === 'warning') return 'bg-amber-500/5';
-  return '';
-}
-
-function statusBadgeClass(status: AgentInsight['status']): string {
-  if (status === 'new') return 'bg-[var(--color-accent-subtle)] text-[var(--color-accent)] border border-[var(--color-border-accent)]';
-  if (status === 'acted_on') return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-  return 'bg-[var(--color-accent-subtle)] text-[var(--color-text-muted)] border border-[var(--color-border)]';
+function severityAccent(severity: InsightSeverity) {
+  if (severity === 'critical') return { border: 'border-red-500/30', bg: 'bg-red-500/5', glow: 'shadow-red-500/5', indicator: 'bg-red-400' };
+  if (severity === 'warning') return { border: 'border-amber-500/30', bg: 'bg-amber-500/5', glow: 'shadow-amber-500/5', indicator: 'bg-amber-400' };
+  return { border: 'border-[var(--color-border)]', bg: '', glow: '', indicator: 'bg-[var(--color-accent)]' };
 }
 
 export default function InsightCard({ insight }: InsightCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const navigate = useNavigate();
   const markAsRead = useBackgroundAgentStore(s => s.markAsRead);
+  const markActedOn = useBackgroundAgentStore(s => s.markActedOn);
   const dismissInsight = useBackgroundAgentStore(s => s.dismissInsight);
+
+  const accent = severityAccent(insight.severity);
+
+  // Extract card details from the insight's details field (stale_cards type stores these)
+  const staleCards: StaleCardDetail[] =
+    (insight.details as { staleCards?: StaleCardDetail[] } | null)?.staleCards ?? [];
+
+  // Build a lookup of cardId → card info for richer display
+  const cardInfoMap = new Map(staleCards.map(c => [c.id, c]));
 
   const handleExpand = () => {
     const next = !expanded;
     setExpanded(next);
-    // Auto-mark as read when expanded for the first time
     if (next && insight.status === 'new') {
       markAsRead(insight.id);
     }
@@ -60,56 +75,79 @@ export default function InsightCard({ insight }: InsightCardProps) {
     dismissInsight(insight.id);
   };
 
+  const handleNavigateToCard = (cardId: string) => {
+    markActedOn(insight.id);
+    navigate(`/projects/${insight.projectId}?openCard=${cardId}`);
+  };
+
+  const handleViewCards = () => {
+    markActedOn(insight.id);
+    if (insight.relatedCardIds.length === 1) {
+      navigate(`/projects/${insight.projectId}?openCard=${insight.relatedCardIds[0]}`);
+    } else {
+      navigate(`/projects/${insight.projectId}`);
+    }
+  };
+
   const createdAt = insight.createdAt instanceof Date
     ? insight.createdAt.toISOString()
     : String(insight.createdAt);
 
+  const isNew = insight.status === 'new';
+
   return (
     <div
-      className={`hud-panel clip-corner-cut-sm overflow-hidden border ${severityBorderClass(insight.severity)} ${severityBgClass(insight.severity)} transition-all duration-200`}
+      className={`group relative overflow-hidden rounded-lg border ${accent.border} ${accent.bg} transition-all duration-200 hover:shadow-lg ${accent.glow}`}
     >
+      {/* New indicator bar */}
+      {isNew && (
+        <div className={`absolute top-0 left-0 w-0.5 h-full ${accent.indicator}`} />
+      )}
+
       {/* Header — always visible */}
       <div
         role="button"
         tabIndex={0}
         onClick={handleExpand}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpand(); } }}
-        className="w-full text-left p-4 flex items-start gap-3 hover:bg-white/5 transition-colors cursor-pointer"
+        className="w-full text-left p-4 flex items-start gap-3 hover:bg-white/[0.03] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
       >
         <SeverityIcon severity={insight.severity} />
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="font-hud text-sm text-[var(--color-text-primary)]">{insight.title}</span>
-            {insight.status === 'new' && (
-              <span className={`font-data text-[10px] px-1.5 py-0.5 rounded ${statusBadgeClass('new')}`}>
-                NEW
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-[var(--color-text-primary)] leading-snug">{insight.title}</span>
+            {isNew && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-accent-subtle)] text-[var(--color-accent)] border border-[var(--color-border-accent)] uppercase tracking-wider">
+                New
               </span>
             )}
             {insight.status === 'acted_on' && (
-              <span className={`font-data text-[10px] px-1.5 py-0.5 rounded ${statusBadgeClass('acted_on')}`}>
-                ACTED
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
+                Acted
               </span>
             )}
           </div>
-          <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">{insight.summary}</p>
+          <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2 mt-1 leading-relaxed">{insight.summary}</p>
           <div className="flex items-center gap-3 mt-2">
-            <span className="font-data text-[10px] text-[var(--color-text-muted)]">
+            <span className="inline-flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
+              <Clock size={10} className="opacity-60" />
               {formatRelativeTime(createdAt)}
             </span>
             {insight.relatedCardIds.length > 0 && (
-              <span className="font-data text-[10px] text-[var(--color-accent-dim)]">
-                {insight.relatedCardIds.length} related card{insight.relatedCardIds.length !== 1 ? 's' : ''}
+              <span className="inline-flex items-center gap-1 text-[11px] text-[var(--color-accent-dim)]">
+                <LayoutGrid size={10} className="opacity-60" />
+                {insight.relatedCardIds.length} card{insight.relatedCardIds.length !== 1 ? 's' : ''}
               </span>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
           <button
             onClick={handleDismiss}
             title="Dismiss"
-            className="p-1.5 rounded hover:bg-red-500/20 text-[var(--color-text-muted)] hover:text-red-400 transition-colors"
+            className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-[var(--color-text-muted)] hover:text-red-400 transition-all"
           >
             <X size={13} />
           </button>
@@ -124,50 +162,100 @@ export default function InsightCard({ insight }: InsightCardProps) {
 
       {/* Expanded content */}
       {expanded && (
-        <div className="px-4 pb-4 pt-0 border-t border-[var(--color-border)] space-y-3">
-          {/* Full summary */}
-          <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed pt-3">
-            {insight.summary}
-          </p>
-
-          {/* Related card IDs */}
+        <div className="border-t border-[var(--color-border)]">
+          {/* Related cards — styled like mini KanbanCards */}
           {insight.relatedCardIds.length > 0 && (
-            <div>
-              <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">
+            <div className="px-4 pt-3 pb-2">
+              <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-text-muted)] mb-2.5">
                 Related Cards
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {insight.relatedCardIds.map(cardId => (
-                  <span
-                    key={cardId}
-                    className="font-data text-[10px] px-2 py-0.5 rounded bg-[var(--color-accent-subtle)] text-[var(--color-accent-dim)] border border-[var(--color-border-accent)]"
-                  >
-                    {cardId.slice(0, 8)}...
-                  </span>
-                ))}
+              <div className="grid grid-cols-3 gap-2">
+                {insight.relatedCardIds.map(cardId => {
+                  const info = cardInfoMap.get(cardId);
+                  const pStyle = PRIORITY_STYLES[info?.priority ?? 'medium'] ?? PRIORITY_STYLES.medium;
+                  return (
+                    <div
+                      key={cardId}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleNavigateToCard(cardId)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavigateToCard(cardId); } }}
+                      className="group/card relative hud-panel clip-corner-cut-sm p-3.5 cursor-pointer
+                        hover:border-[var(--color-accent-dim)] hover:shadow-[0_0_8px_rgba(62,232,228,0.1)]
+                        transition-all"
+                    >
+                      {/* Top gradient border on hover */}
+                      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--color-accent)] to-transparent opacity-0 group-hover/card:opacity-60 transition-opacity duration-700" />
+
+                      {/* Left priority indicator bar — matches KanbanCardModern */}
+                      <div className={`absolute top-3 bottom-3 left-0 w-1 rounded-r-full ${pStyle.bar}`} />
+
+                      <div className="pl-2.5">
+                        {/* Card title */}
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <h4 className="text-sm font-medium leading-snug text-surface-900 dark:text-surface-100 line-clamp-2 flex-1 min-w-0">
+                            {info?.title ?? `Card ${cardId.slice(0, 8)}...`}
+                          </h4>
+                          <ArrowUpRight size={13} className="text-[var(--color-accent-dim)] shrink-0 mt-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity" />
+                        </div>
+
+                        {/* Footer badges — identical style to KanbanCardModern */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Priority badge */}
+                          {info?.priority && (
+                            <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md ${pStyle.bg} ${pStyle.color} border ${pStyle.border}`}>
+                              {info.priority}
+                            </span>
+                          )}
+                          {/* Column badge */}
+                          {info?.column && (
+                            <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                              {info.column}
+                            </span>
+                          )}
+                          {/* Inactivity badge */}
+                          {info?.daysSinceUpdate !== undefined && (
+                            <span className={`flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md border ${
+                              info.daysSinceUpdate >= 30
+                                ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                                : info.daysSinceUpdate >= 14
+                                  ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                                  : 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+                            }`}>
+                              <Clock size={10} />
+                              {info.daysSinceUpdate}d inactive
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {/* Actions row */}
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 px-4 py-3 border-t border-[var(--color-border)]">
             <button
               onClick={handleDismiss}
-              className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-red-400 border border-[var(--color-border)] hover:border-red-500/40 px-3 py-1.5 transition-all"
+              className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-red-400
+                border border-[var(--color-border)] hover:border-red-500/40
+                px-3 py-1.5 clip-corner-cut-sm transition-all"
             >
               <X size={12} />
               Dismiss
             </button>
             {insight.relatedCardIds.length > 0 && (
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Future: navigate to project board filtered to these cards
-                }}
-                className="flex items-center gap-1.5 text-xs text-[var(--color-accent)] border border-[var(--color-border-accent)] hover:border-[var(--color-accent)] px-3 py-1.5 transition-all"
+                onClick={handleViewCards}
+                className="flex items-center gap-1.5 text-xs text-[var(--color-accent)]
+                  border border-[var(--color-border-accent)] hover:border-[var(--color-accent)]
+                  hover:shadow-[0_0_12px_var(--color-chrome-glow)]
+                  px-3 py-1.5 clip-corner-cut-sm transition-all"
               >
-                <ExternalLink size={12} />
-                View Cards
+                <ArrowRight size={12} />
+                {insight.relatedCardIds.length === 1 ? 'Open Card' : 'View Project'}
               </button>
             )}
           </div>

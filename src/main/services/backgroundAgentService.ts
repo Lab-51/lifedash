@@ -475,6 +475,7 @@ export async function analyzeStaleCards(projectId: string): Promise<AgentInsight
           title: c.title,
           column: c.column,
           daysSinceUpdate: c.daysSinceUpdate,
+          priority: c.priority,
         })),
       },
       relatedCardIds: staleCardDetails.map((c) => c.id),
