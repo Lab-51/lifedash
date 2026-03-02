@@ -124,14 +124,14 @@ export default function InsightsPanel() {
 
   const filteredInsights = sortInsights(
     insights.filter(insight => {
-      if (insight.status === 'dismissed') return false;
+      if (insight.status === 'dismissed' || insight.status === 'acted_on') return false;
       if (activeFilter === 'new') return insight.status === 'new';
       if (activeFilter === 'urgent') return insight.severity === 'warning' || insight.severity === 'critical';
       return true;
     }),
   );
 
-  const activeInsights = insights.filter(i => i.status !== 'dismissed');
+  const activeInsights = insights.filter(i => i.status !== 'dismissed' && i.status !== 'acted_on');
   const newCount = activeInsights.filter(i => i.status === 'new').length;
   const urgentCount = activeInsights.filter(i =>
     i.severity === 'warning' || i.severity === 'critical',
@@ -244,34 +244,40 @@ export default function InsightsPanel() {
       )}
 
       {/* Project scope picker — inline collapsible row below header */}
-      {isPro && preferences?.enabled && panelOpen && scopeOpen && activeProjects.length > 1 && (
-        <div className="px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-accent-subtle)]/30">
-          <div className="flex items-center flex-wrap gap-1.5">
-            {activeProjects.map(project => {
-              const isSelected = analyzedIds.length === 0 || analyzedIds.includes(project.id);
-              return (
-                <button
-                  key={project.id}
-                  onClick={() => handleProjectToggle(project.id, !isSelected)}
-                  className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${
-                    isSelected
-                      ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10'
-                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent-dim)] hover:text-[var(--color-text-secondary)]'
-                  }`}
-                >
-                  {isSelected && <Check size={10} className="shrink-0" />}
-                  <span className="truncate max-w-[120px]">{project.name}</span>
-                </button>
-              );
-            })}
-            {analyzedIds.length > 0 && (
-              <button
-                onClick={() => updatePreferences({ analyzedProjectIds: [] })}
-                className="text-[11px] text-[var(--color-accent-dim)] hover:text-[var(--color-accent)] px-2 py-1 transition-colors"
-              >
-                Select all
-              </button>
-            )}
+      {isPro && preferences?.enabled && panelOpen && activeProjects.length > 1 && (
+        <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+          scopeOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        }`}>
+          <div className="overflow-hidden min-h-0">
+            <div className={`px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-accent-subtle)]/30`}>
+              <div className="flex items-center flex-wrap gap-1.5">
+                {activeProjects.map(project => {
+                  const isSelected = analyzedIds.length === 0 || analyzedIds.includes(project.id);
+                  return (
+                    <button
+                      key={project.id}
+                      onClick={() => handleProjectToggle(project.id, !isSelected)}
+                      className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${
+                        isSelected
+                          ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10'
+                          : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent-dim)] hover:text-[var(--color-text-secondary)]'
+                      }`}
+                    >
+                      {isSelected && <Check size={10} className="shrink-0" />}
+                      <span className="truncate max-w-[120px]">{project.name}</span>
+                    </button>
+                  );
+                })}
+                {analyzedIds.length > 0 && (
+                  <button
+                    onClick={() => updatePreferences({ analyzedProjectIds: [] })}
+                    className="text-[11px] text-[var(--color-accent-dim)] hover:text-[var(--color-accent)] px-2 py-1 transition-colors"
+                  >
+                    Select all
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -331,13 +337,22 @@ export default function InsightsPanel() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {filteredInsights.map(insight => (
-                    <InsightCard
-                      key={insight.id}
-                      insight={insight}
-                      projectName={projectNameMap.get(insight.projectId)}
-                    />
-                  ))}
+                  {filteredInsights.map(insight => {
+                    // For consolidated insights, show "across N projects" instead of a single project name
+                    const detailProjects = (insight.details as { projects?: Record<string, string> } | null)?.projects;
+                    const projectCount = detailProjects ? Object.keys(detailProjects).length : 0;
+                    const displayName = projectCount > 1
+                      ? `across ${projectCount} projects`
+                      : projectNameMap.get(insight.projectId);
+
+                    return (
+                      <InsightCard
+                        key={insight.id}
+                        insight={insight}
+                        projectName={displayName}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </>

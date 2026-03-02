@@ -20,10 +20,9 @@ import { isFeatureEnabled } from './licensingService';
 import {
   getPreferences,
   isBudgetExhausted,
-  analyzeStaleCards,
+  analyzeStaleCardsConsolidated,
   cleanupOldInsights,
 } from './backgroundAgentService';
-import type { InsightType } from '../../shared/types/background-agent';
 
 const log = createLogger('BackgroundAgentScheduler');
 
@@ -146,49 +145,33 @@ export async function checkAndRunInsights(): Promise<void> {
       return;
     }
 
-    // 5. Run enabled insight types for each project
-    let totalInsightsCreated = 0;
-
-    const insightRunners: Record<InsightType, (projectId: string) => Promise<boolean>> = {
-      stale_cards: async (projectId: string) => {
-        const insight = await analyzeStaleCards(projectId);
-        return insight !== null;
-      },
-      // Future insight types — not yet implemented
-      risk_detection: async () => false,
-      relationship_suggestions: async () => false,
-      weekly_digest: async () => false,
-    };
-
-    for (const project of projectsToAnalyze) {
-      for (const insightType of prefs.enabledInsightTypes) {
-        try {
-          // Re-check budget before each analysis (AI calls consume tokens)
-          const stillHasBudget = !(await isBudgetExhausted());
-          if (!stillHasBudget) {
-            log.info('Budget exhausted mid-run — stopping');
-            break;
-          }
-
-          const runner = insightRunners[insightType];
-          if (runner) {
-            const created = await runner(project.id);
-            if (created) {
-              totalInsightsCreated++;
-            }
-          }
-        } catch (err) {
-          log.error(`Insight ${insightType} failed for project ${project.name}:`, err);
-          // Continue with next insight type / project
-        }
-      }
-    }
-
-    // 6. Clean up old dismissed insights
+    // 5. Clean up old dismissed insights first (ensures stale duplicates are gone)
     try {
       await cleanupOldInsights();
     } catch (err) {
       log.error('Cleanup of old insights failed:', err);
+    }
+
+    // 6. Run enabled insight types (consolidated across all projects)
+    let totalInsightsCreated = 0;
+
+    for (const insightType of prefs.enabledInsightTypes) {
+      try {
+        // Re-check budget before each analysis (AI calls consume tokens)
+        const stillHasBudget = !(await isBudgetExhausted());
+        if (!stillHasBudget) {
+          log.info('Budget exhausted mid-run — stopping');
+          break;
+        }
+
+        if (insightType === 'stale_cards') {
+          const insight = await analyzeStaleCardsConsolidated(projectsToAnalyze);
+          if (insight) totalInsightsCreated++;
+        }
+        // Future insight types: risk_detection, relationship_suggestions, weekly_digest
+      } catch (err) {
+        log.error(`Insight ${insightType} failed:`, err);
+      }
     }
 
     // 7. Notify renderer of new insights

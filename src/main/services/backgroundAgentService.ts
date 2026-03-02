@@ -286,30 +286,32 @@ export async function createInsight(data: CreateInsightData): Promise<AgentInsig
 
 /**
  * Check if an active (non-dismissed, non-acted_on) insight of the given type
- * already exists for this project. Used for deduplication.
+ * already exists. When projectId is provided, scopes to that project;
+ * when omitted, checks globally across all projects. Used for deduplication.
  */
 export async function hasActiveInsight(
-  projectId: string,
   type: InsightType,
+  projectId?: string,
 ): Promise<boolean> {
   const db = getDb();
+  const conditions = [
+    eq(agentInsights.type, type),
+    ne(agentInsights.status, 'dismissed'),
+    ne(agentInsights.status, 'acted_on'),
+  ];
+  if (projectId) {
+    conditions.push(eq(agentInsights.projectId, projectId));
+  }
   const result = await db
     .select({ count: count() })
     .from(agentInsights)
-    .where(
-      and(
-        eq(agentInsights.projectId, projectId),
-        eq(agentInsights.type, type),
-        ne(agentInsights.status, 'dismissed'),
-        ne(agentInsights.status, 'acted_on'),
-      ),
-    );
+    .where(and(...conditions));
   return (result[0]?.count ?? 0) > 0;
 }
 
 /**
  * Get insights across multiple projects (or all projects if no IDs specified).
- * Excludes dismissed insights. Ordered by createdAt descending.
+ * Excludes dismissed and acted_on insights. Ordered by createdAt descending.
  */
 export async function getAllProjectInsights(
   projectIds?: string[],
@@ -317,7 +319,10 @@ export async function getAllProjectInsights(
 ): Promise<AgentInsight[]> {
   const db = getDb();
 
-  const conditions = [ne(agentInsights.status, 'dismissed')];
+  const conditions = [
+    ne(agentInsights.status, 'dismissed'),
+    ne(agentInsights.status, 'acted_on'),
+  ];
   if (projectIds && projectIds.length > 0) {
     conditions.push(inArray(agentInsights.projectId, projectIds));
   }
@@ -333,10 +338,16 @@ export async function getAllProjectInsights(
 }
 
 /**
- * Delete dismissed insights older than 30 days to keep the table small.
+ * Clean up old insights:
+ * 1. Delete dismissed insights older than 30 days
+ * 2. Deduplicate: when multiple active insights of the same type exist
+ *    (e.g. leftover per-project insights from before consolidation),
+ *    dismiss all but the newest one.
  */
 export async function cleanupOldInsights(): Promise<void> {
   const db = getDb();
+
+  // 1. Delete old dismissed insights
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 30);
 
@@ -348,135 +359,226 @@ export async function cleanupOldInsights(): Promise<void> {
         lt(agentInsights.createdAt, cutoff),
       ),
     );
+
+  // 2. Deduplicate visible insights of the same type — keep only the newest
+  //    Includes acted_on so old insights don't linger in the panel
+  const activeRows = await db
+    .select()
+    .from(agentInsights)
+    .where(ne(agentInsights.status, 'dismissed'))
+    .orderBy(desc(agentInsights.createdAt));
+
+  const seenTypes = new Set<string>();
+  const toDismiss: string[] = [];
+
+  for (const row of activeRows) {
+    if (seenTypes.has(row.type)) {
+      toDismiss.push(row.id);
+    } else {
+      seenTypes.add(row.type);
+    }
+  }
+
+  if (toDismiss.length > 0) {
+    await db
+      .update(agentInsights)
+      .set({ status: 'dismissed', dismissedAt: new Date() })
+      .where(inArray(agentInsights.id, toDismiss));
+
+    log.info(`Deduplicated ${toDismiss.length} older insight(s)`);
+  }
 }
 
 // ============================================================================
-// Stale Card Analysis
+// Stale Card Analysis (consolidated across projects)
 // ============================================================================
 
 /** Names that indicate a "done" column — cards here are not stale. */
 const DONE_COLUMN_NAMES = ['done', 'completed', 'archive'];
 
+interface ProjectRef {
+  id: string;
+  name: string;
+}
+
 /**
- * Analyze stale cards for a project and create an insight if any are found.
- * Returns the created insight, or null if no stale cards exist.
+ * Analyze stale cards across ALL specified projects and create a single
+ * consolidated insight. Each stale card detail carries its projectId +
+ * projectName so the renderer can navigate per-card.
  *
- * Query strategy (PGlite cannot join same table twice):
- * 1. Get boards for the project
- * 2. Get columns for those boards
- * 3. Get stale cards in those columns
- * 4. Filter out cards in "Done"/"Completed"/"Archive" columns (JS-side)
+ * Returns the created insight, or null if no stale cards exist.
  */
-export async function analyzeStaleCards(projectId: string): Promise<AgentInsight | null> {
+export async function analyzeStaleCardsConsolidated(
+  projectList: ProjectRef[],
+): Promise<AgentInsight | null> {
   try {
+    if (projectList.length === 0) return null;
+
     const db = getDb();
-    const prefs = await getPreferences();
-    const thresholdDays = prefs.staleCardThresholdDays;
 
-    // Step 1: Get all boards for the project
-    const projectBoards = await db
-      .select({ id: boards.id })
-      .from(boards)
-      .where(eq(boards.projectId, projectId));
+    // Check for ALL non-dismissed stale_cards insights (including acted_on)
+    const existingVisible = await db
+      .select()
+      .from(agentInsights)
+      .where(
+        and(
+          eq(agentInsights.type, 'stale_cards'),
+          ne(agentInsights.status, 'dismissed'),
+        ),
+      )
+      .orderBy(desc(agentInsights.createdAt));
 
-    if (projectBoards.length === 0) return null;
+    if (existingVisible.length > 0) {
+      // Check if the newest is already a consolidated insight (has details.projects)
+      const newest = existingVisible[0];
+      const newestDetails = newest.details as Record<string, unknown> | null;
+      const isConsolidated = newestDetails?.projects != null;
 
-    const boardIds = projectBoards.map((b) => b.id);
-
-    // Step 2: Get all columns for those boards (with name for filtering)
-    const projectColumns = await db
-      .select({ id: columns.id, name: columns.name })
-      .from(columns)
-      .where(inArray(columns.boardId, boardIds));
-
-    if (projectColumns.length === 0) return null;
-
-    // Build column lookup and filter out "done" columns
-    const columnMap = new Map<string, string>(); // id -> name
-    const activeColumnIds: string[] = [];
-    for (const col of projectColumns) {
-      columnMap.set(col.id, col.name);
-      if (!DONE_COLUMN_NAMES.includes(col.name.toLowerCase().trim())) {
-        activeColumnIds.push(col.id);
+      if (isConsolidated && existingVisible.length === 1) {
+        // Already have a single consolidated insight — skip
+        log.info('Skipping stale card analysis — consolidated insight already exists');
+        return null;
       }
+
+      // Old per-project insights or acted_on duplicates — dismiss them all
+      // so we can create a fresh consolidated one
+      const idsToDismiss = existingVisible.map((r) => r.id);
+      await db
+        .update(agentInsights)
+        .set({ status: 'dismissed', dismissedAt: new Date() })
+        .where(inArray(agentInsights.id, idsToDismiss));
+
+      log.info(`Dismissed ${idsToDismiss.length} old stale_cards insight(s) for consolidation`);
     }
 
-    if (activeColumnIds.length === 0) return null;
-
-    // Step 3: Get stale cards in active columns
+    const prefs = await getPreferences();
+    const thresholdDays = prefs.staleCardThresholdDays;
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - thresholdDays);
 
-    const staleCards = await db
-      .select({
-        id: cards.id,
-        title: cards.title,
-        columnId: cards.columnId,
-        priority: cards.priority,
-        updatedAt: cards.updatedAt,
-      })
-      .from(cards)
-      .where(
-        and(
-          inArray(cards.columnId, activeColumnIds),
-          eq(cards.archived, false),
-          eq(cards.completed, false),
-          lte(cards.updatedAt, cutoffDate),
-        ),
-      );
+    // Collect stale cards across all projects
+    const allStaleCards: {
+      id: string;
+      title: string;
+      column: string;
+      daysSinceUpdate: number;
+      priority: string;
+      projectId: string;
+      projectName: string;
+    }[] = [];
 
-    if (staleCards.length === 0) return null;
+    // Track per-project counts to determine anchor project
+    const projectCardCounts = new Map<string, number>();
 
-    // Step 3b: Deduplication — skip if an active insight of this type already exists
-    const alreadyExists = await hasActiveInsight(projectId, 'stale_cards');
-    if (alreadyExists) {
-      log.info(`Skipping stale card analysis for project ${projectId} — active insight already exists`);
-      return null;
+    for (const project of projectList) {
+      // Step 1: Get all boards for this project
+      const projectBoards = await db
+        .select({ id: boards.id })
+        .from(boards)
+        .where(eq(boards.projectId, project.id));
+
+      if (projectBoards.length === 0) continue;
+
+      const boardIds = projectBoards.map((b) => b.id);
+
+      // Step 2: Get all columns for those boards
+      const projectColumns = await db
+        .select({ id: columns.id, name: columns.name })
+        .from(columns)
+        .where(inArray(columns.boardId, boardIds));
+
+      if (projectColumns.length === 0) continue;
+
+      // Build column lookup and filter out "done" columns
+      const columnMap = new Map<string, string>();
+      const activeColumnIds: string[] = [];
+      for (const col of projectColumns) {
+        columnMap.set(col.id, col.name);
+        if (!DONE_COLUMN_NAMES.includes(col.name.toLowerCase().trim())) {
+          activeColumnIds.push(col.id);
+        }
+      }
+
+      if (activeColumnIds.length === 0) continue;
+
+      // Step 3: Get stale cards in active columns
+      const staleCards = await db
+        .select({
+          id: cards.id,
+          title: cards.title,
+          columnId: cards.columnId,
+          priority: cards.priority,
+          updatedAt: cards.updatedAt,
+        })
+        .from(cards)
+        .where(
+          and(
+            inArray(cards.columnId, activeColumnIds),
+            eq(cards.archived, false),
+            eq(cards.completed, false),
+            lte(cards.updatedAt, cutoffDate),
+          ),
+        );
+
+      if (staleCards.length === 0) continue;
+
+      projectCardCounts.set(project.id, staleCards.length);
+
+      for (const card of staleCards) {
+        const daysSinceUpdate = Math.floor(
+          (Date.now() - new Date(card.updatedAt).getTime()) / (1000 * 60 * 60 * 24),
+        );
+        allStaleCards.push({
+          id: card.id,
+          title: card.title,
+          column: columnMap.get(card.columnId) ?? 'Unknown',
+          daysSinceUpdate,
+          priority: card.priority,
+          projectId: project.id,
+          projectName: project.name,
+        });
+      }
     }
 
-    // Step 4: Build context for AI analysis
-    const [projectRow] = await db
-      .select({ name: projects.name })
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .limit(1);
+    if (allStaleCards.length === 0) return null;
 
-    const projectName = projectRow?.name ?? 'Unknown Project';
-
-    const staleCardDetails = staleCards.map((card) => {
-      const daysSinceUpdate = Math.floor(
-        (Date.now() - new Date(card.updatedAt).getTime()) / (1000 * 60 * 60 * 24),
-      );
-      return {
-        id: card.id,
-        title: card.title,
-        column: columnMap.get(card.columnId) ?? 'Unknown',
-        daysSinceUpdate,
-        priority: card.priority,
-      };
-    });
-
-    // Build distribution summary
-    const columnDistribution = new Map<string, number>();
-    for (const card of staleCardDetails) {
-      columnDistribution.set(card.column, (columnDistribution.get(card.column) ?? 0) + 1);
+    // Determine anchor project (the one with the most stale cards)
+    let anchorProjectId = projectList[0].id;
+    let maxCount = 0;
+    for (const [pid, cnt] of projectCardCounts) {
+      if (cnt > maxCount) {
+        maxCount = cnt;
+        anchorProjectId = pid;
+      }
     }
 
+    // Build projects lookup map for the insight details
+    const projectsMap: Record<string, string> = {};
+    for (const card of allStaleCards) {
+      projectsMap[card.projectId] = card.projectName;
+    }
+
+    // Build AI context covering all projects
     const contextLines = [
-      `Project: ${projectName}`,
-      `Stale cards (not updated in ${thresholdDays}+ days):`,
+      `Stale cards across ${Object.keys(projectsMap).length} project(s) (not updated in ${thresholdDays}+ days):`,
       '',
-      ...staleCardDetails.map(
-        (c) => `- "${c.title}" (column: ${c.column}, ${c.daysSinceUpdate} days stale, priority: ${c.priority})`,
-      ),
-      '',
-      'Distribution by column:',
-      ...[...columnDistribution.entries()].map(([col, n]) => `- ${col}: ${n} card(s)`),
     ];
+    // Group by project for context
+    for (const [pid, pName] of Object.entries(projectsMap)) {
+      const pCards = allStaleCards.filter((c) => c.projectId === pid);
+      contextLines.push(`## ${pName} (${pCards.length} card${pCards.length !== 1 ? 's' : ''}):`);
+      for (const c of pCards) {
+        contextLines.push(
+          `- "${c.title}" (column: ${c.column}, ${c.daysSinceUpdate} days stale, priority: ${c.priority})`,
+        );
+      }
+      contextLines.push('');
+    }
+
     const contextString = contextLines.join('\n');
 
-    // Step 5: Try AI analysis
-    const staleCount = staleCards.length;
+    // AI analysis
+    const staleCount = allStaleCards.length;
     let summary: string;
     let tokenCost = 0;
 
@@ -490,7 +592,7 @@ export async function analyzeStaleCards(projectId: string): Promise<AgentInsight
         ...resolved,
         taskType: 'background_agent',
         system:
-          'You are a project management assistant analyzing stale cards. Provide a brief analysis of why these cards might be stuck, and suggest 1-2 actionable next steps. Be concise (2-3 sentences max).',
+          'You are a project management assistant analyzing stale cards across multiple projects. Provide a brief analysis of why these cards might be stuck, and suggest 1-2 actionable next steps. Be concise (2-3 sentences max).',
         prompt: contextString,
         maxTokens: 300,
       });
@@ -498,17 +600,15 @@ export async function analyzeStaleCards(projectId: string): Promise<AgentInsight
       summary = result.text || 'Analysis could not be generated.';
       tokenCost = result.usage?.totalTokens ?? 0;
 
-      // Track token usage in daily budget
       if (tokenCost > 0) {
         await addTokenUsage(tokenCost);
       }
     } catch (aiErr) {
-      // AI failed — create basic insight without AI analysis
       log.error('AI analysis failed for stale cards, using fallback:', aiErr);
       summary = "These cards may need attention as they haven't been updated recently.";
     }
 
-    // Step 6: Determine severity
+    // Determine severity based on total count
     let severity: InsightSeverity;
     if (staleCount >= 6) {
       severity = 'critical';
@@ -518,32 +618,36 @@ export async function analyzeStaleCards(projectId: string): Promise<AgentInsight
       severity = 'info';
     }
 
-    // Step 7: Create insight
+    // Create single consolidated insight
     const insight = await createInsight({
-      projectId,
+      projectId: anchorProjectId,
       type: 'stale_cards',
       severity,
-      title: `${staleCount} card${staleCount > 1 ? 's' : ''} haven't been updated in ${thresholdDays}+ days`,
+      title: `${staleCount} card${staleCount !== 1 ? 's' : ''} haven't been updated in ${thresholdDays}+ days`,
       summary,
       details: {
-        staleCards: staleCardDetails.map((c) => ({
+        staleCards: allStaleCards.map((c) => ({
           id: c.id,
           title: c.title,
           column: c.column,
           daysSinceUpdate: c.daysSinceUpdate,
           priority: c.priority,
+          projectId: c.projectId,
+          projectName: c.projectName,
         })),
+        projects: projectsMap,
       },
-      relatedCardIds: staleCardDetails.map((c) => c.id),
+      relatedCardIds: allStaleCards.map((c) => c.id),
       tokenCost,
     });
 
+    const projectNames = Object.values(projectsMap).join(', ');
     log.info(
-      `Stale card insight created for "${projectName}": ${staleCount} card(s), severity=${severity}`,
+      `Consolidated stale card insight created: ${staleCount} card(s) across [${projectNames}], severity=${severity}`,
     );
     return insight;
   } catch (err) {
-    log.error('analyzeStaleCards failed:', err);
+    log.error('analyzeStaleCardsConsolidated failed:', err);
     return null;
   }
 }

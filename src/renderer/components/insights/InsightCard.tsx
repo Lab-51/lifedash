@@ -4,7 +4,7 @@
 // Expands on click to show full details; auto-marks as read when expanded.
 // Related cards are clickable and navigate to the project board with the card open.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, AlertCircle, Info, ChevronDown, X, ArrowRight, Clock, LayoutGrid, ArrowUpRight } from 'lucide-react';
 import type { AgentInsight, InsightSeverity } from '../../../shared/types/background-agent';
@@ -22,6 +22,8 @@ interface StaleCardDetail {
   column: string;
   daysSinceUpdate: number;
   priority?: string;
+  projectId?: string;
+  projectName?: string;
 }
 
 const PRIORITY_STYLES: Record<string, { color: string; bg: string; border: string; bar: string }> = {
@@ -78,16 +80,86 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
 
   const handleNavigateToCard = (cardId: string) => {
     markActedOn(insight.id);
-    navigate(`/projects/${insight.projectId}?openCard=${cardId}`);
+    const card = cardInfoMap.get(cardId);
+    const pid = card?.projectId ?? insight.projectId;
+    navigate(`/projects/${pid}?openCard=${cardId}`);
   };
+
+  // Extract unique project IDs from stale card details
+  const uniqueProjects = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const card of staleCards) {
+      if (card.projectId && card.projectName) {
+        seen.set(card.projectId, card.projectName);
+      }
+    }
+    return seen;
+  }, [staleCards]);
+
+  const isMultiProject = uniqueProjects.size > 1;
 
   const handleViewCards = () => {
     markActedOn(insight.id);
     if (insight.relatedCardIds.length === 1) {
-      navigate(`/projects/${insight.projectId}?openCard=${insight.relatedCardIds[0]}`);
+      const card = cardInfoMap.get(insight.relatedCardIds[0]);
+      const pid = card?.projectId ?? insight.projectId;
+      navigate(`/projects/${pid}?openCard=${insight.relatedCardIds[0]}`);
+    } else if (isMultiProject) {
+      navigate('/');
     } else {
       navigate(`/projects/${insight.projectId}`);
     }
+  };
+
+  const renderCardTile = (cardId: string, info: StaleCardDetail | undefined) => {
+    const pStyle = PRIORITY_STYLES[info?.priority ?? 'medium'] ?? PRIORITY_STYLES.medium;
+    return (
+      <div
+        key={cardId}
+        role="button"
+        tabIndex={0}
+        onClick={() => handleNavigateToCard(cardId)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavigateToCard(cardId); } }}
+        className="group/card relative hud-panel clip-corner-cut-sm p-3.5 cursor-pointer
+          hover:border-[var(--color-accent-dim)] hover:shadow-[0_0_8px_rgba(62,232,228,0.1)]
+          transition-all"
+      >
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--color-accent)] to-transparent opacity-0 group-hover/card:opacity-60 transition-opacity duration-700" />
+        <div className={`absolute top-3 bottom-3 left-0 w-1 rounded-r-full ${pStyle.bar}`} />
+        <div className="pl-2.5">
+          <div className="flex items-start justify-between gap-2 mb-1.5">
+            <h4 className="text-sm font-medium leading-snug text-surface-900 dark:text-surface-100 line-clamp-2 flex-1 min-w-0">
+              {info?.title ?? `Card ${cardId.slice(0, 8)}...`}
+            </h4>
+            <ArrowUpRight size={13} className="text-[var(--color-accent-dim)] shrink-0 mt-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity" />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {info?.priority && (
+              <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md ${pStyle.bg} ${pStyle.color} border ${pStyle.border}`}>
+                {info.priority}
+              </span>
+            )}
+            {info?.column && (
+              <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                {info.column}
+              </span>
+            )}
+            {info?.daysSinceUpdate !== undefined && (
+              <span className={`flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md border ${
+                info.daysSinceUpdate >= 30
+                  ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                  : info.daysSinceUpdate >= 14
+                    ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                    : 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+              }`}>
+                <Clock size={10} />
+                {info.daysSinceUpdate}d inactive
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const createdAt = insight.createdAt instanceof Date
@@ -121,11 +193,6 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
             {isNew && (
               <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-accent-subtle)] text-[var(--color-accent)] border border-[var(--color-border-accent)] uppercase tracking-wider">
                 New
-              </span>
-            )}
-            {insight.status === 'acted_on' && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
-                Acted
               </span>
             )}
           </div>
@@ -169,75 +236,34 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
       {/* Expanded content */}
       {expanded && (
         <div className="border-t border-[var(--color-border)]">
-          {/* Related cards — styled like mini KanbanCards */}
+          {/* Related cards — grouped by project when multi-project */}
           {insight.relatedCardIds.length > 0 && (
             <div className="px-4 pt-3 pb-2">
               <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-text-muted)] mb-2.5">
                 Related Cards
               </p>
-              <div className="grid grid-cols-3 gap-2">
-                {insight.relatedCardIds.map(cardId => {
-                  const info = cardInfoMap.get(cardId);
-                  const pStyle = PRIORITY_STYLES[info?.priority ?? 'medium'] ?? PRIORITY_STYLES.medium;
+              {isMultiProject ? (
+                // Group cards by project
+                [...uniqueProjects.entries()].map(([pid, pName]) => {
+                  const projectCards = staleCards.filter(c => c.projectId === pid);
+                  if (projectCards.length === 0) return null;
                   return (
-                    <div
-                      key={cardId}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => handleNavigateToCard(cardId)}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavigateToCard(cardId); } }}
-                      className="group/card relative hud-panel clip-corner-cut-sm p-3.5 cursor-pointer
-                        hover:border-[var(--color-accent-dim)] hover:shadow-[0_0_8px_rgba(62,232,228,0.1)]
-                        transition-all"
-                    >
-                      {/* Top gradient border on hover */}
-                      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--color-accent)] to-transparent opacity-0 group-hover/card:opacity-60 transition-opacity duration-700" />
-
-                      {/* Left priority indicator bar — matches KanbanCardModern */}
-                      <div className={`absolute top-3 bottom-3 left-0 w-1 rounded-r-full ${pStyle.bar}`} />
-
-                      <div className="pl-2.5">
-                        {/* Card title */}
-                        <div className="flex items-start justify-between gap-2 mb-1.5">
-                          <h4 className="text-sm font-medium leading-snug text-surface-900 dark:text-surface-100 line-clamp-2 flex-1 min-w-0">
-                            {info?.title ?? `Card ${cardId.slice(0, 8)}...`}
-                          </h4>
-                          <ArrowUpRight size={13} className="text-[var(--color-accent-dim)] shrink-0 mt-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity" />
-                        </div>
-
-                        {/* Footer badges — identical style to KanbanCardModern */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {/* Priority badge */}
-                          {info?.priority && (
-                            <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md ${pStyle.bg} ${pStyle.color} border ${pStyle.border}`}>
-                              {info.priority}
-                            </span>
-                          )}
-                          {/* Column badge */}
-                          {info?.column && (
-                            <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                              {info.column}
-                            </span>
-                          )}
-                          {/* Inactivity badge */}
-                          {info?.daysSinceUpdate !== undefined && (
-                            <span className={`flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md border ${
-                              info.daysSinceUpdate >= 30
-                                ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                                : info.daysSinceUpdate >= 14
-                                  ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
-                                  : 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
-                            }`}>
-                              <Clock size={10} />
-                              {info.daysSinceUpdate}d inactive
-                            </span>
-                          )}
-                        </div>
+                    <div key={pid} className="mb-3 last:mb-0">
+                      <p className="text-[11px] font-medium text-[var(--color-text-secondary)] mb-1.5 pl-0.5">
+                        {pName}
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {projectCards.map(card => renderCardTile(card.id, cardInfoMap.get(card.id)))}
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                })
+              ) : (
+                // Single project — flat grid, no subheader
+                <div className="grid grid-cols-3 gap-2">
+                  {insight.relatedCardIds.map(cardId => renderCardTile(cardId, cardInfoMap.get(cardId)))}
+                </div>
+              )}
             </div>
           )}
 
@@ -261,7 +287,7 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
                   px-3 py-1.5 clip-corner-cut-sm transition-all"
               >
                 <ArrowRight size={12} />
-                {insight.relatedCardIds.length === 1 ? 'Open Card' : 'View Project'}
+                {insight.relatedCardIds.length === 1 ? 'Open Card' : isMultiProject ? 'View Dashboard' : 'View Project'}
               </button>
             )}
           </div>
