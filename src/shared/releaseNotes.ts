@@ -26,21 +26,16 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 }
 
 export const releaseNotes: ReleaseNotesData = {
-  version: '2.0.13',
+  version: '2.0.14',
   sections: [
     {
       category: 'new',
       label: "What's New",
       items: [
-        '"What\'s New" modal after app updates — shows patch notes and version number',
-        'Three visual tiers: bug fix updates, feature releases, and major versions',
-      ],
-    },
-    {
-      category: 'fixes',
-      label: 'Fixes',
-      items: [
-        'What\'s New modal now correctly appears for existing users after updating',
+        'Redesigned AI setup wizard — guided flow helps new users get started with AI in under 2 minutes',
+        'New "Help me get one" tutorial walks through getting an OpenAI or Anthropic API key step by step',
+        'Cloud AI providers (OpenAI, Anthropic) now recommended for best results',
+        'Ollama repositioned as a free, privacy-focused option for advanced users',
       ],
     },
   ],
