@@ -201,7 +201,7 @@ export default function InsightsPanel() {
             {/* Project scope toggle */}
             {activeProjects.length > 1 && (
               <button
-                onClick={(e) => { e.stopPropagation(); setScopeOpen(prev => !prev); }}
+                onClick={(e) => { e.stopPropagation(); setScopeOpen(prev => !prev); if (!panelOpen) setPanelOpen(true); }}
                 title="Select projects to analyze"
                 className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 transition-all clip-corner-cut-sm max-w-[160px] border ${
                   scopeOpen

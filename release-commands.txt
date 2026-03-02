@@ -1,0 +1,10 @@
+  - "release a patch" — bug fix release
+  - "release a minor update" — feature release
+  - "ship a new version" — Claude Code will ask you the bump type
+  
+  
+    1. npm version patch/minor/major
+  2. Push to both remotes with tags
+  3. npm run publish (builds + uploads as draft)
+  4. Go to https://github.com/Lab-51/lifedash/releases — find the Draft at the top (not the tag entry), edit
+  notes, publish it
