@@ -35,6 +35,9 @@ import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import ToastContainer from './components/ToastContainer';
 import AchievementBanner from './components/AchievementBanner';
 import SetupWizard from './components/SetupWizard';
+import WhatsNewModal from './components/WhatsNewModal';
+import { releaseNotes, getReleaseType } from '../shared/releaseNotes';
+import type { ReleaseType, ReleaseNoteSection } from '../shared/releaseNotes';
 import { toast } from './hooks/useToast';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -59,6 +62,11 @@ function AppShell({ children }: { children: ReactNode }) {
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [appReady, setAppReady] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [whatsNew, setWhatsNew] = useState<{
+    version: string;
+    releaseType: ReleaseType;
+    sections: ReleaseNoteSection[];
+  } | null>(null);
   const showStartModal = useFocusStore(s => s.showStartModal);
   const focusMode = useFocusStore(s => s.mode);
 
@@ -144,6 +152,36 @@ function AppShell({ children }: { children: ReactNode }) {
     checkWizard();
   }, [appReady]);
 
+  // Show "What's New" modal after an update (version changed since last launch)
+  useEffect(() => {
+    if (!appReady) return;
+    async function checkWhatsNew() {
+      const settingsStore = useSettingsStore.getState();
+      // Settings may already be loaded by the wizard check — safe to re-call
+      await settingsStore.loadSettings();
+      const settings = useSettingsStore.getState().settings;
+      const lastSeen = settings['app.lastSeenVersion'];
+      const currentVersion = window.electronAPI?.appVersion;
+      if (!currentVersion) return;
+
+      if (!lastSeen) {
+        // First install — seed the setting, don't show modal
+        await settingsStore.setSetting('app.lastSeenVersion', currentVersion);
+      } else if (lastSeen !== currentVersion && releaseNotes.version === currentVersion) {
+        // Version changed and we have matching notes — show modal
+        setWhatsNew({
+          version: currentVersion,
+          releaseType: getReleaseType(lastSeen, currentVersion),
+          sections: releaseNotes.sections,
+        });
+      } else if (lastSeen !== currentVersion) {
+        // Version changed but no matching notes (edge case) — silently update
+        await settingsStore.setSetting('app.lastSeenVersion', currentVersion);
+      }
+    }
+    checkWhatsNew();
+  }, [appReady]);
+
   // Dismiss the splash screen once the app is ready
   useEffect(() => {
     if (!appReady) return;
@@ -197,6 +235,17 @@ function AppShell({ children }: { children: ReactNode }) {
       </Suspense>
       {showWizard && (
         <SetupWizard onClose={() => setShowWizard(false)} />
+      )}
+      {whatsNew && (
+        <WhatsNewModal
+          version={whatsNew.version}
+          releaseType={whatsNew.releaseType}
+          sections={whatsNew.sections}
+          onDismiss={async () => {
+            setWhatsNew(null);
+            await useSettingsStore.getState().setSetting('app.lastSeenVersion', whatsNew.version);
+          }}
+        />
       )}
       {appReady && children}
     </>
