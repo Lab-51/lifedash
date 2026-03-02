@@ -343,6 +343,7 @@ export interface ElectronAPI {
   backgroundAgentGetPreferences: () => Promise<BackgroundAgentPreferences>;
   backgroundAgentUpdatePreferences: (prefs: Partial<BackgroundAgentPreferences>) => Promise<void>;
   backgroundAgentGetInsights: (projectId: string, options?: { status?: InsightStatus; type?: InsightType; limit?: number }) => Promise<AgentInsight[]>;
+  backgroundAgentGetAllInsights: (projectIds?: string[], limit?: number) => Promise<AgentInsight[]>;
   backgroundAgentGetNewCount: () => Promise<number>;
   backgroundAgentMarkRead: (id: string) => Promise<void>;
   backgroundAgentDismiss: (id: string) => Promise<void>;

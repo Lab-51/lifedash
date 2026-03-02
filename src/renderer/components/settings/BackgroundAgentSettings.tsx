@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Bot, Loader2, RefreshCw } from 'lucide-react';
 import { useBackgroundAgentStore } from '../../stores/backgroundAgentStore';
+import { useProjectStore } from '../../stores/projectStore';
 import ProGate from '../ProGate';
 import HudSelect from '../HudSelect';
 import type { InsightType } from '../../../shared/types/background-agent';
@@ -33,6 +34,9 @@ export default function BackgroundAgentSettings() {
   const loadDailyUsage = useBackgroundAgentStore(s => s.loadDailyUsage);
   const updatePreferences = useBackgroundAgentStore(s => s.updatePreferences);
   const runNow = useBackgroundAgentStore(s => s.runNow);
+
+  const projects = useProjectStore(s => s.projects);
+  const activeProjects = projects.filter(p => !p.archived);
 
   const [loadingPrefs, setLoadingPrefs] = useState(true);
   const [running, setRunning] = useState(false);
@@ -69,6 +73,20 @@ export default function BackgroundAgentSettings() {
     } else {
       // Revert invalid input
       setBudgetInput(String(preferences?.dailyTokenBudget ?? 50000));
+    }
+  };
+
+  const handleProjectToggle = async (projectId: string, checked: boolean) => {
+    if (!preferences) return;
+    const current = preferences.analyzedProjectIds;
+    const updated = checked
+      ? [...current, projectId]
+      : current.filter(id => id !== projectId);
+    // If user unchecks the last project, reset to "all projects" mode
+    if (updated.length === 0) {
+      await updatePreferences({ analyzedProjectIds: [] });
+    } else {
+      await updatePreferences({ analyzedProjectIds: updated });
     }
   };
 
@@ -226,6 +244,56 @@ export default function BackgroundAgentSettings() {
                     </label>
                   </div>
                 </div>
+
+                {/* Projects to analyze */}
+                {activeProjects.length > 0 && (
+                  <div>
+                    <p className="text-sm text-[var(--color-text-secondary)] mb-1">Projects to Analyze</p>
+                    <p className="text-xs text-[var(--color-text-muted)] mb-3">
+                      {preferences.analyzedProjectIds.length === 0
+                        ? 'All projects are analyzed. Select specific projects to narrow the scope.'
+                        : `${preferences.analyzedProjectIds.length} of ${activeProjects.length} project${activeProjects.length !== 1 ? 's' : ''} selected.`}
+                    </p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {activeProjects.map(project => {
+                        const isSelected = preferences.analyzedProjectIds.length === 0 ||
+                          preferences.analyzedProjectIds.includes(project.id);
+                        return (
+                          <label key={project.id} className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={e => {
+                                if (preferences.analyzedProjectIds.length === 0) {
+                                  // Switching from "all" to "specific" — select all except this one if unchecking
+                                  if (!e.target.checked) {
+                                    const allExceptThis = activeProjects
+                                      .filter(p => p.id !== project.id)
+                                      .map(p => p.id);
+                                    updatePreferences({ analyzedProjectIds: allExceptThis });
+                                  }
+                                  // If checking while all are selected, no-op
+                                } else {
+                                  handleProjectToggle(project.id, e.target.checked);
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
+                            />
+                            <span className="text-sm text-[var(--color-text-secondary)] truncate">{project.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {preferences.analyzedProjectIds.length > 0 && (
+                      <button
+                        onClick={() => updatePreferences({ analyzedProjectIds: [] })}
+                        className="mt-2 text-xs text-[var(--color-accent-dim)] hover:text-[var(--color-accent)] transition-colors"
+                      >
+                        Reset to all projects
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* Stale card threshold */}
                 {preferences.enabledInsightTypes.includes('stale_cards') && (

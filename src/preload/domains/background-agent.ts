@@ -15,6 +15,12 @@ export const backgroundAgentBridge = {
   ): Promise<AgentInsight[]> =>
     ipcRenderer.invoke('background-agent:get-insights', projectId, options),
 
+  backgroundAgentGetAllInsights: (
+    projectIds?: string[],
+    limit?: number,
+  ): Promise<AgentInsight[]> =>
+    ipcRenderer.invoke('background-agent:get-all-insights', projectIds, limit),
+
   backgroundAgentGetNewCount: (): Promise<number> =>
     ipcRenderer.invoke('background-agent:get-new-count'),
 

@@ -20,6 +20,7 @@ const backgroundAgentPreferencesUpdateSchema = z.object({
     .array(z.enum(['stale_cards', 'risk_detection', 'relationship_suggestions', 'weekly_digest']))
     .optional(),
   staleCardThresholdDays: z.number().int().min(1).optional(),
+  analyzedProjectIds: z.array(z.string().uuid()).optional(),
 });
 
 export function registerBackgroundAgentHandlers(): void {
@@ -53,6 +54,26 @@ export function registerBackgroundAgentHandlers(): void {
         options ?? undefined,
       );
       return backgroundAgentService.getInsights(validProjectId, validOptions ?? {});
+    },
+  );
+
+  // --- Get insights across all analyzed projects ---
+  ipcMain.handle(
+    'background-agent:get-all-insights',
+    async (_event, projectIds: unknown, limit: unknown) => {
+      await requireProFeature('backgroundAgent');
+      const validProjectIds = validateInput(
+        z.array(z.string().uuid()).optional(),
+        projectIds ?? undefined,
+      );
+      const validLimit = validateInput(
+        z.number().int().min(1).max(200).optional(),
+        limit ?? undefined,
+      );
+      return backgroundAgentService.getAllProjectInsights(
+        validProjectIds ?? undefined,
+        validLimit ?? 50,
+      );
     },
   );
 

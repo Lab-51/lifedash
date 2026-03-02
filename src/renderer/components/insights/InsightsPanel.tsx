@@ -4,10 +4,11 @@
 // Includes filter tabs (All / New / Warning+Critical), empty state, loading skeleton,
 // and a "Run Now" button.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Bot, RefreshCw, Loader2, Settings, Lock, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBackgroundAgentStore } from '../../stores/backgroundAgentStore';
+import { useProjectStore } from '../../stores/projectStore';
 import { useProFeature } from '../../hooks/useProFeature';
 import InsightCard from './InsightCard';
 import UpgradePrompt from '../UpgradePrompt';
@@ -58,7 +59,14 @@ export default function InsightsPanel() {
   const loading = useBackgroundAgentStore(s => s.loading);
   const preferences = useBackgroundAgentStore(s => s.preferences);
   const runNow = useBackgroundAgentStore(s => s.runNow);
-  const loadInsights = useBackgroundAgentStore(s => s.loadInsights);
+  const loadAllInsights = useBackgroundAgentStore(s => s.loadAllInsights);
+  const projects = useProjectStore(s => s.projects);
+
+  // Build projectId → name lookup
+  const projectNameMap = useMemo(
+    () => new Map(projects.map(p => [p.id, p.name])),
+    [projects],
+  );
 
   const isDisabled = isPro && preferences !== null && !preferences.enabled;
   const isCollapsed = !isPro || isDisabled;
@@ -69,10 +77,11 @@ export default function InsightsPanel() {
       const result = await runNow();
       if (result.ran) {
         toast('Background agent ran successfully', 'success');
-        const currentInsights = useBackgroundAgentStore.getState().insights;
-        if (currentInsights.length > 0) {
-          await loadInsights(currentInsights[0].projectId);
-        }
+        const prefs = useBackgroundAgentStore.getState().preferences;
+        const projectIds = prefs?.analyzedProjectIds?.length
+          ? prefs.analyzedProjectIds
+          : undefined;
+        await loadAllInsights(projectIds);
       } else {
         toast(result.reason || 'Agent did not run', 'error');
       }
@@ -241,7 +250,11 @@ export default function InsightsPanel() {
               ) : (
                 <div className="space-y-2">
                   {filteredInsights.map(insight => (
-                    <InsightCard key={insight.id} insight={insight} />
+                    <InsightCard
+                      key={insight.id}
+                      insight={insight}
+                      projectName={projectNameMap.get(insight.projectId)}
+                    />
                   ))}
                 </div>
               )}

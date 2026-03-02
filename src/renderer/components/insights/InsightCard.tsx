@@ -13,6 +13,7 @@ import { formatRelativeTime } from '../../utils/date-utils';
 
 interface InsightCardProps {
   insight: AgentInsight;
+  projectName?: string;
 }
 
 interface StaleCardDetail {
@@ -46,7 +47,7 @@ function severityAccent(severity: InsightSeverity) {
   return { border: 'border-[var(--color-border)]', bg: '', glow: '', indicator: 'bg-[var(--color-accent)]' };
 }
 
-export default function InsightCard({ insight }: InsightCardProps) {
+export default function InsightCard({ insight, projectName }: InsightCardProps) {
   const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
   const markAsRead = useBackgroundAgentStore(s => s.markAsRead);
@@ -134,6 +135,11 @@ export default function InsightCard({ insight }: InsightCardProps) {
               <Clock size={10} className="opacity-60" />
               {formatRelativeTime(createdAt)}
             </span>
+            {projectName && (
+              <span className="text-[11px] text-[var(--color-accent-dim)] truncate max-w-[150px]" title={projectName}>
+                {projectName}
+              </span>
+            )}
             {insight.relatedCardIds.length > 0 && (
               <span className="inline-flex items-center gap-1 text-[11px] text-[var(--color-accent-dim)]">
                 <LayoutGrid size={10} className="opacity-60" />

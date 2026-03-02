@@ -30,4 +30,6 @@ export interface BackgroundAgentPreferences {
   dailyTokenBudget: number;
   enabledInsightTypes: InsightType[];
   staleCardThresholdDays: number;
+  /** Project IDs to analyze. Empty array = all non-archived projects. */
+  analyzedProjectIds: string[];
 }

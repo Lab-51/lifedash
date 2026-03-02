@@ -14,13 +14,14 @@
 import { BrowserWindow } from 'electron';
 import { getDb } from '../db/connection';
 import { projects } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { createLogger } from './logger';
 import { isFeatureEnabled } from './licensingService';
 import {
   getPreferences,
   isBudgetExhausted,
   analyzeStaleCards,
+  cleanupOldInsights,
 } from './backgroundAgentService';
 import type { InsightType } from '../../shared/types/background-agent';
 
@@ -117,15 +118,31 @@ export async function checkAndRunInsights(): Promise<void> {
       return;
     }
 
-    // 4. Get all non-archived projects
+    // 4. Get projects to analyze (filtered by preference or all non-archived)
     const db = getDb();
-    const allProjects = await db
-      .select({ id: projects.id, name: projects.name })
-      .from(projects)
-      .where(eq(projects.archived, false));
+    let projectsToAnalyze: { id: string; name: string }[];
 
-    if (allProjects.length === 0) {
-      log.info('No active projects — skipping');
+    if (prefs.analyzedProjectIds.length > 0) {
+      // Only analyze selected projects
+      projectsToAnalyze = await db
+        .select({ id: projects.id, name: projects.name })
+        .from(projects)
+        .where(
+          and(
+            inArray(projects.id, prefs.analyzedProjectIds),
+            eq(projects.archived, false),
+          ),
+        );
+    } else {
+      // Analyze all non-archived projects
+      projectsToAnalyze = await db
+        .select({ id: projects.id, name: projects.name })
+        .from(projects)
+        .where(eq(projects.archived, false));
+    }
+
+    if (projectsToAnalyze.length === 0) {
+      log.info('No projects to analyze — skipping');
       return;
     }
 
@@ -143,7 +160,7 @@ export async function checkAndRunInsights(): Promise<void> {
       weekly_digest: async () => false,
     };
 
-    for (const project of allProjects) {
+    for (const project of projectsToAnalyze) {
       for (const insightType of prefs.enabledInsightTypes) {
         try {
           // Re-check budget before each analysis (AI calls consume tokens)
@@ -167,7 +184,14 @@ export async function checkAndRunInsights(): Promise<void> {
       }
     }
 
-    // 6. Notify renderer of new insights
+    // 6. Clean up old dismissed insights
+    try {
+      await cleanupOldInsights();
+    } catch (err) {
+      log.error('Cleanup of old insights failed:', err);
+    }
+
+    // 7. Notify renderer of new insights
     if (totalInsightsCreated > 0 && mainWindowRef && !mainWindowRef.isDestroyed()) {
       mainWindowRef.webContents.send('background-agent:new-insights', {
         count: totalInsightsCreated,

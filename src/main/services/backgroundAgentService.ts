@@ -5,7 +5,7 @@
 
 import { getDb } from '../db/connection';
 import { settings, agentInsights, boards, columns, cards, projects } from '../db/schema';
-import { eq, and, desc, count, lt, lte, inArray } from 'drizzle-orm';
+import { eq, and, desc, count, lt, lte, inArray, ne } from 'drizzle-orm';
 import { createLogger } from './logger';
 import { generate, resolveTaskModel } from './ai-provider';
 import type { BackgroundAgentPreferences, AgentInsight, InsightType, InsightSeverity, InsightStatus } from '../../shared/types/background-agent';
@@ -24,6 +24,7 @@ const DEFAULT_PREFERENCES: BackgroundAgentPreferences = {
   dailyTokenBudget: 50000,
   enabledInsightTypes: ['stale_cards'],
   staleCardThresholdDays: 7,
+  analyzedProjectIds: [],
 };
 
 /**
@@ -284,6 +285,54 @@ export async function createInsight(data: CreateInsightData): Promise<AgentInsig
 }
 
 /**
+ * Check if an active (non-dismissed, non-acted_on) insight of the given type
+ * already exists for this project. Used for deduplication.
+ */
+export async function hasActiveInsight(
+  projectId: string,
+  type: InsightType,
+): Promise<boolean> {
+  const db = getDb();
+  const result = await db
+    .select({ count: count() })
+    .from(agentInsights)
+    .where(
+      and(
+        eq(agentInsights.projectId, projectId),
+        eq(agentInsights.type, type),
+        ne(agentInsights.status, 'dismissed'),
+        ne(agentInsights.status, 'acted_on'),
+      ),
+    );
+  return (result[0]?.count ?? 0) > 0;
+}
+
+/**
+ * Get insights across multiple projects (or all projects if no IDs specified).
+ * Excludes dismissed insights. Ordered by createdAt descending.
+ */
+export async function getAllProjectInsights(
+  projectIds?: string[],
+  limit = 50,
+): Promise<AgentInsight[]> {
+  const db = getDb();
+
+  const conditions = [ne(agentInsights.status, 'dismissed')];
+  if (projectIds && projectIds.length > 0) {
+    conditions.push(inArray(agentInsights.projectId, projectIds));
+  }
+
+  const rows = await db
+    .select()
+    .from(agentInsights)
+    .where(and(...conditions))
+    .orderBy(desc(agentInsights.createdAt))
+    .limit(limit);
+
+  return rows.map(rowToInsight);
+}
+
+/**
  * Delete dismissed insights older than 30 days to keep the table small.
  */
 export async function cleanupOldInsights(): Promise<void> {
@@ -377,6 +426,13 @@ export async function analyzeStaleCards(projectId: string): Promise<AgentInsight
       );
 
     if (staleCards.length === 0) return null;
+
+    // Step 3b: Deduplication — skip if an active insight of this type already exists
+    const alreadyExists = await hasActiveInsight(projectId, 'stale_cards');
+    if (alreadyExists) {
+      log.info(`Skipping stale card analysis for project ${projectId} — active insight already exists`);
+      return null;
+    }
 
     // Step 4: Build context for AI analysis
     const [projectRow] = await db

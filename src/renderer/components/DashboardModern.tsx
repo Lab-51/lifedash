@@ -144,20 +144,24 @@ export default function DashboardModern() {
         window.electronAPI.getActivityData().then(r => setActivityData(r.dayCounts));
     }, [allCards.length, meetings.length, ideas.length]);
 
-    // Load insights for the first active project and set up real-time refresh
+    // Load insights across all analyzed projects and set up real-time refresh
     useEffect(() => {
-        const firstProject = projects.find(p => !p.archived);
-        if (firstProject) {
-            useBackgroundAgentStore.getState().loadInsights(firstProject.id);
-            useBackgroundAgentStore.getState().loadPreferences();
-        }
-        // Listen for new insights events to refresh badge count
+        const store = useBackgroundAgentStore.getState();
+        store.loadPreferences().then(() => {
+            const prefs = useBackgroundAgentStore.getState().preferences;
+            const projectIds = prefs?.analyzedProjectIds?.length
+                ? prefs.analyzedProjectIds
+                : undefined; // undefined = all projects
+            store.loadAllInsights(projectIds);
+        });
+        // Listen for new insights events to refresh
         const cleanup = window.electronAPI.onBackgroundAgentNewInsights(() => {
+            const prefs = useBackgroundAgentStore.getState().preferences;
+            const projectIds = prefs?.analyzedProjectIds?.length
+                ? prefs.analyzedProjectIds
+                : undefined;
             useBackgroundAgentStore.getState().refreshNewCount();
-            const currentFirstProject = useBackgroundAgentStore.getState().insights[0]?.projectId;
-            if (currentFirstProject) {
-                useBackgroundAgentStore.getState().loadInsights(currentFirstProject);
-            }
+            useBackgroundAgentStore.getState().loadAllInsights(projectIds);
         });
         return cleanup;
     }, [projects]);

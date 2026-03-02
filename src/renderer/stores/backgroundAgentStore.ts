@@ -19,6 +19,7 @@ interface BackgroundAgentStore {
   loading: boolean;
 
   loadInsights: (projectId: string) => Promise<void>;
+  loadAllInsights: (projectIds?: string[], limit?: number) => Promise<void>;
   loadPreferences: () => Promise<void>;
   loadDailyUsage: () => Promise<void>;
   updatePreferences: (partial: Partial<BackgroundAgentPreferences>) => Promise<void>;
@@ -47,6 +48,17 @@ export const useBackgroundAgentStore = create<BackgroundAgentStore>((set, get) =
       set({ insights, loading: false });
     } catch (error) {
       if (!isLicenseError(error)) console.error('Failed to load insights:', error);
+      set({ loading: false });
+    }
+  },
+
+  loadAllInsights: async (projectIds?: string[], limit?: number) => {
+    set({ loading: true });
+    try {
+      const insights = await window.electronAPI.backgroundAgentGetAllInsights(projectIds, limit);
+      set({ insights, loading: false });
+    } catch (error) {
+      if (!isLicenseError(error)) console.error('Failed to load all insights:', error);
       set({ loading: false });
     }
   },
