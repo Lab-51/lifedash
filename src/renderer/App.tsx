@@ -165,8 +165,20 @@ function AppShell({ children }: { children: ReactNode }) {
       if (!currentVersion) return;
 
       if (!lastSeen) {
-        // First install — seed the setting, don't show modal
-        await settingsStore.setSetting('app.lastSeenVersion', currentVersion);
+        // Setting never existed — could be first install OR existing user upgrading
+        // to the version that introduced this feature. Check setupWizard flag to tell apart.
+        const isExistingUser = settings['setupWizard.completed'] === 'true'
+          || Object.keys(settings).length > 0;
+        if (isExistingUser && releaseNotes.version === currentVersion) {
+          setWhatsNew({
+            version: currentVersion,
+            releaseType: 'minor', // first time seeing the modal = treat as notable
+            sections: releaseNotes.sections,
+          });
+        } else {
+          // Genuine first install — seed silently
+          await settingsStore.setSetting('app.lastSeenVersion', currentVersion);
+        }
       } else if (lastSeen !== currentVersion && releaseNotes.version === currentVersion) {
         // Version changed and we have matching notes — show modal
         setWhatsNew({
