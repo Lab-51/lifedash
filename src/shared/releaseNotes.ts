@@ -26,14 +26,21 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 }
 
 export const releaseNotes: ReleaseNotesData = {
-  version: '2.0.12',
+  version: '2.0.13',
   sections: [
     {
       category: 'new',
       label: "What's New",
       items: [
-        '"What\'s New" modal after app updates — shows patch notes with version number',
+        '"What\'s New" modal after app updates — shows patch notes and version number',
         'Three visual tiers: bug fix updates, feature releases, and major versions',
+      ],
+    },
+    {
+      category: 'fixes',
+      label: 'Fixes',
+      items: [
+        'What\'s New modal now correctly appears for existing users after updating',
       ],
     },
   ],
