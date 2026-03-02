@@ -2,10 +2,10 @@
 // InsightsPanel — dashboard panel showing AI background agent insights.
 // Collapses when not Pro or disabled; expands to show UpgradePrompt or insights.
 // Includes filter tabs (All / New / Warning+Critical), empty state, loading skeleton,
-// and a "Run Now" button.
+// a project scope picker, and a "Run Now" button.
 
-import { useMemo, useState } from 'react';
-import { Bot, RefreshCw, Loader2, Settings, Lock, ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Bot, RefreshCw, Loader2, Settings, Lock, ChevronDown, ChevronRight, Sparkles, FolderOpen, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBackgroundAgentStore } from '../../stores/backgroundAgentStore';
 import { useProjectStore } from '../../stores/projectStore';
@@ -53,6 +53,7 @@ export default function InsightsPanel() {
   const [running, setRunning] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [scopeOpen, setScopeOpen] = useState(false);
 
   const { enabled: isPro, info } = useProFeature('backgroundAgent');
   const insights = useBackgroundAgentStore(s => s.insights);
@@ -60,7 +61,11 @@ export default function InsightsPanel() {
   const preferences = useBackgroundAgentStore(s => s.preferences);
   const runNow = useBackgroundAgentStore(s => s.runNow);
   const loadAllInsights = useBackgroundAgentStore(s => s.loadAllInsights);
+  const updatePreferences = useBackgroundAgentStore(s => s.updatePreferences);
   const projects = useProjectStore(s => s.projects);
+
+  const activeProjects = useMemo(() => projects.filter(p => !p.archived), [projects]);
+  const analyzedIds = preferences?.analyzedProjectIds ?? [];
 
   // Build projectId → name lookup
   const projectNameMap = useMemo(
@@ -68,8 +73,37 @@ export default function InsightsPanel() {
     [projects],
   );
 
+  // Reload insights when project selection changes
+  const analyzedKey = analyzedIds.slice().sort().join(',');
+  useEffect(() => {
+    if (!isPro || !preferences?.enabled) return;
+    loadAllInsights(analyzedIds.length ? analyzedIds : undefined);
+  }, [analyzedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const isDisabled = isPro && preferences !== null && !preferences.enabled;
   const isCollapsed = !isPro || isDisabled;
+
+  const handleProjectToggle = (projectId: string, checked: boolean) => {
+    if (analyzedIds.length === 0) {
+      // Currently "all" — switching to specific: select all except the unchecked one
+      if (!checked) {
+        const allExcept = activeProjects.filter(p => p.id !== projectId).map(p => p.id);
+        updatePreferences({ analyzedProjectIds: allExcept });
+      }
+    } else {
+      const updated = checked
+        ? [...analyzedIds, projectId]
+        : analyzedIds.filter(id => id !== projectId);
+      // If empty after removal, reset to "all"
+      updatePreferences({ analyzedProjectIds: updated.length === 0 ? [] : updated });
+    }
+  };
+
+  const scopeLabel = analyzedIds.length === 0
+    ? 'All Projects'
+    : analyzedIds.length === 1
+      ? (projectNameMap.get(analyzedIds[0]) ?? '1 project')
+      : `${analyzedIds.length} projects`;
 
   const handleRunNow = async () => {
     setRunning(true);
@@ -78,10 +112,8 @@ export default function InsightsPanel() {
       if (result.ran) {
         toast('Background agent ran successfully', 'success');
         const prefs = useBackgroundAgentStore.getState().preferences;
-        const projectIds = prefs?.analyzedProjectIds?.length
-          ? prefs.analyzedProjectIds
-          : undefined;
-        await loadAllInsights(projectIds);
+        const analyzed = prefs?.analyzedProjectIds ?? [];
+        await loadAllInsights(analyzed.length ? analyzed : undefined);
       } else {
         toast(result.reason || 'Agent did not run', 'error');
       }
@@ -112,7 +144,7 @@ export default function InsightsPanel() {
   ];
 
   return (
-    <div className="hud-panel clip-corner-cut-sm overflow-hidden">
+    <div className="hud-panel clip-corner-cut-sm">
       {/* Panel header */}
       <div
         className={`p-5 flex items-center justify-between cursor-pointer${
@@ -166,6 +198,23 @@ export default function InsightsPanel() {
           </div>
         ) : (
           <div className="flex items-center gap-2">
+            {/* Project scope toggle */}
+            {activeProjects.length > 1 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setScopeOpen(prev => !prev); }}
+                title="Select projects to analyze"
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 transition-all clip-corner-cut-sm max-w-[160px] border ${
+                  scopeOpen
+                    ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+                    : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:border-[var(--color-accent-dim)]'
+                }`}
+              >
+                <FolderOpen size={11} className="shrink-0" />
+                <span className="truncate">{scopeLabel}</span>
+                <ChevronDown size={10} className={`shrink-0 transition-transform ${scopeOpen ? 'rotate-180' : ''}`} />
+              </button>
+            )}
+            {/* Run Now */}
             <button
               onClick={(e) => { e.stopPropagation(); handleRunNow(); }}
               disabled={running}
@@ -192,6 +241,39 @@ export default function InsightsPanel() {
       {/* Not Pro — expandable upgrade prompt */}
       {!isPro && expanded && (
         <UpgradePrompt feature="backgroundAgent" info={info} />
+      )}
+
+      {/* Project scope picker — inline collapsible row below header */}
+      {isPro && preferences?.enabled && panelOpen && scopeOpen && activeProjects.length > 1 && (
+        <div className="px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-accent-subtle)]/30">
+          <div className="flex items-center flex-wrap gap-1.5">
+            {activeProjects.map(project => {
+              const isSelected = analyzedIds.length === 0 || analyzedIds.includes(project.id);
+              return (
+                <button
+                  key={project.id}
+                  onClick={() => handleProjectToggle(project.id, !isSelected)}
+                  className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${
+                    isSelected
+                      ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10'
+                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent-dim)] hover:text-[var(--color-text-secondary)]'
+                  }`}
+                >
+                  {isSelected && <Check size={10} className="shrink-0" />}
+                  <span className="truncate max-w-[120px]">{project.name}</span>
+                </button>
+              );
+            })}
+            {analyzedIds.length > 0 && (
+              <button
+                onClick={() => updatePreferences({ analyzedProjectIds: [] })}
+                className="text-[11px] text-[var(--color-accent-dim)] hover:text-[var(--color-accent)] px-2 py-1 transition-colors"
+              >
+                Select all
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Pro + enabled — full insights body */}
