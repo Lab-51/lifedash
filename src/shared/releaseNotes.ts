@@ -26,23 +26,14 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 }
 
 export const releaseNotes: ReleaseNotesData = {
-  version: '2.0.11',
+  version: '2.0.12',
   sections: [
     {
       category: 'new',
       label: "What's New",
       items: [
-        'AI Insights consolidated across all projects into a single card per detection type',
-        'Per-project analysis selection for AI background analysis',
-      ],
-    },
-    {
-      category: 'fixes',
-      label: 'Fixes',
-      items: [
-        'Fixed crash when opening the AI settings tab',
-        'Project picker moved from settings to the dashboard',
-        'Insights panel auto-opens when clicking the project scope toggle',
+        '"What\'s New" modal after app updates — shows patch notes with version number',
+        'Three visual tiers: bug fix updates, feature releases, and major versions',
       ],
     },
   ],
