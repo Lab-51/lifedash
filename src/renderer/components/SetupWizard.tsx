@@ -20,6 +20,8 @@ import {
   Cpu,
   Globe,
   Sparkles,
+  Key,
+  HelpCircle,
 } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useNavigate } from 'react-router-dom';
@@ -29,13 +31,12 @@ import type { AIProviderName } from '../../shared/types';
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-type WizardStep = 'welcome' | 'choose' | 'configure' | 'test' | 'done';
+type WizardStep = 'welcome' | 'have-key' | 'pick-provider' | 'tutorial' | 'configure' | 'test' | 'done';
 
 interface ProviderOption {
   value: AIProviderName;
   label: string;
   tagline: string;
-  costLabel: string;
   recommended?: boolean;
   icon: React.ReactNode;
 }
@@ -52,26 +53,25 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
   {
     value: 'ollama',
     label: 'Ollama',
-    tagline: 'Free, runs locally on your machine — no account needed',
-    costLabel: 'Free',
-    recommended: true,
+    tagline: 'Free & private — runs AI on your own computer',
     icon: <Cpu size={22} />,
   },
   {
     value: 'openai',
     label: 'OpenAI',
-    tagline: 'GPT-4o and o3-mini — the industry standard',
-    costLabel: 'Pay-per-use',
+    tagline: 'GPT-4o, o3-mini — fast and versatile',
     icon: <Zap size={22} />,
   },
   {
     value: 'anthropic',
     label: 'Anthropic',
-    tagline: 'Claude models — excellent reasoning and safety',
-    costLabel: 'Pay-per-use',
+    tagline: 'Claude models — strong reasoning and safety',
     icon: <Sparkles size={22} />,
   },
 ];
+
+// Cloud-only providers shown in StepPickProvider
+const CLOUD_PROVIDER_OPTIONS = PROVIDER_OPTIONS.filter(p => p.value !== 'ollama');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Step components
@@ -114,7 +114,106 @@ function StepWelcome({ onSetup, onSkip }: { onSetup: () => void; onSkip: () => v
   );
 }
 
-function StepChooseProvider({
+function StepHaveKey({
+  onHaveKey,
+  onGetHelp,
+  onUseLocal,
+  onSkip,
+}: {
+  onHaveKey: () => void;
+  onGetHelp: () => void;
+  onUseLocal: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h2 className="font-hud text-base tracking-wide text-[var(--color-text-primary)] mb-1">
+          Set up AI
+        </h2>
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          Choose how you'd like to connect AI to LifeDash.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {/* Option A: I have an API key */}
+        <button
+          type="button"
+          onClick={onHaveKey}
+          className="w-full text-left p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-chrome)] hover:border-[var(--color-border-accent)] transition-all"
+        >
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 text-[var(--color-text-secondary)]">
+              <Key size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm text-[var(--color-text-primary)]">
+                I have an API key
+              </div>
+            </div>
+            <ArrowRight size={16} className="mt-0.5 text-[var(--color-text-muted)]" />
+          </div>
+        </button>
+
+        {/* Option B: Help me get one */}
+        <button
+          type="button"
+          onClick={onGetHelp}
+          className="w-full text-left p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-chrome)] hover:border-[var(--color-border-accent)] transition-all"
+        >
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 text-[var(--color-text-secondary)]">
+              <HelpCircle size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm text-[var(--color-text-primary)]">
+                Help me get one
+              </div>
+              <div className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+                Takes about 2 minutes. We'll walk you through it.
+              </div>
+            </div>
+            <ArrowRight size={16} className="mt-0.5 text-[var(--color-text-muted)]" />
+          </div>
+        </button>
+
+        {/* Option C: Use free local AI */}
+        <button
+          type="button"
+          onClick={onUseLocal}
+          className="w-full text-left p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-chrome)] hover:border-[var(--color-border-accent)] transition-all"
+        >
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 text-[var(--color-text-secondary)]">
+              <Cpu size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm text-[var(--color-text-primary)]">
+                Use free local AI
+              </div>
+              <div className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+                Runs on your computer via Ollama. Best for privacy-focused users with capable hardware.
+              </div>
+            </div>
+            <ArrowRight size={16} className="mt-0.5 text-[var(--color-text-muted)]" />
+          </div>
+        </button>
+      </div>
+
+      {/* Option D: Skip */}
+      <button
+        type="button"
+        onClick={onSkip}
+        className="w-full py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors text-center"
+      >
+        Skip for now
+      </button>
+    </div>
+  );
+}
+
+function StepPickProvider({
   selected,
   onSelect,
   onNext,
@@ -132,12 +231,12 @@ function StepChooseProvider({
           Choose a provider
         </h2>
         <p className="text-xs text-[var(--color-text-secondary)]">
-          Not sure? Ollama is free and runs entirely on your device.
+          Select the AI service you'd like to connect.
         </p>
       </div>
 
       <div className="flex flex-col gap-3">
-        {PROVIDER_OPTIONS.map(opt => (
+        {CLOUD_PROVIDER_OPTIONS.map(opt => (
           <button
             key={opt.value}
             type="button"
@@ -148,24 +247,16 @@ function StepChooseProvider({
                 : 'border-[var(--color-border)] bg-[var(--color-chrome)] hover:border-[var(--color-border-accent)]'
             }`}
           >
-            {opt.recommended && (
-              <span className="absolute top-3 right-3 px-1.5 py-0.5 text-[10px] font-hud tracking-widest uppercase text-[var(--color-accent)] bg-[var(--color-accent-subtle)] border border-[var(--color-accent-dim)] rounded">
-                Recommended
-              </span>
-            )}
             <div className="flex items-start gap-3">
               <div className={`mt-0.5 ${selected === opt.value ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-secondary)]'}`}>
                 {opt.icon}
               </div>
-              <div className="flex-1 min-w-0 pr-16">
+              <div className="flex-1 min-w-0">
                 <div className={`font-medium text-sm ${selected === opt.value ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
                   {opt.label}
                 </div>
                 <div className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
                   {opt.tagline}
-                </div>
-                <div className="text-xs text-[var(--color-text-secondary)] mt-1">
-                  Cost: {opt.costLabel}
                 </div>
               </div>
             </div>
@@ -554,31 +645,167 @@ function StepDone({
   );
 }
 
+interface StepTutorialProps {
+  onSelectProvider: (provider: AIProviderName) => void;
+  onBack: () => void;
+}
+
+function StepTutorial({ onSelectProvider, onBack }: StepTutorialProps) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h2 className="font-hud text-base tracking-wide text-[var(--color-text-primary)] mb-1">
+          Get an API key
+        </h2>
+        <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+          Choose a provider below. Both offer state-of-the-art models that power LifeDash's brainstorming, summaries, and planning.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {/* OpenAI card */}
+        <div className="p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-chrome)] flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Zap size={20} className="text-[var(--color-text-secondary)]" />
+            <span className="font-medium text-sm text-[var(--color-text-primary)]">OpenAI</span>
+          </div>
+          <p className="text-xs text-[var(--color-text-muted)]">GPT-4o, o3-mini — fast and versatile</p>
+          <ol className="space-y-1.5 text-xs text-[var(--color-text-secondary)]">
+            <li className="flex items-start gap-2">
+              <span className="font-data text-[var(--color-accent)] shrink-0">1.</span>
+              <span>
+                Open platform.openai.com
+                {' '}
+                <a
+                  href="https://platform.openai.com"
+                  onClick={e => { e.preventDefault(); window.electronAPI.openExternal('https://platform.openai.com'); }}
+                  className="inline-flex items-center gap-0.5 text-[var(--color-accent)] hover:underline"
+                >
+                  <ExternalLink size={11} />
+                </a>
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="font-data text-[var(--color-accent)] shrink-0">2.</span>
+              <span>Create a free account</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="font-data text-[var(--color-accent)] shrink-0">3.</span>
+              <span>Add credit to your account</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="font-data text-[var(--color-accent)] shrink-0">4.</span>
+              <span>Go to API Keys — create a new key</span>
+            </li>
+          </ol>
+          <button
+            type="button"
+            onClick={() => onSelectProvider('openai')}
+            className="w-full flex items-center justify-center gap-2 py-2 btn-primary clip-corner-cut-sm text-xs font-medium"
+          >
+            Choose OpenAI
+            <ArrowRight size={13} />
+          </button>
+        </div>
+
+        {/* Anthropic card */}
+        <div className="p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-chrome)] flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Sparkles size={20} className="text-[var(--color-text-secondary)]" />
+            <span className="font-medium text-sm text-[var(--color-text-primary)]">Anthropic</span>
+          </div>
+          <p className="text-xs text-[var(--color-text-muted)]">Claude models — strong reasoning and safety</p>
+          <ol className="space-y-1.5 text-xs text-[var(--color-text-secondary)]">
+            <li className="flex items-start gap-2">
+              <span className="font-data text-[var(--color-accent)] shrink-0">1.</span>
+              <span>
+                Open console.anthropic.com
+                {' '}
+                <a
+                  href="https://console.anthropic.com"
+                  onClick={e => { e.preventDefault(); window.electronAPI.openExternal('https://console.anthropic.com'); }}
+                  className="inline-flex items-center gap-0.5 text-[var(--color-accent)] hover:underline"
+                >
+                  <ExternalLink size={11} />
+                </a>
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="font-data text-[var(--color-accent)] shrink-0">2.</span>
+              <span>Create an account</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="font-data text-[var(--color-accent)] shrink-0">3.</span>
+              <span>Add credit to your account</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="font-data text-[var(--color-accent)] shrink-0">4.</span>
+              <span>Go to API Keys — create a new key</span>
+            </li>
+          </ol>
+          <button
+            type="button"
+            onClick={() => onSelectProvider('anthropic')}
+            className="w-full flex items-center justify-center gap-2 py-2 btn-primary clip-corner-cut-sm text-xs font-medium"
+          >
+            Choose Anthropic
+            <ArrowRight size={13} />
+          </button>
+        </div>
+      </div>
+
+      <p className="text-xs text-[var(--color-text-muted)] leading-relaxed px-0.5">
+        AI providers charge small amounts per request. A few dollars in credit can power hundreds of brainstorming sessions and meeting summaries. Pricing varies as models improve — check your provider's page for current rates.
+      </p>
+
+      <div className="flex gap-2 pt-1">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+        >
+          <ArrowLeft size={14} />
+          Back
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Progress indicator
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Visible steps in the progress indicator (sub-steps collapse into 'have-key' position)
+const ORDERED_STEPS: WizardStep[] = ['have-key', 'configure', 'test', 'done'];
+
 const STEP_LABELS: Record<WizardStep, string> = {
   welcome: 'Welcome',
-  choose: 'Provider',
+  'have-key': 'Provider',
+  'pick-provider': 'Provider',
+  tutorial: 'Provider',
   configure: 'Configure',
   test: 'Test',
   done: 'Done',
 };
 
-const ORDERED_STEPS: WizardStep[] = ['welcome', 'choose', 'configure', 'test', 'done'];
+// Maps any step to its indicator position in ORDERED_STEPS
+function getIndicatorStep(step: WizardStep): WizardStep {
+  if (step === 'pick-provider' || step === 'tutorial') return 'have-key';
+  return step;
+}
 
 function StepIndicator({ current }: { current: WizardStep }) {
-  const currentIdx = ORDERED_STEPS.indexOf(current);
-  // Don't show indicator on welcome step
+  // Don't show indicator on welcome or have-key entry screen
   if (current === 'welcome') return null;
+
+  const indicatorStep = getIndicatorStep(current);
+  const currentIdx = ORDERED_STEPS.indexOf(indicatorStep);
 
   return (
     <div className="flex items-center gap-1 justify-center mb-5">
-      {ORDERED_STEPS.filter(s => s !== 'welcome').map((step, idx) => {
-        const stepIdx = ORDERED_STEPS.indexOf(step);
-        const isActive = step === current;
-        const isDone = stepIdx < currentIdx;
+      {ORDERED_STEPS.map((step, idx) => {
+        const isActive = step === indicatorStep;
+        const isDone = idx < currentIdx;
 
         return (
           <div key={step} className="flex items-center gap-1">
@@ -600,7 +827,7 @@ function StepIndicator({ current }: { current: WizardStep }) {
             >
               {STEP_LABELS[step]}
             </span>
-            {idx < ORDERED_STEPS.filter(s => s !== 'welcome').length - 1 && (
+            {idx < ORDERED_STEPS.length - 1 && (
               <div className={`w-4 h-px mx-1 ${isDone ? 'bg-emerald-500/40' : 'bg-[var(--color-border)]'}`} />
             )}
           </div>
@@ -622,6 +849,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   const setSetting = useSettingsStore(s => s.setSetting);
 
   const [step, setStep] = useState<WizardStep>('welcome');
+  const [prevStep, setPrevStep] = useState<WizardStep>('have-key');
   const [createdProviderId, setCreatedProviderId] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<AIProviderName | null>(null);
   const [apiKey, setApiKey] = useState('');
@@ -790,17 +1018,44 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
 
           {step === 'welcome' && (
             <StepWelcome
-              onSetup={() => setStep('choose')}
+              onSetup={() => setStep('have-key')}
               onSkip={handleSkip}
             />
           )}
 
-          {step === 'choose' && (
-            <StepChooseProvider
+          {step === 'have-key' && (
+            <StepHaveKey
+              onHaveKey={() => setStep('pick-provider')}
+              onGetHelp={() => setStep('tutorial')}
+              onUseLocal={() => {
+                setSelectedProvider('ollama');
+                setPrevStep('have-key');
+                setStep('configure');
+              }}
+              onSkip={handleClose}
+            />
+          )}
+
+          {step === 'pick-provider' && (
+            <StepPickProvider
               selected={selectedProvider}
               onSelect={setSelectedProvider}
-              onNext={() => setStep('configure')}
-              onBack={() => setStep('welcome')}
+              onNext={() => {
+                setPrevStep('pick-provider');
+                setStep('configure');
+              }}
+              onBack={() => setStep('have-key')}
+            />
+          )}
+
+          {step === 'tutorial' && (
+            <StepTutorial
+              onSelectProvider={(provider) => {
+                setSelectedProvider(provider);
+                setPrevStep('tutorial');
+                setStep('configure');
+              }}
+              onBack={() => setStep('have-key')}
             />
           )}
 
@@ -815,7 +1070,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               ollamaModels={ollamaModels}
               onCheckOllama={handleCheckOllama}
               onNext={handleConfigureNext}
-              onBack={() => setStep('choose')}
+              onBack={() => setStep(prevStep)}
             />
           )}
 
