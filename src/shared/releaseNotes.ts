@@ -26,13 +26,15 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 }
 
 export const releaseNotes: ReleaseNotesData = {
-  version: '2.0.15',
+  version: '2.0.16',
   sections: [
     {
       category: 'fixes',
       label: 'Fixes',
       items: [
-        'Fixed Pro trial not activating on fresh install — new users now get their 14-day trial immediately',
+        'Fixed "Enter License Key" button in trial banner not opening the License tab',
+        'App now follows your OS light/dark theme by default on first launch',
+        'Clarified that local AI (Ollama) is for advanced users with capable hardware',
       ],
     },
   ],
