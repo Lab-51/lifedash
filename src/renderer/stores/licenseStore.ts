@@ -34,11 +34,19 @@ export const useLicenseStore = create<LicenseStore>((set, get) => ({
     try {
       const info = await window.electronAPI.licenseCheck();
       set({ info, loading: false });
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Failed to load license',
-        loading: false,
-      });
+    } catch (_checkError) {
+      // licenseCheck() runs full validation (trial expiry, network calls, etc.)
+      // and can fail. Fall back to licenseGetInfo() which reads cached/DB data
+      // without validation — ensures trial info is available even if check fails.
+      try {
+        const fallback = await window.electronAPI.licenseGetInfo();
+        set({ info: fallback, loading: false });
+      } catch (error) {
+        set({
+          error: error instanceof Error ? error.message : 'Failed to load license',
+          loading: false,
+        });
+      }
     }
   },
 

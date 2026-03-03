@@ -25,6 +25,7 @@ import { createLogger } from './services/logger';
 import { getIsRecording, setIsRecording } from './services/recordingState';
 import { applyGlobalProxy } from './services/proxyService';
 import { initAutoUpdater } from './autoUpdater';
+import { initializeLicense } from './services/licensingService';
 
 const log = createLogger('App');
 
@@ -124,6 +125,16 @@ const createWindow = async () => {
     await connectDatabase();
     await runMigrations();
     log.info('DB connected and migrations applied');
+
+    // Initialize license early — ensures 14-day trial exists before renderer loads.
+    // Without this, trial creation is deferred to the first licenseCheck() IPC call,
+    // and any transient error during that call would leave Pro features permanently blocked.
+    // Wrapped in its own try/catch so a license error doesn't skip schedulers below.
+    try {
+      await initializeLicense();
+    } catch (licenseErr) {
+      log.error('License initialization failed (will retry on first IPC call):', licenseErr);
+    }
 
     // Apply proxy settings for enterprise networks (before any AI calls)
     await applyGlobalProxy();
