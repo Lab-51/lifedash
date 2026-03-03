@@ -26,16 +26,13 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 }
 
 export const releaseNotes: ReleaseNotesData = {
-  version: '2.0.14',
+  version: '2.0.15',
   sections: [
     {
-      category: 'new',
-      label: "What's New",
+      category: 'fixes',
+      label: 'Fixes',
       items: [
-        'Redesigned AI setup wizard — guided flow helps new users get started with AI in under 2 minutes',
-        'New "Help me get one" tutorial walks through getting an OpenAI or Anthropic API key step by step',
-        'Cloud AI providers (OpenAI, Anthropic) now recommended for best results',
-        'Ollama repositioned as a free, privacy-focused option for advanced users',
+        'Fixed Pro trial not activating on fresh install — new users now get their 14-day trial immediately',
       ],
     },
   ],
