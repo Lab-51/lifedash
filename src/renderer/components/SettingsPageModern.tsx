@@ -4,6 +4,7 @@
 // Features a cleaner layout with card-based sections and updated typography.
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Key, Wand2, RefreshCw, CheckCircle, Download, Loader2 } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -35,8 +36,12 @@ export default function SettingsPageModern() {
     const loadProviders = useSettingsStore(s => s.loadProviders);
     const loadSettings = useSettingsStore(s => s.loadSettings);
     const checkEncryption = useSettingsStore(s => s.checkEncryption);
+    const [searchParams] = useSearchParams();
     const [showAddForm, setShowAddForm] = useState(false);
-    const [activeTab, setActiveTab] = useState('general');
+    const [activeTab, setActiveTab] = useState(() => {
+        const tab = searchParams.get('tab');
+        return tab && ['general', 'ai', 'data', 'license', 'about'].includes(tab) ? tab : 'general';
+    });
     const [showWizard, setShowWizard] = useState(false);
     const setSetting = useSettingsStore(s => s.setSetting);
 
@@ -45,6 +50,14 @@ export default function SettingsPageModern() {
     const [updateRelease, setUpdateRelease] = useState('');
     const [updateProgress, setUpdateProgress] = useState(0);
     const [updateError, setUpdateError] = useState('');
+
+    // Sync activeTab when URL query param changes (e.g., navigating from TrialBanner)
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab && ['general', 'ai', 'data', 'license', 'about'].includes(tab)) {
+            setActiveTab(tab);
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         loadProviders();

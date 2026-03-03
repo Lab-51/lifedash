@@ -53,7 +53,7 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
   {
     value: 'ollama',
     label: 'Ollama',
-    tagline: 'Free & private — runs AI on your own computer',
+    tagline: 'Local AI for advanced users — requires setup and capable hardware',
     icon: <Cpu size={22} />,
   },
   {
@@ -178,7 +178,7 @@ function StepHaveKey({
           </div>
         </button>
 
-        {/* Option C: Use free local AI */}
+        {/* Option C: Run AI locally (advanced) */}
         <button
           type="button"
           onClick={onUseLocal}
@@ -190,10 +190,10 @@ function StepHaveKey({
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-medium text-sm text-[var(--color-text-primary)]">
-                Use free local AI
+                Run AI locally <span className="text-[var(--color-text-muted)] font-normal">(advanced)</span>
               </div>
               <div className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
-                Runs on your computer via Ollama. Best for privacy-focused users with capable hardware.
+                Requires Ollama setup, terminal usage, and a powerful computer (16 GB+ RAM). Best for technical users who want full privacy.
               </div>
             </div>
             <ArrowRight size={16} className="mt-0.5 text-[var(--color-text-muted)]" />

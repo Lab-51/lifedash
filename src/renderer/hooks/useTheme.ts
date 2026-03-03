@@ -28,14 +28,14 @@ function applyTheme(mode: ThemeMode) {
 
 /**
  * Manages app theme. Call once at the app root level.
- * Reads from settings store key 'app.theme' (default: 'dark').
+ * Reads from settings store key 'app.theme' (default: 'system').
  * Applies CSS class to <html> and listens for system theme changes.
  */
 export function useTheme() {
   const settings = useSettingsStore(s => s.settings);
   const setSetting = useSettingsStore(s => s.setSetting);
 
-  const themeMode = (settings['app.theme'] as ThemeMode) || 'dark';
+  const themeMode = (settings['app.theme'] as ThemeMode) || 'system';
 
   // Apply theme whenever the setting changes
   useEffect(() => {
