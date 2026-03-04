@@ -88,6 +88,14 @@ function logCardActivity(
 async function spawnRecurringCard(completedCard: CardRow, db: ReturnType<typeof getDb>): Promise<CardRow | null> {
   if (!completedCard.recurrenceType) return null;
 
+  // Guard: don't spawn if an active (non-archived) child already exists for this card
+  const [existingChild] = await db
+    .select({ id: cards.id })
+    .from(cards)
+    .where(and(eq(cards.sourceRecurringId, completedCard.id), eq(cards.archived, false)))
+    .limit(1);
+  if (existingChild) return null;
+
   // Calculate next due date
   let nextDueDate: Date | null = null;
   if (completedCard.dueDate) {
