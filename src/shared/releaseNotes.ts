@@ -26,15 +26,13 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 }
 
 export const releaseNotes: ReleaseNotesData = {
-  version: '2.0.16',
+  version: '2.0.17',
   sections: [
     {
       category: 'fixes',
       label: 'Fixes',
       items: [
-        'Fixed "Enter License Key" button in trial banner not opening the License tab',
-        'App now follows your OS light/dark theme by default on first launch',
-        'Clarified that local AI (Ollama) is for advanced users with capable hardware',
+        'Fixed recurring cards duplicating when toggled complete multiple times',
       ],
     },
   ],
