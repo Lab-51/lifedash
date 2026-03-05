@@ -3,6 +3,7 @@
 // Enterprise-grade, widget-based layout with glassmorphism and rich visuals.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
     Mic,
@@ -125,8 +126,10 @@ export default function DashboardModern() {
             toast('Standup ready', 'success');
             useGamificationStore.getState().awardXP('ai_standup');
             setTimeout(() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 100);
-        } catch {
-            toast('Failed to generate standup', 'error');
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error('[Standup] Generation failed:', msg);
+            toast(msg || 'Failed to generate standup', 'error');
         } finally {
             setGeneratingStandup(false);
         }
@@ -493,38 +496,55 @@ export default function DashboardModern() {
                 </div>
             </div>
 
-            {/* Standup project picker — fixed position to escape hero overflow-hidden */}
-            {standupPickerOpen && (
+            {/* Standup project picker — portaled to escape scroll container */}
+            {standupPickerOpen && createPortal(
                 <>
-                    <div className="fixed inset-0 z-50" onClick={() => setStandupPickerOpen(false)} />
                     <div
-                        className="fixed z-50 w-56 hud-panel clip-corner-cut-sm shadow-xl py-1 max-h-64 overflow-y-auto"
+                        style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
+                        onClick={() => setStandupPickerOpen(false)}
+                    />
+                    <div
                         style={{
+                            position: 'fixed',
+                            zIndex: 99999,
+                            width: 224,
+                            maxHeight: 256,
+                            overflowY: 'auto',
                             top: (standupBtnRef.current?.getBoundingClientRect().bottom ?? 0) + 8,
                             right: window.innerWidth - (standupBtnRef.current?.getBoundingClientRect().right ?? 0),
+                            background: '#1a1f2e',
+                            border: '1px solid rgba(62, 232, 228, 0.2)',
+                            borderRadius: 12,
+                            padding: '4px 0',
+                            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
                         }}
                     >
                         <button
                             onClick={() => handleGenerateStandup(undefined)}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-900 dark:text-surface-100 font-medium"
+                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', fontSize: 14, color: '#e2e8f0', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 500 }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                         >
                             All Projects
                         </button>
                         {projects.filter(p => !p.archived).length > 0 && (
-                            <div className="border-t border-surface-100 dark:border-surface-800 my-1" />
+                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', margin: '4px 0' }} />
                         )}
                         {projects.filter(p => !p.archived).map(p => (
                             <button
                                 key={p.id}
                                 onClick={() => handleGenerateStandup(p.id)}
-                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors flex items-center gap-2"
+                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '10px 16px', fontSize: 14, color: '#cbd5e1', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                             >
-                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color || '#3b82f6' }} />
-                                <span className="text-surface-700 dark:text-surface-200 truncate">{p.name}</span>
+                                <span style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, backgroundColor: p.color || '#3b82f6' }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                             </button>
                         ))}
                     </div>
-                </>
+                </>,
+                document.body,
             )}
         </div>
     );

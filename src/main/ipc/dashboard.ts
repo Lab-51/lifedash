@@ -139,9 +139,10 @@ Today's date: ${now.toLocaleDateString()}`;
       baseUrl: resolved.baseUrl,
       model: resolved.model,
       taskType: 'standup',
+      system: 'You are a concise project assistant that generates daily standup reports from activity data. Always respond with markdown.',
       prompt,
       temperature: 0.7,
-      maxTokens: 500,
+      maxTokens: 1024,
     });
 
     log.info(`Standup result: ${result.text.length} chars`);
