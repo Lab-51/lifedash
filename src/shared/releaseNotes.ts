@@ -26,14 +26,14 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 }
 
 export const releaseNotes: ReleaseNotesData = {
-  version: '2.0.18',
+  version: '2.0.19',
   sections: [
     {
-      category: 'fixes',
-      label: 'Fixes',
+      category: 'new',
+      label: "What's New",
       items: [
-        'Fixed standup button dropdown not opening correctly',
-        'Fixed AI standup generation failing to produce content',
+        'Simplified meeting action items push-to-project experience with inline column picker',
+        'Approve now doubles as selection — no more separate checkboxes',
       ],
     },
   ],
