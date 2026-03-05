@@ -636,7 +636,6 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                     setConvertingAction(item);
                   }}
                   meetingProjectId={meeting.projectId ?? undefined}
-                  meetingProjectName={linkedProjectName}
                   columns={meeting.projectId && isProEnabled ? pushColumns : undefined}
                   selectedColumnId={selectedPushColumnId}
                   onColumnChange={setSelectedPushColumnId}
