@@ -2,12 +2,13 @@
 // Displays a list of AI-extracted action items for a meeting.
 // Each item shows its status, description, and contextual action buttons
 // (approve, dismiss, convert to card). Supports loading state and generate button.
-// When a meeting is linked to a project, shows batch "Push to Project" controls.
+// When a meeting is linked to a project, shows unified push-to-column controls
+// with inline column picker — no wizard needed.
 //
 // === DEPENDENCIES ===
-// react, lucide-react icons, ActionItem + ActionItemStatus types
+// react, lucide-react icons, ActionItem + ActionItemStatus + Column types
 
-import { memo, useState, useMemo } from 'react';
+import { memo, useState, useMemo, useEffect, useRef } from 'react';
 import {
   Check,
   X,
@@ -19,9 +20,8 @@ import {
   ArrowRightCircle,
   Circle,
   Send,
-  Zap,
 } from 'lucide-react';
-import type { ActionItem, ActionItemStatus } from '../../shared/types';
+import type { ActionItem, ActionItemStatus, Column } from '../../shared/types';
 
 interface ActionItemListProps {
   meetingId: string;
@@ -30,17 +30,22 @@ interface ActionItemListProps {
   generatingActions: boolean;
   onGenerate: () => void;
   onUpdateStatus: (id: string, status: ActionItemStatus) => void;
+  /** Opens the ConvertActionModal wizard (only used when no linked project) */
   onConvert: (actionItem: ActionItem) => void;
-  /** Linked project ID — enables batch push UI */
+  /** Linked project ID — enables inline push UI */
   meetingProjectId?: string;
-  /** Linked project name — shown in batch push button */
+  /** Linked project name — shown in push button */
   meetingProjectName?: string;
-  /** Called with selected action items for batch conversion */
-  onBatchConvert?: (items: Array<{ id: string; text: string }>) => void;
-  /** Called to quick-push all approved items to the linked project's first column */
-  onQuickPush?: () => Promise<{ pushedCount: number; columnName: string }>;
-  /** Whether a quick-push is currently in progress */
-  quickPushing?: boolean;
+  /** Columns available for inline push (loaded by parent) */
+  columns?: Column[];
+  /** Currently selected column ID for inline push */
+  selectedColumnId?: string;
+  /** Called when user changes the column dropdown */
+  onColumnChange?: (columnId: string) => void;
+  /** Called with selected items + column ID for inline push */
+  onPushToColumn?: (items: Array<{ id: string; text: string }>, columnId: string) => void;
+  /** Whether a push is currently in progress */
+  pushing?: boolean;
 }
 
 /** Status icon mapping — returns the icon component and its Tailwind color class. */
@@ -120,16 +125,19 @@ const ActionItemRow = memo(function ActionItemRow({
             >
               <X size={14} />
             </button>
-            <button
-              onClick={() => onConvert(item)}
-              className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-primary-400 hover:text-primary-300"
-              title="Convert to card"
-            >
-              <ArrowRight size={14} />
-            </button>
+            {/* Per-item convert arrow — only when no linked project (no inline push) */}
+            {!showCheckbox && (
+              <button
+                onClick={() => onConvert(item)}
+                className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-primary-400 hover:text-primary-300"
+                title="Convert to card"
+              >
+                <ArrowRight size={14} />
+              </button>
+            )}
           </>
         )}
-        {item.status === 'approved' && (
+        {item.status === 'approved' && !showCheckbox && (
           <button
             onClick={() => onConvert(item)}
             className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors text-primary-400 hover:text-primary-300"
@@ -153,28 +161,45 @@ export default function ActionItemList({
   onConvert,
   meetingProjectId,
   meetingProjectName,
-  onBatchConvert,
-  onQuickPush,
-  quickPushing,
+  columns,
+  selectedColumnId,
+  onColumnChange,
+  onPushToColumn,
+  pushing,
 }: ActionItemListProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [quickPushResult, setQuickPushResult] = useState<string | null>(null);
 
-  // Items eligible for batch push (pending or approved — not dismissed or converted)
+  // Track which items we've already auto-checked so we don't re-check after user unchecks
+  const autoCheckedRef = useRef<Set<string>>(new Set());
+
+  // Items eligible for push (pending or approved — not dismissed or converted)
   const pushableItems = useMemo(
     () => actionItems.filter((a) => a.status === 'pending' || a.status === 'approved'),
     [actionItems],
   );
 
-  // Items eligible for quick push (approved only — ready to go)
-  const approvedItems = useMemo(
-    () => actionItems.filter((a) => a.status === 'approved'),
-    [actionItems],
-  );
+  const showInlinePush = !!meetingProjectId && pushableItems.length > 0 && !!onPushToColumn;
 
-  const showQuickPush = !!meetingProjectId && approvedItems.length > 0 && !!onQuickPush;
+  // Auto-check approved items when they become approved
+  useEffect(() => {
+    const newApproved = actionItems.filter(
+      (a) => a.status === 'approved' && !autoCheckedRef.current.has(a.id),
+    );
+    if (newApproved.length === 0) return;
 
-  const showBatchPush = !!meetingProjectId && pushableItems.length > 0 && !!onBatchConvert;
+    // Mark these as auto-checked so we don't re-add them if user unchecks
+    for (const item of newApproved) {
+      autoCheckedRef.current.add(item.id);
+    }
+
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const item of newApproved) {
+        next.add(item.id);
+      }
+      return next;
+    });
+  }, [actionItems]);
 
   const handleCheckChange = (id: string, checked: boolean) => {
     setSelectedIds((prev) => {
@@ -187,41 +212,28 @@ export default function ActionItemList({
 
   const handleSelectAll = () => {
     if (selectedIds.size === pushableItems.length) {
-      // Deselect all
       setSelectedIds(new Set());
     } else {
-      // Select all pushable
       setSelectedIds(new Set(pushableItems.map((a) => a.id)));
     }
   };
 
-  const handleBatchPush = () => {
-    if (!onBatchConvert) return;
+  const handlePush = () => {
+    if (!onPushToColumn || !selectedColumnId) return;
     const items = pushableItems
       .filter((a) => selectedIds.has(a.id))
       .map((a) => ({ id: a.id, text: a.description }));
     if (items.length > 0) {
-      onBatchConvert(items);
-    }
-  };
-
-  const handleQuickPush = async () => {
-    if (!onQuickPush) return;
-    setQuickPushResult(null);
-    try {
-      const result = await onQuickPush();
-      setQuickPushResult(`Pushed ${result.pushedCount} item${result.pushedCount !== 1 ? 's' : ''} to ${result.columnName}`);
-      // Clear the result message after 4 seconds
-      setTimeout(() => setQuickPushResult(null), 4000);
-    } catch {
-      setQuickPushResult('Failed to push items');
-      setTimeout(() => setQuickPushResult(null), 4000);
+      onPushToColumn(items, selectedColumnId);
     }
   };
 
   // Count of actually selected items (intersect with current pushable items)
   const selectedCount = pushableItems.filter((a) => selectedIds.has(a.id)).length;
   const allSelected = pushableItems.length > 0 && selectedCount === pushableItems.length;
+
+  // Resolve selected column name for the button label
+  const selectedColumnName = columns?.find((c) => c.id === selectedColumnId)?.name;
 
   return (
     <div>
@@ -252,7 +264,7 @@ export default function ActionItemList({
               item={item}
               onUpdateStatus={onUpdateStatus}
               onConvert={onConvert}
-              showCheckbox={showBatchPush && (item.status === 'pending' || item.status === 'approved')}
+              showCheckbox={showInlinePush && (item.status === 'pending' || item.status === 'approved')}
               checked={selectedIds.has(item.id)}
               onCheckChange={handleCheckChange}
             />
@@ -260,55 +272,48 @@ export default function ActionItemList({
         </div>
       )}
 
-      {/* Quick push — one-click push all approved items to linked project */}
-      {showQuickPush && !generatingActions && (
+      {/* Unified push section — inline column picker + push button */}
+      {showInlinePush && !generatingActions && (
         <div className="mt-3 pt-3 border-t border-surface-200 dark:border-surface-700">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              {quickPushResult && (
-                <p className="text-xs text-emerald-400 truncate">{quickPushResult}</p>
-              )}
-              {quickPushing && !quickPushResult && (
-                <p className="text-xs text-surface-400 flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin" />
-                  Pushing to board...
-                </p>
-              )}
-            </div>
-            <button
-              onClick={handleQuickPush}
-              disabled={quickPushing}
-              className="flex items-center gap-1.5 text-sm bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg transition-colors shrink-0"
-            >
-              {quickPushing ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Zap size={14} />
-              )}
-              Push {approvedItems.length} approved to {meetingProjectName || 'Project'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Batch push section */}
-      {showBatchPush && !generatingActions && (
-        <div className="mt-3 pt-3 border-t border-surface-200 dark:border-surface-700">
-          <div className="flex items-center justify-between">
             <button
               onClick={handleSelectAll}
-              className="text-xs text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
+              className="text-xs text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 transition-colors shrink-0"
             >
               {allSelected ? 'Deselect All' : 'Select All'}
             </button>
-            <button
-              onClick={handleBatchPush}
-              disabled={selectedCount === 0}
-              className="flex items-center gap-1.5 text-sm bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <Send size={14} />
-              Push {selectedCount} item{selectedCount !== 1 ? 's' : ''} to {meetingProjectName || 'Project'}
-            </button>
+
+            <div className="flex items-center gap-2">
+              {/* Inline column picker */}
+              {columns && columns.length > 0 && (
+                <select
+                  value={selectedColumnId ?? ''}
+                  onChange={(e) => onColumnChange?.(e.target.value)}
+                  className="bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg text-xs text-[var(--color-text-primary)] px-2 py-1.5 focus:outline-none focus:border-[var(--color-accent-dim)] transition-colors"
+                >
+                  {columns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Push button */}
+              <button
+                onClick={handlePush}
+                disabled={selectedCount === 0 || !selectedColumnId || pushing}
+                className="flex items-center gap-1.5 text-sm bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg transition-colors shrink-0"
+              >
+                {pushing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Send size={14} />
+                )}
+                Push {selectedCount} item{selectedCount !== 1 ? 's' : ''}
+                {selectedColumnName ? ` to ${selectedColumnName}` : ''}
+              </button>
+            </div>
           </div>
         </div>
       )}

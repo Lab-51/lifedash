@@ -1,9 +1,9 @@
 // === FILE PURPOSE ===
-// 3-step wizard modal for converting action item(s) into board card(s).
+// 3-step wizard modal for converting a single action item into a board card.
 // Step 1: Select project (skipped if preselectedProjectId provided),
 // Step 2: Select board (auto-skipped if only 1),
 // Step 3: Select column. Calls onConvert with actionItemId + columnId.
-// Supports batch conversion via actionItems prop.
+// Used only when a meeting is NOT linked to a project (no inline push).
 //
 // === DEPENDENCIES ===
 // react, lucide-react (X, Loader2, ChevronLeft), shared types,
@@ -14,10 +14,8 @@ import { X, Loader2, ChevronLeft } from 'lucide-react';
 import type { Project, Board, Column, ActionItem } from '../../shared/types';
 
 interface ConvertActionModalProps {
-  /** Single action item for one-off conversion */
-  actionItem?: ActionItem;
-  /** Multiple action items for batch conversion */
-  actionItems?: Array<{ id: string; text: string }>;
+  /** The action item to convert */
+  actionItem: ActionItem;
   /** Pre-select a project, skipping step 1 */
   preselectedProjectId?: string;
   /** Pre-selected project name (shown in header) */
@@ -28,7 +26,6 @@ interface ConvertActionModalProps {
 
 export default function ConvertActionModal({
   actionItem,
-  actionItems,
   preselectedProjectId,
   preselectedProjectName,
   onConvert,
@@ -47,14 +44,8 @@ export default function ConvertActionModal({
   const [loading, setLoading] = useState(false);
   const [converting, setConverting] = useState(false);
 
-  // Batch conversion progress state
-  const [batchProgress, setBatchProgress] = useState(0);
-  const [batchTotal, setBatchTotal] = useState(0);
-
   // Whether the user explicitly changed from the preselected project
   const [projectOverridden, setProjectOverridden] = useState(false);
-
-  const isBatch = actionItems && actionItems.length > 0;
 
   // Close on Escape key
   useEffect(() => {
@@ -113,9 +104,8 @@ export default function ConvertActionModal({
     return () => { cancelled = true; };
   }, [selectedBoardId]);
 
-  // Single-item conversion
-  const handleConvertSingle = useCallback(async () => {
-    if (!selectedColumnId || !actionItem) return;
+  const handleConvert = useCallback(async () => {
+    if (!selectedColumnId) return;
     setConverting(true);
     try {
       await onConvert(actionItem.id, selectedColumnId);
@@ -126,27 +116,6 @@ export default function ConvertActionModal({
       setConverting(false);
     }
   }, [selectedColumnId, actionItem, onConvert, onClose]);
-
-  // Batch conversion
-  const handleConvertBatch = useCallback(async () => {
-    if (!selectedColumnId || !actionItems || actionItems.length === 0) return;
-    setConverting(true);
-    setBatchTotal(actionItems.length);
-    setBatchProgress(0);
-    try {
-      for (let i = 0; i < actionItems.length; i++) {
-        setBatchProgress(i + 1);
-        await onConvert(actionItems[i].id, selectedColumnId);
-      }
-      onClose();
-    } catch {
-      // Error handled by meetingStore — stop batch on first failure
-    } finally {
-      setConverting(false);
-    }
-  }, [selectedColumnId, actionItems, onConvert, onClose]);
-
-  const handleConvert = isBatch ? handleConvertBatch : handleConvertSingle;
 
   const handleNext = () => {
     if (step === 1 && selectedProjectId) {
@@ -226,7 +195,7 @@ export default function ConvertActionModal({
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)]">
-            {isBatch ? 'Convert to Cards' : 'Convert to Card'}
+            Convert to Card
           </h3>
           <button
             onClick={onClose}
@@ -237,16 +206,10 @@ export default function ConvertActionModal({
           </button>
         </div>
 
-        {/* Description / batch summary */}
-        {isBatch ? (
-          <p className="text-sm text-surface-400 mb-2">
-            Converting {actionItems.length} action item{actionItems.length !== 1 ? 's' : ''}
-          </p>
-        ) : actionItem ? (
-          <p className="text-sm text-surface-400 line-clamp-2 mb-2">
-            {actionItem.description}
-          </p>
-        ) : null}
+        {/* Description */}
+        <p className="text-sm text-surface-400 line-clamp-2 mb-2">
+          {actionItem.description}
+        </p>
 
         {/* Pre-selected project indicator */}
         {preselectedProjectId && !projectOverridden && resolvedProjectName && step !== 1 && (
@@ -359,13 +322,6 @@ export default function ConvertActionModal({
           )}
         </div>
 
-        {/* Batch progress indicator */}
-        {converting && isBatch && batchTotal > 0 && (
-          <div className="text-sm text-surface-400 text-center mt-2">
-            Converting {batchProgress} of {batchTotal}...
-          </div>
-        )}
-
         {/* Footer */}
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-[var(--color-border)]">
           <div>
@@ -402,9 +358,7 @@ export default function ConvertActionModal({
                 className="border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-40 disabled:cursor-not-allowed text-sm px-4 py-1.5 transition-all flex items-center gap-1.5"
               >
                 {converting && <Loader2 size={14} className="animate-spin" />}
-                {isBatch
-                  ? `Convert ${actionItems.length} item${actionItems.length !== 1 ? 's' : ''}`
-                  : 'Convert'}
+                Convert
               </button>
             )}
           </div>

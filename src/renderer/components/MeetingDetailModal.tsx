@@ -18,7 +18,7 @@ import ActionItemList from './ActionItemList';
 import ConvertActionModal from './ConvertActionModal';
 import MeetingAnalyticsSection from './MeetingAnalyticsSection';
 import { getSpeakerColor } from './MeetingAnalyticsSection';
-import type { ActionItem, MeetingWithTranscript } from '../../shared/types';
+import type { ActionItem, Column, MeetingWithTranscript } from '../../shared/types';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../shared/types';
 import { useLicenseStore } from '../stores/licenseStore';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -202,8 +202,9 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
   const [editTitle, setEditTitle] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [convertingAction, setConvertingAction] = useState<ActionItem | null>(null);
-  const [batchConvertItems, setBatchConvertItems] = useState<Array<{ id: string; text: string }> | null>(null);
-  const [quickPushing, setQuickPushing] = useState(false);
+  const [pushColumns, setPushColumns] = useState<Column[]>([]);
+  const [selectedPushColumnId, setSelectedPushColumnId] = useState<string | undefined>(undefined);
+  const [pushing, setPushing] = useState(false);
   const [transcriptSearch, setTranscriptSearch] = useState(initialTranscriptSearch ?? '');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showPrep, setShowPrep] = useState(false);
@@ -272,6 +273,29 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
     autoGenerateActionsTriggered.current = true;
     generateActionItems(selectedMeeting.id);
   }, [autoGenerate, selectedMeeting, generatingActions, generateActionItems]);
+
+  // Load columns for inline push when meeting has a linked project
+  useEffect(() => {
+    if (!selectedMeeting?.projectId) {
+      setPushColumns([]);
+      setSelectedPushColumnId(undefined);
+      return;
+    }
+    let cancelled = false;
+    window.electronAPI.getBoards(selectedMeeting.projectId).then((boards) => {
+      if (cancelled || boards.length === 0) {
+        if (!cancelled) setPushColumns([]);
+        return;
+      }
+      return window.electronAPI.getColumns(boards[0].id);
+    }).then((cols) => {
+      if (cancelled || !cols) return;
+      const sorted = [...cols].sort((a, b) => a.position - b.position);
+      setPushColumns(sorted);
+      if (sorted.length > 0) setSelectedPushColumnId(sorted[0].id);
+    });
+    return () => { cancelled = true; };
+  }, [selectedMeeting?.projectId]);
 
   if (!selectedMeeting) return null;
 
@@ -384,37 +408,19 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
     handleCopy('actions', text);
   };
 
-  // Quick-push: convert all approved action items to cards in the linked project's first column
-  const handleQuickPush = async (): Promise<{ pushedCount: number; columnName: string }> => {
-    if (!meeting.projectId) throw new Error('No linked project');
-
-    setQuickPushing(true);
+  // Push selected action items to a specific column on the linked project's board
+  const handlePushToColumn = async (items: Array<{ id: string; text: string }>, columnId: string) => {
+    setPushing(true);
     try {
-      // 1. Get boards for the linked project
-      const boards = await window.electronAPI.getBoards(meeting.projectId);
-      if (boards.length === 0) throw new Error('No board found for this project');
-
-      // 2. Get columns for the first board
-      const board = boards[0];
-      const columns = await window.electronAPI.getColumns(board.id);
-      if (columns.length === 0) throw new Error('No columns found on this board');
-
-      // 3. Pick the leftmost column (lowest position)
-      const sortedColumns = [...columns].sort((a, b) => a.position - b.position);
-      const targetColumn = sortedColumns[0];
-
-      // 4. Get all approved action items
-      const approvedItems = meeting.actionItems.filter((a) => a.status === 'approved');
-      if (approvedItems.length === 0) throw new Error('No approved items to push');
-
-      // 5. Convert each approved item to a card in the target column
-      for (const item of approvedItems) {
-        await convertActionToCard(item.id, targetColumn.id);
+      for (const item of items) {
+        await convertActionToCard(item.id, columnId);
       }
-
-      return { pushedCount: approvedItems.length, columnName: targetColumn.name };
+      const colName = pushColumns.find((c) => c.id === columnId)?.name ?? 'column';
+      toast(`Pushed ${items.length} item${items.length !== 1 ? 's' : ''} to ${colName}`, 'success');
+    } catch {
+      toast('Failed to push items', 'error');
     } finally {
-      setQuickPushing(false);
+      setPushing(false);
     }
   };
 
@@ -631,15 +637,11 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                   }}
                   meetingProjectId={meeting.projectId ?? undefined}
                   meetingProjectName={linkedProjectName}
-                  onBatchConvert={(items) => {
-                    if (!isProEnabled) {
-                      toast('Upgrade to Pro to auto-convert action items to cards', 'info');
-                      return;
-                    }
-                    setBatchConvertItems(items);
-                  }}
-                  onQuickPush={meeting.projectId && isProEnabled ? handleQuickPush : undefined}
-                  quickPushing={quickPushing}
+                  columns={meeting.projectId && isProEnabled ? pushColumns : undefined}
+                  selectedColumnId={selectedPushColumnId}
+                  onColumnChange={setSelectedPushColumnId}
+                  onPushToColumn={meeting.projectId && isProEnabled ? handlePushToColumn : undefined}
+                  pushing={pushing}
                 />
               </div>
             </>
@@ -768,15 +770,6 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
           preselectedProjectName={linkedProjectName}
           onConvert={convertActionToCard}
           onClose={() => setConvertingAction(null)}
-        />
-      )}
-      {batchConvertItems && batchConvertItems.length > 0 && (
-        <ConvertActionModal
-          actionItems={batchConvertItems}
-          preselectedProjectId={meeting.projectId ?? undefined}
-          preselectedProjectName={linkedProjectName}
-          onConvert={convertActionToCard}
-          onClose={() => setBatchConvertItems(null)}
         />
       )}
     </>
