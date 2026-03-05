@@ -26,13 +26,14 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 }
 
 export const releaseNotes: ReleaseNotesData = {
-  version: '2.0.17',
+  version: '2.0.18',
   sections: [
     {
       category: 'fixes',
       label: 'Fixes',
       items: [
-        'Fixed recurring cards duplicating when toggled complete multiple times',
+        'Fixed standup button dropdown not opening correctly',
+        'Fixed AI standup generation failing to produce content',
       ],
     },
   ],
