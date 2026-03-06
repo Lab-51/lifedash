@@ -5,6 +5,7 @@
 import { useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Mic, Info, Search, X, ArrowDownWideNarrow } from 'lucide-react';
+import EmptyFeatureState from './EmptyFeatureState';
 import HudSelect from './HudSelect';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useRecordingStore } from '../stores/recordingStore';
@@ -300,17 +301,26 @@ export default function MeetingsModern() {
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto px-8 pb-8">
                 {sortedMeetings.length === 0 ? (
-                    <div className="mt-20 flex flex-col items-center justify-center text-center">
-                        <div className="w-24 h-24 bg-[var(--color-accent-subtle)] rounded-full flex items-center justify-center mb-6 border border-[var(--color-border-accent)]">
-                            <Mic size={40} className="text-[var(--color-accent-dim)]" />
+                    searchQuery ? (
+                        <div className="mt-20 flex flex-col items-center justify-center text-center">
+                            <div className="w-24 h-24 bg-[var(--color-accent-subtle)] rounded-full flex items-center justify-center mb-6 border border-[var(--color-border-accent)]">
+                                <Mic size={40} className="text-[var(--color-accent-dim)]" />
+                            </div>
+                            <h3 className="text-xl font-medium text-[var(--color-text-primary)] mb-2">No matching meetings</h3>
+                            <p className="text-[var(--color-text-secondary)] max-w-md mx-auto">Try adjusting your filters or search query.</p>
                         </div>
-                        <h3 className="text-xl font-medium text-surface-900 dark:text-surface-100 mb-2">
-                            {searchQuery ? 'No matching meetings' : 'No recorded meetings'}
-                        </h3>
-                        <p className="text-surface-500 max-w-md mx-auto">
-                            {searchQuery ? 'Try adjusting your filters or search query.' : 'Click the record button above to start capturing your next meeting.'}
-                        </p>
-                    </div>
+                    ) : (
+                        <div className="mt-20">
+                            <EmptyFeatureState
+                                icon={Mic}
+                                title="Turn meetings into action"
+                                description="Record any meeting, get an automatic summary, and convert key points into project tasks."
+                                benefits={['Automatic transcription', 'AI-generated summaries', 'Action items become tasks']}
+                                ctaLabel="Record a Meeting"
+                                ctaAction={() => setShowControls(true)}
+                            />
+                        </div>
+                    )
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                         {sortedMeetings.map(meeting => (

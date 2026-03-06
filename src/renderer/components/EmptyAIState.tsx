@@ -7,6 +7,7 @@
 
 import { useNavigate } from 'react-router-dom';
 import { Bot, Zap } from 'lucide-react';
+import HelpTip from './HelpTip';
 
 // === PROPS ===
 
@@ -34,8 +35,9 @@ export default function EmptyAIState({ featureName, onSetup }: EmptyAIStateProps
       </div>
 
       {/* Heading */}
-      <h3 className="font-hud text-sm text-[var(--color-text-primary)] mb-1">
+      <h3 className="font-hud text-sm text-[var(--color-text-primary)] mb-1 flex items-center gap-1 justify-center">
         Connect an AI provider to unlock {featureName}
+        <HelpTip text="An AI provider powers smart features like summaries, brainstorming, and insights. You can use a free local option (Ollama) or connect to cloud services like OpenAI." />
       </h3>
 
       {/* Subtext */}

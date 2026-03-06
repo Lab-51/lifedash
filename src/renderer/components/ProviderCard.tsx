@@ -56,7 +56,7 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
   };
 
   return (
-    <div className={`hud-panel clip-corner-cut-sm p-4 transition-colors ${
+    <div className={`hud-panel clip-corner-cut-sm p-4 transition-colors flex flex-col ${
       provider.enabled ? '' : 'opacity-60'
     }`}>
       {/* Header row: provider name + enabled toggle */}
@@ -80,17 +80,17 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
       </div>
 
       {/* Status indicators */}
-      <div className="flex items-center gap-3 mb-3 text-xs font-data">
-        <span className={`flex items-center gap-1 ${
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3 text-xs font-data">
+        <span className={`flex items-center gap-1.5 ${
           provider.hasApiKey ? 'text-emerald-400' : 'text-[var(--color-text-muted)]'
         }`}>
           <Key size={12} />
           {provider.hasApiKey ? 'API key set' : 'No API key'}
         </span>
         {provider.baseUrl && (
-          <span className="flex items-center gap-1 text-[var(--color-text-secondary)]">
-            <Globe size={12} />
-            {provider.baseUrl}
+          <span className="flex items-center gap-1.5 text-[var(--color-text-secondary)] truncate min-w-0">
+            <Globe size={12} className="shrink-0" />
+            <span className="truncate">{provider.baseUrl}</span>
           </span>
         )}
       </div>
@@ -137,7 +137,7 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
       )}
 
       {/* Actions row */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mt-auto pt-3 border-t border-[var(--color-border)]">
         <button onClick={() => testConnection(provider.id)}
           disabled={testState?.loading}
           className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50 font-data">

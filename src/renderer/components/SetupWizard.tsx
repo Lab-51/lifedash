@@ -26,6 +26,7 @@ import {
 import { useSettingsStore } from '../stores/settingsStore';
 import { useNavigate } from 'react-router-dom';
 import type { AIProviderName } from '../../shared/types';
+import HelpTip from './HelpTip';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -148,8 +149,9 @@ function StepHaveKey({
               <Key size={20} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm text-[var(--color-text-primary)]">
+              <div className="font-medium text-sm text-[var(--color-text-primary)] flex items-center gap-1">
                 I have an API key
+                <HelpTip text="A secret code that lets LifeDash talk to AI services like OpenAI or Anthropic. You get one by creating a free account on their website." />
               </div>
             </div>
             <ArrowRight size={16} className="mt-0.5 text-[var(--color-text-muted)]" />
@@ -189,8 +191,9 @@ function StepHaveKey({
               <Cpu size={20} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm text-[var(--color-text-primary)]">
+              <div className="font-medium text-sm text-[var(--color-text-primary)] flex items-center gap-1">
                 Run AI locally <span className="text-[var(--color-text-muted)] font-normal">(advanced)</span>
+                <HelpTip text="Free software called Ollama that runs AI on your own computer. More private, but requires a powerful machine (16 GB+ RAM) and some technical setup." />
               </div>
               <div className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
                 Requires Ollama setup, terminal usage, and a powerful computer (16 GB+ RAM). Best for technical users who want full privacy.
@@ -227,8 +230,9 @@ function StepPickProvider({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="font-hud text-base tracking-wide text-[var(--color-text-primary)] mb-1">
+        <h2 className="font-hud text-base tracking-wide text-[var(--color-text-primary)] mb-1 flex items-center gap-1">
           Choose a provider
+          <HelpTip text="An AI provider is a company that offers AI services. Think of it like choosing a phone carrier — they all provide AI, just from different companies." />
         </h2>
         <p className="text-xs text-[var(--color-text-secondary)]">
           Select the AI service you'd like to connect.
@@ -465,7 +469,10 @@ function StepConfigure({
 
       {needsApiKey && (
         <div>
-          <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">API Key</label>
+          <label className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">
+            API Key
+            <HelpTip text="A secret code from your AI provider. It's like a password — keep it private. LifeDash stores it securely on your computer." />
+          </label>
           <div className="relative">
             <input
               type={showApiKey ? 'text' : 'password'}

@@ -7,8 +7,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
     Brain, Plus, Send, Loader2, Trash2, Archive,
-    MessageSquare, Bot, Sparkles, Lightbulb, Search, Layers, ListChecks, Square, X, Edit2, MoreVertical
+    MessageSquare, Bot, Sparkles, Lightbulb, Search, Layers, ListChecks, Square, X, Edit2, MoreVertical,
 } from 'lucide-react';
+import EmptyFeatureState from './EmptyFeatureState';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useBrainstormStore } from '../stores/brainstormStore';
@@ -473,20 +474,15 @@ export default function BrainstormModern() {
                 {/* Right Chat Area */}
                 <div className="flex-1 flex flex-col relative bg-surface-50/50 dark:bg-surface-950 dark:grid-bg">
                     {!activeSession && !loadingSession ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-                            <div className="w-32 h-32 bg-[var(--color-chrome)] rounded-full border border-[var(--color-border)] flex items-center justify-center mb-6">
-                                <Sparkles size={48} className="text-[var(--color-accent-dim)]" />
-                            </div>
-                            <h2 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">Welcome to Brainstorm</h2>
-                            <p className="text-[var(--color-text-secondary)] max-w-md mx-auto mb-8">
-                                Select a session from the sidebar or start a new one to collaborate with AI on your projects.
-                            </p>
-                            <button
-                                onClick={() => setShowNewSession(true)}
-                                className="btn-primary clip-corner-cut-sm px-6 py-3 text-sm font-medium"
-                            >
-                                Start New Session
-                            </button>
+                        <div className="flex-1 flex items-center justify-center">
+                            <EmptyFeatureState
+                                icon={Brain}
+                                title="Think out loud with AI"
+                                description="Have a conversation with AI to explore ideas, solve problems, or plan your next move."
+                                benefits={['Brainstorm freely in natural language', 'AI knows about your projects', 'Save insights as cards or ideas']}
+                                ctaLabel="Start a Session"
+                                ctaAction={() => setShowNewSession(true)}
+                            />
                         </div>
                     ) : loadingSession ? (
                         <div className="flex-1 flex items-center justify-center">

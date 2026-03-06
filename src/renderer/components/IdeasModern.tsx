@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lightbulb, Plus, Search, X, Zap, Target, Loader2, Sparkles, Tag, ArrowRight, ArrowDownWideNarrow } from 'lucide-react';
+import EmptyFeatureState from './EmptyFeatureState';
 import { useIdeaStore } from '../stores/ideaStore';
 import HudSelect from '../components/HudSelect';
 import type { IdeaStatus } from '../../shared/types';
@@ -217,17 +218,30 @@ export default function IdeasModern() {
             {/* Grid Content */}
             <div className="flex-1 overflow-y-auto px-8 pb-8">
                 {sortedIdeas.length === 0 ? (
-                    <div className="mt-12 flex flex-col items-center justify-center text-center">
-                        <div className="w-20 h-20 bg-amber-50 dark:bg-amber-900/20 rounded-full flex items-center justify-center mb-6">
-                            <Lightbulb size={32} className="text-amber-500" />
+                    (searchQuery || filter !== 'all') ? (
+                        <div className="mt-12 flex flex-col items-center justify-center text-center">
+                            <div className="w-20 h-20 bg-[var(--color-accent-subtle)] rounded-full flex items-center justify-center mb-6 border border-[var(--color-border-accent)]">
+                                <Lightbulb size={32} className="text-[var(--color-accent-dim)]" />
+                            </div>
+                            <h3 className="text-xl font-medium text-[var(--color-text-primary)] mb-2">
+                                {searchQuery ? 'No matching ideas found' : `No ${filter} ideas found`}
+                            </h3>
+                            <p className="text-[var(--color-text-secondary)] max-w-xs mx-auto">
+                                {searchQuery ? 'Try adjusting your search terms.' : 'Try a different filter to see more ideas.'}
+                            </p>
                         </div>
-                        <h3 className="text-xl font-medium text-surface-900 dark:text-surface-100 mb-2">
-                            {searchQuery ? 'No matching ideas found' : (filter !== 'all' ? `No ${filter} ideas found` : 'Your idea bank is empty')}
-                        </h3>
-                        <p className="text-surface-500 max-w-xs mx-auto">
-                            {searchQuery ? 'Try adjusting your search terms.' : 'Great things start small. Capture any thought, no matter how wild.'}
-                        </p>
-                    </div>
+                    ) : (
+                        <div className="mt-12">
+                            <EmptyFeatureState
+                                icon={Lightbulb}
+                                title="Capture every spark"
+                                description="Jot down ideas as they come — tag them, rate them, and turn the best ones into real projects."
+                                benefits={['Quick capture — never lose an idea', 'AI helps assess feasibility', 'Convert ideas to project cards']}
+                                ctaLabel="Add Your First Idea"
+                                ctaAction={() => quickAddInputRef.current?.focus()}
+                            />
+                        </div>
+                    )
                 ) : (
                     <div className="columns-1 md:columns-2 xl:columns-3 gap-6 space-y-6">
                         {/* Masonry-like layout using columns */}

@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Key, Wand2, RefreshCw, CheckCircle, Download, Loader2 } from 'lucide-react';
+import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Key, Wand2, RefreshCw, CheckCircle, Download, Loader2, Map } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useBackupStore } from '../stores/backupStore';
@@ -13,6 +13,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import ProviderCard from '../components/ProviderCard';
 import AddProviderForm from '../components/AddProviderForm';
 import SetupWizard from '../components/SetupWizard';
+import FeatureTour from '../components/FeatureTour';
 import TaskModelConfig from '../components/TaskModelConfig';
 import ThemeSelector from '../components/ThemeSelector';
 
@@ -27,6 +28,7 @@ import ProxySettingsSection from '../components/settings/ProxySettingsSection';
 import LicenseSection from '../components/settings/LicenseSection';
 import BackgroundAgentSettings from '../components/settings/BackgroundAgentSettings';
 import HudBackground from './HudBackground';
+import HelpTip from './HelpTip';
 
 export default function SettingsPageModern() {
     const providers = useSettingsStore(s => s.providers);
@@ -43,6 +45,7 @@ export default function SettingsPageModern() {
         return tab && ['general', 'ai', 'data', 'license', 'about'].includes(tab) ? tab : 'general';
     });
     const [showWizard, setShowWizard] = useState(false);
+    const [showTour, setShowTour] = useState(false);
     const setSetting = useSettingsStore(s => s.setSetting);
 
     // Update status for the About tab
@@ -218,16 +221,30 @@ export default function SettingsPageModern() {
                                     <p className="text-sm font-medium text-[var(--color-text-primary)]">Setup Wizard</p>
                                     <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Re-run the guided AI provider setup.</p>
                                 </div>
-                                <button
-                                    onClick={async () => {
-                                        await setSetting('setupWizard.completed', 'false');
-                                        setShowWizard(true);
-                                    }}
-                                    className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] px-4 py-2 text-sm font-medium transition-all clip-corner-cut-sm"
-                                >
-                                    <Wand2 size={15} />
-                                    Re-run setup wizard
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    {import.meta.env.DEV && (
+                                        <button
+                                            onClick={async () => {
+                                                await setSetting('featureTour.completed', 'false');
+                                                setShowTour(true);
+                                            }}
+                                            className="flex items-center gap-2 border border-amber-500/40 hover:border-amber-500 text-amber-500 px-4 py-2 text-sm font-medium transition-all clip-corner-cut-sm"
+                                        >
+                                            <Map size={15} />
+                                            Feature Tour (dev)
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={async () => {
+                                            await setSetting('setupWizard.completed', 'false');
+                                            setShowWizard(true);
+                                        }}
+                                        className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] px-4 py-2 text-sm font-medium transition-all clip-corner-cut-sm"
+                                    >
+                                        <Wand2 size={15} />
+                                        Re-run setup wizard
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Providers */}
@@ -237,6 +254,7 @@ export default function SettingsPageModern() {
                                         <div className="flex items-center gap-3 mb-1">
                                             <Bot size={16} className="text-[var(--color-accent)]" />
                                             <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">AI Providers</span>
+                                            <HelpTip text="Companies that offer AI services. You connect LifeDash to them with an API key so it can use their AI models for summaries, brainstorming, and more." />
                                             <div className="h-px w-20 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
                                         </div>
                                         <p className="text-sm text-[var(--color-text-secondary)] mt-1">Configure models and API keys.</p>
@@ -290,6 +308,7 @@ export default function SettingsPageModern() {
                                 <div className="mb-6">
                                     <div className="flex items-center gap-3 mb-1">
                                         <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Usage & Costs</span>
+                                        <HelpTip text="AI providers charge small amounts per request. Tokens are how they measure usage — roughly 1 token equals 1 word. A few dollars can power hundreds of sessions." />
                                         <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
                                     </div>
                                     <p className="text-sm text-[var(--color-text-secondary)] mt-1">Track token consumption.</p>
@@ -364,7 +383,7 @@ export default function SettingsPageModern() {
                                     </div>
                                     <div className="p-4 hud-panel clip-corner-cut-sm">
                                         <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Encryption</p>
-                                        <p className={`font-medium ${encryptionAvailable ? 'text-emerald-500' : 'text-[var(--color-text-secondary)]'}`}>
+                                        <p className={`font-[var(--font-display)] font-medium ${encryptionAvailable ? 'text-emerald-500' : 'text-[var(--color-text-secondary)]'}`}>
                                             {encryptionAvailable === null ? 'Checking...' : encryptionAvailable ? 'Active' : 'Unavailable'}
                                         </p>
                                     </div>
@@ -438,6 +457,12 @@ export default function SettingsPageModern() {
 
             {showWizard && (
                 <SetupWizard onClose={() => setShowWizard(false)} />
+            )}
+            {showTour && (
+                <FeatureTour onComplete={(proceedToWizard) => {
+                    setShowTour(false);
+                    if (proceedToWizard) setShowWizard(true);
+                }} />
             )}
         </div>
     );

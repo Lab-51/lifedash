@@ -35,6 +35,7 @@ import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import ToastContainer from './components/ToastContainer';
 import AchievementBanner from './components/AchievementBanner';
 import SetupWizard from './components/SetupWizard';
+import FeatureTour from './components/FeatureTour';
 import WhatsNewModal from './components/WhatsNewModal';
 import { releaseNotes, getReleaseType } from '../shared/releaseNotes';
 import type { ReleaseType, ReleaseNoteSection } from '../shared/releaseNotes';
@@ -62,6 +63,7 @@ function AppShell({ children }: { children: ReactNode }) {
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [appReady, setAppReady] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [showTour, setShowTour] = useState(false);
   const [whatsNew, setWhatsNew] = useState<{
     version: string;
     releaseType: ReleaseType;
@@ -133,10 +135,11 @@ function AppShell({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Show the setup wizard if: no providers configured AND wizard not yet completed.
+  // Show the feature tour (new users) or setup wizard on first launch.
+  // Tour shows first for brand-new users; existing users skip straight to wizard if needed.
   useEffect(() => {
     if (!appReady) return;
-    async function checkWizard() {
+    async function checkFirstLaunch() {
       const settingsStore = useSettingsStore.getState();
       await Promise.all([
         settingsStore.loadProviders(),
@@ -144,12 +147,18 @@ function AppShell({ children }: { children: ReactNode }) {
       ]);
       const providers = useSettingsStore.getState().providers;
       const settings = useSettingsStore.getState().settings;
+      const tourCompleted = settings['featureTour.completed'] === 'true';
       const wizardCompleted = settings['setupWizard.completed'] === 'true';
-      if (providers.length === 0 && !wizardCompleted) {
+
+      if (!tourCompleted && !wizardCompleted && providers.length === 0) {
+        // Brand-new user — show tour first, wizard after
+        setShowTour(true);
+      } else if (!wizardCompleted && providers.length === 0) {
+        // Existing user who still needs the wizard (tour already done or skipped)
         setShowWizard(true);
       }
     }
-    checkWizard();
+    checkFirstLaunch();
   }, [appReady]);
 
   // Show "What's New" modal after an update (version changed since last launch)
@@ -245,6 +254,16 @@ function AppShell({ children }: { children: ReactNode }) {
           onClose={() => useFocusStore.getState().stop()}
         />
       </Suspense>
+      {showTour && (
+        <FeatureTour
+          onComplete={(proceedToWizard) => {
+            setShowTour(false);
+            if (proceedToWizard) {
+              setShowWizard(true);
+            }
+          }}
+        />
+      )}
       {showWizard && (
         <SetupWizard onClose={() => setShowWizard(false)} />
       )}

@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Timer, Download, Play, Clock, Calendar, BarChart3, Pencil, Trash2, Check, X, DollarSign, Minus, FolderOpen } from 'lucide-react';
+import EmptyFeatureState from '../components/EmptyFeatureState';
 import { useProjectStore } from '../stores/projectStore';
 import { useFocusStore } from '../stores/focusStore';
 import { toast } from '../hooks/useToast';
@@ -341,13 +342,15 @@ export default function FocusPage() {
       <div className="p-6 space-y-6 max-w-6xl mx-auto w-full">
         {header}
         {controls}
-        <div className={`${cardCls} p-12 text-center`}>
-          <Timer size={44} className="mx-auto mb-4 text-surface-300 dark:text-surface-600" />
-          <p className="text-lg font-medium text-surface-900 dark:text-surface-100">No focus sessions in this period</p>
-          <p className="text-sm text-surface-500 mt-2 max-w-md mx-auto">Try selecting a different date range or start a new focus session.</p>
-          <button onClick={() => useFocusStore.getState().setShowStartModal(true)} className="mt-5 btn-primary clip-corner-cut-sm inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium">
-            <Play size={14} /> Start Focus Session
-          </button>
+        <div className={`${cardCls} p-12`}>
+          <EmptyFeatureState
+            icon={Timer}
+            title="Deep work, distraction-free"
+            description="Pick a task, start a timer, and track your focused work sessions."
+            benefits={['Pomodoro-style focus sessions', 'Track time spent on tasks', 'Build a productivity habit']}
+            ctaLabel="Start a Focus Session"
+            ctaAction={() => useFocusStore.getState().setShowStartModal(true)}
+          />
         </div>
       </div>
     );

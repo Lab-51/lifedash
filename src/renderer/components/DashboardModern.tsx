@@ -23,7 +23,9 @@ import {
     Loader2,
     Timer,
     Star,
+    FolderKanban,
 } from 'lucide-react';
+import EmptyFeatureState from './EmptyFeatureState';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useIdeaStore } from '../stores/ideaStore';
@@ -389,9 +391,16 @@ export default function DashboardModern() {
                             <div className="ruled-line-accent" />
                             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
                                 {activeProjects.length === 0 ? (
-                                    <div className="col-span-2 text-center py-10 text-[var(--color-text-muted)] flex flex-col items-center justify-center">
-                                        <Layers size={24} className="mb-2 opacity-30" />
-                                        No active projects. Start something new!
+                                    <div className="col-span-2">
+                                        <EmptyFeatureState
+                                            compact
+                                            icon={FolderKanban}
+                                            title="Organize your work visually"
+                                            description="Create boards with columns, drag cards between stages, and track progress at a glance."
+                                            benefits={['See all your tasks in one place', 'Drag and drop to update status', 'Add details, checklists, and due dates']}
+                                            ctaLabel="Create Your First Project"
+                                            ctaAction={() => navigate('/projects?action=create')}
+                                        />
                                     </div>
                                 ) : (
                                     activeProjects.map(project => (
@@ -436,10 +445,15 @@ export default function DashboardModern() {
                             <div className="ruled-line-accent" />
                             <div className="flex-1 overflow-y-auto p-2 max-h-[400px]">
                                 {recentMeetings.length === 0 ? (
-                                    <div className="h-full flex flex-col items-center justify-center text-[var(--color-text-muted)] text-sm py-10">
-                                        <Mic size={24} className="mb-2 opacity-50" />
-                                        No recent usage
-                                    </div>
+                                    <EmptyFeatureState
+                                        compact
+                                        icon={Mic}
+                                        title="Turn meetings into action"
+                                        description="Record any meeting, get an automatic summary, and convert key points into project tasks."
+                                        benefits={['Automatic transcription', 'AI-generated summaries', 'Action items become tasks']}
+                                        ctaLabel="Record a Meeting"
+                                        ctaAction={() => navigate('/meetings?action=record')}
+                                    />
                                 ) : (
                                     <div className="space-y-1">
                                         {recentMeetings.map((meeting, i) => (

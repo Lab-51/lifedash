@@ -171,7 +171,7 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-sm font-medium text-[var(--color-text-primary)]">{label}</div>
-                <div className="text-xs text-[var(--color-text-secondary)] font-data">{description}</div>
+                <div className="text-xs text-[var(--color-text-secondary)]">{description}</div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {/* Provider selector */}

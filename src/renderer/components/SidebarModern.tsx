@@ -28,14 +28,15 @@ interface NavItem {
     path: string;
     label: string;
     icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+    tourId?: string;
 }
 
 const navItems: NavItem[] = [
     { path: '/', label: 'Home', icon: LayoutDashboard },
-    { path: '/projects', label: 'Projects', icon: FolderKanban },
-    { path: '/meetings', label: 'Meetings', icon: Mic },
-    { path: '/ideas', label: 'Ideas', icon: Lightbulb },
-    { path: '/brainstorm', label: 'Brainstorm', icon: Brain },
+    { path: '/projects', label: 'Projects', icon: FolderKanban, tourId: 'nav-projects' },
+    { path: '/meetings', label: 'Meetings', icon: Mic, tourId: 'nav-meetings' },
+    { path: '/ideas', label: 'Ideas', icon: Lightbulb, tourId: 'nav-ideas' },
+    { path: '/brainstorm', label: 'Brainstorm', icon: Brain, tourId: 'nav-brainstorm' },
     { path: '/focus', label: 'Focus', icon: Clock },
     { path: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -89,7 +90,7 @@ export default function SidebarModern() {
             </div>
 
             <div className="flex flex-col gap-3 px-3 flex-1">
-                {navItems.map(({ path, label, icon: Icon }) => {
+                {navItems.map(({ path, label, icon: Icon, tourId }) => {
                     const isHome = path === '/';
                     const isActive = isHome
                         ? location.pathname === '/'
@@ -100,6 +101,7 @@ export default function SidebarModern() {
                             key={path}
                             to={path}
                             title={SHORTCUT_KEYS[path] ? `${label} (${SHORTCUT_KEYS[path]})` : label}
+                            {...(tourId ? { 'data-tour-id': tourId } : {})}
                             className={`group relative w-full h-12 flex items-center justify-center rounded-xl transition-all duration-200 ${isActive
                                     ? 'hud-nav-active'
                                     : 'text-[var(--color-text-secondary)] hover:text-[var(--color-accent-dim)] hover:bg-[var(--color-accent-subtle)]'
