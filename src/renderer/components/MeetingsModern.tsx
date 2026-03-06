@@ -313,10 +313,10 @@ export default function MeetingsModern() {
                         <div className="mt-20">
                             <EmptyFeatureState
                                 icon={Mic}
-                                title="Turn meetings into action"
-                                description="Record any meeting, get an automatic summary, and convert key points into project tasks."
-                                benefits={['Automatic transcription', 'AI-generated summaries', 'Action items become tasks']}
-                                ctaLabel="Record a Meeting"
+                                title="Capture every meeting, privately"
+                                description="Record any meeting, get automatic transcripts and AI summaries, and push action items straight to your project board. Your recordings never leave your machine."
+                                benefits={['Private — all audio stays on your device', 'AI briefs and action items in seconds', 'One-click push to project boards']}
+                                ctaLabel="Record Your First Meeting"
                                 ctaAction={() => setShowControls(true)}
                             />
                         </div>

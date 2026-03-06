@@ -52,7 +52,8 @@ export default function InsightsPanel() {
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [running, setRunning] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [autoOpened, setAutoOpened] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
 
   const { enabled: isPro, info } = useProFeature('backgroundAgent');
@@ -79,6 +80,17 @@ export default function InsightsPanel() {
     if (!isPro || !preferences?.enabled) return;
     loadAllInsights(analyzedIds.length ? analyzedIds : undefined);
   }, [analyzedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-open panel when insights are found, but only once per mount
+  // so that a manual close is respected
+  const activeInsights = insights.filter(i => i.status !== 'dismissed' && i.status !== 'acted_on');
+
+  useEffect(() => {
+    if (!autoOpened && activeInsights.length > 0 && isPro && preferences?.enabled) {
+      setPanelOpen(true);
+      setAutoOpened(true);
+    }
+  }, [activeInsights.length, autoOpened, isPro, preferences?.enabled]);
 
   const isDisabled = isPro && preferences !== null && !preferences.enabled;
   const isCollapsed = !isPro || isDisabled;
@@ -131,7 +143,6 @@ export default function InsightsPanel() {
     }),
   );
 
-  const activeInsights = insights.filter(i => i.status !== 'dismissed' && i.status !== 'acted_on');
   const newCount = activeInsights.filter(i => i.status === 'new').length;
   const urgentCount = activeInsights.filter(i =>
     i.severity === 'warning' || i.severity === 'critical',

@@ -12,10 +12,10 @@ import type { NavigateFunction } from 'react-router-dom';
 /** Map of digit keys to route paths */
 const SHORTCUT_MAP: Record<string, string> = {
   '1': '/',
-  '2': '/projects',
-  '3': '/meetings',
-  '4': '/ideas',
-  '5': '/brainstorm',
+  '2': '/meetings',
+  '3': '/projects',
+  '4': '/brainstorm',
+  '5': '/ideas',
   '6': '/focus',
   '7': '/settings',
 };

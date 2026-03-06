@@ -40,46 +40,46 @@ const TOUR_STEPS: TourStep[] = [
     id: 'welcome',
     title: 'Welcome to LifeDash',
     description:
-      'Your all-in-one workspace for projects, meetings, ideas, and brainstorming — powered by AI when you want it.',
+      'Your private meeting intelligence hub. Record meetings, get AI summaries, and turn action items into projects. Everything stays on your machine.',
     icon: Rocket,
   },
   {
-    id: 'projects',
-    title: 'Projects',
-    description:
-      'Organize your work with boards and cards. Drag tasks between columns to track progress — like a personal Trello.',
-    icon: FolderKanban,
-    spotlightTarget: 'nav-projects',
-  },
-  {
     id: 'meetings',
-    title: 'Meetings',
+    title: 'Capture every meeting',
     description:
-      'Record any meeting and get an automatic transcript. AI generates summaries and action items you can push to your projects.',
+      'Record from any app — Zoom, Teams, Google Meet. Get transcripts, briefs, and action items automatically.',
     icon: Mic,
     spotlightTarget: 'nav-meetings',
   },
   {
-    id: 'brainstorm',
-    title: 'Brainstorm',
+    id: 'projects',
+    title: 'From meeting to execution',
     description:
-      'Chat with AI to explore ideas, solve problems, or plan your next move. It knows about your projects for context.',
+      'Action items become project cards. Track progress with boards, columns, and checklists.',
+    icon: FolderKanban,
+    spotlightTarget: 'nav-projects',
+  },
+  {
+    id: 'brainstorm',
+    title: 'Continue the conversation',
+    description:
+      'Use AI to explore ideas, solve problems, or plan your next steps after a meeting.',
     icon: Brain,
     spotlightTarget: 'nav-brainstorm',
   },
   {
     id: 'ideas',
-    title: 'Ideas',
+    title: 'Capture ideas on the fly',
     description:
-      'Capture ideas on the fly — tag them, rate them, and turn the best ones into real projects or tasks.',
+      'Quick-capture thoughts between meetings. Turn the best ones into projects when you\'re ready.',
     icon: Lightbulb,
     spotlightTarget: 'nav-ideas',
   },
   {
     id: 'ready',
-    title: "You're ready to explore!",
+    title: "You're all set!",
     description:
-      "Next, we'll optionally help you connect an AI service to unlock smart features like summaries, brainstorming, and insights.",
+      "Next, we'll connect an AI service to power transcription and summaries.",
     icon: PartyPopper,
   },
 ];

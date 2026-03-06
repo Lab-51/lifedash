@@ -24,7 +24,9 @@ import {
     Timer,
     Star,
     FolderKanban,
+    CircleDot,
 } from 'lucide-react';
+import type { ActionItem } from '../../shared/types/intelligence';
 import EmptyFeatureState from './EmptyFeatureState';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -149,6 +151,31 @@ export default function DashboardModern() {
         window.electronAPI.getActivityData().then(r => setActivityData(r.dayCounts));
     }, [allCards.length, meetings.length, ideas.length]);
 
+    // Load pending action items from recent meetings
+    const [pendingActions, setPendingActions] = useState<(ActionItem & { meetingTitle: string })[]>([]);
+    useEffect(() => {
+        if (recentMeetings.length === 0) {
+            setPendingActions([]);
+            return;
+        }
+        (async () => {
+            const allItems: (ActionItem & { meetingTitle: string })[] = [];
+            for (const m of recentMeetings) {
+                try {
+                    const items = await window.electronAPI.getMeetingActionItems(m.id);
+                    for (const item of items) {
+                        if (item.status === 'pending' || item.status === 'approved') {
+                            allItems.push({ ...item, meetingTitle: m.title });
+                        }
+                    }
+                } catch {
+                    // Meeting may not have action items generated yet
+                }
+            }
+            setPendingActions(allItems.slice(0, 5));
+        })();
+    }, [recentMeetings]);
+
     // Load insights across all analyzed projects and set up real-time refresh
     useEffect(() => {
         const store = useBackgroundAgentStore.getState();
@@ -185,6 +212,9 @@ export default function DashboardModern() {
                         </h1>
                         <p className="font-data text-[var(--color-text-secondary)] mt-2">
                             {formatToday()}
+                        </p>
+                        <p className="font-data text-xs text-[var(--color-text-muted)] mt-1">
+                            Your meetings, organized and private
                         </p>
                     </div>
 
@@ -229,8 +259,16 @@ export default function DashboardModern() {
 
 
                     <div className="flex gap-3 shrink-0">
+                        {/* Record button — primary action, double width */}
+                        <button
+                            onClick={() => navigate('/meetings?action=record')}
+                            className="group flex flex-col items-center justify-center w-40 h-20 clip-corner-cut-sm transition-all duration-300 border hover:scale-105 hover:shadow-lg hover:shadow-rose-500/20 dark:hover:shadow-rose-500/30 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-600 hover:border-transparent"
+                            title="Record Meeting"
+                        >
+                            <Mic size={28} className="mb-2 transition-transform duration-300 group-hover:scale-110" />
+                            <span className="text-xs font-bold font-hud">Record</span>
+                        </button>
                         {[
-                            { icon: Mic, label: 'Record', path: '/meetings?action=record', colors: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-600 hover:border-transparent' },
                             { icon: Plus, label: 'Project', path: '/projects?action=create', colors: 'text-[var(--color-accent)] dark:text-[var(--color-accent)] bg-[var(--color-accent-subtle)] border-[var(--color-border-accent)] hover:bg-[var(--color-accent)] hover:text-white hover:border-transparent' },
                             { icon: Brain, label: 'Brain', path: '/brainstorm?action=create', colors: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-500 hover:text-white dark:hover:bg-indigo-600 hover:border-transparent' },
                             { icon: Lightbulb, label: 'Idea', path: '/ideas?action=create', colors: 'text-[var(--color-warm)] dark:text-[var(--color-warm)] bg-warm-50 dark:bg-warm-500/10 border-warm-200 dark:border-warm-500/20 hover:bg-[var(--color-warm)] hover:text-white hover:border-transparent' },
@@ -332,20 +370,6 @@ export default function DashboardModern() {
                         <div className="hud-panel-accent clip-corner-cut-sm p-6 flex items-center justify-between group cursor-default hover:border-[var(--color-border-bright)] transition-all duration-300 relative overflow-hidden">
                             <div className="flex flex-col gap-1 relative z-10">
                                 <div className="flex items-center gap-2">
-                                    <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROJECTS</span>
-                                    <div className="h-px w-8 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-40" />
-                                </div>
-                                <p className="font-[var(--font-display)] text-3xl text-[var(--color-accent)] text-glow">{projects.length}</p>
-                            </div>
-                            <div className="relative z-10 w-14 h-14 clip-corner-cut-sm bg-[var(--color-accent-subtle)] text-[var(--color-accent)] flex items-center justify-center border border-[var(--color-border-accent)] group-hover:scale-110 group-hover:-rotate-3 transition-transform">
-                                <Layers size={26} strokeWidth={1.5} />
-                            </div>
-                        </div>
-                    </div>
-                    <div className="col-span-12 sm:col-span-4 lg:col-span-4">
-                        <div className="hud-panel-accent clip-corner-cut-sm p-6 flex items-center justify-between group cursor-default hover:border-[var(--color-border-bright)] transition-all duration-300 relative overflow-hidden">
-                            <div className="flex flex-col gap-1 relative z-10">
-                                <div className="flex items-center gap-2">
                                     <span className="font-hud text-xs tracking-widest text-[var(--color-magenta-dim)]">SYS.MEETINGS</span>
                                     <div className="h-px w-8 bg-gradient-to-r from-[var(--color-magenta)] to-transparent opacity-40" />
                                 </div>
@@ -353,6 +377,20 @@ export default function DashboardModern() {
                             </div>
                             <div className="relative z-10 w-14 h-14 clip-corner-cut-sm bg-[var(--color-magenta-subtle)] text-[var(--color-magenta)] flex items-center justify-center border border-[var(--color-magenta-muted)] group-hover:scale-110 group-hover:-rotate-3 transition-transform">
                                 <Activity size={26} strokeWidth={1.5} />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="col-span-12 sm:col-span-4 lg:col-span-4">
+                        <div className="hud-panel-accent clip-corner-cut-sm p-6 flex items-center justify-between group cursor-default hover:border-[var(--color-border-bright)] transition-all duration-300 relative overflow-hidden">
+                            <div className="flex flex-col gap-1 relative z-10">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROJECTS</span>
+                                    <div className="h-px w-8 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-40" />
+                                </div>
+                                <p className="font-[var(--font-display)] text-3xl text-[var(--color-accent)] text-glow">{projects.length}</p>
+                            </div>
+                            <div className="relative z-10 w-14 h-14 clip-corner-cut-sm bg-[var(--color-accent-subtle)] text-[var(--color-accent)] flex items-center justify-center border border-[var(--color-border-accent)] group-hover:scale-110 group-hover:-rotate-3 transition-transform">
+                                <Layers size={26} strokeWidth={1.5} />
                             </div>
                         </div>
                     </div>
@@ -376,55 +414,57 @@ export default function DashboardModern() {
                         <InsightsPanel />
                     </div>
 
-                    {/* Left Col: Projects & Priority */}
+                    {/* Left Col: Recent Meetings (primary) */}
                     <div className="col-span-12 lg:col-span-8 space-y-6">
                         <div className="hud-panel clip-corner-cut-sm overflow-hidden h-full flex flex-col">
                             <div className="p-5 flex justify-between items-center shrink-0">
                                 <div className="flex items-center gap-3">
-                                    <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROJECTS</span>
-                                    <div className="h-px w-16 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    <span className="font-hud text-xs tracking-widest text-[var(--color-magenta-dim)]">SYS.MEETINGS</span>
+                                    <div className="h-px w-16 bg-gradient-to-r from-[var(--color-magenta)] to-transparent opacity-30" />
                                 </div>
-                                <button onClick={() => navigate('/projects')} className="text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-dim)] font-medium flex items-center gap-1 transition-colors">
+                                <button onClick={() => navigate('/meetings')} className="text-sm text-[var(--color-magenta)] hover:text-[var(--color-magenta-dim)] font-medium flex items-center gap-1 transition-colors">
                                     View All <ArrowRight size={14} />
                                 </button>
                             </div>
                             <div className="ruled-line-accent" />
                             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
-                                {activeProjects.length === 0 ? (
+                                {recentMeetings.length === 0 ? (
                                     <div className="col-span-2">
                                         <EmptyFeatureState
                                             compact
-                                            icon={FolderKanban}
-                                            title="Organize your work visually"
-                                            description="Create boards with columns, drag cards between stages, and track progress at a glance."
-                                            benefits={['See all your tasks in one place', 'Drag and drop to update status', 'Add details, checklists, and due dates']}
-                                            ctaLabel="Create Your First Project"
-                                            ctaAction={() => navigate('/projects?action=create')}
+                                            icon={Mic}
+                                            title="Capture every meeting, privately"
+                                            description="Record any meeting, get automatic transcripts and AI summaries, and push action items straight to your project board. Your recordings never leave your machine."
+                                            benefits={['Private — all audio stays on your device', 'AI briefs and action items in seconds', 'One-click push to project boards']}
+                                            ctaLabel="Record Your First Meeting"
+                                            ctaAction={() => navigate('/meetings?action=record')}
                                         />
                                     </div>
                                 ) : (
-                                    activeProjects.map(project => (
+                                    recentMeetings.map(meeting => (
                                         <div
-                                            key={project.id}
-                                            onClick={() => navigate(`/projects/${project.id}`)}
-                                            className="group relative hud-panel clip-corner-cut-sm p-4 cursor-pointer hover:border-[var(--color-accent-dim)] transition-all"
+                                            key={meeting.id}
+                                            onClick={() => navigate(`/meetings?openMeeting=${meeting.id}`)}
+                                            className="group relative hud-panel clip-corner-cut-sm p-4 cursor-pointer hover:border-[var(--color-magenta-dim)] transition-all"
                                         >
                                             <div className="flex justify-between items-start mb-3">
-                                                <div className="relative">
-                                                    <div className="w-10 h-10 clip-corner-cut-sm flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: project.color || '#3b82f6' }}>
-                                                        {project.name.charAt(0).toUpperCase()}
-                                                    </div>
-                                                    {project.pinned && (
-                                                        <Star size={12} className="absolute -top-1 -right-1 text-amber-400 fill-amber-400 drop-shadow-sm" />
+                                                <div className="w-10 h-10 clip-corner-cut-sm bg-[var(--color-magenta-subtle)] text-[var(--color-magenta)] flex items-center justify-center border border-[var(--color-magenta-muted)]">
+                                                    <Mic size={18} />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-data text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-accent-subtle)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
+                                                        {formatDate(meeting.createdAt)}
+                                                    </span>
+                                                    {meeting.endedAt && (
+                                                        <span className="font-data text-[10px] text-[var(--color-text-muted)] flex items-center gap-1">
+                                                            <Clock size={10} /> {getDurationMinutes(meeting.startedAt, meeting.endedAt)}m
+                                                        </span>
                                                     )}
                                                 </div>
-                                                <div className="font-data text-[10px] px-2 py-1 rounded-full text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] transition-colors group-hover:text-[var(--color-accent)] group-hover:border-[var(--color-accent-dim)]">
-                                                    {cardCountByProject[project.id] || 0} Tasks
-                                                </div>
                                             </div>
-                                            <h4 className="font-bold text-[var(--color-text-primary)] mb-1 group-hover:text-[var(--color-accent)] transition-colors line-clamp-1">{project.name}</h4>
-                                            <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">
-                                                {project.description || 'No description provided.'}
+                                            <h4 className="font-bold text-[var(--color-text-primary)] mb-1 group-hover:text-[var(--color-magenta)] transition-colors line-clamp-1">{meeting.title}</h4>
+                                            <p className="text-xs text-[var(--color-text-secondary)] capitalize">
+                                                {meeting.template !== 'none' ? meeting.template.replace(/_/g, ' ') : 'General meeting'}
                                             </p>
                                         </div>
                                     ))
@@ -433,53 +473,51 @@ export default function DashboardModern() {
                         </div>
                     </div>
 
-                    {/* Right Col: Timeline/Feed */}
+                    {/* Right Col: Recent Projects (condensed) */}
                     <div className="col-span-12 lg:col-span-4 space-y-6">
                         <div className="hud-panel clip-corner-cut-sm h-full flex flex-col">
                             <div className="p-5 shrink-0">
                                 <div className="flex items-center gap-3">
-                                    <span className="font-hud text-xs tracking-widest text-[var(--color-magenta-dim)]">SYS.MEETINGS</span>
-                                    <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-magenta)] to-transparent opacity-30" />
+                                    <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROJECTS</span>
+                                    <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
                                 </div>
                             </div>
                             <div className="ruled-line-accent" />
                             <div className="flex-1 overflow-y-auto p-2 max-h-[400px]">
-                                {recentMeetings.length === 0 ? (
+                                {activeProjects.length === 0 ? (
                                     <EmptyFeatureState
                                         compact
-                                        icon={Mic}
-                                        title="Turn meetings into action"
-                                        description="Record any meeting, get an automatic summary, and convert key points into project tasks."
-                                        benefits={['Automatic transcription', 'AI-generated summaries', 'Action items become tasks']}
-                                        ctaLabel="Record a Meeting"
-                                        ctaAction={() => navigate('/meetings?action=record')}
+                                        icon={FolderKanban}
+                                        title="Organize your work visually"
+                                        description="Create boards with columns, drag cards between stages, and track progress at a glance."
+                                        benefits={['See all your tasks in one place', 'Drag and drop to update status', 'Add details, checklists, and due dates']}
+                                        ctaLabel="Create Your First Project"
+                                        ctaAction={() => navigate('/projects?action=create')}
                                     />
                                 ) : (
                                     <div className="space-y-1">
-                                        {recentMeetings.map((meeting, i) => (
+                                        {activeProjects.map((project, i) => (
                                             <button
-                                                key={meeting.id}
-                                                onClick={() => navigate(`/meetings?openMeeting=${meeting.id}`)}
-                                                className="w-full text-left p-3 rounded-lg hover:bg-[var(--color-magenta-subtle)] transition-colors flex gap-3 group"
+                                                key={project.id}
+                                                onClick={() => navigate(`/projects/${project.id}`)}
+                                                className="w-full text-left p-3 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors flex gap-3 group"
                                             >
                                                 <div className="flex flex-col items-center gap-1 mt-1">
-                                                    <div className="node-point-sm" />
-                                                    {i !== recentMeetings.length - 1 && <div className="w-px h-full bg-[var(--color-border)]" />}
+                                                    <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: project.color || '#3b82f6' }} />
+                                                    {i !== activeProjects.length - 1 && <div className="w-px h-full bg-[var(--color-border)]" />}
                                                 </div>
                                                 <div className="flex-1 pb-2">
-                                                    <h5 className="text-sm font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-magenta)] transition-colors line-clamp-1">
-                                                        {meeting.title}
-                                                    </h5>
-                                                    <div className="flex items-center gap-2 mt-1.5">
-                                                        <span className="font-data text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-accent-subtle)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
-                                                            {formatDate(meeting.createdAt)}
-                                                        </span>
-                                                        {meeting.endedAt && (
-                                                            <span className="font-data text-[10px] text-[var(--color-text-muted)] flex items-center gap-1">
-                                                                <Clock size={10} /> {getDurationMinutes(meeting.startedAt, meeting.endedAt)}m
-                                                            </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <h5 className="text-sm font-medium text-[var(--color-text-primary)] group-hover:text-[var(--color-accent)] transition-colors line-clamp-1">
+                                                            {project.name}
+                                                        </h5>
+                                                        {project.pinned && (
+                                                            <Star size={10} className="text-amber-400 fill-amber-400 shrink-0" />
                                                         )}
                                                     </div>
+                                                    <span className="font-data text-[10px] text-[var(--color-text-muted)]">
+                                                        {cardCountByProject[project.id] || 0} tasks
+                                                    </span>
                                                 </div>
                                             </button>
                                         ))}
@@ -488,9 +526,64 @@ export default function DashboardModern() {
                             </div>
                             <div className="ruled-line-accent" />
                             <div className="p-3 shrink-0 mt-auto">
-                                <button onClick={() => navigate('/meetings')} className="w-full py-2 flex items-center justify-center gap-1 text-xs font-hud text-[var(--color-text-secondary)] hover:text-[var(--color-magenta)] hover:bg-[var(--color-magenta-subtle)] rounded-lg transition-colors">
-                                    View All Activities <ArrowRight size={12} />
+                                <button onClick={() => navigate('/projects')} className="w-full py-2 flex items-center justify-center gap-1 text-xs font-hud text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] rounded-lg transition-colors">
+                                    View All Projects <ArrowRight size={12} />
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Pending Action Items */}
+                    <div className="col-span-12">
+                        <div className="hud-panel clip-corner-cut-sm overflow-hidden">
+                            <div className="p-5 flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <span className="font-hud text-xs tracking-widest text-[var(--color-warm-dim)]">SYS.ACTION_ITEMS</span>
+                                    <div className="h-px w-16 bg-gradient-to-r from-[var(--color-warm)] to-transparent opacity-30" />
+                                </div>
+                                {pendingActions.length > 0 && (
+                                    <button onClick={() => navigate('/meetings')} className="text-sm text-[var(--color-warm)] hover:text-[var(--color-warm-dim)] font-medium flex items-center gap-1 transition-colors">
+                                        View All <ArrowRight size={14} />
+                                    </button>
+                                )}
+                            </div>
+                            <div className="ruled-line-accent" />
+                            <div className="p-5">
+                                {pendingActions.length === 0 ? (
+                                    <div className="text-center py-6">
+                                        <CircleDot size={28} className="mx-auto mb-2 text-[var(--color-text-muted)]" />
+                                        <p className="text-sm text-[var(--color-text-secondary)]">Complete a meeting to see action items here</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {pendingActions.map(item => (
+                                            <div
+                                                key={item.id}
+                                                className="flex items-start gap-3 p-3 rounded-lg hover:bg-[var(--color-warm-subtle)] transition-colors group cursor-pointer"
+                                                onClick={() => navigate(`/meetings?openMeeting=${item.meetingId}`)}
+                                            >
+                                                <div className="mt-0.5 shrink-0">
+                                                    <CircleDot size={14} className={item.status === 'approved' ? 'text-emerald-500' : 'text-[var(--color-warm)]'} />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm text-[var(--color-text-primary)] group-hover:text-[var(--color-warm)] transition-colors line-clamp-1">
+                                                        {item.description}
+                                                    </p>
+                                                    <p className="text-[10px] font-data text-[var(--color-text-muted)] mt-0.5 line-clamp-1">
+                                                        from {item.meetingTitle}
+                                                    </p>
+                                                </div>
+                                                <span className={`shrink-0 font-data text-[10px] px-2 py-0.5 rounded-full border ${
+                                                    item.status === 'approved'
+                                                        ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20'
+                                                        : 'text-[var(--color-warm)] bg-warm-50 dark:bg-warm-500/10 border-warm-200 dark:border-warm-500/20'
+                                                }`}>
+                                                    {item.status}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

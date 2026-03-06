@@ -33,20 +33,20 @@ interface NavItem {
 
 const navItems: NavItem[] = [
     { path: '/', label: 'Home', icon: LayoutDashboard },
-    { path: '/projects', label: 'Projects', icon: FolderKanban, tourId: 'nav-projects' },
     { path: '/meetings', label: 'Meetings', icon: Mic, tourId: 'nav-meetings' },
-    { path: '/ideas', label: 'Ideas', icon: Lightbulb, tourId: 'nav-ideas' },
+    { path: '/projects', label: 'Projects', icon: FolderKanban, tourId: 'nav-projects' },
     { path: '/brainstorm', label: 'Brainstorm', icon: Brain, tourId: 'nav-brainstorm' },
+    { path: '/ideas', label: 'Ideas', icon: Lightbulb, tourId: 'nav-ideas' },
     { path: '/focus', label: 'Focus', icon: Clock },
     { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
 const SHORTCUT_KEYS: Record<string, string> = {
     '/': 'Ctrl+1',
-    '/projects': 'Ctrl+2',
-    '/meetings': 'Ctrl+3',
-    '/ideas': 'Ctrl+4',
-    '/brainstorm': 'Ctrl+5',
+    '/meetings': 'Ctrl+2',
+    '/projects': 'Ctrl+3',
+    '/brainstorm': 'Ctrl+4',
+    '/ideas': 'Ctrl+5',
     '/focus': 'Ctrl+6',
     '/settings': 'Ctrl+7',
 };
