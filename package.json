@@ -1,7 +1,7 @@
 {
   "name": "lifedash",
   "private": true,
-  "version": "2.0.19",
+  "version": "2.1.0",
   "description": "AI-powered Electron desktop dashboard for professionals",
   "author": "Daniel Rieger",
   "license": "MIT",

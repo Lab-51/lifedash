@@ -26,14 +26,25 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 }
 
 export const releaseNotes: ReleaseNotesData = {
-  version: '2.0.19',
+  version: '2.1.0',
   sections: [
     {
       category: 'new',
       label: "What's New",
       items: [
-        'Simplified meeting action items push-to-project experience with inline column picker',
-        'Approve now doubles as selection — no more separate checkboxes',
+        'Auto-assign button for model assignments — instantly picks the best models for your provider',
+        'Feature tour for new users to discover key capabilities',
+        'Contextual help tips throughout the interface',
+        'Empty feature states with guided onboarding for each section',
+      ],
+    },
+    {
+      category: 'fixes',
+      label: 'Fixes',
+      items: [
+        'Consistent Rajdhani font across all descriptions and settings',
+        'Provider cards now pin action buttons to the bottom and handle long URLs gracefully',
+        'Updated Anthropic model list with Opus 4.6 and Sonnet 4.6',
       ],
     },
   ],
