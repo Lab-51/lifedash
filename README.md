@@ -7,14 +7,17 @@
 Free, open-source meeting intelligence that never leaves your desktop.
 Record, transcribe, and extract action items — 100% locally.
 
+[![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Lab-51/lifedash/releases/latest)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/Lab-51/lifedash?style=social)](https://github.com/Lab-51/lifedash)
 [![Latest Release](https://img.shields.io/github/v/release/Lab-51/lifedash)](https://github.com/Lab-51/lifedash/releases/latest)
-[![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D4)](https://github.com/Lab-51/lifedash/releases/latest)
+
+<br />
 
 <img src="docs/lifedash.png" alt="LifeDash Dashboard" width="900" />
 
-[Download](https://github.com/Lab-51/lifedash/releases/latest) · [Report Bug](https://github.com/Lab-51/lifedash/issues) · [Request Feature](https://github.com/Lab-51/lifedash/issues)
+[Report Bug](https://github.com/Lab-51/lifedash/issues) · [Request Feature](https://github.com/Lab-51/lifedash/issues)
 
 </div>
 
