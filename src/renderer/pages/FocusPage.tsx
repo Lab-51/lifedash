@@ -11,8 +11,6 @@ import { toast } from '../hooks/useToast';
 import type { FocusTimeReport, FocusSessionFull } from '../../shared/types/focus';
 import { billableHours } from '../../shared/utils/billing';
 import HudSelect from '../components/HudSelect';
-import ProGate from '../components/ProGate';
-import { ProBadge } from '../components/ProBadge';
 
 type Period = 'thisWeek' | 'lastWeek' | 'last7Days' | 'thisMonth' | 'lastMonth' | 'allTime' | 'custom';
 
@@ -318,21 +316,9 @@ export default function FocusPage() {
         </div>
         <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Focus Time Tracking</h1>
       </div>
-      <ProGate
-        feature="billableExport"
-        fallback={
-          <button
-            onClick={() => toast('Upgrade to Pro to export billable time as CSV', 'info')}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] cursor-not-allowed"
-          >
-            <Download size={15} /> Export CSV <ProBadge />
-          </button>
-        }
-      >
         <button onClick={handleExport} disabled={!report || !allSessions.length} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
           <Download size={15} /> Export CSV
         </button>
-      </ProGate>
     </div>
   );
 

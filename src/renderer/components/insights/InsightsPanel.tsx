@@ -1,17 +1,15 @@
 // === FILE PURPOSE ===
 // InsightsPanel — dashboard panel showing AI background agent insights.
-// Collapses when not Pro or disabled; expands to show UpgradePrompt or insights.
+// Collapses when disabled; expands to show insights.
 // Includes filter tabs (All / New / Warning+Critical), empty state, loading skeleton,
 // a project scope picker, and a "Run Now" button.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Bot, RefreshCw, Loader2, Settings, Lock, ChevronDown, ChevronRight, Sparkles, FolderOpen, Check } from 'lucide-react';
+import { Bot, RefreshCw, Loader2, Settings, ChevronDown, Sparkles, FolderOpen, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBackgroundAgentStore } from '../../stores/backgroundAgentStore';
 import { useProjectStore } from '../../stores/projectStore';
-import { useProFeature } from '../../hooks/useProFeature';
 import InsightCard from './InsightCard';
-import UpgradePrompt from '../UpgradePrompt';
 import type { AgentInsight } from '../../../shared/types/background-agent';
 import { toast } from '../../hooks/useToast';
 
@@ -51,12 +49,10 @@ export default function InsightsPanel() {
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [running, setRunning] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [autoOpened, setAutoOpened] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
 
-  const { enabled: isPro, info } = useProFeature('backgroundAgent');
   const insights = useBackgroundAgentStore(s => s.insights);
   const loading = useBackgroundAgentStore(s => s.loading);
   const preferences = useBackgroundAgentStore(s => s.preferences);
@@ -77,7 +73,7 @@ export default function InsightsPanel() {
   // Reload insights when project selection changes
   const analyzedKey = analyzedIds.slice().sort().join(',');
   useEffect(() => {
-    if (!isPro || !preferences?.enabled) return;
+    if (!preferences?.enabled) return;
     loadAllInsights(analyzedIds.length ? analyzedIds : undefined);
   }, [analyzedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -86,14 +82,13 @@ export default function InsightsPanel() {
   const activeInsights = insights.filter(i => i.status !== 'dismissed' && i.status !== 'acted_on');
 
   useEffect(() => {
-    if (!autoOpened && activeInsights.length > 0 && isPro && preferences?.enabled) {
+    if (!autoOpened && activeInsights.length > 0 && preferences?.enabled) {
       setPanelOpen(true);
       setAutoOpened(true);
     }
-  }, [activeInsights.length, autoOpened, isPro, preferences?.enabled]);
+  }, [activeInsights.length, autoOpened, preferences?.enabled]);
 
-  const isDisabled = isPro && preferences !== null && !preferences.enabled;
-  const isCollapsed = !isPro || isDisabled;
+  const isDisabled = preferences !== null && !preferences.enabled;
 
   const handleProjectToggle = (projectId: string, checked: boolean) => {
     if (analyzedIds.length === 0) {
@@ -159,11 +154,10 @@ export default function InsightsPanel() {
       {/* Panel header */}
       <div
         className={`p-5 flex items-center justify-between cursor-pointer${
-          (isCollapsed && expanded) || (!isCollapsed && panelOpen) ? ' border-b border-[var(--color-border)]' : ''
+          (!isDisabled && panelOpen) ? ' border-b border-[var(--color-border)]' : ''
         }`}
         onClick={() => {
-          if (!isPro) setExpanded(!expanded);
-          else if (isDisabled) navigate('/settings');
+          if (isDisabled) navigate('/settings');
           else setPanelOpen(!panelOpen);
         }}
         role="button"
@@ -180,32 +174,15 @@ export default function InsightsPanel() {
           <div className="h-px w-16 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
         </div>
 
-        {isCollapsed ? (
+        {isDisabled ? (
           <div className="flex items-center gap-2.5">
-            {!isPro ? (
-              <>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-text-muted)]">Pro Feature</span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-                  className="flex items-center gap-1.5 text-xs border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 transition-all clip-corner-cut-sm"
-                >
-                  <Lock size={12} />
-                  Unlock
-                </button>
-                {expanded
-                  ? <ChevronDown size={14} className="text-[var(--color-text-muted)]" />
-                  : <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
-                }
-              </>
-            ) : (
-              <button
-                onClick={(e) => { e.stopPropagation(); navigate('/settings'); }}
-                className="flex items-center gap-1.5 text-xs border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 transition-all clip-corner-cut-sm"
-              >
-                <Settings size={12} />
-                Enable in Settings
-              </button>
-            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); navigate('/settings'); }}
+              className="flex items-center gap-1.5 text-xs border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 transition-all clip-corner-cut-sm"
+            >
+              <Settings size={12} />
+              Enable in Settings
+            </button>
           </div>
         ) : (
           <div className="flex items-center gap-2">
@@ -249,13 +226,8 @@ export default function InsightsPanel() {
         )}
       </div>
 
-      {/* Not Pro — expandable upgrade prompt */}
-      {!isPro && expanded && (
-        <UpgradePrompt feature="backgroundAgent" info={info} />
-      )}
-
       {/* Project scope picker — inline collapsible row below header */}
-      {isPro && preferences?.enabled && panelOpen && activeProjects.length > 1 && (
+      {preferences?.enabled && panelOpen && activeProjects.length > 1 && (
         <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
           scopeOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
         }`}>
@@ -293,8 +265,8 @@ export default function InsightsPanel() {
         </div>
       )}
 
-      {/* Pro + enabled — full insights body */}
-      {isPro && preferences !== null && preferences.enabled && panelOpen && (
+      {/* Full insights body */}
+      {preferences !== null && preferences.enabled && panelOpen && (
         <div className="p-5">
           {/* Loading state */}
           {loading && insights.length === 0 && (

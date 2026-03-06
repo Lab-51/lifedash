@@ -11,7 +11,7 @@ import { createLogger } from '../services/logger';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema, projectAgentMessageContentSchema } from '../../shared/validation/schemas';
 import type { ToolCallRecord, ToolResultRecord } from '../../shared/types';
-import { requireProFeature } from './guards';
+
 
 const log = createLogger('ProjectAgent');
 
@@ -27,7 +27,7 @@ export function registerProjectAgentHandlers(): void {
   ipcMain.handle(
     'project-agent:send-message',
     async (event, projectId: unknown, content: unknown) => {
-      await requireProFeature('projectAgent');
+
       const validProjectId = validateInput(idParamSchema, projectId);
       const validContent = validateInput(projectAgentMessageContentSchema, content);
 
@@ -207,14 +207,14 @@ export function registerProjectAgentHandlers(): void {
 
   // --- Get conversation history ---
   ipcMain.handle('project-agent:get-messages', async (_event, projectId: unknown) => {
-    await requireProFeature('projectAgent');
+
     const validProjectId = validateInput(idParamSchema, projectId);
     return projectAgentService.getMessages(validProjectId);
   });
 
   // --- Clear conversation ---
   ipcMain.handle('project-agent:clear-messages', async (_event, projectId: unknown) => {
-    await requireProFeature('projectAgent');
+
     const validProjectId = validateInput(idParamSchema, projectId);
     await projectAgentService.clearMessages(validProjectId);
   });
@@ -227,7 +227,7 @@ export function registerProjectAgentHandlers(): void {
 
   // --- Resolved model info (for UI display) ---
   ipcMain.handle('project-agent:get-model-info', async () => {
-    await requireProFeature('projectAgent');
+
     const provider = await resolveTaskModel('project_agent');
     if (!provider) return null;
     return { providerName: provider.providerName, model: provider.model };
@@ -235,7 +235,7 @@ export function registerProjectAgentHandlers(): void {
 
   // --- Abort active stream ---
   ipcMain.handle('project-agent:abort', async (_event, projectId: unknown) => {
-    await requireProFeature('projectAgent');
+
     const validProjectId = validateInput(idParamSchema, projectId);
     const controller = activeStreams.get(validProjectId);
     if (controller) {

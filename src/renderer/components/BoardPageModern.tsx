@@ -15,8 +15,6 @@ import type { CardPriority } from '../../shared/types';
 
 const CardDetailModal = lazy(() => import('../components/CardDetailModal'));
 import { useProjectAgentStore } from '../stores/projectAgentStore';
-import ProGate from './ProGate';
-import { ProBadge } from './ProBadge';
 const ProjectAgentPanel = lazy(() => import('./ProjectAgentPanel'));
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -652,7 +650,6 @@ export default function BoardPageModern() {
                             </div>
                             <span className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
                                 AI Agent
-                                <ProBadge />
                             </span>
                             {agentMessageCount > 0 && (
                                 <span className="text-[10px] font-data bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5">
@@ -685,14 +682,12 @@ export default function BoardPageModern() {
                                 </button>
                             </div>
                             <div className="flex-1 overflow-hidden">
-                                <ProGate feature="projectAgent">
                                     <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-[var(--color-accent)]" size={20} /></div>}>
                                         <ProjectAgentPanel
                                             projectId={projectId!}
                                             onWriteAction={() => projectId && loadBoard(projectId)}
                                         />
                                     </Suspense>
-                                </ProGate>
                             </div>
                         </div>
                     )}

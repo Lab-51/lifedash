@@ -7,10 +7,6 @@ import { create } from 'zustand';
 import type { AgentInsight, BackgroundAgentPreferences } from '../../shared/types/background-agent';
 import { toast } from '../hooks/useToast';
 
-function isLicenseError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('LICENSE_REQUIRED');
-}
-
 interface BackgroundAgentStore {
   insights: AgentInsight[];
   newInsightsCount: number;
@@ -47,7 +43,7 @@ export const useBackgroundAgentStore = create<BackgroundAgentStore>((set, get) =
       const insights = await window.electronAPI.backgroundAgentGetInsights(projectId);
       set({ insights, loading: false });
     } catch (error) {
-      if (!isLicenseError(error)) console.error('Failed to load insights:', error);
+      console.error('Failed to load insights:', error);
       set({ loading: false });
     }
   },
@@ -58,7 +54,7 @@ export const useBackgroundAgentStore = create<BackgroundAgentStore>((set, get) =
       const insights = await window.electronAPI.backgroundAgentGetAllInsights(projectIds, limit);
       set({ insights, loading: false });
     } catch (error) {
-      if (!isLicenseError(error)) console.error('Failed to load all insights:', error);
+      console.error('Failed to load all insights:', error);
       set({ loading: false });
     }
   },
@@ -68,7 +64,7 @@ export const useBackgroundAgentStore = create<BackgroundAgentStore>((set, get) =
       const preferences = await window.electronAPI.backgroundAgentGetPreferences();
       set({ preferences });
     } catch (error) {
-      if (!isLicenseError(error)) console.error('Failed to load background agent preferences:', error);
+      console.error('Failed to load background agent preferences:', error);
     }
   },
 
@@ -77,7 +73,7 @@ export const useBackgroundAgentStore = create<BackgroundAgentStore>((set, get) =
       const dailyUsage = await window.electronAPI.backgroundAgentGetDailyUsage();
       set({ dailyUsage });
     } catch (error) {
-      if (!isLicenseError(error)) console.error('Failed to load daily usage:', error);
+      console.error('Failed to load daily usage:', error);
     }
   },
 
@@ -156,7 +152,7 @@ export const useBackgroundAgentStore = create<BackgroundAgentStore>((set, get) =
       const count = await window.electronAPI.backgroundAgentGetNewCount();
       set({ newInsightsCount: count });
     } catch (error) {
-      if (!isLicenseError(error)) console.error('Failed to get new insights count:', error);
+      console.error('Failed to get new insights count:', error);
     }
   },
 }));

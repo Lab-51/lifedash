@@ -25,7 +25,7 @@ import { createLogger } from './services/logger';
 import { getIsRecording, setIsRecording } from './services/recordingState';
 import { applyGlobalProxy } from './services/proxyService';
 import { initAutoUpdater } from './autoUpdater';
-import { initializeLicense } from './services/licensingService';
+
 
 const log = createLogger('App');
 
@@ -83,8 +83,8 @@ const createWindow = async () => {
   // Content Security Policy — defense-in-depth against XSS
   const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
   const connectSrc = isDev
-    ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com https://api.lemonsqueezy.com http://localhost:11434"
-    : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com https://api.lemonsqueezy.com http://localhost:11434 https://lifedash.space https://objects.githubusercontent.com";
+    ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434"
+    : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434 https://lifedash.space https://objects.githubusercontent.com";
   const scriptSrc = isDev
     ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"  // Vite HMR needs eval + React preamble needs inline in dev
     : "script-src 'self'";
@@ -125,16 +125,6 @@ const createWindow = async () => {
     await connectDatabase();
     await runMigrations();
     log.info('DB connected and migrations applied');
-
-    // Initialize license early — ensures 14-day trial exists before renderer loads.
-    // Without this, trial creation is deferred to the first licenseCheck() IPC call,
-    // and any transient error during that call would leave Pro features permanently blocked.
-    // Wrapped in its own try/catch so a license error doesn't skip schedulers below.
-    try {
-      await initializeLicense();
-    } catch (licenseErr) {
-      log.error('License initialization failed (will retry on first IPC call):', licenseErr);
-    }
 
     // Apply proxy settings for enterprise networks (before any AI calls)
     await applyGlobalProxy();

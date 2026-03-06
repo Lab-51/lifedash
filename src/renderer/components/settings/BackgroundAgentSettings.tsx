@@ -2,12 +2,11 @@
 // Background Agent settings section for the Settings page (AI & Models tab).
 // Provides master toggle, frequency, daily token budget, insight type toggles,
 // stale card threshold, daily usage display, and a Run Now button.
-// Wraps everything in a ProGate for the backgroundAgent feature.
+// All features are free and unrestricted.
 
 import { useEffect, useState } from 'react';
 import { Bot, Loader2, RefreshCw } from 'lucide-react';
 import { useBackgroundAgentStore } from '../../stores/backgroundAgentStore';
-import ProGate from '../ProGate';
 import HudSelect from '../HudSelect';
 import type { InsightType } from '../../../shared/types/background-agent';
 import { toast } from '../../hooks/useToast';
@@ -116,7 +115,6 @@ export default function BackgroundAgentSettings() {
         </p>
       </div>
 
-      <ProGate feature="backgroundAgent">
         {loadingPrefs || preferences === null ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 size={20} className="animate-spin text-[var(--color-text-muted)]" />
@@ -289,7 +287,6 @@ export default function BackgroundAgentSettings() {
             )}
           </div>
         )}
-      </ProGate>
     </section>
   );
 }

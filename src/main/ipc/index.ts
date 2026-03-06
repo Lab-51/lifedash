@@ -25,7 +25,7 @@ import { registerFocusHandlers } from './focus';
 import { registerGamificationHandlers } from './gamification';
 import { registerCardAgentHandlers } from './card-agent';
 import { registerProjectAgentHandlers } from './project-agent';
-import { registerLicenseHandlers } from './licenses';
+
 import { registerBackgroundAgentHandlers } from './background-agent';
 
 /**
@@ -55,7 +55,6 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerGamificationHandlers();
   registerCardAgentHandlers();
   registerProjectAgentHandlers();
-  registerLicenseHandlers();
   registerBackgroundAgentHandlers();
 
   // App-level: open URL in system browser (not Electron)

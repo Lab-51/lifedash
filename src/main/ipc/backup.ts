@@ -28,27 +28,27 @@ import {
   exportOptionsSchema,
   autoBackupSettingsUpdateSchema,
 } from '../../shared/validation/schemas';
-import { requireProFeature } from './guards';
+
 
 export function registerBackupHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('backup:create', async () => {
-    await requireProFeature('backupRestore');
+
     return createBackup(mainWindow);
   });
 
   ipcMain.handle('backup:list', async () => {
-    await requireProFeature('backupRestore');
+
     return listBackups();
   });
 
   ipcMain.handle('backup:restore', async (_event, filePath: unknown) => {
-    await requireProFeature('backupRestore');
+
     const validPath = validateInput(filePathSchema, filePath);
     return restoreBackup(validPath, mainWindow);
   });
 
   ipcMain.handle('backup:restore-from-file', async () => {
-    await requireProFeature('backupRestore');
+
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Select Backup File',
       filters: [{ name: 'SQL Backup', extensions: ['sql'] }],
@@ -59,13 +59,13 @@ export function registerBackupHandlers(mainWindow: BrowserWindow): void {
   });
 
   ipcMain.handle('backup:delete', async (_event, fileName: unknown) => {
-    await requireProFeature('backupRestore');
+
     const validFileName = validateInput(filePathSchema, fileName);
     return deleteBackup(validFileName);
   });
 
   ipcMain.handle('backup:export', async (_event, options: unknown) => {
-    await requireProFeature('dataExport');
+
     const input = validateInput(exportOptionsSchema, options);
     const data = await exportAllData(input.tables);
     const tables = Object.keys(data);
@@ -110,14 +110,14 @@ export function registerBackupHandlers(mainWindow: BrowserWindow): void {
 
   // Auto-backup settings
   ipcMain.handle('backup:auto-settings-get', async () => {
-    await requireProFeature('backupRestore');
+
     return getAutoBackupSettings();
   });
 
   ipcMain.handle(
     'backup:auto-settings-update',
     async (_event, partialSettings: unknown) => {
-      await requireProFeature('backupRestore');
+  
       const input = validateInput(autoBackupSettingsUpdateSchema, partialSettings);
       return updateAutoBackupSettings(input);
     },

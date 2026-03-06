@@ -18,8 +18,6 @@ npm install
 npm start
 ```
 
-For detailed development setup, architecture, and testing info, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
-
 ## How to Contribute
 
 ### Reporting Issues

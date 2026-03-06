@@ -10,8 +10,6 @@ import { useState } from 'react';
 import { Download, Check, AlertCircle } from 'lucide-react';
 import { useBackupStore } from '../../stores/backupStore';
 import type { ExportResult } from '../../../shared/types';
-import ProGate from '../ProGate';
-import { ProBadge } from '../ProBadge';
 
 /** Format byte sizes for display */
 function formatSize(bytes: number): string {
@@ -46,13 +44,11 @@ export default function ExportSection() {
   };
 
   return (
-    <ProGate feature="dataExport">
     <section className="mb-10">
       {/* Section header */}
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Export Data</h2>
-          <ProBadge />
         </div>
         <p className="text-sm text-surface-500">
           Export your data for external use or migration. API keys are excluded for security.
@@ -100,6 +96,5 @@ export default function ExportSection() {
         </div>
       )}
     </section>
-    </ProGate>
   );
 }

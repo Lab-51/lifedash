@@ -50,7 +50,9 @@ tmp/
 temp/
 *.tmp
 
-# NEXUS framework (private — not for public repo)
+# Internal planning (private — not for public repo)
+.nexus/
+.planning/
 STATE.md
 PLAN.md
 SUMMARY.md
@@ -63,7 +65,9 @@ REVIEW.md
 SELF-IMPROVE*.md
 CHEATSHEET.md
 WEBSITE-PROMPT.md
-.planning/
+PLAN-WEBSITE*.md
+animation-ad1.md
+lemon-squeezy-reply.txt
 
 # Code signing certificates
 certs/

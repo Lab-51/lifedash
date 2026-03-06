@@ -45,8 +45,7 @@ export function registerFocusHandlers(): void {
   });
 
   ipcMain.handle('focus:get-time-report', async (_, options: { startDate: string; endDate: string; projectId?: string; billableOnly?: boolean }) => {
-    // Note: This endpoint is NOT gated — it provides all focus page data (summary, chart, sessions).
-    // Only the CSV export action in the renderer is Pro-gated via ProGate component.
+    // Note: This endpoint provides all focus page data (summary, chart, sessions).
     return focusService.getTimeReport(options);
   });
 

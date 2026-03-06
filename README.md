@@ -1,34 +1,92 @@
+<div align="center">
+
 # LifeDash
 
-AI-powered desktop dashboard for meeting intelligence, project management, brainstorming, and idea tracking.
+**Your meetings. Your data. Your machine.**
 
-<p align="center">
-  <img src="docs/lifedash.png" alt="LifeDash Dashboard" width="900" />
-</p>
+Free, open-source meeting intelligence that never leaves your desktop.
+Record, transcribe, and extract action items — 100% locally.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/Lab-51/lifedash?style=social)](https://github.com/Lab-51/lifedash)
+[![Latest Release](https://img.shields.io/github/v/release/Lab-51/lifedash)](https://github.com/Lab-51/lifedash/releases/latest)
+[![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D4)](https://github.com/Lab-51/lifedash/releases/latest)
+
+<img src="docs/lifedash.png" alt="LifeDash Dashboard" width="900" />
+
+[Download](https://github.com/Lab-51/lifedash/releases/latest) · [Report Bug](https://github.com/Lab-51/lifedash/issues) · [Request Feature](https://github.com/Lab-51/lifedash/issues)
+
+</div>
+
+---
+
+## What is LifeDash?
+
+LifeDash is an AI-powered desktop app that records your meetings, transcribes them locally, generates briefs, and extracts action items — all without sending a single byte to the cloud. It also includes project management, AI brainstorming, idea tracking, and focus/time tracking in one unified interface.
+
+## Why LifeDash?
+
+| Feature | LifeDash | Otter.ai | Fireflies | Fathom |
+|---------|:--------:|:--------:|:---------:|:------:|
+| Local processing | Yes | No | No | No |
+| Data leaves your machine | Never | Always | Always | Always |
+| Works offline | Yes | No | No | No |
+| Meeting transcription | Yes | Yes | Yes | Yes |
+| AI briefs & summaries | Yes | Yes | Yes | Yes |
+| Action item extraction | Yes | Yes | Yes | Yes |
+| Project management | Yes | No | No | No |
+| Bring your own AI key | Yes | N/A | N/A | N/A |
+| Open source | Yes | No | No | No |
+| **Price** | **Free** | **$204/yr** | **$216/yr** | **$384/yr** |
 
 ## Features
 
-- Meeting recording with real-time transcription (local Whisper + API fallback via Deepgram/AssemblyAI)
-- Kanban project management with drag-and-drop
-- AI-powered meeting briefs and action item extraction
+### Meeting Intelligence
+- Record system audio + microphone
+- Real-time transcription (local Whisper or cloud providers)
+- AI-generated meeting briefs and summaries
+- Automatic action item extraction
 - Speaker diarization and meeting analytics
-- Conversational AI brainstorming
-- AI task structuring and project planning
-- Idea repository with tags, analysis, and project conversion
-- Multi-provider AI support (OpenAI, Anthropic, Ollama, Deepgram, AssemblyAI)
-- Database backup/restore and data export
-- Desktop notifications for due dates and daily digest
-- Dark theme UI with system tray integration
+- Searchable transcript archive
+- Meeting templates (standup, retro, planning, etc.)
 
-## Installation
+### Action Items to Project Board
+- Convert action items to Kanban cards in one click
+- Link meetings to projects
+- Drag-and-drop card management with customizable columns
+- Card detail view with rich text editor, comments, checklists, due dates
+- Labels, tags, and search across all projects
+
+### AI Agents
+- **Card Agent** — AI assistant per task (tool-calling, checklist management, research)
+- **Project Agent** — AI assistant per project (cross-board intelligence)
+- **Background Agents** — Autonomous project analysis and insights
+- **Brainstorm Sessions** — Conversational AI for ideation with project context
+- **Idea Repository** — Capture, tag, analyze, and convert ideas to projects
+
+### Focus & Time Tracking
+- Pomodoro-style focus sessions
+- Billable time tracking with hourly rates
+- Project-level time reports
+- CSV export for invoicing
+
+### Privacy by Design
+- All data stored locally in embedded PostgreSQL (PGlite)
+- Audio recordings never leave your machine
+- AI processing uses YOUR API keys — we never see your data
+- No accounts, no cloud sync, no telemetry
+- Encrypted API key storage via OS keychain
+- Open source — audit the code yourself
+
+## Quick Start
 
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) 18+ (includes npm)
 - [Git](https://git-scm.com/)
-- **Windows only:** [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload (required for native modules)
+- **Windows:** [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload (required for native modules)
 
-### Setup
+### Install & Run
 
 ```bash
 git clone https://github.com/Lab-51/lifedash.git
@@ -37,7 +95,13 @@ npm install
 npm start
 ```
 
-That's it — no database setup needed. The app uses an embedded database (PGlite) and runs migrations automatically on first launch.
+No database setup needed — the app uses an embedded database (PGlite) and runs migrations automatically on first launch.
+
+### Configuration
+
+- **AI API keys:** Configured in the Settings page within the app. Keys are stored using OS-level encryption via Electron safeStorage.
+- **Whisper model:** Download and manage local Whisper models from the Settings page.
+- **Transcription providers:** Deepgram and AssemblyAI can be configured as cloud transcription alternatives to local Whisper.
 
 ### Troubleshooting
 
@@ -45,56 +109,42 @@ That's it — no database setup needed. The app uses an embedded database (PGlit
 |---------|----------|
 | `npm install` fails with `node-gyp` errors | Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with C++ workload |
 | `npm install` fails with Python errors | Install Python 3.x and set `npm config set python python3` |
-| Permission errors on clone | Ensure you have repo access — this is a private repository |
 | App shows white screen on start | Run `npm run lint` to check for TypeScript errors |
 
 ## Available Scripts
 
-| Script | Command | Description |
-|--------|---------|-------------|
-| `npm start` | `electron-forge start` | Launch the app in development mode |
-| `npm run package` | `electron-forge package` | Package the app for distribution |
-| `npm run make` | `electron-forge make` | Build platform-specific installers |
-| `npm run lint` | `tsc --noEmit` | Type-check with TypeScript |
-| `npm test` | `vitest run` | Run tests once |
-| `npm run test:watch` | `vitest` | Run tests in watch mode |
-| `npm run test:ui` | `vitest --ui` | Run tests with Vitest UI |
-| `npm run db:generate` | `drizzle-kit generate` | Generate database migration files |
-| `npm run db:migrate` | `drizzle-kit migrate` | Apply database migrations |
-| `npm run db:studio` | `drizzle-kit studio` | Open Drizzle Studio (database GUI) |
-
-### Optional: Docker Development Database
-
-These commands require [Docker Desktop](https://www.docker.com/products/docker-desktop/) and are only needed for drizzle-kit studio or direct SQL access during development:
-
-| Script | Command | Description |
-|--------|---------|-------------|
-| `npm run db:up` | `docker compose up -d` | Start the PostgreSQL container |
-| `npm run db:down` | `docker compose down` | Stop the PostgreSQL container |
+| Script | Description |
+|--------|-------------|
+| `npm start` | Launch the app in development mode |
+| `npm run package` | Package the app for distribution |
+| `npm run make` | Build platform-specific installers |
+| `npm run lint` | Type-check with TypeScript |
+| `npm test` | Run tests once |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run db:generate` | Generate database migration files |
+| `npm run db:migrate` | Apply database migrations |
+| `npm run db:studio` | Open Drizzle Studio (database GUI) |
 
 ## Tech Stack
 
-| Category | Technology | Version |
-|----------|-----------|---------|
-| Runtime | Electron | 40.x |
-| Frontend | React | 19.x |
-| Language | TypeScript | 5.9 |
-| Styling | Tailwind CSS | 4.x |
-| Database | PGlite (embedded) | 0.3.x |
-| ORM | Drizzle ORM | 0.45 |
-| AI SDK | Vercel AI SDK (`ai`) | 6.x |
-| AI - OpenAI | @ai-sdk/openai | 3.x |
-| AI - Anthropic | @ai-sdk/anthropic | 3.x |
-| AI - Ollama | ollama-ai-provider | 1.2 |
-| Transcription | @fugood/whisper.node | 1.x |
-| Drag and Drop | @atlaskit/pragmatic-drag-and-drop | 1.x |
-| State | Zustand | 5.x |
-| Rich Text | TipTap | 3.x |
-| Animation | Framer Motion | 12.x |
-| Icons | Lucide React | 0.563 |
-| Routing | React Router | 7.x |
-| Build | Vite | 7.x |
-| Testing | Vitest | 4.x |
+| Category | Technology |
+|----------|-----------|
+| Runtime | Electron |
+| Frontend | React 19 + TypeScript |
+| Styling | Tailwind CSS 4 |
+| Database | PGlite (embedded WASM PostgreSQL) |
+| ORM | Drizzle ORM |
+| AI SDK | Vercel AI SDK |
+| AI Providers | OpenAI, Anthropic, Ollama, Deepgram, AssemblyAI |
+| Transcription | @fugood/whisper.node (local) |
+| Drag and Drop | @atlaskit/pragmatic-drag-and-drop |
+| State | Zustand |
+| Rich Text | TipTap |
+| Animation | Framer Motion |
+| Icons | Lucide React |
+| Routing | React Router |
+| Build | Vite |
+| Testing | Vitest |
 
 ## Project Structure
 
@@ -116,17 +166,9 @@ src/
   shared/              # Types and utilities shared across processes
 ```
 
-## Configuration
-
-**AI API keys:** Configured in the Settings page within the app. Keys are stored using OS-level encryption via Electron safeStorage.
-
-**Whisper model:** Download and manage local Whisper models from the Settings page.
-
-**Transcription providers:** Deepgram and AssemblyAI can be configured as cloud transcription alternatives to local Whisper.
-
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues and submitting pull requests.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues and submitting pull requests.
 
 ## License
 

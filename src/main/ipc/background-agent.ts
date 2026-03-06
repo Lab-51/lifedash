@@ -9,7 +9,7 @@ import * as backgroundAgentService from '../services/backgroundAgentService';
 import { checkAndRunInsights } from '../services/backgroundAgentScheduler';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema } from '../../shared/validation/schemas';
-import { requireProFeature } from './guards';
+
 
 // Local Zod schema for preferences update (partial, all fields optional)
 const backgroundAgentPreferencesUpdateSchema = z.object({
@@ -26,13 +26,13 @@ const backgroundAgentPreferencesUpdateSchema = z.object({
 export function registerBackgroundAgentHandlers(): void {
   // --- Get preferences ---
   ipcMain.handle('background-agent:get-preferences', async () => {
-    await requireProFeature('backgroundAgent');
+
     return backgroundAgentService.getPreferences();
   });
 
   // --- Update preferences ---
   ipcMain.handle('background-agent:update-preferences', async (_event, data: unknown) => {
-    await requireProFeature('backgroundAgent');
+
     const validData = validateInput(backgroundAgentPreferencesUpdateSchema, data);
     await backgroundAgentService.updatePreferences(validData);
   });
@@ -41,7 +41,7 @@ export function registerBackgroundAgentHandlers(): void {
   ipcMain.handle(
     'background-agent:get-insights',
     async (_event, projectId: unknown, options: unknown) => {
-      await requireProFeature('backgroundAgent');
+  
       const validProjectId = validateInput(idParamSchema, projectId);
       const validOptions = validateInput(
         z.object({
@@ -61,7 +61,7 @@ export function registerBackgroundAgentHandlers(): void {
   ipcMain.handle(
     'background-agent:get-all-insights',
     async (_event, projectIds: unknown, limit: unknown) => {
-      await requireProFeature('backgroundAgent');
+  
       const validProjectIds = validateInput(
         z.array(z.string().uuid()).optional(),
         projectIds ?? undefined,
@@ -79,34 +79,34 @@ export function registerBackgroundAgentHandlers(): void {
 
   // --- Count of all new insights (badge) ---
   ipcMain.handle('background-agent:get-new-count', async () => {
-    await requireProFeature('backgroundAgent');
+
     return backgroundAgentService.getAllNewInsightsCount();
   });
 
   // --- Mark insight as read ---
   ipcMain.handle('background-agent:mark-read', async (_event, id: unknown) => {
-    await requireProFeature('backgroundAgent');
+
     const validId = validateInput(idParamSchema, id);
     await backgroundAgentService.markAsRead(validId);
   });
 
   // --- Dismiss insight ---
   ipcMain.handle('background-agent:dismiss', async (_event, id: unknown) => {
-    await requireProFeature('backgroundAgent');
+
     const validId = validateInput(idParamSchema, id);
     await backgroundAgentService.dismissInsight(validId);
   });
 
   // --- Mark insight as acted on ---
   ipcMain.handle('background-agent:mark-acted-on', async (_event, id: unknown) => {
-    await requireProFeature('backgroundAgent');
+
     const validId = validateInput(idParamSchema, id);
     await backgroundAgentService.markActedOn(validId);
   });
 
   // --- Run now (manual trigger) ---
   ipcMain.handle('background-agent:run-now', async () => {
-    await requireProFeature('backgroundAgent');
+
     try {
       await checkAndRunInsights();
       return { ran: true };
@@ -117,7 +117,7 @@ export function registerBackgroundAgentHandlers(): void {
 
   // --- Get daily token usage ---
   ipcMain.handle('background-agent:get-daily-usage', async () => {
-    await requireProFeature('backgroundAgent');
+
     return backgroundAgentService.getDailyUsage();
   });
 }

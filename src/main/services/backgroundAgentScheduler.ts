@@ -4,7 +4,7 @@
 // Follows the same init/stop pattern as notificationScheduler.ts.
 //
 // === DEPENDENCIES ===
-// backgroundAgentService (preferences, budget, insights), licensingService,
+// backgroundAgentService (preferences, budget, insights),
 // ai-provider (resolveTaskModel, generate)
 //
 // === LIMITATIONS ===
@@ -16,7 +16,7 @@ import { getDb } from '../db/connection';
 import { projects } from '../db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { createLogger } from './logger';
-import { isFeatureEnabled } from './licensingService';
+
 import {
   getPreferences,
   isBudgetExhausted,
@@ -103,14 +103,7 @@ export async function checkAndRunInsights(): Promise<void> {
       return;
     }
 
-    // 2. Check Pro feature status
-    const proEnabled = await isFeatureEnabled('backgroundAgent');
-    if (!proEnabled) {
-      log.info('Pro feature not enabled — skipping');
-      return;
-    }
-
-    // 3. Check daily token budget
+    // 2. Check daily token budget
     const budgetExhausted = await isBudgetExhausted();
     if (budgetExhausted) {
       log.info('Daily token budget exhausted — skipping');

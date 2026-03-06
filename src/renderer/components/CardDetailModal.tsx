@@ -31,8 +31,6 @@ import { useCardAgentStore } from '../stores/cardAgentStore';
 import { toast } from '../hooks/useToast';
 import HudDatePicker from './HudDatePicker';
 import HudSelect from './HudSelect';
-import ProGate from './ProGate';
-import { ProBadge } from './ProBadge';
 import { PromptDialog } from './PromptDialog';
 
 interface CardDetailModalProps {
@@ -450,7 +448,6 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                   <div className="flex flex-col flex-1">
                     <span className={`text-sm font-semibold flex items-center gap-2 ${showAgent ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
                       AI Agent
-                      <ProBadge />
                     </span>
                     <span className={`text-[11px] font-medium transition-colors ${showAgent ? 'text-[var(--color-accent-dim)]' : 'text-[var(--color-text-muted)] group-hover/agent:text-[var(--color-accent-dim)]'}`}>
                       {showAgent ? 'Panel open' : 'Get AI assistance'}
@@ -678,7 +675,6 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                 </div>
                 <div className="ruled-line-accent mx-4" />
                 <div className="flex-1 min-h-0">
-                  <ProGate feature="cardAgent">
                     {agentEverOpened && (
                       <Suspense fallback={
                         <div className="flex items-center justify-center h-full">
@@ -688,7 +684,6 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                         <CardAgentPanel cardId={card.id} />
                       </Suspense>
                     )}
-                  </ProGate>
                 </div>
               </div>
             </div>

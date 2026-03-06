@@ -117,9 +117,7 @@ export const useBackupStore = create<BackupState>((set, get) => ({
       const autoSettings = await window.electronAPI.backupAutoSettingsGet();
       set({ autoSettings });
     } catch (err) {
-      if (!(err instanceof Error && err.message.includes('LICENSE_REQUIRED'))) {
-        console.error('Failed to load auto-backup settings:', err);
-      }
+      console.error('Failed to load auto-backup settings:', err);
     }
   },
 

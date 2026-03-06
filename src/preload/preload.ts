@@ -24,7 +24,7 @@ import { focusBridge } from './domains/focus';
 import { gamificationBridge } from './domains/gamification';
 import { cardAgentBridge } from './domains/card-agent';
 import { projectAgentBridge } from './domains/project-agent';
-import { licenseBridge } from './domains/licenses';
+
 import { backgroundAgentBridge } from './domains/background-agent';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -48,6 +48,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...gamificationBridge,
   ...cardAgentBridge,
   ...projectAgentBridge,
-  ...licenseBridge,
   ...backgroundAgentBridge,
 });
