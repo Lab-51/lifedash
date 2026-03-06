@@ -26,25 +26,15 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 }
 
 export const releaseNotes: ReleaseNotesData = {
-  version: '2.1.0',
+  version: '2.2.0',
   sections: [
     {
       category: 'new',
       label: "What's New",
       items: [
-        'Auto-assign button for model assignments — instantly picks the best models for your provider',
-        'Feature tour for new users to discover key capabilities',
-        'Contextual help tips throughout the interface',
-        'Empty feature states with guided onboarding for each section',
-      ],
-    },
-    {
-      category: 'fixes',
-      label: 'Fixes',
-      items: [
-        'Consistent Rajdhani font across all descriptions and settings',
-        'Provider cards now pin action buttons to the bottom and handle long URLs gracefully',
-        'Updated Anthropic model list with Opus 4.6 and Sonnet 4.6',
+        'Open source release — LifeDash is now free and open source under MIT license',
+        'Redesigned README with prominent download button and cleaner layout',
+        'Repositioned as a meeting intelligence tool with privacy-first narrative',
       ],
     },
   ],
