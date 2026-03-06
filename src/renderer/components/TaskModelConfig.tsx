@@ -3,7 +3,7 @@
 // Renders one row per AITaskType with provider and model selectors.
 // Persists selections as JSON to the settings table (key: 'ai.taskModels').
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Save, RotateCcw } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { AIProvider, AIProviderName, AITaskType, TaskModelConfig as TaskModelConfigType } from '../../shared/types';
@@ -32,7 +32,8 @@ const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
     { id: 'gpt-4o-mini', label: 'GPT-4o Mini (Budget)' },
   ],
   anthropic: [
-    { id: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5' },
+    { id: 'claude-opus-4-6', label: 'Claude Opus 4.6 (Flagship)' },
+    { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
   ],
   ollama: [
@@ -46,13 +47,35 @@ const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
   ],
 };
 
+// Recommended presets: which model to use per task type for each provider.
+// Rationale:
+//   - Brainstorming & Idea Analysis need creativity + deep reasoning → flagship
+//   - Card Agent & Project Agent are user-facing conversations → flagship for quality
+//   - Summarization, Meeting Prep, Standup, Card Description → structured output, efficient model is fine
+//   - Task Structuring → structured planning, efficient models handle this well
+//   - Background Agent → autonomous checks, no need for flagship
+const FLAGSHIP_TASKS: Set<AITaskType> = new Set([
+  'brainstorming', 'idea_analysis', 'card_agent', 'project_agent',
+]);
+
+const RECOMMENDED_MODELS: Record<AIProviderName, { flagship: string; efficient: string }> = {
+  openai:    { flagship: 'gpt-5.2',          efficient: 'gpt-5-mini' },
+  anthropic: { flagship: 'claude-opus-4-6',   efficient: 'claude-sonnet-4-6' },
+  kimi:      { flagship: 'kimi-k2.5',        efficient: 'kimi-k2.5' },
+  ollama:    { flagship: 'llama3.2',          efficient: 'llama3.2' },
+};
+
+export interface TaskModelConfigHandle {
+  autoAssign: (provider: AIProvider) => void;
+}
+
 interface TaskModelConfigProps {
   providers: AIProvider[];
 }
 
 type DraftConfig = Record<AITaskType, { providerId: string; model: string }>;
 
-export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
+const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(function TaskModelConfig({ providers }, ref) {
   const getTaskModels = useSettingsStore(s => s.getTaskModels);
   const setTaskModels = useSettingsStore(s => s.setTaskModels);
   // Subscribe to the actual setting value so we re-render when loadSettings() completes
@@ -149,6 +172,25 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
     setSaved(false);
   };
 
+  const handleAutoAssign = (provider: AIProvider) => {
+    const presets = RECOMMENDED_MODELS[provider.name];
+    if (!presets) return;
+    const auto: DraftConfig = {} as DraftConfig;
+    for (const { type } of TASK_TYPE_INFO) {
+      auto[type] = {
+        providerId: provider.id,
+        model: FLAGSHIP_TASKS.has(type) ? presets.flagship : presets.efficient,
+      };
+    }
+    setDraft(auto);
+    setDirty(true);
+    setSaved(false);
+  };
+
+  useImperativeHandle(ref, () => ({
+    autoAssign: handleAutoAssign,
+  }));
+
   if (enabledProviders.length === 0) {
     return (
       <div className="text-sm text-[var(--color-text-muted)] py-4 font-data">
@@ -233,4 +275,6 @@ export default function TaskModelConfig({ providers }: TaskModelConfigProps) {
       </div>
     </div>
   );
-}
+});
+
+export default TaskModelConfig;

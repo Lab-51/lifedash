@@ -3,9 +3,9 @@
 // Configures AI providers, model assignments, app preferences, backups, and export.
 // Features a cleaner layout with card-based sections and updated typography.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Key, Wand2, RefreshCw, CheckCircle, Download, Loader2, Map } from 'lucide-react';
+import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Key, Wand2, RefreshCw, CheckCircle, Download, Loader2, Map, Sparkles } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useBackupStore } from '../stores/backupStore';
@@ -15,6 +15,7 @@ import AddProviderForm from '../components/AddProviderForm';
 import SetupWizard from '../components/SetupWizard';
 import FeatureTour from '../components/FeatureTour';
 import TaskModelConfig from '../components/TaskModelConfig';
+import type { TaskModelConfigHandle } from '../components/TaskModelConfig';
 import ThemeSelector from '../components/ThemeSelector';
 
 import UsageSummary from '../components/UsageSummary';
@@ -46,7 +47,11 @@ export default function SettingsPageModern() {
     });
     const [showWizard, setShowWizard] = useState(false);
     const [showTour, setShowTour] = useState(false);
+    const [showAutoMenu, setShowAutoMenu] = useState(false);
+    const autoMenuRef = useRef<HTMLDivElement>(null);
+    const taskModelRef = useRef<TaskModelConfigHandle>(null);
     const setSetting = useSettingsStore(s => s.setSetting);
+    const enabledProviders = providers.filter(p => p.enabled);
 
     // Update status for the About tab
     const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'>('idle');
@@ -80,6 +85,18 @@ export default function SettingsPageModern() {
             else setUpdateError('');
         });
     }, []);
+
+    // Close auto-assign menu on outside click
+    useEffect(() => {
+        if (!showAutoMenu) return;
+        const handleClick = (e: MouseEvent) => {
+            if (autoMenuRef.current && !autoMenuRef.current.contains(e.target as Node)) {
+                setShowAutoMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, [showAutoMenu]);
 
     // Listen for backup progress events from the main process
     useEffect(() => {
@@ -293,14 +310,42 @@ export default function SettingsPageModern() {
 
                             {/* Model Assignments */}
                             <section className="hud-panel-accent clip-corner-cut-sm p-6">
-                                <div className="mb-6">
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Model Assignments</span>
-                                        <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                <div className="flex items-start justify-between mb-6">
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Model Assignments</span>
+                                            <div className="h-px w-20 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                        </div>
+                                        <p className="text-sm text-[var(--color-text-secondary)] mt-1">Route tasks to specific models.</p>
                                     </div>
-                                    <p className="text-sm text-[var(--color-text-secondary)] mt-1">Route tasks to specific models.</p>
+                                    {enabledProviders.length > 0 && (
+                                        <div className="relative" ref={autoMenuRef}>
+                                            <button onClick={() => {
+                                                    if (enabledProviders.length === 1) {
+                                                        taskModelRef.current?.autoAssign(enabledProviders[0]);
+                                                    } else {
+                                                        setShowAutoMenu(!showAutoMenu);
+                                                    }
+                                                }}
+                                                className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] px-4 py-2 text-sm font-medium transition-all clip-corner-cut-sm">
+                                                <Sparkles size={16} />
+                                                Auto-assign
+                                            </button>
+                                            {showAutoMenu && enabledProviders.length > 1 && (
+                                                <div className="absolute top-full right-0 mt-1 min-w-[160px] hud-panel clip-corner-cut-sm p-1 z-10">
+                                                    <p className="text-[10px] text-[var(--color-text-muted)] px-2 py-1 uppercase tracking-wider">Select provider</p>
+                                                    {enabledProviders.filter(p => ['openai', 'anthropic', 'kimi', 'ollama'].includes(p.name)).map(p => (
+                                                        <button key={p.id} onClick={() => { taskModelRef.current?.autoAssign(p); setShowAutoMenu(false); }}
+                                                            className="w-full text-left px-2 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] rounded transition-colors">
+                                                            {p.displayName || p.name}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
-                                <TaskModelConfig providers={providers} />
+                                <TaskModelConfig ref={taskModelRef} providers={providers} />
                             </section>
 
                             {/* Usage */}
