@@ -28,6 +28,25 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.3',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Clearer error messages when API key validation fails in Settings and Setup Wizard',
+        ],
+      },
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'App icon now displayed in the README header',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.2',
     sections: [
       {
