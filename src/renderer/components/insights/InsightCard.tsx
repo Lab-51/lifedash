@@ -135,17 +135,17 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {info?.priority && (
-              <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md ${pStyle.bg} ${pStyle.color} border ${pStyle.border}`}>
+              <span className={`text-[0.625rem] uppercase font-bold px-1.5 py-0.5 rounded-md ${pStyle.bg} ${pStyle.color} border ${pStyle.border}`}>
                 {info.priority}
               </span>
             )}
             {info?.column && (
-              <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+              <span className="text-[0.6875rem] font-medium px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
                 {info.column}
               </span>
             )}
             {info?.daysSinceUpdate !== undefined && (
-              <span className={`flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-md border ${
+              <span className={`flex items-center gap-1 text-[0.6875rem] font-medium px-1.5 py-0.5 rounded-md border ${
                 info.daysSinceUpdate >= 30
                   ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                   : info.daysSinceUpdate >= 14
@@ -191,24 +191,24 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-[var(--color-text-primary)] leading-snug">{insight.title}</span>
             {isNew && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-accent-subtle)] text-[var(--color-accent)] border border-[var(--color-border-accent)] uppercase tracking-wider">
+              <span className="text-[0.5625rem] px-1.5 py-0.5 rounded-full bg-[var(--color-accent-subtle)] text-[var(--color-accent)] border border-[var(--color-border-accent)] uppercase tracking-wider">
                 New
               </span>
             )}
           </div>
           <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2 mt-1 leading-relaxed">{insight.summary}</p>
           <div className="flex items-center gap-3 mt-2">
-            <span className="inline-flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
+            <span className="inline-flex items-center gap-1 text-[0.6875rem] text-[var(--color-text-muted)]">
               <Clock size={10} className="opacity-60" />
               {formatRelativeTime(createdAt)}
             </span>
             {projectName && (
-              <span className="text-[11px] text-[var(--color-accent-dim)] truncate max-w-[150px]" title={projectName}>
+              <span className="text-[0.6875rem] text-[var(--color-accent-dim)] truncate max-w-[150px]" title={projectName}>
                 {projectName}
               </span>
             )}
             {insight.relatedCardIds.length > 0 && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-[var(--color-accent-dim)]">
+              <span className="inline-flex items-center gap-1 text-[0.6875rem] text-[var(--color-accent-dim)]">
                 <LayoutGrid size={10} className="opacity-60" />
                 {insight.relatedCardIds.length} card{insight.relatedCardIds.length !== 1 ? 's' : ''}
               </span>
@@ -239,7 +239,7 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
           {/* Related cards — grouped by project when multi-project */}
           {insight.relatedCardIds.length > 0 && (
             <div className="px-4 pt-3 pb-2">
-              <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-text-muted)] mb-2.5">
+              <p className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-text-muted)] mb-2.5">
                 Related Cards
               </p>
               {isMultiProject ? (
@@ -249,7 +249,7 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
                   if (projectCards.length === 0) return null;
                   return (
                     <div key={pid} className="mb-3 last:mb-0">
-                      <p className="text-[11px] font-medium text-[var(--color-text-secondary)] mb-1.5 pl-0.5">
+                      <p className="text-[0.6875rem] font-medium text-[var(--color-text-secondary)] mb-1.5 pl-0.5">
                         {pName}
                       </p>
                       <div className="grid grid-cols-3 gap-2">

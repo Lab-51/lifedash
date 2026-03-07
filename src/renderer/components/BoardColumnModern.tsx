@@ -264,10 +264,10 @@ const BoardColumnModern = memo(function BoardColumnModern({
                 <div ref={headerRef} className="py-3 cursor-grab active:cursor-grabbing shrink-0">
                     <ChevronRight size={14} className="text-surface-400 group-hover:text-primary-500 transition-colors" />
                 </div>
-                <span className="font-data text-[10px] text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] w-6 h-6 flex items-center justify-center rounded-full mb-2 shrink-0">
+                <span className="font-data text-[0.625rem] text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] w-6 h-6 flex items-center justify-center rounded-full mb-2 shrink-0">
                     {columnCards.length}
                 </span>
-                <span className="font-hud text-[10px] tracking-widest text-[var(--color-text-secondary)] whitespace-nowrap [writing-mode:vertical-lr] rotate-180 pt-3 pb-5">
+                <span className="font-hud text-[0.625rem] tracking-widest text-[var(--color-text-secondary)] whitespace-nowrap [writing-mode:vertical-lr] rotate-180 pt-3 pb-5">
                     {column.name}
                 </span>
             </div>
@@ -329,7 +329,7 @@ const BoardColumnModern = memo(function BoardColumnModern({
                             <h3 className="font-hud text-xs tracking-widest text-[var(--color-text-secondary)] truncate cursor-text hover:text-[var(--color-accent)] transition-colors">
                                 {column.name}
                             </h3>
-                            <span className="font-data text-[10px] px-1.5 py-0.5 rounded-full text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)]">
+                            <span className="font-data text-[0.625rem] px-1.5 py-0.5 rounded-full text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)]">
                                 {columnCards.length}
                             </span>
                         </div>

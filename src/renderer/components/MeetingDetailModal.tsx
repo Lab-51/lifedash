@@ -519,7 +519,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
 
           {/* Project linking */}
           <div className="flex items-center gap-3 mb-8">
-            <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest shrink-0">Linked Project</span>
+            <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest shrink-0">Linked Project</span>
             <div className="flex-1 min-w-[180px] max-w-[240px]">
               <HudSelect
                 value={meeting.projectId || ''}
@@ -538,7 +538,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
                   navigate(`/projects/${meeting.projectId}`);
                   handleClose();
                 }}
-                className="flex items-center gap-1.5 text-[10px] font-hud tracking-wider border border-[var(--color-border)] hover:border-[var(--color-accent-dim)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] px-2.5 py-1.5 rounded-md transition-colors shrink-0"
+                className="flex items-center gap-1.5 text-[0.625rem] font-hud tracking-wider border border-[var(--color-border)] hover:border-[var(--color-accent-dim)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] px-2.5 py-1.5 rounded-md transition-colors shrink-0"
                 title="Go to project board"
               >
                 Open Board

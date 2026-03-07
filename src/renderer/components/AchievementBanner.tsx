@@ -312,7 +312,7 @@ function AchievementBanner() {
             <div className="flex items-center gap-2 mb-0.5">
               <p
                 className={`
-                  text-[10px] uppercase tracking-[0.2em] font-bold leading-none
+                  text-[0.625rem] uppercase tracking-[0.2em] font-bold leading-none
                   ${cats.labelTextLight} ${cats.labelText}
                 `}
               >
@@ -320,7 +320,7 @@ function AchievementBanner() {
               </p>
               <span
                 className={`
-                  text-[9px] uppercase tracking-wider font-semibold leading-none
+                  text-[0.5625rem] uppercase tracking-wider font-semibold leading-none
                   px-1.5 py-0.5 rounded-full
                   bg-surface-100 text-surface-500
                   dark:bg-surface-800 dark:text-surface-400

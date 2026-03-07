@@ -132,7 +132,7 @@ export default function WhatsNewModal({ version, releaseType, sections, previous
 
         {/* Header bar */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border-accent)] shrink-0 relative">
-          <span className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)]">
+          <span className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)]">
             {releaseType === 'major' ? 'Major Release' : releaseType === 'minor' ? 'Feature Update' : 'Patch Notes'}
           </span>
           <button
@@ -172,7 +172,7 @@ export default function WhatsNewModal({ version, releaseType, sections, previous
             {/* Previous versions */}
             {hasPrevious && (
               <div className="border-t border-[var(--color-border)] pt-4 space-y-4">
-                <span className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-text-muted)]">
+                <span className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-text-muted)]">
                   Previous Updates
                 </span>
                 {previousVersions.map(release => (

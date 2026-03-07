@@ -206,7 +206,7 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
                   key={p.label}
                   type="button"
                   onClick={() => handlePreset(p.days)}
-                  className="text-[10px] font-hud tracking-wider px-2 py-1 rounded-md border border-[var(--color-border)] hover:border-[var(--color-accent-dim)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors"
+                  className="text-[0.625rem] font-hud tracking-wider px-2 py-1 rounded-md border border-[var(--color-border)] hover:border-[var(--color-accent-dim)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors"
                 >
                   {p.label}
                 </button>
@@ -230,7 +230,7 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
           {/* Day-of-week headers */}
           <div className="grid grid-cols-7 mb-1">
             {DAYS.map(d => (
-              <div key={d} className="text-center text-[10px] font-hud tracking-wider text-[var(--color-text-muted)] py-1">
+              <div key={d} className="text-center text-[0.625rem] font-hud tracking-wider text-[var(--color-text-muted)] py-1">
                 {d}
               </div>
             ))}
@@ -309,7 +309,7 @@ function HudDatePicker({ value, onChange, showTime = true, placeholder = 'Set da
                       key={t.label}
                       type="button"
                       onClick={() => handleTimeChange(t.h, t.m)}
-                      className={`text-[10px] font-data px-1.5 py-0.5 rounded border transition-colors ${
+                      className={`text-[0.625rem] font-data px-1.5 py-0.5 rounded border transition-colors ${
                         hours === t.h && minutes === t.m
                           ? 'border-[var(--color-accent-dim)] text-[var(--color-accent)] bg-[var(--color-accent-subtle)]'
                           : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)]'

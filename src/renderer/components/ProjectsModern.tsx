@@ -204,7 +204,7 @@ export default function ProjectsModern() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
                         <div className="flex items-center gap-4 mb-1">
-                            <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.PROJECTS</span>
+                            <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.PROJECTS</span>
                             <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
                         </div>
                         <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Projects</h1>

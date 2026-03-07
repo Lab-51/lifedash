@@ -226,7 +226,7 @@ export default function BoardPageModern() {
                         </Link>
                         <div>
                             <div className="flex items-center gap-3 mb-1">
-                                <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.BOARD</span>
+                                <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.BOARD</span>
                                 <div className="h-px w-10 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
                             </div>
                             <h1 className="font-hud text-2xl tracking-wider text-[var(--color-text-primary)] flex items-center gap-2">
@@ -333,7 +333,7 @@ export default function BoardPageModern() {
                             <SlidersHorizontal size={16} />
                             Priority
                             {priorityFilter.length > 0 && (
-                                <span className="bg-primary-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-sm">
+                                <span className="bg-primary-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[0.625rem] shadow-sm">
                                     {priorityFilter.length}
                                 </span>
                             )}
@@ -375,7 +375,7 @@ export default function BoardPageModern() {
                         >
                             Labels
                             {labelFilter.length > 0 && (
-                                <span className="bg-primary-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-sm">
+                                <span className="bg-primary-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[0.625rem] shadow-sm">
                                     {labelFilter.length}
                                 </span>
                             )}
@@ -475,7 +475,7 @@ export default function BoardPageModern() {
                                                             style={{ backgroundColor: label.color }}
                                                         />
                                                         <span className="flex-1 text-left font-medium text-surface-700 dark:text-surface-200 truncate">{label.name}</span>
-                                                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${count === 0 ? 'text-surface-400 bg-surface-100 dark:bg-surface-700' : 'text-surface-500 bg-surface-100 dark:bg-surface-700'}`}>
+                                                        <span className={`text-[0.625rem] font-medium px-1.5 py-0.5 rounded-full ${count === 0 ? 'text-surface-400 bg-surface-100 dark:bg-surface-700' : 'text-surface-500 bg-surface-100 dark:bg-surface-700'}`}>
                                                             {count}
                                                         </span>
                                                         <button
@@ -652,7 +652,7 @@ export default function BoardPageModern() {
                                 AI Agent
                             </span>
                             {agentMessageCount > 0 && (
-                                <span className="text-[10px] font-data bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5">
+                                <span className="text-[0.625rem] font-data bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5">
                                     {agentMessageCount}
                                 </span>
                             )}

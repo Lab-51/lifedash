@@ -17,6 +17,7 @@ import FeatureTour from '../components/FeatureTour';
 import TaskModelConfig from '../components/TaskModelConfig';
 import type { TaskModelConfigHandle } from '../components/TaskModelConfig';
 import ThemeSelector from '../components/ThemeSelector';
+import FontScaleSelector from '../components/FontScaleSelector';
 
 import UsageSummary from '../components/UsageSummary';
 import BackupSection from '../components/settings/BackupSection';
@@ -126,7 +127,7 @@ export default function SettingsPageModern() {
             {/* Header */}
             <div className="px-8 pt-8 pb-6 shrink-0 bg-white dark:bg-[var(--color-chrome)] border-b border-surface-200 dark:border-[var(--color-border)]">
                 <div className="flex items-center gap-4 mb-1">
-                    <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.SETTINGS</span>
+                    <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.SETTINGS</span>
                     <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
                 </div>
                 <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Settings</h1>
@@ -178,8 +179,8 @@ export default function SettingsPageModern() {
                                         <ThemeSelector />
                                     </div>
                                     <div>
-                                        <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Themes</h3>
-                                        <p className="text-sm text-[var(--color-text-muted)]">More themes coming soon.</p>
+                                        <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Font Size</h3>
+                                        <FontScaleSelector />
                                     </div>
                                 </div>
                             </section>
@@ -331,7 +332,7 @@ export default function SettingsPageModern() {
                                             </button>
                                             {showAutoMenu && enabledProviders.length > 1 && (
                                                 <div className="absolute top-full right-0 mt-1 min-w-[160px] hud-panel clip-corner-cut-sm p-1 z-10">
-                                                    <p className="text-[10px] text-[var(--color-text-muted)] px-2 py-1 uppercase tracking-wider">Select provider</p>
+                                                    <p className="text-[0.625rem] text-[var(--color-text-muted)] px-2 py-1 uppercase tracking-wider">Select provider</p>
                                                     {enabledProviders.filter(p => ['openai', 'anthropic', 'kimi', 'ollama'].includes(p.name)).map(p => (
                                                         <button key={p.id} onClick={() => { taskModelRef.current?.autoAssign(p); setShowAutoMenu(false); }}
                                                             className="w-full text-left px-2 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] rounded transition-colors">
@@ -415,17 +416,17 @@ export default function SettingsPageModern() {
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
                                     <div className="p-4 hud-panel clip-corner-cut-sm">
-                                        <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Version</p>
+                                        <p className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Version</p>
                                         <p className="font-[var(--font-display)] text-[var(--color-text-primary)] font-medium">{window.electronAPI.appVersion}</p>
                                     </div>
                                     <div className="p-4 hud-panel clip-corner-cut-sm">
-                                        <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Encryption</p>
+                                        <p className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Encryption</p>
                                         <p className={`font-[var(--font-display)] font-medium ${encryptionAvailable ? 'text-emerald-500' : 'text-[var(--color-text-secondary)]'}`}>
                                             {encryptionAvailable === null ? 'Checking...' : encryptionAvailable ? 'Active' : 'Unavailable'}
                                         </p>
                                     </div>
                                     <div className="p-4 hud-panel clip-corner-cut-sm">
-                                        <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Platform</p>
+                                        <p className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Platform</p>
                                         <p className="font-[var(--font-display)] text-[var(--color-text-primary)] font-medium capitalize">{window.electronAPI.platform}</p>
                                     </div>
                                 </div>

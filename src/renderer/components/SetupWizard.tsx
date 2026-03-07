@@ -817,7 +817,7 @@ function StepIndicator({ current }: { current: WizardStep }) {
         return (
           <div key={step} className="flex items-center gap-1">
             <div
-              className={`flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-hud tracking-wider border transition-all ${
+              className={`flex items-center justify-center w-6 h-6 rounded-full text-[0.625rem] font-hud tracking-wider border transition-all ${
                 isActive
                   ? 'border-[var(--color-accent)] bg-[var(--color-accent-subtle)] text-[var(--color-accent)]'
                   : isDone
@@ -828,7 +828,7 @@ function StepIndicator({ current }: { current: WizardStep }) {
               {isDone ? <CheckCircle size={12} /> : idx + 1}
             </div>
             <span
-              className={`text-[10px] font-data tracking-wider uppercase transition-colors ${
+              className={`text-[0.625rem] font-data tracking-wider uppercase transition-colors ${
                 isActive ? 'text-[var(--color-accent)]' : isDone ? 'text-emerald-500' : 'text-[var(--color-text-muted)]'
               }`}
             >
@@ -1007,7 +1007,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border-accent)]">
-          <span className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)]">
+          <span className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)]">
             Setup Wizard
           </span>
           <button

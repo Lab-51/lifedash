@@ -83,7 +83,7 @@ function StatCard({ label, value, icon: Icon, accentClass }: {
   return (
     <div className="hud-panel clip-corner-cut-sm p-4 flex items-center justify-between">
       <div>
-        <p className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">{label}</p>
+        <p className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">{label}</p>
         <p className="text-2xl font-[var(--font-display)] font-bold text-[var(--color-text-primary)]">{value}</p>
       </div>
       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${accentClass}`}>
@@ -261,7 +261,7 @@ export default function UsageSummary() {
       <div className="hud-panel clip-corner-cut-sm p-4">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h4 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)]">Last 30 Days</h4>
+            <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)]">Last 30 Days</h4>
             <p className="text-xs text-surface-500 mt-0.5">{formatCompactNumber(totalDailyTokens)} tokens total</p>
           </div>
         </div>
@@ -287,7 +287,7 @@ export default function UsageSummary() {
             return (
               <span
                 key={idx}
-                className="absolute text-[10px] text-surface-500 -translate-x-1/2"
+                className="absolute text-[0.625rem] text-surface-500 -translate-x-1/2"
                 style={{ left: `${leftPct}%` }}
               >
                 {formatShortDate(daily[idx].date)}
@@ -302,7 +302,7 @@ export default function UsageSummary() {
         {/* By Task Type */}
         {taskEntries.length > 0 && (
           <div className="hud-panel clip-corner-cut-sm p-4">
-            <h4 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Task Type</h4>
+            <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Task Type</h4>
             <div className="space-y-3">
               {taskEntries.map(([type, data]) => {
                 const colors = getTaskColor(type);
@@ -325,7 +325,7 @@ export default function UsageSummary() {
         {/* By Provider */}
         {providerEntries.length > 0 && (
           <div className="hud-panel clip-corner-cut-sm p-4">
-            <h4 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Provider</h4>
+            <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Provider</h4>
             <div className="space-y-3">
               {providerEntries.map(([id, data], idx) => {
                 const colors = MODEL_COLORS[idx % MODEL_COLORS.length];
@@ -349,7 +349,7 @@ export default function UsageSummary() {
       {/* Section 4 — By Model */}
       {modelEntries.length > 0 && (
         <div className="hud-panel clip-corner-cut-sm p-4">
-          <h4 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Model</h4>
+          <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Model</h4>
           <div className="space-y-3">
             {modelEntries.map(([model, data], idx) => {
               const colors = MODEL_COLORS[idx % MODEL_COLORS.length];

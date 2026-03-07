@@ -411,7 +411,7 @@ export default function ProjectPlanningModal({
           <div className="space-y-5">
             {/* Summary */}
             <div>
-              <h3 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Summary</h3>
+              <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Summary</h3>
               <p className="text-sm text-surface-800 dark:text-surface-200">{editablePlan.summary}</p>
             </div>
 
@@ -423,7 +423,7 @@ export default function ProjectPlanningModal({
 
             {/* Pillar tabs */}
             <div>
-              <h3 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">Pillars (columns)</h3>
+              <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">Pillars (columns)</h3>
               <div className="flex gap-1 mb-3 flex-wrap items-center">
                 {editablePlan.pillars.map((pillar, idx) => (
                   <button
@@ -507,7 +507,7 @@ export default function ProjectPlanningModal({
             {/* Milestones */}
             {editablePlan.milestones.length > 0 && (
               <div>
-                <h3 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">Milestones</h3>
+                <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">Milestones</h3>
                 <div className="space-y-3">
                   {editablePlan.milestones.map(milestone => (
                     <div

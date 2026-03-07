@@ -92,7 +92,7 @@ export default function MeetingAnalyticsSection({
         {/* Top stats row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
           <div className="bg-surface-100/50 dark:bg-surface-950/50 rounded-xl p-3 border border-[var(--color-border)]">
-            <div className="flex items-center justify-center gap-1.5 font-hud text-[10px] text-[var(--color-text-muted)] mb-1">
+            <div className="flex items-center justify-center gap-1.5 font-hud text-[0.625rem] text-[var(--color-text-muted)] mb-1">
               <Clock size={14} />
               Duration
             </div>
@@ -101,19 +101,19 @@ export default function MeetingAnalyticsSection({
             </div>
           </div>
           <div className="bg-surface-100/50 dark:bg-surface-950/50 rounded-xl p-3 border border-[var(--color-border)]">
-            <div className="font-hud text-[10px] text-[var(--color-text-muted)] mb-1 text-center">Segments</div>
+            <div className="font-hud text-[0.625rem] text-[var(--color-text-muted)] mb-1 text-center">Segments</div>
             <div className="font-data text-[var(--color-text-primary)] text-xl font-bold tracking-tight text-center">
               {analytics.totalSegments.toLocaleString()}
             </div>
           </div>
           <div className="bg-surface-100/50 dark:bg-surface-950/50 rounded-xl p-3 border border-[var(--color-border)]">
-            <div className="font-hud text-[10px] text-[var(--color-text-muted)] mb-1 text-center">Words</div>
+            <div className="font-hud text-[0.625rem] text-[var(--color-text-muted)] mb-1 text-center">Words</div>
             <div className="font-data text-[var(--color-text-primary)] text-xl font-bold tracking-tight text-center">
               {analytics.totalWords.toLocaleString()}
             </div>
           </div>
           <div className="bg-surface-100/50 dark:bg-surface-950/50 rounded-xl p-3 border border-[var(--color-border)]">
-            <div className="font-hud text-[10px] text-[var(--color-text-muted)] mb-1 text-center">WPM</div>
+            <div className="font-hud text-[0.625rem] text-[var(--color-text-muted)] mb-1 text-center">WPM</div>
             <div className="font-data text-[var(--color-text-primary)] text-xl font-bold tracking-tight text-center">
               {analytics.wordsPerMinute}
             </div>

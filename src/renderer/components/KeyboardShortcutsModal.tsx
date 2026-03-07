@@ -83,7 +83,7 @@ function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps
         <div className="px-5 py-4 space-y-5">
           {SHORTCUT_GROUPS.map((group) => (
             <div key={group.label}>
-              <h3 className="font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">
+              <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">
                 {group.label}
               </h3>
               <div className="space-y-1.5">

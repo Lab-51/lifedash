@@ -233,7 +233,7 @@ export default function ProductivityPulse({ data }: Props) {
                                 key={i}
                                 x={m.x}
                                 y={0}
-                                className="fill-surface-400 text-[10px] font-semibold"
+                                className="fill-surface-400 text-[0.625rem] font-semibold"
                                 dominantBaseline="middle"
                             >
                                 {m.label}
@@ -243,9 +243,9 @@ export default function ProductivityPulse({ data }: Props) {
 
                     {/* Day Labels - Mon, Wed, Fri */}
                     <g transform={`translate(0, ${MONTH_LABEL_HEIGHT})`}>
-                        <text x={0} y={(1 * WEEK_WIDTH) + (SQUARE_SIZE / 2) + 1} className="fill-surface-400 text-[10px]" dominantBaseline="middle">Mon</text>
-                        <text x={0} y={(3 * WEEK_WIDTH) + (SQUARE_SIZE / 2) + 1} className="fill-surface-400 text-[10px]" dominantBaseline="middle">Wed</text>
-                        <text x={0} y={(5 * WEEK_WIDTH) + (SQUARE_SIZE / 2) + 1} className="fill-surface-400 text-[10px]" dominantBaseline="middle">Fri</text>
+                        <text x={0} y={(1 * WEEK_WIDTH) + (SQUARE_SIZE / 2) + 1} className="fill-surface-400 text-[0.625rem]" dominantBaseline="middle">Mon</text>
+                        <text x={0} y={(3 * WEEK_WIDTH) + (SQUARE_SIZE / 2) + 1} className="fill-surface-400 text-[0.625rem]" dominantBaseline="middle">Wed</text>
+                        <text x={0} y={(5 * WEEK_WIDTH) + (SQUARE_SIZE / 2) + 1} className="fill-surface-400 text-[0.625rem]" dominantBaseline="middle">Fri</text>
                     </g>
 
                     {/* The Grid */}
@@ -301,24 +301,24 @@ export default function ProductivityPulse({ data }: Props) {
             {/* Summary Stats — fills the remaining vertical space */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 flex-1">
                 <div className="hud-panel clip-corner-cut-sm p-3 flex flex-col justify-center">
-                    <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Today</p>
+                    <p className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)]">Today</p>
                     <p className="font-[var(--font-display)] text-xl text-[var(--color-accent)] text-glow mt-1">{todayCount}</p>
-                    <p className="font-data text-[10px] text-[var(--color-text-muted)]">activities</p>
+                    <p className="font-data text-[0.625rem] text-[var(--color-text-muted)]">activities</p>
                 </div>
                 <div className="hud-panel clip-corner-cut-sm p-3 flex flex-col justify-center">
-                    <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Best Day</p>
+                    <p className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)]">Best Day</p>
                     <p className="font-[var(--font-display)] text-xl text-[var(--color-accent)] text-glow mt-1">{bestDay.count}</p>
-                    <p className="font-data text-[10px] text-[var(--color-text-muted)]">{bestDay.date ? new Date(bestDay.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</p>
+                    <p className="font-data text-[0.625rem] text-[var(--color-text-muted)]">{bestDay.date ? new Date(bestDay.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</p>
                 </div>
                 <div className="hud-panel clip-corner-cut-sm p-3 flex flex-col justify-center">
-                    <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Weekly Avg</p>
+                    <p className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)]">Weekly Avg</p>
                     <p className="font-[var(--font-display)] text-xl text-[var(--color-text-primary)] mt-1">{weeklyAvg}</p>
-                    <p className="font-data text-[10px] text-[var(--color-text-muted)]">per week</p>
+                    <p className="font-data text-[0.625rem] text-[var(--color-text-muted)]">per week</p>
                 </div>
                 <div className="hud-panel clip-corner-cut-sm p-3 flex flex-col justify-center">
-                    <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Active Days</p>
+                    <p className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)]">Active Days</p>
                     <p className="font-[var(--font-display)] text-xl text-[var(--color-text-primary)] mt-1">{activeDays}</p>
-                    <p className="font-data text-[10px] text-[var(--color-text-muted)]">of {numWeeks * 7}</p>
+                    <p className="font-data text-[0.625rem] text-[var(--color-text-muted)]">of {numWeeks * 7}</p>
                 </div>
             </div>
         </div>

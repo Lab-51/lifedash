@@ -167,7 +167,7 @@ export default function InsightsPanel() {
           <Bot size={16} className="text-[var(--color-accent)]" />
           <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">AI INSIGHTS</span>
           {newCount > 0 && (
-            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--color-accent)] text-white">
+            <span className="text-[0.5625rem] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--color-accent)] text-white">
               {newCount}
             </span>
           )}
@@ -254,7 +254,7 @@ export default function InsightsPanel() {
                 {analyzedIds.length > 0 && (
                   <button
                     onClick={() => updatePreferences({ analyzedProjectIds: [] })}
-                    className="text-[11px] text-[var(--color-accent-dim)] hover:text-[var(--color-accent)] px-2 py-1 transition-colors"
+                    className="text-[0.6875rem] text-[var(--color-accent-dim)] hover:text-[var(--color-accent)] px-2 py-1 transition-colors"
                   >
                     Select all
                   </button>
@@ -289,7 +289,7 @@ export default function InsightsPanel() {
                   >
                     {tab.label}
                     {tab.count !== undefined && tab.count > 0 && (
-                      <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full border ${
+                      <span className={`text-[0.6875rem] font-semibold px-1.5 py-0.5 rounded-full border ${
                         activeFilter === tab.id
                           ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)] border-[var(--color-accent)]/30'
                           : 'bg-[var(--color-accent-subtle)] text-[var(--color-accent-dim)] border-[var(--color-border-accent)]'

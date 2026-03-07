@@ -255,7 +255,7 @@ export default function ProjectAgentPanel({ projectId, onWriteAction }: ProjectA
             <p className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)] mb-1">Project Agent</p>
             <p className="text-xs text-[var(--color-text-secondary)] mb-1 text-center font-data">Ask me anything about this project.</p>
             {modelInfo && (
-              <p className="text-[10px] text-[var(--color-text-muted)] mb-5 text-center font-data">
+              <p className="text-[0.625rem] text-[var(--color-text-muted)] mb-5 text-center font-data">
                 Using <span className="font-medium text-[var(--color-text-secondary)]">{modelInfo.model}</span>
                 <span className="text-[var(--color-text-muted)]"> via </span>
                 <span className="font-medium text-[var(--color-text-secondary)] capitalize">{modelInfo.providerName}</span>
@@ -377,9 +377,9 @@ export default function ProjectAgentPanel({ projectId, onWriteAction }: ProjectA
           )}
         </div>
         <div className="flex items-center justify-between mt-1">
-          <p className="text-[10px] text-[var(--color-text-muted)] font-data">Enter to send &middot; Shift+Enter for new line</p>
+          <p className="text-[0.625rem] text-[var(--color-text-muted)] font-data">Enter to send &middot; Shift+Enter for new line</p>
           {modelInfo && (
-            <p className="text-[10px] text-[var(--color-text-muted)] font-data">
+            <p className="text-[0.625rem] text-[var(--color-text-muted)] font-data">
               <span className="font-medium">{modelInfo.model}</span>
               <span className="text-[var(--color-text-muted)]"> · </span>
               <span className="capitalize">{modelInfo.providerName}</span>

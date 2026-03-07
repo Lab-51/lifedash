@@ -104,7 +104,7 @@ export default function IdeasModern() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
                     <div>
                         <div className="flex items-center gap-4 mb-1">
-                            <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.IDEAS</span>
+                            <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.IDEAS</span>
                             <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
                         </div>
                         <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Ideas</h1>
@@ -236,12 +236,12 @@ export default function IdeasModern() {
                                 )}
 
                                 <div className="w-full mt-2 flex flex-wrap items-center gap-2">
-                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border ${STATUS_COLORS_MODERN[idea.status]}`}>
+                                    <span className={`text-[0.625rem] font-bold uppercase tracking-wider px-2 py-1 rounded-md border ${STATUS_COLORS_MODERN[idea.status]}`}>
                                         {idea.status}
                                     </span>
 
                                     {idea.tags.map(tag => (
-                                        <span key={tag} className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] px-2 py-1 rounded-md">
+                                        <span key={tag} className="flex items-center gap-1 text-[0.625rem] font-medium text-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] px-2 py-1 rounded-md">
                                             <Tag size={10} /> {tag}
                                         </span>
                                     ))}

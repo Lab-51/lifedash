@@ -22,7 +22,7 @@ interface LevelBadgeProps {
 }
 
 const SIZE_CLASSES = {
-  sm: 'h-5 text-[10px] px-2 gap-1',
+  sm: 'h-5 text-[0.625rem] px-2 gap-1',
   md: 'h-6 text-xs px-2.5 gap-1.5',
   lg: 'h-8 text-sm px-3 gap-1.5',
 } as const;

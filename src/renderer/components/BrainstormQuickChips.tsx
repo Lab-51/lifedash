@@ -60,7 +60,7 @@ export default function BrainstormQuickChips({ choices, mode, onSend }: Brainsto
     return (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-2">
             {/* Hint label */}
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--color-accent)] opacity-80">
+            <div className="flex items-center gap-1.5 text-[0.6875rem] font-medium text-[var(--color-accent)] opacity-80">
                 {mode === 'single' ? (
                     <>
                         <MousePointerClick size={12} />

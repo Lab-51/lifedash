@@ -127,7 +127,7 @@ function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className={`truncate ${isActive ? 'font-semibold' : ''}`}>{opt.label}</span>
                   {opt.description && (
-                    <span className="text-[10px] text-[var(--color-text-muted)] truncate">{opt.description}</span>
+                    <span className="text-[0.625rem] text-[var(--color-text-muted)] truncate">{opt.description}</span>
                   )}
                 </div>
                 {isActive && <Check size={14} className="text-[var(--color-accent)] shrink-0" />}

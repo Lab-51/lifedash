@@ -191,7 +191,7 @@ export default function FocusStatsWidget() {
           <div className="grid grid-cols-12 gap-4 lg:gap-6">
             {/* Column 1: Today's XP */}
             <div className="col-span-6 sm:col-span-3 lg:col-span-2 flex flex-col justify-between hud-panel-accent clip-corner-cut-sm p-3">
-              <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Today's XP</p>
+              <p className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)]">Today's XP</p>
               {stats && stats.todayXp > 0 ? (
                 <>
                   <p className="font-[var(--font-display)] text-2xl text-[var(--color-accent)] text-glow">
@@ -211,7 +211,7 @@ export default function FocusStatsWidget() {
 
             {/* Column 2: Activity Streak */}
             <div className="col-span-6 sm:col-span-3 lg:col-span-2 flex flex-col justify-between hud-panel-accent clip-corner-cut-sm p-3">
-              <p className="font-hud text-[10px] tracking-wider text-[var(--color-warm-dim)]">Streak</p>
+              <p className="font-hud text-[0.625rem] tracking-wider text-[var(--color-warm-dim)]">Streak</p>
               {stats && stats.currentStreak > 0 ? (
                 <>
                   <p className="font-[var(--font-display)] text-2xl text-[var(--color-warm)] text-glow-warm flex items-center gap-1">
@@ -230,13 +230,13 @@ export default function FocusStatsWidget() {
 
             {/* Column 3: Level Progress */}
             <div className="col-span-12 sm:col-span-6 lg:col-span-4 flex flex-col hud-panel clip-corner-cut-sm p-3">
-              <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)] mb-2">Level Progress</p>
+              <p className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)] mb-2">Level Progress</p>
               {stats ? (
                 <div className="flex flex-col justify-end flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <LevelBadge level={stats.level} size="lg" />
                     <div className="flex-1">
-                      <p className="text-[10px] text-surface-500 mb-0.5 font-medium text-right">
+                      <p className="text-[0.625rem] text-surface-500 mb-0.5 font-medium text-right">
                         {stats.xpNextLevel - stats.totalXp} XP to next
                       </p>
                       <div className="w-full h-1.5 bg-[var(--color-border)] rounded-full overflow-hidden">
@@ -257,7 +257,7 @@ export default function FocusStatsWidget() {
 
             {/* Column 4: This Week (XP bar chart) */}
             <div className="col-span-12 lg:col-span-4 flex flex-col justify-between hud-panel clip-corner-cut-sm p-3">
-              <p className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">This Week</p>
+              <p className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)]">This Week</p>
               {dailyXP.length > 0 ? (
                 <>
                   <div className="flex items-end gap-1 h-8">
@@ -282,7 +282,7 @@ export default function FocusStatsWidget() {
                   </div>
                   <div className="flex gap-1">
                     {dailyXP.map((day) => (
-                      <p key={day.date} className="flex-1 text-[9px] text-surface-500 text-center">
+                      <p key={day.date} className="flex-1 text-[0.5625rem] text-surface-500 text-center">
                         {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }).charAt(0)}
                       </p>
                     ))}
@@ -346,7 +346,7 @@ export default function FocusStatsWidget() {
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
-                <span className="font-hud text-[10px] tracking-wider text-[var(--color-accent-dim)]">Achievements</span>
+                <span className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)]">Achievements</span>
                 <div className="h-px w-12 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
               </div>
               <p className="font-data text-xs text-[var(--color-text-secondary)] group-hover:text-[var(--color-accent)] transition-colors">

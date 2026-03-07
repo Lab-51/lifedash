@@ -280,7 +280,7 @@ export default function DashboardModern() {
                                 title={`New ${label}`}
                             >
                                 <Icon size={24} className="mb-2 transition-transform duration-300 group-hover:scale-110" />
-                                <span className="text-[10px] font-bold font-hud">{label}</span>
+                                <span className="text-[0.625rem] font-bold font-hud">{label}</span>
                             </button>
                         ))}
                         {/* Focus button */}
@@ -298,7 +298,7 @@ export default function DashboardModern() {
                             title={focusMode === 'idle' ? 'Start Focus Session' : 'In Focus'}
                         >
                             <Timer size={24} className={`mb-2 transition-transform duration-300 group-hover:scale-110 ${focusMode === 'focus' || focusMode === 'break' ? 'animate-[spin_4s_linear_infinite]' : ''}`} />
-                            <span className="text-[10px] font-bold font-hud">
+                            <span className="text-[0.625rem] font-bold font-hud">
                                 {focusMode === 'focus' || focusMode === 'break' ? 'In Focus' : 'Focus'}
                             </span>
                         </button>
@@ -316,7 +316,7 @@ export default function DashboardModern() {
                                 ) : (
                                     <ClipboardList size={24} className="mb-2 transition-transform duration-300 group-hover:scale-110" />
                                 )}
-                                <span className="text-[10px] font-bold font-hud">
+                                <span className="text-[0.625rem] font-bold font-hud">
                                     {generatingStandup ? 'Loading...' : 'Standup'}
                                 </span>
                             </button>
@@ -452,11 +452,11 @@ export default function DashboardModern() {
                                                     <Mic size={18} />
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-data text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-accent-subtle)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
+                                                    <span className="font-data text-[0.625rem] px-1.5 py-0.5 rounded bg-[var(--color-accent-subtle)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
                                                         {formatDate(meeting.createdAt)}
                                                     </span>
                                                     {meeting.endedAt && (
-                                                        <span className="font-data text-[10px] text-[var(--color-text-muted)] flex items-center gap-1">
+                                                        <span className="font-data text-[0.625rem] text-[var(--color-text-muted)] flex items-center gap-1">
                                                             <Clock size={10} /> {getDurationMinutes(meeting.startedAt, meeting.endedAt)}m
                                                         </span>
                                                     )}
@@ -515,7 +515,7 @@ export default function DashboardModern() {
                                                             <Star size={10} className="text-amber-400 fill-amber-400 shrink-0" />
                                                         )}
                                                     </div>
-                                                    <span className="font-data text-[10px] text-[var(--color-text-muted)]">
+                                                    <span className="font-data text-[0.625rem] text-[var(--color-text-muted)]">
                                                         {cardCountByProject[project.id] || 0} tasks
                                                     </span>
                                                 </div>
@@ -569,11 +569,11 @@ export default function DashboardModern() {
                                                     <p className="text-sm text-[var(--color-text-primary)] group-hover:text-[var(--color-warm)] transition-colors line-clamp-1">
                                                         {item.description}
                                                     </p>
-                                                    <p className="text-[10px] font-data text-[var(--color-text-muted)] mt-0.5 line-clamp-1">
+                                                    <p className="text-[0.625rem] font-data text-[var(--color-text-muted)] mt-0.5 line-clamp-1">
                                                         from {item.meetingTitle}
                                                     </p>
                                                 </div>
-                                                <span className={`shrink-0 font-data text-[10px] px-2 py-0.5 rounded-full border ${
+                                                <span className={`shrink-0 font-data text-[0.625rem] px-2 py-0.5 rounded-full border ${
                                                     item.status === 'approved'
                                                         ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20'
                                                         : 'text-[var(--color-warm)] bg-warm-50 dark:bg-warm-500/10 border-warm-200 dark:border-warm-500/20'

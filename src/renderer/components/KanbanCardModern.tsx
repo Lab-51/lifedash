@@ -223,13 +223,13 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
                 {/* Footer info using badges */}
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {/* Priority Badge */}
-                    <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md ${priorityStyle.bg} ${priorityStyle.color} border ${priorityStyle.border}`}>
+                    <span className={`text-[0.625rem] uppercase font-bold px-1.5 py-0.5 rounded-md ${priorityStyle.bg} ${priorityStyle.color} border ${priorityStyle.border}`}>
                         {card.priority}
                     </span>
 
                     {/* Link Count */}
                     {(dependencyCount ?? 0) > 0 && (
-                        <span className="flex items-center gap-1 text-[10px] text-surface-500 dark:text-surface-400 bg-surface-100 dark:bg-surface-700 px-1.5 py-0.5 rounded-md">
+                        <span className="flex items-center gap-1 text-[0.625rem] text-surface-500 dark:text-surface-400 bg-surface-100 dark:bg-surface-700 px-1.5 py-0.5 rounded-md">
                             <Link2 size={10} />
                             {dependencyCount}
                         </span>
@@ -237,7 +237,7 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
 
                     {/* Due Date */}
                     {card.dueDate && (
-                        <span className={`font-data flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border ${getDueDateBadge(card.dueDate).classes.replace('text-', 'text-').replace('bg-', 'bg-').replace('/10', '/20')}`}>
+                        <span className={`font-data flex items-center gap-1 text-[0.625rem] px-1.5 py-0.5 rounded-md border ${getDueDateBadge(card.dueDate).classes.replace('text-', 'text-').replace('bg-', 'bg-').replace('/10', '/20')}`}>
                             <Clock size={10} />
                             {new Date(card.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                         </span>
@@ -245,14 +245,14 @@ const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDele
 
                     {/* Recurring badge */}
                     {card.recurrenceType && (
-                        <span className="flex items-center gap-1 text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md" title={`Repeats ${card.recurrenceType}`}>
+                        <span className="flex items-center gap-1 text-[0.625rem] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md" title={`Repeats ${card.recurrenceType}`}>
                             <RefreshCw size={10} />
                         </span>
                     )}
 
                     {/* Labels */}
                     {card.labels?.map(label => (
-                        <span key={label.id} className="label-chip inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ '--lc': label.color } as React.CSSProperties}>
+                        <span key={label.id} className="label-chip inline-flex items-center gap-1 text-[0.625rem] font-medium px-1.5 py-0.5 rounded-full" style={{ '--lc': label.color } as React.CSSProperties}>
                             <span className="label-dot w-1.5 h-1.5 rounded-full shrink-0" />
                             {label.name}
                         </span>

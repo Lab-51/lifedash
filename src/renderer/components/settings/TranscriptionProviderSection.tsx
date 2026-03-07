@@ -421,24 +421,24 @@ export default function TranscriptionProviderSection() {
                               {isSmall ? 'High Quality' : 'Standard'}
                             </span>
                             {isSmall && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-accent-muted)] text-[var(--color-accent)] font-medium">
+                              <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-[var(--color-accent-muted)] text-[var(--color-accent)] font-medium">
                                 Recommended
                               </span>
                             )}
                             {isActive && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-400 font-medium">
+                              <span className="inline-flex items-center gap-0.5 text-[0.625rem] text-emerald-400 font-medium">
                                 <Check size={10} />
                                 Active
                               </span>
                             )}
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[11px] text-surface-500">
+                            <span className="text-[0.6875rem] text-surface-500">
                               {isSmall
                                 ? (needsMultilingual ? 'Best accuracy · 99 languages' : 'Best transcription accuracy')
                                 : (needsMultilingual ? 'Faster, lower accuracy · 99 languages' : 'Faster, lower accuracy')}
                             </span>
-                            <span className="inline-flex items-center gap-0.5 text-[11px] text-surface-500">
+                            <span className="inline-flex items-center gap-0.5 text-[0.6875rem] text-surface-500">
                               <HardDrive size={10} />
                               {model.size}
                             </span>

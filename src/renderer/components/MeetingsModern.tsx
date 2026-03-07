@@ -178,7 +178,7 @@ export default function MeetingsModern() {
                 <div className="flex items-center justify-between gap-4 mb-2">
                     <div>
                         <div className="flex items-center gap-4 mb-1">
-                            <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.MEETINGS</span>
+                            <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.MEETINGS</span>
                             <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
                         </div>
                         <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Meetings</h1>
@@ -275,7 +275,7 @@ export default function MeetingsModern() {
                                     <div className="h-1.5 bg-blue-200 dark:bg-blue-900 rounded-full overflow-hidden">
                                         <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
                                     </div>
-                                    <p className="text-[10px] text-blue-500 mt-1 font-medium">{downloadProgress}% Downloaded</p>
+                                    <p className="text-[0.625rem] text-blue-500 mt-1 font-medium">{downloadProgress}% Downloaded</p>
                                 </div>
                             ) : (
                                 <button

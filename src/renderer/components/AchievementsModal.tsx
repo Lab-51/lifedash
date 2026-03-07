@@ -232,7 +232,7 @@ function AchievementsModal({ isOpen, onClose }: AchievementsModalProps) {
                               {ach.description}
                             </p>
                             {unlocked && unlockedAt && (
-                              <p className="text-[10px] text-surface-500 mt-1">
+                              <p className="text-[0.625rem] text-surface-500 mt-1">
                                 Unlocked {new Date(unlockedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                               </p>
                             )}

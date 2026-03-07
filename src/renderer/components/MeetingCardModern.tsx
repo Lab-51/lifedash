@@ -69,7 +69,7 @@ const MeetingCardModern = memo(function MeetingCardModern({ meeting, projectName
 
             {/* Top row: status & action item badges */}
             <div className="flex items-center justify-between gap-2 mb-3">
-                <div className="flex items-center gap-2 font-data text-[11px] text-[var(--color-text-muted)]">
+                <div className="flex items-center gap-2 font-data text-[0.6875rem] text-[var(--color-text-muted)]">
                     <Calendar size={12} />
                     {formatDate(meeting.createdAt)}
                     <span className="node-point-sm" />
@@ -78,11 +78,11 @@ const MeetingCardModern = memo(function MeetingCardModern({ meeting, projectName
                 </div>
                 <div className="flex items-center gap-1.5">
                     {hasActions && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-md">
+                        <span className="flex items-center gap-1 text-[0.625rem] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-md">
                             <ListChecks size={11} /> {actionItemCount}
                         </span>
                     )}
-                    <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${status.className}`}>
+                    <span className={`flex items-center gap-1 text-[0.625rem] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${status.className}`}>
                         <StatusIcon size={11} className={meeting.status === 'recording' ? 'animate-pulse' : meeting.status === 'processing' ? 'animate-spin' : ''} />
                         {status.label}
                     </span>
@@ -98,16 +98,16 @@ const MeetingCardModern = memo(function MeetingCardModern({ meeting, projectName
             <div className="mt-auto pt-3 border-t border-[var(--color-border)] flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                     {projectName ? (
-                        <span className="flex items-center gap-1.5 text-[10px] font-semibold text-[var(--color-text-secondary)] bg-[var(--color-accent-subtle)]/40 border border-[var(--color-border)] px-2 py-0.5 rounded-md truncate max-w-[140px]">
+                        <span className="flex items-center gap-1.5 text-[0.625rem] font-semibold text-[var(--color-text-secondary)] bg-[var(--color-accent-subtle)]/40 border border-[var(--color-border)] px-2 py-0.5 rounded-md truncate max-w-[140px]">
                             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: projectColor || '#6366f1' }} />
                             {projectName}
                         </span>
                     ) : (
-                        <span className="text-[10px] text-[var(--color-text-muted)]">No project</span>
+                        <span className="text-[0.625rem] text-[var(--color-text-muted)]">No project</span>
                     )}
 
                     {meeting.template && meeting.template !== 'none' && (
-                        <span className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)] bg-[var(--color-accent-subtle)]/20 border border-[var(--color-border)] px-2 py-0.5 rounded-md">
+                        <span className="flex items-center gap-1 text-[0.625rem] text-[var(--color-text-muted)] bg-[var(--color-accent-subtle)]/20 border border-[var(--color-border)] px-2 py-0.5 rounded-md">
                             <FileText size={10} />
                             {MEETING_TEMPLATES.find(t => t.type === meeting.template)?.name ?? meeting.template}
                         </span>

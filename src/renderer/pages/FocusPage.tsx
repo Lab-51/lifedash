@@ -311,7 +311,7 @@ export default function FocusPage() {
     <div className="flex items-center justify-between">
       <div>
         <div className="flex items-center gap-4 mb-1">
-          <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.FOCUS</span>
+          <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.FOCUS</span>
           <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
         </div>
         <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Focus Time Tracking</h1>
@@ -360,27 +360,27 @@ export default function FocusPage() {
           {/* Summary Stats */}
           <div className={`grid gap-4 ${summary.billableCost > 0 ? 'grid-cols-5' : 'grid-cols-4'}`}>
             <div className={`${cardCls} p-4`}>
-              <div className="flex items-center gap-1.5 mb-1"><BarChart3 size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[10px] text-[var(--color-text-muted)]">Total Sessions</span></div>
+              <div className="flex items-center gap-1.5 mb-1"><BarChart3 size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[0.625rem] text-[var(--color-text-muted)]">Total Sessions</span></div>
               <p className="font-data text-2xl font-bold text-[var(--color-text-primary)]">{summary.totalSessions}</p>
             </div>
             <div className={`${cardCls} p-4`}>
-              <div className="flex items-center gap-1.5 mb-1"><Clock size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[10px] text-[var(--color-text-muted)]">Total Time</span></div>
+              <div className="flex items-center gap-1.5 mb-1"><Clock size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[0.625rem] text-[var(--color-text-muted)]">Total Time</span></div>
               <p className="font-data text-2xl font-bold text-[var(--color-text-primary)]">{fmt(summary.totalMinutes)}</p>
               {billableFilter === '' && summary.billableMinutes > 0 && summary.billableMinutes < summary.totalMinutes && (
                 <p className="text-xs text-surface-400 mt-0.5">{fmt(summary.billableMinutes)} billable</p>
               )}
             </div>
             <div className={`${cardCls} p-4`}>
-              <div className="flex items-center gap-1.5 mb-1"><Timer size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[10px] text-[var(--color-text-muted)]">Avg Session</span></div>
+              <div className="flex items-center gap-1.5 mb-1"><Timer size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[0.625rem] text-[var(--color-text-muted)]">Avg Session</span></div>
               <p className="font-data text-2xl font-bold text-[var(--color-text-primary)]">{summary.avgSessionMinutes}m</p>
             </div>
             <div className={`${cardCls} p-4`}>
-              <div className="flex items-center gap-1.5 mb-1"><Calendar size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[10px] text-[var(--color-text-muted)]">Active Days</span></div>
+              <div className="flex items-center gap-1.5 mb-1"><Calendar size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[0.625rem] text-[var(--color-text-muted)]">Active Days</span></div>
               <p className="font-data text-2xl font-bold text-[var(--color-text-primary)]">{summary.activeDays} of {totalDays}</p>
             </div>
             {summary.billableCost > 0 && (
               <div className={`${cardCls} p-4`}>
-                <div className="flex items-center gap-1.5 mb-1"><DollarSign size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[10px] text-[var(--color-text-muted)]">Billable Amount</span></div>
+                <div className="flex items-center gap-1.5 mb-1"><DollarSign size={16} className="text-[var(--color-accent)]" /><span className="font-hud text-[0.625rem] text-[var(--color-text-muted)]">Billable Amount</span></div>
                 <p className="font-data text-2xl font-bold text-[var(--color-text-primary)]">{fmtCost(summary.billableCost)}</p>
               </div>
             )}
@@ -423,13 +423,13 @@ export default function FocusPage() {
                 {chartData.length <= 7
                   ? chartData.map(b => (
                       <div key={b.key} className="flex-1 text-center">
-                        <span className="text-[8px] text-surface-500">{chartGranularity === 'daily' ? new Date(b.key).toLocaleDateString('en-US', { weekday: 'short' }) : b.label}</span>
+                        <span className="text-[0.5rem] text-surface-500">{chartGranularity === 'daily' ? new Date(b.key).toLocaleDateString('en-US', { weekday: 'short' }) : b.label}</span>
                       </div>
                     ))
                   : chartData.map((b, i) => {
                       const iv = Math.max(Math.floor(chartData.length / 10), 1);
                       const lbl = chartGranularity === 'monthly' ? new Date(b.key + '-01').toLocaleDateString('en-US', { month: 'short' }) : String(new Date(b.key).getDate());
-                      return <div key={b.key} className="flex-1 text-center">{i % iv === 0 ? <span className="text-[8px] text-surface-500">{lbl}</span> : null}</div>;
+                      return <div key={b.key} className="flex-1 text-center">{i % iv === 0 ? <span className="text-[0.5rem] text-surface-500">{lbl}</span> : null}</div>;
                     })}
               </div>
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-surface-200 dark:border-surface-700">

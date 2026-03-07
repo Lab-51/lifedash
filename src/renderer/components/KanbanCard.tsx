@@ -231,12 +231,12 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
         {/* Priority + blocked badges */}
         <div className="flex items-center gap-1 shrink-0">
           {isBlocked && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">
+            <span className="text-[0.625rem] font-medium px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">
               BLOCKED
             </span>
           )}
           <span
-            className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${priority.badge}`}
+            className={`text-[0.625rem] font-medium px-1.5 py-0.5 rounded ${priority.badge}`}
           >
             {priority.label}
           </span>
@@ -250,7 +250,7 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
           {card.labels?.map(label => (
             <span
               key={label.id}
-              className="label-chip inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+              className="label-chip inline-flex items-center gap-1 text-[0.625rem] font-medium px-1.5 py-0.5 rounded-full"
               style={{ '--lc': label.color } as React.CSSProperties}
             >
               <span className="label-dot w-1.5 h-1.5 rounded-full shrink-0" />
@@ -258,14 +258,14 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
             </span>
           ))}
           {card.dueDate && (
-            <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${getDueDateBadge(card.dueDate).classes}`}>
+            <span className={`inline-flex items-center gap-1 text-[0.625rem] px-1.5 py-0.5 rounded ${getDueDateBadge(card.dueDate).classes}`}>
               <Clock size={10} />
               {getDueDateBadge(card.dueDate).label}
             </span>
           )}
           {(card.checklistTotal ?? 0) > 0 && (
             <span
-              className={`inline-flex items-center gap-0.5 text-[10px] ${
+              className={`inline-flex items-center gap-0.5 text-[0.625rem] ${
                 card.checklistDone === card.checklistTotal
                   ? 'text-emerald-400'
                   : 'text-surface-400'
@@ -282,7 +282,7 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
             </span>
           )}
           {(dependencyCount ?? 0) > 0 && (
-            <span className="inline-flex items-center gap-0.5 text-[10px] text-surface-500">
+            <span className="inline-flex items-center gap-0.5 text-[0.625rem] text-surface-500">
               <Link2 size={10} />
               {dependencyCount}
             </span>

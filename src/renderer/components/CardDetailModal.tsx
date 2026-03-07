@@ -489,12 +489,12 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                     <span className={`text-sm font-semibold flex items-center gap-2 ${showAgent ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
                       AI Agent
                     </span>
-                    <span className={`text-[11px] font-medium transition-colors ${showAgent ? 'text-[var(--color-accent-dim)]' : 'text-[var(--color-text-muted)] group-hover/agent:text-[var(--color-accent-dim)]'}`}>
+                    <span className={`text-[0.6875rem] font-medium transition-colors ${showAgent ? 'text-[var(--color-accent-dim)]' : 'text-[var(--color-text-muted)] group-hover/agent:text-[var(--color-accent-dim)]'}`}>
                       {showAgent ? 'Panel open' : 'Get AI assistance'}
                     </span>
                   </div>
                   {agentMessageCount > 0 && (
-                    <span className="text-[10px] font-data bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5">
+                    <span className="text-[0.625rem] font-data bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5">
                       {agentMessageCount}
                     </span>
                   )}
@@ -504,7 +504,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
                 {/* Status Action Button */}
                 <div className="flex flex-col gap-2.5">
-                  <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Status</span>
+                  <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest pl-1">Status</span>
                   <button
                     onClick={() => onUpdate(card.id, { completed: !card.completed })}
                     className={`group/check flex items-center gap-3 p-3 rounded-xl border transition-all text-left w-full ${card.completed
@@ -519,20 +519,20 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                       <span className={`text-sm font-semibold ${card.completed ? 'text-emerald-700 dark:text-emerald-400' : 'text-surface-900 dark:text-surface-100'}`}>
                         {card.completed ? 'Completed' : 'Active Task'}
                       </span>
-                      {!card.completed && <span className="text-[11px] font-medium text-surface-500 group-hover/check:text-emerald-600 dark:group-hover/check:text-emerald-400 transition-colors">Click to mark complete</span>}
+                      {!card.completed && <span className="text-[0.6875rem] font-medium text-surface-500 group-hover/check:text-emerald-600 dark:group-hover/check:text-emerald-400 transition-colors">Click to mark complete</span>}
                     </div>
                   </button>
                 </div>
 
                 {/* Priority */}
                 <div className="flex flex-col gap-2.5">
-                  <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Priority</span>
+                  <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest pl-1">Priority</span>
                   <div className="grid grid-cols-4 gap-1.5">
                     {PRIORITY_OPTIONS.map(opt => (
                       <button
                         key={opt.value}
                         onClick={() => handlePriorityChange(opt.value)}
-                        className={`text-[11px] font-bold px-2 py-1.5 rounded-md transition-colors ${card.priority === opt.value ? opt.activeClass : 'border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)]'}`}
+                        className={`text-[0.6875rem] font-bold px-2 py-1.5 rounded-md transition-colors ${card.priority === opt.value ? opt.activeClass : 'border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)]'}`}
                       >
                         {opt.label}
                       </button>
@@ -542,14 +542,14 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
                 {/* Due Date */}
                 <div className="flex flex-col gap-2.5">
-                  <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Due Date</span>
+                  <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest pl-1">Due Date</span>
                   {card.dueDate && !card.completed && (
-                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full self-start ${getDueDateBadge(card.dueDate).classes}`}>
+                    <span className={`text-[0.6875rem] font-medium px-2 py-0.5 rounded-full self-start ${getDueDateBadge(card.dueDate).classes}`}>
                       {getDueDateBadge(card.dueDate).label}
                     </span>
                   )}
                   {card.dueDate && card.completed && (
-                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full self-start bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                    <span className="text-[0.6875rem] font-medium px-2 py-0.5 rounded-full self-start bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
                       Done
                     </span>
                   )}
@@ -562,7 +562,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
                 {/* Repeat */}
                 <div className="flex flex-col gap-2.5">
-                  <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Repeat</span>
+                  <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest pl-1">Repeat</span>
                   <HudSelect
                     value={card.recurrenceType ?? ''}
                     onChange={(v) => onUpdate(card.id, { recurrenceType: v || null })}
@@ -584,7 +584,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                         <p className="text-xs font-medium text-amber-500">Set due date to schedule</p>
                       )}
                       <div className="flex flex-col gap-1.5 mt-1 pt-2 border-t border-[var(--color-border)]">
-                        <span className="text-[10px] font-hud tracking-wider text-[var(--color-text-muted)]">End Repeat</span>
+                        <span className="text-[0.625rem] font-hud tracking-wider text-[var(--color-text-muted)]">End Repeat</span>
                         <HudDatePicker
                           value={card.recurrenceEndDate ?? null}
                           onChange={(iso) => onUpdate(card.id, { recurrenceEndDate: iso })}
@@ -599,10 +599,10 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                 {/* Labels */}
                 <div className="flex flex-col gap-2.5" ref={labelDropdownRef}>
                   <div className="flex items-center justify-between">
-                    <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest pl-1">Labels</span>
+                    <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest pl-1">Labels</span>
                     <button
                       onClick={() => setShowLabelDropdown(!showLabelDropdown)}
-                      className={`inline-flex items-center gap-1 text-[10px] font-hud tracking-wider transition-colors ${showLabelDropdown ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}
+                      className={`inline-flex items-center gap-1 text-[0.625rem] font-hud tracking-wider transition-colors ${showLabelDropdown ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}
                     >
                       <Plus size={12} /> {showLabelDropdown ? 'Close' : 'Add'}
                     </button>
@@ -629,7 +629,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                     <div className="flex flex-col gap-2.5 bg-surface-50 dark:bg-surface-950/50 rounded-lg p-3 border border-[var(--color-border)]">
                       {unattachedLabels.length > 0 && (
                         <>
-                          <span className="text-[10px] font-hud tracking-wider text-[var(--color-text-muted)]">Existing</span>
+                          <span className="text-[0.625rem] font-hud tracking-wider text-[var(--color-text-muted)]">Existing</span>
                           <div className="flex flex-col gap-0.5 max-h-28 overflow-y-auto">
                             {unattachedLabels.map(label => (
                               <button
@@ -646,7 +646,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                           <div className="border-t border-[var(--color-border)]" />
                         </>
                       )}
-                      <span className="text-[10px] font-hud tracking-wider text-[var(--color-text-muted)]">Create new</span>
+                      <span className="text-[0.625rem] font-hud tracking-wider text-[var(--color-text-muted)]">Create new</span>
                       <input
                         type="text"
                         value={newLabelName}
@@ -678,11 +678,11 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
                 <div className="mt-auto pt-6 flex flex-col gap-2">
                   <div className="ruled-line-accent mb-2" />
-                  <div className="flex justify-between font-data text-[11px] text-[var(--color-text-muted)]">
+                  <div className="flex justify-between font-data text-[0.6875rem] text-[var(--color-text-muted)]">
                     <span>Created</span>
                     <span className="text-[var(--color-text-secondary)]" title={formatDate(card.createdAt, true)}>{formatRelativeTime(card.createdAt)}</span>
                   </div>
-                  <div className="flex justify-between font-data text-[11px] text-[var(--color-text-muted)]">
+                  <div className="flex justify-between font-data text-[0.6875rem] text-[var(--color-text-muted)]">
                     <span>Updated</span>
                     <span className="text-[var(--color-text-secondary)]" title={formatDate(card.updatedAt, true)}>{formatRelativeTime(card.updatedAt)}</span>
                   </div>
@@ -701,7 +701,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                     <div className="node-point-sm" />
                     <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Agent</span>
                     {agentMessageCount > 0 && (
-                      <span className="text-[10px] font-data bg-[var(--color-accent-muted)] text-[var(--color-accent)] px-1.5 py-0.5 rounded-full">
+                      <span className="text-[0.625rem] font-data bg-[var(--color-accent-muted)] text-[var(--color-accent)] px-1.5 py-0.5 rounded-full">
                         {agentMessageCount}
                       </span>
                     )}

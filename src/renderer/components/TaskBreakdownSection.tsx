@@ -196,7 +196,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={toggleAll}
-              className="text-[10px] text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
+              className="text-[0.625rem] text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
             >
               {selectedSubtasks.size === breakdown.subtasks.length
                 ? 'Deselect all'
@@ -204,7 +204,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
             </button>
             <button
               onClick={() => clearBreakdown(cardId)}
-              className="text-[10px] text-surface-500 hover:text-red-400 transition-colors"
+              className="text-[0.625rem] text-surface-500 hover:text-red-400 transition-colors"
               title="Dismiss breakdown"
             >
               <X size={12} />
@@ -309,7 +309,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
                   </button>
 
                   {/* Order number */}
-                  <span className="text-[10px] font-medium text-surface-500 w-4 text-center shrink-0">
+                  <span className="text-[0.625rem] font-medium text-surface-500 w-4 text-center shrink-0">
                     {index + 1}
                   </span>
 
@@ -323,13 +323,13 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
 
                   {/* Priority badge */}
                   <span
-                    className={`text-[10px] font-medium rounded px-1.5 py-0.5 shrink-0 ${PRIORITY_BADGE[subtask.priority]}`}
+                    className={`text-[0.625rem] font-medium rounded px-1.5 py-0.5 shrink-0 ${PRIORITY_BADGE[subtask.priority]}`}
                   >
                     {PRIORITY_LABEL[subtask.priority]}
                   </span>
 
                   {/* Effort badge */}
-                  <span className="text-[10px] font-medium text-surface-400 bg-surface-700 rounded px-1.5 py-0.5 shrink-0">
+                  <span className="text-[0.625rem] font-medium text-surface-400 bg-surface-700 rounded px-1.5 py-0.5 shrink-0">
                     {EFFORT_LABEL[subtask.effort]}
                   </span>
 

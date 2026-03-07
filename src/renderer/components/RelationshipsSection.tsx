@@ -174,7 +174,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
 
                   return (
                     <div key={groupLabel}>
-                      <span className="font-hud text-[10px] tracking-widest text-[var(--color-accent-dim)] mt-3 mb-1 block">
+                      <span className="font-hud text-[0.625rem] tracking-widest text-[var(--color-accent-dim)] mt-3 mb-1 block">
                         {groupLabel}
                       </span>
                       {visibleItems.map(item => (

@@ -281,7 +281,7 @@ export default function BrainstormModern() {
                 <div className="flex items-center justify-between">
                     <div>
                         <div className="flex items-center gap-4 mb-1">
-                            <span className="font-data text-[11px] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.BRAINSTORM</span>
+                            <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.BRAINSTORM</span>
                             <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
                         </div>
                         <h1 className="font-hud text-xl text-[var(--color-accent)] text-glow flex items-center gap-2">
@@ -392,7 +392,7 @@ export default function BrainstormModern() {
                                                 </h4>
                                             )}
 
-                                            <div className="flex items-center gap-2 text-[10px] text-surface-400">
+                                            <div className="flex items-center gap-2 text-[0.625rem] text-surface-400">
                                                 <span>{formatRelativeTime(session.updatedAt)}</span>
                                                 {session.projectId && (
                                                     <span className="bg-[var(--color-accent-subtle)] px-1.5 py-0.5 rounded text-[var(--color-text-secondary)] capitalize truncate max-w-[80px]">
@@ -555,7 +555,7 @@ export default function BrainstormModern() {
                                     </h2>
                                     {activeSession.projectId && (
                                         <div className="flex items-center gap-1.5 mt-1.5">
-                                            <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-surface-500">
+                                            <span className="flex items-center gap-1 text-[0.625rem] font-semibold uppercase tracking-wider text-surface-500">
                                                 <Layers size={10} />
                                                 Context:
                                             </span>
@@ -619,11 +619,11 @@ export default function BrainstormModern() {
                                                     <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
                                                         <Bot size={12} className="text-white" />
                                                     </div>
-                                                    <span className="text-[10px] font-medium text-surface-500 uppercase tracking-wider">AI Assistant</span>
-                                                    <span className="text-[10px] text-surface-400">Typing...</span>
+                                                    <span className="text-[0.625rem] font-medium text-surface-500 uppercase tracking-wider">AI Assistant</span>
+                                                    <span className="text-[0.625rem] text-surface-400">Typing...</span>
                                                 </div>
                                                 <div className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-2xl rounded-tl-sm p-5 shadow-sm">
-                                                    <div className="text-[15px] text-surface-800 dark:text-surface-200 leading-relaxed prose prose-base dark:prose-invert max-w-none">
+                                                    <div className="text-[0.9375rem] text-surface-800 dark:text-surface-200 leading-relaxed prose prose-base dark:prose-invert max-w-none">
                                                         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents as any}>
                                                             {streamingText}
                                                         </ReactMarkdown>
@@ -740,7 +740,7 @@ export default function BrainstormModern() {
                                             </button>
                                         </div>
                                     </div>
-                                    <p className="text-[10px] text-surface-400 text-center mt-2">
+                                    <p className="text-[0.625rem] text-surface-400 text-center mt-2">
                                         AI can make mistakes. Review generated content.
                                     </p>
                                 </div>

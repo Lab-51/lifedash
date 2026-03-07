@@ -18,6 +18,7 @@ import AppLayout from './components/AppLayout';
 import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { useTheme } from './hooks/useTheme';
+import { useFontScale } from './hooks/useFontScale';
 
 import { useRecordingStore } from './stores/recordingStore';
 import { useProjectStore } from './stores/projectStore';
@@ -103,6 +104,7 @@ function AppShell({ children }: { children: ReactNode }) {
 
   useKeyboardShortcuts(navigate, toggleCommandPalette, toggleShortcutsHelp, toggleFocusMode);
   useTheme();
+  useFontScale();
   const mountTime = useRef(Date.now());
   // Initialize recording state listener (always active regardless of page)
   useEffect(() => {

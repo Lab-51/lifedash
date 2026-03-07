@@ -342,7 +342,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
               {/* Description */}
               <div className="flex flex-col gap-2.5">
-                <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1">Description</span>
+                <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1">Description</span>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -359,7 +359,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
               {/* Tags */}
               <div className="flex flex-col gap-2.5">
-                <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1">Tags</span>
+                <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1">Tags</span>
                 {tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {tags.map((tag) => (
@@ -409,7 +409,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                     {creating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                     Create Idea
                   </button>
-                  <p className="text-[11px] text-[var(--color-text-muted)] text-center mt-2">
+                  <p className="text-[0.6875rem] text-[var(--color-text-muted)] text-center mt-2">
                     You can add more details after creating.
                   </p>
                 </div>
@@ -420,10 +420,10 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                 <>
                   {/* Metadata row */}
                   <div className="flex flex-col gap-2.5">
-                    <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1">Properties</span>
+                    <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1">Properties</span>
                     <div className="flex flex-wrap items-start gap-4">
                       <div className="flex-1 min-w-[120px] flex flex-col gap-1.5">
-                        <span className="font-hud text-[10px] text-[var(--color-text-muted)] tracking-widest pl-1">Status</span>
+                        <span className="font-hud text-[0.625rem] text-[var(--color-text-muted)] tracking-widest pl-1">Status</span>
                         <HudSelect
                           value={status}
                           onChange={(v) => {
@@ -435,7 +435,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                         />
                       </div>
                       <div className="flex-1 min-w-[120px] flex flex-col gap-1.5">
-                        <span className="font-hud text-[10px] text-[var(--color-text-muted)] tracking-widest pl-1">Effort</span>
+                        <span className="font-hud text-[0.625rem] text-[var(--color-text-muted)] tracking-widest pl-1">Effort</span>
                         <HudSelect
                           value={effort}
                           onChange={(v) => {
@@ -451,7 +451,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                         />
                       </div>
                       <div className="flex-1 min-w-[120px] flex flex-col gap-1.5">
-                        <span className="font-hud text-[10px] text-[var(--color-text-muted)] tracking-widest pl-1">Impact</span>
+                        <span className="font-hud text-[0.625rem] text-[var(--color-text-muted)] tracking-widest pl-1">Impact</span>
                         <HudSelect
                           value={impact}
                           onChange={(v) => {
@@ -493,7 +493,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                   {/* Actions */}
                   <div className="flex flex-col gap-2.5">
                     <div className="ruled-line-accent" />
-                    <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1 mt-2">Actions</span>
+                    <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1 mt-2">Actions</span>
 
                     {convertMode === 'none' && (
                       <div className="space-y-2">
@@ -561,11 +561,11 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
                     <div className="ruled-line-accent" />
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex gap-4">
-                        <div className="flex gap-1.5 font-data text-[11px] text-[var(--color-text-muted)]">
+                        <div className="flex gap-1.5 font-data text-[0.6875rem] text-[var(--color-text-muted)]">
                           <span>Created</span>
                           <span className="text-[var(--color-text-secondary)]" title={formatDate(selectedIdea.createdAt)}>{formatRelativeTime(selectedIdea.createdAt)}</span>
                         </div>
-                        <div className="flex gap-1.5 font-data text-[11px] text-[var(--color-text-muted)]">
+                        <div className="flex gap-1.5 font-data text-[0.6875rem] text-[var(--color-text-muted)]">
                           <span>Updated</span>
                           <span className="text-[var(--color-text-secondary)]" title={formatDate(selectedIdea.updatedAt)}>{formatRelativeTime(selectedIdea.updatedAt)}</span>
                         </div>

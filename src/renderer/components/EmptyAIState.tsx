@@ -56,7 +56,7 @@ export default function EmptyAIState({ featureName, onSetup }: EmptyAIStateProps
       </button>
 
       {/* Recommendation hint */}
-      <p className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1">
+      <p className="text-[0.6875rem] text-[var(--color-text-muted)] flex items-center gap-1">
         <span className="node-point-sm" />
         Recommended: Ollama (free, local)
       </p>

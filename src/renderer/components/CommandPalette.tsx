@@ -275,7 +275,7 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
             placeholder="Search or jump to..."
             className="flex-1 bg-transparent text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none text-sm font-data caret-[var(--color-accent)]"
           />
-          <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-data text-[var(--color-text-muted)] bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">ESC</kbd>
+          <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[0.625rem] font-data text-[var(--color-text-muted)] bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">ESC</kbd>
         </div>
 
         {/* Results list */}
@@ -283,7 +283,7 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
           {results.length === 0 && <div className="px-4 py-8 text-center text-[var(--color-text-muted)] text-sm font-data">No results found</div>}
           {grouped.map(group => (
             <div key={group.category}>
-              <div className="px-4 py-1.5 font-hud text-[10px] tracking-widest uppercase text-[var(--color-accent-dim)]">{group.category}</div>
+              <div className="px-4 py-1.5 font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)]">{group.category}</div>
               {group.items.map(item => {
                 const idx = flatIdx++;
                 const sel = idx === selectedIndex;
@@ -309,7 +309,7 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
         </div>
 
         {/* Footer hints */}
-        <div className="flex items-center gap-4 px-4 py-2 border-t border-[var(--color-border)] text-[11px] text-[var(--color-text-muted)] font-data">
+        <div className="flex items-center gap-4 px-4 py-2 border-t border-[var(--color-border)] text-[0.6875rem] text-[var(--color-text-muted)] font-data">
           <span><kbd className="px-1 py-0.5 bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">Enter</kbd> select</span>
           <span><kbd className="px-1 py-0.5 bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">&uarr;&darr;</kbd> navigate</span>
           <span><kbd className="px-1 py-0.5 bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">Esc</kbd> close</span>

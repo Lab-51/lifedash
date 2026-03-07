@@ -55,7 +55,7 @@ export default function RecordingIndicator() {
       <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-500/20
                       border border-amber-500/30">
         <Loader2 size={12} className="text-amber-400 animate-spin" />
-        <span className="text-[10px] font-medium text-amber-400">Saving</span>
+        <span className="text-[0.625rem] font-medium text-amber-400">Saving</span>
       </div>
     );
   }
