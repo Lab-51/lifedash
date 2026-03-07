@@ -6,6 +6,7 @@ export interface WhisperModel {
   size: string;           // Human-readable: '74 MB'
   description: string;
   available: boolean;     // true if downloaded locally
+  recommended: boolean;   // show in UI model picker
 }
 
 export interface WhisperDownloadProgress {

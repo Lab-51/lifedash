@@ -47,7 +47,7 @@ export function registerTranscriptionProviderHandlers(): void {
       // 'local' -> check if whisperModelManager.getDefaultModelPath() returns non-null
       // 'deepgram' / 'assemblyai' -> wired in Task 2 (cloud provider adapters)
       if (validType === 'local') {
-        const modelPath = getDefaultModelPath();
+        const modelPath = await getDefaultModelPath();
         return {
           success: !!modelPath,
           error: modelPath ? undefined : 'No Whisper model downloaded',

@@ -61,7 +61,7 @@ export async function getStatus(): Promise<TranscriptionProviderStatus> {
     type: config.type,
     hasDeepgramKey: !!config.deepgramKeyEncrypted,
     hasAssemblyaiKey: !!config.assemblyaiKeyEncrypted,
-    localModelAvailable: !!whisperModelManager.getDefaultModelPath(),
+    localModelAvailable: !!(await whisperModelManager.getDefaultModelPath()),
   };
 }
 

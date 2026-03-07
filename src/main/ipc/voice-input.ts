@@ -1,7 +1,7 @@
 // === FILE PURPOSE ===
-// IPC handler for voice-to-text input. Receives a WebM audio blob from the
-// renderer, decodes it to PCM, and transcribes it using the configured
-// transcription provider (local Whisper or cloud API).
+// IPC handler for voice-to-text input. Receives raw 16kHz mono PCM Int16 from
+// the renderer (decoded via AudioContext) and transcribes it using the
+// configured provider (local Whisper or cloud API).
 
 import { ipcMain } from 'electron';
 import * as transcriptionProviderService from '../services/transcriptionProviderService';
@@ -14,47 +14,6 @@ import { settings } from '../db/schema';
 import { eq } from 'drizzle-orm';
 
 const log = createLogger('VoiceInput');
-
-/**
- * Decode a WebM/Opus audio buffer to 16kHz mono PCM Int16 using ffmpeg
- * via Electron's native module or a child process.
- */
-async function webmToPcm(webmBuffer: Buffer): Promise<Buffer> {
-  const { execFile } = await import('child_process');
-  const { promisify } = await import('util');
-  const { tmpdir } = await import('os');
-  const { join } = await import('path');
-  const { writeFile, readFile, unlink } = await import('fs/promises');
-  const { randomUUID } = await import('crypto');
-  const execFileAsync = promisify(execFile);
-
-  const id = randomUUID().slice(0, 8);
-  const inputPath = join(tmpdir(), `voice-input-${id}.webm`);
-  const outputPath = join(tmpdir(), `voice-input-${id}.pcm`);
-
-  try {
-    await writeFile(inputPath, webmBuffer);
-
-    // Use ffmpeg to convert WebM/Opus -> 16kHz mono 16-bit PCM
-    // ffmpeg should be available on the system or bundled with the app
-    await execFileAsync('ffmpeg', [
-      '-i', inputPath,
-      '-f', 's16le',
-      '-acodec', 'pcm_s16le',
-      '-ar', '16000',
-      '-ac', '1',
-      '-y',
-      outputPath,
-    ], { timeout: 15000 });
-
-    const pcm = await readFile(outputPath);
-    return pcm;
-  } finally {
-    // Cleanup temp files
-    await unlink(inputPath).catch(() => {});
-    await unlink(outputPath).catch(() => {});
-  }
-}
 
 export function registerVoiceInputHandlers(): void {
   ipcMain.handle('voice:transcribe', async (_event, audioBuffer: ArrayBuffer) => {
@@ -70,14 +29,8 @@ export function registerVoiceInputHandlers(): void {
     const langRows = await db.select().from(settings).where(eq(settings.key, 'transcription:language'));
     const language = langRows.length > 0 ? langRows[0].value : 'en';
 
-    // Convert WebM to PCM
-    let pcmBuffer: Buffer;
-    try {
-      pcmBuffer = await webmToPcm(Buffer.from(audioBuffer));
-    } catch (err) {
-      log.error('Failed to decode audio:', err);
-      throw new Error('Failed to decode audio. Ensure ffmpeg is installed.');
-    }
+    // Audio arrives as raw 16kHz mono Int16 PCM (decoded in the renderer)
+    const pcmBuffer = Buffer.from(audioBuffer);
 
     if (pcmBuffer.byteLength < 1600) {
       // Less than 0.05 seconds of audio — too short
@@ -87,7 +40,7 @@ export function registerVoiceInputHandlers(): void {
     log.info(`Transcribing voice input (${(pcmBuffer.byteLength / 32000).toFixed(1)}s, provider: ${provider})`);
 
     if (provider === 'local') {
-      const modelPath = whisperModelManager.getDefaultModelPath();
+      const modelPath = await whisperModelManager.getDefaultModelPath();
       if (!modelPath) {
         throw new Error('No Whisper model installed. Go to Settings > Transcription to download one.');
       }
@@ -96,19 +49,23 @@ export function registerVoiceInputHandlers(): void {
       const ctx = await initWhisper({ filePath: modelPath });
 
       try {
-        // Convert Buffer to Float32Array for Whisper
-        const int16 = new Int16Array(pcmBuffer.buffer, pcmBuffer.byteOffset, pcmBuffer.byteLength / 2);
-        const float32 = new Float32Array(int16.length);
-        for (let i = 0; i < int16.length; i++) {
-          float32[i] = int16[i] / 32768;
-        }
+        // Pass raw Int16 PCM ArrayBuffer to Whisper (same as transcriptionService)
+        const arrayBuffer = pcmBuffer.buffer.slice(
+          pcmBuffer.byteOffset,
+          pcmBuffer.byteOffset + pcmBuffer.byteLength,
+        ) as ArrayBuffer;
 
-        const whisperOpts: Record<string, unknown> = {};
+        const whisperOpts: Record<string, unknown> = {
+          beamSize: 5,
+          bestOf: 5,
+          temperature: 0,
+          temperatureInc: 0.2,
+        };
         if (language !== 'auto') {
           whisperOpts.language = language;
         }
 
-        const { promise } = ctx.transcribeData(float32.buffer, whisperOpts);
+        const { promise } = ctx.transcribeData(arrayBuffer, whisperOpts);
         const result = await promise;
         const text = (result.result ?? '').trim();
         return { text };

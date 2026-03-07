@@ -37,8 +37,10 @@ import type { WhisperContext } from '@fugood/whisper.node';
 
 const SAMPLE_RATE = 16000;
 const SEGMENT_DURATION_SEC = 10;
+const OVERLAP_SEC = 1; // 1s overlap to avoid splitting words at segment boundaries
 const SAMPLES_PER_SEGMENT = SAMPLE_RATE * SEGMENT_DURATION_SEC; // 160,000
 const BYTES_PER_SEGMENT = SAMPLES_PER_SEGMENT * 2; // 320,000 (Int16 = 2 bytes)
+const OVERLAP_BYTES = SAMPLE_RATE * OVERLAP_SEC * 2; // 32,000
 
 // Silence detection: RMS threshold below which a segment is skipped.
 // Int16 range is -32768 to 32767. An RMS of 50 corresponds to ~0.15% of max,
@@ -55,6 +57,7 @@ let pendingSegments: Buffer[] = []; // Queue of segments waiting to be transcrib
 let transcribing = false;
 let activeProvider: TranscriptionProviderType = 'local';
 let activeLanguage: string = 'en';
+let lastSegmentPrompt: string = ''; // Previous segment text for context carryover
 
 export function setMainWindow(win: BrowserWindow): void {
   mainWindow = win;
@@ -88,12 +91,13 @@ export async function start(meetingId: string, language?: string): Promise<void>
   accumulatorBuffer = Buffer.alloc(0);
   segmentIndex = 0;
   lastTranscriptText = '';
+  lastSegmentPrompt = '';
   pendingSegments = [];
   transcribing = false;
 
   if (activeProvider === 'local') {
     // Local Whisper path — need a model
-    const modelPath = whisperModelManager.getDefaultModelPath();
+    const modelPath = await whisperModelManager.getDefaultModelPath();
     if (!modelPath) {
       log.info('No whisper model available. Skipping transcription.');
       currentMeetingId = null;
@@ -144,11 +148,14 @@ export function addChunk(chunk: Buffer): void {
 
   accumulatorBuffer = Buffer.concat([accumulatorBuffer, chunk]);
 
-  // When we have enough for a full segment, queue it
+  // When we have enough for a full segment, queue it.
+  // Keep 1s overlap so words at segment boundaries aren't lost.
   while (accumulatorBuffer.byteLength >= BYTES_PER_SEGMENT) {
     const segment = accumulatorBuffer.subarray(0, BYTES_PER_SEGMENT);
     pendingSegments.push(Buffer.from(segment)); // Copy to avoid reference issues
-    accumulatorBuffer = accumulatorBuffer.subarray(BYTES_PER_SEGMENT);
+    // Advance by (segment - overlap) so the next segment starts 1s earlier
+    const advance = BYTES_PER_SEGMENT - OVERLAP_BYTES;
+    accumulatorBuffer = accumulatorBuffer.subarray(advance);
     dispatchNext();
   }
 }
@@ -238,9 +245,18 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
 
     // transcribeData returns { promise, stop }. The promise resolves when
     // the native Napi::AsyncWorker finishes on its background thread.
-    const whisperOpts: Record<string, unknown> = {};
+    const whisperOpts: Record<string, unknown> = {
+      beamSize: 5,        // Beam search (default 1 = greedy) — much better accuracy
+      bestOf: 5,          // Sample multiple candidates and pick best
+      temperature: 0,     // Deterministic, less hallucination
+      temperatureInc: 0.2, // Fallback temperature if decoding fails
+    };
     if (activeLanguage !== 'auto') {
       whisperOpts.language = activeLanguage;
+    }
+    // Feed previous transcript as prompt so Whisper maintains context across segments
+    if (lastSegmentPrompt) {
+      whisperOpts.prompt = lastSegmentPrompt;
     }
     // When activeLanguage is 'auto', omit language so Whisper auto-detects per segment
     const { promise } = whisperContext!.transcribeData(arrayBuffer, whisperOpts);
@@ -251,6 +267,8 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
 
     if (result.result && result.result.trim() && currentMeetingId) {
       lastTranscriptText = result.result.trim();
+      // Keep last ~200 chars as context prompt for the next segment
+      lastSegmentPrompt = lastTranscriptText.slice(-200);
 
       // Save each segment to the database
       for (const seg of result.segments) {

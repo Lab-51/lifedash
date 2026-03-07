@@ -38,12 +38,17 @@ export function registerWhisperHandlers(mainWindow: BrowserWindow): void {
   });
 
   ipcMain.handle('whisper:has-model', async () => {
-    return whisperModelManager.getDefaultModelPath() !== null;
+    return (await whisperModelManager.getDefaultModelPath()) !== null;
   });
 
   ipcMain.handle('whisper:get-active-model', async () => {
-    const modelPath = whisperModelManager.getDefaultModelPath();
+    const modelPath = await whisperModelManager.getDefaultModelPath();
     if (!modelPath) return null;
     return path.basename(modelPath);
+  });
+
+  ipcMain.handle('whisper:set-active-model', async (_event, fileName: unknown) => {
+    const validFileName = validateInput(whisperModelNameSchema, fileName);
+    await whisperModelManager.setPreferredModel(validFileName);
   });
 }

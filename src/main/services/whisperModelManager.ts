@@ -13,6 +13,9 @@ import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import https from 'node:https';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../db/connection';
+import { settings } from '../db/schema';
 
 const HF_BASE_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main';
 
@@ -21,16 +24,17 @@ export interface WhisperModelInfo {
   fileName: string;     // e.g., 'ggml-base.en.bin'
   size: string;         // Human-readable size
   description: string;
+  recommended: boolean; // Show in UI model picker
 }
 
 /** Available models for download */
 export const AVAILABLE_MODELS: WhisperModelInfo[] = [
-  { name: 'tiny.en', fileName: 'ggml-tiny.en.bin', size: '39 MB', description: 'Fastest, English-only' },
-  { name: 'base.en', fileName: 'ggml-base.en.bin', size: '74 MB', description: 'Fast, English-only (default)' },
-  { name: 'small.en', fileName: 'ggml-small.en.bin', size: '244 MB', description: 'Balanced, English-only' },
-  { name: 'tiny', fileName: 'ggml-tiny.bin', size: '39 MB', description: 'Fastest, multilingual' },
-  { name: 'base', fileName: 'ggml-base.bin', size: '74 MB', description: 'Fast, multilingual' },
-  { name: 'small', fileName: 'ggml-small.bin', size: '244 MB', description: 'Balanced, multilingual' },
+  { name: 'tiny.en', fileName: 'ggml-tiny.en.bin', size: '39 MB', description: 'Fastest, English-only', recommended: false },
+  { name: 'base.en', fileName: 'ggml-base.en.bin', size: '74 MB', description: 'Good speed, English-only', recommended: true },
+  { name: 'small.en', fileName: 'ggml-small.en.bin', size: '244 MB', description: 'Best accuracy, English-only', recommended: true },
+  { name: 'tiny', fileName: 'ggml-tiny.bin', size: '39 MB', description: 'Fastest, multilingual', recommended: false },
+  { name: 'base', fileName: 'ggml-base.bin', size: '74 MB', description: 'Good speed, multilingual', recommended: true },
+  { name: 'small', fileName: 'ggml-small.bin', size: '244 MB', description: 'Best accuracy, multilingual', recommended: true },
 ];
 
 export function getModelsDir(): string {
@@ -50,11 +54,41 @@ export function getLocalModels(): WhisperModelInfo[] {
   return AVAILABLE_MODELS.filter((m) => isModelAvailable(m.fileName));
 }
 
+const PREFERRED_MODEL_KEY = 'whisper:preferredModel';
+
+/** Save a preferred model to the settings DB */
+export async function setPreferredModel(fileName: string): Promise<void> {
+  const db = getDb();
+  await db
+    .insert(settings)
+    .values({ key: PREFERRED_MODEL_KEY, value: fileName, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: settings.key,
+      set: { value: fileName, updatedAt: new Date() },
+    });
+}
+
+/** Get the preferred model fileName from settings, or null if not set */
+async function getPreferredModelFileName(): Promise<string | null> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(settings)
+    .where(eq(settings.key, PREFERRED_MODEL_KEY));
+  return rows.length > 0 ? rows[0].value : null;
+}
+
 /** Get the default model. Returns path if available, null if needs download. */
-export function getDefaultModelPath(): string | null {
-  // Prefer base.en → tiny.en → any available model
-  const preferred = ['ggml-base.en.bin', 'ggml-tiny.en.bin'];
-  for (const fileName of preferred) {
+export async function getDefaultModelPath(): Promise<string | null> {
+  // Check user-preferred model first
+  const preferredFileName = await getPreferredModelFileName();
+  if (preferredFileName && isModelAvailable(preferredFileName)) {
+    return getModelPath(preferredFileName);
+  }
+
+  // Fall back to hardcoded priority: base.en → tiny.en → any available model
+  const fallback = ['ggml-base.en.bin', 'ggml-tiny.en.bin'];
+  for (const fileName of fallback) {
     if (isModelAvailable(fileName)) return getModelPath(fileName);
   }
   const local = getLocalModels();

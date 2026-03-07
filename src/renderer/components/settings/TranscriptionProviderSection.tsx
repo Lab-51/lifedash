@@ -7,8 +7,8 @@
 // React, lucide-react icons, electronAPI (preload bridge)
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Mic, Loader2, Check, Eye, EyeOff, Globe } from 'lucide-react';
-import type { TranscriptionProviderStatus, TranscriptionProviderType } from '../../../shared/types';
+import { Mic, Loader2, Check, Eye, EyeOff, Globe, Download, HardDrive } from 'lucide-react';
+import type { TranscriptionProviderStatus, TranscriptionProviderType, WhisperModel } from '../../../shared/types';
 import { TRANSCRIPTION_LANGUAGES } from '../../../shared/types';
 import HudSelect from '../HudSelect';
 
@@ -51,6 +51,9 @@ export default function TranscriptionProviderSection() {
   const [saving, setSaving] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
   const [activeModelName, setActiveModelName] = useState<string | null>(null);
+  const [whisperModels, setWhisperModels] = useState<WhisperModel[]>([]);
+  const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
+  const [downloadPercent, setDownloadPercent] = useState<number>(0);
 
   const testResultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -68,6 +71,30 @@ export default function TranscriptionProviderSection() {
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  const loadWhisperModels = useCallback(async () => {
+    try {
+      const [models, activeModel] = await Promise.all([
+        window.electronAPI.getWhisperModels(),
+        window.electronAPI.whisperGetActiveModel(),
+      ]);
+      setWhisperModels(models);
+      setActiveModelName(activeModel);
+    } catch {
+      // Non-critical
+    }
+  }, []);
+
+  // Load whisper models on mount and listen for download progress
+  useEffect(() => {
+    loadWhisperModels();
+    const unsub = window.electronAPI.onWhisperDownloadProgress((progress) => {
+      if (progress.fileName === downloadingModel || downloadingModel) {
+        setDownloadPercent(progress.percent);
+      }
+    });
+    return unsub;
+  }, [loadWhisperModels, downloadingModel]);
 
   // Load saved language and active model on mount
   useEffect(() => {
@@ -103,6 +130,30 @@ export default function TranscriptionProviderSection() {
       await window.electronAPI.setSetting('transcription:language', value);
     } catch {
       // Settings save failed — non-critical
+    }
+  };
+
+  const handleDownloadModel = async (fileName: string) => {
+    setDownloadingModel(fileName);
+    setDownloadPercent(0);
+    try {
+      await window.electronAPI.downloadWhisperModel(fileName);
+      await loadWhisperModels();
+      await loadConfig();
+    } catch (err) {
+      console.error('Failed to download Whisper model:', err);
+    } finally {
+      setDownloadingModel(null);
+      setDownloadPercent(0);
+    }
+  };
+
+  const handleSetActiveModel = async (fileName: string) => {
+    try {
+      await window.electronAPI.whisperSetActiveModel(fileName);
+      setActiveModelName(fileName);
+    } catch (err) {
+      console.error('Failed to set active Whisper model:', err);
     }
   };
 
@@ -334,6 +385,94 @@ export default function TranscriptionProviderSection() {
                 </p>
               </div>
             </label>
+
+            {/* Whisper model picker for local provider */}
+            {provider.type === 'local' && config.type === 'local' && whisperModels.length > 0 && (() => {
+              // Show only recommended models, filtered by language context
+              const needsMultilingual = selectedLanguage !== 'en';
+              const visibleModels = whisperModels.filter((m) => {
+                if (!m.recommended) return false;
+                const isEnOnly = m.name.endsWith('.en');
+                return needsMultilingual ? !isEnOnly : isEnOnly;
+              });
+
+              return (
+                <div className="mt-2 ml-6 space-y-1.5">
+                  <p className="text-xs text-surface-400 mb-1">
+                    Choose a model {needsMultilingual ? '(multilingual)' : '(English)'}:
+                  </p>
+                  {visibleModels.map((model) => {
+                    const isActive = activeModelName === model.fileName;
+                    const isDownloading = downloadingModel === model.fileName;
+                    const isSmall = model.name.startsWith('small');
+
+                    return (
+                      <div
+                        key={model.fileName}
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors ${
+                          isActive
+                            ? 'border-[var(--color-border-accent)] bg-[var(--color-accent-muted)]'
+                            : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-medium text-[var(--color-text-primary)]">
+                              {isSmall ? 'High Quality' : 'Standard'}
+                            </span>
+                            {isSmall && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-accent-muted)] text-[var(--color-accent)] font-medium">
+                                Recommended
+                              </span>
+                            )}
+                            {isActive && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-400 font-medium">
+                                <Check size={10} />
+                                Active
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[11px] text-surface-500">
+                              {isSmall ? 'Best transcription accuracy' : 'Faster, lower accuracy'}
+                            </span>
+                            <span className="inline-flex items-center gap-0.5 text-[11px] text-surface-500">
+                              <HardDrive size={10} />
+                              {model.size}
+                            </span>
+                          </div>
+                        </div>
+
+                        {model.available ? (
+                          !isActive && (
+                            <button
+                              onClick={() => handleSetActiveModel(model.fileName)}
+                              className="flex items-center gap-1 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] px-2.5 py-1 rounded-lg text-xs transition-colors shrink-0"
+                            >
+                              Use
+                            </button>
+                          )
+                        ) : isDownloading ? (
+                          <div className="flex items-center gap-1.5 text-xs text-[var(--color-accent-dim)] shrink-0">
+                            <Loader2 size={12} className="animate-spin" />
+                            {downloadPercent}%
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleDownloadModel(model.fileName)}
+                            disabled={!!downloadingModel}
+                            className="flex items-center gap-1 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed px-2.5 py-1 rounded-lg text-xs transition-colors shrink-0"
+                          >
+                            <Download size={12} />
+                            Download
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* API key input for cloud providers */}
             {provider.type === 'deepgram' && (
