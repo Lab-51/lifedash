@@ -32,9 +32,9 @@ export const AVAILABLE_MODELS: WhisperModelInfo[] = [
   { name: 'tiny.en', fileName: 'ggml-tiny.en.bin', size: '39 MB', description: 'Fastest, English-only', recommended: false },
   { name: 'base.en', fileName: 'ggml-base.en.bin', size: '74 MB', description: 'Good speed, English-only', recommended: true },
   { name: 'small.en', fileName: 'ggml-small.en.bin', size: '244 MB', description: 'Best accuracy, English-only', recommended: true },
-  { name: 'tiny', fileName: 'ggml-tiny.bin', size: '39 MB', description: 'Fastest, multilingual', recommended: false },
-  { name: 'base', fileName: 'ggml-base.bin', size: '74 MB', description: 'Good speed, multilingual', recommended: true },
-  { name: 'small', fileName: 'ggml-small.bin', size: '244 MB', description: 'Best accuracy, multilingual', recommended: true },
+  { name: 'tiny', fileName: 'ggml-tiny.bin', size: '39 MB', description: 'Fastest, multilingual (99 languages)', recommended: false },
+  { name: 'base', fileName: 'ggml-base.bin', size: '74 MB', description: 'Good speed, multilingual (99 languages)', recommended: true },
+  { name: 'small', fileName: 'ggml-small.bin', size: '244 MB', description: 'Best accuracy, multilingual (99 languages)', recommended: true },
 ];
 
 export function getModelsDir(): string {

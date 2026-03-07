@@ -434,7 +434,9 @@ export default function TranscriptionProviderSection() {
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[11px] text-surface-500">
-                              {isSmall ? 'Best transcription accuracy' : 'Faster, lower accuracy'}
+                              {isSmall
+                                ? (needsMultilingual ? 'Best accuracy · 99 languages' : 'Best transcription accuracy')
+                                : (needsMultilingual ? 'Faster, lower accuracy · 99 languages' : 'Faster, lower accuracy')}
                             </span>
                             <span className="inline-flex items-center gap-0.5 text-[11px] text-surface-500">
                               <HardDrive size={10} />
@@ -498,11 +500,11 @@ export default function TranscriptionProviderSection() {
           />
           {showModelWarning && (
             <p className="mt-1.5 text-xs text-amber-400">
-              {'\u26A0'} Current Whisper model ({activeModelName}) is English-only. Download a multilingual model above for {TRANSCRIPTION_LANGUAGES.find(l => l.code === selectedLanguage)?.label ?? selectedLanguage} transcription.
+              {'\u26A0'} Current model is English-only. Download a multilingual model above to transcribe other languages.
             </p>
           )}
           <p className="mt-1 text-xs text-surface-500">
-            For mixed Czech/English meetings, use &ldquo;Auto-detect&rdquo; with a multilingual Whisper model.
+            For non-English or mixed-language meetings, select &ldquo;Multilingual&rdquo; and use a multilingual Whisper model.
           </p>
         </div>
 

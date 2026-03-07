@@ -336,7 +336,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
           />
           {showModelWarning && (
             <p className="text-xs text-amber-400">
-              {'\u26A0'} Current Whisper model ({activeModelName}) is English-only. Download a multilingual model in Settings for {TRANSCRIPTION_LANGUAGES.find(l => l.code === selectedLanguage)?.label ?? selectedLanguage} transcription.
+              {'\u26A0'} Current model is English-only. Download a multilingual model in Settings to transcribe other languages.
             </p>
           )}
           {selectedTemplate !== 'none' && (
