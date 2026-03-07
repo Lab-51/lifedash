@@ -3,7 +3,7 @@
   "version": "2.2.0",
   "description": "AI-powered Electron desktop dashboard for professionals",
   "author": "Daniel Rieger",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "https://github.com/Lab-51/lifedash.git"
