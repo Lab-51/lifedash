@@ -59,10 +59,9 @@ export default function FocusOverlay() {
   const {
     mode,
     timeRemaining,
+    totalSeconds,
     isPaused,
     focusedCardTitle,
-    workDuration,
-    breakDuration,
     pause,
     resume,
     stop,
@@ -81,9 +80,8 @@ export default function FocusOverlay() {
     requestAnimationFrame(() => setVisible(true));
   }, []);
 
-  // Derive total seconds for progress calculation
+  // Derive progress from totalSeconds captured at session start
   const isFocus = mode === 'focus';
-  const totalSeconds = isFocus ? workDuration * 60 : breakDuration * 60;
   const elapsed = totalSeconds - timeRemaining;
   const progress = totalSeconds > 0 ? elapsed / totalSeconds : 0;
 
@@ -110,7 +108,7 @@ export default function FocusOverlay() {
   const todayXp = stats?.todayXp ?? 0;
 
   return (
-    <div className={`fixed inset-0 z-40 flex flex-col items-center bg-surface-50 dark:bg-[#06080df2] scanlines transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`fixed inset-0 z-40 flex flex-col items-center bg-surface-50 dark:bg-[#06080df2] scanlines transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`} style={{ pointerEvents: 'auto' }}>
       {/* Breathing gradient overlay */}
       <div
         className="absolute inset-0 pointer-events-none"

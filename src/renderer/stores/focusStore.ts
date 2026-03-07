@@ -12,6 +12,7 @@ interface FocusState {
   // State
   mode: 'idle' | 'focus' | 'break' | 'completed';
   timeRemaining: number; // seconds
+  totalSeconds: number; // total seconds at session start (for accurate elapsed calc)
   focusedCardId: string | null;
   focusedCardTitle: string | null;
   focusedProjectId: string | null;
@@ -43,6 +44,7 @@ interface FocusState {
 export const useFocusStore = create<FocusState>((set, get) => ({
   mode: 'idle',
   timeRemaining: 0,
+  totalSeconds: 0,
   focusedCardId: null,
   focusedCardTitle: null,
   focusedProjectId: null,
@@ -58,13 +60,15 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     const state = get();
     if (state.intervalId) clearInterval(state.intervalId);
 
+    const total = state.workDuration * 60;
     const intervalId = setInterval(() => get().tick(), 1000);
     set({
       mode: 'focus',
       focusedCardId: cardId,
       focusedCardTitle: cardTitle,
       focusedProjectId: projectId ?? null,
-      timeRemaining: state.workDuration * 60,
+      timeRemaining: total,
+      totalSeconds: total,
       isPaused: false,
       intervalId,
     });
@@ -74,10 +78,12 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     const state = get();
     if (state.intervalId) clearInterval(state.intervalId);
 
+    const total = state.breakDuration * 60;
     const intervalId = setInterval(() => get().tick(), 1000);
     set({
       mode: 'break',
-      timeRemaining: state.breakDuration * 60,
+      timeRemaining: total,
+      totalSeconds: total,
       isPaused: false,
       intervalId,
     });
@@ -100,9 +106,10 @@ export const useFocusStore = create<FocusState>((set, get) => ({
 
     // When stopping mid-focus with meaningful elapsed time, transition to
     // 'completed' so FocusCompleteModal opens and handles the save (with await).
-    // This avoids the unreliable fire-and-forget save pattern.
+    // Uses totalSeconds (captured at session start) instead of workDuration * 60
+    // to avoid mismatch if settings change mid-session.
     if (state.mode === 'focus') {
-      const elapsedSeconds = state.workDuration * 60 - state.timeRemaining;
+      const elapsedSeconds = state.totalSeconds - state.timeRemaining;
       if (elapsedSeconds >= 5) {
         const elapsedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
         set({
@@ -121,6 +128,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     set({
       mode: 'idle',
       timeRemaining: 0,
+      totalSeconds: 0,
       isPaused: false,
       intervalId: null,
       focusedCardId: null,
@@ -147,7 +155,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
           intervalId: null,
           mode: 'completed',
           sessionCount: state.sessionCount + 1,
-          completedDuration: state.workDuration,
+          completedDuration: Math.round(state.totalSeconds / 60),
         });
       } else if (state.mode === 'break') {
         window.electronAPI.notificationShow(
