@@ -28,6 +28,19 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.5',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Font size setting — choose Small, Default, Large, or Extra Large in Settings > Appearance',
+          'Cancel button for meeting recording and voice input across all features',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.4',
     sections: [
       {
@@ -95,20 +108,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Consistent Rajdhani font in AI agent chat panel and markdown responses',
           'Card relationships now show titles and support cross-project picking',
           'Focus overlay pause/stop buttons are now clickable',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.0',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Open source release — LifeDash is now free and open source under AGPL-3.0',
-          'Redesigned README with prominent download button and cleaner layout',
-          'Repositioned as a meeting intelligence tool with privacy-first narrative',
         ],
       },
     ],
