@@ -83,11 +83,24 @@ export function registerProjectHandlers(): void {
       .where(eq(projects.id, validId));
     if (!source) throw new Error('Project not found');
 
+    // Generate a unique copy name: "Name (copy)", "Name (copy 2)", etc.
+    const baseName = source.name.replace(/\s*\(copy(?:\s+\d+)?\)$/, '');
+    const existing = await db
+      .select({ name: projects.name })
+      .from(projects);
+    const existingNames = new Set(existing.map(r => r.name));
+    let copyName = `${baseName} (copy)`;
+    let i = 2;
+    while (existingNames.has(copyName)) {
+      copyName = `${baseName} (copy ${i})`;
+      i++;
+    }
+
     // Create new project with copied metadata
     const [newProject] = await db
       .insert(projects)
       .values({
-        name: `${source.name} (copy)`,
+        name: copyName,
         description: source.description,
         color: source.color,
         hourlyRate: source.hourlyRate,

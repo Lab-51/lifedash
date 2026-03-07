@@ -523,11 +523,22 @@ export function registerCardHandlers(): void {
           type: validInput.type as (typeof cardRelationshipTypeEnum.enumValues)[number],
         })
         .returning();
+
+      // Enrich with card titles so the UI can display them immediately
+      const titleRows = await db.select({ id: cards.id, title: cards.title })
+        .from(cards)
+        .where(inArray(cards.id, [rel.sourceCardId, rel.targetCardId]));
+      const titleMap = new Map(titleRows.map(c => [c.id, c.title]));
+
       logCardActivity(validInput.sourceCardId, 'relationship_added', {
         targetCardId: validInput.targetCardId,
         type: validInput.type,
       });
-      return rel;
+      return {
+        ...rel,
+        sourceCardTitle: titleMap.get(rel.sourceCardId) ?? 'Unknown',
+        targetCardTitle: titleMap.get(rel.targetCardId) ?? 'Unknown',
+      };
     },
   );
 

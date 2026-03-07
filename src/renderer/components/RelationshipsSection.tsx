@@ -41,7 +41,7 @@ interface RelationshipsSectionProps {
 }
 
 function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
-  const cards = useBoardStore(s => s.cards);
+  const allCards = useBoardStore(s => s.allCards);
   const selectedCardRelationships = useCardDetailStore(s => s.selectedCardRelationships);
   const addRelationship = useCardDetailStore(s => s.addRelationship);
   const deleteRelationship = useCardDetailStore(s => s.deleteRelationship);
@@ -75,7 +75,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
   const alreadyLinkedIds = new Set(
     selectedCardRelationships.flatMap(r => [r.sourceCardId, r.targetCardId]),
   );
-  const availableCards = cards.filter(
+  const availableCards = allCards.filter(
     c => c.id !== cardId && !c.archived && !alreadyLinkedIds.has(c.id),
   );
 
