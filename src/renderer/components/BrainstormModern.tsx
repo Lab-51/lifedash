@@ -623,7 +623,7 @@ export default function BrainstormModern() {
                                                     <span className="text-[10px] text-surface-400">Typing...</span>
                                                 </div>
                                                 <div className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-2xl rounded-tl-sm p-5 shadow-sm">
-                                                    <div className="text-sm text-surface-800 dark:text-surface-200 leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+                                                    <div className="text-[15px] text-surface-800 dark:text-surface-200 leading-relaxed prose prose-base dark:prose-invert max-w-none">
                                                         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents as any}>
                                                             {streamingText}
                                                         </ReactMarkdown>

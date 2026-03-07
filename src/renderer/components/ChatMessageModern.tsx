@@ -72,7 +72,7 @@ export default function ChatMessageModern({ message, onExportToIdea, onExportToC
                         <span className="font-data text-[10px] text-[var(--color-text-muted)]">{formatTimestamp(message.createdAt)}</span>
                     </div>
                     <div className="bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-2xl rounded-tr-sm px-4 py-3 shadow-md border border-[var(--color-border-accent)]">
-                        <div className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</div>
+                        <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{message.content}</div>
                     </div>
                 </div>
             </div>
@@ -92,7 +92,7 @@ export default function ChatMessageModern({ message, onExportToIdea, onExportToC
                 </div>
 
                 <div className="hud-panel rounded-2xl rounded-tl-sm p-5">
-                    <div className="text-sm text-surface-800 dark:text-surface-200 leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+                    <div className="text-[15px] text-surface-800 dark:text-surface-200 leading-relaxed prose prose-base dark:prose-invert max-w-none">
                         <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={markdownComponents as any}
