@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/icon.svg" alt="LifeDash" width="80" />
+
 # LifeDash
 
 **Your meetings. Your data. Your machine.**

@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <!-- Deep premium materials: Matte dark base, representing stability and maturity -->
+    <linearGradient id="base-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#141a23" />
+      <stop offset="100%" stop-color="#080b0f" />
+    </linearGradient>
+
+    <!-- Top edge rim-light mimicking premium hardware/glass reflection -->
+    <linearGradient id="rim-light" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.15" />
+      <stop offset="25%" stop-color="#ffffff" stop-opacity="0.02" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.0" />
+    </linearGradient>
+
+    <!-- Refined, subtle pulse gradient -->
+    <linearGradient id="pulse-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1a8e8c" />
+      <stop offset="100%" stop-color="#3ee8e4" />
+    </linearGradient>
+
+    <!-- Energetic but highly elegant chevron gradient -->
+    <linearGradient id="chev-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3ee8e4" />
+      <stop offset="100%" stop-color="#a0fcf9" />
+    </linearGradient>
+
+    <!-- Soft, ambient glow (controlled, not harsh neon) for longevity -->
+    <filter id="ambient-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur" />
+      <feComponentTransfer in="blur" result="glow">
+        <feFuncA type="linear" slope="0.4" />
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="glow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Container Shadow for 3D depth and premium feel -->
+  <rect x="2" y="3" width="96" height="96" rx="22" fill="#000000" opacity="0.3" />
+
+  <!-- Main container plate -->
+  <rect x="2" y="2" width="96" height="96" rx="22" fill="url(#base-bg)" />
+
+  <!-- Premium hardware rim light/bevel -->
+  <rect x="3" y="3" width="94" height="94" rx="21" stroke="url(#rim-light)" stroke-width="1.5" fill="none" />
+
+  <!-- Outer border for strict definition against any dark background -->
+  <rect x="2" y="2" width="96" height="96" rx="22" stroke="#000000" stroke-width="1.5" stroke-opacity="0.6" fill="none" />
+
+  <!-- Core Icon Group -->
+  <g filter="url(#ambient-glow)">
+
+    <!-- Hard drop-shadow for the vectors to physically lift them from the background plate -->
+    <g transform="translate(0, 3)" opacity="0.35">
+      <!-- Mathematically centered wave -->
+      <path d="M 14 50 L 28 50 L 34 20 L 46 80 L 52 50 L 66 50"
+            stroke="#000" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+      <path d="M 72 36 L 86 50 L 72 64"
+            stroke="#000" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+    </g>
+
+    <!-- Pulse Line (Life) -->
+    <path
+      d="M 14 50 L 28 50 L 34 20 L 46 80 L 52 50 L 66 50"
+      stroke="url(#pulse-grad)"
+      stroke-width="8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      fill="none"
+    />
+
+    <!-- Forward Chevron (Dash) -->
+    <path
+      d="M 72 36 L 86 50 L 72 64"
+      stroke="url(#chev-grad)"
+      stroke-width="8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      fill="none"
+    />
+
+  </g>
+</svg>
