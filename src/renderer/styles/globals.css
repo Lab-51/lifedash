@@ -290,6 +290,11 @@ html.light body {
   letter-spacing: 0.04em;
 }
 
+/* Ensure prose (markdown) inherits Rajdhani instead of Tailwind's default serif/sans */
+.prose {
+  font-family: var(--font-sans);
+}
+
 .text-glow {
   text-shadow: 0 0 12px rgba(62, 232, 228, 0.6), 0 0 40px rgba(62, 232, 228, 0.15);
 }

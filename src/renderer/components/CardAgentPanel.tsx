@@ -243,7 +243,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
               <Bot size={24} className="text-[var(--color-accent)]" />
             </div>
             <p className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)] mb-1">Card Agent</p>
-            <p className="text-xs text-[var(--color-text-secondary)] mb-1 text-center font-data">Ask me anything about this card.</p>
+            <p className="text-xs text-[var(--color-text-secondary)] mb-1 text-center">Ask me anything about this card.</p>
             {modelInfo && (
               <p className="text-[10px] text-[var(--color-text-muted)] mb-5 text-center font-data">
                 Using <span className="font-medium text-[var(--color-text-secondary)]">{modelInfo.model}</span>
@@ -262,7 +262,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
                     className="hud-panel clip-corner-cut-sm p-3 hover:border-[var(--color-accent-dim)] cursor-pointer transition-colors text-left group"
                   >
                     <Icon size={14} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-accent)] mb-1.5 transition-colors" />
-                    <p className="text-xs text-[var(--color-text-secondary)] leading-snug font-data">{prompt.text}</p>
+                    <p className="text-xs text-[var(--color-text-secondary)] leading-snug">{prompt.text}</p>
                   </button>
                 );
               })}
