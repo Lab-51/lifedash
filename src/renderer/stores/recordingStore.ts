@@ -32,6 +32,7 @@ interface RecordingStore {
   setPrepBriefing: (text: string | null) => void;
   startRecording: (title: string, projectId?: string, template?: MeetingTemplateType, transcriptionLanguage?: string) => Promise<void>;
   stopRecording: () => Promise<void>;
+  cancelRecording: () => Promise<void>;
   clearCompletedMeetingId: () => void;
   initListener: () => () => void;
 }
@@ -143,6 +144,20 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to stop recording',
       });
     }
+  },
+
+  cancelRecording: async () => {
+    const meetingId = get().meetingId;
+    set({ isRecording: false, isProcessing: false });
+    window.electronAPI.recordingSetState(false);
+    try {
+      await audioCaptureService.stopCapture();
+      await window.electronAPI.stopRecording();
+      if (meetingId) {
+        await window.electronAPI.deleteMeeting(meetingId);
+      }
+    } catch { /* best-effort cleanup */ }
+    set({ meetingId: null, elapsed: 0, lastTranscript: '' });
   },
 
   clearCompletedMeetingId: () => set({ completedMeetingId: null }),

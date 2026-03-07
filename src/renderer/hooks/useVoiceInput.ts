@@ -139,5 +139,10 @@ export function useVoiceInput({ onTranscript }: UseVoiceInputOptions) {
     return () => cleanup();
   }, [cleanup]);
 
-  return { isListening, isProcessing, toggle, stop: stopAndProcess };
+  const cancel = useCallback(() => {
+    cleanup();
+    setIsListening(false);
+  }, [cleanup]);
+
+  return { isListening, isProcessing, toggle, stop: stopAndProcess, cancel };
 }

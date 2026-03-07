@@ -7,7 +7,7 @@
 // react, lucide-react (Mic, Square, Loader2), recordingStore, audioCaptureService
 
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Square, Loader2, Trash2, FolderOpen, FileText, Globe } from 'lucide-react';
+import { Mic, MicOff, Square, X, Loader2, Trash2, FolderOpen, FileText, Globe } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -192,6 +192,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
   const clearCompletedMeetingId = useRecordingStore(s => s.clearCompletedMeetingId);
   const startRecording = useRecordingStore(s => s.startRecording);
   const stopRecording = useRecordingStore(s => s.stopRecording);
+  const cancelRecording = useRecordingStore(s => s.cancelRecording);
   const setIncludeMic = useRecordingStore(s => s.setIncludeMic);
   const deleteMeeting = useMeetingStore(s => s.deleteMeeting);
   const meetings = useMeetingStore(s => s.meetings);
@@ -205,6 +206,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
   const [activeModelName, setActiveModelName] = useState<string | null>(null);
   const [transcriptionProvider, setTranscriptionProvider] = useState<string>('local');
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
   // Load saved language, active model, and transcription provider on mount
   useEffect(() => {
@@ -416,15 +418,27 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
             </span>
           </div>
           <AudioLevelMeter />
-          <button
-            onClick={handleStop}
-            className="w-full flex items-center justify-center gap-2 bg-surface-700
-                       hover:bg-surface-600 text-surface-800 dark:text-surface-200 rounded-lg px-3 py-2
-                       text-sm font-medium transition-colors"
-          >
-            <Square size={14} />
-            Stop Recording
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleStop}
+              className="flex-1 flex items-center justify-center gap-2 bg-surface-700
+                         hover:bg-surface-600 text-surface-800 dark:text-surface-200 rounded-lg px-3 py-2
+                         text-sm font-medium transition-colors"
+            >
+              <Square size={14} />
+              Stop & Save
+            </button>
+            <button
+              onClick={() => setCancelConfirmOpen(true)}
+              className="flex items-center justify-center gap-2 bg-transparent border border-surface-600
+                         hover:border-red-500 hover:text-red-400 text-surface-400 rounded-lg px-3 py-2
+                         text-sm transition-colors"
+              title="Cancel recording without saving"
+            >
+              <X size={14} />
+              Cancel
+            </button>
+          </div>
         </div>
       )}
       {error && (
@@ -439,6 +453,15 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
       variant="danger"
       onConfirm={confirmDiscard}
       onCancel={() => setDiscardConfirmOpen(false)}
+    />
+    <ConfirmDialog
+      open={cancelConfirmOpen}
+      title="Cancel Recording"
+      message="Cancel this recording? It will not be saved or processed."
+      confirmLabel="Cancel Recording"
+      variant="danger"
+      onConfirm={async () => { setCancelConfirmOpen(false); await cancelRecording(); }}
+      onCancel={() => setCancelConfirmOpen(false)}
     />
     </>
   );

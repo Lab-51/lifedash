@@ -433,11 +433,21 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                           ? 'text-[var(--color-accent)] border-[var(--color-border-accent)] animate-pulse cursor-wait'
                           : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
                         }`}
-                      title={descriptionVoice.isListening ? 'Stop dictating' : descriptionVoice.isProcessing ? 'Transcribing...' : 'Dictate description'}
+                      title={descriptionVoice.isListening ? 'Stop & transcribe' : descriptionVoice.isProcessing ? 'Transcribing...' : 'Dictate description'}
                     >
                       {descriptionVoice.isListening ? <MicOff size={14} /> : <Mic size={14} />}
                       {descriptionVoice.isListening ? 'Stop' : descriptionVoice.isProcessing ? 'Transcribing...' : 'Dictate'}
                     </button>
+                    {descriptionVoice.isListening && (
+                      <button
+                        onClick={descriptionVoice.cancel}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-[var(--color-border)] text-surface-400 hover:text-red-400 hover:border-red-500 transition-colors"
+                        title="Cancel voice input"
+                      >
+                        <X size={14} />
+                        Cancel
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="tiptap-editor bg-surface-50/50 dark:bg-surface-950/30 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-accent)] transition-colors min-h-[140px] focus-within:border-[var(--color-accent-dim)] focus-within:ring-1 focus-within:ring-[var(--color-accent-dim)]/50 text-base">

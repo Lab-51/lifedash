@@ -706,6 +706,15 @@ export default function BrainstormModern() {
                                             style={{ minHeight: '48px' }}
                                         />
                                         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                            {voice.isListening && (
+                                                <button
+                                                    onClick={voice.cancel}
+                                                    className="p-2 rounded-xl text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                                    title="Cancel voice input"
+                                                >
+                                                    <X size={16} />
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={voice.toggle}
                                                 disabled={voice.isProcessing}
@@ -715,7 +724,7 @@ export default function BrainstormModern() {
                                                         ? 'text-[var(--color-accent)] animate-pulse cursor-wait'
                                                         : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
                                                     }`}
-                                                title={voice.isListening ? 'Stop listening' : voice.isProcessing ? 'Transcribing...' : 'Voice input'}
+                                                title={voice.isListening ? 'Stop & transcribe' : voice.isProcessing ? 'Transcribing...' : 'Voice input'}
                                             >
                                                 {voice.isListening ? <MicOff size={16} /> : <Mic size={16} />}
                                             </button>

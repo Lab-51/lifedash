@@ -6,7 +6,7 @@
 // react, lucide-react, cardDetailStore (Zustand)
 
 import { useState } from 'react';
-import { MessageSquare, Pencil, Trash2, ChevronDown, ChevronUp, Mic, MicOff } from 'lucide-react';
+import { MessageSquare, Pencil, Trash2, ChevronDown, ChevronUp, Mic, MicOff, X } from 'lucide-react';
 import { useCardDetailStore } from '../stores/cardDetailStore';
 import { useVoiceInput } from '../hooks/useVoiceInput';
 
@@ -120,6 +120,15 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
           className={`bg-[var(--color-accent-subtle)]/30 border rounded-lg p-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] resize-none w-full focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] transition-colors ${commentVoice.isListening ? 'border-red-400 dark:border-red-500 focus:border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-accent-dim)]'}`}
         />
         <div className="flex items-center justify-end gap-2 mt-2">
+          {commentVoice.isListening && (
+            <button
+              onClick={commentVoice.cancel}
+              className="p-1.5 rounded-lg text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+              title="Cancel voice input"
+            >
+              <X size={16} />
+            </button>
+          )}
           <button
             onClick={commentVoice.toggle}
             disabled={commentVoice.isProcessing}
@@ -129,7 +138,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
                 ? 'text-[var(--color-accent)] animate-pulse cursor-wait'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
               }`}
-            title={commentVoice.isListening ? 'Stop listening' : commentVoice.isProcessing ? 'Transcribing...' : 'Voice input'}
+            title={commentVoice.isListening ? 'Stop & transcribe' : commentVoice.isProcessing ? 'Transcribing...' : 'Voice input'}
           >
             {commentVoice.isListening ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
