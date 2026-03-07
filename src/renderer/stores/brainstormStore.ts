@@ -32,6 +32,9 @@ interface BrainstormStore {
   streaming: boolean;
   streamingText: string;
 
+  // Draft input — pre-filled message for the chat input (consumed once by BrainstormModern)
+  draftInput: string;
+
   // Session actions
   loadSessions: () => Promise<void>;
   loadSession: (id: string) => Promise<void>;
@@ -43,6 +46,10 @@ interface BrainstormStore {
   // Chat actions
   sendMessage: (content: string) => Promise<void>;
   abortStream: () => Promise<void>;
+
+  // Draft actions
+  setDraftInput: (draft: string) => void;
+  consumeDraftInput: () => string;
 
   // Export actions
   exportToIdea: (messageId: string) => Promise<Idea>;
@@ -57,6 +64,7 @@ export const useBrainstormStore = create<BrainstormStore>((set, get) => ({
   error: null,
   streaming: false,
   streamingText: '',
+  draftInput: '',
 
   loadSessions: async () => {
     set({ loadingSessions: true, error: null });
@@ -175,6 +183,13 @@ export const useBrainstormStore = create<BrainstormStore>((set, get) => ({
       // Abort is best-effort — stream may have already finished
     }
     set({ streaming: false, streamingText: '' });
+  },
+
+  setDraftInput: (draft: string) => set({ draftInput: draft }),
+  consumeDraftInput: () => {
+    const draft = get().draftInput;
+    if (draft) set({ draftInput: '' });
+    return draft;
   },
 
   exportToIdea: async (messageId: string) => {

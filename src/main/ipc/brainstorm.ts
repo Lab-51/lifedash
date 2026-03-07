@@ -79,7 +79,7 @@ export function registerBrainstormHandlers(): void {
       })),
       system: context,
       temperature: provider.temperature ?? 0.7,
-      maxTokens: provider.maxTokens ?? 2048,
+      maxTokens: provider.maxTokens ?? 800,
       abortSignal: abortController.signal,
     });
 

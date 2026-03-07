@@ -15,7 +15,8 @@ import remarkGfm from 'remark-gfm';
 import { useBrainstormStore } from '../stores/brainstormStore';
 import { useProjectStore } from '../stores/projectStore';
 import { useSettingsStore } from '../stores/settingsStore';
-import ChatMessageModern from '../components/ChatMessageModern';
+import ChatMessageModern, { markdownComponents } from '../components/ChatMessageModern';
+import BrainstormQuickChips, { parseChoices } from '../components/BrainstormQuickChips';
 import HudSelect from '../components/HudSelect';
 import EmptyAIState from '../components/EmptyAIState';
 import { BRAINSTORM_TEMPLATES } from '../../shared/types/brainstorm';
@@ -62,6 +63,7 @@ export default function BrainstormModern() {
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const userScrolledUpRef = useRef(false);
+    const [chipsHidden, setChipsHidden] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
 
     // Handle ?action=create — auto-open the new session form
@@ -72,6 +74,33 @@ export default function BrainstormModern() {
             setSearchParams(searchParams, { replace: true });
         }
     }, [searchParams, setSearchParams]);
+
+    // Handle ?openSession=<id> — load a specific session and consume any draft input
+    useEffect(() => {
+        const openSessionId = searchParams.get('openSession');
+        if (openSessionId) {
+            searchParams.delete('openSession');
+            setSearchParams(searchParams, { replace: true });
+            loadSession(openSessionId);
+            localStorage.setItem('lastBrainstormSessionId', openSessionId);
+            // Consume draft input after a tick so the session is loading
+            setTimeout(() => {
+                const draft = useBrainstormStore.getState().consumeDraftInput();
+                if (draft) {
+                    setInput(draft);
+                    // Resize the textarea after setting input
+                    requestAnimationFrame(() => {
+                        const el = textareaRef.current;
+                        if (el) {
+                            el.style.height = 'auto';
+                            el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+                            el.focus();
+                        }
+                    });
+                }
+            }, 0);
+        }
+    }, [searchParams, setSearchParams, loadSession]);
 
     // Derived state: filter sessions by tab
     const filteredSessions = sessions.filter(s => s.status === sidebarTab);
@@ -167,9 +196,24 @@ export default function BrainstormModern() {
         localStorage.setItem('lastBrainstormSessionId', session.id);
     };
 
+    // Reset chipsHidden when a new message arrives (new choices may appear)
+    useEffect(() => {
+        setChipsHidden(false);
+    }, [activeSession?.messages.length]);
+
+    // Parse quick-reply chips from the last assistant message
+    const parsedChips = (() => {
+        if (streaming || chipsHidden || !activeSession?.messages.length) return null;
+        const msgs = activeSession.messages;
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg?.role !== 'assistant') return null;
+        return parseChoices(lastMsg.content);
+    })();
+
     const handleSendMessage = async (overrideContent?: string) => {
         const content = overrideContent ?? input.trim();
         if (!content || streaming) return;
+        setChipsHidden(true);
         if (!overrideContent) {
             setInput('');
             // Reset textarea height after sending
@@ -566,8 +610,8 @@ export default function BrainstormModern() {
                                                     <span className="text-[10px] text-surface-400">Typing...</span>
                                                 </div>
                                                 <div className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-2xl rounded-tl-sm p-5 shadow-sm">
-                                                    <div className="prose prose-sm dark:prose-invert max-w-none text-surface-800 dark:text-surface-200">
-                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    <div className="text-sm text-surface-800 dark:text-surface-200 leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+                                                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents as any}>
                                                             {streamingText}
                                                         </ReactMarkdown>
                                                         <span className="text-[var(--color-accent)] animate-pulse">▊</span>
@@ -584,6 +628,20 @@ export default function BrainstormModern() {
                                                 <Loader2 size={16} className="animate-spin text-[var(--color-accent)]" />
                                                 <span className="text-sm text-surface-500">Thinking...</span>
                                             </div>
+                                        </div>
+                                    )}
+
+                                    {/* Quick-reply Chips — inline after last message */}
+                                    {parsedChips && (
+                                        <div className="flex justify-start pl-7">
+                                            <BrainstormQuickChips
+                                                choices={parsedChips.choices}
+                                                mode={parsedChips.mode}
+                                                onSend={(selected) => {
+                                                    const text = selected.join(', ');
+                                                    handleSendMessage(text);
+                                                }}
+                                            />
                                         </div>
                                     )}
 
@@ -625,6 +683,7 @@ export default function BrainstormModern() {
                                             value={input}
                                             onChange={(e) => {
                                                 setInput(e.target.value);
+                                                if (e.target.value.length > 0) setChipsHidden(true);
                                                 autoResize();
                                             }}
                                             onKeyDown={handleKeyDown}

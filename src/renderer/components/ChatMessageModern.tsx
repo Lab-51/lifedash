@@ -7,12 +7,37 @@ import { Lightbulb, Check, User, Bot, LayoutList, Copy } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { BrainstormMessage } from '../../shared/types';
+import { stripChoicesMarkup } from './BrainstormQuickChips';
 
 interface ChatMessageModernProps {
     message: BrainstormMessage;
     onExportToIdea?: (messageId: string) => void;
     onExportToCard?: (messageId: string) => void;
 }
+
+/** Shared ReactMarkdown component overrides for consistent markdown styling. */
+export const markdownComponents = {
+    h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-lg font-bold mt-4 mb-2 first:mt-0 text-surface-900 dark:text-surface-100">{children}</h1>,
+    h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-base font-bold mt-3 mb-2 text-surface-900 dark:text-surface-100">{children}</h2>,
+    h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-sm font-bold mt-3 mb-1 text-surface-900 dark:text-surface-100">{children}</h3>,
+    p: ({ children }: { children?: React.ReactNode }) => <p className="mb-3 last:mb-0">{children}</p>,
+    ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc pl-4 mb-3 space-y-1 marker:text-surface-400">{children}</ul>,
+    ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal pl-4 mb-3 space-y-1 marker:text-surface-400">{children}</ol>,
+    li: ({ children }: { children?: React.ReactNode }) => <li className="pl-1">{children}</li>,
+    code: ({ className, children, ...props }: { className?: string; children?: React.ReactNode }) => {
+        const isInline = !className;
+        return isInline
+            ? <code className="bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded text-xs font-mono text-primary-600 dark:text-primary-400 font-semibold border border-surface-200 dark:border-surface-700">{children}</code>
+            : <code className={`${className} block bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800 p-3 rounded-lg text-xs font-mono overflow-x-auto my-3`} {...props}>{children}</code>;
+    },
+    pre: ({ children }: { children?: React.ReactNode }) => <pre className="not-prose bg-transparent p-0 m-0">{children}</pre>,
+    a: ({ href, children }: { href?: string; children?: React.ReactNode }) => <a href={href} className="text-primary-600 dark:text-primary-400 hover:underline font-medium" target="_blank" rel="noopener noreferrer">{children}</a>,
+    blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-primary-200 dark:border-surface-700 pl-4 italic text-surface-500 my-3">{children}</blockquote>,
+    hr: () => <hr className="border-surface-200 dark:border-surface-800 my-4" />,
+    table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto my-3"><table className="border-collapse border border-surface-200 dark:border-surface-700 w-full text-xs">{children}</table></div>,
+    th: ({ children }: { children?: React.ReactNode }) => <th className="border border-surface-200 dark:border-surface-700 px-3 py-2 bg-surface-50 dark:bg-surface-800 font-semibold text-left">{children}</th>,
+    td: ({ children }: { children?: React.ReactNode }) => <td className="border border-surface-200 dark:border-surface-700 px-3 py-2">{children}</td>,
+} as const;
 
 function formatTimestamp(isoDate: string): string {
     return new Date(isoDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -70,30 +95,9 @@ export default function ChatMessageModern({ message, onExportToIdea, onExportToC
                     <div className="text-sm text-surface-800 dark:text-surface-200 leading-relaxed prose prose-sm dark:prose-invert max-w-none">
                         <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
-                            components={{
-                                h1: ({ children }) => <h1 className="text-lg font-bold mt-4 mb-2 first:mt-0 text-surface-900 dark:text-surface-100">{children}</h1>,
-                                h2: ({ children }) => <h2 className="text-base font-bold mt-3 mb-2 text-surface-900 dark:text-surface-100">{children}</h2>,
-                                h3: ({ children }) => <h3 className="text-sm font-bold mt-3 mb-1 text-surface-900 dark:text-surface-100">{children}</h3>,
-                                p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
-                                ul: ({ children }) => <ul className="list-disc pl-4 mb-3 space-y-1 marker:text-surface-400">{children}</ul>,
-                                ol: ({ children }) => <ol className="list-decimal pl-4 mb-3 space-y-1 marker:text-surface-400">{children}</ol>,
-                                li: ({ children }) => <li className="pl-1">{children}</li>,
-                                code: ({ className, children, ...props }) => {
-                                    const isInline = !className;
-                                    return isInline
-                                        ? <code className="bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded text-xs font-mono text-primary-600 dark:text-primary-400 font-semibold border border-surface-200 dark:border-surface-700">{children}</code>
-                                        : <code className={`${className} block bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-800 p-3 rounded-lg text-xs font-mono overflow-x-auto my-3`} {...props}>{children}</code>;
-                                },
-                                pre: ({ children }) => <pre className="not-prose bg-transparent p-0 m-0">{children}</pre>,
-                                a: ({ href, children }) => <a href={href} className="text-primary-600 dark:text-primary-400 hover:underline font-medium" target="_blank" rel="noopener noreferrer">{children}</a>,
-                                blockquote: ({ children }) => <blockquote className="border-l-4 border-primary-200 dark:border-surface-700 pl-4 italic text-surface-500 my-3">{children}</blockquote>,
-                                hr: () => <hr className="border-surface-200 dark:border-surface-800 my-4" />,
-                                table: ({ children }) => <div className="overflow-x-auto my-3"><table className="border-collapse border border-surface-200 dark:border-surface-700 w-full text-xs">{children}</table></div>,
-                                th: ({ children }) => <th className="border border-surface-200 dark:border-surface-700 px-3 py-2 bg-surface-50 dark:bg-surface-800 font-semibold text-left">{children}</th>,
-                                td: ({ children }) => <td className="border border-surface-200 dark:border-surface-700 px-3 py-2">{children}</td>,
-                            }}
+                            components={markdownComponents as any}
                         >
-                            {message.content}
+                            {stripChoicesMarkup(message.content)}
                         </ReactMarkdown>
                     </div>
 

@@ -2,9 +2,9 @@
 // Ideas page — Modern Design
 // Displays the idea repository with a fresh, modern grid layout and enhanced visuals.
 
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Lightbulb, Plus, Search, X, Zap, Target, Loader2, Sparkles, Tag, ArrowRight, ArrowDownWideNarrow } from 'lucide-react';
+import { Lightbulb, Plus, Search, X, Zap, Target, Loader2, Tag, ArrowRight, ArrowDownWideNarrow } from 'lucide-react';
 import EmptyFeatureState from './EmptyFeatureState';
 import { useIdeaStore } from '../stores/ideaStore';
 import HudSelect from '../components/HudSelect';
@@ -35,15 +35,12 @@ export default function IdeasModern() {
     const loading = useIdeaStore(s => s.loading);
     const error = useIdeaStore(s => s.error);
     const loadIdeas = useIdeaStore(s => s.loadIdeas);
-    const createIdea = useIdeaStore(s => s.createIdea);
     const [filter, setFilter] = useState<IdeaStatus | 'all'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
-    const [newTitle, setNewTitle] = useState('');
-    const [creating, setCreating] = useState(false);
     const [selectedIdeaId, setSelectedIdeaId] = useState<string | null>(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
-    const quickAddInputRef = useRef<HTMLInputElement>(null);
 
     // Open idea from URL search param (e.g. ?openIdea=<id> from dashboard deep-link)
     useEffect(() => {
@@ -55,13 +52,12 @@ export default function IdeasModern() {
         }
     }, [searchParams, setSearchParams, loading, ideas.length]);
 
-    // Handle ?action=create — auto-focus the quick-add input
+    // Handle ?action=create — open create modal directly
     useEffect(() => {
         if (searchParams.get('action') === 'create') {
             searchParams.delete('action');
             setSearchParams(searchParams, { replace: true });
-            // Focus with a short delay to ensure the input is rendered
-            setTimeout(() => quickAddInputRef.current?.focus(), 50);
+            setShowCreateModal(true);
         }
     }, [searchParams, setSearchParams]);
 
@@ -69,19 +65,6 @@ export default function IdeasModern() {
     useEffect(() => {
         loadIdeas();
     }, [loadIdeas]);
-
-    // Quick-add submit handler
-    const handleQuickAdd = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (newTitle.trim() === '' || creating) return;
-        setCreating(true);
-        try {
-            await createIdea({ title: newTitle.trim() });
-            setNewTitle('');
-        } finally {
-            setCreating(false);
-        }
-    };
 
     // Filter ideas by status and search query
     const filteredIdeas = ideas.filter(idea => {
@@ -110,6 +93,9 @@ export default function IdeasModern() {
         );
     }
 
+    // Whether any modal is open
+    const isModalOpen = showCreateModal || selectedIdeaId !== null;
+
     return (
         <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950 relative">
             <HudBackground />
@@ -124,32 +110,16 @@ export default function IdeasModern() {
                         <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Ideas</h1>
                         <p className="text-[var(--color-text-secondary)] text-sm mt-1">Capture, refine, and track your flashes of brilliance.</p>
                     </div>
+                    <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="btn-primary shrink-0 rounded-xl px-5 py-2.5 font-medium text-sm flex items-center gap-2 self-start md:self-auto"
+                    >
+                        <Plus size={16} />
+                        Add Idea
+                    </button>
                 </div>
 
                 <div className="mb-6" />
-                {/* Quick Add Bar - Floating Style */}
-                <div className="mb-8">
-                    <form onSubmit={handleQuickAdd} className="flex items-center gap-3 hud-panel rounded-2xl pl-4 pr-2 py-2 group focus-within:!border-[var(--color-accent)] transition-all">
-                        <Sparkles size={18} className="text-[var(--color-accent)] shrink-0" />
-                        <input
-                            ref={quickAddInputRef}
-                            type="text"
-                            placeholder="Capture a new idea..."
-                            value={newTitle}
-                            onChange={e => setNewTitle(e.target.value)}
-                            className="flex-1 bg-transparent py-2 text-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none"
-                        />
-                        <button
-                            type="submit"
-                            disabled={newTitle.trim() === '' || creating}
-                            className="btn-primary shrink-0 rounded-xl px-5 py-2.5 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                            {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                            <span className="hidden sm:inline">Add Idea</span>
-                        </button>
-                    </form>
-                </div>
-
                 {/* Filters & Search Toolbar */}
                 <div className="flex hud-panel p-1.5 rounded-xl items-center gap-2 mb-2">
 
@@ -238,13 +208,12 @@ export default function IdeasModern() {
                                 description="Jot down ideas as they come — tag them, rate them, and turn the best ones into real projects."
                                 benefits={['Quick capture — never lose an idea', 'AI helps assess feasibility', 'Convert ideas to project cards']}
                                 ctaLabel="Add Your First Idea"
-                                ctaAction={() => quickAddInputRef.current?.focus()}
+                                ctaAction={() => setShowCreateModal(true)}
                             />
                         </div>
                     )
                 ) : (
                     <div className="columns-1 md:columns-2 xl:columns-3 gap-6 space-y-6">
-                        {/* Masonry-like layout using columns */}
                         {sortedIdeas.map(idea => (
                             <div
                                 key={idea.id}
@@ -301,10 +270,14 @@ export default function IdeasModern() {
             </div>
 
             <Suspense fallback={null}>
-                {selectedIdeaId && (
+                {isModalOpen && (
                     <IdeaDetailModal
-                        ideaId={selectedIdeaId}
-                        onClose={() => { setSelectedIdeaId(null); loadIdeas(); }}
+                        ideaId={showCreateModal ? null : selectedIdeaId}
+                        onClose={() => {
+                            setSelectedIdeaId(null);
+                            setShowCreateModal(false);
+                            loadIdeas();
+                        }}
                         onNavigate={(path) => navigate(path)}
                     />
                 )}
