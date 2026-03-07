@@ -155,6 +155,32 @@ export function clearProviderCache(id?: string): void {
   }
 }
 
+/** Map raw SDK error messages to short, user-friendly strings. */
+function friendlyConnectionError(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes('401') || lower.includes('incorrect api key') || lower.includes('invalid.*api.key') || lower.includes('authentication'))
+    return 'Invalid API key. Please check and try again.';
+  if (lower.includes('403') || lower.includes('forbidden') || lower.includes('permission'))
+    return 'Access denied. Your API key may lack permissions.';
+  if (lower.includes('429') || lower.includes('rate limit') || lower.includes('too many'))
+    return 'Rate limited. Wait a moment and retry.';
+  if (lower.includes('404') || lower.includes('not found'))
+    return 'Model or endpoint not found. Check your Base URL.';
+  if (lower.includes('timeout') || lower.includes('timed out') || lower.includes('econnaborted'))
+    return 'Connection timed out. Check your network or Base URL.';
+  if (lower.includes('econnrefused') || lower.includes('connection refused'))
+    return 'Connection refused. Is the server running?';
+  if (lower.includes('enotfound') || lower.includes('getaddrinfo'))
+    return 'Server not found. Check your Base URL or network.';
+  if (lower.includes('network') || lower.includes('fetch failed') || lower.includes('econnreset'))
+    return 'Network error. Check your internet connection.';
+  if (lower.includes('insufficient_quota') || lower.includes('billing') || lower.includes('exceeded'))
+    return 'Billing issue. Check your account balance or plan.';
+  // Fallback: truncate raw message to keep it readable
+  if (raw.length > 120) return raw.slice(0, 117) + '...';
+  return raw;
+}
+
 /**
  * Test provider connectivity by generating a minimal completion.
  * Uses the cheapest model per provider to minimize cost.
@@ -178,10 +204,10 @@ export async function testConnection(
 
     return { success: true, latencyMs: Date.now() - start };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Connection failed';
+    const raw = error instanceof Error ? error.message : 'Connection failed';
     return {
       success: false,
-      error: message,
+      error: friendlyConnectionError(raw),
       latencyMs: Date.now() - start,
     };
   }

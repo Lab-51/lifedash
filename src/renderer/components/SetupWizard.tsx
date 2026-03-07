@@ -565,7 +565,7 @@ function StepTest({ status, error, latencyMs, onNext, onBack }: TestStepProps) {
         <div className="space-y-2 max-w-xs">
           <p className="text-sm font-medium text-red-400">Connection failed</p>
           {error && (
-            <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">{error}</p>
+            <p className="text-xs text-[var(--color-text-muted)] leading-relaxed break-words line-clamp-3">{error}</p>
           )}
         </div>
       )}
