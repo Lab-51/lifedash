@@ -26,6 +26,7 @@ import { cardAgentBridge } from './domains/card-agent';
 import { projectAgentBridge } from './domains/project-agent';
 
 import { backgroundAgentBridge } from './domains/background-agent';
+import { voiceInputBridge } from './domains/voice-input';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -49,4 +50,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...cardAgentBridge,
   ...projectAgentBridge,
   ...backgroundAgentBridge,
+  ...voiceInputBridge,
 });

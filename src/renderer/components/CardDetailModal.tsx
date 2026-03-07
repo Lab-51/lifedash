@@ -426,14 +426,17 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
 
                     <button
                       onClick={descriptionVoice.toggle}
+                      disabled={descriptionVoice.isProcessing}
                       className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors ${descriptionVoice.isListening
                         ? 'bg-red-500/15 text-red-500 border-red-300 dark:border-red-700 animate-pulse'
-                        : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
+                        : descriptionVoice.isProcessing
+                          ? 'text-[var(--color-accent)] border-[var(--color-border-accent)] animate-pulse cursor-wait'
+                          : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
                         }`}
-                      title={descriptionVoice.isListening ? 'Stop dictating' : 'Dictate description'}
+                      title={descriptionVoice.isListening ? 'Stop dictating' : descriptionVoice.isProcessing ? 'Transcribing...' : 'Dictate description'}
                     >
                       {descriptionVoice.isListening ? <MicOff size={14} /> : <Mic size={14} />}
-                      {descriptionVoice.isListening ? 'Stop' : 'Dictate'}
+                      {descriptionVoice.isListening ? 'Stop' : descriptionVoice.isProcessing ? 'Transcribing...' : 'Dictate'}
                     </button>
                   </div>
                 </div>

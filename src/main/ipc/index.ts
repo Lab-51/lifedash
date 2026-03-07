@@ -27,6 +27,7 @@ import { registerCardAgentHandlers } from './card-agent';
 import { registerProjectAgentHandlers } from './project-agent';
 
 import { registerBackgroundAgentHandlers } from './background-agent';
+import { registerVoiceInputHandlers } from './voice-input';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -56,6 +57,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerCardAgentHandlers();
   registerProjectAgentHandlers();
   registerBackgroundAgentHandlers();
+  registerVoiceInputHandlers();
 
   // App-level: open URL in system browser (not Electron)
   ipcMain.handle('app:open-external', async (_event, url: string) => {

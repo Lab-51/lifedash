@@ -19,6 +19,7 @@ import ChatMessageModern, { markdownComponents } from '../components/ChatMessage
 import BrainstormQuickChips, { parseChoices } from '../components/BrainstormQuickChips';
 import HudSelect from '../components/HudSelect';
 import EmptyAIState from '../components/EmptyAIState';
+import { useVoiceInput } from '../hooks/useVoiceInput';
 import { BRAINSTORM_TEMPLATES } from '../../shared/types/brainstorm';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -64,66 +65,17 @@ export default function BrainstormModern() {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const userScrolledUpRef = useRef(false);
     const [chipsHidden, setChipsHidden] = useState(false);
-    const [isListening, setIsListening] = useState(false);
-    const recognitionRef = useRef<SpeechRecognition | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Web Speech API — voice-to-text for chat input
-    const toggleVoiceInput = useCallback(() => {
-        if (isListening) {
-            recognitionRef.current?.stop();
-            return;
-        }
-
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) return;
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = navigator.language || 'en-US';
-        recognitionRef.current = recognition;
-
-        let finalTranscript = '';
-
-        recognition.onresult = (event: SpeechRecognitionEvent) => {
-            let interim = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                const transcript = event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
-                    finalTranscript += transcript;
-                } else {
-                    interim = transcript;
-                }
-            }
+    // Voice-to-text for chat input
+    const voice = useVoiceInput({
+        onTranscript: (text) => {
             setInput(prev => {
                 const base = prev.endsWith(' ') || prev === '' ? prev : prev + ' ';
-                return base + finalTranscript + interim;
+                return base + text;
             });
-            if (finalTranscript) {
-                finalTranscript = '';
-            }
-        };
-
-        recognition.onend = () => {
-            setIsListening(false);
-            recognitionRef.current = null;
-        };
-
-        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-            console.warn('Speech recognition error:', event.error);
-            setIsListening(false);
-            recognitionRef.current = null;
-        };
-
-        recognition.start();
-        setIsListening(true);
-    }, [isListening]);
-
-    // Cleanup recognition on unmount
-    useEffect(() => {
-        return () => { recognitionRef.current?.stop(); };
-    }, []);
+        },
+    });
 
     // Handle ?action=create — auto-open the new session form
     useEffect(() => {
@@ -273,7 +225,7 @@ export default function BrainstormModern() {
         const content = overrideContent ?? input.trim();
         if (!content || streaming) return;
         // Stop voice input if active
-        recognitionRef.current?.stop();
+        voice.stop();
         setChipsHidden(true);
         if (!overrideContent) {
             setInput('');
@@ -738,7 +690,7 @@ export default function BrainstormModern() {
                                         </div>
                                     )}
 
-                                    <div className={`relative bg-surface-50 dark:bg-[var(--color-chrome)] border-2 rounded-2xl focus-within:bg-white dark:focus-within:bg-surface-900 transition-all shadow-sm ${isListening ? 'border-red-400 dark:border-red-500' : 'border-[var(--color-border)] focus-within:border-[var(--color-accent)]'}`}>
+                                    <div className={`relative bg-surface-50 dark:bg-[var(--color-chrome)] border-2 rounded-2xl focus-within:bg-white dark:focus-within:bg-surface-900 transition-all shadow-sm ${voice.isListening ? 'border-red-400 dark:border-red-500' : 'border-[var(--color-border)] focus-within:border-[var(--color-accent)]'}`}>
                                         <textarea
                                             ref={textareaRef}
                                             value={input}
@@ -748,21 +700,24 @@ export default function BrainstormModern() {
                                                 autoResize();
                                             }}
                                             onKeyDown={handleKeyDown}
-                                            placeholder={isListening ? 'Listening...' : 'Message AI...'}
+                                            placeholder={voice.isListening ? 'Listening...' : voice.isProcessing ? 'Transcribing...' : 'Message AI...'}
                                             rows={1}
                                             className="w-full bg-transparent px-4 py-3 pr-24 text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-0 border-transparent focus:border-transparent focus:ring-offset-0 resize-none max-h-48"
                                             style={{ minHeight: '48px' }}
                                         />
                                         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                                             <button
-                                                onClick={toggleVoiceInput}
-                                                className={`p-2 rounded-xl transition-all ${isListening
+                                                onClick={voice.toggle}
+                                                disabled={voice.isProcessing}
+                                                className={`p-2 rounded-xl transition-all ${voice.isListening
                                                     ? 'bg-red-500/15 text-red-500 hover:bg-red-500/25 animate-pulse'
-                                                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
+                                                    : voice.isProcessing
+                                                        ? 'text-[var(--color-accent)] animate-pulse cursor-wait'
+                                                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
                                                     }`}
-                                                title={isListening ? 'Stop listening' : 'Voice input'}
+                                                title={voice.isListening ? 'Stop listening' : voice.isProcessing ? 'Transcribing...' : 'Voice input'}
                                             >
-                                                {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                                                {voice.isListening ? <MicOff size={16} /> : <Mic size={16} />}
                                             </button>
                                             <button
                                                 onClick={() => handleSendMessage()}

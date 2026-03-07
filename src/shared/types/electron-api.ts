@@ -268,6 +268,9 @@ export interface ElectronAPI {
   transcriptionSetApiKey: (provider: 'deepgram' | 'assemblyai', apiKey: string) => Promise<void>;
   transcriptionTestProvider: (type: TranscriptionProviderType) => Promise<{ success: boolean; error?: string; latencyMs?: number }>;
 
+  // Voice Input
+  voiceTranscribe: (audioBuffer: ArrayBuffer) => Promise<{ text: string }>;
+
   // Diarization
   diarizeMeeting: (meetingId: string) => Promise<{ success: boolean; speakers: string[]; error?: string }>;
 
