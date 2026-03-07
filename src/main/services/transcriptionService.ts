@@ -108,16 +108,15 @@ export async function start(meetingId: string, language?: string): Promise<void>
     // transcribeData() is non-blocking — the native module runs heavy
     // computation on a background C++ thread via Napi::AsyncWorker.
     try {
-      const { initWhisper } = await import('@fugood/whisper.node');
-
       // Release any existing context before creating a new one
       if (whisperContext) {
         try { await whisperContext.release(); } catch { /* ignore */ }
         whisperContext = null;
       }
 
-      whisperContext = await initWhisper({ filePath: modelPath });
-      log.info(`Started (local) with model: ${require('path').basename(modelPath)}`);
+      const { context, backend } = await whisperModelManager.createWhisperContext(modelPath);
+      whisperContext = context;
+      log.info(`Started (local) with model: ${require('path').basename(modelPath)} [${backend}]`);
     } catch (err) {
       log.error('Failed to initialize Whisper:', err);
       currentMeetingId = null;

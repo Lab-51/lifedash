@@ -18,7 +18,7 @@
 // - Must init before transcribe
 
 import { parentPort } from 'worker_threads';
-import { initWhisper } from '@fugood/whisper.node';
+import { initWhisper, type LibVariant } from '@fugood/whisper.node';
 
 // Types for the WhisperContext returned by initWhisper
 // (using the actual return type from the library)
@@ -52,8 +52,22 @@ parentPort?.on('message', async (msg: MainToWorkerMessage) => {
         if (context) {
           await context.release();
         }
-        context = await initWhisper({ filePath: msg.modelPath });
-        parentPort?.postMessage({ type: 'ready' });
+        // Try GPU variants (Vulkan → CUDA) then fall back to CPU
+        let backend = 'cpu';
+        const gpuVariants: LibVariant[] = ['vulkan', 'cuda'];
+        for (const variant of gpuVariants) {
+          try {
+            context = await initWhisper({ filePath: msg.modelPath, useGpu: true }, variant);
+            backend = variant;
+            break;
+          } catch {
+            // Variant not available — try next
+          }
+        }
+        if (!context) {
+          context = await initWhisper({ filePath: msg.modelPath });
+        }
+        parentPort?.postMessage({ type: 'ready', backend });
         break;
       }
 

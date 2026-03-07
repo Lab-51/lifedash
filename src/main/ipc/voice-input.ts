@@ -45,8 +45,8 @@ export function registerVoiceInputHandlers(): void {
         throw new Error('No Whisper model installed. Go to Settings > Transcription to download one.');
       }
 
-      const { initWhisper } = await import('@fugood/whisper.node');
-      const ctx = await initWhisper({ filePath: modelPath });
+      const { context: ctx, backend } = await whisperModelManager.createWhisperContext(modelPath);
+      log.info(`Whisper backend: ${backend}`);
 
       try {
         // Pass raw Int16 PCM ArrayBuffer to Whisper (same as transcriptionService)

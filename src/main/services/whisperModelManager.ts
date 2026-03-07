@@ -96,6 +96,32 @@ export async function getDefaultModelPath(): Promise<string | null> {
   return null;
 }
 
+/**
+ * Initialize a Whisper context with automatic GPU detection.
+ * Tries Vulkan (broadest GPU support) → CUDA → CPU fallback.
+ */
+export async function createWhisperContext(modelPath: string): Promise<{
+  context: Awaited<ReturnType<typeof import('@fugood/whisper.node').initWhisper>>;
+  backend: string;
+}> {
+  const { initWhisper } = await import('@fugood/whisper.node');
+  const variants = ['vulkan', 'cuda'] as const;
+
+  // Try GPU variants first
+  for (const variant of variants) {
+    try {
+      const context = await initWhisper({ filePath: modelPath, useGpu: true }, variant);
+      return { context, backend: variant };
+    } catch {
+      // Variant not available or GPU init failed — try next
+    }
+  }
+
+  // Fallback to CPU (default variant)
+  const context = await initWhisper({ filePath: modelPath });
+  return { context, backend: 'cpu' };
+}
+
 /** Download a model from HuggingFace with progress callback */
 export function downloadModel(
   fileName: string,
