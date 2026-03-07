@@ -6,8 +6,9 @@
 // react, lucide-react, cardDetailStore (Zustand)
 
 import { useState } from 'react';
-import { MessageSquare, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquare, Pencil, Trash2, ChevronDown, ChevronUp, Mic, MicOff } from 'lucide-react';
 import { useCardDetailStore } from '../stores/cardDetailStore';
+import { useVoiceInput } from '../hooks/useVoiceInput';
 
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -36,10 +37,20 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
   const [editContent, setEditContent] = useState('');
   const [expanded, setExpanded] = useState(false);
 
+  const commentVoice = useVoiceInput({
+    onTranscript: (text) => {
+      setNewComment(prev => {
+        const base = prev.endsWith(' ') || prev === '' ? prev : prev + ' ';
+        return base + text;
+      });
+    },
+  });
+
   // --- Add comment ---
   const handleAddComment = async () => {
     const trimmed = newComment.trim();
     if (!trimmed) return;
+    commentVoice.stop();
     await addComment({ cardId, content: trimmed });
     setNewComment('');
   };
@@ -104,11 +115,21 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
           value={newComment}
           onChange={e => setNewComment(e.target.value)}
           onKeyDown={handleAddKeyDown}
-          placeholder="Write a comment..."
+          placeholder={commentVoice.isListening ? 'Listening...' : 'Write a comment...'}
           rows={3}
-          className="bg-[var(--color-accent-subtle)]/30 border border-[var(--color-border)] rounded-lg p-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] resize-none w-full focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] focus:border-[var(--color-accent-dim)] transition-colors"
+          className={`bg-[var(--color-accent-subtle)]/30 border rounded-lg p-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] resize-none w-full focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] transition-colors ${commentVoice.isListening ? 'border-red-400 dark:border-red-500 focus:border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-accent-dim)]'}`}
         />
-        <div className="flex justify-end mt-2">
+        <div className="flex items-center justify-end gap-2 mt-2">
+          <button
+            onClick={commentVoice.toggle}
+            className={`p-1.5 rounded-lg transition-all ${commentVoice.isListening
+              ? 'bg-red-500/15 text-red-500 hover:bg-red-500/25 animate-pulse'
+              : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
+              }`}
+            title={commentVoice.isListening ? 'Stop listening' : 'Voice input'}
+          >
+            {commentVoice.isListening ? <MicOff size={16} /> : <Mic size={16} />}
+          </button>
           <button
             onClick={handleAddComment}
             disabled={!newComment.trim()}

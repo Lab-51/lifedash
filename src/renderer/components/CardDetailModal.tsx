@@ -9,7 +9,7 @@
 // cardDetailStore, section components
 
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { X, Plus, FileText, Sparkles, Check, RefreshCw, BookmarkPlus, Bot, PanelRightClose } from 'lucide-react';
+import { X, Plus, FileText, Sparkles, Check, RefreshCw, BookmarkPlus, Bot, PanelRightClose, Mic, MicOff } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -32,6 +32,7 @@ import { toast } from '../hooks/useToast';
 import HudDatePicker from './HudDatePicker';
 import HudSelect from './HudSelect';
 import { PromptDialog } from './PromptDialog';
+import { useVoiceInput } from '../hooks/useVoiceInput';
 
 interface CardDetailModalProps {
   card: Card;
@@ -89,6 +90,20 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   const loadCardDetails = useCardDetailStore(s => s.loadCardDetails);
   const clearCardDetails = useCardDetailStore(s => s.clearCardDetails);
   const loadingCardDetails = useCardDetailStore(s => s.loadingCardDetails);
+
+  // Voice input for description — inserts text at cursor in TipTap
+  const descriptionVoice = useVoiceInput({
+    onTranscript: (text) => {
+      if (editor) {
+        editor.chain().focus().insertContent(text).run();
+        // Trigger save
+        const html = editor.getHTML();
+        const isEmpty = html === '<p></p>' || html === '';
+        onUpdate(card.id, { description: isEmpty ? null : html });
+      }
+    },
+  });
+
   // TipTap editor setup
   const editor = useEditor({
     extensions: [
@@ -407,6 +422,18 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                     >
                       <Sparkles size={14} className={generatingDescription ? 'animate-spin' : ''} />
                       {generatingDescription ? 'Generating...' : 'AI Generate'}
+                    </button>
+
+                    <button
+                      onClick={descriptionVoice.toggle}
+                      className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors ${descriptionVoice.isListening
+                        ? 'bg-red-500/15 text-red-500 border-red-300 dark:border-red-700 animate-pulse'
+                        : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
+                        }`}
+                      title={descriptionVoice.isListening ? 'Stop dictating' : 'Dictate description'}
+                    >
+                      {descriptionVoice.isListening ? <MicOff size={14} /> : <Mic size={14} />}
+                      {descriptionVoice.isListening ? 'Stop' : 'Dictate'}
                     </button>
                   </div>
                 </div>

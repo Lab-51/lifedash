@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-    Brain, Plus, Send, Loader2, Trash2, Archive,
+    Brain, Plus, Send, Loader2, Trash2, Archive, Mic, MicOff,
     MessageSquare, Bot, Sparkles, Lightbulb, Search, Layers, ListChecks, Square, X, Edit2, MoreVertical,
 } from 'lucide-react';
 import EmptyFeatureState from './EmptyFeatureState';
@@ -64,7 +64,66 @@ export default function BrainstormModern() {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const userScrolledUpRef = useRef(false);
     const [chipsHidden, setChipsHidden] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+    const recognitionRef = useRef<SpeechRecognition | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
+
+    // Web Speech API — voice-to-text for chat input
+    const toggleVoiceInput = useCallback(() => {
+        if (isListening) {
+            recognitionRef.current?.stop();
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) return;
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = navigator.language || 'en-US';
+        recognitionRef.current = recognition;
+
+        let finalTranscript = '';
+
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalTranscript += transcript;
+                } else {
+                    interim = transcript;
+                }
+            }
+            setInput(prev => {
+                const base = prev.endsWith(' ') || prev === '' ? prev : prev + ' ';
+                return base + finalTranscript + interim;
+            });
+            if (finalTranscript) {
+                finalTranscript = '';
+            }
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+            recognitionRef.current = null;
+        };
+
+        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+            console.warn('Speech recognition error:', event.error);
+            setIsListening(false);
+            recognitionRef.current = null;
+        };
+
+        recognition.start();
+        setIsListening(true);
+    }, [isListening]);
+
+    // Cleanup recognition on unmount
+    useEffect(() => {
+        return () => { recognitionRef.current?.stop(); };
+    }, []);
 
     // Handle ?action=create — auto-open the new session form
     useEffect(() => {
@@ -213,6 +272,8 @@ export default function BrainstormModern() {
     const handleSendMessage = async (overrideContent?: string) => {
         const content = overrideContent ?? input.trim();
         if (!content || streaming) return;
+        // Stop voice input if active
+        recognitionRef.current?.stop();
         setChipsHidden(true);
         if (!overrideContent) {
             setInput('');
@@ -677,7 +738,7 @@ export default function BrainstormModern() {
                                         </div>
                                     )}
 
-                                    <div className="relative bg-surface-50 dark:bg-[var(--color-chrome)] border-2 border-[var(--color-border)] rounded-2xl focus-within:border-[var(--color-accent)] focus-within:bg-white dark:focus-within:bg-surface-900 transition-all shadow-sm">
+                                    <div className={`relative bg-surface-50 dark:bg-[var(--color-chrome)] border-2 rounded-2xl focus-within:bg-white dark:focus-within:bg-surface-900 transition-all shadow-sm ${isListening ? 'border-red-400 dark:border-red-500' : 'border-[var(--color-border)] focus-within:border-[var(--color-accent)]'}`}>
                                         <textarea
                                             ref={textareaRef}
                                             value={input}
@@ -687,21 +748,33 @@ export default function BrainstormModern() {
                                                 autoResize();
                                             }}
                                             onKeyDown={handleKeyDown}
-                                            placeholder="Message AI..."
+                                            placeholder={isListening ? 'Listening...' : 'Message AI...'}
                                             rows={1}
-                                            className="w-full bg-transparent px-4 py-3 pr-12 text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-0 border-transparent focus:border-transparent focus:ring-offset-0 resize-none max-h-48"
+                                            className="w-full bg-transparent px-4 py-3 pr-24 text-sm text-surface-900 dark:text-surface-100 placeholder-surface-400 focus:outline-none focus:ring-0 border-transparent focus:border-transparent focus:ring-offset-0 resize-none max-h-48"
                                             style={{ minHeight: '48px' }}
                                         />
-                                        <button
-                                            onClick={() => handleSendMessage()}
-                                            disabled={!input.trim() || streaming}
-                                            className={`absolute right-2 bottom-2 p-2 rounded-xl transition-all ${!input.trim() || streaming
-                                                ? 'bg-[var(--color-border)] text-[var(--color-text-muted)] cursor-not-allowed'
-                                                : 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] shadow-md'
-                                                }`}
-                                        >
-                                            {streaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                                        </button>
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                            <button
+                                                onClick={toggleVoiceInput}
+                                                className={`p-2 rounded-xl transition-all ${isListening
+                                                    ? 'bg-red-500/15 text-red-500 hover:bg-red-500/25 animate-pulse'
+                                                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
+                                                    }`}
+                                                title={isListening ? 'Stop listening' : 'Voice input'}
+                                            >
+                                                {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+                                            </button>
+                                            <button
+                                                onClick={() => handleSendMessage()}
+                                                disabled={!input.trim() || streaming}
+                                                className={`p-2 rounded-xl transition-all ${!input.trim() || streaming
+                                                    ? 'bg-[var(--color-border)] text-[var(--color-text-muted)] cursor-not-allowed'
+                                                    : 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)] shadow-md'
+                                                    }`}
+                                            >
+                                                {streaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                            </button>
+                                        </div>
                                     </div>
                                     <p className="text-[10px] text-surface-400 text-center mt-2">
                                         AI can make mistakes. Review generated content.
