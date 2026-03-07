@@ -61,6 +61,25 @@ interface IdeaDetailModalProps {
   onNavigate?: (path: string) => void;
 }
 
+function formatRelativeTime(isoDate: string): string {
+  const seconds = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+function formatDate(isoDate: string): string {
+  return new Date(isoDate).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDetailModalProps) {
   const isCreateMode = ideaId === null;
 
@@ -80,6 +99,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
   // Local edit state
   const [title, setTitle] = useState('');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<IdeaStatus>('new');
   const [effort, setEffort] = useState<EffortLevel | ''>('');
@@ -116,17 +136,22 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
     }
   }, [selectedIdea, isCreateMode]);
 
-  // Auto-focus title
+  // Auto-focus title in create mode
   useEffect(() => {
-    // Small delay for the modal transition
-    const timer = setTimeout(() => titleInputRef.current?.focus(), 80);
-    return () => clearTimeout(timer);
-  }, []);
+    if (isCreateMode) {
+      const timer = setTimeout(() => titleInputRef.current?.focus(), 80);
+      return () => clearTimeout(timer);
+    }
+  }, [isCreateMode]);
 
   // Escape key to close
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        onClose();
+      }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
@@ -154,6 +179,27 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
       e.preventDefault();
       handleCreate();
     }
+    if (!isCreateMode && e.key === 'Enter') {
+      e.preventDefault();
+      saveTitleEdit();
+    }
+    if (!isCreateMode && e.key === 'Escape') {
+      e.stopPropagation();
+      setTitle(selectedIdea?.title ?? '');
+      setIsEditingTitle(false);
+    }
+  };
+
+  const startEditingTitle = () => {
+    setIsEditingTitle(true);
+    setTimeout(() => titleInputRef.current?.focus(), 10);
+  };
+
+  const saveTitleEdit = () => {
+    if (selectedIdea && title.trim() && title.trim() !== selectedIdea.title) {
+      updateIdea(selectedIdea.id, { title: title.trim() });
+    }
+    setIsEditingTitle(false);
   };
 
   const addTag = () => {
@@ -205,9 +251,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
     }
   };
 
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose();
-  };
+  // Intentionally no overlay click-to-close — modal stays open until explicitly closed
 
   const handleBrainstormIdea = async () => {
     if (!selectedIdea) return;
@@ -236,45 +280,53 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 dark:bg-black/80 backdrop-blur-[2px]"
-      onClick={handleOverlayClick}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-[2px]"
     >
-      <div className="hud-panel-accent clip-corner-cut shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto p-6 md:p-8">
-        {/* Header row */}
-        <div className="flex items-start justify-between gap-4 mb-2">
-          {isCreateMode ? (
-            <div className="flex items-center gap-2.5 mb-1">
-              <Sparkles size={20} className="text-[var(--color-accent)] shrink-0" />
-              <span className="font-hud text-lg text-[var(--color-accent)]">New Idea</span>
+      <div className="hud-panel-accent clip-corner-cut shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col overflow-hidden">
+
+        {/* Header: Breadcrumb + Close */}
+        <div className="flex flex-col gap-2 px-8 pt-6 pb-4 shrink-0">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2 font-hud text-xs tracking-widest">
+              <div className="node-point-sm" />
+              <span className="text-[var(--color-accent-dim)]">Ideas</span>
+              <span className="text-[var(--color-text-muted)]">/</span>
+              <span className="text-[var(--color-text-secondary)]">{isCreateMode ? 'New Idea' : 'Idea Details'}</span>
             </div>
-          ) : (
-            <div className="flex-1" />
-          )}
-          <div className="bg-surface-100/50 dark:bg-surface-800/50 p-1 rounded-lg shrink-0">
             <button
               onClick={onClose}
-              className="text-surface-500 hover:text-surface-800 dark:hover:text-surface-200 p-1.5 rounded-md hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+              className="text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] p-1.5 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors shrink-0"
             >
               <X size={18} />
             </button>
           </div>
-        </div>
+          <div className="ruled-line-accent mt-2" />
 
-        {/* Title input */}
-        <input
-          ref={titleInputRef}
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => {
-            if (!isCreateMode && selectedIdea && title.trim() && title.trim() !== selectedIdea.title) {
-              updateIdea(selectedIdea.id, { title: title.trim() });
-            }
-          }}
-          onKeyDown={handleTitleKeyDown}
-          placeholder={isCreateMode ? 'What\'s your idea?' : 'Idea title...'}
-          className="w-full bg-transparent text-xl md:text-2xl font-bold text-surface-900 dark:text-surface-50 focus:outline-none border-b-2 border-transparent focus:border-[var(--color-accent)] pb-1 transition-colors"
-        />
+          {/* Title */}
+          <div className="w-full mt-2">
+            {isCreateMode || isEditingTitle ? (
+              <input
+                ref={titleInputRef}
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={() => {
+                  if (!isCreateMode) saveTitleEdit();
+                }}
+                onKeyDown={handleTitleKeyDown}
+                placeholder={isCreateMode ? "What's your idea?" : 'Idea title...'}
+                className="bg-white dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-3xl font-bold text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] focus:border-[var(--color-accent-dim)] w-full"
+              />
+            ) : (
+              <h2
+                className="text-3xl font-bold cursor-text hover:text-[var(--color-text-secondary)] transition-colors text-[var(--color-text-primary)]"
+                onClick={startEditingTitle}
+              >
+                {title}
+              </h2>
+            )}
+          </div>
+        </div>
 
         {/* Loading state (edit mode) */}
         {showLoading && (
@@ -285,256 +337,275 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
 
         {/* Content */}
         {showContent && (
-          <>
-            {/* Description */}
-            <div className="mt-5">
-              <label className="text-xs font-semibold text-surface-500 mb-1.5 block">Description</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                onBlur={() => {
-                  if (!isCreateMode && selectedIdea && description !== (selectedIdea.description ?? '')) {
-                    updateIdea(selectedIdea.id, { description: description.trim() || null });
-                  }
-                }}
-                placeholder="Describe your idea..."
-                rows={3}
-                className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg p-3 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] resize-y focus:outline-none focus:border-[var(--color-accent-dim)]"
-              />
-            </div>
+          <div className="flex-1 overflow-y-auto px-8 pb-6">
+            <div className="flex flex-col gap-8">
 
-            {/* Tags */}
-            <div className="mt-4">
-              <label className="text-xs font-semibold text-surface-500 mb-1.5 block">Tags</label>
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="bg-[var(--color-accent-subtle)] text-[var(--color-accent-dim)] border border-[var(--color-border-accent)] text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1"
-                    >
-                      #{tag}
-                      <button
-                        onClick={() => removeTag(tag)}
-                        className="text-[var(--color-accent-dim)] hover:text-[var(--color-accent)] transition-colors"
+              {/* Description */}
+              <div className="flex flex-col gap-2.5">
+                <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1">Description</span>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  onBlur={() => {
+                    if (!isCreateMode && selectedIdea && description !== (selectedIdea.description ?? '')) {
+                      updateIdea(selectedIdea.id, { description: description.trim() || null });
+                    }
+                  }}
+                  placeholder="Describe your idea..."
+                  rows={3}
+                  className="w-full text-sm bg-surface-50/50 dark:bg-surface-950/30 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] rounded-lg p-3 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] resize-y focus:outline-none focus:border-[var(--color-accent-dim)] focus:ring-1 focus:ring-[var(--color-accent-dim)]/50 transition-colors"
+                />
+              </div>
+
+              {/* Tags */}
+              <div className="flex flex-col gap-2.5">
+                <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1">Tags</span>
+                {tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1.5 border border-[var(--color-border)] rounded-md px-2 py-1 text-xs font-medium text-[var(--color-text-secondary)]"
                       >
-                        <X size={10} />
-                      </button>
-                    </span>
-                  ))}
+                        #{tag}
+                        <button
+                          onClick={() => removeTag(tag)}
+                          className="text-[var(--color-text-muted)] hover:text-red-500 transition-colors ml-0.5"
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={handleTagKeyDown}
+                    placeholder="Add tag and press Enter..."
+                    className="flex-1 text-sm bg-surface-50/50 dark:bg-surface-950/30 border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+                  />
+                  {tagInput.trim() && (
+                    <button
+                      onClick={addTag}
+                      className="text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-bright)] transition-colors font-medium"
+                    >
+                      Add
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Create mode: Create button */}
+              {isCreateMode && (
+                <div>
+                  <button
+                    onClick={handleCreate}
+                    disabled={!title.trim() || creating}
+                    className="btn-primary w-full rounded-xl px-5 py-3 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {creating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                    Create Idea
+                  </button>
+                  <p className="text-[11px] text-[var(--color-text-muted)] text-center mt-2">
+                    You can add more details after creating.
+                  </p>
                 </div>
               )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={handleTagKeyDown}
-                  placeholder="Add tag and press Enter..."
-                  className="flex-1 text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
-                />
-                {tagInput.trim() && (
-                  <button
-                    onClick={addTag}
-                    className="text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-bright)] transition-colors font-medium"
-                  >
-                    Add
-                  </button>
-                )}
-              </div>
-            </div>
 
-            {/* Create mode: Create button */}
-            {isCreateMode && (
-              <div className="mt-6">
-                <button
-                  onClick={handleCreate}
-                  disabled={!title.trim() || creating}
-                  className="btn-primary w-full rounded-xl px-5 py-3 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {creating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                  Create Idea
-                </button>
-                <p className="text-[11px] text-[var(--color-text-muted)] text-center mt-2">
-                  You can add more details after creating.
-                </p>
-              </div>
-            )}
-
-            {/* === Edit-mode-only sections below === */}
-            {!isCreateMode && selectedIdea && (
-              <>
-                {/* Metadata row */}
-                <div className="flex flex-wrap items-center gap-4 mt-5">
-                  <div className="flex-1 min-w-[120px]">
-                    <label className="text-xs font-semibold text-surface-500 mb-1.5 block">Status</label>
-                    <HudSelect
-                      value={status}
-                      onChange={(v) => {
-                        const newStatus = v as IdeaStatus;
-                        setStatus(newStatus);
-                        updateIdea(selectedIdea.id, { status: newStatus });
-                      }}
-                      options={STATUS_OPTIONS.map(opt => ({ value: opt.value, label: opt.label }))}
-                    />
+              {/* === Edit-mode-only sections below === */}
+              {!isCreateMode && selectedIdea && (
+                <>
+                  {/* Metadata row */}
+                  <div className="flex flex-col gap-2.5">
+                    <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1">Properties</span>
+                    <div className="flex flex-wrap items-start gap-4">
+                      <div className="flex-1 min-w-[120px] flex flex-col gap-1.5">
+                        <span className="font-hud text-[10px] text-[var(--color-text-muted)] tracking-widest pl-1">Status</span>
+                        <HudSelect
+                          value={status}
+                          onChange={(v) => {
+                            const newStatus = v as IdeaStatus;
+                            setStatus(newStatus);
+                            updateIdea(selectedIdea.id, { status: newStatus });
+                          }}
+                          options={STATUS_OPTIONS.map(opt => ({ value: opt.value, label: opt.label }))}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-[120px] flex flex-col gap-1.5">
+                        <span className="font-hud text-[10px] text-[var(--color-text-muted)] tracking-widest pl-1">Effort</span>
+                        <HudSelect
+                          value={effort}
+                          onChange={(v) => {
+                            const newEffort = v as EffortLevel | '';
+                            setEffort(newEffort);
+                            updateIdea(selectedIdea.id, { effort: newEffort || null });
+                          }}
+                          placeholder="--"
+                          options={[
+                            { value: '', label: '--' },
+                            ...EFFORT_OPTIONS.map(opt => ({ value: opt.value, label: opt.label })),
+                          ]}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-[120px] flex flex-col gap-1.5">
+                        <span className="font-hud text-[10px] text-[var(--color-text-muted)] tracking-widest pl-1">Impact</span>
+                        <HudSelect
+                          value={impact}
+                          onChange={(v) => {
+                            const newImpact = v as ImpactLevel | '';
+                            setImpact(newImpact);
+                            updateIdea(selectedIdea.id, { impact: newImpact || null });
+                          }}
+                          placeholder="--"
+                          options={[
+                            { value: '', label: '--' },
+                            ...IMPACT_OPTIONS.map(opt => ({ value: opt.value, label: opt.label })),
+                          ]}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-[120px]">
-                    <label className="text-xs font-semibold text-surface-500 mb-1.5 block">Effort</label>
-                    <HudSelect
-                      value={effort}
-                      onChange={(v) => {
-                        const newEffort = v as EffortLevel | '';
+
+                  {/* AI Analysis */}
+                  {hasAnyEnabledProvider() ? (
+                    <IdeaAnalysisSection
+                      analyzing={analyzing}
+                      analysisError={analysisError}
+                      analysis={analysis}
+                      onAnalyze={() => analyzeIdea(selectedIdea.id)}
+                      onClearAnalysis={clearAnalysis}
+                      onApplyEffort={(newEffort) => {
                         setEffort(newEffort);
-                        updateIdea(selectedIdea.id, { effort: newEffort || null });
+                        updateIdea(selectedIdea.id, { effort: newEffort });
                       }}
-                      placeholder="--"
-                      options={[
-                        { value: '', label: '--' },
-                        ...EFFORT_OPTIONS.map(opt => ({ value: opt.value, label: opt.label })),
-                      ]}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-[120px]">
-                    <label className="text-xs font-semibold text-surface-500 mb-1.5 block">Impact</label>
-                    <HudSelect
-                      value={impact}
-                      onChange={(v) => {
-                        const newImpact = v as ImpactLevel | '';
+                      onApplyImpact={(newImpact) => {
                         setImpact(newImpact);
-                        updateIdea(selectedIdea.id, { impact: newImpact || null });
+                        updateIdea(selectedIdea.id, { impact: newImpact });
                       }}
-                      placeholder="--"
-                      options={[
-                        { value: '', label: '--' },
-                        ...IMPACT_OPTIONS.map(opt => ({ value: opt.value, label: opt.label })),
-                      ]}
                     />
-                  </div>
-                </div>
-
-                {/* AI Analysis */}
-                {hasAnyEnabledProvider() ? (
-                  <IdeaAnalysisSection
-                    analyzing={analyzing}
-                    analysisError={analysisError}
-                    analysis={analysis}
-                    onAnalyze={() => analyzeIdea(selectedIdea.id)}
-                    onClearAnalysis={clearAnalysis}
-                    onApplyEffort={(newEffort) => {
-                      setEffort(newEffort);
-                      updateIdea(selectedIdea.id, { effort: newEffort });
-                    }}
-                    onApplyImpact={(newImpact) => {
-                      setImpact(newImpact);
-                      updateIdea(selectedIdea.id, { impact: newImpact });
-                    }}
-                  />
-                ) : (
-                  <EmptyAIState featureName="idea analysis" />
-                )}
-
-                {/* Divider — Actions */}
-                <div className="border-t border-surface-200 dark:border-surface-700 mt-4 pt-4">
-                  <label className="text-xs font-semibold text-surface-500 mb-2 block">Actions</label>
-
-                  {convertMode === 'none' && (
-                    <div className="space-y-2">
-                      <button
-                        onClick={handleBrainstormIdea}
-                        className="flex items-center gap-2 px-4 py-2 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-lg text-sm transition-colors w-full"
-                      >
-                        <MessageSquare size={16} />
-                        Brainstorm This Idea
-                      </button>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setConvertMode('project')}
-                          className="flex-1 flex items-center justify-center gap-2 p-3 border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-primary)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors cursor-pointer"
-                        >
-                          <FolderPlus size={16} />
-                          Create Project
-                        </button>
-                        <button
-                          onClick={() => setConvertMode('card')}
-                          className="flex-1 flex items-center justify-center gap-2 p-3 border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-primary)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors cursor-pointer"
-                        >
-                          <ArrowRightCircle size={16} />
-                          Add as Card
-                        </button>
-                      </div>
-                    </div>
+                  ) : (
+                    <EmptyAIState featureName="idea analysis" />
                   )}
 
-                  {convertMode === 'project' && (
-                    <div>
-                      <p className="text-sm text-surface-700 dark:text-surface-300 mb-3">
-                        Create a new project from this idea?
-                      </p>
-                      <div className="flex items-center gap-2 justify-end">
-                        <button
-                          onClick={() => setConvertMode('none')}
-                          className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleConvertToProject}
-                          disabled={converting}
-                          className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-                        >
-                          {converting && <Loader2 size={14} className="animate-spin" />}
-                          Confirm
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  {/* Actions */}
+                  <div className="flex flex-col gap-2.5">
+                    <div className="ruled-line-accent" />
+                    <span className="font-hud text-[10px] text-[var(--color-accent-dim)] tracking-widest uppercase pl-1 mt-2">Actions</span>
 
-                  {convertMode === 'card' && selectedIdea && (
-                    <IdeaConvertWizard
-                      ideaId={selectedIdea.id}
-                      onComplete={onClose}
-                      onCancel={() => setConvertMode('none')}
-                    />
-                  )}
-                </div>
-
-                {/* Delete section */}
-                <div className="border-t border-surface-200 dark:border-surface-700 mt-4 pt-4">
-                  <div className="flex items-center justify-end">
-                    <div className="flex items-center gap-2">
-                      {!confirmDelete ? (
+                    {convertMode === 'none' && (
+                      <div className="space-y-2">
                         <button
-                          onClick={() => setConfirmDelete(true)}
-                          className="flex items-center gap-1.5 text-sm font-medium text-surface-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 px-3 py-1.5 rounded-md transition-colors"
+                          onClick={handleBrainstormIdea}
+                          className="flex items-center gap-2 px-4 py-2.5 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-lg text-sm transition-colors w-full"
                         >
-                          <Trash2 size={16} />
-                          Delete Idea
+                          <MessageSquare size={16} />
+                          Brainstorm This Idea
                         </button>
-                      ) : (
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-surface-600 dark:text-surface-300">Delete this idea?</span>
+                        <div className="flex items-center gap-2">
                           <button
-                            onClick={handleDelete}
-                            disabled={deleting}
-                            className="text-sm font-medium bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5"
+                            onClick={() => setConvertMode('project')}
+                            className="flex-1 flex items-center justify-center gap-2 p-3 border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-primary)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors cursor-pointer"
                           >
-                            {deleting && <Loader2 size={14} className="animate-spin" />}
-                            Yes, delete
+                            <FolderPlus size={16} />
+                            Create Project
                           </button>
                           <button
-                            onClick={() => setConfirmDelete(false)}
-                            className="text-sm font-medium text-surface-500 hover:text-surface-800 dark:text-surface-400 dark:hover:text-surface-200 px-3 py-1.5 rounded-md transition-colors"
+                            onClick={() => setConvertMode('card')}
+                            className="flex-1 flex items-center justify-center gap-2 p-3 border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-primary)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors cursor-pointer"
+                          >
+                            <ArrowRightCircle size={16} />
+                            Add as Card
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {convertMode === 'project' && (
+                      <div>
+                        <p className="text-sm text-surface-700 dark:text-surface-300 mb-3">
+                          Create a new project from this idea?
+                        </p>
+                        <div className="flex items-center gap-2 justify-end">
+                          <button
+                            onClick={() => setConvertMode('none')}
+                            className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors"
                           >
                             Cancel
                           </button>
+                          <button
+                            onClick={handleConvertToProject}
+                            disabled={converting}
+                            className="bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                          >
+                            {converting && <Loader2 size={14} className="animate-spin" />}
+                            Confirm
+                          </button>
                         </div>
-                      )}
+                      </div>
+                    )}
+
+                    {convertMode === 'card' && selectedIdea && (
+                      <IdeaConvertWizard
+                        ideaId={selectedIdea.id}
+                        onComplete={onClose}
+                        onCancel={() => setConvertMode('none')}
+                      />
+                    )}
+                  </div>
+
+                  {/* Footer: Timestamps + Delete */}
+                  <div className="flex flex-col gap-3">
+                    <div className="ruled-line-accent" />
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex gap-4">
+                        <div className="flex gap-1.5 font-data text-[11px] text-[var(--color-text-muted)]">
+                          <span>Created</span>
+                          <span className="text-[var(--color-text-secondary)]" title={formatDate(selectedIdea.createdAt)}>{formatRelativeTime(selectedIdea.createdAt)}</span>
+                        </div>
+                        <div className="flex gap-1.5 font-data text-[11px] text-[var(--color-text-muted)]">
+                          <span>Updated</span>
+                          <span className="text-[var(--color-text-secondary)]" title={formatDate(selectedIdea.updatedAt)}>{formatRelativeTime(selectedIdea.updatedAt)}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {!confirmDelete ? (
+                          <button
+                            onClick={() => setConfirmDelete(true)}
+                            className="flex items-center gap-1.5 text-sm font-medium text-surface-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 px-3 py-1.5 rounded-md transition-colors"
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-surface-600 dark:text-surface-300">Delete?</span>
+                            <button
+                              onClick={handleDelete}
+                              disabled={deleting}
+                              className="text-sm font-medium bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5"
+                            >
+                              {deleting && <Loader2 size={14} className="animate-spin" />}
+                              Yes
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(false)}
+                              className="text-sm font-medium text-surface-500 hover:text-surface-800 dark:text-surface-400 dark:hover:text-surface-200 px-3 py-1.5 rounded-md transition-colors"
+                            >
+                              No
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </>
-            )}
-          </>
+                </>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>

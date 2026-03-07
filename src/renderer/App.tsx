@@ -35,8 +35,8 @@ import AchievementBanner from './components/AchievementBanner';
 import SetupWizard from './components/SetupWizard';
 import FeatureTour from './components/FeatureTour';
 import WhatsNewModal from './components/WhatsNewModal';
-import { releaseNotes, getReleaseType } from '../shared/releaseNotes';
-import type { ReleaseType, ReleaseNoteSection } from '../shared/releaseNotes';
+import { releaseNotes, releaseHistory, getReleaseType } from '../shared/releaseNotes';
+import type { ReleaseType, ReleaseNoteSection, ReleaseNotesData } from '../shared/releaseNotes';
 import { toast } from './hooks/useToast';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -66,6 +66,7 @@ function AppShell({ children }: { children: ReactNode }) {
     version: string;
     releaseType: ReleaseType;
     sections: ReleaseNoteSection[];
+    previousVersions: ReleaseNotesData[];
   } | null>(null);
   const showStartModal = useFocusStore(s => s.showStartModal);
   const focusMode = useFocusStore(s => s.mode);
@@ -180,6 +181,7 @@ function AppShell({ children }: { children: ReactNode }) {
             version: currentVersion,
             releaseType: 'minor', // first time seeing the modal = treat as notable
             sections: releaseNotes.sections,
+            previousVersions: releaseHistory.slice(1),
           });
         } else {
           // Genuine first install — seed silently
@@ -191,6 +193,7 @@ function AppShell({ children }: { children: ReactNode }) {
           version: currentVersion,
           releaseType: getReleaseType(lastSeen, currentVersion),
           sections: releaseNotes.sections,
+          previousVersions: releaseHistory.slice(1),
         });
       } else if (lastSeen !== currentVersion) {
         // Version changed but no matching notes (edge case) — silently update
@@ -269,6 +272,7 @@ function AppShell({ children }: { children: ReactNode }) {
           version={whatsNew.version}
           releaseType={whatsNew.releaseType}
           sections={whatsNew.sections}
+          previousVersions={whatsNew.previousVersions}
           onDismiss={async () => {
             setWhatsNew(null);
             await useSettingsStore.getState().setSetting('app.lastSeenVersion', whatsNew.version);
