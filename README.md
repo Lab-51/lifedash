@@ -17,7 +17,7 @@ Record, transcribe, and extract action items — 100% locally.
 
 <img src="docs/lifedash.png" alt="LifeDash Dashboard" width="900" />
 
-[Report Bug](https://github.com/Lab-51/lifedash/issues) · [Request Feature](https://github.com/Lab-51/lifedash/issues)
+[Website](https://lifedash.space) · [Report Bug](https://github.com/Lab-51/lifedash/issues) · [Request Feature](https://github.com/Lab-51/lifedash/issues)
 
 </div>
 
