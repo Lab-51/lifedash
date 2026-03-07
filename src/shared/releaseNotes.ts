@@ -28,6 +28,33 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.1',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Voice-to-text input for brainstorm chat, card descriptions, and comments',
+          'Whisper model picker in Settings — choose between Standard and High Quality models',
+          'Automatic GPU detection for transcription (Vulkan, CUDA, or CPU fallback)',
+          'Multilingual transcription support — 99 languages with auto-detect',
+          'Conversational brainstorm UX with quick-reply chips and streaming markdown',
+        ],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Improved Whisper accuracy with beam search, context carryover, and segment overlap',
+          'Fixed voice input producing only "you" — now captures raw PCM at correct sample rate',
+          'Consistent Rajdhani font in AI agent chat panel and markdown responses',
+          'Card relationships now show titles and support cross-project picking',
+          'Focus overlay pause/stop buttons are now clickable',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.0',
     sections: [
       {
@@ -41,7 +68,6 @@ export const releaseHistory: ReleaseNotesData[] = [
       },
     ],
   },
-  // Previous versions — add entries here during releases (max 5 total)
 ];
 
 /** Current release notes (latest entry). */
