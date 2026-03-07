@@ -28,6 +28,19 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.4',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Larger, more readable text in brainstorm chat',
+          'AI responses are now shorter with 1-2 examples and an option to expand',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.3',
     sections: [
       {
