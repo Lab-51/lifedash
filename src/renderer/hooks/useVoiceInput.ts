@@ -76,7 +76,7 @@ export function useVoiceInput({ onTranscript }: UseVoiceInputOptions) {
 
     setIsProcessing(true);
     try {
-      const result = await window.electronAPI.voiceTranscribe(int16.buffer);
+      const result = await window.electronAPI.voiceTranscribe(int16.buffer as ArrayBuffer);
       if (result.text) {
         onTranscriptRef.current(result.text);
       }
