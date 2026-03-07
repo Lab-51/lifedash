@@ -28,6 +28,19 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.2',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Meeting cards now update correctly when all action items are dismissed',
+          'Fixed TypeScript build error in voice input hook',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.1',
     sections: [
       {
