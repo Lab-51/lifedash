@@ -27,7 +27,15 @@ Record, transcribe, and extract action items — 100% locally.
 
 ## What is LifeDash?
 
-LifeDash is an AI-powered desktop app that records your meetings, transcribes them locally, generates briefs, and extracts action items — all without sending a single byte to the cloud. It also includes project management, AI brainstorming, idea tracking, and focus/time tracking in one unified interface.
+LifeDash records your meetings, transcribes them locally using Whisper, generates AI briefs, and extracts action items — without sending a single byte to the cloud. Push action items to a built-in Kanban board, brainstorm with AI, and track time — all in one app.
+
+### Platform Support
+
+| Platform | Status |
+|----------|--------|
+| Windows 10+ | Available — [download the installer](https://github.com/Lab-51/lifedash/releases/latest) |
+| macOS | [Planned](https://github.com/Lab-51/lifedash/issues/1) — contributions welcome |
+| Linux | [Planned](https://github.com/Lab-51/lifedash/issues/2) — contributions welcome |
 
 ## Why LifeDash?
 
@@ -40,9 +48,20 @@ LifeDash is an AI-powered desktop app that records your meetings, transcribes th
 | AI briefs & summaries | Yes | Yes | Yes | Yes |
 | Action item extraction | Yes | Yes | Yes | Yes |
 | Project management | Yes | No | No | No |
-| Bring your own AI key | Yes | N/A | N/A | N/A |
+| Bring your own AI key | Yes | No | No | No |
 | Open source | Yes | No | No | No |
 | **Price** | **Free** | **$204/yr** | **$216/yr** | **$384/yr** |
+
+## Download
+
+**Just want to use LifeDash?** Download the installer — no development tools needed.
+
+1. Go to the [latest release](https://github.com/Lab-51/lifedash/releases/latest)
+2. Download `LifeDash-X.X.X-Setup.exe`
+3. Run the installer
+4. Open LifeDash, follow the setup wizard to add your AI API key, and start recording
+
+> The app uses an embedded database and runs fully offline. No accounts, no cloud, no setup beyond the installer.
 
 ## Features
 
@@ -83,7 +102,11 @@ LifeDash is an AI-powered desktop app that records your meetings, transcribes th
 - Encrypted API key storage via OS keychain
 - Open source — audit the code yourself
 
-## Quick Start
+---
+
+## Build from Source
+
+> **For developers and contributors.** Most users should [download the installer](#download) instead.
 
 ### Prerequisites
 
@@ -116,7 +139,7 @@ No database setup needed — the app uses an embedded database (PGlite) and runs
 | `npm install` fails with Python errors | Install Python 3.x and set `npm config set python python3` |
 | App shows white screen on start | Run `npm run lint` to check for TypeScript errors |
 
-## Available Scripts
+### Available Scripts
 
 | Script | Description |
 |--------|-------------|
