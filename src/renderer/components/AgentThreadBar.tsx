@@ -72,7 +72,7 @@ export default function AgentThreadBar({
     <div ref={wrapperRef} className="relative shrink-0">
       {/* Collapsed bar */}
       <div className="flex items-center h-8 px-3 bg-[var(--color-chrome)] border-b border-[var(--color-border)]">
-        <span className="flex-1 text-xs font-data text-[var(--color-text-secondary)] truncate">
+        <span className="flex-1 text-xs font-medium text-[var(--color-text-secondary)] truncate">
           {loading ? 'Loading...' : displayTitle}
         </span>
         <div className="flex items-center gap-0.5 shrink-0 ml-2">
@@ -97,7 +97,7 @@ export default function AgentThreadBar({
       {expanded && (
         <div className="absolute left-0 right-0 top-8 z-10 bg-[var(--color-chrome)] border border-[var(--color-border)] border-t-0 rounded-b-lg shadow-lg max-h-[200px] overflow-y-auto">
           {threads.length === 0 ? (
-            <div className="px-3 py-3 text-xs text-[var(--color-text-muted)] font-data text-center">
+            <div className="px-3 py-3 text-xs text-[var(--color-text-muted)] text-center">
               No conversations yet
             </div>
           ) : (
@@ -116,7 +116,7 @@ export default function AgentThreadBar({
                       : 'hover:bg-[var(--color-surface-hover)] border-l-2 border-l-transparent'
                   }`}
                 >
-                  <span className="flex-1 text-xs font-data text-[var(--color-text-secondary)] truncate">
+                  <span className="flex-1 text-xs font-medium text-[var(--color-text-secondary)] truncate">
                     {thread.title}
                   </span>
 
