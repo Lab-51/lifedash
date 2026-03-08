@@ -16,9 +16,9 @@ import { getDb } from '../db/connection';
 import {
   cards, columns, boards, projects,
   cardChecklistItems, cardComments, cardRelationships,
-  cardAgentMessages,
+  cardAgentMessages, cardAgentThreads,
 } from '../db/schema';
-import type { CardAgentMessage, ToolCallRecord, ToolResultRecord, AgentAction } from '../../shared/types';
+import type { CardAgentMessage, CardAgentThread, ToolCallRecord, ToolResultRecord, AgentAction } from '../../shared/types';
 import { createLogger } from './logger';
 
 const log = createLogger('CardAgent');
@@ -31,6 +31,7 @@ function toMessage(row: typeof cardAgentMessages.$inferSelect): CardAgentMessage
   return {
     id: row.id,
     cardId: row.cardId,
+    threadId: row.threadId ?? null,
     role: row.role as CardAgentMessage['role'],
     content: row.content,
     toolCalls: row.toolCalls as ToolCallRecord[] | null,
@@ -97,7 +98,7 @@ describe what you would do — actually do it using the available tools.
 When creating a new card with the createCard tool:
 - Keep the description to 1-2 sentences max. The description is a brief summary, not a spec.
 - Do NOT put task lists, steps, or checklists inside the description. Use addChecklistItem for those.
-- After creating a card, add 3-5 focused checklist items using addChecklistItem — not more.
+- After creating a card, add 3-5 focused checklist items to it using addChecklistItem with the targetCardId set to the new card's ID — not more.
 - Checklist items should be high-level milestones, not granular sub-steps.
 - If the user's request is vague or broad, ask 1-2 clarifying questions BEFORE creating the card. For example: "What's the main goal?" or "Should this focus on X or Y?"
 - Do not over-structure. Start lean — the user can always ask for more detail later.
@@ -236,23 +237,25 @@ export function createCardAgentTools(cardId: string, projectId: string | null) {
     }),
 
     addChecklistItem: tool({
-      description: 'Add a new checklist item to this card',
+      description: 'Add a new checklist item to a card. Defaults to the current card, but pass targetCardId to add to a different card (e.g. one you just created).',
       inputSchema: z.object({
         title: z.string().describe('The checklist item text'),
+        targetCardId: z.string().uuid().optional().describe('ID of the card to add the item to. Omit to add to the current card.'),
       }),
-      execute: async ({ title }) => {
+      execute: async ({ title, targetCardId }) => {
+        const resolvedCardId = targetCardId ?? cardId;
         const [{ value: existingCount }] = await db
           .select({ value: count() })
           .from(cardChecklistItems)
-          .where(eq(cardChecklistItems.cardId, cardId));
+          .where(eq(cardChecklistItems.cardId, resolvedCardId));
 
         const [item] = await db.insert(cardChecklistItems).values({
-          cardId,
+          cardId: resolvedCardId,
           title,
           position: existingCount,
         }).returning();
 
-        return { success: true, item: { id: item.id, title: item.title } };
+        return { success: true, item: { id: item.id, title: item.title }, cardId: resolvedCardId };
       },
     }),
 
@@ -330,7 +333,9 @@ export function createCardAgentTools(cardId: string, projectId: string | null) {
 
         return {
           success: true,
+          cardId: newCard.id,
           card: { id: newCard.id, title: newCard.title, column: col?.name ?? 'Unknown' },
+          hint: 'Use this cardId as targetCardId in addChecklistItem to add checklist items to the new card.',
         };
       },
     }),
@@ -341,10 +346,71 @@ export function createCardAgentTools(cardId: string, projectId: string | null) {
 // Message Persistence
 // ---------------------------------------------------------------------------
 
-export async function getMessages(cardId: string): Promise<CardAgentMessage[]> {
+// ---------------------------------------------------------------------------
+// Thread CRUD
+// ---------------------------------------------------------------------------
+
+export async function getThreads(cardId: string): Promise<CardAgentThread[]> {
   const db = getDb();
+
+  // Step 1: fetch all threads for this card
+  const threads = await db.select().from(cardAgentThreads)
+    .where(eq(cardAgentThreads.cardId, cardId))
+    .orderBy(desc(cardAgentThreads.createdAt));
+
+  if (threads.length === 0) return [];
+
+  // Step 2: count messages per thread (single query, group by threadId)
+  const threadIds = threads.map(t => t.id);
+  const counts = await db.select({
+    threadId: cardAgentMessages.threadId,
+    value: count(),
+  }).from(cardAgentMessages)
+    .where(inArray(cardAgentMessages.threadId, threadIds))
+    .groupBy(cardAgentMessages.threadId);
+
+  const countMap = new Map(counts.map(c => [c.threadId, c.value]));
+
+  return threads.map(t => ({
+    id: t.id,
+    cardId: t.cardId,
+    title: t.title,
+    createdAt: t.createdAt.toISOString(),
+    messageCount: countMap.get(t.id) ?? 0,
+  }));
+}
+
+export async function createThread(cardId: string, title: string): Promise<CardAgentThread> {
+  const db = getDb();
+  const [row] = await db.insert(cardAgentThreads).values({
+    cardId,
+    title,
+  }).returning();
+  return {
+    id: row.id,
+    cardId: row.cardId,
+    title: row.title,
+    createdAt: row.createdAt.toISOString(),
+    messageCount: 0,
+  };
+}
+
+export async function deleteThread(threadId: string): Promise<void> {
+  const db = getDb();
+  await db.delete(cardAgentThreads).where(eq(cardAgentThreads.id, threadId));
+}
+
+// ---------------------------------------------------------------------------
+// Message Persistence
+// ---------------------------------------------------------------------------
+
+export async function getMessages(cardId: string, threadId?: string): Promise<CardAgentMessage[]> {
+  const db = getDb();
+  const condition = threadId
+    ? and(eq(cardAgentMessages.cardId, cardId), eq(cardAgentMessages.threadId, threadId))
+    : eq(cardAgentMessages.cardId, cardId);
   const rows = await db.select().from(cardAgentMessages)
-    .where(eq(cardAgentMessages.cardId, cardId))
+    .where(condition)
     .orderBy(asc(cardAgentMessages.createdAt));
   return rows.map(toMessage);
 }
@@ -355,6 +421,7 @@ export async function addMessage(
   content: string | null,
   toolCalls?: ToolCallRecord[],
   toolResults?: ToolResultRecord[],
+  threadId?: string,
 ): Promise<CardAgentMessage> {
   const db = getDb();
   const [row] = await db.insert(cardAgentMessages).values({
@@ -363,6 +430,7 @@ export async function addMessage(
     content,
     toolCalls: toolCalls ?? null,
     toolResults: toolResults ?? null,
+    threadId: threadId ?? null,
   }).returning();
   return toMessage(row);
 }
@@ -372,11 +440,14 @@ export async function clearMessages(cardId: string): Promise<void> {
   await db.delete(cardAgentMessages).where(eq(cardAgentMessages.cardId, cardId));
 }
 
-export async function getMessageCount(cardId: string): Promise<number> {
+export async function getMessageCount(cardId: string, threadId?: string): Promise<number> {
   const db = getDb();
+  const condition = threadId
+    ? and(eq(cardAgentMessages.cardId, cardId), eq(cardAgentMessages.threadId, threadId))
+    : eq(cardAgentMessages.cardId, cardId);
   const [{ value }] = await db.select({ value: count() })
     .from(cardAgentMessages)
-    .where(eq(cardAgentMessages.cardId, cardId));
+    .where(condition);
   return value;
 }
 

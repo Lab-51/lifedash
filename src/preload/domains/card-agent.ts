@@ -2,11 +2,20 @@
 import { ipcRenderer } from 'electron';
 
 export const cardAgentBridge = {
-  cardAgentSendMessage: (cardId: string, content: string) =>
-    ipcRenderer.invoke('card-agent:send-message', cardId, content),
+  cardAgentGetThreads: (cardId: string) =>
+    ipcRenderer.invoke('card-agent:get-threads', cardId),
 
-  cardAgentGetMessages: (cardId: string) =>
-    ipcRenderer.invoke('card-agent:get-messages', cardId),
+  cardAgentCreateThread: (cardId: string, title: string) =>
+    ipcRenderer.invoke('card-agent:create-thread', cardId, title),
+
+  cardAgentDeleteThread: (threadId: string) =>
+    ipcRenderer.invoke('card-agent:delete-thread', threadId),
+
+  cardAgentSendMessage: (cardId: string, content: string, threadId?: string) =>
+    ipcRenderer.invoke('card-agent:send-message', cardId, content, threadId),
+
+  cardAgentGetMessages: (cardId: string, threadId?: string) =>
+    ipcRenderer.invoke('card-agent:get-messages', cardId, threadId),
 
   cardAgentClearMessages: (cardId: string) =>
     ipcRenderer.invoke('card-agent:clear-messages', cardId),

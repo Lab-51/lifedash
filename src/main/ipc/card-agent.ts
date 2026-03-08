@@ -7,6 +7,7 @@ import { streamText, stepCountIs, type LanguageModel } from 'ai';
 import * as cardAgentService from '../services/cardAgentService';
 import { resolveTaskModel, getProvider, logUsage } from '../services/ai-provider';
 import { createLogger } from '../services/logger';
+import { z } from 'zod';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema, cardAgentMessageContentSchema } from '../../shared/validation/schemas';
 import { eq } from 'drizzle-orm';
@@ -25,19 +26,45 @@ const activeStreams = new Map<string, AbortController>();
 const CONVERSATION_WINDOW = 20;
 
 export function registerCardAgentHandlers(): void {
+  // --- Thread CRUD ---
+  ipcMain.handle('card-agent:get-threads', async (_event, cardId: unknown) => {
+    const validCardId = validateInput(idParamSchema, cardId);
+    return cardAgentService.getThreads(validCardId);
+  });
+
+  ipcMain.handle('card-agent:create-thread', async (_event, cardId: unknown, title: unknown) => {
+    const validCardId = validateInput(idParamSchema, cardId);
+    const validTitle = validateInput(z.string().min(1).max(200), title);
+    return cardAgentService.createThread(validCardId, validTitle);
+  });
+
+  ipcMain.handle('card-agent:delete-thread', async (_event, threadId: unknown) => {
+    const validThreadId = validateInput(idParamSchema, threadId);
+    await cardAgentService.deleteThread(validThreadId);
+  });
+
   // --- Streaming agent chat ---
   ipcMain.handle(
     'card-agent:send-message',
-    async (event, cardId: unknown, content: unknown) => {
+    async (event, cardId: unknown, content: unknown, threadId: unknown) => {
 
       const validCardId = validateInput(idParamSchema, cardId);
       const validContent = validateInput(cardAgentMessageContentSchema, content);
+      const validThreadId = threadId ? validateInput(idParamSchema, threadId) : undefined;
+
+      // 0. Auto-create thread if none provided
+      let resolvedThreadId = validThreadId;
+      if (!resolvedThreadId) {
+        const title = validContent.slice(0, 80).replace(/\s+\S*$/, '') || validContent.slice(0, 80);
+        const thread = await cardAgentService.createThread(validCardId, title);
+        resolvedThreadId = thread.id;
+      }
 
       // 1. Save user message
-      await cardAgentService.addMessage(validCardId, 'user', validContent);
+      await cardAgentService.addMessage(validCardId, 'user', validContent, undefined, undefined, resolvedThreadId);
 
-      // 2. Load conversation history
-      const messages = await cardAgentService.getMessages(validCardId);
+      // 2. Load conversation history (scoped to thread)
+      const messages = await cardAgentService.getMessages(validCardId, resolvedThreadId);
 
       // 3. Build card context
       const systemPrompt = await cardAgentService.buildCardContext(validCardId);
@@ -200,6 +227,7 @@ export function registerCardAgentHandlers(): void {
         fullText || null,
         toolCallRecords,
         toolResultRecords,
+        resolvedThreadId,
       );
 
       // 12. Log usage
@@ -218,15 +246,16 @@ export function registerCardAgentHandlers(): void {
         collectedToolResults.map(tr => ({ success: tr.success })),
       );
 
-      return { assistantMessage: assistantMsg, actions };
+      return { assistantMessage: assistantMsg, actions, threadId: resolvedThreadId };
     },
   );
 
   // --- Get conversation history ---
-  ipcMain.handle('card-agent:get-messages', async (_event, cardId: unknown) => {
+  ipcMain.handle('card-agent:get-messages', async (_event, cardId: unknown, threadId: unknown) => {
 
     const validCardId = validateInput(idParamSchema, cardId);
-    return cardAgentService.getMessages(validCardId);
+    const validThreadId = threadId ? validateInput(idParamSchema, threadId) : undefined;
+    return cardAgentService.getMessages(validCardId, validThreadId);
   });
 
   // --- Clear conversation ---

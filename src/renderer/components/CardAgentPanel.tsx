@@ -6,11 +6,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SendHorizonal, Square, Trash2, Loader2, ListChecks, FileText, Search, Plus, Bot, Copy, CheckCircle2, XCircle, Settings } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
+import AgentThreadBar from './AgentThreadBar';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
 import { useCardAgentStore } from '../stores/cardAgentStore';
 import { useCardDetailStore } from '../stores/cardDetailStore';
+import { useBoardStore } from '../stores/boardStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { CardAgentMessage, ToolCallRecord } from '../../shared/types/card-agent';
 
@@ -113,8 +115,14 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
   const loading = useCardAgentStore(s => s.loading);
   const loadMessages = useCardAgentStore(s => s.loadMessages);
   const sendMessage = useCardAgentStore(s => s.sendMessage);
-  const clearMessages = useCardAgentStore(s => s.clearMessages);
   const abort = useCardAgentStore(s => s.abort);
+  const threads = useCardAgentStore(s => s.threads);
+  const activeThreadId = useCardAgentStore(s => s.activeThreadId);
+  const threadsLoading = useCardAgentStore(s => s.threadsLoading);
+  const loadThreads = useCardAgentStore(s => s.loadThreads);
+  const switchThread = useCardAgentStore(s => s.switchThread);
+  const newThread = useCardAgentStore(s => s.newThread);
+  const deleteThread = useCardAgentStore(s => s.deleteThread);
   const providers = useSettingsStore(s => s.providers);
   const navigate = useNavigate();
 
@@ -126,14 +134,15 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const userScrolledUpRef = useRef(false);
 
-  // Load messages on mount + ensure providers are loaded for the empty-state check
+  // Load messages + threads on mount, ensure providers are loaded for the empty-state check
   useEffect(() => {
     loadMessages(cardId);
+    loadThreads(cardId);
     if (providers.length === 0) {
       useSettingsStore.getState().loadProviders();
     }
     window.electronAPI.cardAgentGetModelInfo().then(setModelInfo).catch(() => {});
-  }, [cardId, loadMessages, providers.length]);
+  }, [cardId, loadMessages, loadThreads, providers.length]);
 
   // Track whether user has scrolled up
   useEffect(() => {
@@ -177,6 +186,11 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
     const latestActions = useCardAgentStore.getState().actions;
     if (latestActions.some(a => WRITE_TOOLS.has(a.toolName))) {
       useCardDetailStore.getState().loadCardDetails(cardId);
+      // Also refresh the board when a new card is created so it appears in the column
+      if (latestActions.some(a => a.toolName === 'createCard')) {
+        const projectId = useBoardStore.getState().project?.id;
+        if (projectId) useBoardStore.getState().loadBoard(projectId);
+      }
     }
     // Update message count for the agent button badge
     useCardAgentStore.getState().loadMessageCount(cardId);
@@ -195,8 +209,13 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
 
   const confirmClear = useCallback(async () => {
     setClearConfirmOpen(false);
-    await clearMessages(cardId);
-  }, [clearMessages, cardId]);
+    if (activeThreadId) {
+      await deleteThread(cardId, activeThreadId);
+    } else {
+      // No saved thread — just reset to empty state
+      newThread();
+    }
+  }, [activeThreadId, deleteThread, newThread, cardId]);
 
   // Loading skeleton
   if (loading) {
@@ -231,6 +250,18 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
   return (
     <>
     <div className="flex flex-col h-full">
+      {/* Thread bar — only when there are threads or an active conversation */}
+      {(threads.length > 0 || messages.length > 0) && (
+        <AgentThreadBar
+          threads={threads}
+          activeThreadId={activeThreadId}
+          onSelect={(id) => switchThread(cardId, id)}
+          onNew={() => newThread()}
+          onDelete={(id) => deleteThread(cardId, id)}
+          loading={threadsLoading}
+        />
+      )}
+
       {/* Message list */}
       <div
         ref={messagesContainerRef}
@@ -262,7 +293,7 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
                     className="hud-panel clip-corner-cut-sm p-3 hover:border-[var(--color-accent-dim)] cursor-pointer transition-colors text-left group"
                   >
                     <Icon size={14} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-accent)] mb-1.5 transition-colors" />
-                    <p className="text-xs text-[var(--color-text-secondary)] leading-snug">{prompt.text}</p>
+                    <p className="text-xs text-[var(--color-text-secondary)] leading-snug font-data">{prompt.text}</p>
                   </button>
                 );
               })}
@@ -380,9 +411,9 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
     </div>
     <ConfirmDialog
       open={clearConfirmOpen}
-      title="Clear Chat"
-      message="Clear all messages with the AI agent?"
-      confirmLabel="Clear"
+      title="Delete Conversation"
+      message="Delete this conversation? This cannot be undone."
+      confirmLabel="Delete"
       variant="danger"
       onConfirm={confirmClear}
       onCancel={() => setClearConfirmOpen(false)}

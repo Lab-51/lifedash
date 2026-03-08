@@ -155,6 +155,13 @@
       "when": 1772400693429,
       "tag": "0021_amusing_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1772984367556,
+      "tag": "0022_perpetual_scarlet_spider",
+      "breakpoints": true
     }
   ]
 }

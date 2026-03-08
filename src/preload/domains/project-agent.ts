@@ -2,11 +2,20 @@
 import { ipcRenderer } from 'electron';
 
 export const projectAgentBridge = {
-  projectAgentSendMessage: (projectId: string, content: string) =>
-    ipcRenderer.invoke('project-agent:send-message', projectId, content),
+  projectAgentGetThreads: (projectId: string) =>
+    ipcRenderer.invoke('project-agent:get-threads', projectId),
 
-  projectAgentGetMessages: (projectId: string) =>
-    ipcRenderer.invoke('project-agent:get-messages', projectId),
+  projectAgentCreateThread: (projectId: string, title: string) =>
+    ipcRenderer.invoke('project-agent:create-thread', projectId, title),
+
+  projectAgentDeleteThread: (threadId: string) =>
+    ipcRenderer.invoke('project-agent:delete-thread', threadId),
+
+  projectAgentSendMessage: (projectId: string, content: string, threadId?: string) =>
+    ipcRenderer.invoke('project-agent:send-message', projectId, content, threadId),
+
+  projectAgentGetMessages: (projectId: string, threadId?: string) =>
+    ipcRenderer.invoke('project-agent:get-messages', projectId, threadId),
 
   projectAgentClearMessages: (projectId: string) =>
     ipcRenderer.invoke('project-agent:clear-messages', projectId),

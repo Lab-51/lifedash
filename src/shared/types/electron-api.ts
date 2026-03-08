@@ -49,8 +49,8 @@ import type { TranscriptionProviderType, TranscriptionProviderStatus } from './t
 import type { MeetingAnalytics } from './analytics';
 import type { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats, FocusTimeReport } from './focus';
 import type { GamificationStats, Achievement, XpEventType, XpDailyData } from './gamification';
-import type { CardAgentMessage, AgentAction } from './card-agent';
-import type { ProjectAgentMessage, ProjectAgentAction } from './project-agent';
+import type { CardAgentMessage, CardAgentThread, AgentAction } from './card-agent';
+import type { ProjectAgentMessage, ProjectAgentThread, ProjectAgentAction } from './project-agent';
 
 import type { AgentInsight, BackgroundAgentPreferences, InsightType, InsightStatus } from './background-agent';
 
@@ -303,9 +303,12 @@ export interface ElectronAPI {
   gamificationGetDaily: (days?: number) => Promise<XpDailyData[]>;
 
   // Card Agent
-  cardAgentSendMessage: (cardId: string, content: string) =>
-    Promise<{ assistantMessage: CardAgentMessage; actions: AgentAction[] } | null>;
-  cardAgentGetMessages: (cardId: string) => Promise<CardAgentMessage[]>;
+  cardAgentGetThreads: (cardId: string) => Promise<CardAgentThread[]>;
+  cardAgentCreateThread: (cardId: string, title: string) => Promise<CardAgentThread>;
+  cardAgentDeleteThread: (threadId: string) => Promise<void>;
+  cardAgentSendMessage: (cardId: string, content: string, threadId?: string) =>
+    Promise<{ assistantMessage: CardAgentMessage; actions: AgentAction[]; threadId: string } | null>;
+  cardAgentGetMessages: (cardId: string, threadId?: string) => Promise<CardAgentMessage[]>;
   cardAgentClearMessages: (cardId: string) => Promise<void>;
   cardAgentGetMessageCount: (cardId: string) => Promise<number>;
   cardAgentAbort: (cardId: string) => Promise<void>;
@@ -320,9 +323,12 @@ export interface ElectronAPI {
   }) => void) => () => void;
 
   // Project Agent
-  projectAgentSendMessage: (projectId: string, content: string) =>
-    Promise<{ assistantMessage: ProjectAgentMessage; actions: ProjectAgentAction[] } | null>;
-  projectAgentGetMessages: (projectId: string) => Promise<ProjectAgentMessage[]>;
+  projectAgentGetThreads: (projectId: string) => Promise<ProjectAgentThread[]>;
+  projectAgentCreateThread: (projectId: string, title: string) => Promise<ProjectAgentThread>;
+  projectAgentDeleteThread: (threadId: string) => Promise<void>;
+  projectAgentSendMessage: (projectId: string, content: string, threadId?: string) =>
+    Promise<{ assistantMessage: ProjectAgentMessage; actions: ProjectAgentAction[]; threadId: string } | null>;
+  projectAgentGetMessages: (projectId: string, threadId?: string) => Promise<ProjectAgentMessage[]>;
   projectAgentClearMessages: (projectId: string) => Promise<void>;
   projectAgentGetMessageCount: (projectId: string) => Promise<number>;
   projectAgentAbort: (projectId: string) => Promise<void>;

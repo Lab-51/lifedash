@@ -8,6 +8,7 @@ import { streamText, stepCountIs, type LanguageModel } from 'ai';
 import * as projectAgentService from '../services/projectAgentService';
 import { resolveTaskModel, getProvider, logUsage } from '../services/ai-provider';
 import { createLogger } from '../services/logger';
+import { z } from 'zod';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema, projectAgentMessageContentSchema } from '../../shared/validation/schemas';
 import type { ToolCallRecord, ToolResultRecord } from '../../shared/types';
@@ -23,19 +24,45 @@ const activeStreams = new Map<string, AbortController>();
 const CONVERSATION_WINDOW = 20;
 
 export function registerProjectAgentHandlers(): void {
+  // --- Thread CRUD ---
+  ipcMain.handle('project-agent:get-threads', async (_event, projectId: unknown) => {
+    const validProjectId = validateInput(idParamSchema, projectId);
+    return projectAgentService.getThreads(validProjectId);
+  });
+
+  ipcMain.handle('project-agent:create-thread', async (_event, projectId: unknown, title: unknown) => {
+    const validProjectId = validateInput(idParamSchema, projectId);
+    const validTitle = validateInput(z.string().min(1).max(200), title);
+    return projectAgentService.createThread(validProjectId, validTitle);
+  });
+
+  ipcMain.handle('project-agent:delete-thread', async (_event, threadId: unknown) => {
+    const validThreadId = validateInput(idParamSchema, threadId);
+    await projectAgentService.deleteThread(validThreadId);
+  });
+
   // --- Streaming agent chat ---
   ipcMain.handle(
     'project-agent:send-message',
-    async (event, projectId: unknown, content: unknown) => {
+    async (event, projectId: unknown, content: unknown, threadId: unknown) => {
 
       const validProjectId = validateInput(idParamSchema, projectId);
       const validContent = validateInput(projectAgentMessageContentSchema, content);
+      const validThreadId = threadId ? validateInput(idParamSchema, threadId) : undefined;
+
+      // 0. Auto-create thread if none provided
+      let resolvedThreadId = validThreadId;
+      if (!resolvedThreadId) {
+        const title = validContent.slice(0, 80).replace(/\s+\S*$/, '') || validContent.slice(0, 80);
+        const thread = await projectAgentService.createThread(validProjectId, title);
+        resolvedThreadId = thread.id;
+      }
 
       // 1. Save user message
-      await projectAgentService.addMessage(validProjectId, 'user', validContent);
+      await projectAgentService.addMessage(validProjectId, 'user', validContent, undefined, undefined, resolvedThreadId);
 
-      // 2. Load conversation history
-      const messages = await projectAgentService.getMessages(validProjectId);
+      // 2. Load conversation history (scoped to thread)
+      const messages = await projectAgentService.getMessages(validProjectId, resolvedThreadId);
 
       // 3. Build project context
       const systemPrompt = await projectAgentService.buildProjectContext(validProjectId);
@@ -183,6 +210,7 @@ export function registerProjectAgentHandlers(): void {
         fullText || null,
         toolCallRecords,
         toolResultRecords,
+        resolvedThreadId,
       );
 
       // 11. Log usage
@@ -201,15 +229,16 @@ export function registerProjectAgentHandlers(): void {
         collectedToolResults.map(tr => ({ success: tr.success })),
       );
 
-      return { assistantMessage: assistantMsg, actions };
+      return { assistantMessage: assistantMsg, actions, threadId: resolvedThreadId };
     },
   );
 
   // --- Get conversation history ---
-  ipcMain.handle('project-agent:get-messages', async (_event, projectId: unknown) => {
+  ipcMain.handle('project-agent:get-messages', async (_event, projectId: unknown, threadId: unknown) => {
 
     const validProjectId = validateInput(idParamSchema, projectId);
-    return projectAgentService.getMessages(validProjectId);
+    const validThreadId = threadId ? validateInput(idParamSchema, threadId) : undefined;
+    return projectAgentService.getMessages(validProjectId, validThreadId);
   });
 
   // --- Clear conversation ---

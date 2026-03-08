@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SendHorizonal, Square, Trash2, Loader2, AlertCircle, ArrowUpDown, CalendarCheck, BarChart3, Bot, Copy, CheckCircle2, XCircle, Settings } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
+import AgentThreadBar from './AgentThreadBar';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
@@ -120,8 +121,14 @@ export default function ProjectAgentPanel({ projectId, onWriteAction }: ProjectA
   const loading = useProjectAgentStore(s => s.loading);
   const loadMessages = useProjectAgentStore(s => s.loadMessages);
   const sendMessage = useProjectAgentStore(s => s.sendMessage);
-  const clearMessages = useProjectAgentStore(s => s.clearMessages);
   const abort = useProjectAgentStore(s => s.abort);
+  const threads = useProjectAgentStore(s => s.threads);
+  const activeThreadId = useProjectAgentStore(s => s.activeThreadId);
+  const threadsLoading = useProjectAgentStore(s => s.threadsLoading);
+  const loadThreads = useProjectAgentStore(s => s.loadThreads);
+  const switchThread = useProjectAgentStore(s => s.switchThread);
+  const newThread = useProjectAgentStore(s => s.newThread);
+  const deleteThread = useProjectAgentStore(s => s.deleteThread);
   const providers = useSettingsStore(s => s.providers);
   const navigate = useNavigate();
 
@@ -133,14 +140,15 @@ export default function ProjectAgentPanel({ projectId, onWriteAction }: ProjectA
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const userScrolledUpRef = useRef(false);
 
-  // Load messages on mount + ensure providers are loaded for the empty-state check
+  // Load messages + threads on mount, ensure providers are loaded for the empty-state check
   useEffect(() => {
     loadMessages(projectId);
+    loadThreads(projectId);
     if (providers.length === 0) {
       useSettingsStore.getState().loadProviders();
     }
     window.electronAPI.projectAgentGetModelInfo().then(setModelInfo).catch(() => {});
-  }, [projectId, loadMessages, providers.length]);
+  }, [projectId, loadMessages, loadThreads, providers.length]);
 
   // Track whether user has scrolled up
   useEffect(() => {
@@ -202,8 +210,12 @@ export default function ProjectAgentPanel({ projectId, onWriteAction }: ProjectA
 
   const confirmClear = useCallback(async () => {
     setClearConfirmOpen(false);
-    await clearMessages(projectId);
-  }, [clearMessages, projectId]);
+    if (activeThreadId) {
+      await deleteThread(projectId, activeThreadId);
+    } else {
+      newThread();
+    }
+  }, [activeThreadId, deleteThread, newThread, projectId]);
 
   // Suppress unused variable warning — actions is read via getState() after send
   void actions;
@@ -241,6 +253,18 @@ export default function ProjectAgentPanel({ projectId, onWriteAction }: ProjectA
   return (
     <>
     <div className="flex flex-col h-full">
+      {/* Thread bar — only when there are threads or an active conversation */}
+      {(threads.length > 0 || messages.length > 0) && (
+        <AgentThreadBar
+          threads={threads}
+          activeThreadId={activeThreadId}
+          onSelect={(id) => switchThread(projectId, id)}
+          onNew={() => newThread()}
+          onDelete={(id) => deleteThread(projectId, id)}
+          loading={threadsLoading}
+        />
+      )}
+
       {/* Message list */}
       <div
         ref={messagesContainerRef}
@@ -390,9 +414,9 @@ export default function ProjectAgentPanel({ projectId, onWriteAction }: ProjectA
     </div>
     <ConfirmDialog
       open={clearConfirmOpen}
-      title="Clear Chat"
-      message="Clear all messages with the AI agent?"
-      confirmLabel="Clear"
+      title="Delete Conversation"
+      message="Delete this conversation? This cannot be undone."
+      confirmLabel="Delete"
       variant="danger"
       onConfirm={confirmClear}
       onCancel={() => setClearConfirmOpen(false)}

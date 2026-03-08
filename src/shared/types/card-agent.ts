@@ -5,11 +5,20 @@ export type CardAgentMessageRole = 'user' | 'assistant' | 'tool';
 export interface CardAgentMessage {
   id: string;
   cardId: string;
+  threadId: string | null;
   role: CardAgentMessageRole;
   content: string | null;
   toolCalls: ToolCallRecord[] | null;
   toolResults: ToolResultRecord[] | null;
   createdAt: string;
+}
+
+export interface CardAgentThread {
+  id: string;
+  cardId: string;
+  title: string;
+  createdAt: string;
+  messageCount?: number;
 }
 
 export interface ToolCallRecord {

@@ -17,9 +17,9 @@ import { getDb } from '../db/connection';
 import {
   projects, boards, columns, cards,
   cardActivities, meetings, meetingBriefs, actionItems,
-  projectAgentMessages,
+  projectAgentMessages, projectAgentThreads,
 } from '../db/schema';
-import type { ProjectAgentMessage, ToolCallRecord, ToolResultRecord, ProjectAgentAction } from '../../shared/types';
+import type { ProjectAgentMessage, ProjectAgentThread, ToolCallRecord, ToolResultRecord, ProjectAgentAction } from '../../shared/types';
 import { createLogger } from './logger';
 
 const log = createLogger('ProjectAgent');
@@ -32,6 +32,7 @@ function toMessage(row: typeof projectAgentMessages.$inferSelect): ProjectAgentM
   return {
     id: row.id,
     projectId: row.projectId,
+    threadId: row.threadId ?? null,
     role: row.role as ProjectAgentMessage['role'],
     content: row.content,
     toolCalls: row.toolCalls as ToolCallRecord[] | null,
@@ -540,13 +541,70 @@ export function createProjectAgentTools(projectId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Thread CRUD
+// ---------------------------------------------------------------------------
+
+export async function getThreads(projectId: string): Promise<ProjectAgentThread[]> {
+  const db = getDb();
+
+  // Step 1: fetch all threads for this project
+  const threads = await db.select().from(projectAgentThreads)
+    .where(eq(projectAgentThreads.projectId, projectId))
+    .orderBy(desc(projectAgentThreads.createdAt));
+
+  if (threads.length === 0) return [];
+
+  // Step 2: count messages per thread (single query, group by threadId)
+  const threadIds = threads.map(t => t.id);
+  const counts = await db.select({
+    threadId: projectAgentMessages.threadId,
+    value: count(),
+  }).from(projectAgentMessages)
+    .where(inArray(projectAgentMessages.threadId, threadIds))
+    .groupBy(projectAgentMessages.threadId);
+
+  const countMap = new Map(counts.map(c => [c.threadId, c.value]));
+
+  return threads.map(t => ({
+    id: t.id,
+    projectId: t.projectId,
+    title: t.title,
+    createdAt: t.createdAt.toISOString(),
+    messageCount: countMap.get(t.id) ?? 0,
+  }));
+}
+
+export async function createThread(projectId: string, title: string): Promise<ProjectAgentThread> {
+  const db = getDb();
+  const [row] = await db.insert(projectAgentThreads).values({
+    projectId,
+    title,
+  }).returning();
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    title: row.title,
+    createdAt: row.createdAt.toISOString(),
+    messageCount: 0,
+  };
+}
+
+export async function deleteThread(threadId: string): Promise<void> {
+  const db = getDb();
+  await db.delete(projectAgentThreads).where(eq(projectAgentThreads.id, threadId));
+}
+
+// ---------------------------------------------------------------------------
 // Message Persistence
 // ---------------------------------------------------------------------------
 
-export async function getMessages(projectId: string): Promise<ProjectAgentMessage[]> {
+export async function getMessages(projectId: string, threadId?: string): Promise<ProjectAgentMessage[]> {
   const db = getDb();
+  const condition = threadId
+    ? and(eq(projectAgentMessages.projectId, projectId), eq(projectAgentMessages.threadId, threadId))
+    : eq(projectAgentMessages.projectId, projectId);
   const rows = await db.select().from(projectAgentMessages)
-    .where(eq(projectAgentMessages.projectId, projectId))
+    .where(condition)
     .orderBy(asc(projectAgentMessages.createdAt));
   return rows.map(toMessage);
 }
@@ -557,6 +615,7 @@ export async function addMessage(
   content: string | null,
   toolCalls?: ToolCallRecord[],
   toolResults?: ToolResultRecord[],
+  threadId?: string,
 ): Promise<ProjectAgentMessage> {
   const db = getDb();
   const [row] = await db.insert(projectAgentMessages).values({
@@ -565,6 +624,7 @@ export async function addMessage(
     content,
     toolCalls: toolCalls ?? null,
     toolResults: toolResults ?? null,
+    threadId: threadId ?? null,
   }).returning();
   return toMessage(row);
 }
@@ -574,11 +634,14 @@ export async function clearMessages(projectId: string): Promise<void> {
   await db.delete(projectAgentMessages).where(eq(projectAgentMessages.projectId, projectId));
 }
 
-export async function getMessageCount(projectId: string): Promise<number> {
+export async function getMessageCount(projectId: string, threadId?: string): Promise<number> {
   const db = getDb();
+  const condition = threadId
+    ? and(eq(projectAgentMessages.projectId, projectId), eq(projectAgentMessages.threadId, threadId))
+    : eq(projectAgentMessages.projectId, projectId);
   const [{ value }] = await db.select({ value: count() })
     .from(projectAgentMessages)
-    .where(eq(projectAgentMessages.projectId, projectId));
+    .where(condition);
   return value;
 }
 
