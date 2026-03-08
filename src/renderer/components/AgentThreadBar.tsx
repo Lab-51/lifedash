@@ -104,10 +104,13 @@ export default function AgentThreadBar({
             threads.map(thread => {
               const isActive = thread.id === activeThreadId;
               return (
-                <button
+                <div
                   key={thread.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleSelect(thread.id)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors group/thread ${
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelect(thread.id); }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors cursor-pointer group/thread ${
                     isActive
                       ? 'bg-[var(--color-accent-muted)] border-l-2 border-l-[var(--color-accent)]'
                       : 'hover:bg-[var(--color-surface-hover)] border-l-2 border-l-transparent'
@@ -138,7 +141,7 @@ export default function AgentThreadBar({
                   >
                     <Trash2 size={12} />
                   </button>
-                </button>
+                </div>
               );
             })
           )}

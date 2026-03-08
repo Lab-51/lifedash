@@ -99,6 +99,8 @@ export const useProjectAgentStore = create<ProjectAgentStore>((set, get) => ({
           set({ activeThreadId: null, messages: [] });
         }
       }
+      // Refresh badge count
+      get().loadMessageCount(projectId);
     } catch (error) {
       console.error('Failed to delete project agent thread:', error);
       toast('Failed to delete thread', 'error');

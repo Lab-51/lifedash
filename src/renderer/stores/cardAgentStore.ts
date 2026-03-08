@@ -100,6 +100,8 @@ export const useCardAgentStore = create<CardAgentStore>((set, get) => ({
           set({ activeThreadId: null, messages: [] });
         }
       }
+      // Refresh badge count
+      get().loadMessageCount(cardId);
     } catch (error) {
       console.error('Failed to delete card agent thread:', error);
       toast('Failed to delete thread', 'error');
