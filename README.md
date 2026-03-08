@@ -6,8 +6,8 @@
 
 **Your meetings. Your data. Your machine.**
 
-Free, open-source meeting intelligence that never leaves your desktop.
-Record, transcribe, and extract action items — 100% locally.
+Free, open-source meeting intelligence that runs entirely on your desktop.
+Record, transcribe, and pull out action items. Nothing leaves your computer.
 
 [![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Lab-51/lifedash/releases/latest)
 
@@ -27,15 +27,15 @@ Record, transcribe, and extract action items — 100% locally.
 
 ## What is LifeDash?
 
-LifeDash records your meetings, transcribes them locally using Whisper, generates AI briefs, and extracts action items — without sending a single byte to the cloud. Push action items to a built-in Kanban board, brainstorm with AI, and track time — all in one app.
+LifeDash records your meetings, transcribes them locally with Whisper, generates briefs, and pulls out action items. No cloud. No accounts. Push those action items straight to a built-in Kanban board, brainstorm with AI, track your time. One app.
 
 ### Platform Support
 
 | Platform | Status |
 |----------|--------|
-| Windows 10+ | Available — [download the installer](https://github.com/Lab-51/lifedash/releases/latest) |
-| macOS | [Planned](https://github.com/Lab-51/lifedash/issues/1) — contributions welcome |
-| Linux | [Planned](https://github.com/Lab-51/lifedash/issues/2) — contributions welcome |
+| Windows 10+ | Available. [Download the installer](https://github.com/Lab-51/lifedash/releases/latest) |
+| macOS | [Planned](https://github.com/Lab-51/lifedash/issues/1). Contributions welcome |
+| Linux | [Planned](https://github.com/Lab-51/lifedash/issues/2). Contributions welcome |
 
 ## Why LifeDash?
 
@@ -54,14 +54,14 @@ LifeDash records your meetings, transcribes them locally using Whisper, generate
 
 ## Download
 
-**Just want to use LifeDash?** Download the installer — no development tools needed.
+**Just want to use it?** Grab the installer. No dev tools needed.
 
 1. Go to the [latest release](https://github.com/Lab-51/lifedash/releases/latest)
 2. Download `LifeDash-X.X.X-Setup.exe`
 3. Run the installer
-4. Open LifeDash, follow the setup wizard to add your AI API key, and start recording
+4. Open LifeDash, add your AI API key in the setup wizard, and start recording
 
-> The app uses an embedded database and runs fully offline. No accounts, no cloud, no setup beyond the installer.
+> The app uses an embedded database and runs fully offline. No accounts, no cloud, nothing to configure beyond the installer.
 
 ## Features
 
@@ -74,19 +74,19 @@ LifeDash records your meetings, transcribes them locally using Whisper, generate
 - Searchable transcript archive
 - Meeting templates (standup, retro, planning, etc.)
 
-### Action Items to Project Board
-- Convert action items to Kanban cards in one click
+### From Action Items to Project Board
+- Turn action items into Kanban cards in one click
 - Link meetings to projects
-- Drag-and-drop card management with customizable columns
-- Card detail view with rich text editor, comments, checklists, due dates
+- Drag-and-drop cards with customizable columns
+- Card detail view with rich text, comments, checklists, due dates
 - Labels, tags, and search across all projects
 
 ### AI Agents
-- **Card Agent** — AI assistant per task (tool-calling, checklist management, research)
-- **Project Agent** — AI assistant per project (cross-board intelligence)
-- **Background Agents** — Autonomous project analysis and insights
-- **Brainstorm Sessions** — Conversational AI for ideation with project context
-- **Idea Repository** — Capture, tag, analyze, and convert ideas to projects
+- **Card Agent**: AI assistant per task (tool-calling, checklist management, research)
+- **Project Agent**: AI assistant per project (cross-board intelligence)
+- **Background Agents**: Autonomous project analysis and insights
+- **Brainstorm Sessions**: Conversational AI for ideation with project context
+- **Idea Repository**: Capture, tag, analyze, and convert ideas to projects
 
 ### Focus & Time Tracking
 - Pomodoro-style focus sessions
@@ -96,11 +96,11 @@ LifeDash records your meetings, transcribes them locally using Whisper, generate
 
 ### Privacy by Design
 - All data stored locally in embedded PostgreSQL (PGlite)
-- Audio recordings never leave your machine
-- AI processing uses YOUR API keys — we never see your data
+- Audio recordings stay on your machine
+- AI uses YOUR API keys. We never see your data
 - No accounts, no cloud sync, no telemetry
 - Encrypted API key storage via OS keychain
-- Open source — audit the code yourself
+- Open source. Read the code yourself
 
 ---
 
@@ -112,7 +112,7 @@ LifeDash records your meetings, transcribes them locally using Whisper, generate
 
 - [Node.js](https://nodejs.org/) 18+ (includes npm)
 - [Git](https://git-scm.com/)
-- **Windows:** [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload (required for native modules)
+- **Windows:** [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload (needed for native modules)
 
 ### Install & Run
 
@@ -123,13 +123,13 @@ npm install
 npm start
 ```
 
-No database setup needed — the app uses an embedded database (PGlite) and runs migrations automatically on first launch.
+No database setup. The app uses PGlite (embedded PostgreSQL) and runs migrations on first launch.
 
 ### Configuration
 
-- **AI API keys:** Configured in the Settings page within the app. Keys are stored using OS-level encryption via Electron safeStorage.
-- **Whisper model:** Download and manage local Whisper models from the Settings page.
-- **Transcription providers:** Deepgram and AssemblyAI can be configured as cloud transcription alternatives to local Whisper.
+- **AI API keys:** Set them in the Settings page. Keys are stored using OS-level encryption via Electron safeStorage.
+- **Whisper model:** Download and manage local Whisper models from Settings.
+- **Transcription providers:** Deepgram and AssemblyAI can be configured as cloud alternatives to local Whisper.
 
 ### Troubleshooting
 
@@ -143,14 +143,14 @@ No database setup needed — the app uses an embedded database (PGlite) and runs
 
 | Script | Description |
 |--------|-------------|
-| `npm start` | Launch the app in development mode |
-| `npm run package` | Package the app for distribution |
-| `npm run make` | Build platform-specific installers |
+| `npm start` | Launch in dev mode |
+| `npm run package` | Package for distribution |
+| `npm run make` | Build platform installers |
 | `npm run lint` | Type-check with TypeScript |
-| `npm test` | Run tests once |
+| `npm test` | Run tests |
 | `npm run test:watch` | Run tests in watch mode |
-| `npm run db:generate` | Generate database migration files |
-| `npm run db:migrate` | Apply database migrations |
+| `npm run db:generate` | Generate migration files |
+| `npm run db:migrate` | Apply migrations |
 | `npm run db:studio` | Open Drizzle Studio (database GUI) |
 
 ## Tech Stack
