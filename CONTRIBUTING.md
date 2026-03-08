@@ -48,4 +48,4 @@ The project uses TypeScript with React. Follow the existing patterns in the code
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contributions will be licensed under the [AGPL-3.0 License](LICENSE).
