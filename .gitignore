@@ -75,3 +75,12 @@ certs/
 # Database
 *.sql.bak
 pgdata/
+
+# Demo recording artifacts
+docs/demo-raw.mp4
+docs/demo-overlaid.mp4
+docs/demo-intro.mp4
+docs/demo-outro.mp4
+docs/demo-concat.txt
+docs/demo-frames/
+docs/palette.png

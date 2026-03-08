@@ -27,7 +27,10 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "make:icons": "node scripts/make-icons.js",
-    "verify:package": "node scripts/verify-package.js"
+    "verify:package": "node scripts/verify-package.js",
+    "demo:record": "node scripts/record-demo.mjs",
+    "demo:overlay": "bash scripts/demo-overlay.sh",
+    "demo:gif": "bash scripts/demo-overlay.sh --gif"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.43",
@@ -72,6 +75,7 @@
     "@electron/fuses": "^1.8.0",
     "@electron/notarize": "^3.1.1",
     "@electron/osx-sign": "^2.3.0",
+    "@playwright/test": "^1.58.2",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.0.0",
