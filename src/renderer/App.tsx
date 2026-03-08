@@ -179,6 +179,9 @@ function AppShell({ children }: { children: ReactNode }) {
         const isExistingUser = settings['setupWizard.completed'] === 'true'
           || Object.keys(settings).length > 0;
         if (isExistingUser && releaseNotes.version === currentVersion) {
+          // Persist immediately so the modal won't reappear if the app is closed
+          // before the user clicks dismiss.
+          await settingsStore.setSetting('app.lastSeenVersion', currentVersion);
           setWhatsNew({
             version: currentVersion,
             releaseType: 'minor', // first time seeing the modal = treat as notable
@@ -190,7 +193,10 @@ function AppShell({ children }: { children: ReactNode }) {
           await settingsStore.setSetting('app.lastSeenVersion', currentVersion);
         }
       } else if (lastSeen !== currentVersion && releaseNotes.version === currentVersion) {
-        // Version changed and we have matching notes — show modal
+        // Version changed and we have matching notes — show modal.
+        // Persist immediately so the modal won't reappear if the app is closed
+        // before the user clicks dismiss.
+        await settingsStore.setSetting('app.lastSeenVersion', currentVersion);
         setWhatsNew({
           version: currentVersion,
           releaseType: getReleaseType(lastSeen, currentVersion),
@@ -275,9 +281,8 @@ function AppShell({ children }: { children: ReactNode }) {
           releaseType={whatsNew.releaseType}
           sections={whatsNew.sections}
           previousVersions={whatsNew.previousVersions}
-          onDismiss={async () => {
+          onDismiss={() => {
             setWhatsNew(null);
-            await useSettingsStore.getState().setSetting('app.lastSeenVersion', whatsNew.version);
           }}
         />
       )}

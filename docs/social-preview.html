@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LifeDash Social Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1280px;
+    height: 640px;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a0a0f;
+    position: relative;
+  }
+
+  /* Subtle grid pattern */
+  .grid-bg {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+  }
+
+  /* Radial glow behind the screenshot */
+  .glow-bg {
+    position: absolute;
+    top: 50%;
+    right: 12%;
+    width: 600px;
+    height: 600px;
+    transform: translate(50%, -50%);
+    background: radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  /* Accent gradient line at top */
+  .top-accent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent 0%, #00d4ff 30%, #00d4ff 50%, transparent 100%);
+  }
+
+  .container {
+    position: relative;
+    width: 1280px;
+    height: 640px;
+    display: flex;
+    align-items: center;
+    z-index: 1;
+  }
+
+  /* Left side: text content */
+  .text-side {
+    width: 55%;
+    padding: 0 60px 0 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 6px;
+  }
+
+  .logo-icon {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+  }
+
+  .logo-title {
+    font-size: 56px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -1.5px;
+    line-height: 1.1;
+  }
+
+  .logo-title span {
+    color: #00d4ff;
+  }
+
+  .tagline {
+    font-size: 22px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.88);
+    line-height: 1.35;
+    margin-bottom: 14px;
+  }
+
+  .subtitle {
+    font-size: 15px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.5);
+    line-height: 1.5;
+    margin-bottom: 28px;
+    max-width: 420px;
+  }
+
+  .pills {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 36px;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 100px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #00d4ff;
+    background: rgba(0,212,255,0.08);
+    border: 1px solid rgba(0,212,255,0.2);
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+
+  .footer-url {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.28);
+    letter-spacing: 0.5px;
+  }
+
+  /* Right side: screenshot */
+  .image-side {
+    width: 45%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-right: 40px;
+    position: relative;
+  }
+
+  .screenshot-wrapper {
+    position: relative;
+    transform: rotate(2deg);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow:
+      0 4px 24px rgba(0,0,0,0.5),
+      0 0 60px rgba(0,212,255,0.1),
+      0 0 120px rgba(0,212,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    max-width: 520px;
+  }
+
+  .screenshot-wrapper img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div class="glow-bg"></div>
+  <div class="top-accent"></div>
+
+  <div class="container">
+    <div class="text-side">
+      <div class="logo-row">
+        <img class="logo-icon" src="icon.svg" alt="LifeDash logo">
+        <div class="logo-title">Life<span>Dash</span></div>
+      </div>
+      <div class="tagline">Your meetings. Your data.<br>Your machine.</div>
+      <div class="subtitle">Free, open-source meeting intelligence that runs 100% locally</div>
+      <div class="pills">
+        <span class="pill">Local Transcription</span>
+        <span class="pill">AI Briefs</span>
+        <span class="pill">Action Items</span>
+      </div>
+      <div class="footer-url">github.com/Lab-51/lifedash</div>
+    </div>
+    <div class="image-side">
+      <div class="screenshot-wrapper">
+        <img src="lifedash.png" alt="LifeDash app screenshot">
+      </div>
+    </div>
+  </div>
+</body>
+</html>
