@@ -3,6 +3,7 @@
 // Project-first selection: pick a project, then optionally pick a card from that project.
 
 import { useEffect, useMemo, useState } from 'react';
+import FocusTrap from '../components/FocusTrap';
 import { X, Search, Timer, Clock, ArrowRight, DollarSign, FolderOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import HudSelect from '../components/HudSelect';
@@ -57,19 +58,6 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
     }
   }, [isOpen, workDuration]);
 
-  // Escape key closes modal
-  useEffect(() => {
-    if (!isOpen) return;
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [isOpen, onClose]);
-
   // Cards for the selected project, filtered by search
   const projectCards = useMemo(() => {
     if (!selectedProjectId) return [];
@@ -100,6 +88,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
       onClick={onClose}
     >
+      <FocusTrap active={isOpen} onDeactivate={onClose}>
       <div
         className="w-full max-w-md hud-panel-accent clip-corner-cut shadow-2xl overflow-hidden relative"
         onClick={(e) => e.stopPropagation()}
@@ -297,6 +286,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
           </button>
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }

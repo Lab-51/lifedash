@@ -8,7 +8,8 @@
 // @tiptap/starter-kit, @tiptap/extension-placeholder, shared types, boardStore,
 // cardDetailStore, section components
 
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } from 'react';
+import FocusTrap from './FocusTrap';
 import { X, Plus, FileText, Sparkles, Check, RefreshCw, BookmarkPlus, Bot, PanelRightClose, Mic, MicOff } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -130,22 +131,20 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
     }
   }, [showAgent, agentEverOpened]);
 
-  // Close on Escape key — two-stage: first close agent panel, then close modal
-  // Skip when focus is inside an input/textarea/contenteditable to avoid conflicts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
-      if (showAgentRef.current) {
-        setShowAgent(false);
-      } else {
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  // Custom Escape handler for focus-trap: skip when focus is in input/textarea/contenteditable,
+  // and close agent panel first before closing the modal itself.
+  const handleEscapeDeactivates = useCallback((e: KeyboardEvent) => {
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return false;
+    if (showAgentRef.current) {
+      setShowAgent(false);
+      return false; // Don't deactivate the trap — just close the agent panel
+    }
+    return true; // Allow trap deactivation (which calls onClose)
+  }, []);
+
+  // Memoize to avoid re-creating on every render (focus-trap-react is sensitive to option changes)
+  const escapeDeactivates = useMemo(() => handleEscapeDeactivates, [handleEscapeDeactivates]);
 
   // Load card details (comments, relationships, activities) on mount
   useEffect(() => {
@@ -314,6 +313,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
   return (
     <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-[2px]">
+      <FocusTrap active={true} onDeactivate={onClose} escapeDeactivates={escapeDeactivates} clickOutsideDeactivates={false}>
       <div className={`hud-panel-accent clip-corner-cut shadow-2xl w-full flex flex-col overflow-hidden transition-all duration-300 ease-out ${showAgent ? 'max-w-[95vw] xl:max-w-[1400px]' : 'max-w-5xl'
         } max-h-[90vh] mx-4`}>
         {/* Header: Breadcrumb + Title + Close button */}
@@ -730,6 +730,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
           </div>
         </div>
       </div>
+      </FocusTrap>
     </div>
     <PromptDialog
       open={templatePromptOpen}

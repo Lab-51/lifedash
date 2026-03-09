@@ -7,6 +7,7 @@ import { streamText, stepCountIs, type LanguageModel } from 'ai';
 import * as cardAgentService from '../services/cardAgentService';
 import { resolveTaskModel, getProvider, logUsage } from '../services/ai-provider';
 import { createLogger } from '../services/logger';
+import { trackTiming } from '../services/performanceTracker';
 import { z } from 'zod';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema, cardAgentMessageContentSchema } from '../../shared/validation/schemas';
@@ -116,6 +117,7 @@ export function registerCardAgentHandlers(): void {
       );
 
       // 8. Stream with tools
+      const streamStart = performance.now();
       const result = streamText({
         model: factory(provider.model) as LanguageModel,
         messages: aiMessages,
@@ -196,6 +198,10 @@ export function registerCardAgentHandlers(): void {
       } finally {
         activeStreams.delete(validCardId);
       }
+
+      // 9b. Log AI stream duration
+      const streamDurationMs = Math.round(performance.now() - streamStart);
+      log.info(`AI stream completed in ${streamDurationMs}ms (tools: ${collectedToolCalls.length})`);
 
       // 10. If aborted with no text, return null
       if (aborted && !fullText.trim() && collectedToolCalls.length === 0) {

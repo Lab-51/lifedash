@@ -4,7 +4,8 @@
 // Includes delete with confirmation, convert-to-project / convert-to-card wizard,
 // AI analysis, and brainstorm navigation.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import FocusTrap from './FocusTrap';
 import {
   X,
   Loader2,
@@ -144,18 +145,12 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
     }
   }, [isCreateMode]);
 
-  // Escape key to close
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        const tag = (e.target as HTMLElement).tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  // Custom Escape handler: skip when focus is in input/textarea
+  const escapeDeactivates = useCallback((e: KeyboardEvent) => {
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return false;
+    return true;
+  }, []);
 
   // === HANDLERS ===
 
@@ -282,6 +277,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-[2px]"
     >
+      <FocusTrap active={true} onDeactivate={onClose} clickOutsideDeactivates={false} escapeDeactivates={escapeDeactivates}>
       <div className="hud-panel-accent clip-corner-cut shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col overflow-hidden">
 
         {/* Header: Breadcrumb + Close */}
@@ -608,6 +604,7 @@ export default function IdeaDetailModal({ ideaId, onClose, onNavigate }: IdeaDet
           </div>
         )}
       </div>
+      </FocusTrap>
     </div>
   );
 }

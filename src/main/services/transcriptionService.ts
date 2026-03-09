@@ -28,6 +28,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { aiUsage, settings } from '../db/schema';
 import { createLogger } from './logger';
+import { trackTiming } from './performanceTracker';
 import type { TranscriptionProviderType } from '../../shared/types';
 
 const log = createLogger('Transcription');
@@ -260,7 +261,7 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
     // When activeLanguage is 'auto', omit language so Whisper auto-detects per segment
     const { promise } = whisperContext!.transcribeData(arrayBuffer, whisperOpts);
 
-    const result = await promise;
+    const result = await trackTiming(`Whisper: segment #${segmentIndex - 1}`, () => promise);
 
     transcribing = false;
 
@@ -307,12 +308,12 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
 /** Dispatch a segment to the configured cloud API (Deepgram or AssemblyAI) */
 async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void> {
   try {
-    let result;
-    if (activeProvider === 'deepgram') {
-      result = await deepgramTranscriber.transcribeSegment(segment, startTimeMs, activeLanguage);
-    } else {
-      result = await assemblyaiTranscriber.transcribeSegment(segment, startTimeMs, activeLanguage);
-    }
+    const result = await trackTiming(`Transcription API: ${activeProvider}`, async () => {
+      if (activeProvider === 'deepgram') {
+        return deepgramTranscriber.transcribeSegment(segment, startTimeMs, activeLanguage);
+      }
+      return assemblyaiTranscriber.transcribeSegment(segment, startTimeMs, activeLanguage);
+    });
 
     // Process result — save to DB and push to renderer
     if (result.text && result.text.trim() && currentMeetingId) {

@@ -90,6 +90,7 @@ import {
   Snowflake,
   Users,
 } from 'lucide-react';
+import FocusTrap from './FocusTrap';
 import { useGamificationStore } from '../stores/gamificationStore';
 import { ACHIEVEMENTS } from '../../shared/types/gamification';
 
@@ -151,6 +152,7 @@ function AchievementsModal({ isOpen, onClose }: AchievementsModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
       onClick={onClose}
     >
+      <FocusTrap active={isOpen} onDeactivate={onClose}>
       <div
         className="w-full max-w-3xl max-h-[80vh] hud-panel-accent clip-corner-cut overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -247,6 +249,7 @@ function AchievementsModal({ isOpen, onClose }: AchievementsModalProps) {
           })}
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }

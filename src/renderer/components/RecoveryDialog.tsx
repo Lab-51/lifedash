@@ -2,7 +2,7 @@
 // Full-screen modal shown on startup when a crash marker is detected.
 // Lists recoverable items and lets the user restore or discard them.
 
-import { useEffect, useRef } from 'react';
+import FocusTrap from './FocusTrap';
 import { AlertTriangle } from 'lucide-react';
 import type { RecoveryState } from '../../shared/types/electron-api';
 
@@ -13,17 +13,6 @@ interface RecoveryDialogProps {
 }
 
 export default function RecoveryDialog({ state, onRestore, onDiscard }: RecoveryDialogProps) {
-  const onDiscardRef = useRef(onDiscard);
-  useEffect(() => { onDiscardRef.current = onDiscard; }, [onDiscard]);
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); onDiscardRef.current(); }
-    }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, []);
-
   const hasRecording = !!state.activeRecording;
   const draftCount = state.cardDrafts?.length ?? 0;
   const aiOpCount = state.pendingAiOps?.length ?? 0;
@@ -34,6 +23,7 @@ export default function RecoveryDialog({ state, onRestore, onDiscard }: Recovery
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onDiscard}
     >
+      <FocusTrap active={true} onDeactivate={onDiscard}>
       <div
         className="w-full max-w-md mx-4 hud-panel-accent clip-corner-cut shadow-2xl relative overflow-hidden"
         onClick={e => e.stopPropagation()}
@@ -97,6 +87,7 @@ export default function RecoveryDialog({ state, onRestore, onDiscard }: Recovery
           </button>
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }

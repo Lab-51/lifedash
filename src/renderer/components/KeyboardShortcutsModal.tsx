@@ -2,8 +2,8 @@
 // Modal overlay showing all keyboard shortcuts organized by category.
 // Opens via Ctrl+? or from the command palette.
 
-import { useEffect } from 'react';
 import { X } from 'lucide-react';
+import FocusTrap from './FocusTrap';
 
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
@@ -44,18 +44,6 @@ const SHORTCUT_GROUPS = [
 ];
 
 function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps) {
-  useEffect(() => {
-    if (!isOpen) return;
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [isOpen, onClose]);
-
   if (!isOpen) return null;
 
   return (
@@ -63,6 +51,7 @@ function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
       onClick={onClose}
     >
+      <FocusTrap active={isOpen} onDeactivate={onClose}>
       <div
         className="w-full max-w-md hud-panel-accent clip-corner-cut overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -103,6 +92,7 @@ function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps
           ))}
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }

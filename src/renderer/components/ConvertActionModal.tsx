@@ -9,7 +9,8 @@
 // react, lucide-react (X, Loader2, ChevronLeft), shared types,
 // window.electronAPI (getProjects, getBoards, getColumns)
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import FocusTrap from './FocusTrap';
 import { X, Loader2, ChevronLeft } from 'lucide-react';
 import type { Project, Board, Column, ActionItem } from '../../shared/types';
 
@@ -47,14 +48,8 @@ export default function ConvertActionModal({
   // Whether the user explicitly changed from the preselected project
   const [projectOverridden, setProjectOverridden] = useState(false);
 
-  // Close on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !converting) onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, converting]);
+  // Disable Escape when a conversion is in progress
+  const escapeDeactivates = useMemo(() => !converting, [converting]);
 
   // Load projects on mount (only needed if step 1 may be shown)
   useEffect(() => {
@@ -191,6 +186,7 @@ export default function ConvertActionModal({
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80"
       onClick={handleOverlayClick}
     >
+      <FocusTrap active={true} onDeactivate={onClose} escapeDeactivates={escapeDeactivates}>
       <div className="hud-panel-accent clip-corner-cut w-full max-w-md mx-4 p-5">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
@@ -364,6 +360,7 @@ export default function ConvertActionModal({
           </div>
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }

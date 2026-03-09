@@ -33,6 +33,7 @@ import { diagnosticsBridge } from './domains/diagnostics';
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   appVersion,
+  isTestMode: process.env.NODE_ENV === 'test',
   ...windowBridge,
   ...databaseBridge,
   ...projectsBridge,

@@ -193,6 +193,9 @@ function AppShell({ children }: { children: ReactNode }) {
       const tourCompleted = settings['featureTour.completed'] === 'true';
       const wizardCompleted = settings['setupWizard.completed'] === 'true';
 
+      // Skip onboarding overlays in E2E test mode
+      if ((window as any).electronAPI?.isTestMode) return;
+
       if (!tourCompleted && !wizardCompleted && providers.length === 0) {
         // Brand-new user — show tour first, wizard after
         setShowTour(true);

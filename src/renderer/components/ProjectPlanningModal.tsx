@@ -13,6 +13,7 @@
 // - Editing milestones is not supported (pillars/tasks are the actionable parts)
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import FocusTrap from './FocusTrap';
 import {
   X,
   Sparkles,
@@ -134,15 +135,6 @@ export default function ProjectPlanningModal({
     clearPlan();
     onClose();
   }, [clearPlan, onClose]);
-
-  // Escape key to close
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') handleClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleClose]);
 
   // Overlay click to close
   const handleOverlayClick = (e: React.MouseEvent) => {
@@ -316,6 +308,7 @@ export default function ProjectPlanningModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
       onClick={handleOverlayClick}
     >
+      <FocusTrap active={true} onDeactivate={handleClose}>
       <div className="hud-panel-accent clip-corner-cut max-w-4xl w-full max-h-[85vh] overflow-y-auto p-6 mx-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -577,6 +570,7 @@ export default function ProjectPlanningModal({
           </div>
         )}
       </div>
+      </FocusTrap>
     </div>
   );
 }

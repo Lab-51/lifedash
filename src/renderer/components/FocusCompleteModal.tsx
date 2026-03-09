@@ -4,6 +4,7 @@
 // shows XP/level/streak reward feedback, then transitions to break.
 
 import { useEffect, useRef, useState } from 'react';
+import FocusTrap from './FocusTrap';
 import { X, CheckCircle, Trophy } from 'lucide-react';
 import { useFocusStore } from '../stores/focusStore';
 import { useGamificationStore } from '../stores/gamificationStore';
@@ -67,20 +68,6 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
         textareaRef.current?.focus();
       });
     }
-  }, [isOpen]);
-
-  // Escape key acts as Skip
-  useEffect(() => {
-    if (!isOpen) return;
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleSkip();
-      }
-    }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const handleSkip = async () => {
@@ -170,6 +157,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50"
       onClick={showReward ? undefined : handleSkip}
     >
+      <FocusTrap active={isOpen} onDeactivate={handleSkip} escapeDeactivates={!showReward} clickOutsideDeactivates={false}>
       <div
         className="w-full max-w-md hud-panel-accent clip-corner-cut shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -335,6 +323,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
           )}
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }

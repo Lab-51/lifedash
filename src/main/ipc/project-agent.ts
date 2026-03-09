@@ -8,6 +8,7 @@ import { streamText, stepCountIs, type LanguageModel } from 'ai';
 import * as projectAgentService from '../services/projectAgentService';
 import { resolveTaskModel, getProvider, logUsage } from '../services/ai-provider';
 import { createLogger } from '../services/logger';
+import { trackTiming } from '../services/performanceTracker';
 import { z } from 'zod';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema, projectAgentMessageContentSchema } from '../../shared/validation/schemas';
@@ -100,6 +101,7 @@ export function registerProjectAgentHandlers(): void {
       );
 
       // 7. Stream with tools
+      const streamStart = performance.now();
       const result = streamText({
         model: factory(provider.model) as LanguageModel,
         messages: aiMessages,
@@ -179,6 +181,10 @@ export function registerProjectAgentHandlers(): void {
       } finally {
         activeStreams.delete(validProjectId);
       }
+
+      // 8b. Log AI stream duration
+      const streamDurationMs = Math.round(performance.now() - streamStart);
+      log.info(`AI stream completed in ${streamDurationMs}ms (tools: ${collectedToolCalls.length})`);
 
       // 9. If aborted with no text, return null
       if (aborted && !fullText.trim() && collectedToolCalls.length === 0) {

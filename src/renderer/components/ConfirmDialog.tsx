@@ -4,6 +4,7 @@
 // Keyboard accessible: Escape to cancel, Enter confirms via button focus.
 
 import { useEffect, useRef } from 'react';
+import FocusTrap from './FocusTrap';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -32,15 +33,6 @@ export function ConfirmDialog({
     if (open) confirmRef.current?.focus();
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, onCancel]);
-
   if (!open) return null;
 
   const confirmClasses = variant === 'danger'
@@ -52,6 +44,7 @@ export function ConfirmDialog({
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-[2px]"
       onClick={onCancel}
     >
+      <FocusTrap active={open} onDeactivate={onCancel}>
       <div
         className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4"
         onClick={e => e.stopPropagation()}
@@ -74,6 +67,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }

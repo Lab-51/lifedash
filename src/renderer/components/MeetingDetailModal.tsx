@@ -6,7 +6,8 @@
 // === DEPENDENCIES ===
 // react, lucide-react, meetingStore
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import FocusTrap from './FocusTrap';
 import { useNavigate } from 'react-router-dom';
 import { X, Clock, Trash2, Info, Search, Copy, Check, ArrowRight, Download, ChevronDown, ChevronRight, ClipboardList, FolderOpen } from 'lucide-react';
 import HudSelect from './HudSelect';
@@ -207,17 +208,12 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
   const autoGenerateBriefTriggered = useRef(false);
   const autoGenerateActionsTriggered = useRef(false);
 
-  // Close on Escape key (skip when editing text inputs)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
-      onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  // Custom Escape handler: skip when focus is in input/textarea/contenteditable
+  const escapeDeactivates = useCallback((e: KeyboardEvent) => {
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return false;
+    return true;
+  }, []);
 
   // Load projects for linking dropdown
   useEffect(() => {
@@ -438,6 +434,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
         className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 dark:bg-black/80 backdrop-blur-[2px]"
         onClick={handleOverlayClick}
       >
+        <FocusTrap active={true} onDeactivate={handleClose} escapeDeactivates={escapeDeactivates}>
         <div className="hud-panel-accent clip-corner-cut shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto mx-4 p-8">
           {/* Header: Title + Close */}
           <div className="flex items-start justify-between gap-3 mb-6">
@@ -747,6 +744,7 @@ export default function MeetingDetailModal({ onClose, autoGenerate = false, init
             )}
           </div>
         </div>
+        </FocusTrap>
       </div>
       {convertingAction && (
         <ConvertActionModal

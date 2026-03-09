@@ -16,6 +16,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { app } from 'electron';
 import path from 'node:path';
 import * as schema from './schema';
+import { trackTiming } from '../services/performanceTracker';
 
 // Module-level state
 let pglite: PGlite | null = null;
@@ -32,6 +33,16 @@ export function getDataDirectory(): string {
 export async function connectDatabase(): Promise<void> {
   const dataDir = getDataDirectory();
   pglite = new PGlite(dataDir);
+
+  // Wrap PGlite.query with performance tracking so all DB queries are timed.
+  const originalQuery = pglite.query.bind(pglite);
+  pglite.query = ((...args: Parameters<PGlite['query']>) => {
+    // Extract a short label from the SQL (first keyword + table hint)
+    const sql = typeof args[0] === 'string' ? args[0] : '';
+    const label = sql.slice(0, 60).replace(/\s+/g, ' ').trim() || 'query';
+    return trackTiming(`DB: ${label}`, () => originalQuery(...args));
+  }) as PGlite['query'];
+
   db = drizzle(pglite, { schema });
 }
 

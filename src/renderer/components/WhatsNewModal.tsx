@@ -4,7 +4,7 @@
 // Shows current release prominently, then previous versions in a scrollable area.
 // Links to full changelog on GitHub.
 
-import { useEffect, useRef } from 'react';
+import FocusTrap from './FocusTrap';
 import {
   X,
   Wrench,
@@ -104,22 +104,12 @@ export default function WhatsNewModal({ version, releaseType, sections, previous
   const tier = TIER_CONFIG[releaseType];
   const hasPrevious = previousVersions && previousVersions.length > 0;
 
-  // Escape key dismisses
-  const onDismissRef = useRef(onDismiss);
-  useEffect(() => { onDismissRef.current = onDismiss; }, [onDismiss]);
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); onDismissRef.current(); }
-    }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, []);
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onDismiss}
     >
+      <FocusTrap active={true} onDeactivate={onDismiss}>
       <div
         className={`w-full ${tier.maxWidth} mx-4 hud-panel-accent clip-corner-cut shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh] ${tier.accentClass}`}
         onClick={e => e.stopPropagation()}
@@ -209,6 +199,7 @@ export default function WhatsNewModal({ version, releaseType, sections, previous
           </a>
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }
