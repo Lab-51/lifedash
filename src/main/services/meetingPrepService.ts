@@ -9,7 +9,10 @@ import {
   meetings, actionItems,
 } from '../db/schema';
 import { resolveTaskModel, generate } from './ai-provider';
+import { createLogger } from './logger';
 import type { MeetingPrepData } from '../../shared/types';
+
+const log = createLogger('MeetingPrep');
 
 export async function generateMeetingPrep(projectId: string): Promise<MeetingPrepData> {
   const db = getDb();
@@ -190,20 +193,32 @@ Write a brief (3-5 bullet points) covering:
 
 Be concise and actionable. Use markdown bullet points.`;
 
-  const result = await generate({
-    providerId: provider.providerId,
-    providerName: provider.providerName,
-    apiKeyEncrypted: provider.apiKeyEncrypted,
-    baseUrl: provider.baseUrl,
-    model: provider.model,
-    taskType: 'meeting_prep',
-    prompt,
-    temperature: 0.7,
-    maxTokens: 600,
-  });
+  let aiBriefing: string;
+  try {
+    const result = await generate({
+      providerId: provider.providerId,
+      providerName: provider.providerName,
+      apiKeyEncrypted: provider.apiKeyEncrypted,
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+      taskType: 'meeting_prep',
+      prompt,
+      temperature: 0.7,
+      maxTokens: 600,
+    });
 
-  if (!result.text) {
-    throw new Error(`AI provider (${provider.providerName}/${provider.model}) returned empty text.`);
+    if (!result.text) {
+      throw new Error(`AI provider (${provider.providerName}/${provider.model}) returned empty text.`);
+    }
+    aiBriefing = result.text;
+  } catch (err) {
+    log.error('Meeting prep AI generation failed:', err);
+    const parts: string[] = ['AI analysis unavailable.'];
+    parts.push(`Project has ${created.length} new cards and ${completed.length} completed cards.`);
+    if (moved.length > 0) parts.push(`${moved.length} cards moved since last meeting.`);
+    if (pendingActions.length > 0) parts.push(`${pendingActions.length} pending action items from previous meetings.`);
+    if (highPriorityCards.length > 0) parts.push(`${highPriorityCards.length} high-priority cards need attention.`);
+    aiBriefing = parts.join(' ');
   }
 
   // h. Return full MeetingPrepData
@@ -223,6 +238,6 @@ Be concise and actionable. Use markdown bullet points.`;
       column: c.columnName,
       dueDate: c.dueDate ? new Date(c.dueDate).toISOString() : null,
     })),
-    aiBriefing: result.text,
+    aiBriefing,
   };
 }

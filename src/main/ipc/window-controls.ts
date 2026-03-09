@@ -1,10 +1,12 @@
 // === FILE PURPOSE ===
 // IPC handlers for window control operations (minimize, maximize, close).
 // These handlers are invoked from the renderer via the preload bridge.
-// All handlers are parameterless — no input validation needed
+// Boolean-param handlers validated via Zod booleanParamSchema.
 
 import { BrowserWindow, ipcMain } from 'electron';
 import { setIsRecording } from '../services/recordingState';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import { booleanParamSchema } from '../../shared/validation/schemas';
 
 /**
  * Register IPC handlers for window controls.
@@ -34,8 +36,9 @@ export function registerWindowControlHandlers(
     return mainWindow.isMaximized();
   });
 
-  ipcMain.handle('window:set-always-on-top', (_event, value: boolean) => {
-    mainWindow.setAlwaysOnTop(value);
+  ipcMain.handle('window:set-always-on-top', (_event, value: unknown) => {
+    const validValue = validateInput(booleanParamSchema, value);
+    mainWindow.setAlwaysOnTop(validValue);
     return mainWindow.isAlwaysOnTop();
   });
 
@@ -45,8 +48,9 @@ export function registerWindowControlHandlers(
 
   // Recording state — lets the renderer notify the main process
   // when a recording starts/stops so the close guard can check it.
-  ipcMain.handle('recording:set-state', (_event, value: boolean) => {
-    setIsRecording(value);
+  ipcMain.handle('recording:set-state', (_event, value: unknown) => {
+    const validValue = validateInput(booleanParamSchema, value);
+    setIsRecording(validValue);
   });
 
   // Forward maximize/unmaximize events to the renderer so the

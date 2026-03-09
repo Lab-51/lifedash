@@ -11,6 +11,12 @@ import {
   saveCardDraft,
   clearCardDraft,
 } from '../services/sessionRecoveryService';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import {
+  recoveryDraftSchema,
+  recoveryDraftClearCardIdSchema,
+  recoveryDraftClearFieldSchema,
+} from '../../shared/validation/schemas';
 
 export function registerRecoveryHandlers(): void {
   ipcMain.handle('recovery:check', () => {
@@ -30,17 +36,14 @@ export function registerRecoveryHandlers(): void {
     clearRecoveryState();
   });
 
-  ipcMain.handle('recovery:save-draft', (_event, draft: { cardId: string; field: string; value: string; projectId?: string }) => {
-    if (!draft || typeof draft.cardId !== 'string' || typeof draft.field !== 'string' || typeof draft.value !== 'string') {
-      throw new Error('Invalid draft: cardId, field, and value are required strings');
-    }
-    saveCardDraft(draft);
+  ipcMain.handle('recovery:save-draft', (_event, draft: unknown) => {
+    const validDraft = validateInput(recoveryDraftSchema, draft);
+    saveCardDraft(validDraft);
   });
 
-  ipcMain.handle('recovery:clear-draft', (_event, cardId: string, field: string) => {
-    if (typeof cardId !== 'string' || typeof field !== 'string') {
-      throw new Error('Invalid input: cardId and field are required strings');
-    }
-    clearCardDraft(cardId, field);
+  ipcMain.handle('recovery:clear-draft', (_event, cardId: unknown, field: unknown) => {
+    const validCardId = validateInput(recoveryDraftClearCardIdSchema, cardId);
+    const validField = validateInput(recoveryDraftClearFieldSchema, field);
+    clearCardDraft(validCardId, validField);
   });
 }

@@ -47,6 +47,16 @@ export const meetingsBridge = {
     };
   },
 
+  onTranscriptionStatus: (callback: (data: { status: string; reason: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { status: string; reason: string }) => {
+      callback(data);
+    };
+    ipcRenderer.on('transcription:status-changed', handler);
+    return () => {
+      ipcRenderer.removeListener('transcription:status-changed', handler);
+    };
+  },
+
   // Whisper Models
   getWhisperModels: () => ipcRenderer.invoke('whisper:list-models'),
   downloadWhisperModel: (fileName: string) =>

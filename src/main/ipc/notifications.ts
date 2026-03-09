@@ -12,7 +12,11 @@ import {
   showNotification,
 } from '../services/notificationService';
 import { validateInput } from '../../shared/validation/ipc-validator';
-import { notificationPreferencesUpdateSchema } from '../../shared/validation/schemas';
+import {
+  notificationPreferencesUpdateSchema,
+  notificationShowTitleSchema,
+  notificationShowBodySchema,
+} from '../../shared/validation/schemas';
 
 export function registerNotificationHandlers(): void {
   ipcMain.handle('notifications:get-preferences', async () => {
@@ -28,7 +32,9 @@ export function registerNotificationHandlers(): void {
     sendTestNotification();
   });
 
-  ipcMain.handle('notifications:show', async (_event, title: string, body: string) => {
-    showNotification(title, body);
+  ipcMain.handle('notifications:show', async (_event, title: unknown, body: unknown) => {
+    const validTitle = validateInput(notificationShowTitleSchema, title);
+    const validBody = validateInput(notificationShowBodySchema, body);
+    showNotification(validTitle, validBody);
   });
 }

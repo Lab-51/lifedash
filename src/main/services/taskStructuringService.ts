@@ -21,7 +21,10 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { projects, boards, columns, cards } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
+import { createLogger } from './logger';
 import type { ProjectPlan, ProjectPillar, TaskBreakdown, SubtaskSuggestion } from '../../shared/types';
+
+const log = createLogger('TaskStructuring');
 
 // ---------------------------------------------------------------------------
 // System Prompts
@@ -364,18 +367,24 @@ export async function generateTaskBreakdown(cardId: string): Promise<TaskBreakdo
   }
 
   // Generate breakdown
-  const result = await generate({
-    providerId: provider.providerId,
-    providerName: provider.providerName,
-    apiKeyEncrypted: provider.apiKeyEncrypted,
-    baseUrl: provider.baseUrl,
-    model: provider.model,
-    taskType: 'task_structuring',
-    system: TASK_BREAKDOWN_SYSTEM_PROMPT,
-    prompt: contextString,
-    temperature: provider.temperature ?? 0.4,
-    maxTokens: provider.maxTokens ?? 4096,
-  });
+  let result;
+  try {
+    result = await generate({
+      providerId: provider.providerId,
+      providerName: provider.providerName,
+      apiKeyEncrypted: provider.apiKeyEncrypted,
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+      taskType: 'task_structuring',
+      system: TASK_BREAKDOWN_SYSTEM_PROMPT,
+      prompt: contextString,
+      temperature: provider.temperature ?? 0.4,
+      maxTokens: provider.maxTokens ?? 4096,
+    });
+  } catch (err) {
+    log.error('Task breakdown generation failed:', err);
+    throw new Error('Failed to generate task breakdown. Please check your AI provider configuration and try again.');
+  }
 
   // Parse and validate JSON response
   let breakdown: TaskBreakdown;
@@ -405,18 +414,24 @@ async function generatePlanFromContext(contextString: string): Promise<ProjectPl
   }
 
   // Generate plan
-  const result = await generate({
-    providerId: provider.providerId,
-    providerName: provider.providerName,
-    apiKeyEncrypted: provider.apiKeyEncrypted,
-    baseUrl: provider.baseUrl,
-    model: provider.model,
-    taskType: 'task_structuring',
-    system: PROJECT_PLAN_SYSTEM_PROMPT,
-    prompt: contextString,
-    temperature: provider.temperature ?? 0.4,
-    maxTokens: provider.maxTokens ?? 4096,
-  });
+  let result;
+  try {
+    result = await generate({
+      providerId: provider.providerId,
+      providerName: provider.providerName,
+      apiKeyEncrypted: provider.apiKeyEncrypted,
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+      taskType: 'task_structuring',
+      system: PROJECT_PLAN_SYSTEM_PROMPT,
+      prompt: contextString,
+      temperature: provider.temperature ?? 0.4,
+      maxTokens: provider.maxTokens ?? 4096,
+    });
+  } catch (err) {
+    log.error('Project plan generation failed:', err);
+    throw new Error('Failed to generate project plan. Please check your AI provider configuration and try again.');
+  }
 
   // Parse and validate JSON response
   let plan: ProjectPlan;

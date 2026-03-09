@@ -12,14 +12,14 @@ import { createLogger } from '../services/logger';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import { voiceAudioBufferSchema } from '../../shared/validation/schemas';
 
 const log = createLogger('VoiceInput');
 
 export function registerVoiceInputHandlers(): void {
-  ipcMain.handle('voice:transcribe', async (_event, audioBuffer: ArrayBuffer) => {
-    if (!audioBuffer || audioBuffer.byteLength === 0) {
-      throw new Error('No audio data received');
-    }
+  ipcMain.handle('voice:transcribe', async (_event, audioBuffer: unknown) => {
+    const validBuffer = validateInput(voiceAudioBufferSchema, audioBuffer);
 
     const config = await transcriptionProviderService.getConfig();
     const provider = config.type;
@@ -30,7 +30,7 @@ export function registerVoiceInputHandlers(): void {
     const language = langRows.length > 0 ? langRows[0].value : 'en';
 
     // Audio arrives as raw 16kHz mono Int16 PCM (decoded in the renderer)
-    const pcmBuffer = Buffer.from(audioBuffer);
+    const pcmBuffer = Buffer.from(validBuffer);
 
     if (pcmBuffer.byteLength < 1600) {
       // Less than 0.05 seconds of audio — too short

@@ -209,6 +209,7 @@ export interface ElectronAPI {
   disableLoopbackAudio: () => Promise<void>;
   onRecordingState: (callback: (state: RecordingState) => void) => () => void;
   onTranscriptSegment: (callback: (segment: TranscriptSegment) => void) => () => void;
+  onTranscriptionStatus: (callback: (data: { status: string; reason: string }) => void) => () => void;
 
   // Whisper Models
   getWhisperModels: () => Promise<WhisperModel[]>;

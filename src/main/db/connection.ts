@@ -17,6 +17,9 @@ import { app } from 'electron';
 import path from 'node:path';
 import * as schema from './schema';
 import { trackTiming } from '../services/performanceTracker';
+import { createLogger } from '../services/logger';
+
+const log = createLogger('Database');
 
 // Module-level state
 let pglite: PGlite | null = null;
@@ -70,6 +73,35 @@ export async function disconnectDatabase(): Promise<void> {
     pglite = null;
     db = null;
   }
+}
+
+const CORE_TABLES = ['projects', 'boards', 'columns', 'cards', 'meetings', 'ideas', 'settings'];
+
+export async function checkDatabaseIntegrity(): Promise<{
+  healthy: boolean;
+  failedTables: string[];
+  message: string;
+}> {
+  if (!pglite) {
+    return { healthy: false, failedTables: CORE_TABLES, message: 'Not connected' };
+  }
+
+  const failedTables: string[] = [];
+  for (const table of CORE_TABLES) {
+    try {
+      await pglite.query(`SELECT count(*) FROM ${table}`);
+    } catch {
+      failedTables.push(table);
+    }
+  }
+
+  const healthy = failedTables.length === 0;
+  const message = healthy
+    ? `All ${CORE_TABLES.length} core tables OK`
+    : `${failedTables.length} table(s) failed: ${failedTables.join(', ')}`;
+
+  log.info(`Integrity check: ${message}`);
+  return { healthy, failedTables, message };
 }
 
 export async function checkDatabaseHealth(): Promise<{

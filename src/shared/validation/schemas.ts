@@ -375,3 +375,87 @@ export const addChecklistItemsBatchSchema = z.object({
   cardId: uuid,
   titles: z.array(z.string().min(1).max(500)).min(1).max(50),
 });
+
+// ============================================================================
+// Focus
+// ============================================================================
+
+export const focusSaveSessionSchema = z.object({
+  cardId: uuid.optional(),
+  projectId: uuid.optional(),
+  durationMinutes: z.number().int().positive(),
+  note: z.string().max(5000).optional(),
+  billable: z.boolean().optional(),
+});
+
+export const focusGetDailySchema = z.number().int().positive().optional();
+
+export const focusGetHistorySchema = z.object({
+  offset: z.number().int().min(0).optional(),
+  limit: z.number().int().positive().optional(),
+}).optional();
+
+export const focusGetTimeReportSchema = z.object({
+  startDate: z.string().min(1),
+  endDate: z.string().min(1),
+  projectId: uuid.optional(),
+  billableOnly: z.boolean().optional(),
+});
+
+export const focusUpdateSessionSchema = z.object({
+  projectId: uuid.nullable().optional(),
+  note: z.string().max(5000).nullable().optional(),
+  billable: z.boolean().optional(),
+});
+
+export const focusDeleteSessionSchema = uuid;
+
+// ============================================================================
+// Gamification
+// ============================================================================
+
+export const xpEventTypeSchema = z.enum([
+  'focus_session', 'card_create', 'card_complete', 'checklist_complete',
+  'project_create', 'project_archive', 'ai_plan', 'meeting_complete',
+  'meeting_brief', 'action_convert', 'idea_create', 'idea_convert',
+  'idea_analyze', 'brainstorm_start', 'brainstorm_export', 'ai_standup',
+  'ai_description', 'ai_breakdown',
+]);
+
+export const gamificationGetDailySchema = z.number().int().positive().optional();
+
+// ============================================================================
+// Window Controls / Boolean param
+// ============================================================================
+
+export const booleanParamSchema = z.boolean();
+
+// ============================================================================
+// Notifications (show)
+// ============================================================================
+
+export const notificationShowTitleSchema = z.string().min(1).max(200);
+export const notificationShowBodySchema = z.string().max(1000);
+
+// ============================================================================
+// Recovery (drafts)
+// ============================================================================
+
+export const recoveryDraftSchema = z.object({
+  cardId: uuid,
+  field: z.string().min(1).max(200),
+  value: z.string().max(50000),
+  projectId: uuid.optional(),
+});
+
+export const recoveryDraftClearCardIdSchema = uuid;
+export const recoveryDraftClearFieldSchema = z.string().min(1).max(200);
+
+// ============================================================================
+// Voice Input
+// ============================================================================
+
+export const voiceAudioBufferSchema = z.custom<ArrayBuffer>(
+  (val) => val != null && typeof (val as ArrayBuffer).byteLength === 'number' && (val as ArrayBuffer).byteLength > 0,
+  { message: 'No audio data received' },
+);

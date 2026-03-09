@@ -101,6 +101,12 @@ export async function start(meetingId: string, language?: string): Promise<void>
     const modelPath = await whisperModelManager.getDefaultModelPath();
     if (!modelPath) {
       log.info('No whisper model available. Skipping transcription.');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('transcription:status-changed', {
+          status: 'failed',
+          reason: 'Whisper model not available',
+        });
+      }
       currentMeetingId = null;
       return;
     }
@@ -130,6 +136,12 @@ export async function start(meetingId: string, language?: string): Promise<void>
     );
     if (!key) {
       log.info(`No API key configured for ${activeProvider}. Skipping transcription.`);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('transcription:status-changed', {
+          status: 'failed',
+          reason: `No API key configured for ${activeProvider}`,
+        });
+      }
       currentMeetingId = null;
       return;
     }
@@ -298,6 +310,12 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
     }
   } catch (err) {
     log.error('Whisper transcription failed:', err);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('transcription:status-changed', {
+        status: 'error',
+        reason: 'Transcription failed for audio chunk',
+      });
+    }
     transcribing = false;
   }
 
@@ -355,6 +373,12 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
     // FALLBACK: try local Whisper if context exists
     if (whisperContext) {
       log.debug('Falling back to local Whisper');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('transcription:status-changed', {
+          status: 'fallback',
+          reason: 'API transcription failed, using local Whisper',
+        });
+      }
       await dispatchToWhisper(segment, startTimeMs);
       return; // dispatchToWhisper handles transcribing flag and dispatchNext
     }

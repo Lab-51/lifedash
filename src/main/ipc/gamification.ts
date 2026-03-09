@@ -4,14 +4,17 @@
 import { ipcMain } from 'electron';
 import * as gamificationService from '../services/gamificationService';
 import { createLogger } from '../services/logger';
-import type { XpEventType } from '../../shared/types/gamification';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import { xpEventTypeSchema, gamificationGetDailySchema, idParamSchema } from '../../shared/validation/schemas';
 
 const log = createLogger('Gamification');
 
 export function registerGamificationHandlers(): void {
-  ipcMain.handle('gamification:award-xp', async (_, eventType: XpEventType, entityId?: string) => {
-    log.info(`Awarding XP: ${eventType}${entityId ? ` (entity: ${entityId})` : ''}`);
-    const xpAwarded = await gamificationService.awardXP(eventType, entityId);
+  ipcMain.handle('gamification:award-xp', async (_, eventType: unknown, entityId: unknown) => {
+    const validEventType = validateInput(xpEventTypeSchema, eventType);
+    const validEntityId = entityId !== undefined ? validateInput(idParamSchema.optional(), entityId) : undefined;
+    log.info(`Awarding XP: ${validEventType}${validEntityId ? ` (entity: ${validEntityId})` : ''}`);
+    const xpAwarded = await gamificationService.awardXP(validEventType, validEntityId);
     const stats = await gamificationService.getStats();
     const counts = await gamificationService.getAchievementCounts(stats);
     const newAchievements = await gamificationService.checkAndUnlockAchievements(stats, counts);
@@ -31,7 +34,8 @@ export function registerGamificationHandlers(): void {
     return gamificationService.getAchievements();
   });
 
-  ipcMain.handle('gamification:get-daily', async (_, days?: number) => {
-    return gamificationService.getDailyXP(days);
+  ipcMain.handle('gamification:get-daily', async (_, days: unknown) => {
+    const validDays = validateInput(gamificationGetDailySchema, days);
+    return gamificationService.getDailyXP(validDays);
   });
 }

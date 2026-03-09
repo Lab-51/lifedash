@@ -6,11 +6,21 @@ import { ipcMain } from 'electron';
 import * as focusService from '../services/focusService';
 import * as gamificationService from '../services/gamificationService';
 import { createLogger } from '../services/logger';
+import { validateInput } from '../../shared/validation/ipc-validator';
+import {
+  focusSaveSessionSchema,
+  focusGetDailySchema,
+  focusGetHistorySchema,
+  focusGetTimeReportSchema,
+  focusUpdateSessionSchema,
+  focusDeleteSessionSchema,
+} from '../../shared/validation/schemas';
 
 const log = createLogger('Focus');
 
 export function registerFocusHandlers(): void {
-  ipcMain.handle('focus:save-session', async (_, input: { cardId?: string; projectId?: string; durationMinutes: number; note?: string; billable?: boolean }) => {
+  ipcMain.handle('focus:save-session', async (_, data: unknown) => {
+    const input = validateInput(focusSaveSessionSchema, data);
     log.info(`Saving focus session: ${input.durationMinutes} min`);
     const session = await focusService.saveSession(input);
 
@@ -32,30 +42,35 @@ export function registerFocusHandlers(): void {
     return gamificationService.getStats();
   });
 
-  ipcMain.handle('focus:get-daily', async (_, days?: number) => {
-    return focusService.getDailyData(days);
+  ipcMain.handle('focus:get-daily', async (_, days: unknown) => {
+    const validDays = validateInput(focusGetDailySchema, days);
+    return focusService.getDailyData(validDays);
   });
 
-  ipcMain.handle('focus:get-history', async (_, options?: { offset?: number; limit?: number }) => {
-    return focusService.getSessionHistory(options);
+  ipcMain.handle('focus:get-history', async (_, options: unknown) => {
+    const validOptions = validateInput(focusGetHistorySchema, options);
+    return focusService.getSessionHistory(validOptions);
   });
 
   ipcMain.handle('focus:get-period-stats', async () => {
     return focusService.getPeriodStats();
   });
 
-  ipcMain.handle('focus:get-time-report', async (_, options: { startDate: string; endDate: string; projectId?: string; billableOnly?: boolean }) => {
-    // Note: This endpoint provides all focus page data (summary, chart, sessions).
-    return focusService.getTimeReport(options);
+  ipcMain.handle('focus:get-time-report', async (_, options: unknown) => {
+    const input = validateInput(focusGetTimeReportSchema, options);
+    return focusService.getTimeReport(input);
   });
 
-  ipcMain.handle('focus:update-session', async (_, id: string, input: { projectId?: string | null; note?: string | null; billable?: boolean }) => {
-    log.info(`Updating focus session: ${id}`);
-    await focusService.updateSession(id, input);
+  ipcMain.handle('focus:update-session', async (_, id: unknown, data: unknown) => {
+    const validId = validateInput(focusDeleteSessionSchema, id);
+    const input = validateInput(focusUpdateSessionSchema, data);
+    log.info(`Updating focus session: ${validId}`);
+    await focusService.updateSession(validId, input);
   });
 
-  ipcMain.handle('focus:delete-session', async (_, id: string) => {
-    log.info(`Deleting focus session: ${id}`);
-    await focusService.deleteSession(id);
+  ipcMain.handle('focus:delete-session', async (_, id: unknown) => {
+    const validId = validateInput(focusDeleteSessionSchema, id);
+    log.info(`Deleting focus session: ${validId}`);
+    await focusService.deleteSession(validId);
   });
 }

@@ -102,6 +102,16 @@ LifeDash records your meetings, transcribes them locally with Whisper, generates
 - Encrypted API key storage via OS keychain
 - Open source. Read the code yourself
 
+### Built to Last
+- **Crash recovery** — The app takes periodic snapshots of your work. If it shuts down unexpectedly, you get a recovery dialog on next launch to restore exactly where you left off
+- **Database integrity checks** — Every startup verifies your data is intact across all tables, with automatic retry if the database is slow to connect
+- **Atomic backup/restore** — Restores run inside a database transaction. If anything goes wrong mid-restore, the whole thing rolls back and your original data stays untouched
+- **Structured logging** — Daily log files with automatic rotation make it easy to diagnose issues without digging through console output
+- **Graceful AI degradation** — If your AI provider is down or misconfigured, you get fallback summaries and clear error messages instead of crashes or silent failures
+- **Keyboard accessible** — Every modal in the app traps focus properly, cycles with Tab/Shift+Tab, and closes with Escape. Screen readers work out of the box
+- **Input validation everywhere** — Every IPC channel validates its inputs at runtime with Zod schemas, not just at compile time
+- **Optional crash reporting** — Opt-in Sentry integration strips all personal data (file paths, API keys) before sending. Off by default, always under your control
+
 ---
 
 ## Build from Source

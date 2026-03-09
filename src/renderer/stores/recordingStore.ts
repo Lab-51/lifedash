@@ -12,6 +12,7 @@
 import { create } from 'zustand';
 import * as audioCaptureService from '../services/audioCaptureService';
 import { useGamificationStore } from './gamificationStore';
+import { toast } from '../hooks/useToast';
 import type { RecordingState, MeetingTemplateType } from '../../shared/types';
 
 interface RecordingStore {
@@ -179,9 +180,19 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       }
     });
 
+    // Listen for transcription status changes (failures, fallbacks)
+    const cleanupTranscription = window.electronAPI.onTranscriptionStatus((data) => {
+      if (data.status === 'failed' || data.status === 'error') {
+        toast(data.reason, 'error', undefined, 5000);
+      } else if (data.status === 'fallback') {
+        toast(data.reason, 'info', undefined, 4000);
+      }
+    });
+
     return () => {
       cleanupState();
       cleanupForceStop();
+      cleanupTranscription();
     };
   },
 }));

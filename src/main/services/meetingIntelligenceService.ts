@@ -19,6 +19,7 @@ import { getDb } from '../db/connection';
 import { meetingBriefs, actionItems, cards } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
 import { getMeeting } from './meetingService';
+import { createLogger } from './logger';
 import type {
   MeetingBrief,
   ActionItem,
@@ -27,6 +28,8 @@ import type {
 } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import { parseActionItems } from '../../shared/utils/action-item-parser';
+
+const log = createLogger('MeetingIntelligence');
 
 // ---------------------------------------------------------------------------
 // Prompt Templates
@@ -146,18 +149,25 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
   }
 
   // Generate summary (template-aware prompt)
-  const result = await generate({
-    providerId: provider.providerId,
-    providerName: provider.providerName,
-    apiKeyEncrypted: provider.apiKeyEncrypted,
-    baseUrl: provider.baseUrl,
-    model: provider.model,
-    taskType: 'summarization',
-    prompt: userPrompt,
-    system: getSummarizationPrompt(meeting.template),
-    temperature: provider.temperature,
-    maxTokens: provider.maxTokens,
-  });
+  let summaryText: string;
+  try {
+    const result = await generate({
+      providerId: provider.providerId,
+      providerName: provider.providerName,
+      apiKeyEncrypted: provider.apiKeyEncrypted,
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+      taskType: 'summarization',
+      prompt: userPrompt,
+      system: getSummarizationPrompt(meeting.template),
+      temperature: provider.temperature,
+      maxTokens: provider.maxTokens,
+    });
+    summaryText = result.text;
+  } catch (err) {
+    log.error('Brief generation failed:', err);
+    summaryText = 'AI brief generation failed. The transcript is available for manual review.';
+  }
 
   // Store in DB
   const db = getDb();
@@ -165,7 +175,7 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
     .insert(meetingBriefs)
     .values({
       meetingId,
-      summary: result.text,
+      summary: summaryText,
     })
     .returning();
 
@@ -200,21 +210,25 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
   if (!provider) throw new Error('No AI provider available for action extraction');
 
   // Generate action items (template-aware prompt)
-  const result = await generate({
-    providerId: provider.providerId,
-    providerName: provider.providerName,
-    apiKeyEncrypted: provider.apiKeyEncrypted,
-    baseUrl: provider.baseUrl,
-    model: provider.model,
-    taskType: 'summarization',
-    prompt: `Meeting: ${meeting.title}\n\nTranscript:\n${transcript}`,
-    system: getActionExtractionPrompt(meeting.template),
-    temperature: provider.temperature,
-    maxTokens: provider.maxTokens,
-  });
-
-  // Parse AI response using extracted pure function
-  const descriptions = parseActionItems(result.text);
+  let descriptions: string[];
+  try {
+    const result = await generate({
+      providerId: provider.providerId,
+      providerName: provider.providerName,
+      apiKeyEncrypted: provider.apiKeyEncrypted,
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+      taskType: 'summarization',
+      prompt: `Meeting: ${meeting.title}\n\nTranscript:\n${transcript}`,
+      system: getActionExtractionPrompt(meeting.template),
+      temperature: provider.temperature,
+      maxTokens: provider.maxTokens,
+    });
+    descriptions = parseActionItems(result.text);
+  } catch (err) {
+    log.error('Action item extraction failed:', err);
+    return [];
+  }
 
   // Insert into DB
   const db = getDb();

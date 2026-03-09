@@ -15,7 +15,7 @@ import icon from '../assets/icon.png';
 import windowStateKeeper from 'electron-window-state';
 import { registerIpcHandlers } from './ipc';
 import { createTray } from './tray';
-import { connectDatabase, disconnectDatabase } from './db/connection';
+import { connectDatabase, disconnectDatabase, checkDatabaseIntegrity } from './db/connection';
 import { runMigrations } from './db/migrate';
 import { initMain } from 'electron-audio-loopback';
 import { initAutoBackup, stopAutoBackup } from './services/autoBackupScheduler';
@@ -138,9 +138,31 @@ const createWindow = async () => {
   // the app can still function without a database connection, and
   // the renderer can check db:status to show connection state.
   try {
-    await connectDatabase();
+    const RETRY_DELAYS = [500, 1000, 2000];
+    let connected = false;
+    for (let attempt = 1; attempt <= RETRY_DELAYS.length; attempt++) {
+      try {
+        await connectDatabase();
+        connected = true;
+        break;
+      } catch (err) {
+        log.error(`DB connection attempt ${attempt}/${RETRY_DELAYS.length} failed:`, err);
+        if (attempt < RETRY_DELAYS.length) {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS[attempt - 1]));
+        }
+      }
+    }
+    if (!connected) {
+      throw new Error('All database connection attempts failed');
+    }
+
     await runMigrations();
     log.info('DB connected and migrations applied');
+
+    const integrity = await checkDatabaseIntegrity();
+    if (!integrity.healthy) {
+      log.warn(`DB integrity issues: ${integrity.message}`);
+    }
 
     // Apply proxy settings for enterprise networks (before any AI calls)
     await applyGlobalProxy();

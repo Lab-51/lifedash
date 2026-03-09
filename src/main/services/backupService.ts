@@ -239,31 +239,36 @@ export async function restoreBackup(
 
     const db = getDb();
 
-    // Delete all data in reverse FK order (children first)
-    for (const [name, table] of BACKUP_TABLES_DELETE_ORDER) {
-      try {
-        await db.delete(table);
-      } catch (err) {
-        log.error(`Failed to clear table ${name}:`, err);
-      }
-    }
-
-    // Insert data in forward FK order (parents first)
-    for (const [name, table] of BACKUP_TABLES_INSERT_ORDER) {
-      const rows = backupData.tables[name];
-      if (rows && rows.length > 0) {
-        try {
-          await db.insert(table).values(rows);
-        } catch (err) {
-          log.error(`Failed to restore table ${name}:`, err);
+    try {
+      await db.transaction(async (tx) => {
+        // Delete all data in reverse FK order (children first)
+        for (const [name, table] of BACKUP_TABLES_DELETE_ORDER) {
+          await tx.delete(table);
         }
-      }
-    }
 
-    emitProgress(mainWindow, {
-      phase: 'complete',
-      message: 'Restore complete',
-    });
+        // Insert data in forward FK order (parents first)
+        for (const [name, table] of BACKUP_TABLES_INSERT_ORDER) {
+          const rows = backupData.tables[name];
+          if (rows && rows.length > 0) {
+            await tx.insert(table).values(rows);
+          }
+        }
+      });
+
+      log.info('Restore transaction committed successfully');
+      emitProgress(mainWindow, {
+        phase: 'complete',
+        message: 'Restore complete',
+      });
+    } catch (txError) {
+      log.error('Restore transaction failed (rolled back):', txError);
+      emitProgress(mainWindow, {
+        phase: 'failed',
+        message: 'Restore failed — your data is unchanged (rolled back)',
+        error: txError instanceof Error ? txError.message : 'Transaction failed',
+      });
+      throw txError;
+    }
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     emitProgress(mainWindow, {
