@@ -36,8 +36,10 @@ import AchievementBanner from './components/AchievementBanner';
 import SetupWizard from './components/SetupWizard';
 import FeatureTour from './components/FeatureTour';
 import WhatsNewModal from './components/WhatsNewModal';
+import RecoveryDialog from './components/RecoveryDialog';
 import { releaseNotes, releaseHistory, getReleaseType } from '../shared/releaseNotes';
 import type { ReleaseType, ReleaseNoteSection, ReleaseNotesData } from '../shared/releaseNotes';
+import type { RecoveryState } from '../shared/types/electron-api';
 import { toast } from './hooks/useToast';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -63,6 +65,7 @@ function AppShell({ children }: { children: ReactNode }) {
   const [appReady, setAppReady] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [showTour, setShowTour] = useState(false);
+  const [recoveryState, setRecoveryState] = useState<RecoveryState | null>(null);
   const [whatsNew, setWhatsNew] = useState<{
     version: string;
     releaseType: ReleaseType;
@@ -110,6 +113,46 @@ function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     const cleanup = useRecordingStore.getState().initListener();
     return cleanup;
+  }, []);
+
+  // Check for crash recovery on mount
+  useEffect(() => {
+    if (!window.electronAPI?.checkRecovery) return;
+    window.electronAPI.checkRecovery().then(({ hasCrash, state }) => {
+      if (hasCrash && state) {
+        setRecoveryState(state);
+      }
+    }).catch(() => { /* ignore — recovery check is best-effort */ });
+  }, []);
+
+  const handleRecoveryRestore = useCallback(async () => {
+    if (!window.electronAPI?.restoreSession) return;
+    try {
+      const state = await window.electronAPI.restoreSession();
+      if (state?.cardDrafts && state.cardDrafts.length > 0) {
+        for (const draft of state.cardDrafts) {
+          try {
+            await window.electronAPI.updateCard(draft.cardId, { [draft.field]: draft.value });
+          } catch {
+            // Card may have been deleted — skip silently
+          }
+        }
+        toast(`Restored ${state.cardDrafts.length} card draft(s)`, 'success');
+      }
+      if (state?.activeRecording) {
+        toast('A recording was interrupted — saved audio may be available in Meetings', 'info');
+      }
+    } catch {
+      toast('Failed to restore session', 'error');
+    }
+    setRecoveryState(null);
+  }, []);
+
+  const handleRecoveryDiscard = useCallback(async () => {
+    if (window.electronAPI?.discardRecovery) {
+      await window.electronAPI.discardRecovery().catch(() => {});
+    }
+    setRecoveryState(null);
   }, []);
 
   // Pre-load entity data so command palette (Ctrl+K) always has results,
@@ -262,6 +305,13 @@ function AppShell({ children }: { children: ReactNode }) {
           onClose={() => useFocusStore.getState().stop()}
         />
       </Suspense>
+      {recoveryState && (
+        <RecoveryDialog
+          state={recoveryState}
+          onRestore={handleRecoveryRestore}
+          onDiscard={handleRecoveryDiscard}
+        />
+      )}
       {showTour && (
         <FeatureTour
           onComplete={(proceedToWizard) => {

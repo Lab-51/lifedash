@@ -54,6 +54,13 @@ import type { ProjectAgentMessage, ProjectAgentThread, ProjectAgentAction } from
 
 import type { AgentInsight, BackgroundAgentPreferences, InsightType, InsightStatus } from './background-agent';
 
+export interface RecoveryState {
+  timestamp: string;
+  activeRecording?: { meetingId: string; startTime: string };
+  pendingAiOps?: { type: string; context: string }[];
+  cardDrafts?: { cardId: string; field: string; value: string; projectId?: string }[];
+}
+
 /** API exposed to the renderer via contextBridge in preload.ts */
 export interface ElectronAPI {
   platform: NodeJS.Platform;
@@ -355,12 +362,24 @@ export interface ElectronAPI {
   backgroundAgentGetDailyUsage: () => Promise<{ date: string; tokensUsed: number }>;
   onBackgroundAgentNewInsights: (callback: (data: { projectId: string; count: number }) => void) => () => void;
 
+  // Recovery
+  checkRecovery: () => Promise<{ hasCrash: boolean; state: RecoveryState | null }>;
+  restoreSession: () => Promise<RecoveryState | null>;
+  discardRecovery: () => Promise<void>;
+  saveCardDraft: (draft: { cardId: string; field: string; value: string; projectId?: string }) => Promise<void>;
+  clearCardDraft: (cardId: string, field: string) => Promise<void>;
+
   // App-level
   openExternal: (url: string) => Promise<void>;
   onShowCommandPalette: (callback: () => void) => () => void;
   onUpdateStatus: (callback: (data: { status: string; releaseName?: string }) => void) => () => void;
   installUpdate: () => Promise<void>;
   checkForUpdates: () => Promise<void>;
+  openLogsFolder: () => Promise<string>;
+
+  // Diagnostics
+  diagnosticsGetCrashReportsEnabled: () => Promise<boolean>;
+  diagnosticsSetCrashReportsEnabled: (value: boolean) => Promise<void>;
 }
 
 declare global {

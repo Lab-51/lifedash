@@ -27,6 +27,8 @@ import { projectAgentBridge } from './domains/project-agent';
 
 import { backgroundAgentBridge } from './domains/background-agent';
 import { voiceInputBridge } from './domains/voice-input';
+import { recoveryBridge } from './domains/recovery';
+import { diagnosticsBridge } from './domains/diagnostics';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -51,4 +53,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...projectAgentBridge,
   ...backgroundAgentBridge,
   ...voiceInputBridge,
+  ...recoveryBridge,
+  ...diagnosticsBridge,
 });

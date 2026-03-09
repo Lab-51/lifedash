@@ -5,7 +5,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Wand2, RefreshCw, CheckCircle, Download, Loader2, Map, Sparkles } from 'lucide-react';
+import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Wand2, RefreshCw, CheckCircle, Download, Loader2, Map, Sparkles, Activity } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useBackupStore } from '../stores/backupStore';
@@ -28,6 +28,7 @@ import AudioDeviceSection from '../components/settings/AudioDeviceSection';
 import RecordingsSavePathSection from '../components/settings/RecordingsSavePathSection';
 import ProxySettingsSection from '../components/settings/ProxySettingsSection';
 import BackgroundAgentSettings from '../components/settings/BackgroundAgentSettings';
+import DiagnosticsSection from '../components/settings/DiagnosticsSection';
 import HudBackground from './HudBackground';
 import HelpTip from './HelpTip';
 
@@ -225,6 +226,18 @@ export default function SettingsPageModern() {
                                     </div>
                                 </div>
                                 <NotificationSection />
+                            </div>
+
+                            {/* Diagnostics */}
+                            <div className="hud-panel-accent clip-corner-cut-sm p-6">
+                                <div className="mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <Activity size={16} className="text-[var(--color-accent)]" />
+                                        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Diagnostics</span>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    </div>
+                                </div>
+                                <DiagnosticsSection />
                             </div>
                         </div>
                     )}

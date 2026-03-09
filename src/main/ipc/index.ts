@@ -28,6 +28,8 @@ import { registerProjectAgentHandlers } from './project-agent';
 
 import { registerBackgroundAgentHandlers } from './background-agent';
 import { registerVoiceInputHandlers } from './voice-input';
+import { registerRecoveryHandlers } from './recovery';
+import { registerDiagnosticsHandlers } from './diagnostics';
 
 /**
  * Register all IPC handlers for the given main window.
@@ -58,6 +60,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerProjectAgentHandlers();
   registerBackgroundAgentHandlers();
   registerVoiceInputHandlers();
+  registerRecoveryHandlers();
+  registerDiagnosticsHandlers();
 
   // App-level: open URL in system browser (not Electron)
   ipcMain.handle('app:open-external', async (_event, url: string) => {

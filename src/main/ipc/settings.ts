@@ -9,7 +9,7 @@
 // - No validation on key/value contents (caller responsibility)
 // - Values are stored as plain text strings (use JSON.stringify for objects)
 
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
@@ -17,6 +17,7 @@ import { settings } from '../db/schema';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { settingKeySchema, settingValueSchema } from '../../shared/validation/schemas';
 import { getProxyConfig, applyGlobalProxy } from '../services/proxyService';
+import { getLogDirectory } from '../services/logger';
 
 export function registerSettingsHandlers(mainWindow: BrowserWindow): void {
   // Get a single setting by key; returns null if not found
@@ -86,5 +87,11 @@ export function registerSettingsHandlers(mainWindow: BrowserWindow): void {
   // Apply proxy after settings change
   ipcMain.handle('settings:applyProxy', async () => {
     await applyGlobalProxy();
+  });
+
+  // Open the log files directory in the system file manager
+  ipcMain.handle('settings:open-logs-folder', async () => {
+    const dir = getLogDirectory();
+    return await shell.openPath(dir);
   });
 }

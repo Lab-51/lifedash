@@ -6,6 +6,9 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  define: {
+    'process.env.SENTRY_DSN': JSON.stringify(process.env.SENTRY_DSN || ''),
+  },
   build: {
     rollupOptions: {
       external: ['@fugood/whisper.node', '@electric-sql/pglite'],

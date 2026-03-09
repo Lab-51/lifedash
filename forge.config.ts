@@ -18,7 +18,7 @@ const IPC_RESERVED_STRINGS = [
   'brainstorm', 'backup', 'meetings', 'cards', 'labels', 'card',
   'card-agent', 'project-agent', 'card-templates', 'window', 'recording', 'ideas', 'idea',
   'ai', 'focus', 'db', 'dashboard', 'whisper', 'gamification', 'app',
-  'projects', 'boards', 'columns', 'settings', 'transcription', 'license',
+  'projects', 'boards', 'columns', 'settings', 'transcription', 'license', 'diagnostics',
   'audio', 'electronAPI', 'contextBridge',
 ];
 

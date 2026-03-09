@@ -21,13 +21,29 @@ import { initMain } from 'electron-audio-loopback';
 import { initAutoBackup, stopAutoBackup } from './services/autoBackupScheduler';
 import { initNotificationScheduler, stopNotificationScheduler } from './services/notificationScheduler';
 import { initBackgroundAgentScheduler, stopBackgroundAgentScheduler } from './services/backgroundAgentScheduler';
-import { createLogger } from './services/logger';
+import { createLogger, initFileLogging } from './services/logger';
 import { getIsRecording, setIsRecording } from './services/recordingState';
 import { applyGlobalProxy } from './services/proxyService';
 import { initAutoUpdater } from './autoUpdater';
+import { writeCrashMarker, startPeriodicSnapshot, stopPeriodicSnapshot, clearRecoveryState } from './services/sessionRecoveryService';
+import { initSentry } from './services/sentryService';
 
 
 const log = createLogger('App');
+
+process.on('uncaughtException', (error) => {
+  log.error('Uncaught exception:', error.stack || error.message || String(error));
+  writeCrashMarker();
+  try {
+    dialog.showErrorBox('Unexpected Error', `${error.message || error}\n\nThe app may be unstable. Please restart.`);
+  } catch {
+    // Dialog may not be available if app isn't ready
+  }
+});
+
+process.on('unhandledRejection', (reason) => {
+  log.error('Unhandled rejection:', reason instanceof Error ? reason.stack || reason.message : String(reason));
+});
 
 // Initialize electron-audio-loopback for system audio capture.
 // Must be called before app is ready.
@@ -137,6 +153,9 @@ const createWindow = async () => {
 
     // Start background agent scheduler (after DB is ready, lower priority than notifications)
     initBackgroundAgentScheduler(mainWindow);
+
+    // Initialize opt-in crash reporting (reads preference from DB)
+    await initSentry();
   } catch (error) {
     log.error('DB connection failed:', error);
   }
@@ -182,6 +201,9 @@ const createWindow = async () => {
     );
   }
 
+  // Start periodic recovery snapshot (crash-safe state persistence)
+  startPeriodicSnapshot();
+
   // Open DevTools in development only
   if (!app.isPackaged) {
     mainWindow.webContents.openDevTools();
@@ -203,6 +225,8 @@ const createWindow = async () => {
 app.on('before-quit', async () => {
   (app as unknown as { isQuitting: boolean }).isQuitting = true;
   globalShortcut.unregisterAll();
+  stopPeriodicSnapshot();
+  clearRecoveryState();
   stopAutoBackup();
   stopNotificationScheduler();
   stopBackgroundAgentScheduler();
@@ -216,6 +240,7 @@ app.on('will-quit', () => {
 
 // Create window when Electron is ready
 app.on('ready', () => {
+  initFileLogging();
   createWindow().catch((error) => {
     log.error('Failed to create window:', error);
   });

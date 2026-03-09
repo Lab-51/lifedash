@@ -26,4 +26,7 @@ export const appBridge = {
 
   // Auto-update: manually trigger an update check
   checkForUpdates: (): Promise<void> => ipcRenderer.invoke('app:check-for-updates'),
+
+  // Open the log files directory in the system file manager
+  openLogsFolder: (): Promise<string> => ipcRenderer.invoke('settings:open-logs-folder'),
 };
