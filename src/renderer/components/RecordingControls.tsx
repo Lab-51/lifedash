@@ -16,7 +16,7 @@ import { onAudioLevel } from '../services/audioCaptureService';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
 import HudSelect from './HudSelect';
-import MeetingPrepSection from './MeetingPrepSection';
+
 
 /** Generate a default meeting title with the current date and time. */
 function suggestMeetingTitle(): string {
@@ -349,9 +349,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
               ))}
             </div>
           )}
-          {selectedProjectId && (
-            <MeetingPrepSection projectId={selectedProjectId} />
-          )}
+
           <button
             type="button"
             onClick={() => setIncludeMic(!includeMic)}
