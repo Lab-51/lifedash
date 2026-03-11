@@ -27,6 +27,8 @@ import { applyGlobalProxy } from './services/proxyService';
 import { initAutoUpdater } from './autoUpdater';
 import { writeCrashMarker, startPeriodicSnapshot, stopPeriodicSnapshot, clearRecoveryState } from './services/sessionRecoveryService';
 import { initSentry } from './services/sentryService';
+import { initSyncService, stopSyncService } from './services/syncService';
+import { getSupabaseClient } from './services/supabaseClient';
 
 
 const log = createLogger('App');
@@ -178,6 +180,14 @@ const createWindow = async () => {
 
     // Initialize opt-in crash reporting (reads preference from DB)
     await initSentry();
+
+    // Initialize cloud sync service (periodic push to Supabase)
+    try {
+      const supabase = getSupabaseClient();
+      initSyncService(supabase, mainWindow);
+    } catch (syncErr) {
+      log.warn('Sync service initialization failed (non-fatal):', syncErr);
+    }
   } catch (error) {
     log.error('DB connection failed:', error);
   }
@@ -252,6 +262,7 @@ app.on('before-quit', async () => {
   stopAutoBackup();
   stopNotificationScheduler();
   stopBackgroundAgentScheduler();
+  stopSyncService();
   await disconnectDatabase();
 });
 

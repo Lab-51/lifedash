@@ -16,3 +16,4 @@ export * from './gamification';
 export * from './card-agent';
 export * from './project-agent';
 export * from './agent-insights';
+export * from './sync';

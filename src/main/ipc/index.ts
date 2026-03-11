@@ -31,6 +31,7 @@ import { registerBackgroundAgentHandlers } from './background-agent';
 import { registerVoiceInputHandlers } from './voice-input';
 import { registerRecoveryHandlers } from './recovery';
 import { registerDiagnosticsHandlers } from './diagnostics';
+import { registerSyncHandlers } from './sync';
 import { trackTiming } from '../services/performanceTracker';
 
 /**
@@ -84,6 +85,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerVoiceInputHandlers();
   registerRecoveryHandlers();
   registerDiagnosticsHandlers();
+  registerSyncHandlers();
 
   // App-level: open URL in system browser (not Electron)
   ipcMain.handle('app:open-external', async (_event, url: string) => {

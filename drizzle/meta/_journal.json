@@ -162,6 +162,13 @@
       "when": 1772984367556,
       "tag": "0022_perpetual_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1773235687321,
+      "tag": "0023_burly_randall_flagg",
+      "breakpoints": true
     }
   ]
 }

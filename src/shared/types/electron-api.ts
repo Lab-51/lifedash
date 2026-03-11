@@ -53,6 +53,7 @@ import type { CardAgentMessage, CardAgentThread, AgentAction } from './card-agen
 import type { ProjectAgentMessage, ProjectAgentThread, ProjectAgentAction } from './project-agent';
 
 import type { AgentInsight, BackgroundAgentPreferences, InsightType, InsightStatus } from './background-agent';
+import type { AuthState, SyncStatus } from './sync';
 
 export interface RecoveryState {
   timestamp: string;
@@ -381,6 +382,16 @@ export interface ElectronAPI {
   // Diagnostics
   diagnosticsGetCrashReportsEnabled: () => Promise<boolean>;
   diagnosticsSetCrashReportsEnabled: (value: boolean) => Promise<void>;
+
+  // Cloud Sync
+  syncGetAuthState: () => Promise<AuthState>;
+  syncSignIn: () => Promise<AuthState>;
+  syncSignOut: () => Promise<void>;
+  syncGetStatus: () => Promise<SyncStatus>;
+  syncToggleEnabled: (enabled: boolean) => Promise<void>;
+  syncTriggerNow: () => Promise<{ status: SyncStatus; message: string }>;
+  onSyncStatusChanged: (callback: (data: { status: string; lastSyncedAt: string | null }) => void) => () => void;
+  onSyncError: (callback: (data: { table: string; error: string }) => void) => () => void;
 }
 
 declare global {

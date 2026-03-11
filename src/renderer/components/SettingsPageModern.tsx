@@ -5,7 +5,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Wand2, RefreshCw, CheckCircle, Download, Loader2, Map, Sparkles, Activity } from 'lucide-react';
+import { Plus, Bot, Info, Settings, Monitor, Mic, Save, Wifi, Bell, FileDown, Database, Cpu, Wand2, RefreshCw, CheckCircle, Download, Loader2, Map, Sparkles, Activity, Cloud } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useBackupStore } from '../stores/backupStore';
@@ -29,6 +29,7 @@ import RecordingsSavePathSection from '../components/settings/RecordingsSavePath
 import ProxySettingsSection from '../components/settings/ProxySettingsSection';
 import BackgroundAgentSettings from '../components/settings/BackgroundAgentSettings';
 import DiagnosticsSection from '../components/settings/DiagnosticsSection';
+import SyncSettings from '../components/settings/SyncSettings';
 import HudBackground from './HudBackground';
 import HelpTip from './HelpTip';
 
@@ -380,6 +381,18 @@ export default function SettingsPageModern() {
 
                     {activeTab === 'data' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {/* Cloud Sync */}
+                            <section className="hud-panel-accent clip-corner-cut-sm p-6">
+                                <div className="mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <Cloud size={16} className="text-[var(--color-accent)]" />
+                                        <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Cloud Sync</span>
+                                        <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                                    </div>
+                                </div>
+                                <SyncSettings />
+                            </section>
+
                             <section className="hud-panel-accent clip-corner-cut-sm p-6">
                                 <div className="mb-4">
                                     <div className="flex items-center gap-3">
