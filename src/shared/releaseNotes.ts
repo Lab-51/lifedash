@@ -28,6 +28,20 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.11',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Cloud sync now works for all table types — fixed query errors for boards, columns, meetings, and more',
+          'Title bar sync status clears properly after signing out',
+          'Sign-in now correctly updates the UI',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.10',
     sections: [
       {
@@ -107,19 +121,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'All IPC channels now validate inputs at runtime (100% Zod coverage)',
           'Structured file logging with automatic daily rotation',
           'Optional crash reporting with automatic PII stripping (opt-in)',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.5',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Font size setting — choose Small, Default, Large, or Extra Large in Settings > Appearance',
-          'Cancel button for meeting recording and voice input across all features',
         ],
       },
     ],
