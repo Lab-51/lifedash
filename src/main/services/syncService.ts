@@ -872,6 +872,21 @@ export class SyncService {
    * Only checks non-junction tables with an 'id' primary key.
    * Junction tables are already handled by full-replace in pullJunctionTable.
    */
+  /**
+   * Safety check: only reconcile deletes for a table if we have previously
+   * completed at least one successful push for it. Without a push watermark
+   * the remote may be empty simply because we haven't uploaded yet — deleting
+   * all local rows in that case would cause total data loss.
+   */
+  private async hasCompletedPush(tableName: string): Promise<boolean> {
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(syncTracking)
+      .where(eq(syncTracking.tableName, tableName));
+    return rows.length > 0 && rows[0].lastSyncedAt !== null;
+  }
+
   private async reconcileDeletes(userId: string): Promise<number> {
     const db = getDb();
     let totalDeleted = 0;
@@ -880,6 +895,15 @@ export class SyncService {
       if (config.isJunction) continue; // Junctions use full replace — already handled
 
       try {
+        // SAFETY: Skip delete reconciliation if we've never pushed this table.
+        // If there's no push watermark, the remote is likely empty because we
+        // haven't uploaded yet — not because the user deleted everything on web.
+        const pushed = await this.hasCompletedPush(config.name);
+        if (!pushed) {
+          log.debug(`Skipping delete reconciliation for ${config.name}: no push watermark yet`);
+          continue;
+        }
+
         // Fetch all remote IDs for this user
         const { data: remoteRows, error } = await this.supabase
           .from(config.supabaseTable)
@@ -893,6 +917,14 @@ export class SyncService {
 
         const remoteIds = new Set((remoteRows || []).map((r: { id: string }) => r.id));
 
+        // SAFETY: If the remote returned zero rows but we have local data,
+        // something is likely wrong (network issue, RLS policy, empty account).
+        // Never bulk-delete all local data — that's almost certainly not intentional.
+        if (remoteIds.size === 0) {
+          log.warn(`Delete reconciliation skipped for ${config.name}: remote returned 0 rows (refusing to delete all local data)`);
+          continue;
+        }
+
         // Fetch all local IDs
         const localRows = await db
           .select({ id: config.drizzleTable.id })
@@ -904,6 +936,17 @@ export class SyncService {
           .filter((id: string) => !remoteIds.has(id));
 
         if (orphanIds.length === 0) continue;
+
+        // SAFETY: If orphans would be more than 50% of local rows, refuse.
+        // This catches edge cases like partial remote responses or pagination issues.
+        const orphanRatio = orphanIds.length / localRows.length;
+        if (orphanRatio > 0.5 && orphanIds.length > 5) {
+          log.warn(
+            `Delete reconciliation skipped for ${config.name}: ${orphanIds.length}/${localRows.length} rows ` +
+            `(${Math.round(orphanRatio * 100)}%) would be deleted — exceeds safety threshold`,
+          );
+          continue;
+        }
 
         // Delete orphaned rows in batches
         for (let i = 0; i < orphanIds.length; i += BATCH_SIZE) {
