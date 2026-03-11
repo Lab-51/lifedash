@@ -28,6 +28,20 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.12',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Backup restore now works reliably — fixed date handling and settings conflicts',
+          'Cloud sync no longer deletes local data when remote is empty',
+          'Dashboard refreshes automatically after restoring a backup',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.11',
     sections: [
       {
@@ -95,32 +109,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         label: 'Fixes',
         items: [
           'Removed meeting prep section from recording project selector',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.6',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Crash recovery — the app snapshots your work periodically and offers to restore it after unexpected shutdowns',
-          'Database integrity checks on every startup with automatic connection retry',
-          'Atomic backup/restore — failed restores roll back cleanly so your data stays intact',
-          'Graceful AI degradation — fallback summaries and clear messages when your AI provider is unavailable',
-          'Transcription failure notifications — the app now tells you when transcription stops working instead of failing silently',
-          'Full keyboard navigation with focus trapping in every modal',
-        ],
-      },
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'All IPC channels now validate inputs at runtime (100% Zod coverage)',
-          'Structured file logging with automatic daily rotation',
-          'Optional crash reporting with automatic PII stripping (opt-in)',
         ],
       },
     ],
