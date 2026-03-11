@@ -691,21 +691,30 @@ export class SyncService {
 
     const lastPulledAt = watermarkRows.length > 0 ? watermarkRows[0].lastSyncedAt : null;
 
-    // Query Supabase for rows changed since last pull
+    // Query Supabase for rows changed since last pull.
+    // Use the table's watermark column for ordering and filtering.
+    // Tables without updated_at (e.g., brainstorm_messages) use created_at only.
+    const hasUpdatedAt = config.watermarkDbColumn === 'updated_at';
+    const orderColumn = hasUpdatedAt ? 'updated_at' : 'created_at';
+
     let query = this.supabase
       .from(config.supabaseTable)
       .select('*')
       .eq('user_id', userId)
-      .order('updated_at', { ascending: true })
+      .order(orderColumn, { ascending: true })
       .limit(PULL_BATCH_LIMIT);
 
     if (lastPulledAt) {
       const isoTimestamp = lastPulledAt instanceof Date
         ? lastPulledAt.toISOString()
         : String(lastPulledAt);
-      // Pull rows where updated_at OR created_at is newer than last pull
-      // This catches both new and modified rows
-      query = query.or(`updated_at.gt.${isoTimestamp},created_at.gt.${isoTimestamp}`);
+      // Pull rows changed since last pull — include both updated_at and created_at
+      // if the table has updated_at, otherwise just created_at
+      if (hasUpdatedAt) {
+        query = query.or(`updated_at.gt.${isoTimestamp},created_at.gt.${isoTimestamp}`);
+      } else {
+        query = query.gt('created_at', isoTimestamp);
+      }
     }
 
     const { data: remoteRows, error } = await query;
