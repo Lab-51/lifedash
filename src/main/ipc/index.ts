@@ -85,7 +85,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerVoiceInputHandlers();
   registerRecoveryHandlers();
   registerDiagnosticsHandlers();
-  registerSyncHandlers();
+  registerSyncHandlers(mainWindow);
 
   // App-level: open URL in system browser (not Electron)
   ipcMain.handle('app:open-external', async (_event, url: string) => {

@@ -5,7 +5,7 @@
 // === DEPENDENCIES ===
 // electron (ipcMain), authService, supabaseClient, syncService
 
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 import { eq } from 'drizzle-orm';
 import { openAuthWindow, signOut, getAuthState } from '../services/authService';
 import { getSyncService } from '../services/syncService';
@@ -20,7 +20,7 @@ const log = createLogger('SyncIPC');
 
 const SETTINGS_KEY_SYNC_ENABLED = 'sync.enabled';
 
-export function registerSyncHandlers(): void {
+export function registerSyncHandlers(mainWindow: BrowserWindow): void {
   // Get current auth state
   ipcMain.handle('sync:get-auth-state', async () => {
     try {
@@ -49,6 +49,12 @@ export function registerSyncHandlers(): void {
   ipcMain.handle('sync:sign-out', async () => {
     try {
       await signOut();
+      // Notify all renderer subscribers (TitleBar, Settings, etc.) that sync
+      // is disconnected so every useSyncStatus() instance updates immediately.
+      mainWindow.webContents.send('sync:status-changed', {
+        status: 'disconnected' as SyncStatus,
+        lastSyncedAt: null,
+      });
     } catch (err) {
       log.error('Sign-out failed:', err);
       throw new Error('Sign-out failed.');

@@ -96,12 +96,25 @@ function useSyncStatus(): SyncStatusHook {
     if (!window.electronAPI?.onSyncStatusChanged) return;
 
     return window.electronAPI.onSyncStatusChanged((data) => {
-      setState(prev => ({
-        ...prev,
-        status: data.status as SyncStatus,
-        lastSyncedAt: data.lastSyncedAt || prev.lastSyncedAt,
-        errorDetails: data.status === 'error' ? prev.errorDetails : null,
-      }));
+      setState(prev => {
+        const status = data.status as SyncStatus;
+        // When status goes to 'disconnected' with null lastSyncedAt, the user
+        // signed out — reset auth-related fields so all consumers (TitleBar,
+        // Settings, etc.) show the unauthenticated state immediately.
+        const signedOut = status === 'disconnected' && data.lastSyncedAt === null;
+        return {
+          ...prev,
+          status,
+          lastSyncedAt: data.lastSyncedAt || prev.lastSyncedAt,
+          errorDetails: status === 'error' ? prev.errorDetails : null,
+          ...(signedOut && {
+            isAuthenticated: false,
+            isEnabled: false,
+            user: null,
+            lastSyncedAt: null,
+          }),
+        };
+      });
     });
   }, []);
 
