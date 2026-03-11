@@ -70,7 +70,10 @@ export const useBackupStore = create<BackupState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await window.electronAPI.backupRestore(filePath);
-      await get().loadBackups();
+      // Brief delay so the user sees the "Restore complete" message,
+      // then reload the window to force all components to re-fetch
+      // fresh data from the restored database.
+      setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : 'Restore failed',
@@ -83,7 +86,7 @@ export const useBackupStore = create<BackupState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await window.electronAPI.backupRestoreFromFile();
-      await get().loadBackups();
+      setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : 'Restore failed',

@@ -14,7 +14,7 @@
 import { app, BrowserWindow } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { sql } from 'drizzle-orm';
+import { sql, getTableName } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { getDb } from '../db/connection';
 import * as schema from '../db/schema';
@@ -73,6 +73,41 @@ interface BackupData {
   createdAt: string;
   tableCount: number;
   tables: Record<string, Record<string, unknown>[]>;
+}
+
+// ISO 8601 date pattern
+const ISO_DATE_RE =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/;
+
+// Text/varchar columns that may contain date-like strings as data values.
+// These must NOT be converted to Date objects.
+const TEXT_COLUMNS = new Set([
+  'value', 'content', 'body', 'description', 'summary', 'text',
+  'transcript', 'title', 'name', 'brief', 'notes', 'message',
+  'apiKeyEncrypted', 'metadata', 'checklist', 'tags', 'label',
+]);
+
+/**
+ * JSON.parse deserializes dates as plain strings. Drizzle ORM expects Date
+ * objects for timestamp columns and calls .toISOString() on them during INSERT.
+ * Converts ISO-date strings back to Dates, except for known text columns.
+ */
+function rehydrateDates(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (
+      !TEXT_COLUMNS.has(key) &&
+      typeof value === 'string' &&
+      ISO_DATE_RE.test(value)
+    ) {
+      result[key] = new Date(value);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
 }
 
 // --- Utility functions ---
@@ -242,15 +277,36 @@ export async function restoreBackup(
     try {
       await db.transaction(async (tx) => {
         // Delete all data in reverse FK order (children first)
-        for (const [name, table] of BACKUP_TABLES_DELETE_ORDER) {
-          await tx.delete(table);
+        for (const [, t] of BACKUP_TABLES_DELETE_ORDER) {
+          await tx.delete(t);
         }
 
         // Insert data in forward FK order (parents first)
         for (const [name, table] of BACKUP_TABLES_INSERT_ORDER) {
           const rows = backupData.tables[name];
-          if (rows && rows.length > 0) {
-            await tx.insert(table).values(rows);
+          if (!rows || rows.length === 0) continue;
+          const hydrated = rows.map(rehydrateDates);
+
+          if (name === 'settings') {
+            // Settings uses `key` as PK and may be re-populated by services
+            // running concurrently — use upsert to handle conflicts.
+            for (const row of hydrated) {
+              await tx.insert(settings)
+                .values(row as { key: string; value: string; updatedAt: Date })
+                .onConflictDoUpdate({
+                  target: settings.key,
+                  set: {
+                    value: (row as Record<string, unknown>).value as string,
+                    updatedAt: (row as Record<string, unknown>).updatedAt as Date,
+                  },
+                });
+            }
+          } else {
+            // All other tables: plain insert in batches
+            const BATCH = 50;
+            for (let i = 0; i < hydrated.length; i += BATCH) {
+              await tx.insert(table).values(hydrated.slice(i, i + BATCH));
+            }
           }
         }
       });
