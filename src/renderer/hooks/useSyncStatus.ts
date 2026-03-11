@@ -19,6 +19,11 @@ export interface SyncStatusState {
   loading: boolean;
 }
 
+export interface SyncStatusHook extends SyncStatusState {
+  /** Re-fetch auth state and sync status from the main process. */
+  refresh: () => Promise<void>;
+}
+
 /**
  * Format a timestamp as a relative time string (e.g. "just now", "2 minutes ago").
  * Returns null if the input is null.
@@ -45,7 +50,7 @@ export function formatRelativeTime(iso: string | null): string | null {
   return `${days}d ago`;
 }
 
-function useSyncStatus(): SyncStatusState {
+function useSyncStatus(): SyncStatusHook {
   const [state, setState] = useState<SyncStatusState>({
     status: 'disconnected',
     lastSyncedAt: null,
@@ -113,7 +118,7 @@ function useSyncStatus(): SyncStatusState {
     });
   }, []);
 
-  return state;
+  return { ...state, refresh: loadInitialState };
 }
 
 export default useSyncStatus;

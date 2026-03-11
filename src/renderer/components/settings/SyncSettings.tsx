@@ -44,7 +44,8 @@ export default function SyncSettings() {
     setSigningIn(true);
     try {
       await window.electronAPI.syncSignIn();
-      // Reload will be picked up by the useSyncStatus hook via events
+      // Re-fetch auth state so the UI reflects the new session
+      await sync.refresh();
     } catch (err) {
       console.error('Sign-in failed:', err);
     } finally {
@@ -55,6 +56,8 @@ export default function SyncSettings() {
   const handleSignOut = async () => {
     try {
       await window.electronAPI.syncSignOut();
+      // Re-fetch auth state so the UI reflects sign-out
+      await sync.refresh();
     } catch (err) {
       console.error('Sign-out failed:', err);
     }
