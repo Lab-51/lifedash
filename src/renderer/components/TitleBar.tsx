@@ -1,10 +1,13 @@
 // === FILE PURPOSE ===
 // Custom frameless window title bar with drag region and window controls.
 // HUD styled: void-dark gradient, teal accent line, Orbitron app name.
+// Includes cloud sync status indicator and app update status.
 
 import { useEffect, useState } from 'react';
-import { Minus, Square, Copy, X, Pin, PinOff, Download, CheckCircle, Loader2 } from 'lucide-react';
+import { Minus, Square, Copy, X, Pin, PinOff, Download, CheckCircle, Loader2, Cloud, CloudOff, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import dashIcon from '../assets/icon.svg';
+import useSyncStatus, { formatRelativeTime } from '../hooks/useSyncStatus';
 
 type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'ready' | 'error';
 
@@ -13,6 +16,8 @@ function TitleBar() {
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
   const [releaseName, setReleaseName] = useState<string>('');
+  const navigate = useNavigate();
+  const sync = useSyncStatus();
 
   useEffect(() => {
     window.electronAPI.windowIsMaximized().then(setIsMaximized);
@@ -83,6 +88,57 @@ function TitleBar() {
               <span>Update</span>
             </button>
           )}
+
+          {/* Separator: update status | sync status */}
+          <div className="w-px h-4 self-center bg-[var(--color-border)]" />
+
+          {/* Cloud sync status indicator */}
+          {!sync.loading && (
+            <button
+              type="button"
+              onClick={() => navigate('/settings?tab=data')}
+              className={`h-full inline-flex items-center gap-1.5 px-3 text-xs transition-colors hover:bg-[var(--color-accent-subtle)] ${
+                sync.status === 'error'
+                  ? 'text-red-400'
+                  : sync.status === 'syncing'
+                    ? 'text-blue-400'
+                    : sync.status === 'synced'
+                      ? 'text-emerald-500/70'
+                      : 'text-[var(--color-text-muted)]'
+              }`}
+              title={
+                !sync.isAuthenticated
+                  ? 'Click to set up cloud sync'
+                  : sync.status === 'error'
+                    ? `Sync error: ${sync.errorDetails ?? 'unknown'}`
+                    : sync.status === 'syncing'
+                      ? 'Syncing in progress...'
+                      : sync.status === 'synced'
+                        ? `Last synced ${formatRelativeTime(sync.lastSyncedAt) ?? 'recently'}`
+                        : 'Cloud sync is off'
+              }
+            >
+              {sync.status === 'error' && <AlertCircle size={12} />}
+              {sync.status === 'syncing' && <Cloud size={12} className="animate-pulse" />}
+              {sync.status === 'synced' && <Cloud size={12} />}
+              {(sync.status === 'disconnected' || sync.status === 'offline') && <CloudOff size={12} />}
+
+              <span>
+                {!sync.isAuthenticated
+                  ? 'Cloud Sync'
+                  : sync.status === 'error'
+                    ? 'Sync error'
+                    : sync.status === 'syncing'
+                      ? 'Syncing...'
+                      : sync.status === 'synced'
+                        ? `Synced ${formatRelativeTime(sync.lastSyncedAt) ?? 'recently'}`
+                        : 'Sync off'}
+              </span>
+            </button>
+          )}
+
+          {/* Separator: sync status | window controls */}
+          <div className="w-px h-4 self-center bg-[var(--color-border)]" />
 
           {/* Pin on top */}
           <button

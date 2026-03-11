@@ -38,7 +38,8 @@ export async function openAuthWindow(): Promise<AuthState> {
       resizable: false,
       minimizable: false,
       maximizable: false,
-      title: 'Sign In to LifeDash Cloud',
+      title: 'LifeDash Cloud',
+      backgroundColor: '#0d1117',
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -274,12 +275,15 @@ function buildAuthHtml(supabaseUrl: string): string {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sign In</title>
+  <title>LifeDash Cloud</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0f172a;
+      font-family: 'Rajdhani', sans-serif;
+      background: #0d1117;
       color: #e2e8f0;
       display: flex;
       align-items: center;
@@ -287,91 +291,139 @@ function buildAuthHtml(supabaseUrl: string): string {
       min-height: 100vh;
       padding: 24px;
     }
-    .container {
+    .card {
       width: 100%;
-      max-width: 360px;
+      max-width: 380px;
+      border: 1px solid #1a2332;
+      background: #0a0e17;
+      position: relative;
+      padding: 40px 32px 32px;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #3ee8e4;
     }
     h1 {
-      font-size: 1.5rem;
-      font-weight: 600;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.35rem;
+      font-weight: 700;
       margin-bottom: 8px;
       text-align: center;
+      letter-spacing: 0.08em;
+    }
+    h1 .accent {
+      color: #3ee8e4;
     }
     .subtitle {
-      font-size: 0.875rem;
-      color: #94a3b8;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.9rem;
+      color: #7a8ba0;
       text-align: center;
-      margin-bottom: 32px;
+      margin-bottom: 28px;
+      font-weight: 500;
     }
     .field {
       margin-bottom: 16px;
     }
     label {
       display: block;
-      font-size: 0.75rem;
-      font-weight: 500;
-      color: #94a3b8;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #7a8ba0;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.1em;
       margin-bottom: 6px;
     }
     input {
       width: 100%;
       padding: 10px 14px;
-      font-size: 0.9375rem;
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 6px;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.95rem;
+      background: #0a0e17;
+      border: 1px solid #1a2332;
+      border-radius: 2px;
       color: #e2e8f0;
       outline: none;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
     input:focus {
-      border-color: #6366f1;
+      border-color: #3ee8e4;
+      box-shadow: 0 0 8px rgba(62, 232, 228, 0.15);
+    }
+    input::placeholder {
+      color: #3d4f63;
     }
     .btn {
       width: 100%;
       padding: 12px;
-      font-size: 0.9375rem;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.95rem;
       font-weight: 600;
       border: none;
-      border-radius: 6px;
+      border-radius: 2px;
       cursor: pointer;
       transition: all 0.2s;
       margin-top: 8px;
+      letter-spacing: 0.04em;
     }
     .btn-primary {
-      background: #6366f1;
-      color: white;
+      background: #3ee8e4;
+      color: #0d1117;
     }
-    .btn-primary:hover { background: #4f46e5; }
+    .btn-primary:hover {
+      background: #1ac5c1;
+      box-shadow: 0 0 12px rgba(62, 232, 228, 0.25);
+    }
     .btn-primary:disabled {
-      opacity: 0.6;
+      opacity: 0.5;
       cursor: not-allowed;
     }
     .error {
-      color: #f87171;
+      color: #ef4444;
       font-size: 0.8125rem;
       margin-top: 12px;
       text-align: center;
+    }
+    .success {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 2px;
+      background: rgba(34, 197, 94, 0.06);
+      color: #22c55e;
+      font-size: 0.85rem;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .success .check {
+      font-size: 1.25rem;
+      display: block;
+      margin-bottom: 6px;
     }
     .toggle {
       text-align: center;
       margin-top: 20px;
     }
     .toggle a {
-      color: #6366f1;
+      color: #3ee8e4;
       font-size: 0.8125rem;
       cursor: pointer;
       text-decoration: none;
+      font-weight: 500;
     }
     .toggle a:hover { text-decoration: underline; }
     .spinner {
       display: inline-block;
       width: 16px;
       height: 16px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-top-color: white;
+      border: 2px solid rgba(13, 17, 23, 0.3);
+      border-top-color: #3ee8e4;
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
       vertical-align: middle;
@@ -381,8 +433,8 @@ function buildAuthHtml(supabaseUrl: string): string {
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>LifeDash Cloud</h1>
+  <div class="card">
+    <h1>LIFEDASH <span class="accent">CLOUD</span></h1>
     <p class="subtitle">Sign in to enable cloud sync</p>
 
     <form id="auth-form">
@@ -397,6 +449,10 @@ function buildAuthHtml(supabaseUrl: string): string {
       <button type="submit" class="btn btn-primary" id="submit-btn">Sign In</button>
     </form>
     <div id="error" class="error" style="display:none;"></div>
+    <div id="success" class="success" style="display:none;">
+      <span class="check">\u2713</span>
+      Account created! Check your email to confirm, then sign in.
+    </div>
     <div class="toggle">
       <a id="toggle-mode" href="#">Don't have an account? Sign Up</a>
     </div>
@@ -411,7 +467,17 @@ function buildAuthHtml(supabaseUrl: string): string {
     const form = document.getElementById('auth-form');
     const btn = document.getElementById('submit-btn');
     const errorEl = document.getElementById('error');
+    const successEl = document.getElementById('success');
     const toggleEl = document.getElementById('toggle-mode');
+
+    function switchToSignIn() {
+      isSignUp = false;
+      btn.textContent = 'Sign In';
+      toggleEl.textContent = "Don't have an account? Sign Up";
+      form.style.display = '';
+      successEl.style.display = 'none';
+      toggleEl.parentElement.style.display = '';
+    }
 
     toggleEl.addEventListener('click', (e) => {
       e.preventDefault();
@@ -421,11 +487,13 @@ function buildAuthHtml(supabaseUrl: string): string {
         ? 'Already have an account? Sign In'
         : "Don't have an account? Sign Up";
       errorEl.style.display = 'none';
+      successEl.style.display = 'none';
     });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorEl.style.display = 'none';
+      successEl.style.display = 'none';
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span>' + (isSignUp ? 'Signing up...' : 'Signing in...');
 
@@ -450,11 +518,12 @@ function buildAuthHtml(supabaseUrl: string): string {
         }
 
         if (isSignUp && !data.access_token) {
-          errorEl.textContent = 'Check your email to confirm your account, then sign in.';
-          errorEl.style.display = 'block';
-          errorEl.style.color = '#4ade80';
+          form.style.display = 'none';
+          toggleEl.parentElement.style.display = 'none';
+          successEl.style.display = 'block';
           btn.disabled = false;
           btn.textContent = 'Sign Up';
+          setTimeout(switchToSignIn, 3000);
           return;
         }
 
@@ -467,7 +536,6 @@ function buildAuthHtml(supabaseUrl: string): string {
       } catch (err) {
         errorEl.textContent = err.message;
         errorEl.style.display = 'block';
-        errorEl.style.color = '#f87171';
         btn.disabled = false;
         btn.textContent = isSignUp ? 'Sign Up' : 'Sign In';
       }

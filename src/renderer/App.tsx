@@ -275,6 +275,23 @@ function AppShell({ children }: { children: ReactNode }) {
     return cleanup;
   }, []);
 
+  // Refresh all stores when pull sync brings in new data from the web
+  useEffect(() => {
+    if (!window.electronAPI?.onSyncPullComplete) return;
+    return window.electronAPI.onSyncPullComplete(() => {
+      useProjectStore.getState().loadProjects();
+      useMeetingStore.getState().loadMeetings();
+      useIdeaStore.getState().loadIdeas();
+      useBrainstormStore.getState().loadSessions();
+      useBoardStore.getState().loadAllCards();
+      // Reload the active board if the user is viewing one
+      const boardState = useBoardStore.getState();
+      if (boardState.project?.id) {
+        boardState.loadBoard(boardState.project.id);
+      }
+    });
+  }, []);
+
 
   // Show toast when break timer ends (break -> idle transition)
   const prevModeRef = useRef(focusMode);

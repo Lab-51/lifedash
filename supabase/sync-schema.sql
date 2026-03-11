@@ -1,13 +1,16 @@
 -- ============================================================================
--- LifeDash Web Companion — Supabase Cloud Sync Schema
+-- LifeDash — Supabase Cloud Sync Schema
 -- ============================================================================
--- This SQL creates the 16 tables used for LifeDash desktop-to-cloud sync.
--- Desktop (PGlite) is the source of truth; sync is push-only (local -> cloud).
+-- Creates the 16 tables used for bidirectional sync between LifeDash desktop
+-- and the web companion. Both sides can read and write; last-write-wins.
+--
+-- IDEMPOTENT: Safe to re-run. Uses IF NOT EXISTS for tables/indexes and
+-- DROP/CREATE for policies (Postgres has no CREATE POLICY IF NOT EXISTS).
 --
 -- How to use:
 --   1. Open the Supabase SQL Editor for your project
 --   2. Paste this entire file and run it
---   3. All tables, enums, RLS policies, and indexes will be created
+--   3. All tables, RLS policies, and indexes will be created
 --
 -- Notes:
 --   - Every table includes user_id (FK to auth.users) and synced_at columns
@@ -15,12 +18,6 @@
 --   - Users can only access their own rows
 --   - Audio recordings and local AI-generated content are NOT synced
 -- ============================================================================
-
--- ============================================================================
--- ENUMS (using TEXT with CHECK constraints for easier migration)
--- ============================================================================
--- We use CHECK constraints instead of Postgres ENUMs to avoid migration pain
--- when adding new values later.
 
 -- ============================================================================
 -- TABLE: projects
@@ -40,11 +37,11 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON projects;
 CREATE POLICY "Users own data" ON projects FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_projects_user_id ON projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
 
 -- ============================================================================
 -- TABLE: boards
@@ -60,12 +57,12 @@ CREATE TABLE IF NOT EXISTS boards (
 );
 
 ALTER TABLE boards ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON boards;
 CREATE POLICY "Users own data" ON boards FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_boards_user_id ON boards(user_id);
-CREATE INDEX idx_boards_project_id ON boards(project_id);
+CREATE INDEX IF NOT EXISTS idx_boards_user_id ON boards(user_id);
+CREATE INDEX IF NOT EXISTS idx_boards_project_id ON boards(project_id);
 
 -- ============================================================================
 -- TABLE: columns
@@ -82,12 +79,12 @@ CREATE TABLE IF NOT EXISTS columns (
 );
 
 ALTER TABLE columns ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON columns;
 CREATE POLICY "Users own data" ON columns FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_columns_user_id ON columns(user_id);
-CREATE INDEX idx_columns_board_id ON columns(board_id);
+CREATE INDEX IF NOT EXISTS idx_columns_user_id ON columns(user_id);
+CREATE INDEX IF NOT EXISTS idx_columns_board_id ON columns(board_id);
 
 -- ============================================================================
 -- TABLE: cards
@@ -113,14 +110,14 @@ CREATE TABLE IF NOT EXISTS cards (
 );
 
 ALTER TABLE cards ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON cards;
 CREATE POLICY "Users own data" ON cards FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_cards_user_id ON cards(user_id);
-CREATE INDEX idx_cards_column_id ON cards(column_id);
-CREATE INDEX idx_cards_archived ON cards(archived);
-CREATE INDEX idx_cards_updated_at ON cards(updated_at);
+CREATE INDEX IF NOT EXISTS idx_cards_user_id ON cards(user_id);
+CREATE INDEX IF NOT EXISTS idx_cards_column_id ON cards(column_id);
+CREATE INDEX IF NOT EXISTS idx_cards_archived ON cards(archived);
+CREATE INDEX IF NOT EXISTS idx_cards_updated_at ON cards(updated_at);
 
 -- ============================================================================
 -- TABLE: labels
@@ -136,12 +133,12 @@ CREATE TABLE IF NOT EXISTS labels (
 );
 
 ALTER TABLE labels ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON labels;
 CREATE POLICY "Users own data" ON labels FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_labels_user_id ON labels(user_id);
-CREATE INDEX idx_labels_project_id ON labels(project_id);
+CREATE INDEX IF NOT EXISTS idx_labels_user_id ON labels(user_id);
+CREATE INDEX IF NOT EXISTS idx_labels_project_id ON labels(project_id);
 
 -- ============================================================================
 -- TABLE: card_labels (junction — composite PK)
@@ -155,12 +152,12 @@ CREATE TABLE IF NOT EXISTS card_labels (
 );
 
 ALTER TABLE card_labels ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON card_labels;
 CREATE POLICY "Users own data" ON card_labels FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_card_labels_user_id ON card_labels(user_id);
-CREATE INDEX idx_card_labels_card_id ON card_labels(card_id);
+CREATE INDEX IF NOT EXISTS idx_card_labels_user_id ON card_labels(user_id);
+CREATE INDEX IF NOT EXISTS idx_card_labels_card_id ON card_labels(card_id);
 
 -- ============================================================================
 -- TABLE: card_comments
@@ -176,12 +173,12 @@ CREATE TABLE IF NOT EXISTS card_comments (
 );
 
 ALTER TABLE card_comments ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON card_comments;
 CREATE POLICY "Users own data" ON card_comments FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_card_comments_user_id ON card_comments(user_id);
-CREATE INDEX idx_card_comments_card_id ON card_comments(card_id);
+CREATE INDEX IF NOT EXISTS idx_card_comments_user_id ON card_comments(user_id);
+CREATE INDEX IF NOT EXISTS idx_card_comments_card_id ON card_comments(card_id);
 
 -- ============================================================================
 -- TABLE: card_checklist_items
@@ -198,12 +195,12 @@ CREATE TABLE IF NOT EXISTS card_checklist_items (
 );
 
 ALTER TABLE card_checklist_items ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON card_checklist_items;
 CREATE POLICY "Users own data" ON card_checklist_items FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_card_checklist_items_user_id ON card_checklist_items(user_id);
-CREATE INDEX idx_card_checklist_items_card_id ON card_checklist_items(card_id);
+CREATE INDEX IF NOT EXISTS idx_card_checklist_items_user_id ON card_checklist_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_card_checklist_items_card_id ON card_checklist_items(card_id);
 
 -- ============================================================================
 -- TABLE: meetings (audio_path and prep_briefing EXCLUDED — local only)
@@ -225,12 +222,12 @@ CREATE TABLE IF NOT EXISTS meetings (
 );
 
 ALTER TABLE meetings ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON meetings;
 CREATE POLICY "Users own data" ON meetings FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_meetings_user_id ON meetings(user_id);
-CREATE INDEX idx_meetings_project_id ON meetings(project_id);
+CREATE INDEX IF NOT EXISTS idx_meetings_user_id ON meetings(user_id);
+CREATE INDEX IF NOT EXISTS idx_meetings_project_id ON meetings(project_id);
 
 -- ============================================================================
 -- TABLE: meeting_briefs
@@ -245,12 +242,12 @@ CREATE TABLE IF NOT EXISTS meeting_briefs (
 );
 
 ALTER TABLE meeting_briefs ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON meeting_briefs;
 CREATE POLICY "Users own data" ON meeting_briefs FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_meeting_briefs_user_id ON meeting_briefs(user_id);
-CREATE INDEX idx_meeting_briefs_meeting_id ON meeting_briefs(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_briefs_user_id ON meeting_briefs(user_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_briefs_meeting_id ON meeting_briefs(meeting_id);
 
 -- ============================================================================
 -- TABLE: action_items
@@ -268,13 +265,13 @@ CREATE TABLE IF NOT EXISTS action_items (
 );
 
 ALTER TABLE action_items ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON action_items;
 CREATE POLICY "Users own data" ON action_items FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_action_items_user_id ON action_items(user_id);
-CREATE INDEX idx_action_items_meeting_id ON action_items(meeting_id);
-CREATE INDEX idx_action_items_status ON action_items(status);
+CREATE INDEX IF NOT EXISTS idx_action_items_user_id ON action_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_action_items_meeting_id ON action_items(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_action_items_status ON action_items(status);
 
 -- ============================================================================
 -- TABLE: ideas
@@ -297,12 +294,12 @@ CREATE TABLE IF NOT EXISTS ideas (
 );
 
 ALTER TABLE ideas ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON ideas;
 CREATE POLICY "Users own data" ON ideas FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_ideas_user_id ON ideas(user_id);
-CREATE INDEX idx_ideas_project_id ON ideas(project_id);
+CREATE INDEX IF NOT EXISTS idx_ideas_user_id ON ideas(user_id);
+CREATE INDEX IF NOT EXISTS idx_ideas_project_id ON ideas(project_id);
 
 -- ============================================================================
 -- TABLE: idea_tags (junction — composite PK)
@@ -316,12 +313,12 @@ CREATE TABLE IF NOT EXISTS idea_tags (
 );
 
 ALTER TABLE idea_tags ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON idea_tags;
 CREATE POLICY "Users own data" ON idea_tags FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_idea_tags_user_id ON idea_tags(user_id);
-CREATE INDEX idx_idea_tags_idea_id ON idea_tags(idea_id);
+CREATE INDEX IF NOT EXISTS idx_idea_tags_user_id ON idea_tags(user_id);
+CREATE INDEX IF NOT EXISTS idx_idea_tags_idea_id ON idea_tags(idea_id);
 
 -- ============================================================================
 -- TABLE: brainstorm_sessions
@@ -339,12 +336,12 @@ CREATE TABLE IF NOT EXISTS brainstorm_sessions (
 );
 
 ALTER TABLE brainstorm_sessions ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON brainstorm_sessions;
 CREATE POLICY "Users own data" ON brainstorm_sessions FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_brainstorm_sessions_user_id ON brainstorm_sessions(user_id);
-CREATE INDEX idx_brainstorm_sessions_project_id ON brainstorm_sessions(project_id);
+CREATE INDEX IF NOT EXISTS idx_brainstorm_sessions_user_id ON brainstorm_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_brainstorm_sessions_project_id ON brainstorm_sessions(project_id);
 
 -- ============================================================================
 -- TABLE: brainstorm_messages
@@ -361,9 +358,9 @@ CREATE TABLE IF NOT EXISTS brainstorm_messages (
 );
 
 ALTER TABLE brainstorm_messages ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users own data" ON brainstorm_messages;
 CREATE POLICY "Users own data" ON brainstorm_messages FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
-CREATE INDEX idx_brainstorm_messages_user_id ON brainstorm_messages(user_id);
-CREATE INDEX idx_brainstorm_messages_session_id ON brainstorm_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_brainstorm_messages_user_id ON brainstorm_messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_brainstorm_messages_session_id ON brainstorm_messages(session_id);

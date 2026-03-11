@@ -32,4 +32,12 @@ export const syncBridge = {
       ipcRenderer.removeListener('sync:error', handler);
     };
   },
+
+  onSyncPullComplete: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('sync:pull-complete', handler);
+    return () => {
+      ipcRenderer.removeListener('sync:pull-complete', handler);
+    };
+  },
 };
