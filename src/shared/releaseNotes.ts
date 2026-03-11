@@ -28,6 +28,29 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.8',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Two-way sync — edits made on the web companion now sync back to the desktop app in real time',
+          'Cloud sync indicator in the title bar — always visible next to "Up to date"',
+          'Redesigned sign-in window to match the app aesthetic',
+          'Sign-up flow now works correctly with email confirmation',
+        ],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Items deleted on the web are now removed locally during sync',
+          'Sync schema is now idempotent — safe to re-run without errors',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.7',
     sections: [
       {
@@ -116,19 +139,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         label: "What's New",
         items: [
           'App icon now displayed in the README header',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.2',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Meeting cards now update correctly when all action items are dismissed',
-          'Fixed TypeScript build error in voice input hook',
         ],
       },
     ],
