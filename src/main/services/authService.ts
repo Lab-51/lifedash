@@ -410,14 +410,14 @@ function buildAuthHtml(supabaseUrl: string): string {
       text-align: center;
       margin-top: 20px;
     }
-    .toggle a {
+    .toggle span {
       color: #3ee8e4;
       font-size: 0.8125rem;
       cursor: pointer;
       text-decoration: none;
       font-weight: 500;
     }
-    .toggle a:hover { text-decoration: underline; }
+    .toggle span:hover { text-decoration: underline; }
     .spinner {
       display: inline-block;
       width: 16px;
@@ -454,7 +454,7 @@ function buildAuthHtml(supabaseUrl: string): string {
       Account created! Check your email to confirm, then sign in.
     </div>
     <div class="toggle">
-      <a id="toggle-mode" href="#">Don't have an account? Sign Up</a>
+      <span id="toggle-mode">Don&#39;t have an account? Sign Up</span>
     </div>
   </div>
 
@@ -473,19 +473,18 @@ function buildAuthHtml(supabaseUrl: string): string {
     function switchToSignIn() {
       isSignUp = false;
       btn.textContent = 'Sign In';
-      toggleEl.textContent = "Don't have an account? Sign Up";
+      toggleEl.textContent = "Don\x27t have an account? Sign Up";
       form.style.display = '';
       successEl.style.display = 'none';
       toggleEl.parentElement.style.display = '';
     }
 
-    toggleEl.addEventListener('click', (e) => {
-      e.preventDefault();
+    toggleEl.addEventListener('click', () => {
       isSignUp = !isSignUp;
       btn.textContent = isSignUp ? 'Sign Up' : 'Sign In';
       toggleEl.textContent = isSignUp
         ? 'Already have an account? Sign In'
-        : "Don't have an account? Sign Up";
+        : "Don\x27t have an account? Sign Up";
       errorEl.style.display = 'none';
       successEl.style.display = 'none';
     });
