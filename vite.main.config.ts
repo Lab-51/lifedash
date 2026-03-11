@@ -11,7 +11,7 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      external: ['@fugood/whisper.node', '@electric-sql/pglite'],
+      external: ['@fugood/whisper.node', '@electric-sql/pglite', 'tslib'],
     },
   },
 });
