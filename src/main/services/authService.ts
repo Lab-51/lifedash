@@ -10,7 +10,9 @@
 // - Refresh token stored via safeStorage (OS-level encryption)
 // - If safeStorage unavailable, tokens are not persisted across restarts
 
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, app } from 'electron';
+import { writeFileSync, unlinkSync } from 'fs';
+import { join } from 'path';
 import { getSupabaseClient, setSupabaseSession, resetSupabaseClient, DEFAULT_SUPABASE_URL } from './supabaseClient';
 import { isEncryptionAvailable, encryptString, decryptString } from './secure-storage';
 import { getDb } from '../db/connection';
@@ -43,6 +45,9 @@ export async function openAuthWindow(): Promise<AuthState> {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        // Use a separate partition so the main window's strict CSP doesn't block
+        // inline scripts in our auth HTML.
+        partition: 'auth-window',
       },
     });
 
@@ -51,9 +56,11 @@ export async function openAuthWindow(): Promise<AuthState> {
 
     const supabaseUrl = DEFAULT_SUPABASE_URL;
 
-    // Build a simple HTML login form that calls Supabase auth REST API
+    // Write HTML to a temp file and load it (data: URLs block JS in Electron)
     const html = buildAuthHtml(supabaseUrl);
-    authWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    const tmpPath = join(app.getPath('temp'), 'lifedash-auth.html');
+    writeFileSync(tmpPath, html, 'utf-8');
+    authWindow.loadFile(tmpPath);
 
     // Listen for the custom auth-success event from the page
     authWindow.webContents.on('console-message', async (_event, _level, message) => {
@@ -88,6 +95,7 @@ export async function openAuthWindow(): Promise<AuthState> {
 
     // Handle window close without auth
     authWindow.on('closed', () => {
+      try { unlinkSync(tmpPath); } catch { /* ignore cleanup */ }
       // If the promise hasn't been resolved yet, resolve with disconnected state
       resolve({
         isAuthenticated: false,
@@ -275,6 +283,7 @@ function buildAuthHtml(supabaseUrl: string): string {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; script-src 'unsafe-inline'; style-src 'unsafe-inline' https:; font-src https: data:; connect-src https:;" />
   <title>LifeDash Cloud</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

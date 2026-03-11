@@ -28,7 +28,7 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
-    version: '2.2.8',
+    version: '2.2.9',
     sections: [
       {
         category: 'new',
@@ -46,6 +46,7 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Items deleted on the web are now removed locally during sync',
           'Sync schema is now idempotent — safe to re-run without errors',
+          'Sign-up toggle link now responds to clicks in the auth window',
         ],
       },
     ],
@@ -120,25 +121,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Larger, more readable text in brainstorm chat',
           'AI responses are now shorter with 1-2 examples and an option to expand',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.3',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Clearer error messages when API key validation fails in Settings and Setup Wizard',
-        ],
-      },
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'App icon now displayed in the README header',
         ],
       },
     ],
