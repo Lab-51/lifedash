@@ -28,6 +28,18 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.10',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Sign-in now correctly updates the UI — no more stuck "Sign in to enable cloud sync" screen',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.9',
     sections: [
       {
@@ -108,19 +120,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Font size setting — choose Small, Default, Large, or Extra Large in Settings > Appearance',
           'Cancel button for meeting recording and voice input across all features',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.4',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Larger, more readable text in brainstorm chat',
-          'AI responses are now shorter with 1-2 examples and an option to expand',
         ],
       },
     ],
