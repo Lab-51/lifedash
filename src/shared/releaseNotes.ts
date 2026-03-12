@@ -28,6 +28,19 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.13',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Cloud sync pull no longer crashes on date fields from Supabase',
+          'Enable Cloud Sync checkbox responds immediately after sign-in',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.12',
     sections: [
       {
@@ -87,28 +100,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Items deleted on the web are now removed locally during sync',
           'Sync schema is now idempotent — safe to re-run without errors',
           'Sign-up toggle link now responds to clicks in the auth window',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.7',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Cloud Sync — sign in and sync your projects, meetings, briefs, and ideas to the cloud',
-          'Access your data from the web companion (coming soon)',
-          'Sync status indicator in the status bar with real-time feedback',
-          'Audio recordings always stay on your machine — only summaries and metadata sync',
-        ],
-      },
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Removed meeting prep section from recording project selector',
         ],
       },
     ],
