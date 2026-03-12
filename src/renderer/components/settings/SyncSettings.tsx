@@ -66,6 +66,8 @@ export default function SyncSettings() {
   const handleToggleSync = async (enabled: boolean) => {
     try {
       await window.electronAPI.syncToggleEnabled(enabled);
+      // Re-fetch so the checkbox reflects the new enabled state immediately
+      await sync.refresh();
       if (enabled) {
         await checkFirstRun();
       }

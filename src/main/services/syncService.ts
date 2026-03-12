@@ -276,9 +276,20 @@ function snakeToCamel(key: string): string {
   return SNAKE_TO_CAMEL[key] || key;
 }
 
+// Supabase returns timestamps as ISO strings. Drizzle expects Date objects
+// for timestamp columns (it calls .toISOString() internally). Convert them here.
+const ISO_DATE_RE =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/;
+
+// Known text columns that may contain date-like strings as data values.
+const TEXT_COLUMNS = new Set([
+  'value', 'content', 'body', 'description', 'summary', 'text',
+  'transcript', 'title', 'name', 'brief', 'notes', 'message',
+]);
+
 /**
  * Transform a row from Supabase (snake_case keys) to PGlite/Drizzle (camelCase keys),
- * stripping user_id and excluded columns.
+ * stripping user_id and excluded columns, and converting ISO date strings to Date objects.
  */
 function transformRowFromRemote(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -293,7 +304,17 @@ function transformRowFromRemote(
     if (key === 'user_id') continue; // user_id only exists in Supabase, not in local PGlite
     const camelKey = snakeToCamel(key);
     if (excludeColumns.includes(camelKey)) continue;
-    transformed[camelKey] = value;
+
+    // Convert ISO date strings to Date objects for timestamp columns
+    if (
+      !TEXT_COLUMNS.has(camelKey) &&
+      typeof value === 'string' &&
+      ISO_DATE_RE.test(value)
+    ) {
+      transformed[camelKey] = new Date(value);
+    } else {
+      transformed[camelKey] = value;
+    }
   }
 
   return transformed;
