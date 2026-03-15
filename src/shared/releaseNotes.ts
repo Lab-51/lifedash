@@ -28,6 +28,18 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.15',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Links now open in your default browser instead of getting trapped in an in-app window',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.14',
     sections: [
       {
@@ -95,18 +107,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Cloud sync now works for all table types — fixed query errors for boards, columns, meetings, and more',
           'Title bar sync status clears properly after signing out',
           'Sign-in now correctly updates the UI',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.10',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Sign-in now correctly updates the UI — no more stuck "Sign in to enable cloud sync" screen',
         ],
       },
     ],
