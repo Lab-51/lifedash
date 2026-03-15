@@ -387,6 +387,8 @@ export default function IntelFeedModern() {
           chatSending={briefChatSending}
           onSendChat={sendBriefChatMessage}
           onClearChat={clearBriefChat}
+          items={items}
+          onOpenArticle={openReader}
         />
 
         {items.length === 0 ? (

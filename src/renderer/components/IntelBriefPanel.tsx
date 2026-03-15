@@ -2,9 +2,9 @@
 // Collapsible AI brief panel for the Intelligence Feed.
 // Displays daily or weekly intelligence briefs with rich formatted content.
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Brain, ChevronDown, ChevronUp, RefreshCw, Loader2, Newspaper } from 'lucide-react';
-import type { IntelBrief, IntelBriefType, IntelChatMessage } from '../../shared/types';
+import type { IntelBrief, IntelBriefType, IntelChatMessage, IntelItem } from '../../shared/types';
 import IntelBriefChat from './IntelBriefChat';
 
 interface IntelBriefPanelProps {
@@ -17,6 +17,8 @@ interface IntelBriefPanelProps {
   chatSending: boolean;
   onSendChat: (content: string) => void;
   onClearChat: () => void;
+  items: IntelItem[];
+  onOpenArticle: (item: IntelItem) => void;
 }
 
 function relativeTime(dateStr: string): string {
@@ -35,20 +37,93 @@ function stripJsonBlocks(content: string): string {
   return content.replace(/```json[\s\S]*?```/g, '').trimEnd();
 }
 
-/** Parse inline bold markers **text** into spans. */
-function parseInlineBold(text: string): React.ReactNode {
+/** Parse inline bold markers **text** into spans, linking article titles to the reader. */
+function parseInlineFormatting(
+  text: string,
+  titleMap: Map<string, IntelItem>,
+  onOpenArticle: (item: IntelItem) => void,
+): React.ReactNode {
+  // First split on bold markers
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  if (parts.length === 1) return text;
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} className="text-[var(--color-text-primary)] font-semibold">{part.slice(2, -2)}</strong>;
+      const inner = part.slice(2, -2);
+      // Check if this bold text matches an article title
+      const matchedItem = findMatchingItem(inner, titleMap);
+      if (matchedItem) {
+        return (
+          <button
+            key={i}
+            onClick={(e) => { e.stopPropagation(); onOpenArticle(matchedItem); }}
+            className="cursor-pointer text-[var(--color-accent)] font-semibold hover:underline hover:text-[var(--color-accent-hover)] transition-colors text-left"
+            title="Open article"
+          >
+            {inner}
+          </button>
+        );
+      }
+      return <strong key={i} className="text-[var(--color-text-primary)] font-semibold">{inner}</strong>;
     }
-    return part;
+    // Check for non-bold article title mentions (exact match within text)
+    return linkifyTitles(part, titleMap, onOpenArticle, i);
   });
 }
 
-/** Render brief content as richly formatted elements. */
-function renderBriefContent(content: string): React.ReactNode[] {
+/** Find an item whose title matches the given text (fuzzy: contains or close match). */
+function findMatchingItem(text: string, titleMap: Map<string, IntelItem>): IntelItem | undefined {
+  const normalized = text.toLowerCase().trim();
+  // Exact match first
+  const exact = titleMap.get(normalized);
+  if (exact) return exact;
+  // Partial: check if any title starts with or contains the text (for truncated titles in the brief)
+  for (const [title, item] of titleMap) {
+    if (title.includes(normalized) || normalized.includes(title)) {
+      return item;
+    }
+  }
+  return undefined;
+}
+
+/** Turn article title mentions in plain text into clickable links. */
+function linkifyTitles(
+  text: string,
+  titleMap: Map<string, IntelItem>,
+  onOpenArticle: (item: IntelItem) => void,
+  keyBase: number,
+): React.ReactNode {
+  if (!text || titleMap.size === 0) return text;
+  // Try to find any article title mentioned in the text
+  for (const [title, item] of titleMap) {
+    const idx = text.toLowerCase().indexOf(title);
+    if (idx >= 0 && title.length > 15) { // Only link titles longer than 15 chars to avoid false positives
+      const before = text.slice(0, idx);
+      const match = text.slice(idx, idx + title.length);
+      const after = text.slice(idx + title.length);
+      return (
+        <>
+          {before}
+          <button
+            key={`link-${keyBase}`}
+            onClick={(e) => { e.stopPropagation(); onOpenArticle(item); }}
+            className="cursor-pointer text-[var(--color-accent)] hover:underline hover:text-[var(--color-accent-hover)] transition-colors text-left"
+            title="Open article"
+          >
+            {match}
+          </button>
+          {after}
+        </>
+      );
+    }
+  }
+  return text;
+}
+
+/** Render brief content as richly formatted elements with clickable article links. */
+function renderBriefContent(
+  content: string,
+  titleMap: Map<string, IntelItem>,
+  onOpenArticle: (item: IntelItem) => void,
+): React.ReactNode[] {
   const cleaned = stripJsonBlocks(content);
   const lines = cleaned.split('\n');
   const elements: React.ReactNode[] = [];
@@ -104,7 +179,7 @@ function renderBriefContent(content: string): React.ReactNode[] {
       listItems.push(
         <li key={i} className="flex gap-2.5 text-sm text-[var(--color-text-secondary)] leading-relaxed">
           <span className="text-[var(--color-accent)] shrink-0 mt-1 text-xs">&#9670;</span>
-          <span>{parseInlineBold(bulletText)}</span>
+          <span>{parseInlineFormatting(bulletText, titleMap, onOpenArticle)}</span>
         </li>,
       );
     }
@@ -114,7 +189,7 @@ function renderBriefContent(content: string): React.ReactNode[] {
       listItems.push(
         <li key={i} className="flex gap-2.5 text-sm text-[var(--color-text-secondary)] leading-relaxed">
           <span className="text-[var(--color-accent)] shrink-0 mt-0.5 text-xs font-data">{trimmed.match(/^\d+/)?.[0]}.</span>
-          <span>{parseInlineBold(bulletText)}</span>
+          <span>{parseInlineFormatting(bulletText, titleMap, onOpenArticle)}</span>
         </li>,
       );
     }
@@ -123,7 +198,7 @@ function renderBriefContent(content: string): React.ReactNode[] {
       flushList();
       elements.push(
         <p key={i} className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-3">
-          {parseInlineBold(trimmed)}
+          {parseInlineFormatting(trimmed, titleMap, onOpenArticle)}
         </p>,
       );
     }
@@ -153,8 +228,19 @@ export default function IntelBriefPanel({
   chatSending,
   onSendChat,
   onClearChat,
+  items,
+  onOpenArticle,
 }: IntelBriefPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
+
+  // Build a map of lowercase article titles → items for linking in the brief
+  const titleMap = useMemo(() => {
+    const map = new Map<string, IntelItem>();
+    for (const item of items) {
+      map.set(item.title.toLowerCase().trim(), item);
+    }
+    return map;
+  }, [items]);
 
   const typeLabel = briefType === 'daily' ? 'Daily' : 'Weekly';
 
@@ -251,7 +337,7 @@ export default function IntelBriefPanel({
             <div className="flex">
               {/* Brief content — left side */}
               <div className="flex-1 px-6 py-5 min-w-0 overflow-y-auto max-h-[600px]">
-                {renderBriefContent(brief.content)}
+                {renderBriefContent(brief.content, titleMap, onOpenArticle)}
               </div>
 
               {/* Divider */}
