@@ -459,3 +459,28 @@ export const voiceAudioBufferSchema = z.custom<ArrayBuffer>(
   (val) => val != null && typeof (val as ArrayBuffer).byteLength === 'number' && (val as ArrayBuffer).byteLength > 0,
   { message: 'No audio data received' },
 );
+
+// ============================================================================
+// Intel Feed
+// ============================================================================
+
+export const createIntelSourceInputSchema = z.object({
+  name: z.string().min(1).max(200),
+  url: z.string().url().max(1000),
+  type: z.enum(['rss', 'manual']).optional(),
+});
+
+export const updateIntelSourceInputSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const addManualItemInputSchema = z.object({
+  url: z.string().url().max(2000),
+  title: z.string().max(500).optional(),
+  description: z.string().optional(),
+});
+
+export const intelDateFilterSchema = z.enum(['today', 'week', 'all']);
+
+export const intelBriefTypeSchema = z.enum(['daily', 'weekly']);

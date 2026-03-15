@@ -54,6 +54,11 @@ import type { ProjectAgentMessage, ProjectAgentThread, ProjectAgentAction } from
 
 import type { AgentInsight, BackgroundAgentPreferences, InsightType, InsightStatus } from './background-agent';
 import type { AuthState, SyncStatus } from './sync';
+import type {
+  IntelSource, IntelItem, IntelBrief, IntelBriefType, ArticleContent,
+  CreateIntelSourceInput, UpdateIntelSourceInput,
+  AddManualItemInput, IntelDateFilter,
+} from './intel-feed';
 
 export interface RecoveryState {
   timestamp: string;
@@ -382,6 +387,25 @@ export interface ElectronAPI {
   // Diagnostics
   diagnosticsGetCrashReportsEnabled: () => Promise<boolean>;
   diagnosticsSetCrashReportsEnabled: (value: boolean) => Promise<void>;
+
+  // Intel Feed
+  getIntelSources: () => Promise<IntelSource[]>;
+  createIntelSource: (data: CreateIntelSourceInput) => Promise<IntelSource>;
+  updateIntelSource: (id: string, data: UpdateIntelSourceInput) => Promise<IntelSource>;
+  deleteIntelSource: (id: string) => Promise<void>;
+  getIntelItems: (filter: IntelDateFilter) => Promise<IntelItem[]>;
+  markIntelItemRead: (id: string) => Promise<void>;
+  toggleIntelItemBookmark: (id: string) => Promise<IntelItem>;
+  addManualIntelItem: (data: AddManualItemInput) => Promise<IntelItem>;
+  fetchAllIntelSources: () => Promise<{ newItems: number }>;
+  seedIntelDefaults: () => Promise<void>;
+
+  // Intel Brief & Summarization
+  intelGenerateBrief: (type: IntelBriefType) => Promise<IntelBrief | null>;
+  intelGetBrief: (type: IntelBriefType, date: string) => Promise<IntelBrief | null>;
+  intelGetLatestBrief: (type: IntelBriefType) => Promise<IntelBrief | null>;
+  intelSummarizeItem: (id: string) => Promise<IntelItem>;
+  intelFetchArticleContent: (id: string) => Promise<ArticleContent>;
 
   // Cloud Sync
   syncGetAuthState: () => Promise<AuthState>;

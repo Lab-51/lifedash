@@ -24,6 +24,7 @@ import { useRecordingStore } from './stores/recordingStore';
 import { useProjectStore } from './stores/projectStore';
 import { useMeetingStore } from './stores/meetingStore';
 import { useIdeaStore } from './stores/ideaStore';
+import { useIntelFeedStore } from './stores/intelFeedStore';
 import { useBrainstormStore } from './stores/brainstormStore';
 import { useBoardStore } from './stores/boardStore';
 import { useFocusStore } from './stores/focusStore';
@@ -46,6 +47,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
 const IdeasPage = lazy(() => import('./pages/IdeasPage'));
+const IntelPage = lazy(() => import('./pages/IntelPage'));
 const BrainstormPage = lazy(() => import('./pages/BrainstormPage'));
 const FocusPage = lazy(() => import('./pages/FocusPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
@@ -163,11 +165,14 @@ function AppShell({ children }: { children: ReactNode }) {
       useProjectStore.getState().loadProjects(),
       useMeetingStore.getState().loadMeetings(),
       useIdeaStore.getState().loadIdeas(),
+      useIntelFeedStore.getState().loadItems(),
       useBrainstormStore.getState().loadSessions(),
       useBoardStore.getState().loadAllCards(),
       useFocusStore.getState().loadSettings(),
       useGamificationStore.getState().loadStats(),
     ]).then(() => {
+      // Fire non-blocking background fetch for intel sources
+      useIntelFeedStore.getState().fetchAll();
       const elapsed = Date.now() - mountTime.current;
       const remaining = Math.max(0, MIN_SPLASH_MS - elapsed);
       if (remaining > 0) {
@@ -372,6 +377,7 @@ function App() {
               <Route index element={<DashboardPage />} />
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/meetings" element={<MeetingsPage />} />
+              <Route path="/intel" element={<IntelPage />} />
               <Route path="/ideas" element={<IdeasPage />} />
               <Route path="/brainstorm" element={<BrainstormPage />} />
               <Route path="/focus" element={<FocusPage />} />

@@ -1,6 +1,6 @@
 // === FILE PURPOSE ===
 // Global keyboard shortcut handler for navigation.
-// Ctrl+1 through Ctrl+7 navigate to the seven main pages.
+// Ctrl+1 through Ctrl+8 navigate to the eight main pages.
 // Supports both Ctrl (Windows/Linux) and Cmd (macOS) modifiers.
 
 // === DEPENDENCIES ===
@@ -13,11 +13,12 @@ import type { NavigateFunction } from 'react-router-dom';
 const SHORTCUT_MAP: Record<string, string> = {
   '1': '/',
   '2': '/meetings',
-  '3': '/projects',
-  '4': '/brainstorm',
-  '5': '/ideas',
-  '6': '/focus',
-  '7': '/settings',
+  '3': '/intel',
+  '4': '/projects',
+  '5': '/brainstorm',
+  '6': '/ideas',
+  '7': '/focus',
+  '8': '/settings',
 };
 
 function useKeyboardShortcuts(

@@ -7,6 +7,7 @@ import {
     LayoutDashboard,
     FolderKanban,
     Mic,
+    Newspaper,
     Lightbulb,
     Brain,
     Clock,
@@ -34,6 +35,7 @@ interface NavItem {
 const navItems: NavItem[] = [
     { path: '/', label: 'Home', icon: LayoutDashboard },
     { path: '/meetings', label: 'Meetings', icon: Mic, tourId: 'nav-meetings' },
+    { path: '/intel', label: 'Intel', icon: Newspaper },
     { path: '/projects', label: 'Projects', icon: FolderKanban, tourId: 'nav-projects' },
     { path: '/brainstorm', label: 'Brainstorm', icon: Brain, tourId: 'nav-brainstorm' },
     { path: '/ideas', label: 'Ideas', icon: Lightbulb, tourId: 'nav-ideas' },
@@ -44,11 +46,12 @@ const navItems: NavItem[] = [
 const SHORTCUT_KEYS: Record<string, string> = {
     '/': 'Ctrl+1',
     '/meetings': 'Ctrl+2',
-    '/projects': 'Ctrl+3',
-    '/brainstorm': 'Ctrl+4',
-    '/ideas': 'Ctrl+5',
-    '/focus': 'Ctrl+6',
-    '/settings': 'Ctrl+7',
+    '/intel': 'Ctrl+3',
+    '/projects': 'Ctrl+4',
+    '/brainstorm': 'Ctrl+5',
+    '/ideas': 'Ctrl+6',
+    '/focus': 'Ctrl+7',
+    '/settings': 'Ctrl+8',
 };
 
 const THEME_CYCLE: ThemeMode[] = ['dark', 'light', 'system'];

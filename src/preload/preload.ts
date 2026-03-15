@@ -30,6 +30,7 @@ import { voiceInputBridge } from './domains/voice-input';
 import { recoveryBridge } from './domains/recovery';
 import { diagnosticsBridge } from './domains/diagnostics';
 import { syncBridge } from './domains/sync';
+import { intelFeedBridge } from './domains/intel-feed';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -58,4 +59,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...recoveryBridge,
   ...diagnosticsBridge,
   ...syncBridge,
+  ...intelFeedBridge,
 });
