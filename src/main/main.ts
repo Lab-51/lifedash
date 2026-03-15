@@ -8,7 +8,7 @@
 // drizzle-orm, postgres (via ./db/connection and ./db/migrate),
 // electron-audio-loopback (system audio capture)
 
-import { app, BrowserWindow, dialog, globalShortcut } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, shell } from 'electron';
 import path from 'node:path';
 // @ts-ignore
 import icon from '../assets/icon.png';
@@ -116,6 +116,27 @@ const createWindow = async () => {
         ],
       },
     });
+  });
+
+  // Prevent target="_blank" and window.open from spawning bare Electron windows.
+  // Redirect all such requests to the user's default system browser.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  // Prevent the main window from navigating away from the app (e.g. clicking
+  // a link inside dangerouslySetInnerHTML content). Open in system browser instead.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const appOrigin = MAIN_WINDOW_VITE_DEV_SERVER_URL || 'file://';
+    if (!url.startsWith(appOrigin)) {
+      event.preventDefault();
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        shell.openExternal(url);
+      }
+    }
   });
 
   // Show window only when the renderer is ready (prevents white flash)
