@@ -92,7 +92,7 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
             </div>
             <button
               onClick={onClose}
-              className="text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] p-1.5 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors"
+              className="cursor-pointer text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] p-1.5 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors"
             >
               <X size={18} />
             </button>
@@ -104,7 +104,7 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
           <div className="flex items-center gap-2 px-6 py-3 shrink-0">
             <button
               onClick={() => setShowAddSource(true)}
-              className="btn-primary flex-1 rounded-lg px-4 py-2 text-sm font-medium flex items-center justify-center gap-2"
+              className="cursor-pointer btn-primary flex-1 rounded-lg px-4 py-2 text-sm font-medium flex items-center justify-center gap-2"
             >
               <Rss size={14} />
               Add RSS Feed
@@ -237,7 +237,7 @@ function SourceRow({ source, toggling, deleting, onToggle, onDelete }: SourceRow
       <button
         onClick={onToggle}
         disabled={toggling}
-        className="shrink-0 relative"
+        className="cursor-pointer shrink-0 relative"
         title={source.enabled ? 'Disable source' : 'Enable source'}
       >
         <div
@@ -259,7 +259,7 @@ function SourceRow({ source, toggling, deleting, onToggle, onDelete }: SourceRow
       <button
         onClick={onDelete}
         disabled={deleting}
-        className="shrink-0 p-1.5 text-[var(--color-text-muted)] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40"
+        className="cursor-pointer shrink-0 p-1.5 text-[var(--color-text-muted)] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40"
         title="Delete source"
       >
         {deleting ? (

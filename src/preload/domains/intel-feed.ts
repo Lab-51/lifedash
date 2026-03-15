@@ -26,4 +26,6 @@ export const intelFeedBridge = {
   intelGetLatestBrief: (type: string) => ipcRenderer.invoke('intel:brief:latest', type),
   intelSummarizeItem: (id: string) => ipcRenderer.invoke('intel:item:summarize', id),
   intelFetchArticleContent: (id: string) => ipcRenderer.invoke('intel:item:fetchContent', id),
+  intelBriefChat: (briefContent: string, messages: { role: string; content: string }[]) =>
+    ipcRenderer.invoke('intel:brief:chat', briefContent, messages),
 };

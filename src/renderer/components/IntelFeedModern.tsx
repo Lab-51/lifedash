@@ -108,6 +108,10 @@ export default function IntelFeedModern() {
   const readerLoading = useIntelFeedStore(s => s.readerLoading);
   const openReader = useIntelFeedStore(s => s.openReader);
   const closeReader = useIntelFeedStore(s => s.closeReader);
+  const briefChatMessages = useIntelFeedStore(s => s.briefChatMessages);
+  const briefChatSending = useIntelFeedStore(s => s.briefChatSending);
+  const sendBriefChatMessage = useIntelFeedStore(s => s.sendBriefChatMessage);
+  const clearBriefChat = useIntelFeedStore(s => s.clearBriefChat);
 
   // --- Action handlers for article cards ---
 
@@ -281,14 +285,14 @@ export default function IntelFeedModern() {
           <div className="flex items-center gap-2 self-start md:self-auto">
             <button
               onClick={() => setShowAddArticle(true)}
-              className="shrink-0 rounded-xl px-4 py-2.5 font-medium text-sm flex items-center gap-2 border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+              className="cursor-pointer shrink-0 rounded-xl px-4 py-2.5 font-medium text-sm flex items-center gap-2 border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-accent-subtle)] transition-colors"
             >
               <Plus size={16} />
               Add Article
             </button>
             <button
               onClick={() => setShowSourceManager(true)}
-              className="shrink-0 rounded-xl px-4 py-2.5 font-medium text-sm flex items-center gap-2 border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+              className="cursor-pointer shrink-0 rounded-xl px-4 py-2.5 font-medium text-sm flex items-center gap-2 border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-accent-subtle)] transition-colors"
             >
               <SlidersHorizontal size={16} />
               Sources ({sources.length})
@@ -296,7 +300,7 @@ export default function IntelFeedModern() {
             <button
               onClick={() => fetchAll()}
               disabled={fetching}
-              className="btn-primary shrink-0 rounded-xl px-5 py-2.5 font-medium text-sm flex items-center gap-2 disabled:opacity-50"
+              className="cursor-pointer btn-primary shrink-0 rounded-xl px-5 py-2.5 font-medium text-sm flex items-center gap-2 disabled:opacity-50"
             >
               <RefreshCw size={16} className={fetching ? 'animate-spin' : ''} />
               {fetching ? 'Fetching...' : 'Refresh'}
@@ -313,7 +317,7 @@ export default function IntelFeedModern() {
               <button
                 key={tab.value}
                 onClick={() => setDateFilter(tab.value)}
-                className={`px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
+                className={`cursor-pointer px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
                   dateFilter === tab.value
                     ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
                     : 'bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)]'
@@ -336,7 +340,7 @@ export default function IntelFeedModern() {
           <div className="flex flex-wrap gap-1.5 mt-2">
             <button
               onClick={() => setCategoryFilter(null)}
-              className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+              className={`cursor-pointer px-2.5 py-1 text-xs rounded-full border transition-colors ${
                 !categoryFilter
                   ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
                   : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
@@ -348,7 +352,7 @@ export default function IntelFeedModern() {
               <button
                 key={cat}
                 onClick={() => setCategoryFilter(cat)}
-                className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                className={`cursor-pointer px-2.5 py-1 text-xs rounded-full border transition-colors ${
                   categoryFilter === cat
                     ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
                     : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
@@ -373,15 +377,17 @@ export default function IntelFeedModern() {
       {/* Feed Content */}
       <div className="flex-1 overflow-y-auto px-8 pb-8">
         {/* Brief Panel */}
-        <div className="max-w-3xl">
-          <IntelBriefPanel
-            brief={brief}
-            briefType={briefType}
-            loading={briefLoading}
-            onGenerate={generateBrief}
-            onSetType={setBriefType}
-          />
-        </div>
+        <IntelBriefPanel
+          brief={brief}
+          briefType={briefType}
+          loading={briefLoading}
+          onGenerate={generateBrief}
+          onSetType={setBriefType}
+          chatMessages={briefChatMessages}
+          chatSending={briefChatSending}
+          onSendChat={sendBriefChatMessage}
+          onClearChat={clearBriefChat}
+        />
 
         {items.length === 0 ? (
           <div className="mt-12">

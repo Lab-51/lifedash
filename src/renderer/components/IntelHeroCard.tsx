@@ -143,7 +143,7 @@ export default function IntelHeroCard({
           {onSaveAsIdea && (
             <button
               onClick={(e) => { stop(e); onSaveAsIdea(item); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+              className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
             >
               <Lightbulb size={13} />
               Save as Idea
@@ -152,7 +152,7 @@ export default function IntelHeroCard({
           {onStartProject && (
             <button
               onClick={(e) => { stop(e); onStartProject(item); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+              className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
             >
               <FolderKanban size={13} />
               Start Project
@@ -161,7 +161,7 @@ export default function IntelHeroCard({
           {onDiscuss && (
             <button
               onClick={(e) => { stop(e); onDiscuss(item); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+              className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
             >
               <Brain size={13} />
               Discuss
@@ -189,7 +189,7 @@ export default function IntelHeroCard({
           <button
             onClick={(e) => { stop(e); onToggleBookmark(item.id); }}
             title={item.isBookmarked ? 'Remove bookmark' : 'Bookmark'}
-            className={`p-1.5 rounded-full transition-all ${
+            className={`cursor-pointer p-1.5 rounded-full transition-all ${
               item.isBookmarked
                 ? 'text-amber-400 hover:text-amber-300'
                 : 'text-[var(--color-text-muted)] hover:text-amber-400'

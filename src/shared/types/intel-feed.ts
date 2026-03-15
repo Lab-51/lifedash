@@ -87,3 +87,10 @@ export interface AddManualItemInput {
 }
 
 export type IntelDateFilter = 'today' | 'week' | 'all';
+
+export interface IntelChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+}

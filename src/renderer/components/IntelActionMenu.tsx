@@ -51,7 +51,7 @@ export default function IntelActionMenu({ item, onSaveAsIdea, onStartProject, on
           setOpen(prev => !prev);
         }}
         title="Actions"
-        className="shrink-0 p-1 rounded transition-all text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-accent)]"
+        className="cursor-pointer shrink-0 p-1 rounded transition-all text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-accent)]"
       >
         <MoreHorizontal size={14} />
       </button>
@@ -68,7 +68,7 @@ export default function IntelActionMenu({ item, onSaveAsIdea, onStartProject, on
                 handlers[action](item);
                 setOpen(false);
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)] hover:text-[var(--color-accent)] transition-colors"
+              className="cursor-pointer w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)] hover:text-[var(--color-accent)] transition-colors"
             >
               <Icon size={14} />
               {label}

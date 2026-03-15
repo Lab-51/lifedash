@@ -79,7 +79,7 @@ interface IntelArticleReaderProps {
 }
 
 const actionBtnClass =
-  'flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors';
+  'cursor-pointer flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors';
 
 export default function IntelArticleReader({
   item,
@@ -120,7 +120,7 @@ export default function IntelArticleReader({
           <div className="shrink-0 bg-[var(--color-chrome)] border-b border-[var(--color-border)] px-6 py-4 flex items-center gap-3">
             <button
               onClick={onClose}
-              className="shrink-0 p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+              className="cursor-pointer shrink-0 p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-accent-subtle)] transition-colors"
               title="Back"
             >
               <ArrowLeft size={18} />
@@ -130,7 +130,7 @@ export default function IntelArticleReader({
             </h2>
             <button
               onClick={() => onToggleBookmark(item.id)}
-              className={`shrink-0 p-1.5 rounded-lg transition-colors ${
+              className={`cursor-pointer shrink-0 p-1.5 rounded-lg transition-colors ${
                 item.isBookmarked
                   ? 'text-amber-400 hover:text-amber-300'
                   : 'text-[var(--color-text-muted)] hover:text-amber-400'
@@ -141,7 +141,7 @@ export default function IntelArticleReader({
             </button>
             <button
               onClick={() => window.electronAPI.openExternal(item.url)}
-              className="shrink-0 p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+              className="cursor-pointer shrink-0 p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
               title="Open in browser"
             >
               <ExternalLink size={16} />
@@ -215,7 +215,7 @@ export default function IntelArticleReader({
                 </p>
                 <button
                   onClick={() => window.electronAPI.openExternal(item.url)}
-                  className="text-sm text-[var(--color-accent)] hover:underline"
+                  className="cursor-pointer text-sm text-[var(--color-accent)] hover:underline"
                 >
                   Open in Browser
                 </button>

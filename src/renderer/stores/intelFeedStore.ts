@@ -12,6 +12,7 @@ import type {
   IntelBrief,
   IntelBriefType,
   IntelDateFilter,
+  IntelChatMessage,
   AddManualItemInput,
   CreateIntelSourceInput,
   UpdateIntelSourceInput,
@@ -33,6 +34,8 @@ interface IntelFeedStore {
   readerItem: IntelItem | null;
   readerContent: ArticleContent | null;
   readerLoading: boolean;
+  briefChatMessages: IntelChatMessage[];
+  briefChatSending: boolean;
 
   // Actions
   loadItems: () => Promise<void>;
@@ -53,6 +56,8 @@ interface IntelFeedStore {
   summarizeItem: (id: string) => Promise<void>;
   openReader: (item: IntelItem) => Promise<void>;
   closeReader: () => void;
+  sendBriefChatMessage: (content: string) => Promise<void>;
+  clearBriefChat: () => void;
 }
 
 export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
@@ -69,6 +74,8 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   readerItem: null,
   readerContent: null,
   readerLoading: false,
+  briefChatMessages: [],
+  briefChatSending: false,
 
   loadItems: async () => {
     set({ loading: true, error: null });
@@ -217,7 +224,7 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   },
 
   setBriefType: (type: IntelBriefType) => {
-    set({ briefType: type });
+    set({ briefType: type, briefChatMessages: [], briefChatSending: false });
     get().loadBrief();
   },
 
@@ -268,5 +275,58 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
 
   closeReader: () => {
     set({ readerItem: null, readerContent: null, readerLoading: false });
+  },
+
+  sendBriefChatMessage: async (content: string) => {
+    const brief = get().brief;
+    if (!brief) return;
+
+    const userMessage: IntelChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content,
+      timestamp: new Date().toISOString(),
+    };
+
+    set({
+      briefChatMessages: [...get().briefChatMessages, userMessage],
+      briefChatSending: true,
+    });
+
+    try {
+      const apiMessages = [...get().briefChatMessages].map(m => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const response = await window.electronAPI.intelBriefChat(brief.content, apiMessages);
+
+      const assistantMessage: IntelChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: response,
+        timestamp: new Date().toISOString(),
+      };
+
+      set({
+        briefChatMessages: [...get().briefChatMessages, assistantMessage],
+        briefChatSending: false,
+      });
+    } catch (error) {
+      const errorMessage: IntelChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `Error: ${error instanceof Error ? error.message : 'Failed to get response. Check your AI provider settings.'}`,
+        timestamp: new Date().toISOString(),
+      };
+      set({
+        briefChatMessages: [...get().briefChatMessages, errorMessage],
+        briefChatSending: false,
+      });
+    }
+  },
+
+  clearBriefChat: () => {
+    set({ briefChatMessages: [], briefChatSending: false });
   },
 }));

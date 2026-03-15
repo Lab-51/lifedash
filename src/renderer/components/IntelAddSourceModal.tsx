@@ -90,8 +90,8 @@ export default function IntelAddSourceModal({ isOpen, onClose }: IntelAddSourceM
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-[2px]">
-      <FocusTrap active={isOpen} onDeactivate={onClose} clickOutsideDeactivates escapeDeactivates={escapeDeactivates}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-[2px]" onClick={onClose}>
+      <FocusTrap active={isOpen} onDeactivate={onClose} clickOutsideDeactivates={false} escapeDeactivates={escapeDeactivates}>
         <div
           className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-xl shadow-2xl w-full max-w-md mx-4"
           onClick={e => e.stopPropagation()}
@@ -106,7 +106,7 @@ export default function IntelAddSourceModal({ isOpen, onClose }: IntelAddSourceM
             </div>
             <button
               onClick={onClose}
-              className="text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] p-1.5 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors"
+              className="cursor-pointer text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] p-1.5 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors"
             >
               <X size={16} />
             </button>
@@ -157,14 +157,14 @@ export default function IntelAddSourceModal({ isOpen, onClose }: IntelAddSourceM
           <div className="flex justify-end gap-2 px-6 pb-5 pt-1">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+              className="cursor-pointer px-4 py-2 text-sm rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)] transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={!url.trim() || submitting}
-              className="btn-primary px-5 py-2 text-sm rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="cursor-pointer btn-primary px-5 py-2 text-sm rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? <Loader2 size={14} className="animate-spin" /> : <Rss size={14} />}
               Add Source

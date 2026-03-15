@@ -342,6 +342,56 @@ export async function summarizeArticle(itemId: string): Promise<IntelItem> {
 }
 
 /**
+ * Chat about a brief — send a message in the context of the current brief
+ * and return the AI response.
+ */
+export async function chatAboutBrief(
+  briefContent: string,
+  messages: { role: 'user' | 'assistant'; content: string }[],
+): Promise<string> {
+  const provider = await resolveTaskModel('summarization');
+  if (!provider) {
+    throw new Error('No AI provider configured. Add one in Settings > AI Providers.');
+  }
+
+  const systemPrompt = `You are an AI intelligence analyst assistant. The user is reading their daily/weekly intelligence brief about AI and technology news. Help them understand the implications, find connections, suggest actions, and discuss the articles.
+
+Here is the intelligence brief they are reading:
+
+---
+${briefContent}
+---
+
+Be concise, insightful, and actionable. When discussing specific articles, reference them by name. If the user asks about implications for their work, suggest concrete next steps.`;
+
+  const lastUserMessage = messages[messages.length - 1];
+
+  // Build a conversation history string for context
+  const historyContext = messages.slice(0, -1).map(m =>
+    `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`,
+  ).join('\n\n');
+
+  const userPrompt = historyContext
+    ? `Previous conversation:\n${historyContext}\n\nUser: ${lastUserMessage.content}`
+    : lastUserMessage.content;
+
+  const result = await generate({
+    providerId: provider.providerId,
+    providerName: provider.providerName,
+    apiKeyEncrypted: provider.apiKeyEncrypted,
+    baseUrl: provider.baseUrl,
+    model: provider.model,
+    taskType: 'summarization',
+    prompt: userPrompt,
+    system: systemPrompt,
+    temperature: provider.temperature ?? 0.5,
+    maxTokens: provider.maxTokens ?? 1000,
+  });
+
+  return result.text;
+}
+
+/**
  * Get a brief by type and date key.
  */
 export async function getBrief(type: IntelBriefType, date: string): Promise<IntelBrief | null> {

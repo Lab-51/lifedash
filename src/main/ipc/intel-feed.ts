@@ -81,6 +81,16 @@ export function registerIntelFeedHandlers(): void {
     return intelBriefService.getLatestBrief(validType);
   });
 
+  // Brief chat
+  ipcMain.handle('intel:brief:chat', async (_event, briefContent: unknown, messages: unknown) => {
+    const validContent = validateInput(z.string(), briefContent);
+    const validMessages = validateInput(
+      z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })),
+      messages,
+    );
+    return intelBriefService.chatAboutBrief(validContent, validMessages);
+  });
+
   // Article content extraction
   ipcMain.handle('intel:item:fetchContent', async (_event, id: unknown) => {
     const validId = validateInput(idParamSchema, id);

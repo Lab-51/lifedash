@@ -406,6 +406,7 @@ export interface ElectronAPI {
   intelGetLatestBrief: (type: IntelBriefType) => Promise<IntelBrief | null>;
   intelSummarizeItem: (id: string) => Promise<IntelItem>;
   intelFetchArticleContent: (id: string) => Promise<ArticleContent>;
+  intelBriefChat: (briefContent: string, messages: { role: 'user' | 'assistant'; content: string }[]) => Promise<string>;
 
   // Cloud Sync
   syncGetAuthState: () => Promise<AuthState>;

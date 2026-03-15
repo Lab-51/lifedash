@@ -151,7 +151,7 @@ export default function IntelItemCard({
           <button
             onClick={handleBookmarkClick}
             title={item.isBookmarked ? 'Remove bookmark' : 'Bookmark'}
-            className={`shrink-0 p-1 rounded transition-all ${
+            className={`cursor-pointer shrink-0 p-1 rounded transition-all ${
               item.isBookmarked
                 ? 'text-amber-400 hover:text-amber-300 !opacity-100'
                 : 'text-[var(--color-text-muted)] hover:text-amber-400'
@@ -198,7 +198,7 @@ export default function IntelItemCard({
             <button
               onClick={handleBookmarkClick}
               title={item.isBookmarked ? 'Remove bookmark' : 'Bookmark'}
-              className={`shrink-0 p-1 rounded transition-all ${
+              className={`cursor-pointer shrink-0 p-1 rounded transition-all ${
                 item.isBookmarked
                   ? 'text-amber-400 hover:text-amber-300'
                   : 'text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 hover:text-amber-400'
@@ -257,7 +257,7 @@ export default function IntelItemCard({
               }
             }}
             disabled={summarizing}
-            className="mt-1 flex items-center gap-1 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+            className="cursor-pointer mt-1 flex items-center gap-1 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
           >
             {summarizing ? (
               <>
