@@ -151,7 +151,7 @@ describe('intelFeedStore', () => {
     expect(state.items).toEqual(mockItems);
     expect(state.loading).toBe(false);
     expect(state.error).toBeNull();
-    expect(window.electronAPI.getIntelItems).toHaveBeenCalledWith('today');
+    expect(window.electronAPI.getIntelItems).toHaveBeenCalledWith('today', undefined);
   });
 
   it('loadItems sets error on failure', async () => {

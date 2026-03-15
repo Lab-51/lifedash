@@ -464,7 +464,12 @@ export interface ElectronAPI {
   createIntelSource: (data: CreateIntelSourceInput) => Promise<IntelSource>;
   updateIntelSource: (id: string, data: UpdateIntelSourceInput) => Promise<IntelSource>;
   deleteIntelSource: (id: string) => Promise<void>;
-  getIntelItems: (filter: IntelDateFilter) => Promise<IntelItem[]>;
+  getIntelTrendingTopics: () => Promise<{ topic: string; count: number }[]>;
+  getIntelBookmarkCount: () => Promise<number>;
+  getIntelItems: (
+    filter: IntelDateFilter,
+    extra?: { searchQuery?: string; sourceFilter?: string; bookmarkFilter?: boolean },
+  ) => Promise<IntelItem[]>;
   markIntelItemRead: (id: string) => Promise<void>;
   toggleIntelItemBookmark: (id: string) => Promise<IntelItem>;
   addManualIntelItem: (data: AddManualItemInput) => Promise<IntelItem>;

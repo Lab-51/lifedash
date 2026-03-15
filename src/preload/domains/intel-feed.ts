@@ -12,7 +12,12 @@ export const intelFeedBridge = {
   createIntelSource: (data: CreateIntelSourceInput) => ipcRenderer.invoke('intel:sources:create', data),
   updateIntelSource: (id: string, data: UpdateIntelSourceInput) => ipcRenderer.invoke('intel:sources:update', id, data),
   deleteIntelSource: (id: string) => ipcRenderer.invoke('intel:sources:delete', id),
-  getIntelItems: (filter: IntelDateFilter) => ipcRenderer.invoke('intel:items:list', filter),
+  getIntelItems: (
+    filter: IntelDateFilter,
+    extra?: { searchQuery?: string; sourceFilter?: string; bookmarkFilter?: boolean },
+  ) => ipcRenderer.invoke('intel:items:list', filter, extra),
+  getIntelTrendingTopics: () => ipcRenderer.invoke('intel:trending'),
+  getIntelBookmarkCount: () => ipcRenderer.invoke('intel:bookmark-count'),
   markIntelItemRead: (id: string) => ipcRenderer.invoke('intel:items:markRead', id),
   toggleIntelItemBookmark: (id: string) => ipcRenderer.invoke('intel:items:bookmark', id),
   addManualIntelItem: (data: AddManualItemInput) => ipcRenderer.invoke('intel:items:addManual', data),

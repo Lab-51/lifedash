@@ -36,9 +36,27 @@ export function registerIntelFeedHandlers(): void {
     return intelFeedService.deleteSource(validId);
   });
 
-  ipcMain.handle('intel:items:list', async (_event, filter: unknown) => {
+  ipcMain.handle('intel:items:list', async (_event, filter: unknown, extra: unknown) => {
     const validFilter = validateInput(intelDateFilterSchema, filter);
-    return intelFeedService.getItems(validFilter);
+    const validExtra = extra
+      ? validateInput(
+          z.object({
+            searchQuery: z.string().optional(),
+            sourceFilter: z.string().uuid().optional(),
+            bookmarkFilter: z.boolean().optional(),
+          }),
+          extra,
+        )
+      : undefined;
+    return intelFeedService.getItems(validFilter, validExtra);
+  });
+
+  ipcMain.handle('intel:trending', async () => {
+    return intelFeedService.getTrendingTopics();
+  });
+
+  ipcMain.handle('intel:bookmark-count', async () => {
+    return intelFeedService.getBookmarkCount();
   });
 
   ipcMain.handle('intel:items:markRead', async (_event, id: unknown) => {

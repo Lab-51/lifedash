@@ -19,6 +19,8 @@ import type {
   ArticleContent,
 } from '../../shared/types';
 
+type ViewMode = 'feed' | 'bookmarks';
+
 interface IntelFeedStore {
   // State
   items: IntelItem[];
@@ -31,16 +33,29 @@ interface IntelFeedStore {
   briefLoading: boolean;
   briefType: IntelBriefType;
   categoryFilter: string | null;
+  searchQuery: string;
+  sourceFilter: string | null;
+  bookmarkFilter: boolean;
+  viewMode: ViewMode;
+  bookmarkCount: number;
   readerItem: IntelItem | null;
   readerContent: ArticleContent | null;
   readerLoading: boolean;
   briefChatMessages: IntelChatMessage[];
   briefChatSending: boolean;
+  trendingTopics: { topic: string; count: number }[];
 
   // Actions
   loadItems: () => Promise<void>;
   loadSources: () => Promise<void>;
+  loadBookmarkCount: () => Promise<void>;
+  loadTrending: () => Promise<void>;
+  setViewMode: (mode: ViewMode) => void;
   setDateFilter: (filter: IntelDateFilter) => void;
+  setSearchQuery: (query: string) => void;
+  setSourceFilter: (sourceId: string | null) => void;
+  setBookmarkFilter: (enabled: boolean) => void;
+  clearAllFilters: () => void;
   fetchAll: () => Promise<{ newItems: number }>;
   markRead: (id: string) => Promise<void>;
   toggleBookmark: (id: string) => Promise<void>;
@@ -71,22 +86,67 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   briefLoading: false,
   briefType: 'daily',
   categoryFilter: null,
+  searchQuery: '',
+  sourceFilter: null,
+  bookmarkFilter: false,
+  viewMode: 'feed',
+  bookmarkCount: 0,
   readerItem: null,
   readerContent: null,
   readerLoading: false,
   briefChatMessages: [],
   briefChatSending: false,
+  trendingTopics: [],
 
   loadItems: async () => {
     set({ loading: true, error: null });
     try {
-      const items = await window.electronAPI.getIntelItems(get().dateFilter);
+      const { dateFilter, searchQuery, sourceFilter, bookmarkFilter } = get();
+      const extra =
+        searchQuery || sourceFilter || bookmarkFilter
+          ? {
+              searchQuery: searchQuery || undefined,
+              sourceFilter: sourceFilter || undefined,
+              bookmarkFilter: bookmarkFilter || undefined,
+            }
+          : undefined;
+      const items = await window.electronAPI.getIntelItems(dateFilter, extra);
       set({ items, loading: false });
+      // Load bookmark count alongside items (non-blocking)
+      get().loadBookmarkCount();
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to load intel items',
         loading: false,
       });
+    }
+  },
+
+  loadBookmarkCount: async () => {
+    try {
+      const bookmarkCount = await window.electronAPI.getIntelBookmarkCount();
+      set({ bookmarkCount });
+    } catch {
+      // Non-critical — silently ignore
+    }
+  },
+
+  loadTrending: async () => {
+    try {
+      const trendingTopics = await window.electronAPI.getIntelTrendingTopics();
+      set({ trendingTopics });
+    } catch {
+      // Non-critical — silently ignore
+    }
+  },
+
+  setViewMode: (mode: ViewMode) => {
+    if (mode === 'bookmarks') {
+      set({ viewMode: mode, bookmarkFilter: true });
+      get().loadItems();
+    } else {
+      set({ viewMode: mode, bookmarkFilter: false });
+      get().loadItems();
     }
   },
 
@@ -103,6 +163,26 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
 
   setDateFilter: (filter: IntelDateFilter) => {
     set({ dateFilter: filter });
+    get().loadItems();
+  },
+
+  setSearchQuery: (query: string) => {
+    set({ searchQuery: query });
+    get().loadItems();
+  },
+
+  setSourceFilter: (sourceId: string | null) => {
+    set({ sourceFilter: sourceId });
+    get().loadItems();
+  },
+
+  setBookmarkFilter: (enabled: boolean) => {
+    set({ bookmarkFilter: enabled });
+    get().loadItems();
+  },
+
+  clearAllFilters: () => {
+    set({ searchQuery: '', sourceFilter: null, bookmarkFilter: false, categoryFilter: null, viewMode: 'feed' });
     get().loadItems();
   },
 

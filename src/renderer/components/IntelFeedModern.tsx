@@ -3,9 +3,9 @@
 // for the top-relevance article and a responsive grid for remaining items,
 // grouped by date with relevance-based sorting within each group.
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Newspaper, Loader2, Plus, SlidersHorizontal } from 'lucide-react';
+import { RefreshCw, Newspaper, Loader2, Plus, SlidersHorizontal, Search, Bookmark, X, TrendingUp } from 'lucide-react';
 import HudBackground from './HudBackground';
 import EmptyFeatureState from './EmptyFeatureState';
 import IntelItemCard from './IntelItemCard';
@@ -112,6 +112,35 @@ export default function IntelFeedModern() {
   const briefChatSending = useIntelFeedStore((s) => s.briefChatSending);
   const sendBriefChatMessage = useIntelFeedStore((s) => s.sendBriefChatMessage);
   const clearBriefChat = useIntelFeedStore((s) => s.clearBriefChat);
+  const searchQuery = useIntelFeedStore((s) => s.searchQuery);
+  const sourceFilter = useIntelFeedStore((s) => s.sourceFilter);
+  const bookmarkFilter = useIntelFeedStore((s) => s.bookmarkFilter);
+  const viewMode = useIntelFeedStore((s) => s.viewMode);
+  const bookmarkCount = useIntelFeedStore((s) => s.bookmarkCount);
+  const setSearchQuery = useIntelFeedStore((s) => s.setSearchQuery);
+  const setSourceFilter = useIntelFeedStore((s) => s.setSourceFilter);
+  const setBookmarkFilter = useIntelFeedStore((s) => s.setBookmarkFilter);
+  const setViewMode = useIntelFeedStore((s) => s.setViewMode);
+  const clearAllFilters = useIntelFeedStore((s) => s.clearAllFilters);
+  const trendingTopics = useIntelFeedStore((s) => s.trendingTopics);
+  const loadTrending = useIntelFeedStore((s) => s.loadTrending);
+
+  // Local search input + debounce
+  const [searchInput, setSearchInput] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(value);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        setSearchQuery(value);
+      }, 300);
+    },
+    [setSearchQuery],
+  );
+
+  const hasActiveFilters = searchQuery !== '' || sourceFilter !== null || (bookmarkFilter && viewMode !== 'bookmarks');
 
   // --- Action handlers for article cards ---
 
@@ -189,6 +218,7 @@ export default function IntelFeedModern() {
     async function init() {
       await loadItems();
       await loadSources();
+      loadTrending();
 
       if (cancelled) return;
 
@@ -308,6 +338,45 @@ export default function IntelFeedModern() {
           </div>
         </div>
 
+        {/* View toggle: Feed / Saved */}
+        <div className="flex items-center gap-3 mt-3 mb-1">
+          <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
+            <button
+              onClick={() => setViewMode('feed')}
+              className={`cursor-pointer px-4 py-1.5 text-xs font-medium transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                viewMode === 'feed'
+                  ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
+                  : 'bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)]'
+              }`}
+            >
+              <Newspaper size={13} />
+              Feed
+            </button>
+            <button
+              onClick={() => setViewMode('bookmarks')}
+              className={`cursor-pointer px-4 py-1.5 text-xs font-medium transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                viewMode === 'bookmarks'
+                  ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
+                  : 'bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)]'
+              }`}
+            >
+              <Bookmark size={13} className={viewMode === 'bookmarks' ? 'fill-current' : ''} />
+              Saved
+              {bookmarkCount > 0 && (
+                <span
+                  className={`ml-0.5 px-1.5 py-px text-[10px] rounded-full font-semibold leading-tight ${
+                    viewMode === 'bookmarks'
+                      ? 'bg-[var(--color-accent)] text-white'
+                      : 'bg-[var(--color-border)] text-[var(--color-text-muted)]'
+                  }`}
+                >
+                  {bookmarkCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
         {/* Filters row: date tabs + article count + category pills */}
         <div className="flex items-center gap-3 flex-wrap mt-2">
           <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
@@ -362,6 +431,69 @@ export default function IntelFeedModern() {
             </>
           )}
         </div>
+
+        {/* Search & Filter Bar */}
+        <div className="flex items-center gap-2 flex-wrap mt-3">
+          {/* Search input */}
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none"
+            />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search articles..."
+              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-chrome)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-border-accent)] transition-colors"
+            />
+          </div>
+
+          {/* Source dropdown */}
+          <select
+            value={sourceFilter ?? ''}
+            onChange={(e) => setSourceFilter(e.target.value || null)}
+            className="cursor-pointer px-3 py-1.5 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-chrome)] text-[var(--color-text-secondary)] focus:outline-none focus:border-[var(--color-border-accent)] transition-colors"
+          >
+            <option value="">All Sources</option>
+            {sources
+              .filter((s) => s.type !== 'manual')
+              .map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+          </select>
+
+          {/* Bookmark toggle — hidden in bookmarks view since the view toggle handles it */}
+          {viewMode !== 'bookmarks' && (
+            <button
+              onClick={() => setBookmarkFilter(!bookmarkFilter)}
+              className={`cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                bookmarkFilter
+                  ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
+                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)]'
+              }`}
+            >
+              <Bookmark size={13} className={bookmarkFilter ? 'fill-current' : ''} />
+              Bookmarked
+            </button>
+          )}
+
+          {/* Clear filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={() => {
+                setSearchInput('');
+                clearAllFilters();
+              }}
+              className="cursor-pointer flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-red-400 hover:border-red-400/40 transition-colors"
+            >
+              <X size={13} />
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Error */}
@@ -373,24 +505,70 @@ export default function IntelFeedModern() {
         </div>
       )}
 
+      {/* Trending Topics — compact chip row, feed view only, 2+ topics */}
+      {viewMode === 'feed' && trendingTopics.length >= 2 && (
+        <div className="px-8 pb-2 shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto">
+            <div className="flex items-center gap-1.5 shrink-0 text-[var(--color-text-muted)]">
+              <TrendingUp size={13} />
+              <span className="text-[10px] font-semibold uppercase tracking-wider">Trending</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {trendingTopics.map((t) => (
+                <button
+                  key={t.topic}
+                  onClick={() => setCategoryFilter(categoryFilter === t.topic ? null : t.topic)}
+                  className={`cursor-pointer shrink-0 px-2.5 py-0.5 text-[11px] rounded-full transition-colors whitespace-nowrap ${
+                    categoryFilter === t.topic
+                      ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)]'
+                      : 'bg-surface-700/50 text-[var(--color-text-muted)] hover:bg-surface-700 hover:text-[var(--color-text-secondary)]'
+                  }`}
+                >
+                  {t.topic} ({t.count})
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Feed Content */}
       <div className="flex-1 overflow-y-auto px-8 pb-8">
-        {/* Brief Panel */}
-        <IntelBriefPanel
-          brief={brief}
-          briefType={briefType}
-          loading={briefLoading}
-          onGenerate={generateBrief}
-          onSetType={setBriefType}
-          chatMessages={briefChatMessages}
-          chatSending={briefChatSending}
-          onSendChat={sendBriefChatMessage}
-          onClearChat={clearBriefChat}
-          items={items}
-          onOpenArticle={openReader}
-        />
+        {/* Brief Panel — only in feed view */}
+        {viewMode === 'feed' && (
+          <IntelBriefPanel
+            brief={brief}
+            briefType={briefType}
+            loading={briefLoading}
+            onGenerate={generateBrief}
+            onSetType={setBriefType}
+            chatMessages={briefChatMessages}
+            chatSending={briefChatSending}
+            onSendChat={sendBriefChatMessage}
+            onClearChat={clearBriefChat}
+            items={items}
+            onOpenArticle={openReader}
+          />
+        )}
 
-        {items.length === 0 ? (
+        {viewMode === 'bookmarks' && items.length === 0 ? (
+          /* Bookmarks empty state */
+          <div className="mt-12 flex flex-col items-center justify-center text-center">
+            <div className="w-14 h-14 rounded-2xl bg-[var(--color-accent-muted)] flex items-center justify-center mb-4">
+              <Bookmark size={28} className="text-[var(--color-accent)]" />
+            </div>
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">No saved articles yet</h3>
+            <p className="text-sm text-[var(--color-text-secondary)] max-w-sm">
+              Bookmark articles from the feed to save them here for later reading.
+            </p>
+            <button
+              onClick={() => setViewMode('feed')}
+              className="cursor-pointer mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+            >
+              Browse Feed
+            </button>
+          </div>
+        ) : items.length === 0 ? (
           <div className="mt-12">
             <EmptyFeatureState
               icon={Newspaper}
@@ -407,8 +585,8 @@ export default function IntelFeedModern() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Hero Card */}
-            {heroItem && (
+            {/* Hero Card — only in feed view */}
+            {viewMode === 'feed' && heroItem && (
               <IntelHeroCard
                 item={heroItem}
                 onMarkRead={markRead}
@@ -421,8 +599,8 @@ export default function IntelFeedModern() {
               />
             )}
 
-            {/* Grid of remaining articles, grouped by date */}
-            {groupedGridItems.map((group) => (
+            {/* Grid of articles, grouped by date */}
+            {(viewMode === 'bookmarks' ? groupItemsByDate(sortedItems) : groupedGridItems).map((group) => (
               <div key={group.label}>
                 {/* Date Header */}
                 <div className="flex items-center gap-3 mb-3">

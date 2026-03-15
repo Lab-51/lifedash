@@ -5,7 +5,7 @@
 // === DEPENDENCIES ===
 // drizzle-orm, rss-parser, ../db/connection, ../db/schema (intelSources, intelItems)
 
-import { eq, desc, count, gte, and } from 'drizzle-orm';
+import { eq, desc, count, gte, and, ilike, or, isNotNull, ne, sql } from 'drizzle-orm';
 import RSSParser from 'rss-parser';
 import { getDb } from '../db/connection';
 import { intelSources, intelItems } from '../db/schema';
@@ -420,19 +420,47 @@ export async function deleteSource(id: string): Promise<void> {
 // Item Queries
 // ---------------------------------------------------------------------------
 
-/** Get items filtered by date, joined with source name, ordered by publishedAt DESC. */
-export async function getItems(filter: IntelDateFilter): Promise<IntelItem[]> {
+/** Optional filters for getItems beyond date. */
+export interface IntelItemFilters {
+  searchQuery?: string;
+  sourceFilter?: string;
+  bookmarkFilter?: boolean;
+}
+
+/** Get items filtered by date + optional search/source/bookmark, joined with source name, ordered by publishedAt DESC. */
+export async function getItems(filter: IntelDateFilter, extra?: IntelItemFilters): Promise<IntelItem[]> {
   const db = getDb();
 
-  let dateCondition;
+  const conditions = [];
+
+  // Date filter
   if (filter === 'today') {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    dateCondition = gte(intelItems.publishedAt, startOfDay);
+    conditions.push(gte(intelItems.publishedAt, startOfDay));
   } else if (filter === 'week') {
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    dateCondition = gte(intelItems.publishedAt, weekAgo);
+    conditions.push(gte(intelItems.publishedAt, weekAgo));
+  }
+
+  // Only show items from enabled sources
+  conditions.push(eq(intelSources.enabled, true));
+
+  // Search query — match title or description
+  if (extra?.searchQuery) {
+    const q = `%${extra.searchQuery}%`;
+    conditions.push(or(ilike(intelItems.title, q), ilike(intelItems.description, q))!);
+  }
+
+  // Source filter
+  if (extra?.sourceFilter) {
+    conditions.push(eq(intelItems.sourceId, extra.sourceFilter));
+  }
+
+  // Bookmark filter
+  if (extra?.bookmarkFilter) {
+    conditions.push(eq(intelItems.isBookmarked, true));
   }
 
   // Build query — join with sources to get source name + icon
@@ -447,18 +475,23 @@ export async function getItems(filter: IntelDateFilter): Promise<IntelItem[]> {
     .innerJoin(intelSources, eq(intelItems.sourceId, intelSources.id))
     .orderBy(desc(intelItems.publishedAt));
 
-  // Only show items from enabled sources
-  const enabledCondition = eq(intelSources.enabled, true);
+  const whereClause = and(...conditions);
 
   let rows;
-  if (dateCondition) {
-    rows = await query.where(and(dateCondition, enabledCondition));
+  if (filter === 'all') {
+    rows = await query.where(whereClause).limit(200);
   } else {
-    // 'all' — no date filter, limit 200
-    rows = await query.where(enabledCondition).limit(200);
+    rows = await query.where(whereClause);
   }
 
   return rows.map((r) => toIntelItem(r.item, r.sourceName, r.sourceIconUrl || faviconUrl(r.sourceUrl)));
+}
+
+/** Get the total number of bookmarked items. */
+export async function getBookmarkCount(): Promise<number> {
+  const db = getDb();
+  const [row] = await db.select({ value: count() }).from(intelItems).where(eq(intelItems.isBookmarked, true));
+  return row?.value ?? 0;
 }
 
 /** Mark an item as read. */
@@ -488,6 +521,49 @@ export async function toggleBookmark(id: string): Promise<IntelItem> {
     .where(eq(intelSources.id, updated.sourceId));
 
   return toIntelItem(updated, source?.name ?? 'Unknown');
+}
+
+// ---------------------------------------------------------------------------
+// Trending Topics
+// ---------------------------------------------------------------------------
+
+/** Get trending topics from the last 7 days, grouped by category (or source name as fallback). */
+export async function getTrendingTopics(): Promise<{ topic: string; count: number }[]> {
+  const db = getDb();
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  // Try grouping by category first
+  const categoryRows = await db
+    .select({
+      topic: intelItems.category,
+      count: count(),
+    })
+    .from(intelItems)
+    .where(and(gte(intelItems.publishedAt, weekAgo), isNotNull(intelItems.category), ne(intelItems.category, '')))
+    .groupBy(intelItems.category)
+    .orderBy(desc(count()))
+    .limit(5);
+
+  // If we got at least 2 categories, return them
+  if (categoryRows.length >= 2) {
+    return categoryRows.map((r) => ({ topic: r.topic!, count: r.count }));
+  }
+
+  // Fallback: group by source name
+  const sourceRows = await db
+    .select({
+      topic: intelSources.name,
+      count: count(),
+    })
+    .from(intelItems)
+    .innerJoin(intelSources, eq(intelItems.sourceId, intelSources.id))
+    .where(and(gte(intelItems.publishedAt, weekAgo), eq(intelSources.enabled, true)))
+    .groupBy(intelSources.name)
+    .orderBy(desc(count()))
+    .limit(5);
+
+  return sourceRows.map((r) => ({ topic: r.topic, count: r.count }));
 }
 
 // ---------------------------------------------------------------------------
