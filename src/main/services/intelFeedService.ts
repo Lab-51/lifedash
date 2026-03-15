@@ -100,6 +100,126 @@ function isRedditFeed(url: string): boolean {
   return /reddit\.com\/r\//i.test(url);
 }
 
+/** Render a Reddit comment tree into HTML (recursive, max depth). */
+function renderRedditComments(
+  children: Array<{ kind: string; data: Record<string, unknown> }>,
+  depth = 0,
+  maxDepth = 4,
+): string {
+  if (depth > maxDepth || !children?.length) return '';
+
+  let html = '';
+  for (const child of children) {
+    if (child.kind !== 't1') continue; // t1 = comment
+    const d = child.data;
+    const author = String(d.author ?? '[deleted]');
+    const body = String(d.body ?? '');
+    const score = Number(d.score ?? 0);
+    const scoreLabel = score >= 0 ? `+${score}` : `${score}`;
+
+    if (!body || author === 'AutoModerator') continue;
+
+    const indent = depth * 16;
+    html += `<div style="margin-left:${indent}px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.06);">`;
+    html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">`;
+    html += `<strong style="color:var(--color-accent-dim); font-size:0.8rem;">u/${author}</strong>`;
+    html += `<span style="color:var(--color-text-muted); font-size:0.7rem;">${scoreLabel} points</span>`;
+    html += `</div>`;
+    html += `<div style="font-size:0.875rem; line-height:1.6; color:var(--color-text-secondary);">${body.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</div>`;
+    html += `</div>`;
+
+    // Recurse into replies
+    const replies = d.replies as { data?: { children?: Array<{ kind: string; data: Record<string, unknown> }> } } | undefined;
+    if (replies?.data?.children) {
+      html += renderRedditComments(replies.data.children, depth + 1, maxDepth);
+    }
+  }
+  return html;
+}
+
+/** Fetch a Reddit post's content and top comments via JSON API. */
+async function fetchRedditPostWithComments(
+  postUrl: string,
+  fallbackDescription: string,
+): Promise<Omit<ArticleContent, 'title' | 'byline' | 'siteName'>> {
+  try {
+    // Convert post URL to JSON: https://www.reddit.com/r/X/comments/Y/title/ → .json
+    const jsonUrl = postUrl.replace(/\/?$/, '.json');
+
+    let fetchFn: typeof globalThis.fetch = globalThis.fetch;
+    try {
+      const { net } = require('electron');
+      if (net?.fetch) fetchFn = net.fetch;
+    } catch { /* fallback */ }
+
+    const response = await fetchFn(jsonUrl, {
+      headers: {
+        'User-Agent': RSS_USER_AGENT,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) throw new Error(`Status ${response.status}`);
+
+    const data = await response.json() as Array<{
+      data?: { children?: Array<{ kind: string; data: Record<string, unknown> }> };
+    }>;
+
+    // data[0] = post, data[1] = comments
+    const postData = data?.[0]?.data?.children?.[0]?.data;
+    const selftext = postData ? String(postData.selftext ?? '') : fallbackDescription;
+    const commentChildren = data?.[1]?.data?.children ?? [];
+
+    // Build HTML: post content + comments section
+    let html = '';
+
+    // Post content
+    if (selftext) {
+      html += `<div style="margin-bottom:24px;">${selftext.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</div>`;
+    }
+
+    // If the post is a link post (not self post), show the linked URL
+    const postUrlField = postData ? String(postData.url ?? '') : '';
+    if (postUrlField && !postUrlField.includes('reddit.com/r/')) {
+      html += `<div style="margin-bottom:24px; padding:12px; border:1px solid var(--color-border); border-radius:8px;">`;
+      html += `<span style="font-size:0.75rem; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.05em;">Linked article</span><br>`;
+      html += `<a href="${postUrlField}" style="color:var(--color-accent); word-break:break-all;">${postUrlField}</a>`;
+      html += `</div>`;
+    }
+
+    // Comments section
+    const topComments = commentChildren.filter(c => c.kind === 't1').slice(0, 15);
+    if (topComments.length > 0) {
+      html += `<div style="margin-top:24px; padding-top:16px; border-top:2px solid var(--color-border);">`;
+      html += `<h3 style="font-size:0.875rem; font-weight:600; color:var(--color-accent); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.1em;">Top Comments (${topComments.length})</h3>`;
+      html += renderRedditComments(topComments, 0, 3);
+      html += `</div>`;
+    }
+
+    const textContent = selftext + '\n\n' + commentChildren
+      .filter(c => c.kind === 't1')
+      .slice(0, 10)
+      .map(c => `u/${c.data.author}: ${c.data.body}`)
+      .join('\n\n');
+
+    return {
+      content: html,
+      textContent,
+      excerpt: selftext.slice(0, 200),
+      length: textContent.split(/\s+/).length,
+    };
+  } catch (err) {
+    log.warn(`Failed to fetch Reddit comments for ${postUrl}: ${err}`);
+    // Fallback: just the description without comments
+    return {
+      content: `<p>${fallbackDescription.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`,
+      textContent: fallbackDescription,
+      excerpt: fallbackDescription.slice(0, 200),
+      length: fallbackDescription.split(/\s+/).length,
+    };
+  }
+}
+
 /** Safely coerce any RSS field to a string (fields can be objects at runtime). */
 function safeString(val: unknown, maxLen = 500): string | null {
   if (val == null) return null;
@@ -532,24 +652,18 @@ export async function fetchArticleContent(itemId: string): Promise<ArticleConten
   };
 
   try {
-    // Reddit posts: skip Readability (Reddit HTML produces duplicate content).
-    // Use the stored description (selftext) directly.
+    // Reddit posts: fetch via JSON API to get selftext + comments.
     if (/reddit\.com\//i.test(row.item.url)) {
-      const content = row.item.description || '';
-      // Cache it so we don't re-check next time
-      if (content) {
-        await db.update(intelItems)
-          .set({ fullContent: content })
-          .where(eq(intelItems.id, itemId));
-      }
+      const redditContent = await fetchRedditPostWithComments(row.item.url, row.item.description || '');
+      // Cache it
+      await db.update(intelItems)
+        .set({ fullContent: redditContent.textContent })
+        .where(eq(intelItems.id, itemId));
       return {
+        ...redditContent,
         title: row.item.title,
-        content: `<p>${content.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`,
-        textContent: content,
-        excerpt: content.slice(0, 200),
         byline: row.item.author,
         siteName: 'Reddit',
-        length: content.split(/\s+/).length,
       };
     }
 
