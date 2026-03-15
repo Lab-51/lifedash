@@ -5,7 +5,7 @@
 // === DEPENDENCIES ===
 // drizzle-orm, rss-parser, ../db/connection, ../db/schema (intelSources, intelItems)
 
-import { eq, desc, count, gte, and, sql } from 'drizzle-orm';
+import { eq, desc, count, gte, and } from 'drizzle-orm';
 import RSSParser from 'rss-parser';
 import { getDb } from '../db/connection';
 import { intelSources, intelItems } from '../db/schema';
@@ -24,11 +24,22 @@ import { createLogger } from './logger';
 
 const log = createLogger('IntelFeedService');
 
+/** Escape user-generated text for safe insertion into HTML strings. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // ---------------------------------------------------------------------------
 // RSS Parser instance (reused across fetches)
 // ---------------------------------------------------------------------------
 
-const RSS_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const RSS_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 const rssParser = new RSSParser({
   timeout: 10_000,
@@ -41,12 +52,14 @@ const rssParser = new RSSParser({
 /** Fetch RSS feed with Electron's net module (uses Chromium networking stack, better header support). */
 async function fetchFeedWithBrowserUA(url: string): Promise<RSSParser.Output<Record<string, unknown>>> {
   // Use Electron's net.fetch when available (respects custom headers better than Node fetch)
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   let fetchFn: typeof globalThis.fetch = globalThis.fetch;
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { net } = require('electron');
     if (net?.fetch) fetchFn = net.fetch;
-  } catch { /* not in Electron context, use global fetch */ }
+  } catch {
+    /* not in Electron context, use global fetch */
+  }
 
   const response = await fetchFn(url, {
     headers: {
@@ -62,15 +75,20 @@ async function fetchFeedWithBrowserUA(url: string): Promise<RSSParser.Output<Rec
 }
 
 /** Fetch a Reddit subreddit as a feed using Reddit's JSON API (more reliable than RSS). */
-async function fetchRedditFeed(url: string): Promise<{ title: string; link: string; description: string; author: string; publishedAt: Date }[]> {
+async function fetchRedditFeed(
+  url: string,
+): Promise<{ title: string; link: string; description: string; author: string; publishedAt: Date }[]> {
   // Convert any Reddit URL to JSON API: /r/ClaudeAI/.rss or /r/ClaudeAI/ → /r/ClaudeAI.json
   const jsonUrl = url.replace(/\/?\.rss\/?$/, '').replace(/\/+$/, '') + '.json';
 
   let fetchFn: typeof globalThis.fetch = globalThis.fetch;
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { net } = require('electron');
     if (net?.fetch) fetchFn = net.fetch;
-  } catch { /* fallback */ }
+  } catch {
+    /* fallback */
+  }
 
   const response = await fetchFn(jsonUrl, {
     headers: {
@@ -80,7 +98,7 @@ async function fetchRedditFeed(url: string): Promise<{ title: string; link: stri
   });
   if (!response.ok) throw new Error(`Status code ${response.status}`);
 
-  const data = await response.json() as { data?: { children?: Array<{ data: Record<string, unknown> }> } };
+  const data = (await response.json()) as { data?: { children?: Array<{ data: Record<string, unknown> }> } };
   const posts = data?.data?.children ?? [];
 
   return posts.map((post) => {
@@ -90,7 +108,7 @@ async function fetchRedditFeed(url: string): Promise<{ title: string; link: stri
       link: `https://www.reddit.com${d.permalink ?? ''}`,
       description: String(d.selftext ?? d.url ?? '').slice(0, 2000),
       author: String(d.author ?? ''),
-      publishedAt: new Date((d.created_utc as number ?? 0) * 1000),
+      publishedAt: new Date(((d.created_utc as number) ?? 0) * 1000),
     };
   });
 }
@@ -122,14 +140,16 @@ function renderRedditComments(
     const indent = depth * 16;
     html += `<div style="margin-left:${indent}px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.06);">`;
     html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">`;
-    html += `<strong style="color:var(--color-accent-dim); font-size:0.8rem;">u/${author}</strong>`;
+    html += `<strong style="color:var(--color-accent-dim); font-size:0.8rem;">u/${escapeHtml(author)}</strong>`;
     html += `<span style="color:var(--color-text-muted); font-size:0.7rem;">${scoreLabel} points</span>`;
     html += `</div>`;
-    html += `<div style="font-size:0.875rem; line-height:1.6; color:var(--color-text-secondary);">${body.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</div>`;
+    html += `<div style="font-size:0.875rem; line-height:1.6; color:var(--color-text-secondary);">${escapeHtml(body).replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</div>`;
     html += `</div>`;
 
     // Recurse into replies
-    const replies = d.replies as { data?: { children?: Array<{ kind: string; data: Record<string, unknown> }> } } | undefined;
+    const replies = d.replies as
+      | { data?: { children?: Array<{ kind: string; data: Record<string, unknown> }> } }
+      | undefined;
     if (replies?.data?.children) {
       html += renderRedditComments(replies.data.children, depth + 1, maxDepth);
     }
@@ -148,9 +168,12 @@ async function fetchRedditPostWithComments(
 
     let fetchFn: typeof globalThis.fetch = globalThis.fetch;
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { net } = require('electron');
       if (net?.fetch) fetchFn = net.fetch;
-    } catch { /* fallback */ }
+    } catch {
+      /* fallback */
+    }
 
     const response = await fetchFn(jsonUrl, {
       headers: {
@@ -161,7 +184,7 @@ async function fetchRedditPostWithComments(
 
     if (!response.ok) throw new Error(`Status ${response.status}`);
 
-    const data = await response.json() as Array<{
+    const data = (await response.json()) as Array<{
       data?: { children?: Array<{ kind: string; data: Record<string, unknown> }> };
     }>;
 
@@ -175,7 +198,7 @@ async function fetchRedditPostWithComments(
 
     // Post content
     if (selftext) {
-      html += `<div style="margin-bottom:24px;">${selftext.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</div>`;
+      html += `<div style="margin-bottom:24px;">${escapeHtml(selftext).replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</div>`;
     }
 
     // If the post is a link post (not self post), show the linked URL
@@ -183,12 +206,12 @@ async function fetchRedditPostWithComments(
     if (postUrlField && !postUrlField.includes('reddit.com/r/')) {
       html += `<div style="margin-bottom:24px; padding:12px; border:1px solid var(--color-border); border-radius:8px;">`;
       html += `<span style="font-size:0.75rem; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.05em;">Linked article</span><br>`;
-      html += `<a href="${postUrlField}" style="color:var(--color-accent); word-break:break-all;">${postUrlField}</a>`;
+      html += `<a href="${escapeHtml(postUrlField)}" style="color:var(--color-accent); word-break:break-all;">${escapeHtml(postUrlField)}</a>`;
       html += `</div>`;
     }
 
     // Comments section
-    const topComments = commentChildren.filter(c => c.kind === 't1').slice(0, 15);
+    const topComments = commentChildren.filter((c) => c.kind === 't1').slice(0, 15);
     if (topComments.length > 0) {
       html += `<div style="margin-top:24px; padding-top:16px; border-top:2px solid var(--color-border);">`;
       html += `<h3 style="font-size:0.875rem; font-weight:600; color:var(--color-accent); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.1em;">Top Comments (${topComments.length})</h3>`;
@@ -196,11 +219,14 @@ async function fetchRedditPostWithComments(
       html += `</div>`;
     }
 
-    const textContent = selftext + '\n\n' + commentChildren
-      .filter(c => c.kind === 't1')
-      .slice(0, 10)
-      .map(c => `u/${c.data.author}: ${c.data.body}`)
-      .join('\n\n');
+    const textContent =
+      selftext +
+      '\n\n' +
+      commentChildren
+        .filter((c) => c.kind === 't1')
+        .slice(0, 10)
+        .map((c) => `u/${c.data.author}: ${c.data.body}`)
+        .join('\n\n');
 
     return {
       content: html,
@@ -212,7 +238,7 @@ async function fetchRedditPostWithComments(
     log.warn(`Failed to fetch Reddit comments for ${postUrl}: ${err}`);
     // Fallback: just the description without comments
     return {
-      content: `<p>${fallbackDescription.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`,
+      content: `<p>${escapeHtml(fallbackDescription).replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`,
       textContent: fallbackDescription,
       excerpt: fallbackDescription.slice(0, 200),
       length: fallbackDescription.split(/\s+/).length,
@@ -230,9 +256,17 @@ function safeString(val: unknown, maxLen = 500): string | null {
     for (const key of ['name', '_', 'text', 'value', '$t']) {
       if (typeof obj[key] === 'string') return (obj[key] as string).slice(0, maxLen);
     }
-    try { return JSON.stringify(val).slice(0, maxLen); } catch { /* fall through */ }
+    try {
+      return JSON.stringify(val).slice(0, maxLen);
+    } catch {
+      /* fall through */
+    }
   }
-  try { return String(val).slice(0, maxLen); } catch { return null; }
+  try {
+    return String(val).slice(0, maxLen);
+  } catch {
+    return null;
+  }
 }
 
 /** Safely extract author string from RSS item (can be string or object at runtime). */
@@ -261,10 +295,7 @@ function faviconUrl(feedUrl: string): string {
 // ---------------------------------------------------------------------------
 
 /** Map a DB source row + item count to the shared IntelSource type */
-function toIntelSource(
-  row: typeof intelSources.$inferSelect,
-  itemCount: number,
-): IntelSource {
+function toIntelSource(row: typeof intelSources.$inferSelect, itemCount: number): IntelSource {
   return {
     id: row.id,
     name: row.name,
@@ -336,10 +367,7 @@ export async function getSource(id: string): Promise<IntelSource | null> {
   const [row] = await db.select().from(intelSources).where(eq(intelSources.id, id));
   if (!row) return null;
 
-  const [countRow] = await db
-    .select({ value: count() })
-    .from(intelItems)
-    .where(eq(intelItems.sourceId, id));
+  const [countRow] = await db.select({ value: count() }).from(intelItems).where(eq(intelItems.sourceId, id));
 
   return toIntelSource(row, countRow?.value ?? 0);
 }
@@ -369,18 +397,11 @@ export async function updateSource(id: string, data: UpdateIntelSourceInput): Pr
   if (data.name !== undefined) updateData.name = data.name;
   if (data.enabled !== undefined) updateData.enabled = data.enabled;
 
-  const [row] = await db
-    .update(intelSources)
-    .set(updateData)
-    .where(eq(intelSources.id, id))
-    .returning();
+  const [row] = await db.update(intelSources).set(updateData).where(eq(intelSources.id, id)).returning();
 
   if (!row) throw new Error(`Intel source not found: ${id}`);
 
-  const [countRow] = await db
-    .select({ value: count() })
-    .from(intelItems)
-    .where(eq(intelItems.sourceId, id));
+  const [countRow] = await db.select({ value: count() }).from(intelItems).where(eq(intelItems.sourceId, id));
 
   return toIntelSource(row, countRow?.value ?? 0);
 }
@@ -439,10 +460,7 @@ export async function getItems(filter: IntelDateFilter): Promise<IntelItem[]> {
 /** Mark an item as read. */
 export async function markRead(id: string): Promise<void> {
   const db = getDb();
-  await db
-    .update(intelItems)
-    .set({ isRead: true })
-    .where(eq(intelItems.id, id));
+  await db.update(intelItems).set({ isRead: true }).where(eq(intelItems.id, id));
 }
 
 /** Toggle bookmark on an item. Returns the updated item. */
@@ -475,10 +493,7 @@ export async function toggleBookmark(id: string): Promise<IntelItem> {
 /** Fetch all enabled RSS sources and insert new items. Returns count of new items. */
 export async function fetchAllSources(): Promise<{ newItems: number }> {
   const db = getDb();
-  const sources = await db
-    .select()
-    .from(intelSources)
-    .where(eq(intelSources.enabled, true));
+  const sources = await db.select().from(intelSources).where(eq(intelSources.enabled, true));
 
   let totalNew = 0;
 
@@ -563,10 +578,7 @@ export async function addManualItem(input: AddManualItemInput): Promise<IntelIte
   const db = getDb();
 
   // Find or create the manual source
-  let [manualSource] = await db
-    .select()
-    .from(intelSources)
-    .where(eq(intelSources.type, 'manual'));
+  let [manualSource] = await db.select().from(intelSources).where(eq(intelSources.type, 'manual'));
 
   if (!manualSource) {
     [manualSource] = await db
@@ -608,10 +620,12 @@ export async function fetchArticleContent(itemId: string): Promise<ArticleConten
   const db = getDb();
 
   // Get item with source
-  const [row] = await db.select({
-    item: intelItems,
-    sourceName: intelSources.name,
-  }).from(intelItems)
+  const [row] = await db
+    .select({
+      item: intelItems,
+      sourceName: intelSources.name,
+    })
+    .from(intelItems)
     .innerJoin(intelSources, eq(intelItems.sourceId, intelSources.id))
     .where(eq(intelItems.id, itemId));
 
@@ -656,9 +670,7 @@ export async function fetchArticleContent(itemId: string): Promise<ArticleConten
     if (/reddit\.com\//i.test(row.item.url)) {
       const redditContent = await fetchRedditPostWithComments(row.item.url, row.item.description || '');
       // Cache it
-      await db.update(intelItems)
-        .set({ fullContent: redditContent.textContent })
-        .where(eq(intelItems.id, itemId));
+      await db.update(intelItems).set({ fullContent: redditContent.textContent }).where(eq(intelItems.id, itemId));
       return {
         ...redditContent,
         title: row.item.title,
@@ -670,7 +682,8 @@ export async function fetchArticleContent(itemId: string): Promise<ArticleConten
     // Fetch the article HTML
     const response = await fetch(row.item.url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
       signal: AbortSignal.timeout(15000),
     });
@@ -693,9 +706,7 @@ export async function fetchArticleContent(itemId: string): Promise<ArticleConten
     }
 
     // Cache the content in DB
-    await db.update(intelItems)
-      .set({ fullContent: article.content })
-      .where(eq(intelItems.id, itemId));
+    await db.update(intelItems).set({ fullContent: article.content }).where(eq(intelItems.id, itemId));
 
     const textContent = article.textContent ?? '';
 
@@ -733,9 +744,7 @@ const DEFAULT_SOURCES = [
 export async function seedDefaultSources(): Promise<void> {
   const db = getDb();
 
-  const [{ value: sourceCount }] = await db
-    .select({ value: count() })
-    .from(intelSources);
+  const [{ value: sourceCount }] = await db.select({ value: count() }).from(intelSources);
 
   if (sourceCount > 0) {
     log.info('Intel sources already exist, skipping seed');

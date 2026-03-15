@@ -10,7 +10,7 @@
 
 import { app, BrowserWindow, dialog, globalShortcut, shell } from 'electron';
 import path from 'node:path';
-// @ts-ignore
+// @ts-expect-error — Vite asset import (no type declaration for .png)
 import icon from '../assets/icon.png';
 import windowStateKeeper from 'electron-window-state';
 import { registerIpcHandlers } from './ipc';
@@ -25,11 +25,15 @@ import { createLogger, initFileLogging } from './services/logger';
 import { getIsRecording, setIsRecording } from './services/recordingState';
 import { applyGlobalProxy } from './services/proxyService';
 import { initAutoUpdater } from './autoUpdater';
-import { writeCrashMarker, startPeriodicSnapshot, stopPeriodicSnapshot, clearRecoveryState } from './services/sessionRecoveryService';
+import {
+  writeCrashMarker,
+  startPeriodicSnapshot,
+  stopPeriodicSnapshot,
+  clearRecoveryState,
+} from './services/sessionRecoveryService';
 import { initSentry } from './services/sentryService';
 import { initSyncService, stopSyncService } from './services/syncService';
 import { getSupabaseClient } from './services/supabaseClient';
-
 
 const log = createLogger('App');
 
@@ -57,6 +61,10 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 }
+
+// Graceful shutdown on SIGTERM/SIGINT — triggers before-quit cleanup.
+process.on('SIGTERM', () => app.quit());
+process.on('SIGINT', () => app.quit());
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -104,7 +112,7 @@ const createWindow = async () => {
     ? "connect-src 'self' ws: http://localhost:* https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434"
     : "connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.deepgram.com https://api.assemblyai.com http://localhost:11434 https://lifedash.space https://objects.githubusercontent.com";
   const scriptSrc = isDev
-    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"  // Vite HMR needs eval + React preamble needs inline in dev
+    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'" // Vite HMR needs eval + React preamble needs inline in dev
     : "script-src 'self'";
 
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
@@ -112,7 +120,7 @@ const createWindow = async () => {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; ${connectSrc}`
+          `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; ${connectSrc}`,
         ],
       },
     });
@@ -236,10 +244,7 @@ const createWindow = async () => {
           mainWindow?.close();
         }, 2000);
       }
-    } else if (
-      process.platform === 'darwin' &&
-      !(app as unknown as { isQuitting: boolean }).isQuitting
-    ) {
+    } else if (process.platform === 'darwin' && !(app as unknown as { isQuitting: boolean }).isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
     }
@@ -249,9 +254,7 @@ const createWindow = async () => {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    );
+    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
 
   // Start periodic recovery snapshot (crash-safe state persistence)

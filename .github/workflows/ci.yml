@@ -25,8 +25,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Security audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
       - name: Lint (TypeScript type check)
         run: npm run lint
 
+      - name: Run ESLint
+        run: npm run lint:eslint
+        continue-on-error: true
+
       - name: Test
         run: npm test
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        continue-on-error: true

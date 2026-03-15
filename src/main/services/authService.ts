@@ -48,6 +48,7 @@ export async function openAuthWindow(): Promise<AuthState> {
         // Use a separate partition so the main window's strict CSP doesn't block
         // inline scripts in our auth HTML.
         partition: 'auth-window',
+        sandbox: true,
       },
     });
 
@@ -95,7 +96,11 @@ export async function openAuthWindow(): Promise<AuthState> {
 
     // Handle window close without auth
     authWindow.on('closed', () => {
-      try { unlinkSync(tmpPath); } catch { /* ignore cleanup */ }
+      try {
+        unlinkSync(tmpPath);
+      } catch {
+        /* ignore cleanup */
+      }
       // If the promise hasn't been resolved yet, resolve with disconnected state
       resolve({
         isAuthenticated: false,
@@ -138,7 +143,9 @@ export async function signOut(): Promise<void> {
 export async function getAuthState(): Promise<AuthState> {
   try {
     const supabase = getSupabaseClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
     if (session?.user) {
       return {
@@ -192,10 +199,7 @@ export async function getAuthState(): Promise<AuthState> {
 export async function tryRestoreSession(): Promise<boolean> {
   try {
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, SETTINGS_KEY_REFRESH_TOKEN));
+    const rows = await db.select().from(settings).where(eq(settings.key, SETTINGS_KEY_REFRESH_TOKEN));
 
     if (rows.length === 0) return false;
 
@@ -245,11 +249,13 @@ async function storeAuthData(refreshToken: string, userId: string, email: string
   await storeRefreshToken(refreshToken);
 
   // Store user info (not sensitive, plain text)
-  await db.insert(settings)
+  await db
+    .insert(settings)
     .values({ key: SETTINGS_KEY_USER_ID, value: userId })
     .onConflictDoUpdate({ target: settings.key, set: { value: userId, updatedAt: new Date() } });
 
-  await db.insert(settings)
+  await db
+    .insert(settings)
     .values({ key: SETTINGS_KEY_USER_EMAIL, value: email })
     .onConflictDoUpdate({ target: settings.key, set: { value: email, updatedAt: new Date() } });
 }
@@ -258,7 +264,8 @@ async function storeRefreshToken(refreshToken: string): Promise<void> {
   const db = getDb();
   const value = isEncryptionAvailable() ? encryptString(refreshToken) : refreshToken;
 
-  await db.insert(settings)
+  await db
+    .insert(settings)
     .values({ key: SETTINGS_KEY_REFRESH_TOKEN, value })
     .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
 }

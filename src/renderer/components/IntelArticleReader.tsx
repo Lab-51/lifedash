@@ -3,17 +3,57 @@
 // Displays article HTML from Readability.js with a sticky header, AI summary,
 // and an action toolbar for saving ideas, starting projects, or discussing with AI.
 
-import { useEffect } from 'react';
-import {
-  ArrowLeft,
-  Star,
-  ExternalLink,
-  Lightbulb,
-  FolderKanban,
-  Brain,
-  Clock,
-} from 'lucide-react';
+import { useMemo, useEffect } from 'react';
+import DOMPurify from 'dompurify';
+import { ArrowLeft, Star, ExternalLink, Lightbulb, FolderKanban, Brain, Clock } from 'lucide-react';
 import type { IntelItem, ArticleContent } from '../../shared/types';
+
+/** Sanitize untrusted HTML for safe rendering via dangerouslySetInnerHTML. */
+function sanitizeHtml(dirty: string): string {
+  return DOMPurify.sanitize(dirty, {
+    ALLOWED_TAGS: [
+      'p',
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      'a',
+      'img',
+      'ul',
+      'ol',
+      'li',
+      'blockquote',
+      'pre',
+      'code',
+      'em',
+      'strong',
+      'b',
+      'i',
+      'br',
+      'hr',
+      'table',
+      'thead',
+      'tbody',
+      'tr',
+      'th',
+      'td',
+      'figure',
+      'figcaption',
+      'span',
+      'div',
+      'sup',
+      'sub',
+      'dl',
+      'dt',
+      'dd',
+    ],
+    ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id', 'target', 'width', 'height', 'style'],
+    ALLOW_DATA_ATTR: false,
+    FORBID_ATTR: ['onerror', 'onclick', 'onload', 'onmouseover'],
+  });
+}
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Model Releases': 'text-blue-400 bg-blue-400/10 border-blue-400/20',
@@ -24,7 +64,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Startups & Funding': 'text-pink-400 bg-pink-400/10 border-pink-400/20',
   'Open Source': 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
   'Tutorials & Guides': 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  'Other': 'text-gray-400 bg-gray-400/10 border-gray-400/20',
+  Other: 'text-gray-400 bg-gray-400/10 border-gray-400/20',
 };
 
 function relativeTime(dateStr: string): string {
@@ -238,21 +278,19 @@ export default function IntelArticleReader({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const categoryStyle = item.category
-    ? CATEGORY_COLORS[item.category] || CATEGORY_COLORS['Other']
-    : null;
+  const categoryStyle = item.category ? CATEGORY_COLORS[item.category] || CATEGORY_COLORS['Other'] : null;
 
   const readingTime = content && content.length > 0 ? Math.max(1, Math.ceil(content.length / 200)) : null;
+
+  // Sanitize article HTML once when content changes
+  const sanitizedContent = useMemo(() => (content?.content ? sanitizeHtml(content.content) : ''), [content]);
 
   return (
     <>
       <style>{readerStyles}</style>
       <div className="fixed inset-0 z-50 flex">
         {/* Overlay */}
-        <div
-          className="flex-1 bg-black/60 backdrop-blur-sm"
-          onClick={onClose}
-        />
+        <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
         {/* Reader Panel */}
         <div className="w-full max-w-[720px] bg-[var(--color-chrome)] border-l border-[var(--color-border)] flex flex-col animate-slide-in-right">
@@ -266,9 +304,7 @@ export default function IntelArticleReader({
               <ArrowLeft size={18} />
             </button>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-data text-[var(--color-accent-dim)] truncate block">
-                {item.sourceName}
-              </span>
+              <span className="text-xs font-data text-[var(--color-accent-dim)] truncate block">{item.sourceName}</span>
             </div>
             <button
               onClick={() => onToggleBookmark(item.id)}
@@ -310,15 +346,11 @@ export default function IntelArticleReader({
               </div>
 
               {/* Title */}
-              <h1 className="text-2xl font-bold text-[var(--color-text-primary)] leading-tight mb-4">
-                {item.title}
-              </h1>
+              <h1 className="text-2xl font-bold text-[var(--color-text-primary)] leading-tight mb-4">{item.title}</h1>
 
               {/* Author + date + source */}
               <div className="flex items-center gap-3 text-sm text-[var(--color-text-muted)] mb-6">
-                {item.sourceIconUrl && (
-                  <img src={item.sourceIconUrl} alt="" className="w-5 h-5 rounded-sm" />
-                )}
+                {item.sourceIconUrl && <img src={item.sourceIconUrl} alt="" className="w-5 h-5 rounded-sm" />}
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[var(--color-text-secondary)] font-medium">{item.sourceName}</span>
                   {content?.byline && (
@@ -356,20 +388,20 @@ export default function IntelArticleReader({
               {/* Loading skeleton */}
               {loading && (
                 <div className="space-y-5">
-                  {[...Array(6)].map((_, i) => (
+                  {[90, 70, 85, 55, 95, 60].map((w, i) => (
                     <div key={i} className="space-y-2">
                       <div
                         className="h-4 bg-[var(--color-border)] rounded-full animate-pulse"
-                        style={{ width: `${75 + Math.random() * 25}%` }}
+                        style={{ width: `${w}%` }}
                       />
                       <div
                         className="h-4 bg-[var(--color-border)] rounded-full animate-pulse"
-                        style={{ width: `${50 + Math.random() * 40}%` }}
+                        style={{ width: `${w - 20}%` }}
                       />
                       {i % 2 === 0 && (
                         <div
                           className="h-4 bg-[var(--color-border)] rounded-full animate-pulse"
-                          style={{ width: `${30 + Math.random() * 30}%` }}
+                          style={{ width: `${w - 40}%` }}
                         />
                       )}
                     </div>
@@ -379,18 +411,13 @@ export default function IntelArticleReader({
 
               {/* Article content */}
               {!loading && content && content.length > 0 && (
-                <div
-                  className="intel-reader-content"
-                  dangerouslySetInnerHTML={{ __html: content.content }}
-                />
+                <div className="intel-reader-content" dangerouslySetInnerHTML={{ __html: sanitizedContent }} />
               )}
 
               {/* Fallback when content could not be loaded */}
               {!loading && content && content.length === 0 && (
                 <div className="mt-4 p-6 rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-center">
-                  <p className="text-sm text-[var(--color-text-muted)] mb-4">
-                    Could not load full article content.
-                  </p>
+                  <p className="text-sm text-[var(--color-text-muted)] mb-4">Could not load full article content.</p>
                   <button
                     onClick={() => window.electronAPI.openExternal(item.url)}
                     className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-[var(--color-border-accent)] text-[var(--color-accent)] hover:bg-[var(--color-accent-muted)] transition-colors"
@@ -406,27 +433,33 @@ export default function IntelArticleReader({
           {/* Sticky Action Toolbar */}
           <div className="shrink-0 bg-[var(--color-chrome)] border-t border-[var(--color-border)] px-6 py-3 flex flex-wrap gap-2">
             <button
-              onClick={() => { onSaveAsIdea(item); onClose(); }}
+              onClick={() => {
+                onSaveAsIdea(item);
+                onClose();
+              }}
               className={actionBtnClass}
             >
               <Lightbulb size={15} /> Save as Idea
             </button>
             <button
-              onClick={() => { onStartProject(item); onClose(); }}
+              onClick={() => {
+                onStartProject(item);
+                onClose();
+              }}
               className={actionBtnClass}
             >
               <FolderKanban size={15} /> Start Project
             </button>
             <button
-              onClick={() => { onDiscuss(item); onClose(); }}
+              onClick={() => {
+                onDiscuss(item);
+                onClose();
+              }}
               className={actionBtnClass}
             >
               <Brain size={15} /> Discuss with AI
             </button>
-            <button
-              onClick={() => window.electronAPI.openExternal(item.url)}
-              className={`${actionBtnClass} ml-auto`}
-            >
+            <button onClick={() => window.electronAPI.openExternal(item.url)} className={`${actionBtnClass} ml-auto`}>
               <ExternalLink size={15} /> Open in Browser
             </button>
           </div>

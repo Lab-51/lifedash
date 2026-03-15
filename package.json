@@ -18,6 +18,9 @@
     "make:dist": "electron-forge package && npm run make:installer && npm run make:archive",
     "publish": "npm run make:dist && node scripts/upload-release.js",
     "lint": "tsc --noEmit",
+    "lint:eslint": "eslint src/",
+    "lint:prettier": "prettier --check src/",
+    "format": "prettier --write src/",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
@@ -31,7 +34,8 @@
     "verify:package": "node scripts/verify-package.js",
     "demo:record": "node scripts/record-demo.mjs",
     "demo:overlay": "bash scripts/demo-overlay.sh",
-    "demo:gif": "bash scripts/demo-overlay.sh --gif"
+    "demo:gif": "bash scripts/demo-overlay.sh --gif",
+    "prepare": "husky"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.43",
@@ -51,7 +55,9 @@
     "@tiptap/extension-placeholder": "^3.19.0",
     "@tiptap/react": "^3.19.0",
     "@tiptap/starter-kit": "^3.19.0",
+    "@types/dompurify": "^3.0.5",
     "ai": "^6.0.84",
+    "dompurify": "^3.3.3",
     "drizzle-orm": "^0.45.1",
     "electron-audio-loopback": "^1.0.6",
     "electron-window-state": "^5.0.3",
@@ -83,21 +89,39 @@
     "@electron/fuses": "^1.8.0",
     "@electron/notarize": "^3.1.1",
     "@electron/osx-sign": "^2.3.0",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.1.4",
+    "@vitest/coverage-v8": "^4.1.0",
     "@vitest/ui": "^4.0.18",
     "drizzle-kit": "^0.31.9",
     "electron": "^40.4.0",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "husky": "^9.1.7",
     "javascript-obfuscator": "^5.3.0",
+    "lint-staged": "^16.4.0",
     "png-to-ico": "^3.0.1",
     "png2icons": "^2.0.1",
+    "prettier": "^3.8.1",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.0",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "eslint --max-warnings=0"
+    ],
+    "src/**/*.{ts,tsx,css,json,md}": [
+      "prettier --check"
+    ]
   }
 }
