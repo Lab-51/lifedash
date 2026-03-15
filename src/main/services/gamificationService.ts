@@ -6,20 +6,28 @@ import { gte, sql, desc, eq } from 'drizzle-orm';
 import { formatDateStr } from '../../shared/utils/date-utils';
 import { getDb } from '../db/connection';
 import {
-  xpEvents, focusSessions, focusAchievements,
-  cards, cardChecklistItems, projects, meetings, ideas, brainstormSessions,
+  xpEvents,
+  focusSessions,
+  focusAchievements,
+  cards,
+  cardChecklistItems,
+  projects,
+  meetings,
+  ideas,
+  brainstormSessions,
 } from '../db/schema';
 import {
-  XpEventType, XP_REWARDS, XP_CATEGORIES,
-  GamificationStats, Achievement, ACHIEVEMENTS, calculateLevel,
+  XpEventType,
+  XP_REWARDS,
+  XP_CATEGORIES,
+  GamificationStats,
+  Achievement,
+  ACHIEVEMENTS,
+  calculateLevel,
   XpDailyData,
 } from '../../shared/types/gamification';
 
-export async function awardXP(
-  eventType: XpEventType,
-  entityId?: string,
-  xpOverride?: number,
-): Promise<number> {
+export async function awardXP(eventType: XpEventType, entityId?: string, xpOverride?: number): Promise<number> {
   const db = getDb();
   const xpAmount = xpOverride ?? XP_REWARDS[eventType];
 
@@ -98,7 +106,7 @@ export async function getStats(): Promise<GamificationStats> {
     .groupBy(sql`to_char(${xpEvents.earnedAt}, 'YYYY-MM-DD')`)
     .orderBy(desc(sql`to_char(${xpEvents.earnedAt}, 'YYYY-MM-DD')`));
 
-  const dates = dateRows.map(r => r.date);
+  const dates = dateRows.map((r) => r.date);
   const currentStreak = calculateCurrentStreak(dates);
   const longestStreak = calculateLongestStreak(dates);
 
@@ -122,9 +130,9 @@ export async function getStats(): Promise<GamificationStats> {
 export async function getAchievements(): Promise<Achievement[]> {
   const db = getDb();
   const unlocked = await db.select().from(focusAchievements);
-  const unlockedMap = new Map(unlocked.map(a => [a.id, a.unlockedAt]));
+  const unlockedMap = new Map(unlocked.map((a) => [a.id, a.unlockedAt]));
 
-  return ACHIEVEMENTS.map(a => ({
+  return ACHIEVEMENTS.map((a) => ({
     id: a.id,
     name: a.name,
     description: a.description,
@@ -168,9 +176,7 @@ export async function getAchievementCounts(stats: GamificationStats): Promise<Ac
   const db = getDb();
 
   // Cards created
-  const [cardsCreatedRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(cards);
+  const [cardsCreatedRow] = await db.select({ count: sql<number>`count(*)::int` }).from(cards);
 
   // Cards completed
   const [cardsCompletedRow] = await db
@@ -185,9 +191,7 @@ export async function getAchievementCounts(stats: GamificationStats): Promise<Ac
     .where(eq(cardChecklistItems.completed, true));
 
   // Projects created
-  const [projectsRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(projects);
+  const [projectsRow] = await db.select({ count: sql<number>`count(*)::int` }).from(projects);
 
   // Consolidated xp_events counts by event_type (replaces individual queries)
   const eventTypeCounts = await db
@@ -197,7 +201,7 @@ export async function getAchievementCounts(stats: GamificationStats): Promise<Ac
     })
     .from(xpEvents)
     .groupBy(xpEvents.eventType);
-  const eventCountMap = new Map(eventTypeCounts.map(r => [r.eventType, r.count]));
+  const eventCountMap = new Map(eventTypeCounts.map((r) => [r.eventType, r.count]));
 
   // Meetings completed
   const [meetingsRow] = await db
@@ -206,14 +210,10 @@ export async function getAchievementCounts(stats: GamificationStats): Promise<Ac
     .where(eq(meetings.status, 'completed'));
 
   // Ideas created
-  const [ideasRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(ideas);
+  const [ideasRow] = await db.select({ count: sql<number>`count(*)::int` }).from(ideas);
 
   // Brainstorm sessions
-  const [brainstormRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(brainstormSessions);
+  const [brainstormRow] = await db.select({ count: sql<number>`count(*)::int` }).from(brainstormSessions);
 
   // Today's distinct categories
   const todayStart = new Date();
@@ -226,14 +226,10 @@ export async function getAchievementCounts(stats: GamificationStats): Promise<Ac
     .where(gte(xpEvents.earnedAt, todayStart))
     .groupBy(xpEvents.eventType);
 
-  const todayCategories = new Set(
-    todayCategoryRows.map(r => XP_CATEGORIES[r.eventType as XpEventType] || 'other'),
-  );
+  const todayCategories = new Set(todayCategoryRows.map((r) => XP_CATEGORIES[r.eventType as XpEventType] || 'other'));
 
   // Already unlocked achievements count
-  const [unlockedRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(focusAchievements);
+  const [unlockedRow] = await db.select({ count: sql<number>`count(*)::int` }).from(focusAchievements);
 
   return {
     focusTotalSessions: stats.focusTotalSessions,
@@ -272,7 +268,7 @@ export async function checkAndUnlockAchievements(
 ): Promise<Achievement[]> {
   const db = getDb();
   const existing = await db.select({ id: focusAchievements.id }).from(focusAchievements);
-  const existingIds = new Set(existing.map(a => a.id));
+  const existingIds = new Set(existing.map((a) => a.id));
 
   const newlyUnlocked: Achievement[] = [];
 
@@ -379,7 +375,7 @@ export async function checkAndUnlockAchievements(
   for (const check of checks) {
     if (check.condition && !existingIds.has(check.id)) {
       await db.insert(focusAchievements).values({ id: check.id });
-      const achievement = ACHIEVEMENTS.find(a => a.id === check.id)!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === check.id)!;
       newlyUnlocked.push({
         id: achievement.id,
         name: achievement.name,
@@ -476,7 +472,7 @@ export async function getDailyXP(_days?: number): Promise<XpDailyData[]> {
 
   // Always return 7 entries: Mon through Sun
   const result: XpDailyData[] = [];
-  const dataMap = new Map(rows.map(r => [r.date, r]));
+  const dataMap = new Map(rows.map((r) => [r.date, r]));
 
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday);
@@ -491,4 +487,3 @@ export async function getDailyXP(_days?: number): Promise<XpDailyData[]> {
 
   return result;
 }
-

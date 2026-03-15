@@ -45,10 +45,10 @@ interface AttachmentsSectionProps {
 }
 
 function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
-  const selectedCardAttachments = useCardDetailStore(s => s.selectedCardAttachments);
-  const addAttachment = useCardDetailStore(s => s.addAttachment);
-  const deleteAttachment = useCardDetailStore(s => s.deleteAttachment);
-  const openAttachment = useCardDetailStore(s => s.openAttachment);
+  const selectedCardAttachments = useCardDetailStore((s) => s.selectedCardAttachments);
+  const addAttachment = useCardDetailStore((s) => s.addAttachment);
+  const deleteAttachment = useCardDetailStore((s) => s.deleteAttachment);
+  const openAttachment = useCardDetailStore((s) => s.openAttachment);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handleAdd = async () => {
@@ -93,7 +93,7 @@ function AttachmentsSection({ cardId }: AttachmentsSectionProps) {
         </p>
       ) : (
         <div className="space-y-1.5">
-          {selectedCardAttachments.map(att => {
+          {selectedCardAttachments.map((att) => {
             const Icon = getFileIcon(att.mimeType);
             return (
               <div

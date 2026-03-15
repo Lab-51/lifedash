@@ -100,12 +100,9 @@ describe('ideaStatusSchema', () => {
 });
 
 describe('meetingTemplateTypeSchema', () => {
-  it.each(['none', 'standup', 'retro', 'planning', 'brainstorm', 'one_on_one'])(
-    'accepts "%s"',
-    (val) => {
-      expect(meetingTemplateTypeSchema.safeParse(val).success).toBe(true);
-    },
-  );
+  it.each(['none', 'standup', 'retro', 'planning', 'brainstorm', 'one_on_one'])('accepts "%s"', (val) => {
+    expect(meetingTemplateTypeSchema.safeParse(val).success).toBe(true);
+  });
 
   it('rejects an invalid value', () => {
     expect(meetingTemplateTypeSchema.safeParse('workshop').success).toBe(false);

@@ -2,14 +2,11 @@
 import { ipcRenderer } from 'electron';
 
 export const recoveryBridge = {
-  checkRecovery: (): Promise<{ hasCrash: boolean; state: unknown }> =>
-    ipcRenderer.invoke('recovery:check'),
+  checkRecovery: (): Promise<{ hasCrash: boolean; state: unknown }> => ipcRenderer.invoke('recovery:check'),
 
-  restoreSession: (): Promise<unknown> =>
-    ipcRenderer.invoke('recovery:restore'),
+  restoreSession: (): Promise<unknown> => ipcRenderer.invoke('recovery:restore'),
 
-  discardRecovery: (): Promise<void> =>
-    ipcRenderer.invoke('recovery:discard'),
+  discardRecovery: (): Promise<void> => ipcRenderer.invoke('recovery:discard'),
 
   saveCardDraft: (draft: { cardId: string; field: string; value: string; projectId?: string }): Promise<void> =>
     ipcRenderer.invoke('recovery:save-draft', draft),

@@ -86,7 +86,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     try {
       // Load project
       const projects = await window.electronAPI.getProjects();
-      const project = projects.find(p => p.id === projectId) ?? null;
+      const project = projects.find((p) => p.id === projectId) ?? null;
       if (!project) {
         set({ error: 'Project not found', loading: false });
         return;
@@ -137,15 +137,15 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   updateColumn: async (id: string, data: UpdateColumnInput) => {
     const updated = await window.electronAPI.updateColumn(id, data);
     set({
-      columns: get().columns.map(c => (c.id === id ? updated : c)),
+      columns: get().columns.map((c) => (c.id === id ? updated : c)),
     });
   },
 
   deleteColumn: async (id: string) => {
     await window.electronAPI.deleteColumn(id);
     set({
-      columns: get().columns.filter(c => c.id !== id),
-      cards: get().cards.filter(c => c.columnId !== id),
+      columns: get().columns.filter((c) => c.id !== id),
+      cards: get().cards.filter((c) => c.columnId !== id),
     });
   },
 
@@ -155,7 +155,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
     await window.electronAPI.reorderColumns(board.id, columnIds);
     // Reorder local state to match the provided order
-    const columnMap = new Map(get().columns.map(c => [c.id, c]));
+    const columnMap = new Map(get().columns.map((c) => [c.id, c]));
     const reordered = columnIds
       .map((id, index) => {
         const col = columnMap.get(id);
@@ -176,7 +176,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
   updateCard: async (id: string, data: UpdateCardInput) => {
     const { card: updated, spawnedCard } = await window.electronAPI.updateCard(id, data);
-    let newCards = get().cards.map(c => (c.id === id ? { ...c, ...updated } : c));
+    let newCards = get().cards.map((c) => (c.id === id ? { ...c, ...updated } : c));
     if (spawnedCard) {
       newCards = [...newCards, spawnedCard as Card];
       toast(`Recurring card created: ${spawnedCard.title}`, 'success');
@@ -190,13 +190,13 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   deleteCard: async (id: string) => {
     await window.electronAPI.deleteCard(id);
     set({
-      cards: get().cards.filter(c => c.id !== id),
+      cards: get().cards.filter((c) => c.id !== id),
     });
   },
 
   removeCardFromUI: (cardId: string) => {
     set({
-      cards: get().cards.filter(c => c.id !== cardId),
+      cards: get().cards.filter((c) => c.id !== cardId),
     });
   },
 
@@ -209,12 +209,12 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   moveCard: async (id: string, columnId: string, position: number) => {
     // Optimistically reorder local state so the UI updates immediately
     const currentCards = get().cards;
-    const movedCard = currentCards.find(c => c.id === id);
+    const movedCard = currentCards.find((c) => c.id === id);
     if (!movedCard) return;
 
     // Get siblings in the target column (excluding the moved card), sorted by position
     const siblings = currentCards
-      .filter(c => c.columnId === columnId && c.id !== id && !c.archived)
+      .filter((c) => c.columnId === columnId && c.id !== id && !c.archived)
       .sort((a, b) => a.position - b.position);
 
     // Clamp position
@@ -231,7 +231,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     }
 
     set({
-      cards: currentCards.map(c => {
+      cards: currentCards.map((c) => {
         const update = updatedIds.get(c.id);
         if (update) {
           return { ...c, columnId: update.columnId, position: update.position };
@@ -244,7 +244,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     const updated = await window.electronAPI.moveCard(id, columnId, position);
     // Reconcile the moved card with the server response
     set({
-      cards: get().cards.map(c => (c.id === id ? { ...c, ...updated } : c)),
+      cards: get().cards.map((c) => (c.id === id ? { ...c, ...updated } : c)),
     });
   },
 
@@ -259,7 +259,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     const { project, labels } = get();
     if (!project) throw new Error('No project loaded');
     const label = await window.electronAPI.createLabel({
-      projectId: project.id, name, color,
+      projectId: project.id,
+      name,
+      color,
     });
     set({ labels: [...labels, label] });
     return label;
@@ -268,10 +270,10 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   updateLabel: async (id: string, data: { name?: string; color?: string }) => {
     const updated = await window.electronAPI.updateLabel(id, data);
     set({
-      labels: get().labels.map(l => (l.id === id ? { ...l, ...updated } : l)),
-      cards: get().cards.map(c => ({
+      labels: get().labels.map((l) => (l.id === id ? { ...l, ...updated } : l)),
+      cards: get().cards.map((c) => ({
         ...c,
-        labels: c.labels?.map(l => (l.id === id ? { ...l, ...updated } : l)),
+        labels: c.labels?.map((l) => (l.id === id ? { ...l, ...updated } : l)),
       })),
     });
   },
@@ -279,23 +281,23 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   deleteLabel: async (id: string) => {
     await window.electronAPI.deleteLabel(id);
     set({
-      labels: get().labels.filter(l => l.id !== id),
-      cards: get().cards.map(c => ({
+      labels: get().labels.filter((l) => l.id !== id),
+      cards: get().cards.map((c) => ({
         ...c,
-        labels: c.labels?.filter(l => l.id !== id),
+        labels: c.labels?.filter((l) => l.id !== id),
       })),
     });
   },
 
   attachLabel: async (cardId: string, labelId: string) => {
     await window.electronAPI.attachLabel(cardId, labelId);
-    const label = get().labels.find(l => l.id === labelId);
+    const label = get().labels.find((l) => l.id === labelId);
     if (!label) return;
     set({
-      cards: get().cards.map(c => {
+      cards: get().cards.map((c) => {
         if (c.id !== cardId) return c;
         const existing = c.labels ?? [];
-        if (existing.some(l => l.id === labelId)) return c;
+        if (existing.some((l) => l.id === labelId)) return c;
         return { ...c, labels: [...existing, label] };
       }),
     });
@@ -304,9 +306,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   detachLabel: async (cardId: string, labelId: string) => {
     await window.electronAPI.detachLabel(cardId, labelId);
     set({
-      cards: get().cards.map(c => {
+      cards: get().cards.map((c) => {
         if (c.id !== cardId) return c;
-        return { ...c, labels: c.labels?.filter(l => l.id !== labelId) };
+        return { ...c, labels: c.labels?.filter((l) => l.id !== labelId) };
       }),
     });
   },
@@ -314,7 +316,5 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
 /** Filter and sort cards belonging to a specific column by position. */
 export function getCardsByColumn(cards: Card[], columnId: string): Card[] {
-  return cards
-    .filter(c => c.columnId === columnId)
-    .sort((a, b) => a.position - b.position);
+  return cards.filter((c) => c.columnId === columnId).sort((a, b) => a.position - b.position);
 }

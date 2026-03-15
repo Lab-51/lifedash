@@ -13,8 +13,8 @@ const TYPE_COLORS: Record<Toast['type'], string> = {
 };
 
 function ToastContainer() {
-  const toasts = useToastStore(s => s.toasts);
-  const removeToast = useToastStore(s => s.removeToast);
+  const toasts = useToastStore((s) => s.toasts);
+  const removeToast = useToastStore((s) => s.removeToast);
 
   // Show only the last 3 toasts
   const visible = toasts.slice(-3);
@@ -23,7 +23,7 @@ function ToastContainer() {
 
   return (
     <div className="fixed bottom-8 right-4 z-50 flex flex-col gap-2">
-      {visible.map(t => (
+      {visible.map((t) => (
         <div
           key={t.id}
           className="hud-panel clip-corner-cut-sm px-4 py-2 shadow-lg flex items-center gap-3"
@@ -32,7 +32,10 @@ function ToastContainer() {
           <span className="text-sm font-data text-[var(--color-text-primary)]">{t.message}</span>
           {t.action && (
             <button
-              onClick={() => { t.action!.onClick(); removeToast(t.id); }}
+              onClick={() => {
+                t.action!.onClick();
+                removeToast(t.id);
+              }}
               className="text-xs font-medium text-[var(--color-accent)] hover:text-[var(--color-accent-dim)] transition-colors shrink-0"
             >
               {t.action.label}

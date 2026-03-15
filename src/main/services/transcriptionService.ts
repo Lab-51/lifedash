@@ -117,7 +117,11 @@ export async function start(meetingId: string, language?: string): Promise<void>
     try {
       // Release any existing context before creating a new one
       if (whisperContext) {
-        try { await whisperContext.release(); } catch { /* ignore */ }
+        try {
+          await whisperContext.release();
+        } catch {
+          /* ignore */
+        }
         whisperContext = null;
       }
 
@@ -131,9 +135,7 @@ export async function start(meetingId: string, language?: string): Promise<void>
     }
   } else {
     // Cloud API provider — verify key is configured
-    const key = await transcriptionProviderService.getDecryptedKey(
-      activeProvider as 'deepgram' | 'assemblyai',
-    );
+    const key = await transcriptionProviderService.getDecryptedKey(activeProvider as 'deepgram' | 'assemblyai');
     if (!key) {
       log.info(`No API key configured for ${activeProvider}. Skipping transcription.`);
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -192,7 +194,11 @@ export async function stop(): Promise<void> {
 
   // Release whisper context
   if (whisperContext) {
-    try { await whisperContext.release(); } catch { /* ignore */ }
+    try {
+      await whisperContext.release();
+    } catch {
+      /* ignore */
+    }
     whisperContext = null;
   }
 
@@ -206,9 +212,7 @@ export async function stop(): Promise<void> {
  * Returns a value in Int16 amplitude range (0 to ~32768).
  */
 function calculateInt16RMS(buffer: Buffer): number {
-  const samples = new Int16Array(
-    buffer.buffer, buffer.byteOffset, buffer.byteLength / 2,
-  );
+  const samples = new Int16Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 2);
   let sum = 0;
   for (let i = 0; i < samples.length; i++) {
     sum += samples[i] * samples[i];
@@ -258,9 +262,9 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
     // transcribeData returns { promise, stop }. The promise resolves when
     // the native Napi::AsyncWorker finishes on its background thread.
     const whisperOpts: Record<string, unknown> = {
-      beamSize: 5,        // Beam search (default 1 = greedy) — much better accuracy
-      bestOf: 5,          // Sample multiple candidates and pick best
-      temperature: 0,     // Deterministic, less hallucination
+      beamSize: 5, // Beam search (default 1 = greedy) — much better accuracy
+      bestOf: 5, // Sample multiple candidates and pick best
+      temperature: 0, // Deterministic, less hallucination
       temperatureInc: 0.2, // Fallback temperature if decoding fails
     };
     if (activeLanguage !== 'auto') {
@@ -357,15 +361,19 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
       // Log API usage (fire-and-forget)
       try {
         const durationSec = segment.byteLength / (SAMPLE_RATE * 2);
-        await getDb().insert(aiUsage).values({
-          providerId: null,
-          model: activeProvider,
-          taskType: 'transcription',
-          promptTokens: Math.round(durationSec),
-          completionTokens: 0,
-          totalTokens: Math.round(durationSec),
-        });
-      } catch { /* non-fatal */ }
+        await getDb()
+          .insert(aiUsage)
+          .values({
+            providerId: null,
+            model: activeProvider,
+            taskType: 'transcription',
+            promptTokens: Math.round(durationSec),
+            completionTokens: 0,
+            totalTokens: Math.round(durationSec),
+          });
+      } catch {
+        /* non-fatal */
+      }
     }
   } catch (err) {
     log.error(`API (${activeProvider}) failed:`, err);

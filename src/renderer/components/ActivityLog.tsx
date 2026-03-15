@@ -25,14 +25,14 @@ import { formatRelativeTime } from '../utils/date-utils';
 
 /** Icon and color per activity action type */
 const ACTION_CONFIG: Record<CardActivityAction, { icon: React.ElementType; colorClass: string }> = {
-  created:              { icon: PlusCircle,    colorClass: 'text-emerald-400' },
-  updated:              { icon: Pencil,        colorClass: 'text-blue-400' },
-  moved:                { icon: ArrowRight,    colorClass: 'text-amber-400' },
-  commented:            { icon: MessageSquare, colorClass: 'text-purple-400' },
-  archived:             { icon: Archive,       colorClass: 'text-red-400' },
-  restored:             { icon: RotateCcw,     colorClass: 'text-emerald-400' },
-  relationship_added:   { icon: Link,          colorClass: 'text-blue-400' },
-  relationship_removed: { icon: Unlink,        colorClass: 'text-red-400' },
+  created: { icon: PlusCircle, colorClass: 'text-emerald-400' },
+  updated: { icon: Pencil, colorClass: 'text-blue-400' },
+  moved: { icon: ArrowRight, colorClass: 'text-amber-400' },
+  commented: { icon: MessageSquare, colorClass: 'text-purple-400' },
+  archived: { icon: Archive, colorClass: 'text-red-400' },
+  restored: { icon: RotateCcw, colorClass: 'text-emerald-400' },
+  relationship_added: { icon: Link, colorClass: 'text-blue-400' },
+  relationship_removed: { icon: Unlink, colorClass: 'text-red-400' },
 };
 
 /** Parse activity details JSON safely */
@@ -86,8 +86,8 @@ interface ActivityLogProps {
 const COLLAPSED_COUNT = 4;
 
 function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
-  const selectedCardActivities = useCardDetailStore(s => s.selectedCardActivities);
-  const loadingCardDetails = useCardDetailStore(s => s.loadingCardDetails);
+  const selectedCardActivities = useCardDetailStore((s) => s.selectedCardActivities);
+  const loadingCardDetails = useCardDetailStore((s) => s.loadingCardDetails);
   const [expanded, setExpanded] = useState(false);
 
   const hasMore = selectedCardActivities.length > COLLAPSED_COUNT;
@@ -118,7 +118,7 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
           <div className="absolute left-[6px] top-1 bottom-1 border-l-2 border-[var(--color-border-accent)]" />
 
           <div className="space-y-3">
-            {visibleActivities.map(activity => {
+            {visibleActivities.map((activity) => {
               const config = ACTION_CONFIG[activity.action] ?? {
                 icon: Activity,
                 colorClass: 'text-surface-400',
@@ -149,7 +149,7 @@ function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
           {/* Expand/collapse toggle */}
           {hasMore && (
             <button
-              onClick={() => setExpanded(prev => !prev)}
+              onClick={() => setExpanded((prev) => !prev)}
               className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
             >
               {expanded ? (

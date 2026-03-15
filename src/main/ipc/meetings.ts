@@ -10,11 +10,7 @@ import { z } from 'zod';
 import * as meetingService from '../services/meetingService';
 import { generateMeetingPrep } from '../services/meetingPrepService';
 import { validateInput } from '../../shared/validation/ipc-validator';
-import {
-  idParamSchema,
-  createMeetingInputSchema,
-  updateMeetingInputSchema,
-} from '../../shared/validation/schemas';
+import { idParamSchema, createMeetingInputSchema, updateMeetingInputSchema } from '../../shared/validation/schemas';
 
 const meetingIdsSchema = z.array(z.string().uuid());
 
@@ -33,14 +29,11 @@ export function registerMeetingHandlers(): void {
     return meetingService.createMeeting(input);
   });
 
-  ipcMain.handle(
-    'meetings:update',
-    async (_event, id: unknown, data: unknown) => {
-      const validId = validateInput(idParamSchema, id);
-      const input = validateInput(updateMeetingInputSchema, data);
-      return meetingService.updateMeeting(validId, input);
-    },
-  );
+  ipcMain.handle('meetings:update', async (_event, id: unknown, data: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const input = validateInput(updateMeetingInputSchema, data);
+    return meetingService.updateMeeting(validId, input);
+  });
 
   ipcMain.handle('meetings:delete', async (_event, id: unknown) => {
     const validId = validateInput(idParamSchema, id);

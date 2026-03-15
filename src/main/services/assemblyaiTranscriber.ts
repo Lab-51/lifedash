@@ -75,7 +75,7 @@ export async function transcribeSegment(
   const uploadResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/upload`, {
     method: 'POST',
     headers: {
-      'Authorization': apiKey, // No prefix for AssemblyAI
+      Authorization: apiKey, // No prefix for AssemblyAI
       'Content-Type': 'application/octet-stream',
     },
     body: new Uint8Array(wavBuffer),
@@ -86,7 +86,7 @@ export async function transcribeSegment(
     throw new Error(`AssemblyAI upload error ${uploadResponse.status}: ${bodyText}`);
   }
 
-  const uploadData = await uploadResponse.json() as AssemblyAIUploadResponse;
+  const uploadData = (await uploadResponse.json()) as AssemblyAIUploadResponse;
   const uploadUrl: string = uploadData.upload_url;
 
   if (!uploadUrl) {
@@ -97,7 +97,7 @@ export async function transcribeSegment(
   const transcriptResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/transcript`, {
     method: 'POST',
     headers: {
-      'Authorization': apiKey,
+      Authorization: apiKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(
@@ -112,7 +112,7 @@ export async function transcribeSegment(
     throw new Error(`AssemblyAI transcript error ${transcriptResponse.status}: ${bodyText}`);
   }
 
-  const transcriptData = await transcriptResponse.json() as AssemblyAITranscript;
+  const transcriptData = (await transcriptResponse.json()) as AssemblyAITranscript;
   const transcriptId: string = transcriptData.id;
 
   if (!transcriptId) {
@@ -123,17 +123,16 @@ export async function transcribeSegment(
   for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
 
-    const pollResponse = await net.fetch(
-      `${ASSEMBLYAI_API_URL}/transcript/${transcriptId}`,
-      { headers: { 'Authorization': apiKey } },
-    );
+    const pollResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/transcript/${transcriptId}`, {
+      headers: { Authorization: apiKey },
+    });
 
     if (!pollResponse.ok) {
       const bodyText = await pollResponse.text();
       throw new Error(`AssemblyAI poll error ${pollResponse.status}: ${bodyText}`);
     }
 
-    const result = await pollResponse.json() as AssemblyAITranscript;
+    const result = (await pollResponse.json()) as AssemblyAITranscript;
 
     if (result.status === 'completed') {
       const text: string = result.text || '';
@@ -144,21 +143,25 @@ export async function transcribeSegment(
       if (words.length > 0) {
         return {
           text,
-          segments: [{
-            text,
-            startMs: startTimeMs + words[0].start,
-            endMs: startTimeMs + words[words.length - 1].end,
-          }],
+          segments: [
+            {
+              text,
+              startMs: startTimeMs + words[0].start,
+              endMs: startTimeMs + words[words.length - 1].end,
+            },
+          ],
         };
       }
 
       return {
         text,
-        segments: [{
-          text,
-          startMs: startTimeMs,
-          endMs: startTimeMs + 10000,
-        }],
+        segments: [
+          {
+            text,
+            startMs: startTimeMs,
+            endMs: startTimeMs + 10000,
+          },
+        ],
       };
     }
 
@@ -196,7 +199,7 @@ export async function testConnection(): Promise<{
     const uploadResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/upload`, {
       method: 'POST',
       headers: {
-        'Authorization': apiKey,
+        Authorization: apiKey,
         'Content-Type': 'application/octet-stream',
       },
       body: new Uint8Array(wavBuffer),
@@ -207,7 +210,7 @@ export async function testConnection(): Promise<{
       throw new Error(`Upload failed (${uploadResponse.status}): ${bodyText}`);
     }
 
-    const data = await uploadResponse.json() as AssemblyAIUploadResponse;
+    const data = (await uploadResponse.json()) as AssemblyAIUploadResponse;
     if (!data.upload_url) {
       throw new Error('Upload succeeded but no upload_url returned');
     }
@@ -236,7 +239,7 @@ export async function transcribeFileWithDiarization(
   const uploadResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/upload`, {
     method: 'POST',
     headers: {
-      'Authorization': apiKey,
+      Authorization: apiKey,
       'Content-Type': 'application/octet-stream',
     },
     body: new Uint8Array(wavBuffer),
@@ -247,7 +250,7 @@ export async function transcribeFileWithDiarization(
     throw new Error(`AssemblyAI upload error ${uploadResponse.status}: ${bodyText}`);
   }
 
-  const uploadData = await uploadResponse.json() as AssemblyAIUploadResponse;
+  const uploadData = (await uploadResponse.json()) as AssemblyAIUploadResponse;
   const uploadUrl: string = uploadData.upload_url;
   if (!uploadUrl) throw new Error('AssemblyAI upload did not return upload_url');
 
@@ -255,7 +258,7 @@ export async function transcribeFileWithDiarization(
   const transcriptResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/transcript`, {
     method: 'POST',
     headers: {
-      'Authorization': apiKey,
+      Authorization: apiKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(
@@ -270,26 +273,25 @@ export async function transcribeFileWithDiarization(
     throw new Error(`AssemblyAI transcript error ${transcriptResponse.status}: ${bodyText}`);
   }
 
-  const transcriptData = await transcriptResponse.json() as AssemblyAITranscript;
+  const transcriptData = (await transcriptResponse.json()) as AssemblyAITranscript;
   const transcriptId: string = transcriptData.id;
   if (!transcriptId) throw new Error('AssemblyAI transcript did not return id');
 
   // Step 3: Poll for result (longer timeout for full files)
   const maxAttempts = 120;
   for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
 
-    const pollResponse = await net.fetch(
-      `${ASSEMBLYAI_API_URL}/transcript/${transcriptId}`,
-      { headers: { 'Authorization': apiKey } },
-    );
+    const pollResponse = await net.fetch(`${ASSEMBLYAI_API_URL}/transcript/${transcriptId}`, {
+      headers: { Authorization: apiKey },
+    });
 
     if (!pollResponse.ok) {
       const bodyText = await pollResponse.text();
       throw new Error(`AssemblyAI poll error ${pollResponse.status}: ${bodyText}`);
     }
 
-    const result = await pollResponse.json() as AssemblyAITranscript;
+    const result = (await pollResponse.json()) as AssemblyAITranscript;
 
     if (result.status === 'completed') {
       // AssemblyAI speakers are letters ("A", "B"...) — normalize to "Speaker 1", etc.

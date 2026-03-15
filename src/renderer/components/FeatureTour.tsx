@@ -4,16 +4,7 @@
 // to spotlight sidebar nav items during relevant steps.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Rocket,
-  FolderKanban,
-  Mic,
-  Brain,
-  Lightbulb,
-  Newspaper,
-  Timer,
-  PartyPopper,
-} from 'lucide-react';
+import { Rocket, FolderKanban, Mic, Brain, Lightbulb, Newspaper, Timer, PartyPopper } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,32 +63,28 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'brainstorm',
     title: 'Think with AI',
-    description:
-      'Use AI to explore ideas, discuss articles, solve problems, or plan your next steps.',
+    description: 'Use AI to explore ideas, discuss articles, solve problems, or plan your next steps.',
     icon: Brain,
     spotlightTarget: 'nav-brainstorm',
   },
   {
     id: 'ideas',
     title: 'Capture ideas on the fly',
-    description:
-      'Quick-capture thoughts anytime. Turn the best ones into projects when you\'re ready.',
+    description: "Quick-capture thoughts anytime. Turn the best ones into projects when you're ready.",
     icon: Lightbulb,
     spotlightTarget: 'nav-ideas',
   },
   {
     id: 'focus',
     title: 'Track deep work',
-    description:
-      'Start focus sessions, log time against projects, and build streaks. See where your hours go.',
+    description: 'Start focus sessions, log time against projects, and build streaks. See where your hours go.',
     icon: Timer,
     spotlightTarget: 'nav-focus',
   },
   {
     id: 'ready',
     title: "You're all set!",
-    description:
-      "Next, we'll connect an AI service to power transcription, briefs, and intelligence features.",
+    description: "Next, we'll connect an AI service to power transcription, briefs, and intelligence features.",
     icon: PartyPopper,
   },
 ];
@@ -145,12 +132,12 @@ export default function FeatureTour({ onComplete }: FeatureTourProps) {
 
   const handleNext = useCallback(() => {
     if (isLast) return;
-    setCurrentStep(s => s + 1);
+    setCurrentStep((s) => s + 1);
   }, [isLast]);
 
   const handleBack = useCallback(() => {
     if (isFirst) return;
-    setCurrentStep(s => s - 1);
+    setCurrentStep((s) => s - 1);
   }, [isFirst]);
 
   const handleSkip = useCallback(async () => {
@@ -195,16 +182,9 @@ export default function FeatureTour({ onComplete }: FeatureTourProps) {
   }
 
   return (
-    <div
-      className={`fixed inset-0 z-[100] transition-opacity duration-500 ${
-        visible ? 'opacity-100' : 'opacity-0'
-      }`}
-    >
+    <div className={`fixed inset-0 z-[100] transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}>
       {/* SVG backdrop with transparent cutout for spotlight */}
-      <svg
-        className="absolute inset-0 w-full h-full"
-        style={{ pointerEvents: 'none' }}
-      >
+      <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
         <defs>
           <mask id="tour-spotlight-mask">
             <rect width="100%" height="100%" fill="white" />
@@ -272,15 +252,11 @@ export default function FeatureTour({ onComplete }: FeatureTourProps) {
           <div className="w-10 h-10 rounded-lg bg-[var(--color-accent-subtle)] flex items-center justify-center">
             <StepIcon size={22} className="text-[var(--color-accent)]" />
           </div>
-          <h2 className="font-hud text-lg text-[var(--color-text-primary)] text-glow">
-            {step.title}
-          </h2>
+          <h2 className="font-hud text-lg text-[var(--color-text-primary)] text-glow">{step.title}</h2>
         </div>
 
         {/* Description */}
-        <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-6">
-          {step.description}
-        </p>
+        <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-6">{step.description}</p>
 
         {/* Progress dots */}
         <div className="flex items-center justify-center gap-2 mb-5">
@@ -303,10 +279,7 @@ export default function FeatureTour({ onComplete }: FeatureTourProps) {
         {/* Actions */}
         {isLast ? (
           <div className="flex flex-col gap-2">
-            <button
-              onClick={handleSetupAI}
-              className="btn-primary w-full py-2.5 px-4 font-hud text-sm"
-            >
+            <button onClick={handleSetupAI} className="btn-primary w-full py-2.5 px-4 font-hud text-sm">
               Set up AI
             </button>
             <button
@@ -334,10 +307,7 @@ export default function FeatureTour({ onComplete }: FeatureTourProps) {
                   Back
                 </button>
               )}
-              <button
-                onClick={handleNext}
-                className="btn-primary px-4 py-1.5 text-sm font-hud"
-              >
+              <button onClick={handleNext} className="btn-primary px-4 py-1.5 text-sm font-hud">
                 Next
               </button>
             </div>

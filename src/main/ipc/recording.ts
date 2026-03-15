@@ -24,25 +24,22 @@ export function registerRecordingHandlers(mainWindow: BrowserWindow): void {
   // Pass the window reference to audioProcessor for state push events
   audioProcessor.setMainWindow(mainWindow);
 
-  ipcMain.handle(
-    'recording:start',
-    async (_event, meetingId: unknown) => {
-      const validMeetingId = validateInput(idParamSchema, meetingId);
+  ipcMain.handle('recording:start', async (_event, meetingId: unknown) => {
+    const validMeetingId = validateInput(idParamSchema, meetingId);
 
-      // Read the meeting's stored transcription language to pass to audio processor
-      let language: string | undefined;
-      try {
-        const meeting = await meetingService.getMeeting(validMeetingId);
-        if (meeting?.transcriptionLanguage) {
-          language = meeting.transcriptionLanguage;
-        }
-      } catch {
-        // Non-fatal — will fall back to DB setting in transcriptionService
+    // Read the meeting's stored transcription language to pass to audio processor
+    let language: string | undefined;
+    try {
+      const meeting = await meetingService.getMeeting(validMeetingId);
+      if (meeting?.transcriptionLanguage) {
+        language = meeting.transcriptionLanguage;
       }
+    } catch {
+      // Non-fatal — will fall back to DB setting in transcriptionService
+    }
 
-      audioProcessor.startRecording(validMeetingId, language);
-    },
-  );
+    audioProcessor.startRecording(validMeetingId, language);
+  });
 
   ipcMain.handle('recording:stop', async () => {
     const audioPath = await audioProcessor.stopRecording();

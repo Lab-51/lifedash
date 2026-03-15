@@ -19,7 +19,7 @@ interface AddProviderFormProps {
 }
 
 export default function AddProviderForm({ onClose }: AddProviderFormProps) {
-  const createProvider = useSettingsStore(s => s.createProvider);
+  const createProvider = useSettingsStore((s) => s.createProvider);
   const [name, setName] = useState<AIProviderName>('openai');
   const [displayName, setDisplayName] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -38,11 +38,14 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
       return;
     }
     setOllamaDetected(null);
-    window.electronAPI.checkOllama().then(result => {
-      setOllamaDetected(result.running);
-    }).catch(() => {
-      setOllamaDetected(false);
-    });
+    window.electronAPI
+      .checkOllama()
+      .then((result) => {
+        setOllamaDetected(result.running);
+      })
+      .catch(() => {
+        setOllamaDetected(false);
+      });
   }, [name]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,9 +72,10 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit}
-      className="hud-panel clip-corner-cut-sm p-4">
-      <h3 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] mb-4">Add AI Provider</h3>
+    <form onSubmit={handleSubmit} className="hud-panel clip-corner-cut-sm p-4">
+      <h3 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)] mb-4">
+        Add AI Provider
+      </h3>
 
       {error && (
         <div className="mb-3 p-2 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-data">
@@ -84,8 +88,10 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
         <div>
           <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">Provider</label>
           <div className="flex gap-2">
-            {PROVIDER_OPTIONS.map(opt => (
-              <button key={opt.value} type="button"
+            {PROVIDER_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
                 onClick={() => {
                   setName(opt.value);
                   if (opt.value === 'ollama' && !baseUrl) {
@@ -98,7 +104,8 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
                   name === opt.value
                     ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] text-[var(--color-accent)]'
                     : 'border-[var(--color-border)] bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)]'
-                }`}>
+                }`}
+              >
                 <div className="font-medium">{opt.label}</div>
                 <div className="text-xs text-[var(--color-text-muted)] mt-0.5">{opt.description}</div>
               </button>
@@ -108,7 +115,9 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
 
         {/* Ollama detection hint */}
         {name === 'ollama' && ollamaDetected !== null && (
-          <div className={`flex items-center gap-1.5 text-xs font-data px-1 ${ollamaDetected ? 'text-emerald-500' : 'text-amber-400'}`}>
+          <div
+            className={`flex items-center gap-1.5 text-xs font-data px-1 ${ollamaDetected ? 'text-emerald-500' : 'text-amber-400'}`}
+          >
             {ollamaDetected ? (
               <>
                 <CheckCircle size={13} />
@@ -135,10 +144,13 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
           <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">
             Display Name <span className="text-[var(--color-text-muted)]">(optional)</span>
           </label>
-          <input type="text" value={displayName}
-            onChange={e => setDisplayName(e.target.value)}
-            placeholder={`My ${PROVIDER_OPTIONS.find(o => o.value === name)?.label}`}
-            className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder={`My ${PROVIDER_OPTIONS.find((o) => o.value === name)?.label}`}
+            className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+          />
         </div>
 
         {/* API Key (not shown for Ollama) */}
@@ -146,13 +158,18 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
           <div>
             <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">API Key</label>
             <div className="relative">
-              <input type={showApiKey ? 'text' : 'password'} value={apiKey}
-                onChange={e => setApiKey(e.target.value)}
+              <input
+                type={showApiKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
                 placeholder="sk-..."
-                className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 pr-10 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
-              <button type="button"
+                className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 pr-10 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+              />
+              <button
+                type="button"
                 onClick={() => setShowApiKey(!showApiKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]">
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]"
+              >
                 {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
@@ -162,23 +179,35 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
         {/* Base URL (always shown, pre-filled for Ollama) */}
         <div>
           <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">
-            Base URL <span className="text-[var(--color-text-muted)]">(optional{name === 'ollama' ? ', default: localhost:11434' : ''})</span>
+            Base URL{' '}
+            <span className="text-[var(--color-text-muted)]">
+              (optional{name === 'ollama' ? ', default: localhost:11434' : ''})
+            </span>
           </label>
-          <input type="text" value={baseUrl}
-            onChange={e => setBaseUrl(e.target.value)}
+          <input
+            type="text"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
             placeholder={name === 'ollama' ? 'http://localhost:11434' : 'Leave blank for default'}
-            className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]" />
+            className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+          />
         </div>
 
         {/* Buttons */}
         <div className="flex items-center gap-2 pt-1">
-          <button type="submit" disabled={submitting}
-            className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 px-4 py-2 text-sm transition-all">
+          <button
+            type="submit"
+            disabled={submitting}
+            className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 px-4 py-2 text-sm transition-all"
+          >
             <Bot size={16} />
             {submitting ? 'Adding...' : 'Add Provider'}
           </button>
-          <button type="button" onClick={onClose}
-            className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-4 py-2 text-sm transition-colors">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-4 py-2 text-sm transition-colors"
+          >
             Cancel
           </button>
         </div>

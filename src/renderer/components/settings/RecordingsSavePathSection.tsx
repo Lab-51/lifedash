@@ -85,7 +85,9 @@ export default function RecordingsSavePathSection() {
     return (
       <section className="mb-10">
         <div className="mb-4">
-          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Recordings Folder</h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">
+            Recordings Folder
+          </h2>
         </div>
         <div className="flex items-center justify-center py-6 text-surface-500">
           <Loader2 size={20} className="animate-spin" />
@@ -119,7 +121,8 @@ export default function RecordingsSavePathSection() {
           <div>
             <span className="text-sm font-medium text-[var(--color-text-primary)]">Save audio recordings to disk</span>
             <p className="text-xs text-surface-500 mt-0.5">
-              When disabled, only transcripts are kept. Audio files won't be saved, so you won't be able to replay or re-transcribe.
+              When disabled, only transcripts are kept. Audio files won't be saved, so you won't be able to replay or
+              re-transcribe.
             </p>
           </div>
         </label>
@@ -130,9 +133,7 @@ export default function RecordingsSavePathSection() {
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-[var(--color-text-primary)]">
                 Save Location
-                {isCustom && (
-                  <span className="ml-2 text-xs font-normal text-primary-400">(custom)</span>
-                )}
+                {isCustom && <span className="ml-2 text-xs font-normal text-primary-400">(custom)</span>}
               </label>
             </div>
 
@@ -159,7 +160,8 @@ export default function RecordingsSavePathSection() {
             </div>
 
             <p className="text-xs text-surface-500 mt-2">
-              Changing this folder only affects new recordings. Existing recordings remain accessible at their original paths.
+              Changing this folder only affects new recordings. Existing recordings remain accessible at their original
+              paths.
             </p>
           </div>
         )}

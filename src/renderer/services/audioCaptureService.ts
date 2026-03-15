@@ -81,8 +81,10 @@ export async function enumerateAudioDevices(): Promise<AudioDeviceInfo[]> {
   }
   const devices = await navigator.mediaDevices.enumerateDevices();
   return devices
-    .filter((d): d is MediaDeviceInfo & { kind: 'audioinput' | 'audiooutput' } =>
-      d.kind === 'audioinput' || d.kind === 'audiooutput')
+    .filter(
+      (d): d is MediaDeviceInfo & { kind: 'audioinput' | 'audiooutput' } =>
+        d.kind === 'audioinput' || d.kind === 'audiooutput',
+    )
     .map((d) => ({
       deviceId: d.deviceId,
       label: d.label || `${d.kind === 'audioinput' ? 'Microphone' : 'Speaker'} (${d.deviceId.slice(0, 8)})`,
@@ -172,11 +174,7 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
   systemGainNode = audioContext.createGain();
   systemGainNode.gain.value = 1.0;
 
-  processorNode = audioContext.createScriptProcessor(
-    BUFFER_SIZE,
-    INPUT_CHANNELS,
-    OUTPUT_CHANNELS,
-  );
+  processorNode = audioContext.createScriptProcessor(BUFFER_SIZE, INPUT_CHANNELS, OUTPUT_CHANNELS);
 
   // Connect system audio: source → gain → processor
   sourceNode.connect(systemGainNode);

@@ -1,7 +1,18 @@
 // === AI provider, usage, and configuration types ===
 
 export type AIProviderName = 'openai' | 'anthropic' | 'ollama' | 'kimi';
-export type AITaskType = 'summarization' | 'brainstorming' | 'idea_analysis' | 'task_structuring' | 'transcription' | 'card_agent' | 'meeting_prep' | 'standup' | 'card-description' | 'background_agent' | 'project_agent';
+export type AITaskType =
+  | 'summarization'
+  | 'brainstorming'
+  | 'idea_analysis'
+  | 'task_structuring'
+  | 'transcription'
+  | 'card_agent'
+  | 'meeting_prep'
+  | 'standup'
+  | 'card-description'
+  | 'background_agent'
+  | 'project_agent';
 
 /** AI provider as seen by renderer (no decrypted keys — only hasApiKey boolean) */
 export interface AIProvider {
@@ -18,13 +29,13 @@ export interface AIProvider {
 export interface CreateAIProviderInput {
   name: AIProviderName;
   displayName?: string;
-  apiKey?: string;       // Plain text — encrypted before storage in main process
+  apiKey?: string; // Plain text — encrypted before storage in main process
   baseUrl?: string;
 }
 
 export interface UpdateAIProviderInput {
   displayName?: string;
-  apiKey?: string;       // Plain text — encrypted before storage
+  apiKey?: string; // Plain text — encrypted before storage
   baseUrl?: string;
   enabled?: boolean;
 }
@@ -57,10 +68,10 @@ export interface AIUsageSummary {
 
 /** Aggregated daily usage for the usage dashboard chart */
 export interface AIUsageDaily {
-  date: string;       // YYYY-MM-DD
+  date: string; // YYYY-MM-DD
   tokens: number;
   cost: number;
-  count: number;      // number of API calls
+  count: number; // number of API calls
 }
 
 /** Per-task model configuration (stored as JSON in settings table) */

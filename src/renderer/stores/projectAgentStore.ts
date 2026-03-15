@@ -89,7 +89,7 @@ export const useProjectAgentStore = create<ProjectAgentStore>((set, get) => ({
   deleteThread: async (projectId: string, threadId: string) => {
     try {
       await window.electronAPI.projectAgentDeleteThread(threadId);
-      const remaining = get().threads.filter(t => t.id !== threadId);
+      const remaining = get().threads.filter((t) => t.id !== threadId);
       set({ threads: remaining });
 
       if (get().activeThreadId === threadId) {
@@ -158,12 +158,15 @@ export const useProjectAgentStore = create<ProjectAgentStore>((set, get) => ({
     const cleanupToolEvent = window.electronAPI.onProjectAgentToolEvent((data) => {
       if (data.projectId === projectId) {
         set({
-          toolEvents: [...get().toolEvents, {
-            toolName: data.toolName,
-            type: data.type,
-            args: data.args,
-            result: data.result,
-          }],
+          toolEvents: [
+            ...get().toolEvents,
+            {
+              toolName: data.toolName,
+              type: data.type,
+              args: data.args,
+              result: data.result,
+            },
+          ],
         });
       }
     });
@@ -199,7 +202,7 @@ export const useProjectAgentStore = create<ProjectAgentStore>((set, get) => ({
       } else {
         // Aborted — remove optimistic user message
         set({
-          messages: get().messages.filter(m => m.id !== tempId),
+          messages: get().messages.filter((m) => m.id !== tempId),
           streaming: false,
           streamingText: '',
           toolEvents: [],
@@ -211,7 +214,7 @@ export const useProjectAgentStore = create<ProjectAgentStore>((set, get) => ({
       toast(msg, 'error');
       // Remove optimistic message on error
       set({
-        messages: get().messages.filter(m => m.id !== tempId),
+        messages: get().messages.filter((m) => m.id !== tempId),
         streaming: false,
         streamingText: '',
         toolEvents: [],

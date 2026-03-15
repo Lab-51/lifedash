@@ -78,13 +78,14 @@ export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
     }
   },
 
-  clearCardDetails: () => set({
-    selectedCardComments: [],
-    selectedCardRelationships: [],
-    selectedCardActivities: [],
-    selectedCardAttachments: [],
-    selectedCardChecklistItems: [],
-  }),
+  clearCardDetails: () =>
+    set({
+      selectedCardComments: [],
+      selectedCardRelationships: [],
+      selectedCardActivities: [],
+      selectedCardAttachments: [],
+      selectedCardChecklistItems: [],
+    }),
 
   addComment: async (input: CreateCardCommentInput) => {
     const comment = await window.electronAPI.addCardComment(input);
@@ -96,16 +97,14 @@ export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
   updateComment: async (id: string, content: string) => {
     const updated = await window.electronAPI.updateCardComment(id, content);
     set({
-      selectedCardComments: get().selectedCardComments.map(
-        c => c.id === id ? updated : c,
-      ),
+      selectedCardComments: get().selectedCardComments.map((c) => (c.id === id ? updated : c)),
     });
   },
 
   deleteComment: async (id: string) => {
     await window.electronAPI.deleteCardComment(id);
     set({
-      selectedCardComments: get().selectedCardComments.filter(c => c.id !== id),
+      selectedCardComments: get().selectedCardComments.filter((c) => c.id !== id),
     });
   },
 
@@ -119,14 +118,14 @@ export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
   deleteRelationship: async (id: string) => {
     await window.electronAPI.deleteCardRelationship(id);
     set({
-      selectedCardRelationships: get().selectedCardRelationships.filter(r => r.id !== id),
+      selectedCardRelationships: get().selectedCardRelationships.filter((r) => r.id !== id),
     });
   },
 
   addAttachment: async (cardId: string) => {
     const attachment = await window.electronAPI.addCardAttachment(cardId);
     if (attachment) {
-      set(state => ({
+      set((state) => ({
         selectedCardAttachments: [attachment, ...state.selectedCardAttachments],
       }));
     }
@@ -134,8 +133,8 @@ export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
 
   deleteAttachment: async (id: string) => {
     await window.electronAPI.deleteCardAttachment(id);
-    set(state => ({
-      selectedCardAttachments: state.selectedCardAttachments.filter(a => a.id !== id),
+    set((state) => ({
+      selectedCardAttachments: state.selectedCardAttachments.filter((a) => a.id !== id),
     }));
   },
 
@@ -150,16 +149,16 @@ export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
 
   addChecklistItem: async (cardId: string, title: string) => {
     const item = await window.electronAPI.addChecklistItem(cardId, title);
-    set(state => ({
+    set((state) => ({
       selectedCardChecklistItems: [...state.selectedCardChecklistItems, item],
     }));
   },
 
   updateChecklistItem: async (id: string, updates: { title?: string; completed?: boolean }) => {
     // Optimistic update
-    set(state => ({
-      selectedCardChecklistItems: state.selectedCardChecklistItems.map(item =>
-        item.id === id ? { ...item, ...updates } : item
+    set((state) => ({
+      selectedCardChecklistItems: state.selectedCardChecklistItems.map((item) =>
+        item.id === id ? { ...item, ...updates } : item,
       ),
     }));
     try {
@@ -173,8 +172,8 @@ export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
   },
 
   deleteChecklistItem: async (id: string) => {
-    set(state => ({
-      selectedCardChecklistItems: state.selectedCardChecklistItems.filter(item => item.id !== id),
+    set((state) => ({
+      selectedCardChecklistItems: state.selectedCardChecklistItems.filter((item) => item.id !== id),
     }));
     try {
       await window.electronAPI.deleteChecklistItem(id);
@@ -187,7 +186,7 @@ export const useCardDetailStore = create<CardDetailStore>((set, get) => ({
     // Optimistic reorder
     const items = get().selectedCardChecklistItems;
     const reordered = itemIds.map((id, index) => {
-      const item = items.find(i => i.id === id)!;
+      const item = items.find((i) => i.id === id)!;
       return { ...item, position: index };
     });
     set({ selectedCardChecklistItems: reordered });

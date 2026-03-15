@@ -83,9 +83,12 @@ export const useGamificationStore = create<GamificationState>((set, get) => ({
 
     if (newAchievements.length > 0) {
       // Also refresh the full achievements list from backend
-      window.electronAPI.gamificationGetAchievements().then(achievements => {
-        set({ achievements });
-      }).catch(() => {});
+      window.electronAPI
+        .gamificationGetAchievements()
+        .then((achievements) => {
+          set({ achievements });
+        })
+        .catch(() => {});
 
       newAchievements.forEach((a) => {
         showAchievementBanner(a);

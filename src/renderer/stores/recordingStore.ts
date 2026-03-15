@@ -31,7 +31,12 @@ interface RecordingStore {
   // Actions
   setIncludeMic: (value: boolean) => void;
   setPrepBriefing: (text: string | null) => void;
-  startRecording: (title: string, projectId?: string, template?: MeetingTemplateType, transcriptionLanguage?: string) => Promise<void>;
+  startRecording: (
+    title: string,
+    projectId?: string,
+    template?: MeetingTemplateType,
+    transcriptionLanguage?: string,
+  ) => Promise<void>;
   stopRecording: () => Promise<void>;
   cancelRecording: () => Promise<void>;
   clearCompletedMeetingId: () => void;
@@ -53,7 +58,12 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   setIncludeMic: (value: boolean) => set({ includeMic: value }),
   setPrepBriefing: (text: string | null) => set({ prepBriefing: text }),
 
-  startRecording: async (title: string, projectId?: string, template?: MeetingTemplateType, transcriptionLanguage?: string) => {
+  startRecording: async (
+    title: string,
+    projectId?: string,
+    template?: MeetingTemplateType,
+    transcriptionLanguage?: string,
+  ) => {
     set({ starting: true, error: null });
     try {
       // Step 1: Create meeting in DB
@@ -94,8 +104,16 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       // Clean up if anything failed
       const meetingId = get().meetingId;
       if (meetingId) {
-        try { await window.electronAPI.stopRecording(); } catch { /* ignore */ }
-        try { await window.electronAPI.deleteMeeting(meetingId); } catch { /* ignore */ }
+        try {
+          await window.electronAPI.stopRecording();
+        } catch {
+          /* ignore */
+        }
+        try {
+          await window.electronAPI.deleteMeeting(meetingId);
+        } catch {
+          /* ignore */
+        }
       }
       set({
         isRecording: false,
@@ -157,7 +175,9 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       if (meetingId) {
         await window.electronAPI.deleteMeeting(meetingId);
       }
-    } catch { /* best-effort cleanup */ }
+    } catch {
+      /* best-effort cleanup */
+    }
     set({ meetingId: null, elapsed: 0, lastTranscript: '' });
   },
 

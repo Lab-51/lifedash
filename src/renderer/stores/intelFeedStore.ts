@@ -126,9 +126,7 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   markRead: async (id: string) => {
     // Optimistic update
     set({
-      items: get().items.map(item =>
-        item.id === id ? { ...item, isRead: true } : item,
-      ),
+      items: get().items.map((item) => (item.id === id ? { ...item, isRead: true } : item)),
     });
     try {
       await window.electronAPI.markIntelItemRead(id);
@@ -142,13 +140,11 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   },
 
   toggleBookmark: async (id: string) => {
-    const item = get().items.find(i => i.id === id);
+    const item = get().items.find((i) => i.id === id);
     if (!item) return;
     // Optimistic update
     set({
-      items: get().items.map(i =>
-        i.id === id ? { ...i, isBookmarked: !i.isBookmarked } : i,
-      ),
+      items: get().items.map((i) => (i.id === id ? { ...i, isBookmarked: !i.isBookmarked } : i)),
     });
     try {
       await window.electronAPI.toggleIntelItemBookmark(id);
@@ -176,14 +172,14 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   updateSource: async (id: string, input: UpdateIntelSourceInput) => {
     const updated = await window.electronAPI.updateIntelSource(id, input);
     set({
-      sources: get().sources.map(s => (s.id === id ? updated : s)),
+      sources: get().sources.map((s) => (s.id === id ? updated : s)),
     });
   },
 
   deleteSource: async (id: string) => {
     await window.electronAPI.deleteIntelSource(id);
     set({
-      sources: get().sources.filter(s => s.id !== id),
+      sources: get().sources.filter((s) => s.id !== id),
     });
   },
 
@@ -236,7 +232,7 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
     try {
       const updated = await window.electronAPI.intelSummarizeItem(id);
       set({
-        items: get().items.map(item => (item.id === id ? updated : item)),
+        items: get().items.map((item) => (item.id === id ? updated : item)),
       });
     } catch (error) {
       set({
@@ -294,7 +290,7 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
     });
 
     try {
-      const apiMessages = [...get().briefChatMessages].map(m => ({
+      const apiMessages = [...get().briefChatMessages].map((m) => ({
         role: m.role,
         content: m.content,
       }));

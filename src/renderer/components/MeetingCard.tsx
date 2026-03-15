@@ -36,13 +36,16 @@ const STATUS_STYLES: Record<string, { label: string; className: string; icon: ty
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   });
 }
 
 function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString('en-US', {
-    hour: 'numeric', minute: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
   });
 }
 
@@ -56,7 +59,14 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
   return `${min}m ${sec}s`;
 }
 
-const MeetingCard = memo(function MeetingCard({ meeting, projectName, projectColor, actionItemCount, onClick, onDelete }: MeetingCardProps) {
+const MeetingCard = memo(function MeetingCard({
+  meeting,
+  projectName,
+  projectColor,
+  actionItemCount,
+  onClick,
+  onDelete,
+}: MeetingCardProps) {
   const status = STATUS_STYLES[meeting.status] || STATUS_STYLES.completed;
   const StatusIcon = status.icon;
 
@@ -65,13 +75,21 @@ const MeetingCard = memo(function MeetingCard({ meeting, projectName, projectCol
       onClick={onClick}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className="w-full text-left p-4 bg-surface-800 border border-surface-700 rounded-lg
                  hover:border-surface-600 transition-colors group relative cursor-pointer"
     >
       {onDelete && (
         <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
           className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-700
                      text-surface-500 hover:text-red-400 transition-all"
           title="Delete meeting"
@@ -81,9 +99,7 @@ const MeetingCard = memo(function MeetingCard({ meeting, projectName, projectCol
       )}
 
       <div className="flex items-start justify-between gap-2">
-        <h3 className="font-semibold text-surface-100 truncate">
-          {meeting.title}
-        </h3>
+        <h3 className="font-semibold text-surface-100 truncate">{meeting.title}</h3>
         <div className="flex items-center gap-2 shrink-0">
           {actionItemCount != null && actionItemCount > 0 && (
             <span className="inline-flex items-center gap-1 text-xs text-surface-400">
@@ -112,17 +128,14 @@ const MeetingCard = memo(function MeetingCard({ meeting, projectName, projectCol
           {projectName && (
             <span className="text-xs bg-primary-600/10 text-primary-400 px-2 py-0.5 rounded-full flex items-center gap-1.5">
               {projectColor && (
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ backgroundColor: projectColor }}
-                />
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: projectColor }} />
               )}
               {projectName}
             </span>
           )}
           {meeting.template && meeting.template !== 'none' && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-surface-700 text-surface-300">
-              {MEETING_TEMPLATES.find(t => t.type === meeting.template)?.name ?? meeting.template}
+              {MEETING_TEMPLATES.find((t) => t.type === meeting.template)?.name ?? meeting.template}
             </span>
           )}
         </div>

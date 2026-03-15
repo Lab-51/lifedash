@@ -21,17 +21,25 @@ interface HudSelectProps {
   options: HudSelectOption[];
   icon?: LucideIcon;
   placeholder?: string;
-  compact?: boolean;  // Transparent background for inline/toolbar use
+  compact?: boolean; // Transparent background for inline/toolbar use
   disabled?: boolean;
 }
 
-function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 'Select...', compact = false, disabled = false }: HudSelectProps) {
+function HudSelect({
+  value,
+  onChange,
+  options,
+  icon: TriggerIcon,
+  placeholder = 'Select...',
+  compact = false,
+  disabled = false,
+}: HudSelectProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
 
-  const selectedOption = options.find(o => o.value === value);
+  const selectedOption = options.find((o) => o.value === value);
 
   // Compute dropdown position from trigger bounding rect
   const updatePosition = useCallback(() => {
@@ -46,8 +54,10 @@ function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
       if (
-        triggerRef.current && !triggerRef.current.contains(target) &&
-        dropdownRef.current && !dropdownRef.current.contains(target)
+        triggerRef.current &&
+        !triggerRef.current.contains(target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
       ) {
         setOpen(false);
       }
@@ -96,47 +106,53 @@ function HudSelect({ value, onChange, options, icon: TriggerIcon, placeholder = 
         }`}
       >
         {TriggerIcon && <TriggerIcon size={14} className="text-[var(--color-text-muted)] shrink-0" />}
-        <span className={`flex-1 truncate ${selectedOption ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>
+        <span
+          className={`flex-1 truncate ${selectedOption ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}
+        >
           {selectedOption?.label || placeholder}
         </span>
-        <ChevronDown size={14} className={`text-[var(--color-text-muted)] shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          size={14}
+          className={`text-[var(--color-text-muted)] shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
       </button>
 
       {/* Dropdown popover — rendered in portal to escape overflow clipping */}
-      {open && createPortal(
-        <div
-          ref={dropdownRef}
-          className="fixed z-[9999] bg-white dark:bg-surface-900 border border-[var(--color-border-accent)] rounded-xl shadow-2xl shadow-black/40 py-1.5 min-w-[180px] max-h-[280px] overflow-y-auto"
-          style={{ top: pos.top, left: pos.left, width: Math.max(pos.width, 180) }}
-        >
-          {options.map(opt => {
-            const isActive = opt.value === value;
-            const OptIcon = opt.icon;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => handleSelect(opt.value)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors ${
-                  isActive
-                    ? 'bg-[var(--color-accent-subtle)] text-[var(--color-accent)]'
-                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)]/50 hover:text-[var(--color-text-primary)]'
-                }`}
-              >
-                {OptIcon && <OptIcon size={14} className="shrink-0" />}
-                <div className="flex flex-col flex-1 min-w-0">
-                  <span className={`truncate ${isActive ? 'font-semibold' : ''}`}>{opt.label}</span>
-                  {opt.description && (
-                    <span className="text-[0.625rem] text-[var(--color-text-muted)] truncate">{opt.description}</span>
-                  )}
-                </div>
-                {isActive && <Check size={14} className="text-[var(--color-accent)] shrink-0" />}
-              </button>
-            );
-          })}
-        </div>,
-        document.body,
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            className="fixed z-[9999] bg-white dark:bg-surface-900 border border-[var(--color-border-accent)] rounded-xl shadow-2xl shadow-black/40 py-1.5 min-w-[180px] max-h-[280px] overflow-y-auto"
+            style={{ top: pos.top, left: pos.left, width: Math.max(pos.width, 180) }}
+          >
+            {options.map((opt) => {
+              const isActive = opt.value === value;
+              const OptIcon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleSelect(opt.value)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors ${
+                    isActive
+                      ? 'bg-[var(--color-accent-subtle)] text-[var(--color-accent)]'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)]/50 hover:text-[var(--color-text-primary)]'
+                  }`}
+                >
+                  {OptIcon && <OptIcon size={14} className="shrink-0" />}
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className={`truncate ${isActive ? 'font-semibold' : ''}`}>{opt.label}</span>
+                    {opt.description && (
+                      <span className="text-[0.625rem] text-[var(--color-text-muted)] truncate">{opt.description}</span>
+                    )}
+                  </div>
+                  {isActive && <Check size={14} className="text-[var(--color-accent)] shrink-0" />}
+                </button>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

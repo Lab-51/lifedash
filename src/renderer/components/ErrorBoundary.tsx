@@ -55,9 +55,7 @@ class ErrorBoundary extends Component<Props, State> {
         <div className="max-w-md w-full hud-panel-accent clip-corner-cut p-8 text-center">
           <AlertTriangle size={40} className="mx-auto mb-4 text-[var(--color-warm)]" />
 
-          <h2 className="font-hud text-lg tracking-widest uppercase text-[var(--color-warm)]">
-            Something went wrong
-          </h2>
+          <h2 className="font-hud text-lg tracking-widest uppercase text-[var(--color-warm)]">Something went wrong</h2>
 
           <p className="mt-2 text-sm text-[var(--color-text-secondary)] font-data">
             {this.state.error?.message || 'An unexpected error occurred.'}

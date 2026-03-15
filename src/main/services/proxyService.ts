@@ -15,17 +15,13 @@ import { createLogger } from './logger';
 const log = createLogger('Proxy');
 
 export interface ProxyConfig {
-  url: string;       // e.g. http://proxy.corp.com:8080
-  noProxy: string;   // comma-separated domains to bypass
+  url: string; // e.g. http://proxy.corp.com:8080
+  noProxy: string; // comma-separated domains to bypass
 }
 
 /** Read proxy config from environment variables. */
 function getEnvProxy(): ProxyConfig | null {
-  const url =
-    process.env.HTTPS_PROXY ||
-    process.env.HTTP_PROXY ||
-    process.env.https_proxy ||
-    process.env.http_proxy;
+  const url = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.https_proxy || process.env.http_proxy;
   if (!url) return null;
   const noProxy = process.env.NO_PROXY || process.env.no_proxy || '';
   return { url, noProxy };
@@ -35,15 +31,9 @@ function getEnvProxy(): ProxyConfig | null {
 async function getDbProxy(): Promise<ProxyConfig | null> {
   try {
     const db = getDb();
-    const [urlRow] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, 'proxy:url'));
+    const [urlRow] = await db.select().from(settings).where(eq(settings.key, 'proxy:url'));
     if (!urlRow?.value) return null;
-    const [noProxyRow] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, 'proxy:noProxy'));
+    const [noProxyRow] = await db.select().from(settings).where(eq(settings.key, 'proxy:noProxy'));
     return {
       url: urlRow.value,
       noProxy: noProxyRow?.value ?? '',

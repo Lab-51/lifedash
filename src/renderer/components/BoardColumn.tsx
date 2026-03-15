@@ -236,9 +236,15 @@ const BoardColumn = memo(function BoardColumn({
       )}
 
       {/* Column header (drag handle) */}
-      <div ref={headerRef} className="group px-3 py-3 flex items-center justify-between cursor-grab active:cursor-grabbing">
+      <div
+        ref={headerRef}
+        className="group px-3 py-3 flex items-center justify-between cursor-grab active:cursor-grabbing"
+      >
         <div className="flex items-center gap-2">
-          <GripVertical size={14} className="text-surface-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+          <GripVertical
+            size={14}
+            className="text-surface-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+          />
           {isRenaming ? (
             <input
               ref={renameInputRef}
@@ -274,10 +280,7 @@ const BoardColumn = memo(function BoardColumn({
 
         {/* Delete button */}
         {deleteConfirm ? (
-          <button
-            onClick={handleDeleteColumn}
-            className="text-xs text-red-400 hover:text-red-300 transition-colors"
-          >
+          <button onClick={handleDeleteColumn} className="text-xs text-red-400 hover:text-red-300 transition-colors">
             {columnCards.length > 0 ? `Delete column + ${columnCards.length} cards?` : 'Delete column?'}
           </button>
         ) : (
@@ -292,7 +295,7 @@ const BoardColumn = memo(function BoardColumn({
 
       {/* Card list */}
       <div className="flex-1 px-2 pb-2 overflow-y-auto flex flex-col gap-2">
-        {columnCards.map(card => (
+        {columnCards.map((card) => (
           <KanbanCard
             key={card.id}
             card={card}
@@ -314,7 +317,7 @@ const BoardColumn = memo(function BoardColumn({
               ref={cardInputRef}
               type="text"
               value={newCardTitle}
-              onChange={e => setNewCardTitle(e.target.value)}
+              onChange={(e) => setNewCardTitle(e.target.value)}
               onKeyDown={handleCardKeyDown}
               placeholder="Card title..."
               className="bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-500 w-full"
@@ -334,13 +337,14 @@ const BoardColumn = memo(function BoardColumn({
                   <div className="absolute bottom-full left-0 mb-1 bg-surface-800 border border-surface-700 rounded-lg shadow-lg py-1 min-w-[200px] z-40 max-h-48 overflow-y-auto">
                     {dbTemplates.length > 0 && (
                       <>
-                        <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
-                          Your Templates
-                        </div>
-                        {dbTemplates.map(t => (
+                        <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">Your Templates</div>
+                        {dbTemplates.map((t) => (
                           <button
                             key={t.id}
-                            onClick={() => { setSelectedTemplate(t); setShowCreateTemplateDropdown(false); }}
+                            onClick={() => {
+                              setSelectedTemplate(t);
+                              setShowCreateTemplateDropdown(false);
+                            }}
                             className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors text-left"
                           >
                             <span className="truncate">{t.name}</span>
@@ -350,14 +354,15 @@ const BoardColumn = memo(function BoardColumn({
                       </>
                     )}
                     {dbTemplates.length > 0 && (
-                      <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">
-                        Built-in
-                      </div>
+                      <div className="px-3 py-1 text-xs text-surface-500 uppercase tracking-wide">Built-in</div>
                     )}
-                    {BUILTIN_TEMPLATES.map(t => (
+                    {BUILTIN_TEMPLATES.map((t) => (
                       <button
                         key={t.id}
-                        onClick={() => { setSelectedTemplate(t); setShowCreateTemplateDropdown(false); }}
+                        onClick={() => {
+                          setSelectedTemplate(t);
+                          setShowCreateTemplateDropdown(false);
+                        }}
                         className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors text-left"
                       >
                         <span>{t.icon}</span>
@@ -373,10 +378,7 @@ const BoardColumn = memo(function BoardColumn({
             {selectedTemplate && (
               <div className="flex items-center gap-1 text-xs text-blue-400 mt-0.5">
                 <span>Using: {selectedTemplate.name}</span>
-                <button
-                  onClick={() => setSelectedTemplate(null)}
-                  className="text-surface-500 hover:text-surface-300"
-                >
+                <button onClick={() => setSelectedTemplate(null)} className="text-surface-500 hover:text-surface-300">
                   <X size={10} />
                 </button>
               </div>

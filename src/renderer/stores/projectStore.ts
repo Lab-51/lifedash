@@ -54,7 +54,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   updateProject: async (id, data) => {
     const updated = await window.electronAPI.updateProject(id, data);
     set({
-      projects: get().projects.map(p => (p.id === id ? updated : p)),
+      projects: get().projects.map((p) => (p.id === id ? updated : p)),
     });
     if (data.archived === true) {
       useGamificationStore.getState().awardXP('project_archive', id);
@@ -64,12 +64,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   deleteProject: async (id) => {
     await window.electronAPI.deleteProject(id);
     set({
-      projects: get().projects.filter(p => p.id !== id),
+      projects: get().projects.filter((p) => p.id !== id),
     });
   },
 
   removeProjectFromUI: (id) => {
-    set({ projects: get().projects.filter(p => p.id !== id) });
+    set({ projects: get().projects.filter((p) => p.id !== id) });
   },
 
   restoreProjectToUI: (project) => {

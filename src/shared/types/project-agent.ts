@@ -26,6 +26,6 @@ export interface ProjectAgentThread {
 /** What the project agent did — rendered in the UI as action badges */
 export interface ProjectAgentAction {
   toolName: string;
-  description: string;  // human-readable: "Moved card to Done"
+  description: string; // human-readable: "Moved card to Done"
   success: boolean;
 }

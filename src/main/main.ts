@@ -10,12 +10,11 @@
 
 import { app, BrowserWindow, dialog, globalShortcut, shell } from 'electron';
 import path from 'node:path';
-// @ts-expect-error — Vite asset import (no type declaration for .png)
 import icon from '../assets/icon.png';
 import windowStateKeeper from 'electron-window-state';
 import { registerIpcHandlers } from './ipc';
 import { createTray } from './tray';
-import { connectDatabase, disconnectDatabase, checkDatabaseIntegrity } from './db/connection';
+import { connectDatabase, disconnectDatabase, checkDatabaseIntegrity, getDatabaseSize } from './db/connection';
 import { runMigrations } from './db/migrate';
 import { initMain } from 'electron-audio-loopback';
 import { initAutoBackup, stopAutoBackup } from './services/autoBackupScheduler';
@@ -67,6 +66,7 @@ process.on('SIGTERM', () => app.quit());
 process.on('SIGINT', () => app.quit());
 
 let mainWindow: BrowserWindow | null = null;
+let memoryMonitorId: ReturnType<typeof setInterval> | null = null;
 
 // When a second instance is attempted, focus the existing window.
 app.on('second-instance', () => {
@@ -150,7 +150,22 @@ const createWindow = async () => {
   // Show window only when the renderer is ready (prevents white flash)
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
+    log.info('App started', {
+      version: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      node: process.versions.node,
+      electron: process.versions.electron,
+    });
   });
+
+  // Periodic memory monitoring — warn if heap exceeds 500 MB
+  memoryMonitorId = setInterval(() => {
+    const heapUsed = process.memoryUsage().heapUsed;
+    if (heapUsed > 500 * 1024 * 1024) {
+      log.warn('High memory usage', { heapUsedMB: Math.round(heapUsed / 1024 / 1024) });
+    }
+  }, 300_000);
 
   // Auto-updater: check GitHub Releases for new versions (production only)
   initAutoUpdater(mainWindow);
@@ -193,6 +208,11 @@ const createWindow = async () => {
     const integrity = await checkDatabaseIntegrity();
     if (!integrity.healthy) {
       log.warn(`DB integrity issues: ${integrity.message}`);
+    }
+
+    const dbSizeBytes = await getDatabaseSize();
+    if (dbSizeBytes !== null) {
+      log.info(`DB size: ${(dbSizeBytes / 1024 / 1024).toFixed(1)} MB`);
     }
 
     // Apply proxy settings for enterprise networks (before any AI calls)
@@ -281,6 +301,7 @@ const createWindow = async () => {
 app.on('before-quit', async () => {
   (app as unknown as { isQuitting: boolean }).isQuitting = true;
   globalShortcut.unregisterAll();
+  if (memoryMonitorId) clearInterval(memoryMonitorId);
   stopPeriodicSnapshot();
   clearRecoveryState();
   stopAutoBackup();

@@ -39,8 +39,8 @@ function ChecklistItem({
   onSaveEdit: () => void;
   onCancelEdit: () => void;
 }) {
-  const updateChecklistItem = useCardDetailStore(s => s.updateChecklistItem);
-  const deleteChecklistItem = useCardDetailStore(s => s.deleteChecklistItem);
+  const updateChecklistItem = useCardDetailStore((s) => s.updateChecklistItem);
+  const deleteChecklistItem = useCardDetailStore((s) => s.deleteChecklistItem);
 
   const rowRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
@@ -82,9 +82,7 @@ function ChecklistItem({
     return dropTargetForElements({
       element: el,
       canDrop: ({ source }) =>
-        source.data.type === 'checklist-item' &&
-        source.data.itemId !== item.id &&
-        source.data.cardId === cardId,
+        source.data.type === 'checklist-item' && source.data.itemId !== item.id && source.data.cardId === cardId,
       getData: ({ input, element }) => {
         return attachClosestEdge(
           { type: 'checklist-item', itemId: item.id },
@@ -148,7 +146,7 @@ function ChecklistItem({
           ref={editInputRef}
           type="text"
           value={editTitle}
-          onChange={e => setEditTitle(e.target.value)}
+          onChange={(e) => setEditTitle(e.target.value)}
           onKeyDown={handleEditKeyDown}
           onBlur={onSaveEdit}
           className="flex-1 text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded px-2 py-0.5 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-dim)]"
@@ -176,9 +174,9 @@ function ChecklistItem({
 }
 
 function ChecklistSection({ cardId }: ChecklistSectionProps) {
-  const items = useCardDetailStore(s => s.selectedCardChecklistItems);
-  const addChecklistItem = useCardDetailStore(s => s.addChecklistItem);
-  const reorderChecklistItems = useCardDetailStore(s => s.reorderChecklistItems);
+  const items = useCardDetailStore((s) => s.selectedCardChecklistItems);
+  const addChecklistItem = useCardDetailStore((s) => s.addChecklistItem);
+  const reorderChecklistItems = useCardDetailStore((s) => s.reorderChecklistItems);
 
   const [newItemTitle, setNewItemTitle] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -187,14 +185,13 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
 
   // --- Progress ---
   const total = items.length;
-  const done = items.filter(i => i.completed).length;
+  const done = items.filter((i) => i.completed).length;
   const percentage = total > 0 ? Math.round((done / total) * 100) : 0;
 
   // --- Global drop monitor for checklist reorder ---
   useEffect(() => {
     return monitorForElements({
-      canMonitor: ({ source }) =>
-        source.data.type === 'checklist-item' && source.data.cardId === cardId,
+      canMonitor: ({ source }) => source.data.type === 'checklist-item' && source.data.cardId === cardId,
       onDrop: ({ source, location }) => {
         const target = location.current.dropTargets[0];
         if (!target) return;
@@ -204,7 +201,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
         if (sourceId === targetId) return;
 
         const edge = extractClosestEdge(target.data);
-        const currentIds = items.map(i => i.id);
+        const currentIds = items.map((i) => i.id);
         const sourceIndex = currentIds.indexOf(sourceId);
         let targetIndex = currentIds.indexOf(targetId);
 
@@ -249,7 +246,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
   const saveEdit = useCallback(() => {
     if (!editingId) return;
     const trimmed = editTitle.trim();
-    if (trimmed && trimmed !== items.find(i => i.id === editingId)?.title) {
+    if (trimmed && trimmed !== items.find((i) => i.id === editingId)?.title) {
       useCardDetailStore.getState().updateChecklistItem(editingId, { title: trimmed });
     }
     setEditingId(null);
@@ -286,7 +283,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
 
       {/* Items list */}
       <div className="space-y-0.5 mb-3">
-        {items.map(item => (
+        {items.map((item) => (
           <ChecklistItem
             key={item.id}
             item={item}
@@ -309,7 +306,7 @@ function ChecklistSection({ cardId }: ChecklistSectionProps) {
           ref={addInputRef}
           type="text"
           value={newItemTitle}
-          onChange={e => setNewItemTitle(e.target.value)}
+          onChange={(e) => setNewItemTitle(e.target.value)}
           onKeyDown={handleAddKeyDown}
           placeholder="Add a checklist item..."
           className="flex-1 text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] transition-colors"

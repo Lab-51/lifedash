@@ -73,7 +73,7 @@ export function registerBrainstormHandlers(): void {
       apiKeyEncrypted: provider.apiKeyEncrypted,
       baseUrl: provider.baseUrl,
       model: provider.model,
-      messages: messages.map(m => ({
+      messages: messages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
       })),
@@ -99,7 +99,10 @@ export function registerBrainstormHandlers(): void {
         // Some providers don't send proper finish signals, causing NoOutputGeneratedError
         throw streamErr;
       } else {
-        log.warn('Stream ended with error but text was received:', streamErr instanceof Error ? streamErr.message : streamErr);
+        log.warn(
+          'Stream ended with error but text was received:',
+          streamErr instanceof Error ? streamErr.message : streamErr,
+        );
       }
     } finally {
       activeAbortControllers.delete(validSessionId);

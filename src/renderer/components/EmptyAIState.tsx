@@ -42,8 +42,8 @@ export default function EmptyAIState({ featureName, onSetup }: EmptyAIStateProps
 
       {/* Subtext */}
       <p className="text-xs text-[var(--color-text-secondary)] max-w-xs mb-5">
-        AI features require a configured provider. You can use Ollama for free
-        local inference, or connect to OpenAI or Anthropic.
+        AI features require a configured provider. You can use Ollama for free local inference, or connect to OpenAI or
+        Anthropic.
       </p>
 
       {/* Action button */}

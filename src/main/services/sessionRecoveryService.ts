@@ -70,18 +70,30 @@ export function getRecoveryState(): RecoveryState | null {
 }
 
 export function clearCrashMarker(): void {
-  try { fs.unlinkSync(crashMarkerFile()); } catch { /* ignore ENOENT */ }
+  try {
+    fs.unlinkSync(crashMarkerFile());
+  } catch {
+    /* ignore ENOENT */
+  }
 }
 
 export function clearRecoveryState(): void {
-  try { fs.unlinkSync(crashMarkerFile()); } catch { /* ignore ENOENT */ }
-  try { fs.unlinkSync(recoveryFile()); } catch { /* ignore ENOENT */ }
+  try {
+    fs.unlinkSync(crashMarkerFile());
+  } catch {
+    /* ignore ENOENT */
+  }
+  try {
+    fs.unlinkSync(recoveryFile());
+  } catch {
+    /* ignore ENOENT */
+  }
   cardDrafts = [];
 }
 
 export function saveCardDraft(draft: { cardId: string; field: string; value: string; projectId?: string }): void {
   if (!cardDrafts) cardDrafts = [];
-  const idx = cardDrafts.findIndex(d => d.cardId === draft.cardId && d.field === draft.field);
+  const idx = cardDrafts.findIndex((d) => d.cardId === draft.cardId && d.field === draft.field);
   if (idx >= 0) {
     cardDrafts[idx] = draft;
   } else {
@@ -92,7 +104,7 @@ export function saveCardDraft(draft: { cardId: string; field: string; value: str
 
 export function clearCardDraft(cardId: string, field: string): void {
   if (!cardDrafts) return;
-  cardDrafts = cardDrafts.filter(d => !(d.cardId === cardId && d.field === field));
+  cardDrafts = cardDrafts.filter((d) => !(d.cardId === cardId && d.field === field));
   snapshotState();
 }
 

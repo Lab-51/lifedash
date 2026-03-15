@@ -20,12 +20,7 @@ import { meetingBriefs, actionItems, cards } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
 import { getMeeting } from './meetingService';
 import { createLogger } from './logger';
-import type {
-  MeetingBrief,
-  ActionItem,
-  ActionItemStatus,
-  MeetingTemplateType,
-} from '../../shared/types';
+import type { MeetingBrief, ActionItem, ActionItemStatus, MeetingTemplateType } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import { parseActionItems } from '../../shared/utils/action-item-parser';
 
@@ -51,7 +46,7 @@ Format your response as:
 Be concise. Focus on substance, not filler. If the transcript is short or unclear, summarize what's available.`;
 
 function getSummarizationPrompt(template: MeetingTemplateType): string {
-  const templateInfo = MEETING_TEMPLATES.find(t => t.type === template);
+  const templateInfo = MEETING_TEMPLATES.find((t) => t.type === template);
   if (!templateInfo || !templateInfo.aiPromptHint) {
     return BASE_SUMMARIZATION_PROMPT;
   }
@@ -281,16 +276,9 @@ export async function getActionItems(meetingId: string): Promise<ActionItem[]> {
 /**
  * Update the status of an action item (pending -> approved/dismissed/converted).
  */
-export async function updateActionItemStatus(
-  id: string,
-  status: ActionItemStatus,
-): Promise<ActionItem> {
+export async function updateActionItemStatus(id: string, status: ActionItemStatus): Promise<ActionItem> {
   const db = getDb();
-  const [row] = await db
-    .update(actionItems)
-    .set({ status })
-    .where(eq(actionItems.id, id))
-    .returning();
+  const [row] = await db.update(actionItems).set({ status }).where(eq(actionItems.id, id)).returning();
 
   if (!row) throw new Error(`Action item not found: ${id}`);
   return toActionItem(row);
@@ -307,18 +295,12 @@ export async function convertActionToCard(
   const db = getDb();
 
   // Get the action item
-  const [item] = await db
-    .select()
-    .from(actionItems)
-    .where(eq(actionItems.id, actionItemId));
+  const [item] = await db.select().from(actionItems).where(eq(actionItems.id, actionItemId));
 
   if (!item) throw new Error(`Action item not found: ${actionItemId}`);
 
   // Count existing cards in target column for position
-  const [{ value: cardCount }] = await db
-    .select({ value: count() })
-    .from(cards)
-    .where(eq(cards.columnId, columnId));
+  const [{ value: cardCount }] = await db.select({ value: count() }).from(cards).where(eq(cards.columnId, columnId));
 
   // Create card
   const [card] = await db

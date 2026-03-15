@@ -47,51 +47,47 @@ function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={onClose}>
       <FocusTrap active={isOpen} onDeactivate={onClose}>
-      <div
-        className="w-full max-w-md hud-panel-accent clip-corner-cut overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border-accent)]">
-          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent)]">Keyboard Shortcuts</h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md hover:bg-[var(--color-accent-subtle)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
-        </div>
+        <div
+          className="w-full max-w-md hud-panel-accent clip-corner-cut overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border-accent)]">
+            <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent)]">
+              Keyboard Shortcuts
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-md hover:bg-[var(--color-accent-subtle)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+              aria-label="Close"
+            >
+              <X size={16} />
+            </button>
+          </div>
 
-        {/* Content */}
-        <div className="px-5 py-4 space-y-5">
-          {SHORTCUT_GROUPS.map((group) => (
-            <div key={group.label}>
-              <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">
-                {group.label}
-              </h3>
-              <div className="space-y-1.5">
-                {group.shortcuts.map((shortcut) => (
-                  <div
-                    key={shortcut.keys}
-                    className="flex items-center justify-between py-1"
-                  >
-                    <span className="text-sm text-[var(--color-text-secondary)]">{shortcut.description}</span>
-                    <kbd className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-data text-[var(--color-accent)] bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">
-                      {shortcut.keys}
-                    </kbd>
-                  </div>
-                ))}
+          {/* Content */}
+          <div className="px-5 py-4 space-y-5">
+            {SHORTCUT_GROUPS.map((group) => (
+              <div key={group.label}>
+                <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">
+                  {group.label}
+                </h3>
+                <div className="space-y-1.5">
+                  {group.shortcuts.map((shortcut) => (
+                    <div key={shortcut.keys} className="flex items-center justify-between py-1">
+                      <span className="text-sm text-[var(--color-text-secondary)]">{shortcut.description}</span>
+                      <kbd className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-data text-[var(--color-accent)] bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">
+                        {shortcut.keys}
+                      </kbd>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
       </FocusTrap>
     </div>
   );

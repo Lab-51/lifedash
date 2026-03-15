@@ -38,13 +38,13 @@ const EFFORT_LABEL: Record<SubtaskSuggestion['effort'], string> = {
 };
 
 function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
-  const breakdown = useTaskStructuringStore(s => s.breakdowns[cardId] ?? null);
-  const breakdownLoading = useTaskStructuringStore(s => s.breakdownLoadingCardId === cardId);
-  const breakdownError = useTaskStructuringStore(s => s.breakdownError);
-  const generateBreakdown = useTaskStructuringStore(s => s.generateBreakdown);
-  const clearBreakdown = useTaskStructuringStore(s => s.clearBreakdown);
-  const deleteSubtask = useTaskStructuringStore(s => s.deleteSubtask);
-  const moveSubtask = useTaskStructuringStore(s => s.moveSubtask);
+  const breakdown = useTaskStructuringStore((s) => s.breakdowns[cardId] ?? null);
+  const breakdownLoading = useTaskStructuringStore((s) => s.breakdownLoadingCardId === cardId);
+  const breakdownError = useTaskStructuringStore((s) => s.breakdownError);
+  const generateBreakdown = useTaskStructuringStore((s) => s.generateBreakdown);
+  const clearBreakdown = useTaskStructuringStore((s) => s.clearBreakdown);
+  const deleteSubtask = useTaskStructuringStore((s) => s.deleteSubtask);
+  const moveSubtask = useTaskStructuringStore((s) => s.moveSubtask);
 
   const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(new Set());
   const [applying, setApplying] = useState(false);
@@ -66,7 +66,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
   };
 
   const toggleSubtask = (index: number) => {
-    setSelectedSubtasks(prev => {
+    setSelectedSubtasks((prev) => {
       const next = new Set(prev);
       if (next.has(index)) {
         next.delete(index);
@@ -89,7 +89,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
   const handleDeleteSubtask = (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
     // Update selection: remove the deleted index and shift higher indices down
-    setSelectedSubtasks(prev => {
+    setSelectedSubtasks((prev) => {
       const next = new Set<number>();
       for (const i of prev) {
         if (i < index) next.add(i);
@@ -104,7 +104,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
   const handleMoveSubtask = (e: React.MouseEvent, fromIndex: number, toIndex: number) => {
     e.stopPropagation();
     // Update selection: swap indices
-    setSelectedSubtasks(prev => {
+    setSelectedSubtasks((prev) => {
       const next = new Set<number>();
       for (const i of prev) {
         if (i === fromIndex) next.add(toIndex);
@@ -145,9 +145,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
         clearBreakdown(cardId);
       }, 1500);
     } catch (error) {
-      setApplyError(
-        error instanceof Error ? error.message : 'Failed to create cards',
-      );
+      setApplyError(error instanceof Error ? error.message : 'Failed to create cards');
       setApplying(false);
     }
   };
@@ -160,7 +158,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
 
     try {
       const sortedIndices = Array.from(selectedSubtasks).sort((a, b) => a - b);
-      const titles = sortedIndices.map(i => breakdown.subtasks[i].title);
+      const titles = sortedIndices.map((i) => breakdown.subtasks[i].title);
 
       await window.electronAPI.addChecklistItemsBatch(cardId, titles);
 
@@ -176,9 +174,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
         clearBreakdown(cardId);
       }, 1500);
     } catch (error) {
-      setApplyError(
-        error instanceof Error ? error.message : 'Failed to add to checklist',
-      );
+      setApplyError(error instanceof Error ? error.message : 'Failed to add to checklist');
       setAddingToChecklist(false);
     }
   };
@@ -198,9 +194,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
               onClick={toggleAll}
               className="text-[0.625rem] text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
             >
-              {selectedSubtasks.size === breakdown.subtasks.length
-                ? 'Deselect all'
-                : 'Select all'}
+              {selectedSubtasks.size === breakdown.subtasks.length ? 'Deselect all' : 'Select all'}
             </button>
             <button
               onClick={() => clearBreakdown(cardId)}
@@ -267,9 +261,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
                 <div
                   key={`${subtask.title}-${index}`}
                   className={`flex items-center gap-2 w-full bg-[var(--color-accent-subtle)]/30 rounded-lg px-3 py-2 text-left transition-colors group border ${
-                    isSelected
-                      ? 'border-[var(--color-border-accent)]'
-                      : 'border-transparent opacity-50'
+                    isSelected ? 'border-[var(--color-border-accent)]' : 'border-transparent opacity-50'
                   }`}
                 >
                   {/* Move up/down */}
@@ -293,15 +285,10 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
                   </div>
 
                   {/* Checkbox — click to toggle selection */}
-                  <button
-                    onClick={() => toggleSubtask(index)}
-                    className="shrink-0"
-                  >
+                  <button onClick={() => toggleSubtask(index)} className="shrink-0">
                     <div
                       className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                        isSelected
-                          ? 'bg-primary-600 border-primary-500'
-                          : 'border-surface-600 bg-surface-800'
+                        isSelected ? 'bg-primary-600 border-primary-500' : 'border-surface-600 bg-surface-800'
                       }`}
                     >
                       {isSelected && <Check size={10} className="text-white" />}
@@ -347,11 +334,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
           </div>
 
           {/* Notes */}
-          {breakdown.notes && (
-            <p className="text-xs text-surface-500 mt-3 leading-relaxed">
-              {breakdown.notes}
-            </p>
-          )}
+          {breakdown.notes && <p className="text-xs text-surface-500 mt-3 leading-relaxed">{breakdown.notes}</p>}
 
           {/* Apply error */}
           {applyError && (

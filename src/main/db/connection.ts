@@ -75,6 +75,21 @@ export async function disconnectDatabase(): Promise<void> {
   }
 }
 
+/**
+ * Returns the database size in bytes, or null if the query is unsupported.
+ * PGlite may not support pg_database_size; callers should handle null gracefully.
+ */
+export async function getDatabaseSize(): Promise<number | null> {
+  if (!pglite) return null;
+  try {
+    const result = await pglite.query<{ size: string }>('SELECT pg_database_size(current_database()) AS size');
+    return Number(result.rows[0]?.size) || null;
+  } catch {
+    // pg_database_size not supported in PGlite — return null
+    return null;
+  }
+}
+
 const CORE_TABLES = ['projects', 'boards', 'columns', 'cards', 'meetings', 'ideas', 'settings'];
 
 export async function checkDatabaseIntegrity(): Promise<{

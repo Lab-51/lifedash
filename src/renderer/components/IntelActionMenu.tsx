@@ -48,7 +48,7 @@ export default function IntelActionMenu({ item, onSaveAsIdea, onStartProject, on
       <button
         onClick={(e) => {
           e.stopPropagation();
-          setOpen(prev => !prev);
+          setOpen((prev) => !prev);
         }}
         title="Actions"
         className="cursor-pointer shrink-0 p-1 rounded transition-all text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-accent)]"
@@ -57,9 +57,7 @@ export default function IntelActionMenu({ item, onSaveAsIdea, onStartProject, on
       </button>
 
       {open && (
-        <div
-          className="absolute right-0 top-full mt-1 z-50 min-w-[180px] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] shadow-lg py-1"
-        >
+        <div className="absolute right-0 top-full mt-1 z-50 min-w-[180px] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] shadow-lg py-1">
           {MENU_ITEMS.map(({ key, label, icon: Icon, action }) => (
             <button
               key={key}

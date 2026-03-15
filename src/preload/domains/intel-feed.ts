@@ -10,8 +10,7 @@ import type {
 export const intelFeedBridge = {
   getIntelSources: () => ipcRenderer.invoke('intel:sources:list'),
   createIntelSource: (data: CreateIntelSourceInput) => ipcRenderer.invoke('intel:sources:create', data),
-  updateIntelSource: (id: string, data: UpdateIntelSourceInput) =>
-    ipcRenderer.invoke('intel:sources:update', id, data),
+  updateIntelSource: (id: string, data: UpdateIntelSourceInput) => ipcRenderer.invoke('intel:sources:update', id, data),
   deleteIntelSource: (id: string) => ipcRenderer.invoke('intel:sources:delete', id),
   getIntelItems: (filter: IntelDateFilter) => ipcRenderer.invoke('intel:items:list', filter),
   markIntelItemRead: (id: string) => ipcRenderer.invoke('intel:items:markRead', id),

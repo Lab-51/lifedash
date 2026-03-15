@@ -16,11 +16,11 @@ interface IntelSourceManagerProps {
 }
 
 export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManagerProps) {
-  const sources = useIntelFeedStore(s => s.sources);
-  const loadSources = useIntelFeedStore(s => s.loadSources);
-  const loadItems = useIntelFeedStore(s => s.loadItems);
-  const updateSource = useIntelFeedStore(s => s.updateSource);
-  const deleteSource = useIntelFeedStore(s => s.deleteSource);
+  const sources = useIntelFeedStore((s) => s.sources);
+  const loadSources = useIntelFeedStore((s) => s.loadSources);
+  const loadItems = useIntelFeedStore((s) => s.loadItems);
+  const updateSource = useIntelFeedStore((s) => s.updateSource);
+  const deleteSource = useIntelFeedStore((s) => s.deleteSource);
 
   const [showAddSource, setShowAddSource] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -35,9 +35,12 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
   }, [isOpen, loadSources]);
 
   // Escape key closes panel
-  const handleEscape = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose();
-  }, [onClose]);
+  const handleEscape = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    },
+    [onClose],
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -49,13 +52,13 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
   if (!isOpen) return null;
 
   const handleToggle = async (source: IntelSource) => {
-    setTogglingIds(prev => new Set(prev).add(source.id));
+    setTogglingIds((prev) => new Set(prev).add(source.id));
     try {
       await updateSource(source.id, { enabled: !source.enabled });
       await loadSources();
       await loadItems();
     } finally {
-      setTogglingIds(prev => {
+      setTogglingIds((prev) => {
         const next = new Set(prev);
         next.delete(source.id);
         return next;
@@ -77,116 +80,111 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
     }
   };
 
-  const rssSources = sources.filter(s => s.type === 'rss');
-  const manualSources = sources.filter(s => s.type === 'manual');
+  const rssSources = sources.filter((s) => s.type === 'rss');
+  const manualSources = sources.filter((s) => s.type === 'manual');
 
   return (
     <>
       {/* Overlay backdrop */}
       <div
         className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px]"
-        onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
       />
 
       {/* Panel */}
       <div className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-[var(--color-chrome)] border-l border-[var(--color-border)] shadow-2xl flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-5 pb-3 shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="node-point-sm" />
-              <h2 className="font-hud text-sm tracking-wide text-[var(--color-text-primary)]">
-                Manage Sources
-              </h2>
-              <span className="text-xs font-data text-[var(--color-text-muted)] ml-1">
-                ({sources.length})
-              </span>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-3 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="node-point-sm" />
+            <h2 className="font-hud text-sm tracking-wide text-[var(--color-text-primary)]">Manage Sources</h2>
+            <span className="text-xs font-data text-[var(--color-text-muted)] ml-1">({sources.length})</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="cursor-pointer text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] p-1.5 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="ruled-line-accent mx-6" />
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2 px-6 py-3 shrink-0">
+          <button
+            onClick={() => setShowAddSource(true)}
+            className="cursor-pointer btn-primary flex-1 rounded-lg px-4 py-2 text-sm font-medium flex items-center justify-center gap-2"
+          >
+            <Rss size={14} />
+            Add RSS Feed
+          </button>
+        </div>
+
+        {/* Source list */}
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
+          {sources.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Rss size={32} className="text-[var(--color-text-muted)] mb-3 opacity-40" />
+              <p className="text-sm text-[var(--color-text-secondary)]">No sources added yet.</p>
+              <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                Add an RSS feed to start receiving articles.
+              </p>
             </div>
-            <button
-              onClick={onClose}
-              className="cursor-pointer text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] p-1.5 rounded-lg hover:bg-[var(--color-accent-subtle)] transition-colors"
-            >
-              <X size={18} />
-            </button>
-          </div>
+          ) : (
+            <div className="space-y-1">
+              {/* RSS sources */}
+              {rssSources.length > 0 && (
+                <>
+                  <div className="flex items-center gap-2 mt-2 mb-2">
+                    <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest uppercase">
+                      RSS Feeds
+                    </span>
+                    <div className="h-px flex-1 bg-[var(--color-border)] opacity-40" />
+                  </div>
+                  {rssSources.map((source) => (
+                    <SourceRow
+                      key={source.id}
+                      source={source}
+                      toggling={togglingIds.has(source.id)}
+                      deleting={deletingId === source.id}
+                      onToggle={() => handleToggle(source)}
+                      onDelete={() => setConfirmDeleteSource(source)}
+                    />
+                  ))}
+                </>
+              )}
 
-          <div className="ruled-line-accent mx-6" />
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-2 px-6 py-3 shrink-0">
-            <button
-              onClick={() => setShowAddSource(true)}
-              className="cursor-pointer btn-primary flex-1 rounded-lg px-4 py-2 text-sm font-medium flex items-center justify-center gap-2"
-            >
-              <Rss size={14} />
-              Add RSS Feed
-            </button>
-          </div>
-
-          {/* Source list */}
-          <div className="flex-1 overflow-y-auto px-6 pb-6">
-            {sources.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Rss size={32} className="text-[var(--color-text-muted)] mb-3 opacity-40" />
-                <p className="text-sm text-[var(--color-text-secondary)]">No sources added yet.</p>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                  Add an RSS feed to start receiving articles.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {/* RSS sources */}
-                {rssSources.length > 0 && (
-                  <>
-                    <div className="flex items-center gap-2 mt-2 mb-2">
-                      <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest uppercase">
-                        RSS Feeds
-                      </span>
-                      <div className="h-px flex-1 bg-[var(--color-border)] opacity-40" />
-                    </div>
-                    {rssSources.map(source => (
-                      <SourceRow
-                        key={source.id}
-                        source={source}
-                        toggling={togglingIds.has(source.id)}
-                        deleting={deletingId === source.id}
-                        onToggle={() => handleToggle(source)}
-                        onDelete={() => setConfirmDeleteSource(source)}
-                      />
-                    ))}
-                  </>
-                )}
-
-                {/* Manual sources */}
-                {manualSources.length > 0 && (
-                  <>
-                    <div className="flex items-center gap-2 mt-4 mb-2">
-                      <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest uppercase">
-                        Manual
-                      </span>
-                      <div className="h-px flex-1 bg-[var(--color-border)] opacity-40" />
-                    </div>
-                    {manualSources.map(source => (
-                      <SourceRow
-                        key={source.id}
-                        source={source}
-                        toggling={togglingIds.has(source.id)}
-                        deleting={deletingId === source.id}
-                        onToggle={() => handleToggle(source)}
-                        onDelete={() => setConfirmDeleteSource(source)}
-                      />
-                    ))}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+              {/* Manual sources */}
+              {manualSources.length > 0 && (
+                <>
+                  <div className="flex items-center gap-2 mt-4 mb-2">
+                    <span className="font-hud text-[0.625rem] text-[var(--color-accent-dim)] tracking-widest uppercase">
+                      Manual
+                    </span>
+                    <div className="h-px flex-1 bg-[var(--color-border)] opacity-40" />
+                  </div>
+                  {manualSources.map((source) => (
+                    <SourceRow
+                      key={source.id}
+                      source={source}
+                      toggling={togglingIds.has(source.id)}
+                      deleting={deletingId === source.id}
+                      onToggle={() => handleToggle(source)}
+                      onDelete={() => setConfirmDeleteSource(source)}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Add Source modal (managed internally) */}
-      <IntelAddSourceModal
-        isOpen={showAddSource}
-        onClose={() => setShowAddSource(false)}
-      />
+      <IntelAddSourceModal isOpen={showAddSource} onClose={() => setShowAddSource(false)} />
 
       {/* Delete confirmation */}
       <ConfirmDialog
@@ -224,9 +222,7 @@ function SourceRow({ source, toggling, deleting, onToggle, onDelete }: SourceRow
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">
-            {source.name}
-          </span>
+          <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">{source.name}</span>
           <span
             className={`text-[0.625rem] font-data tracking-wider uppercase px-1.5 py-0.5 rounded ${
               source.type === 'rss'
@@ -238,8 +234,12 @@ function SourceRow({ source, toggling, deleting, onToggle, onDelete }: SourceRow
           </span>
         </div>
         <div className="flex items-center gap-3 text-xs text-[var(--color-text-muted)]">
-          <span>{source.itemCount} article{source.itemCount !== 1 ? 's' : ''}</span>
-          <span className="truncate max-w-[200px]" title={source.url}>{source.url}</span>
+          <span>
+            {source.itemCount} article{source.itemCount !== 1 ? 's' : ''}
+          </span>
+          <span className="truncate max-w-[200px]" title={source.url}>
+            {source.url}
+          </span>
         </div>
       </div>
 
@@ -252,9 +252,7 @@ function SourceRow({ source, toggling, deleting, onToggle, onDelete }: SourceRow
       >
         <div
           className={`w-9 h-5 rounded-full transition-colors ${
-            source.enabled
-              ? 'bg-[var(--color-accent)]'
-              : 'bg-[var(--color-border)]'
+            source.enabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-border)]'
           }`}
         >
           <div
@@ -272,11 +270,7 @@ function SourceRow({ source, toggling, deleting, onToggle, onDelete }: SourceRow
         className="cursor-pointer shrink-0 p-1.5 text-[var(--color-text-muted)] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40"
         title="Delete source"
       >
-        {deleting ? (
-          <Loader2 size={14} className="animate-spin" />
-        ) : (
-          <Trash2 size={14} />
-        )}
+        {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
       </button>
     </div>
   );

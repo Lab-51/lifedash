@@ -97,7 +97,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   },
 
   loadActionItemCounts: async () => {
-    const meetingIds = get().meetings.map(m => m.id);
+    const meetingIds = get().meetings.map((m) => m.id);
     if (meetingIds.length === 0) return;
     try {
       const counts = await window.electronAPI.getActionItemCounts(meetingIds);
@@ -119,22 +119,22 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   updateMeeting: async (id, data) => {
     const updated = await window.electronAPI.updateMeeting(id, data);
     set({
-      meetings: get().meetings.map(m => (m.id === id ? updated : m)),
-      selectedMeeting: get().selectedMeeting?.id === id
-        ? { ...get().selectedMeeting!, ...updated }
-        : get().selectedMeeting,
+      meetings: get().meetings.map((m) => (m.id === id ? updated : m)),
+      selectedMeeting:
+        get().selectedMeeting?.id === id ? { ...get().selectedMeeting!, ...updated } : get().selectedMeeting,
     });
   },
 
   deleteMeeting: async (id) => {
     await window.electronAPI.deleteMeeting(id);
     set({
-      meetings: get().meetings.filter(m => m.id !== id),
+      meetings: get().meetings.filter((m) => m.id !== id),
       selectedMeeting: get().selectedMeeting?.id === id ? null : get().selectedMeeting,
     });
   },
 
-  clearSelectedMeeting: () => set({ selectedMeeting: null, analytics: null, analyticsLoading: false, diarizing: false, diarizationError: null }),
+  clearSelectedMeeting: () =>
+    set({ selectedMeeting: null, analytics: null, analyticsLoading: false, diarizing: false, diarizationError: null }),
 
   // Append a transcript segment to the selected meeting (for real-time updates)
   addTranscriptSegment: (segment: TranscriptSegment) => {
@@ -191,7 +191,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
         set({
           selectedMeeting: {
             ...selected,
-            actionItems: selected.actionItems.map(a => (a.id === id ? updated : a)),
+            actionItems: selected.actionItems.map((a) => (a.id === id ? updated : a)),
           },
         });
       }
@@ -212,9 +212,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
         set({
           selectedMeeting: {
             ...selected,
-            actionItems: selected.actionItems.map(a =>
-              a.id === actionItemId ? result.actionItem : a,
-            ),
+            actionItems: selected.actionItems.map((a) => (a.id === actionItemId ? result.actionItem : a)),
           },
         });
       }

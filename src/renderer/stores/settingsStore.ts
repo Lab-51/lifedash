@@ -82,14 +82,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   updateProvider: async (id, data) => {
     const updated = await window.electronAPI.updateAIProvider(id, data);
     set({
-      providers: get().providers.map(p => (p.id === id ? updated : p)),
+      providers: get().providers.map((p) => (p.id === id ? updated : p)),
     });
   },
 
   deleteProvider: async (id) => {
     await window.electronAPI.deleteAIProvider(id);
     set({
-      providers: get().providers.filter(p => p.id !== id),
+      providers: get().providers.filter((p) => p.id !== id),
     });
   },
 
@@ -159,6 +159,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
 
   hasAnyEnabledProvider: () => {
-    return get().providers.some(p => p.enabled);
+    return get().providers.some((p) => p.enabled);
   },
 }));

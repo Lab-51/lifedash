@@ -37,9 +37,7 @@ export default function ConvertActionModal({
   const [projects, setProjects] = useState<Project[]>([]);
   const [boards, setBoards] = useState<Board[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    preselectedProjectId ?? null,
-  );
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(preselectedProjectId ?? null);
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [selectedColumnId, setSelectedColumnId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -61,7 +59,9 @@ export default function ConvertActionModal({
         setLoading(false);
       }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Load boards when project selected
@@ -79,7 +79,9 @@ export default function ConvertActionModal({
         setStep(3);
       }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedProjectId]);
 
   // Load columns when board selected
@@ -96,7 +98,9 @@ export default function ConvertActionModal({
         setSelectedColumnId(result[0].id);
       }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedBoardId]);
 
   const handleConvert = useCallback(async () => {
@@ -163,9 +167,7 @@ export default function ConvertActionModal({
   };
 
   const canAdvance =
-    (step === 1 && selectedProjectId) ||
-    (step === 2 && selectedBoardId) ||
-    (step === 3 && selectedColumnId);
+    (step === 1 && selectedProjectId) || (step === 2 && selectedBoardId) || (step === 3 && selectedColumnId);
 
   // Step indicator dots
   const stepDots = [1, 2, 3].map((s) => {
@@ -176,190 +178,180 @@ export default function ConvertActionModal({
 
   // Determine the project name for the header when preselected
   const resolvedProjectName =
-    preselectedProjectName ||
-    (preselectedProjectId
-      ? projects.find((p) => p.id === preselectedProjectId)?.name
-      : null);
+    preselectedProjectName || (preselectedProjectId ? projects.find((p) => p.id === preselectedProjectId)?.name : null);
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80"
-      onClick={handleOverlayClick}
-    >
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80" onClick={handleOverlayClick}>
       <FocusTrap active={true} onDeactivate={onClose} escapeDeactivates={escapeDeactivates}>
-      <div className="hud-panel-accent clip-corner-cut w-full max-w-md mx-4 p-5">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)]">
-            Convert to Card
-          </h3>
-          <button
-            onClick={onClose}
-            disabled={converting}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] p-1 transition-colors disabled:opacity-40"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Description */}
-        <p className="text-sm text-surface-400 line-clamp-2 mb-2">
-          {actionItem.description}
-        </p>
-
-        {/* Pre-selected project indicator */}
-        {preselectedProjectId && !projectOverridden && resolvedProjectName && step !== 1 && (
-          <div className="flex items-center gap-2 mb-3 text-sm">
-            <span className="text-surface-400">Project:</span>
-            <span className="text-surface-800 dark:text-surface-200 font-medium">{resolvedProjectName}</span>
-            <button
-              onClick={handleChangeProject}
-              className="text-[var(--color-accent)] hover:text-[var(--color-accent-dim)] text-xs underline transition-colors"
-            >
-              Change project
-            </button>
-          </div>
-        )}
-
-        {/* Step indicator */}
-        <div className="flex items-center justify-center gap-2 my-4">
-          {stepDots.map((cls, i) => (
-            <div key={i} className={`w-2 h-2 rounded-full ${cls}`} />
-          ))}
-        </div>
-
-        {/* Step content */}
-        <div className="min-h-[120px]">
-          {loading && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 size={20} className="animate-spin text-surface-400" />
-            </div>
-          )}
-
-          {/* Step 1: Select Project */}
-          {step === 1 && !loading && (
-            <div>
-              <p className="text-sm text-[var(--color-text-secondary)] mb-2">Choose a project</p>
-              <div className="max-h-48 overflow-y-auto space-y-1.5">
-                {projects.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => setSelectedProjectId(p.id)}
-                    className={`rounded-lg p-2.5 cursor-pointer border transition ${
-                      selectedProjectId === p.id
-                        ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)]'
-                        : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
-                    }`}
-                  >
-                    <span className="flex items-center text-sm text-[var(--color-text-primary)]">
-                      <span
-                        className="w-3 h-3 rounded-full inline-block mr-2 shrink-0"
-                        style={{ backgroundColor: p.color || '#6b7280' }}
-                      />
-                      {p.name}
-                    </span>
-                  </div>
-                ))}
-                {projects.length === 0 && (
-                  <p className="text-sm text-[var(--color-text-muted)] text-center py-4">No projects found</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Select Board */}
-          {step === 2 && !loading && (
-            <div>
-              <p className="text-sm text-[var(--color-text-secondary)] mb-2">Choose a board</p>
-              <div className="max-h-48 overflow-y-auto space-y-1.5">
-                {boards.map((b) => (
-                  <div
-                    key={b.id}
-                    onClick={() => setSelectedBoardId(b.id)}
-                    className={`rounded-lg p-2.5 cursor-pointer border transition ${
-                      selectedBoardId === b.id
-                        ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)]'
-                        : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
-                    }`}
-                  >
-                    <span className="text-sm text-[var(--color-text-primary)]">{b.name}</span>
-                  </div>
-                ))}
-                {boards.length === 0 && (
-                  <p className="text-sm text-[var(--color-text-muted)] text-center py-4">No boards found</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Select Column */}
-          {step === 3 && !loading && (
-            <div>
-              <p className="text-sm text-[var(--color-text-secondary)] mb-2">Choose a column</p>
-              <div className="max-h-48 overflow-y-auto space-y-1.5">
-                {columns.map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => setSelectedColumnId(c.id)}
-                    className={`rounded-lg p-2.5 cursor-pointer border transition ${
-                      selectedColumnId === c.id
-                        ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)]'
-                        : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
-                    }`}
-                  >
-                    <span className="text-sm text-[var(--color-text-primary)]">{c.name}</span>
-                  </div>
-                ))}
-                {columns.length === 0 && (
-                  <p className="text-sm text-[var(--color-text-muted)] text-center py-4">No columns found</p>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-[var(--color-border)]">
-          <div>
-            {step > 1 && !converting && (
-              <button
-                onClick={handleBack}
-                className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 flex items-center gap-1 transition-colors"
-              >
-                <ChevronLeft size={14} />
-                Back
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
+        <div className="hud-panel-accent clip-corner-cut w-full max-w-md mx-4 p-5">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)]">Convert to Card</h3>
             <button
               onClick={onClose}
               disabled={converting}
-              className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors disabled:opacity-40"
+              className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] p-1 transition-colors disabled:opacity-40"
             >
-              Cancel
+              <X size={18} />
             </button>
-            {step < 3 ? (
+          </div>
+
+          {/* Description */}
+          <p className="text-sm text-surface-400 line-clamp-2 mb-2">{actionItem.description}</p>
+
+          {/* Pre-selected project indicator */}
+          {preselectedProjectId && !projectOverridden && resolvedProjectName && step !== 1 && (
+            <div className="flex items-center gap-2 mb-3 text-sm">
+              <span className="text-surface-400">Project:</span>
+              <span className="text-surface-800 dark:text-surface-200 font-medium">{resolvedProjectName}</span>
               <button
-                onClick={handleNext}
-                disabled={!canAdvance}
-                className="border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-40 disabled:cursor-not-allowed text-sm px-4 py-1.5 transition-all"
+                onClick={handleChangeProject}
+                className="text-[var(--color-accent)] hover:text-[var(--color-accent-dim)] text-xs underline transition-colors"
               >
-                Next
+                Change project
               </button>
-            ) : (
-              <button
-                onClick={handleConvert}
-                disabled={!selectedColumnId || converting}
-                className="border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-40 disabled:cursor-not-allowed text-sm px-4 py-1.5 transition-all flex items-center gap-1.5"
-              >
-                {converting && <Loader2 size={14} className="animate-spin" />}
-                Convert
-              </button>
+            </div>
+          )}
+
+          {/* Step indicator */}
+          <div className="flex items-center justify-center gap-2 my-4">
+            {stepDots.map((cls, i) => (
+              <div key={i} className={`w-2 h-2 rounded-full ${cls}`} />
+            ))}
+          </div>
+
+          {/* Step content */}
+          <div className="min-h-[120px]">
+            {loading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={20} className="animate-spin text-surface-400" />
+              </div>
+            )}
+
+            {/* Step 1: Select Project */}
+            {step === 1 && !loading && (
+              <div>
+                <p className="text-sm text-[var(--color-text-secondary)] mb-2">Choose a project</p>
+                <div className="max-h-48 overflow-y-auto space-y-1.5">
+                  {projects.map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => setSelectedProjectId(p.id)}
+                      className={`rounded-lg p-2.5 cursor-pointer border transition ${
+                        selectedProjectId === p.id
+                          ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)]'
+                          : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
+                      }`}
+                    >
+                      <span className="flex items-center text-sm text-[var(--color-text-primary)]">
+                        <span
+                          className="w-3 h-3 rounded-full inline-block mr-2 shrink-0"
+                          style={{ backgroundColor: p.color || '#6b7280' }}
+                        />
+                        {p.name}
+                      </span>
+                    </div>
+                  ))}
+                  {projects.length === 0 && (
+                    <p className="text-sm text-[var(--color-text-muted)] text-center py-4">No projects found</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Select Board */}
+            {step === 2 && !loading && (
+              <div>
+                <p className="text-sm text-[var(--color-text-secondary)] mb-2">Choose a board</p>
+                <div className="max-h-48 overflow-y-auto space-y-1.5">
+                  {boards.map((b) => (
+                    <div
+                      key={b.id}
+                      onClick={() => setSelectedBoardId(b.id)}
+                      className={`rounded-lg p-2.5 cursor-pointer border transition ${
+                        selectedBoardId === b.id
+                          ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)]'
+                          : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
+                      }`}
+                    >
+                      <span className="text-sm text-[var(--color-text-primary)]">{b.name}</span>
+                    </div>
+                  ))}
+                  {boards.length === 0 && (
+                    <p className="text-sm text-[var(--color-text-muted)] text-center py-4">No boards found</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Select Column */}
+            {step === 3 && !loading && (
+              <div>
+                <p className="text-sm text-[var(--color-text-secondary)] mb-2">Choose a column</p>
+                <div className="max-h-48 overflow-y-auto space-y-1.5">
+                  {columns.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => setSelectedColumnId(c.id)}
+                      className={`rounded-lg p-2.5 cursor-pointer border transition ${
+                        selectedColumnId === c.id
+                          ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)]'
+                          : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
+                      }`}
+                    >
+                      <span className="text-sm text-[var(--color-text-primary)]">{c.name}</span>
+                    </div>
+                  ))}
+                  {columns.length === 0 && (
+                    <p className="text-sm text-[var(--color-text-muted)] text-center py-4">No columns found</p>
+                  )}
+                </div>
+              </div>
             )}
           </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-[var(--color-border)]">
+            <div>
+              {step > 1 && !converting && (
+                <button
+                  onClick={handleBack}
+                  className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 flex items-center gap-1 transition-colors"
+                >
+                  <ChevronLeft size={14} />
+                  Back
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onClose}
+                disabled={converting}
+                className="text-sm text-surface-400 hover:text-surface-800 dark:text-surface-200 transition-colors disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              {step < 3 ? (
+                <button
+                  onClick={handleNext}
+                  disabled={!canAdvance}
+                  className="border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-40 disabled:cursor-not-allowed text-sm px-4 py-1.5 transition-all"
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  onClick={handleConvert}
+                  disabled={!selectedColumnId || converting}
+                  className="border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-40 disabled:cursor-not-allowed text-sm px-4 py-1.5 transition-all flex items-center gap-1.5"
+                >
+                  {converting && <Loader2 size={14} className="animate-spin" />}
+                  Convert
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
       </FocusTrap>
     </div>
   );

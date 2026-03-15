@@ -14,16 +14,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import FocusTrap from './FocusTrap';
-import {
-  X,
-  Sparkles,
-  Check,
-  RefreshCw,
-  AlertCircle,
-  Loader2,
-  Trash2,
-  Plus,
-} from 'lucide-react';
+import { X, Sparkles, Check, RefreshCw, AlertCircle, Loader2, Trash2, Plus } from 'lucide-react';
 import { useTaskStructuringStore } from '../stores/taskStructuringStore';
 import type { ProjectPillar, PillarTask, ProjectMilestone } from '../../shared/types';
 
@@ -77,11 +68,11 @@ function buildEditablePlan(plan: {
   return {
     summary: plan.summary,
     milestones: plan.milestones,
-    pillars: plan.pillars.map(p => ({
+    pillars: plan.pillars.map((p) => ({
       _id: genId('p'),
       name: p.name,
       description: p.description,
-      tasks: p.tasks.map(t => ({ ...t, _id: genId('t') })),
+      tasks: p.tasks.map((t) => ({ ...t, _id: genId('t') })),
     })),
   };
 }
@@ -101,11 +92,11 @@ export default function ProjectPlanningModal({
   onClose,
   onApplied,
 }: ProjectPlanningModalProps) {
-  const plan = useTaskStructuringStore(s => s.plan);
-  const planLoading = useTaskStructuringStore(s => s.planLoading);
-  const planError = useTaskStructuringStore(s => s.planError);
-  const generatePlan = useTaskStructuringStore(s => s.generatePlan);
-  const clearPlan = useTaskStructuringStore(s => s.clearPlan);
+  const plan = useTaskStructuringStore((s) => s.plan);
+  const planLoading = useTaskStructuringStore((s) => s.planLoading);
+  const planError = useTaskStructuringStore((s) => s.planError);
+  const generatePlan = useTaskStructuringStore((s) => s.generatePlan);
+  const clearPlan = useTaskStructuringStore((s) => s.clearPlan);
 
   // Local state
   const [additionalContext, setAdditionalContext] = useState('');
@@ -151,7 +142,7 @@ export default function ProjectPlanningModal({
   // === PLAN MUTATION HELPERS ===
 
   const toggleTask = (taskId: string) => {
-    setSelectedTaskIds(prev => {
+    setSelectedTaskIds((prev) => {
       const next = new Set(prev);
       if (next.has(taskId)) next.delete(taskId);
       else next.add(taskId);
@@ -160,14 +151,12 @@ export default function ProjectPlanningModal({
   };
 
   const updateTask = (pillarId: string, taskId: string, updates: Partial<PillarTask>) => {
-    setEditablePlan(prev => {
+    setEditablePlan((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
-        pillars: prev.pillars.map(p =>
-          p._id === pillarId
-            ? { ...p, tasks: p.tasks.map(t => (t._id === taskId ? { ...t, ...updates } : t)) }
-            : p,
+        pillars: prev.pillars.map((p) =>
+          p._id === pillarId ? { ...p, tasks: p.tasks.map((t) => (t._id === taskId ? { ...t, ...updates } : t)) } : p,
         ),
       };
     });
@@ -177,11 +166,11 @@ export default function ProjectPlanningModal({
     if (!editablePlan) return;
     setEditablePlan({
       ...editablePlan,
-      pillars: editablePlan.pillars.map(p =>
-        p._id === pillarId ? { ...p, tasks: p.tasks.filter(t => t._id !== taskId) } : p,
+      pillars: editablePlan.pillars.map((p) =>
+        p._id === pillarId ? { ...p, tasks: p.tasks.filter((t) => t._id !== taskId) } : p,
       ),
     });
-    setSelectedTaskIds(prev => {
+    setSelectedTaskIds((prev) => {
       const next = new Set(prev);
       next.delete(taskId);
       return next;
@@ -199,36 +188,34 @@ export default function ProjectPlanningModal({
     };
     setEditablePlan({
       ...editablePlan,
-      pillars: editablePlan.pillars.map(p =>
-        p._id === pillarId ? { ...p, tasks: [...p.tasks, newTask] } : p,
-      ),
+      pillars: editablePlan.pillars.map((p) => (p._id === pillarId ? { ...p, tasks: [...p.tasks, newTask] } : p)),
     });
-    setSelectedTaskIds(prev => new Set([...prev, newTask._id]));
+    setSelectedTaskIds((prev) => new Set([...prev, newTask._id]));
   };
 
   const updatePillarName = (pillarId: string, name: string) => {
-    setEditablePlan(prev => {
+    setEditablePlan((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
-        pillars: prev.pillars.map(p => (p._id === pillarId ? { ...p, name } : p)),
+        pillars: prev.pillars.map((p) => (p._id === pillarId ? { ...p, name } : p)),
       };
     });
   };
 
   const deletePillar = (pillarId: string) => {
     if (!editablePlan || editablePlan.pillars.length <= 1) return;
-    const pillar = editablePlan.pillars.find(p => p._id === pillarId);
-    const newPillars = editablePlan.pillars.filter(p => p._id !== pillarId);
+    const pillar = editablePlan.pillars.find((p) => p._id === pillarId);
+    const newPillars = editablePlan.pillars.filter((p) => p._id !== pillarId);
     setEditablePlan({ ...editablePlan, pillars: newPillars });
     if (pillar) {
-      setSelectedTaskIds(prev => {
+      setSelectedTaskIds((prev) => {
         const next = new Set(prev);
         for (const task of pillar.tasks) next.delete(task._id);
         return next;
       });
     }
-    setActivePillar(prev => Math.min(prev, newPillars.length - 1));
+    setActivePillar((prev) => Math.min(prev, newPillars.length - 1));
   };
 
   const addPillar = () => {
@@ -246,9 +233,7 @@ export default function ProjectPlanningModal({
   // === COUNTS ===
 
   const selectedCount = selectedTaskIds.size;
-  const totalCount = editablePlan
-    ? editablePlan.pillars.reduce((sum, p) => sum + p.tasks.length, 0)
-    : 0;
+  const totalCount = editablePlan ? editablePlan.pillars.reduce((sum, p) => sum + p.tasks.length, 0) : 0;
 
   // === APPLY ===
 
@@ -299,277 +284,270 @@ export default function ProjectPlanningModal({
 
   // Active pillar data
   const currentPillar: EditablePillar | null =
-    editablePlan && editablePlan.pillars[activePillar]
-      ? editablePlan.pillars[activePillar]
-      : null;
+    editablePlan && editablePlan.pillars[activePillar] ? editablePlan.pillars[activePillar] : null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-      onClick={handleOverlayClick}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={handleOverlayClick}>
       <FocusTrap active={true} onDeactivate={handleClose}>
-      <div className="hud-panel-accent clip-corner-cut max-w-4xl w-full max-h-[85vh] overflow-y-auto p-6 mx-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Sparkles size={20} className="text-[var(--color-accent)]" />
-            <h2 className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)]">AI Project Planning</h2>
-          </div>
-          <button
-            onClick={handleClose}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Project name */}
-        <p className="text-sm text-surface-400 mb-4">
-          Planning for: <span className="text-surface-800 dark:text-surface-200">{projectName}</span>
-        </p>
-
-        {/* Context textarea */}
-        <div className="mb-4">
-          <label className="block text-sm text-surface-400 mb-1">
-            Additional context (optional)
-          </label>
-          <textarea
-            value={additionalContext}
-            onChange={e => setAdditionalContext(e.target.value)}
-            placeholder="Describe goals, tech stack, constraints, or any specific requirements..."
-            rows={3}
-            className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] resize-none"
-            disabled={planLoading}
-          />
-        </div>
-
-        {/* Generate button */}
-        <div className="mb-5">
-          <button
-            onClick={handleGenerate}
-            disabled={planLoading}
-            className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm transition-all"
-          >
-            {planLoading ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Generating...
-              </>
-            ) : hasGenerated ? (
-              <>
-                <RefreshCw size={16} />
-                Regenerate Plan
-              </>
-            ) : (
-              <>
-                <Sparkles size={16} />
-                Generate Plan
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Error state */}
-        {planError && (
-          <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-2">
-            <AlertCircle size={16} className="text-red-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm text-red-400">{planError}</p>
-              <p className="text-xs text-surface-500 mt-1">
-                Check that an AI provider is configured in Settings.
-              </p>
+        <div className="hud-panel-accent clip-corner-cut max-w-4xl w-full max-h-[85vh] overflow-y-auto p-6 mx-4">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles size={20} className="text-[var(--color-accent)]" />
+              <h2 className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)]">
+                AI Project Planning
+              </h2>
             </div>
+            <button
+              onClick={handleClose}
+              className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+            >
+              <X size={20} />
+            </button>
           </div>
-        )}
 
-        {/* Apply error */}
-        {applyError && (
-          <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-2">
-            <AlertCircle size={16} className="text-red-400 mt-0.5 shrink-0" />
-            <p className="text-sm text-red-400">{applyError}</p>
+          {/* Project name */}
+          <p className="text-sm text-surface-400 mb-4">
+            Planning for: <span className="text-surface-800 dark:text-surface-200">{projectName}</span>
+          </p>
+
+          {/* Context textarea */}
+          <div className="mb-4">
+            <label className="block text-sm text-surface-400 mb-1">Additional context (optional)</label>
+            <textarea
+              value={additionalContext}
+              onChange={(e) => setAdditionalContext(e.target.value)}
+              placeholder="Describe goals, tech stack, constraints, or any specific requirements..."
+              rows={3}
+              className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] resize-none"
+              disabled={planLoading}
+            />
           </div>
-        )}
 
-        {/* Loading state */}
-        {planLoading && !editablePlan && (
-          <div className="flex items-center gap-3 py-8 justify-center text-surface-400">
-            <Loader2 size={24} className="animate-spin" />
-            <p className="text-sm">Generating project plan... This may take a moment.</p>
+          {/* Generate button */}
+          <div className="mb-5">
+            <button
+              onClick={handleGenerate}
+              disabled={planLoading}
+              className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm transition-all"
+            >
+              {planLoading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Generating...
+                </>
+              ) : hasGenerated ? (
+                <>
+                  <RefreshCw size={16} />
+                  Regenerate Plan
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  Generate Plan
+                </>
+              )}
+            </button>
           </div>
-        )}
 
-        {/* Plan results */}
-        {editablePlan && (
-          <div className="space-y-5">
-            {/* Summary */}
-            <div>
-              <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">Summary</h3>
-              <p className="text-sm text-surface-800 dark:text-surface-200">{editablePlan.summary}</p>
+          {/* Error state */}
+          {planError && (
+            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+              <AlertCircle size={16} className="text-red-400 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm text-red-400">{planError}</p>
+                <p className="text-xs text-surface-500 mt-1">Check that an AI provider is configured in Settings.</p>
+              </div>
             </div>
+          )}
 
-            {/* Edit hint */}
-            <p className="text-xs text-surface-500 italic">
-              Customize before applying &mdash; click titles to edit, click badges to cycle
-              priority/effort, add or remove tasks and pillars.
-            </p>
+          {/* Apply error */}
+          {applyError && (
+            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+              <AlertCircle size={16} className="text-red-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-400">{applyError}</p>
+            </div>
+          )}
 
-            {/* Pillar tabs */}
-            <div>
-              <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">Pillars (columns)</h3>
-              <div className="flex gap-1 mb-3 flex-wrap items-center">
-                {editablePlan.pillars.map((pillar, idx) => (
-                  <button
-                    key={pillar._id}
-                    onClick={() => setActivePillar(idx)}
-                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                      idx === activePillar
-                        ? 'bg-surface-700 text-surface-900 dark:text-surface-100'
-                        : 'text-surface-400 hover:text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800'
-                    }`}
-                  >
-                    {pillar.name}
-                    <span className="ml-1.5 text-xs text-surface-500">
-                      ({pillar.tasks.length})
-                    </span>
-                  </button>
-                ))}
-                <button
-                  onClick={addPillar}
-                  className="px-2 py-1.5 rounded-lg text-surface-500 hover:text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
-                  title="Add pillar"
-                >
-                  <Plus size={14} />
-                </button>
+          {/* Loading state */}
+          {planLoading && !editablePlan && (
+            <div className="flex items-center gap-3 py-8 justify-center text-surface-400">
+              <Loader2 size={24} className="animate-spin" />
+              <p className="text-sm">Generating project plan... This may take a moment.</p>
+            </div>
+          )}
+
+          {/* Plan results */}
+          {editablePlan && (
+            <div className="space-y-5">
+              {/* Summary */}
+              <div>
+                <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">
+                  Summary
+                </h3>
+                <p className="text-sm text-surface-800 dark:text-surface-200">{editablePlan.summary}</p>
               </div>
 
-              {/* Active pillar content */}
-              {currentPillar && (
-                <div className="hud-panel rounded-lg p-4">
-                  {/* Pillar name + delete */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <label className="text-xs text-surface-500 shrink-0">Column name:</label>
-                    <input
-                      type="text"
-                      value={currentPillar.name}
-                      onChange={e => updatePillarName(currentPillar._id, e.target.value)}
-                      className="flex-1 text-sm bg-surface-800 border border-surface-700 rounded px-2 py-1 text-surface-800 dark:text-surface-200 focus:outline-none focus:border-primary-500"
-                    />
-                    {editablePlan.pillars.length > 1 && (
-                      <button
-                        onClick={() => deletePillar(currentPillar._id)}
-                        className="text-surface-500 hover:text-red-400 transition-colors shrink-0"
-                        title="Delete pillar"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
+              {/* Edit hint */}
+              <p className="text-xs text-surface-500 italic">
+                Customize before applying &mdash; click titles to edit, click badges to cycle priority/effort, add or
+                remove tasks and pillars.
+              </p>
 
-                  {/* Pillar description */}
-                  {currentPillar.description && (
-                    <p className="text-sm text-surface-400 mb-3">{currentPillar.description}</p>
-                  )}
+              {/* Pillar tabs */}
+              <div>
+                <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">
+                  Pillars (columns)
+                </h3>
+                <div className="flex gap-1 mb-3 flex-wrap items-center">
+                  {editablePlan.pillars.map((pillar, idx) => (
+                    <button
+                      key={pillar._id}
+                      onClick={() => setActivePillar(idx)}
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                        idx === activePillar
+                          ? 'bg-surface-700 text-surface-900 dark:text-surface-100'
+                          : 'text-surface-400 hover:text-surface-800 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800'
+                      }`}
+                    >
+                      {pillar.name}
+                      <span className="ml-1.5 text-xs text-surface-500">({pillar.tasks.length})</span>
+                    </button>
+                  ))}
+                  <button
+                    onClick={addPillar}
+                    className="px-2 py-1.5 rounded-lg text-surface-500 hover:text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                    title="Add pillar"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
 
-                  {/* Task list */}
-                  <div className="space-y-2">
-                    {currentPillar.tasks.map(task => (
-                      <EditableTaskRow
-                        key={task._id}
-                        task={task}
-                        selected={selectedTaskIds.has(task._id)}
-                        onToggle={() => toggleTask(task._id)}
-                        onUpdate={updates => updateTask(currentPillar._id, task._id, updates)}
-                        onDelete={() => deleteTask(currentPillar._id, task._id)}
+                {/* Active pillar content */}
+                {currentPillar && (
+                  <div className="hud-panel rounded-lg p-4">
+                    {/* Pillar name + delete */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <label className="text-xs text-surface-500 shrink-0">Column name:</label>
+                      <input
+                        type="text"
+                        value={currentPillar.name}
+                        onChange={(e) => updatePillarName(currentPillar._id, e.target.value)}
+                        className="flex-1 text-sm bg-surface-800 border border-surface-700 rounded px-2 py-1 text-surface-800 dark:text-surface-200 focus:outline-none focus:border-primary-500"
                       />
+                      {editablePlan.pillars.length > 1 && (
+                        <button
+                          onClick={() => deletePillar(currentPillar._id)}
+                          className="text-surface-500 hover:text-red-400 transition-colors shrink-0"
+                          title="Delete pillar"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Pillar description */}
+                    {currentPillar.description && (
+                      <p className="text-sm text-surface-400 mb-3">{currentPillar.description}</p>
+                    )}
+
+                    {/* Task list */}
+                    <div className="space-y-2">
+                      {currentPillar.tasks.map((task) => (
+                        <EditableTaskRow
+                          key={task._id}
+                          task={task}
+                          selected={selectedTaskIds.has(task._id)}
+                          onToggle={() => toggleTask(task._id)}
+                          onUpdate={(updates) => updateTask(currentPillar._id, task._id, updates)}
+                          onDelete={() => deleteTask(currentPillar._id, task._id)}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Add task button */}
+                    <button
+                      onClick={() => addTask(currentPillar._id)}
+                      className="mt-3 flex items-center gap-1.5 text-xs text-surface-500 hover:text-primary-400 transition-colors"
+                    >
+                      <Plus size={12} />
+                      Add task
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Milestones */}
+              {editablePlan.milestones.length > 0 && (
+                <div>
+                  <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">
+                    Milestones
+                  </h3>
+                  <div className="space-y-3">
+                    {editablePlan.milestones.map((milestone) => (
+                      <div key={milestone.name} className="hud-panel rounded-lg p-3">
+                        <h4 className="text-sm font-medium text-surface-800 dark:text-surface-200">{milestone.name}</h4>
+                        <p className="text-xs text-surface-400 mt-1">{milestone.description}</p>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {milestone.taskTitles.map((title) => (
+                            <span
+                              key={title}
+                              className="text-xs bg-surface-700/50 text-surface-700 dark:text-surface-300 px-2 py-0.5 rounded"
+                            >
+                              {title}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
-
-                  {/* Add task button */}
-                  <button
-                    onClick={() => addTask(currentPillar._id)}
-                    className="mt-3 flex items-center gap-1.5 text-xs text-surface-500 hover:text-primary-400 transition-colors"
-                  >
-                    <Plus size={12} />
-                    Add task
-                  </button>
                 </div>
               )}
-            </div>
 
-            {/* Milestones */}
-            {editablePlan.milestones.length > 0 && (
-              <div>
-                <h3 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-2">Milestones</h3>
-                <div className="space-y-3">
-                  {editablePlan.milestones.map(milestone => (
-                    <div
-                      key={milestone.name}
-                      className="hud-panel rounded-lg p-3"
-                    >
-                      <h4 className="text-sm font-medium text-surface-800 dark:text-surface-200">{milestone.name}</h4>
-                      <p className="text-xs text-surface-400 mt-1">{milestone.description}</p>
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {milestone.taskTitles.map(title => (
-                          <span
-                            key={title}
-                            className="text-xs bg-surface-700/50 text-surface-700 dark:text-surface-300 px-2 py-0.5 rounded"
-                          >
-                            {title}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+              {/* Apply / Cancel actions */}
+              <div className="flex items-center justify-between pt-3 border-t border-[var(--color-border)]">
+                <p className="text-xs text-surface-500">
+                  {selectedCount} of {totalCount} tasks selected
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleClose}
+                    className="text-surface-400 hover:text-surface-800 dark:text-surface-200 px-4 py-2 text-sm transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleApply}
+                    disabled={applying || selectedCount === 0}
+                    className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm transition-all"
+                  >
+                    {applying ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Check size={16} />
+                        Apply Plan &mdash; Create Board &amp; Cards
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
-            )}
-
-            {/* Apply / Cancel actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-[var(--color-border)]">
-              <p className="text-xs text-surface-500">
-                {selectedCount} of {totalCount} tasks selected
-              </p>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleClose}
-                  className="text-surface-400 hover:text-surface-800 dark:text-surface-200 px-4 py-2 text-sm transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleApply}
-                  disabled={applying || selectedCount === 0}
-                  className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm transition-all"
-                >
-                  {applying ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={16} />
-                      Apply Plan &mdash; Create Board &amp; Cards
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Empty state */}
-        {!editablePlan && !planLoading && !planError && !hasGenerated && (
-          <div className="py-8 text-center text-surface-500">
-            <Sparkles size={32} className="mx-auto mb-3 text-surface-600" />
-            <p className="text-sm">
-              Generate an AI-powered project plan with production-focused pillars, tasks, and
-              milestones.
-            </p>
-          </div>
-        )}
-      </div>
+          {/* Empty state */}
+          {!editablePlan && !planLoading && !planError && !hasGenerated && (
+            <div className="py-8 text-center text-surface-500">
+              <Sparkles size={32} className="mx-auto mb-3 text-surface-600" />
+              <p className="text-sm">
+                Generate an AI-powered project plan with production-focused pillars, tasks, and milestones.
+              </p>
+            </div>
+          )}
+        </div>
       </FocusTrap>
     </div>
   );
@@ -646,7 +624,7 @@ function EditableTaskRow({ task, selected, onToggle, onUpdate, onDelete }: Edita
             ref={inputRef}
             type="text"
             value={editValue}
-            onChange={e => setEditValue(e.target.value)}
+            onChange={(e) => setEditValue(e.target.value)}
             onBlur={commitEdit}
             onKeyDown={handleKeyDown}
             className="flex-1 min-w-0 text-sm bg-surface-800 border border-primary-500 rounded px-2 py-0.5 text-surface-800 dark:text-surface-200 focus:outline-none"
@@ -697,7 +675,7 @@ function EditableTaskRow({ task, selected, onToggle, onUpdate, onDelete }: Edita
         <textarea
           ref={textareaRef}
           value={editValue}
-          onChange={e => setEditValue(e.target.value)}
+          onChange={(e) => setEditValue(e.target.value)}
           onBlur={commitEdit}
           onKeyDown={handleKeyDown}
           rows={2}
@@ -729,8 +707,7 @@ function EditableTaskRow({ task, selected, onToggle, onUpdate, onDelete }: Edita
       {/* Dependencies */}
       {task.dependencies && task.dependencies.length > 0 && (
         <p className="text-xs text-surface-500 mt-1 ml-7">
-          <span className="text-surface-600">&rarr;</span> depends on:{' '}
-          {task.dependencies.join(', ')}
+          <span className="text-surface-600">&rarr;</span> depends on: {task.dependencies.join(', ')}
         </p>
       )}
     </div>

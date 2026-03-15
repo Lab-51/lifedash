@@ -10,10 +10,7 @@ describe('parseActionItems', () => {
         { description: 'Schedule follow-up meeting' },
         { description: 'Update project budget' },
       ]);
-      expect(parseActionItems(input)).toEqual([
-        'Schedule follow-up meeting',
-        'Update project budget',
-      ]);
+      expect(parseActionItems(input)).toEqual(['Schedule follow-up meeting', 'Update project budget']);
     });
 
     it('filters out items missing description field', () => {
@@ -26,26 +23,17 @@ describe('parseActionItems', () => {
     });
 
     it('filters out non-string descriptions (number)', () => {
-      const input = JSON.stringify([
-        { description: 42 },
-        { description: 'Valid' },
-      ]);
+      const input = JSON.stringify([{ description: 42 }, { description: 'Valid' }]);
       expect(parseActionItems(input)).toEqual(['Valid']);
     });
 
     it('filters out non-string descriptions (null)', () => {
-      const input = JSON.stringify([
-        { description: null },
-        { description: 'Valid' },
-      ]);
+      const input = JSON.stringify([{ description: null }, { description: 'Valid' }]);
       expect(parseActionItems(input)).toEqual(['Valid']);
     });
 
     it('filters out non-string descriptions (boolean)', () => {
-      const input = JSON.stringify([
-        { description: true },
-        { description: 'Valid' },
-      ]);
+      const input = JSON.stringify([{ description: true }, { description: 'Valid' }]);
       expect(parseActionItems(input)).toEqual(['Valid']);
     });
 
@@ -73,10 +61,7 @@ describe('parseActionItems', () => {
     });
 
     it('falls through when all items lack description field', () => {
-      const input = JSON.stringify([
-        { title: 'No desc' },
-        { name: 'Also no desc' },
-      ]);
+      const input = JSON.stringify([{ title: 'No desc' }, { name: 'Also no desc' }]);
       // JSON parses, 0 valid descriptions, falls through to bullet extraction
       // No bullets in the JSON string either
       expect(parseActionItems(input)).toEqual([]);
@@ -88,27 +73,17 @@ describe('parseActionItems', () => {
   describe('bullet extraction strategy', () => {
     it('extracts lines starting with dash bullet', () => {
       const input = '- Schedule follow-up\n- Update budget';
-      expect(parseActionItems(input)).toEqual([
-        'Schedule follow-up',
-        'Update budget',
-      ]);
+      expect(parseActionItems(input)).toEqual(['Schedule follow-up', 'Update budget']);
     });
 
     it('extracts lines starting with star bullet', () => {
       const input = '* Review document\n* Send invitations';
-      expect(parseActionItems(input)).toEqual([
-        'Review document',
-        'Send invitations',
-      ]);
+      expect(parseActionItems(input)).toEqual(['Review document', 'Send invitations']);
     });
 
     it('extracts numbered lines with dot notation', () => {
       const input = '1. First item\n2. Second item\n3. Third item';
-      expect(parseActionItems(input)).toEqual([
-        'First item',
-        'Second item',
-        'Third item',
-      ]);
+      expect(parseActionItems(input)).toEqual(['First item', 'Second item', 'Third item']);
     });
 
     it('extracts numbered lines with parenthesis notation', () => {
@@ -118,29 +93,17 @@ describe('parseActionItems', () => {
 
     it('handles mixed bullet styles in same response', () => {
       const input = '- Dash item\n* Star item\n1. Numbered item\n2) Paren item';
-      expect(parseActionItems(input)).toEqual([
-        'Dash item',
-        'Star item',
-        'Numbered item',
-        'Paren item',
-      ]);
+      expect(parseActionItems(input)).toEqual(['Dash item', 'Star item', 'Numbered item', 'Paren item']);
     });
 
     it('handles indented bullets (leading whitespace)', () => {
       const input = '  - Indented dash\n    * Indented star\n  1. Indented number';
-      expect(parseActionItems(input)).toEqual([
-        'Indented dash',
-        'Indented star',
-        'Indented number',
-      ]);
+      expect(parseActionItems(input)).toEqual(['Indented dash', 'Indented star', 'Indented number']);
     });
 
     it('handles extra whitespace after bullet marker', () => {
       const input = '-   Lots of space\n*   Also spaced';
-      expect(parseActionItems(input)).toEqual([
-        'Lots of space',
-        'Also spaced',
-      ]);
+      expect(parseActionItems(input)).toEqual(['Lots of space', 'Also spaced']);
     });
   });
 
@@ -162,8 +125,7 @@ describe('parseActionItems', () => {
     });
 
     it('returns empty array for response with no bullets and no JSON', () => {
-      const input =
-        'Here are some thoughts about the project.\nLet me think about this more.';
+      const input = 'Here are some thoughts about the project.\nLet me think about this more.';
       expect(parseActionItems(input)).toEqual([]);
     });
 
@@ -183,10 +145,7 @@ describe('parseActionItems', () => {
 
     it('handles malformed JSON followed by valid bullets', () => {
       const input = '{"broken: true}\n- Actual item 1\n- Actual item 2';
-      expect(parseActionItems(input)).toEqual([
-        'Actual item 1',
-        'Actual item 2',
-      ]);
+      expect(parseActionItems(input)).toEqual(['Actual item 1', 'Actual item 2']);
     });
 
     it('filters out empty bullet lines', () => {
@@ -200,11 +159,7 @@ describe('parseActionItems', () => {
   describe('real-world AI response formats', () => {
     it('parses OpenAI-style numbered list', () => {
       const input = '1. Schedule follow-up\n2. Update budget\n3. Review docs';
-      expect(parseActionItems(input)).toEqual([
-        'Schedule follow-up',
-        'Update budget',
-        'Review docs',
-      ]);
+      expect(parseActionItems(input)).toEqual(['Schedule follow-up', 'Update budget', 'Review docs']);
     });
 
     it('parses markdown with headers + bullets', () => {
@@ -229,10 +184,7 @@ describe('parseActionItems', () => {
     { "description": "Prepare presentation" }
   ]
   `;
-      expect(parseActionItems(input)).toEqual([
-        'Follow up with client',
-        'Prepare presentation',
-      ]);
+      expect(parseActionItems(input)).toEqual(['Follow up with client', 'Prepare presentation']);
     });
 
     it('parses response with preamble text before bullets', () => {

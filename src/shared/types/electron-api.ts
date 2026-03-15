@@ -2,47 +2,71 @@
 
 import type { DatabaseStatus } from './common';
 import type {
-  Project, Board, Column, Card, CardPriority,
-  Label, CreateProjectInput, UpdateProjectInput,
-  CreateBoardInput, UpdateBoardInput,
-  CreateColumnInput, UpdateColumnInput,
-  CreateCardInput, UpdateCardInput,
+  Project,
+  Board,
+  Column,
+  Card,
+  CardPriority,
+  Label,
+  CreateProjectInput,
+  UpdateProjectInput,
+  CreateBoardInput,
+  UpdateBoardInput,
+  CreateColumnInput,
+  UpdateColumnInput,
+  CreateCardInput,
+  UpdateCardInput,
 } from './projects';
 import type {
-  CardComment, CardRelationship, CardActivity, CardAttachment,
-  CardChecklistItem, CardTemplate,
-  CreateCardCommentInput, CreateCardRelationshipInput,
-  CreateLabelInput, UpdateLabelInput,
+  CardComment,
+  CardRelationship,
+  CardActivity,
+  CardAttachment,
+  CardChecklistItem,
+  CardTemplate,
+  CreateCardCommentInput,
+  CreateCardRelationshipInput,
+  CreateLabelInput,
+  UpdateLabelInput,
 } from './cards';
 import type {
-  AIProvider, AIConnectionTestResult,
-  AIUsageEntry, AIUsageSummary, AIUsageDaily,
-  CreateAIProviderInput, UpdateAIProviderInput,
+  AIProvider,
+  AIConnectionTestResult,
+  AIUsageEntry,
+  AIUsageSummary,
+  AIUsageDaily,
+  CreateAIProviderInput,
+  UpdateAIProviderInput,
 } from './ai';
 import type {
-  Meeting, TranscriptSegment, TranscriptSearchResult, MeetingBrief,
-  MeetingTemplateType, RecordingState, MeetingPrepData,
-  CreateMeetingInput, UpdateMeetingInput,
+  Meeting,
+  TranscriptSegment,
+  TranscriptSearchResult,
+  MeetingBrief,
+  MeetingTemplateType,
+  RecordingState,
+  MeetingPrepData,
+  CreateMeetingInput,
+  UpdateMeetingInput,
 } from './meetings';
-import type {
-  ActionItem, ActionItemStatus,
-  ConvertActionToCardResult, MeetingWithTranscript,
-} from './intelligence';
+import type { ActionItem, ActionItemStatus, ConvertActionToCardResult, MeetingWithTranscript } from './intelligence';
 import type { WhisperModel, WhisperDownloadProgress } from './whisper';
 import type {
-  Idea, CreateIdeaInput, UpdateIdeaInput,
-  ConvertIdeaToProjectResult, ConvertIdeaToCardResult, IdeaAnalysis,
+  Idea,
+  CreateIdeaInput,
+  UpdateIdeaInput,
+  ConvertIdeaToProjectResult,
+  ConvertIdeaToCardResult,
+  IdeaAnalysis,
 } from './ideas';
 import type {
-  BrainstormSession, BrainstormMessage,
-  BrainstormSessionWithMessages, BrainstormSessionStatus,
+  BrainstormSession,
+  BrainstormMessage,
+  BrainstormSessionWithMessages,
+  BrainstormSessionStatus,
   CreateBrainstormSessionInput,
 } from './brainstorm';
-import type {
-  BackupInfo, BackupProgress,
-  ExportOptions, ExportResult,
-  AutoBackupSettings,
-} from './backup';
+import type { BackupInfo, BackupProgress, ExportOptions, ExportResult, AutoBackupSettings } from './backup';
 import type { ProjectPlan, TaskBreakdown } from './tasks';
 import type { NotificationPreferences } from './notifications';
 import type { TranscriptionProviderType, TranscriptionProviderStatus } from './transcription';
@@ -55,9 +79,15 @@ import type { ProjectAgentMessage, ProjectAgentThread, ProjectAgentAction } from
 import type { AgentInsight, BackgroundAgentPreferences, InsightType, InsightStatus } from './background-agent';
 import type { AuthState, SyncStatus } from './sync';
 import type {
-  IntelSource, IntelItem, IntelBrief, IntelBriefType, ArticleContent,
-  CreateIntelSourceInput, UpdateIntelSourceInput,
-  AddManualItemInput, IntelDateFilter,
+  IntelSource,
+  IntelItem,
+  IntelBrief,
+  IntelBriefType,
+  ArticleContent,
+  CreateIntelSourceInput,
+  UpdateIntelSourceInput,
+  AddManualItemInput,
+  IntelDateFilter,
 } from './intel-feed';
 
 export interface RecoveryState {
@@ -79,9 +109,7 @@ export interface ElectronAPI {
   windowIsMaximized: () => Promise<boolean>;
   windowSetAlwaysOnTop: (value: boolean) => Promise<boolean>;
   windowIsAlwaysOnTop: () => Promise<boolean>;
-  onWindowMaximizeChange: (
-    callback: (isMaximized: boolean) => void,
-  ) => () => void;
+  onWindowMaximizeChange: (callback: (isMaximized: boolean) => void) => () => void;
   recordingSetState: (isRecording: boolean) => Promise<void>;
   onRecordingForceStop: (callback: () => void) => () => void;
 
@@ -109,17 +137,19 @@ export interface ElectronAPI {
   reorderColumns: (boardId: string, columnIds: string[]) => Promise<void>;
 
   // Cards
-  getAllCards: () => Promise<Array<{
-    id: string;
-    columnId: string;
-    title: string;
-    description: string | null;
-    priority: string;
-    archived: boolean;
-    completed: boolean;
-    updatedAt: string;
-    projectId: string;
-  }>>;
+  getAllCards: () => Promise<
+    Array<{
+      id: string;
+      columnId: string;
+      title: string;
+      description: string | null;
+      priority: string;
+      archived: boolean;
+      completed: boolean;
+      updatedAt: string;
+      projectId: string;
+    }>
+  >;
   getCardsByBoard: (boardId: string) => Promise<Card[]>;
   createCard: (data: CreateCardInput) => Promise<Card>;
   updateCard: (id: string, data: UpdateCardInput) => Promise<{ card: Card; spawnedCard: Card | null }>;
@@ -158,7 +188,13 @@ export interface ElectronAPI {
 
   // Card Templates
   getCardTemplates: (projectId?: string) => Promise<CardTemplate[]>;
-  createCardTemplate: (input: { projectId?: string | null; name: string; description?: string | null; priority?: CardPriority; labelNames?: string[] | null }) => Promise<CardTemplate>;
+  createCardTemplate: (input: {
+    projectId?: string | null;
+    name: string;
+    description?: string | null;
+    priority?: CardPriority;
+    labelNames?: string[] | null;
+  }) => Promise<CardTemplate>;
   deleteCardTemplate: (id: string) => Promise<void>;
   saveCardAsTemplate: (cardId: string, name?: string) => Promise<CardTemplate>;
 
@@ -179,6 +215,7 @@ export interface ElectronAPI {
   getDefaultRecordingsPath: () => Promise<string>;
   getProxy: () => Promise<{ url: string; noProxy: string } | null>;
   applyProxy: () => Promise<void>;
+  factoryReset: () => Promise<{ success: boolean; error?: string }>;
 
   // AI Providers
   getAIProviders: () => Promise<AIProvider[]>;
@@ -247,7 +284,10 @@ export interface ElectronAPI {
   getBrainstormSessions: () => Promise<BrainstormSession[]>;
   getBrainstormSession: (id: string) => Promise<BrainstormSessionWithMessages | null>;
   createBrainstormSession: (data: CreateBrainstormSessionInput) => Promise<BrainstormSession>;
-  updateBrainstormSession: (id: string, data: { title?: string; status?: BrainstormSessionStatus }) => Promise<BrainstormSession>;
+  updateBrainstormSession: (
+    id: string,
+    data: { title?: string; status?: BrainstormSessionStatus },
+  ) => Promise<BrainstormSession>;
   deleteBrainstormSession: (id: string) => Promise<void>;
   sendBrainstormMessage: (sessionId: string, content: string) => Promise<BrainstormMessage>;
   onBrainstormChunk: (callback: (data: { sessionId: string; chunk: string }) => void) => () => void;
@@ -281,7 +321,9 @@ export interface ElectronAPI {
   transcriptionGetConfig: () => Promise<TranscriptionProviderStatus>;
   transcriptionSetProvider: (type: TranscriptionProviderType) => Promise<void>;
   transcriptionSetApiKey: (provider: 'deepgram' | 'assemblyai', apiKey: string) => Promise<void>;
-  transcriptionTestProvider: (type: TranscriptionProviderType) => Promise<{ success: boolean; error?: string; latencyMs?: number }>;
+  transcriptionTestProvider: (
+    type: TranscriptionProviderType,
+  ) => Promise<{ success: boolean; error?: string; latencyMs?: number }>;
 
   // Voice Input
   voiceTranscribe: (audioBuffer: ArrayBuffer) => Promise<{ text: string }>;
@@ -297,21 +339,37 @@ export interface ElectronAPI {
   getActivityData: () => Promise<{ dayCounts: Record<string, number> }>;
 
   // Focus Sessions
-  focusSaveSession: (input: { cardId?: string; projectId?: string; durationMinutes: number; note?: string; billable?: boolean }) =>
-    Promise<{ session: FocusSession; stats: GamificationStats; newAchievements: Achievement[] }>;
+  focusSaveSession: (input: {
+    cardId?: string;
+    projectId?: string;
+    durationMinutes: number;
+    note?: string;
+    billable?: boolean;
+  }) => Promise<{ session: FocusSession; stats: GamificationStats; newAchievements: Achievement[] }>;
   focusGetStats: () => Promise<GamificationStats>;
   focusGetDaily: (days?: number) => Promise<FocusDailyData[]>;
-  focusGetHistory: (options?: { offset?: number; limit?: number }) =>
-    Promise<{ sessions: FocusSessionWithCard[]; total: number }>;
+  focusGetHistory: (options?: {
+    offset?: number;
+    limit?: number;
+  }) => Promise<{ sessions: FocusSessionWithCard[]; total: number }>;
   focusGetPeriodStats: () => Promise<FocusPeriodStats>;
-  focusGetTimeReport: (options: { startDate: string; endDate: string; projectId?: string; billableOnly?: boolean }) =>
-    Promise<FocusTimeReport>;
-  focusUpdateSession: (id: string, input: { projectId?: string | null; note?: string | null; billable?: boolean }) => Promise<void>;
+  focusGetTimeReport: (options: {
+    startDate: string;
+    endDate: string;
+    projectId?: string;
+    billableOnly?: boolean;
+  }) => Promise<FocusTimeReport>;
+  focusUpdateSession: (
+    id: string,
+    input: { projectId?: string | null; note?: string | null; billable?: boolean },
+  ) => Promise<void>;
   focusDeleteSession: (id: string) => Promise<void>;
 
   // Gamification
-  gamificationAwardXp: (eventType: XpEventType, entityId?: string) =>
-    Promise<{ xpAwarded: number; stats: GamificationStats; newAchievements: Achievement[] }>;
+  gamificationAwardXp: (
+    eventType: XpEventType,
+    entityId?: string,
+  ) => Promise<{ xpAwarded: number; stats: GamificationStats; newAchievements: Achievement[] }>;
   gamificationGetStats: () => Promise<GamificationStats>;
   gamificationGetAchievements: () => Promise<Achievement[]>;
   gamificationGetDaily: (days?: number) => Promise<XpDailyData[]>;
@@ -320,46 +378,59 @@ export interface ElectronAPI {
   cardAgentGetThreads: (cardId: string) => Promise<CardAgentThread[]>;
   cardAgentCreateThread: (cardId: string, title: string) => Promise<CardAgentThread>;
   cardAgentDeleteThread: (threadId: string) => Promise<void>;
-  cardAgentSendMessage: (cardId: string, content: string, threadId?: string) =>
-    Promise<{ assistantMessage: CardAgentMessage; actions: AgentAction[]; threadId: string } | null>;
+  cardAgentSendMessage: (
+    cardId: string,
+    content: string,
+    threadId?: string,
+  ) => Promise<{ assistantMessage: CardAgentMessage; actions: AgentAction[]; threadId: string } | null>;
   cardAgentGetMessages: (cardId: string, threadId?: string) => Promise<CardAgentMessage[]>;
   cardAgentClearMessages: (cardId: string) => Promise<void>;
   cardAgentGetMessageCount: (cardId: string) => Promise<number>;
   cardAgentAbort: (cardId: string) => Promise<void>;
   cardAgentGetModelInfo: () => Promise<{ providerName: string; model: string } | null>;
   onCardAgentChunk: (callback: (data: { cardId: string; chunk: string }) => void) => () => void;
-  onCardAgentToolEvent: (callback: (data: {
-    cardId: string;
-    type: 'call' | 'result';
-    toolName: string;
-    args?: unknown;
-    result?: unknown;
-  }) => void) => () => void;
+  onCardAgentToolEvent: (
+    callback: (data: {
+      cardId: string;
+      type: 'call' | 'result';
+      toolName: string;
+      args?: unknown;
+      result?: unknown;
+    }) => void,
+  ) => () => void;
 
   // Project Agent
   projectAgentGetThreads: (projectId: string) => Promise<ProjectAgentThread[]>;
   projectAgentCreateThread: (projectId: string, title: string) => Promise<ProjectAgentThread>;
   projectAgentDeleteThread: (threadId: string) => Promise<void>;
-  projectAgentSendMessage: (projectId: string, content: string, threadId?: string) =>
-    Promise<{ assistantMessage: ProjectAgentMessage; actions: ProjectAgentAction[]; threadId: string } | null>;
+  projectAgentSendMessage: (
+    projectId: string,
+    content: string,
+    threadId?: string,
+  ) => Promise<{ assistantMessage: ProjectAgentMessage; actions: ProjectAgentAction[]; threadId: string } | null>;
   projectAgentGetMessages: (projectId: string, threadId?: string) => Promise<ProjectAgentMessage[]>;
   projectAgentClearMessages: (projectId: string) => Promise<void>;
   projectAgentGetMessageCount: (projectId: string) => Promise<number>;
   projectAgentAbort: (projectId: string) => Promise<void>;
   projectAgentGetModelInfo: () => Promise<{ providerName: string; model: string } | null>;
   onProjectAgentChunk: (callback: (data: { projectId: string; chunk: string }) => void) => () => void;
-  onProjectAgentToolEvent: (callback: (data: {
-    projectId: string;
-    type: 'call' | 'result';
-    toolName: string;
-    args?: unknown;
-    result?: unknown;
-  }) => void) => () => void;
+  onProjectAgentToolEvent: (
+    callback: (data: {
+      projectId: string;
+      type: 'call' | 'result';
+      toolName: string;
+      args?: unknown;
+      result?: unknown;
+    }) => void,
+  ) => () => void;
 
   // Background Agent
   backgroundAgentGetPreferences: () => Promise<BackgroundAgentPreferences>;
   backgroundAgentUpdatePreferences: (prefs: Partial<BackgroundAgentPreferences>) => Promise<void>;
-  backgroundAgentGetInsights: (projectId: string, options?: { status?: InsightStatus; type?: InsightType; limit?: number }) => Promise<AgentInsight[]>;
+  backgroundAgentGetInsights: (
+    projectId: string,
+    options?: { status?: InsightStatus; type?: InsightType; limit?: number },
+  ) => Promise<AgentInsight[]>;
   backgroundAgentGetAllInsights: (projectIds?: string[], limit?: number) => Promise<AgentInsight[]>;
   backgroundAgentGetNewCount: () => Promise<number>;
   backgroundAgentMarkRead: (id: string) => Promise<void>;
@@ -406,7 +477,10 @@ export interface ElectronAPI {
   intelGetLatestBrief: (type: IntelBriefType) => Promise<IntelBrief | null>;
   intelSummarizeItem: (id: string) => Promise<IntelItem>;
   intelFetchArticleContent: (id: string) => Promise<ArticleContent>;
-  intelBriefChat: (briefContent: string, messages: { role: 'user' | 'assistant'; content: string }[]) => Promise<string>;
+  intelBriefChat: (
+    briefContent: string,
+    messages: { role: 'user' | 'assistant'; content: string }[],
+  ) => Promise<string>;
 
   // Cloud Sync
   syncGetAuthState: () => Promise<AuthState>;

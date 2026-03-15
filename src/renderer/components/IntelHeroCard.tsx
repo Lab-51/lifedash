@@ -14,7 +14,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Startups & Funding': 'text-pink-400 bg-pink-400/10 border-pink-400/20',
   'Open Source': 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
   'Tutorials & Guides': 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  'Other': 'text-gray-400 bg-gray-400/10 border-gray-400/20',
+  Other: 'text-gray-400 bg-gray-400/10 border-gray-400/20',
 };
 
 function relativeTime(dateStr: string): string {
@@ -62,9 +62,7 @@ export default function IntelHeroCard({
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
-  const categoryStyle = item.category
-    ? CATEGORY_COLORS[item.category] || CATEGORY_COLORS['Other']
-    : null;
+  const categoryStyle = item.category ? CATEGORY_COLORS[item.category] || CATEGORY_COLORS['Other'] : null;
 
   return (
     <div
@@ -94,9 +92,7 @@ export default function IntelHeroCard({
             Top Story
           </span>
           {categoryStyle && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${categoryStyle}`}>
-              {item.category}
-            </span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${categoryStyle}`}>{item.category}</span>
           )}
         </div>
 
@@ -111,7 +107,15 @@ export default function IntelHeroCard({
         {/* Meta */}
         <div className="flex items-center gap-1.5 text-[0.6875rem] font-data text-[var(--color-text-muted)] mb-2">
           {item.sourceIconUrl && (
-            <img src={item.sourceIconUrl} alt="" className="w-4 h-4 rounded-sm shrink-0" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <img
+              src={item.sourceIconUrl}
+              alt=""
+              className="w-4 h-4 rounded-sm shrink-0"
+              loading="lazy"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
           )}
           <span className="text-[var(--color-accent-dim)]">{item.sourceName}</span>
           <span className="opacity-40">|</span>
@@ -133,9 +137,7 @@ export default function IntelHeroCard({
 
         {/* AI Summary */}
         {item.summary && (
-          <p className="text-xs italic text-[var(--color-accent-dim)] line-clamp-3 mb-3">
-            AI Summary: {item.summary}
-          </p>
+          <p className="text-xs italic text-[var(--color-accent-dim)] line-clamp-3 mb-3">AI Summary: {item.summary}</p>
         )}
 
         {/* Spacer */}
@@ -145,7 +147,10 @@ export default function IntelHeroCard({
         <div className="flex items-center flex-wrap gap-2 mt-2">
           {onSaveAsIdea && (
             <button
-              onClick={(e) => { stop(e); onSaveAsIdea(item); }}
+              onClick={(e) => {
+                stop(e);
+                onSaveAsIdea(item);
+              }}
               className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
             >
               <Lightbulb size={13} />
@@ -154,7 +159,10 @@ export default function IntelHeroCard({
           )}
           {onStartProject && (
             <button
-              onClick={(e) => { stop(e); onStartProject(item); }}
+              onClick={(e) => {
+                stop(e);
+                onStartProject(item);
+              }}
               className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
             >
               <FolderKanban size={13} />
@@ -163,7 +171,10 @@ export default function IntelHeroCard({
           )}
           {onDiscuss && (
             <button
-              onClick={(e) => { stop(e); onDiscuss(item); }}
+              onClick={(e) => {
+                stop(e);
+                onDiscuss(item);
+              }}
               className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
             >
               <Brain size={13} />
@@ -190,7 +201,10 @@ export default function IntelHeroCard({
           <div className="flex-1" />
 
           <button
-            onClick={(e) => { stop(e); onToggleBookmark(item.id); }}
+            onClick={(e) => {
+              stop(e);
+              onToggleBookmark(item.id);
+            }}
             title={item.isBookmarked ? 'Remove bookmark' : 'Bookmark'}
             className={`cursor-pointer p-1.5 rounded-full transition-all ${
               item.isBookmarked

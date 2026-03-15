@@ -14,6 +14,7 @@ import {
   pgEnum,
   primaryKey,
   index,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { columns } from './boards';
 import { labels } from './labels';
@@ -21,60 +22,79 @@ import { projects } from './projects';
 
 export const cardPriorityEnum = pgEnum('card_priority', ['low', 'medium', 'high', 'urgent']);
 
-export const cards = pgTable('cards', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  columnId: uuid('column_id').notNull().references(() => columns.id, { onDelete: 'cascade' }),
-  title: varchar('title', { length: 500 }).notNull(),
-  description: text('description'),
-  position: integer('position').default(0).notNull(),
-  priority: cardPriorityEnum('priority').default('medium').notNull(),
-  dueDate: timestamp('due_date', { withTimezone: true }),
-  completed: boolean('completed').default(false).notNull(),
-  archived: boolean('archived').default(false).notNull(),
-  recurrenceType: varchar('recurrence_type', { length: 20 }),
-  recurrenceEndDate: timestamp('recurrence_end_date', { withTimezone: true }),
-  sourceRecurringId: uuid('source_recurring_id'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  index('cards_column_id_idx').on(table.columnId),
-  index('cards_archived_idx').on(table.archived),
-  index('cards_updated_at_idx').on(table.updatedAt),
-  index('cards_created_at_idx').on(table.createdAt),
-]);
+export const cards = pgTable(
+  'cards',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    columnId: uuid('column_id')
+      .notNull()
+      .references(() => columns.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 500 }).notNull(),
+    description: text('description'),
+    position: integer('position').default(0).notNull(),
+    priority: cardPriorityEnum('priority').default('medium').notNull(),
+    dueDate: timestamp('due_date', { withTimezone: true }),
+    completed: boolean('completed').default(false).notNull(),
+    archived: boolean('archived').default(false).notNull(),
+    recurrenceType: varchar('recurrence_type', { length: 20 }),
+    recurrenceEndDate: timestamp('recurrence_end_date', { withTimezone: true }),
+    sourceRecurringId: uuid('source_recurring_id').references((): AnyPgColumn => cards.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('cards_column_id_idx').on(table.columnId),
+    index('cards_archived_idx').on(table.archived),
+    index('cards_updated_at_idx').on(table.updatedAt),
+    index('cards_created_at_idx').on(table.createdAt),
+  ],
+);
 
-export const cardLabels = pgTable('card_labels', {
-  cardId: uuid('card_id').notNull().references(() => cards.id, { onDelete: 'cascade' }),
-  labelId: uuid('label_id').notNull().references(() => labels.id, { onDelete: 'cascade' }),
-}, (table) => [
-  primaryKey({ columns: [table.cardId, table.labelId] }),
-  index('card_labels_card_id_idx').on(table.cardId),
-]);
+export const cardLabels = pgTable(
+  'card_labels',
+  {
+    cardId: uuid('card_id')
+      .notNull()
+      .references(() => cards.id, { onDelete: 'cascade' }),
+    labelId: uuid('label_id')
+      .notNull()
+      .references(() => labels.id, { onDelete: 'cascade' }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.cardId, table.labelId] }),
+    index('card_labels_card_id_idx').on(table.cardId),
+  ],
+);
 
 // --- Card Relationships ---
 
-export const cardRelationshipTypeEnum = pgEnum('card_relationship_type', [
-  'blocks', 'depends_on', 'related_to',
-]);
+export const cardRelationshipTypeEnum = pgEnum('card_relationship_type', ['blocks', 'depends_on', 'related_to']);
 
-export const cardRelationships = pgTable('card_relationships', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  sourceCardId: uuid('source_card_id').notNull()
-    .references(() => cards.id, { onDelete: 'cascade' }),
-  targetCardId: uuid('target_card_id').notNull()
-    .references(() => cards.id, { onDelete: 'cascade' }),
-  type: cardRelationshipTypeEnum('type').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [
-  index('card_relationships_source_card_id_idx').on(table.sourceCardId),
-  index('card_relationships_target_card_id_idx').on(table.targetCardId),
-]);
+export const cardRelationships = pgTable(
+  'card_relationships',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sourceCardId: uuid('source_card_id')
+      .notNull()
+      .references(() => cards.id, { onDelete: 'cascade' }),
+    targetCardId: uuid('target_card_id')
+      .notNull()
+      .references(() => cards.id, { onDelete: 'cascade' }),
+    type: cardRelationshipTypeEnum('type').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('card_relationships_source_card_id_idx').on(table.sourceCardId),
+    index('card_relationships_target_card_id_idx').on(table.targetCardId),
+  ],
+);
 
 // --- Card Comments ---
 
 export const cardComments = pgTable('card_comments', {
   id: uuid('id').primaryKey().defaultRandom(),
-  cardId: uuid('card_id').notNull()
+  cardId: uuid('card_id')
+    .notNull()
     .references(() => cards.id, { onDelete: 'cascade' }),
   content: text('content').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -84,48 +104,63 @@ export const cardComments = pgTable('card_comments', {
 // --- Card Activity Log ---
 
 export const cardActivityActionEnum = pgEnum('card_activity_action', [
-  'created', 'updated', 'moved', 'commented',
-  'archived', 'restored', 'relationship_added', 'relationship_removed',
+  'created',
+  'updated',
+  'moved',
+  'commented',
+  'archived',
+  'restored',
+  'relationship_added',
+  'relationship_removed',
 ]);
 
-export const cardActivities = pgTable('card_activities', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  cardId: uuid('card_id').notNull()
-    .references(() => cards.id, { onDelete: 'cascade' }),
-  action: cardActivityActionEnum('action').notNull(),
-  details: text('details'), // JSON string with context-specific data
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [
-  index('card_activities_card_id_idx').on(table.cardId),
-  index('card_activities_created_at_idx').on(table.createdAt),
-]);
+export const cardActivities = pgTable(
+  'card_activities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    cardId: uuid('card_id')
+      .notNull()
+      .references(() => cards.id, { onDelete: 'cascade' }),
+    action: cardActivityActionEnum('action').notNull(),
+    details: text('details'), // JSON string with context-specific data
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('card_activities_card_id_idx').on(table.cardId),
+    index('card_activities_created_at_idx').on(table.createdAt),
+  ],
+);
 
 // --- Card Attachments ---
 
 export const cardAttachments = pgTable('card_attachments', {
   id: uuid('id').primaryKey().defaultRandom(),
-  cardId: uuid('card_id').notNull()
+  cardId: uuid('card_id')
+    .notNull()
     .references(() => cards.id, { onDelete: 'cascade' }),
   fileName: varchar('file_name', { length: 500 }).notNull(),
-  filePath: text('file_path').notNull(),       // Absolute path in app data dir
-  fileSize: integer('file_size').notNull(),     // Bytes
+  filePath: text('file_path').notNull(), // Absolute path in app data dir
+  fileSize: integer('file_size').notNull(), // Bytes
   mimeType: varchar('mime_type', { length: 200 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // --- Card Checklist Items ---
 
-export const cardChecklistItems = pgTable('card_checklist_items', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  cardId: uuid('card_id').notNull()
-    .references(() => cards.id, { onDelete: 'cascade' }),
-  title: varchar('title', { length: 500 }).notNull(),
-  completed: boolean('completed').default(false).notNull(),
-  position: integer('position').default(0).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  index('card_checklist_items_card_id_idx').on(table.cardId),
-]);
+export const cardChecklistItems = pgTable(
+  'card_checklist_items',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    cardId: uuid('card_id')
+      .notNull()
+      .references(() => cards.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 500 }).notNull(),
+    completed: boolean('completed').default(false).notNull(),
+    position: integer('position').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('card_checklist_items_card_id_idx').on(table.cardId)],
+);
 
 // --- Card Templates ---
 

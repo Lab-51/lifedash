@@ -8,9 +8,9 @@ export interface MeetingTemplate {
   type: MeetingTemplateType;
   name: string;
   description: string;
-  icon: string;           // Lucide icon name
-  agenda: string[];       // Suggested agenda items
-  aiPromptHint: string;   // Injected into AI summarization prompt
+  icon: string; // Lucide icon name
+  agenda: string[]; // Suggested agenda items
+  aiPromptHint: string; // Injected into AI summarization prompt
 }
 
 export const MEETING_TEMPLATES: MeetingTemplate[] = [
@@ -28,7 +28,8 @@ export const MEETING_TEMPLATES: MeetingTemplate[] = [
     description: 'Quick status update — what was done, what is planned, any blockers',
     icon: 'Users',
     agenda: ['What I did yesterday', 'What I plan to do today', 'Blockers or concerns'],
-    aiPromptHint: 'This is a daily standup meeting. Focus on: (1) work completed since last standup, (2) planned work for today, (3) blockers or impediments. Keep the summary structured around these three areas.',
+    aiPromptHint:
+      'This is a daily standup meeting. Focus on: (1) work completed since last standup, (2) planned work for today, (3) blockers or impediments. Keep the summary structured around these three areas.',
   },
   {
     type: 'retro',
@@ -36,15 +37,22 @@ export const MEETING_TEMPLATES: MeetingTemplate[] = [
     description: 'Team reflection — what went well, what to improve, action items',
     icon: 'RotateCcw',
     agenda: ['What went well', 'What could be improved', 'Action items for next sprint'],
-    aiPromptHint: 'This is a retrospective meeting. Organize the summary into: (1) What went well — positive outcomes and successes, (2) What could be improved — pain points and challenges, (3) Action items — concrete steps the team agreed to take.',
+    aiPromptHint:
+      'This is a retrospective meeting. Organize the summary into: (1) What went well — positive outcomes and successes, (2) What could be improved — pain points and challenges, (3) Action items — concrete steps the team agreed to take.',
   },
   {
     type: 'planning',
     name: 'Sprint Planning',
     description: 'Plan upcoming work — priorities, capacity, commitments',
     icon: 'CalendarCheck',
-    agenda: ['Sprint goal', 'Priority items for the sprint', 'Capacity and availability', 'Commitments and assignments'],
-    aiPromptHint: 'This is a sprint/iteration planning meeting. Focus on: (1) the sprint goal or objectives, (2) which items were prioritized, (3) capacity considerations, (4) who committed to what work. Track any estimated effort or story points mentioned.',
+    agenda: [
+      'Sprint goal',
+      'Priority items for the sprint',
+      'Capacity and availability',
+      'Commitments and assignments',
+    ],
+    aiPromptHint:
+      'This is a sprint/iteration planning meeting. Focus on: (1) the sprint goal or objectives, (2) which items were prioritized, (3) capacity considerations, (4) who committed to what work. Track any estimated effort or story points mentioned.',
   },
   {
     type: 'brainstorm',
@@ -52,15 +60,23 @@ export const MEETING_TEMPLATES: MeetingTemplate[] = [
     description: 'Creative ideation session — explore ideas freely',
     icon: 'Lightbulb',
     agenda: ['Problem statement or opportunity', 'Idea generation', 'Discussion and evaluation', 'Next steps'],
-    aiPromptHint: 'This is a brainstorming session. Capture all ideas discussed, even partial ones. Group related ideas together. Note which ideas received the most interest or support. Highlight any novel or unconventional suggestions.',
+    aiPromptHint:
+      'This is a brainstorming session. Capture all ideas discussed, even partial ones. Group related ideas together. Note which ideas received the most interest or support. Highlight any novel or unconventional suggestions.',
   },
   {
     type: 'one_on_one',
     name: '1-on-1',
     description: 'One-on-one meeting — feedback, goals, personal development',
     icon: 'UserCheck',
-    agenda: ['Check-in and wellbeing', 'Progress on goals', 'Feedback (both directions)', 'Development and growth', 'Action items'],
-    aiPromptHint: 'This is a 1-on-1 meeting. Focus on: (1) personal updates and wellbeing, (2) progress on previously set goals, (3) feedback exchanged, (4) career development topics, (5) agreed action items. Be sensitive with personal topics — summarize without including private details.',
+    agenda: [
+      'Check-in and wellbeing',
+      'Progress on goals',
+      'Feedback (both directions)',
+      'Development and growth',
+      'Action items',
+    ],
+    aiPromptHint:
+      'This is a 1-on-1 meeting. Focus on: (1) personal updates and wellbeing, (2) progress on previously set goals, (3) feedback exchanged, (4) career development topics, (5) agreed action items. Be sensitive with personal topics — summarize without including private details.',
   },
 ];
 
@@ -69,7 +85,7 @@ export interface Meeting {
   projectId: string | null;
   title: string;
   template: MeetingTemplateType;
-  startedAt: string;    // ISO timestamp
+  startedAt: string; // ISO timestamp
   endedAt: string | null;
   audioPath: string | null;
   status: MeetingStatus;
@@ -82,9 +98,9 @@ export interface TranscriptSegment {
   id: string;
   meetingId: string;
   content: string;
-  startTime: number;    // milliseconds from recording start
+  startTime: number; // milliseconds from recording start
   endTime: number;
-  speaker: string | null;  // null = not diarized
+  speaker: string | null; // null = not diarized
   createdAt: string;
 }
 
@@ -138,6 +154,6 @@ export interface MeetingPrepData {
 export interface RecordingState {
   isRecording: boolean;
   meetingId: string | null;
-  elapsed: number;           // seconds since recording started
-  lastTranscript: string;    // most recent transcript text
+  elapsed: number; // seconds since recording started
+  lastTranscript: string; // most recent transcript text
 }

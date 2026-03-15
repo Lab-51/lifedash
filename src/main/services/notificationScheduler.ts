@@ -12,10 +12,7 @@
 import { getDb } from '../db/connection';
 import { cards } from '../db/schema';
 import { and, eq, isNotNull, lte } from 'drizzle-orm';
-import {
-  getNotificationPreferences,
-  showNotification,
-} from './notificationService';
+import { getNotificationPreferences, showNotification } from './notificationService';
 import { createLogger } from './logger';
 
 const log = createLogger('NotificationScheduler');
@@ -26,6 +23,7 @@ const STARTUP_DELAY_MS = 30_000; // 30 seconds
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let startupTimeoutId: ReturnType<typeof setTimeout> | null = null;
 let lastDigestDate: string | null = null; // 'YYYY-MM-DD' of last digest sent
+const notifiedCardIds = new Set<string>(); // dedup within a single scheduler cycle
 
 /**
  * Initialize the notification scheduler.
@@ -77,6 +75,9 @@ export async function checkAndNotify(): Promise<void> {
       return;
     }
 
+    // Clear dedup set at the start of each cycle
+    notifiedCardIds.clear();
+
     // --- Due date reminders ---
     if (preferences.dueDateReminders) {
       await checkDueDateReminders();
@@ -103,23 +104,22 @@ async function checkDueDateReminders(): Promise<void> {
 
     const dueCards = await db
       .select({
+        id: cards.id,
         title: cards.title,
         dueDate: cards.dueDate,
       })
       .from(cards)
       .where(
-        and(
-          isNotNull(cards.dueDate),
-          lte(cards.dueDate, in24h),
-          eq(cards.archived, false),
-          eq(cards.completed, false),
-        ),
+        and(isNotNull(cards.dueDate), lte(cards.dueDate, in24h), eq(cards.archived, false), eq(cards.completed, false)),
       )
       .limit(10);
 
-    // Show notifications for up to 5 cards
-    const toNotify = dueCards.slice(0, 5);
-    for (const card of toNotify) {
+    // Show notifications for up to 5 cards, skipping already-notified ones
+    let notified = 0;
+    for (const card of dueCards) {
+      if (notified >= 5) break;
+      if (notifiedCardIds.has(card.id)) continue;
+      notifiedCardIds.add(card.id);
       const dueStr = card.dueDate
         ? new Date(card.dueDate).toLocaleString(undefined, {
             month: 'short',
@@ -128,17 +128,12 @@ async function checkDueDateReminders(): Promise<void> {
             minute: '2-digit',
           })
         : 'soon';
-      showNotification(
-        'Card Due Soon',
-        `"${card.title}" is due ${dueStr}`,
-      );
+      showNotification('Card Due Soon', `"${card.title}" is due ${dueStr}`);
+      notified++;
     }
 
     if (dueCards.length > 5) {
-      showNotification(
-        'Cards Due Soon',
-        `${dueCards.length - 5} more card(s) are also due within 24 hours`,
-      );
+      showNotification('Cards Due Soon', `${dueCards.length - 5} more card(s) are also due within 24 hours`);
     }
   } catch (err) {
     log.error('Due date check failed:', err);

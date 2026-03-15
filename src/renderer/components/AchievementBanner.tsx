@@ -28,73 +28,113 @@ interface CategoryStyle {
 
 const CATEGORY_STYLES: Record<string, CategoryStyle> = {
   focus: {
-    labelText: 'dark:text-emerald-400', labelTextLight: 'text-emerald-600',
-    iconBgDark: 'dark:bg-emerald-500/20', iconBgLight: 'bg-emerald-100',
-    iconTextDark: 'dark:text-emerald-400', iconTextLight: 'text-emerald-600',
+    labelText: 'dark:text-emerald-400',
+    labelTextLight: 'text-emerald-600',
+    iconBgDark: 'dark:bg-emerald-500/20',
+    iconBgLight: 'bg-emerald-100',
+    iconTextDark: 'dark:text-emerald-400',
+    iconTextLight: 'text-emerald-600',
     borderLight: 'border-emerald-300/40',
-    gradientFrom: 'dark:from-emerald-500/10', gradientFromLight: 'from-emerald-50/80',
-    glowDark: 'rgba(52, 211, 153, 0.4)', glowLight: 'rgba(16, 185, 129, 0.25)',
+    gradientFrom: 'dark:from-emerald-500/10',
+    gradientFromLight: 'from-emerald-50/80',
+    glowDark: 'rgba(52, 211, 153, 0.4)',
+    glowLight: 'rgba(16, 185, 129, 0.25)',
     barColor: 'rgb(52, 211, 153)',
   },
   cards: {
-    labelText: 'dark:text-blue-400', labelTextLight: 'text-blue-600',
-    iconBgDark: 'dark:bg-blue-500/20', iconBgLight: 'bg-blue-100',
-    iconTextDark: 'dark:text-blue-400', iconTextLight: 'text-blue-600',
+    labelText: 'dark:text-blue-400',
+    labelTextLight: 'text-blue-600',
+    iconBgDark: 'dark:bg-blue-500/20',
+    iconBgLight: 'bg-blue-100',
+    iconTextDark: 'dark:text-blue-400',
+    iconTextLight: 'text-blue-600',
     borderLight: 'border-blue-300/40',
-    gradientFrom: 'dark:from-blue-500/10', gradientFromLight: 'from-blue-50/80',
-    glowDark: 'rgba(96, 165, 250, 0.4)', glowLight: 'rgba(59, 130, 246, 0.25)',
+    gradientFrom: 'dark:from-blue-500/10',
+    gradientFromLight: 'from-blue-50/80',
+    glowDark: 'rgba(96, 165, 250, 0.4)',
+    glowLight: 'rgba(59, 130, 246, 0.25)',
     barColor: 'rgb(96, 165, 250)',
   },
   projects: {
-    labelText: 'dark:text-purple-400', labelTextLight: 'text-purple-600',
-    iconBgDark: 'dark:bg-purple-500/20', iconBgLight: 'bg-purple-100',
-    iconTextDark: 'dark:text-purple-400', iconTextLight: 'text-purple-600',
+    labelText: 'dark:text-purple-400',
+    labelTextLight: 'text-purple-600',
+    iconBgDark: 'dark:bg-purple-500/20',
+    iconBgLight: 'bg-purple-100',
+    iconTextDark: 'dark:text-purple-400',
+    iconTextLight: 'text-purple-600',
     borderLight: 'border-purple-300/40',
-    gradientFrom: 'dark:from-purple-500/10', gradientFromLight: 'from-purple-50/80',
-    glowDark: 'rgba(192, 132, 252, 0.4)', glowLight: 'rgba(147, 51, 234, 0.25)',
+    gradientFrom: 'dark:from-purple-500/10',
+    gradientFromLight: 'from-purple-50/80',
+    glowDark: 'rgba(192, 132, 252, 0.4)',
+    glowLight: 'rgba(147, 51, 234, 0.25)',
     barColor: 'rgb(192, 132, 252)',
   },
   meetings: {
-    labelText: 'dark:text-amber-400', labelTextLight: 'text-amber-600',
-    iconBgDark: 'dark:bg-amber-500/20', iconBgLight: 'bg-amber-100',
-    iconTextDark: 'dark:text-amber-400', iconTextLight: 'text-amber-600',
+    labelText: 'dark:text-amber-400',
+    labelTextLight: 'text-amber-600',
+    iconBgDark: 'dark:bg-amber-500/20',
+    iconBgLight: 'bg-amber-100',
+    iconTextDark: 'dark:text-amber-400',
+    iconTextLight: 'text-amber-600',
     borderLight: 'border-amber-300/40',
-    gradientFrom: 'dark:from-amber-500/10', gradientFromLight: 'from-amber-50/80',
-    glowDark: 'rgba(251, 191, 36, 0.4)', glowLight: 'rgba(245, 158, 11, 0.25)',
+    gradientFrom: 'dark:from-amber-500/10',
+    gradientFromLight: 'from-amber-50/80',
+    glowDark: 'rgba(251, 191, 36, 0.4)',
+    glowLight: 'rgba(245, 158, 11, 0.25)',
     barColor: 'rgb(251, 191, 36)',
   },
   ideas: {
-    labelText: 'dark:text-pink-400', labelTextLight: 'text-pink-600',
-    iconBgDark: 'dark:bg-pink-500/20', iconBgLight: 'bg-pink-100',
-    iconTextDark: 'dark:text-pink-400', iconTextLight: 'text-pink-600',
+    labelText: 'dark:text-pink-400',
+    labelTextLight: 'text-pink-600',
+    iconBgDark: 'dark:bg-pink-500/20',
+    iconBgLight: 'bg-pink-100',
+    iconTextDark: 'dark:text-pink-400',
+    iconTextLight: 'text-pink-600',
     borderLight: 'border-pink-300/40',
-    gradientFrom: 'dark:from-pink-500/10', gradientFromLight: 'from-pink-50/80',
-    glowDark: 'rgba(244, 114, 182, 0.4)', glowLight: 'rgba(236, 72, 153, 0.25)',
+    gradientFrom: 'dark:from-pink-500/10',
+    gradientFromLight: 'from-pink-50/80',
+    glowDark: 'rgba(244, 114, 182, 0.4)',
+    glowLight: 'rgba(236, 72, 153, 0.25)',
     barColor: 'rgb(244, 114, 182)',
   },
   brainstorm: {
-    labelText: 'dark:text-cyan-400', labelTextLight: 'text-cyan-600',
-    iconBgDark: 'dark:bg-cyan-500/20', iconBgLight: 'bg-cyan-100',
-    iconTextDark: 'dark:text-cyan-400', iconTextLight: 'text-cyan-600',
+    labelText: 'dark:text-cyan-400',
+    labelTextLight: 'text-cyan-600',
+    iconBgDark: 'dark:bg-cyan-500/20',
+    iconBgLight: 'bg-cyan-100',
+    iconTextDark: 'dark:text-cyan-400',
+    iconTextLight: 'text-cyan-600',
     borderLight: 'border-cyan-300/40',
-    gradientFrom: 'dark:from-cyan-500/10', gradientFromLight: 'from-cyan-50/80',
-    glowDark: 'rgba(34, 211, 238, 0.4)', glowLight: 'rgba(6, 182, 212, 0.25)',
+    gradientFrom: 'dark:from-cyan-500/10',
+    gradientFromLight: 'from-cyan-50/80',
+    glowDark: 'rgba(34, 211, 238, 0.4)',
+    glowLight: 'rgba(6, 182, 212, 0.25)',
     barColor: 'rgb(34, 211, 238)',
   },
   cross: {
-    labelText: 'dark:text-yellow-400', labelTextLight: 'text-yellow-600',
-    iconBgDark: 'dark:bg-yellow-500/20', iconBgLight: 'bg-yellow-100',
-    iconTextDark: 'dark:text-yellow-400', iconTextLight: 'text-yellow-600',
+    labelText: 'dark:text-yellow-400',
+    labelTextLight: 'text-yellow-600',
+    iconBgDark: 'dark:bg-yellow-500/20',
+    iconBgLight: 'bg-yellow-100',
+    iconTextDark: 'dark:text-yellow-400',
+    iconTextLight: 'text-yellow-600',
     borderLight: 'border-yellow-300/40',
-    gradientFrom: 'dark:from-yellow-500/10', gradientFromLight: 'from-yellow-50/80',
-    glowDark: 'rgba(250, 204, 21, 0.4)', glowLight: 'rgba(234, 179, 8, 0.25)',
+    gradientFrom: 'dark:from-yellow-500/10',
+    gradientFromLight: 'from-yellow-50/80',
+    glowDark: 'rgba(250, 204, 21, 0.4)',
+    glowLight: 'rgba(234, 179, 8, 0.25)',
     barColor: 'rgb(250, 204, 21)',
   },
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
-  focus: 'Focus', cards: 'Cards', projects: 'Projects',
-  meetings: 'Meetings', ideas: 'Ideas', brainstorm: 'Brainstorm', cross: 'Special',
+  focus: 'Focus',
+  cards: 'Cards',
+  projects: 'Projects',
+  meetings: 'Meetings',
+  ideas: 'Ideas',
+  brainstorm: 'Brainstorm',
+  cross: 'Special',
 };
 
 function getCategoryClasses(category: string): CategoryStyle {
@@ -145,11 +185,11 @@ export function showAchievementBanner(achievement: Achievement) {
 // --- Particle burst positions (radiate outward from icon center) ---
 const PARTICLES = [
   { x: '-20px', y: '-24px', delay: '0ms', size: 5 },
-  { x: '22px',  y: '-18px', delay: '50ms', size: 4 },
-  { x: '-16px', y: '20px',  delay: '100ms', size: 3 },
-  { x: '24px',  y: '16px',  delay: '75ms', size: 5 },
-  { x: '-8px',  y: '-28px', delay: '25ms', size: 4 },
-  { x: '12px',  y: '24px',  delay: '125ms', size: 3 },
+  { x: '22px', y: '-18px', delay: '50ms', size: 4 },
+  { x: '-16px', y: '20px', delay: '100ms', size: 3 },
+  { x: '24px', y: '16px', delay: '75ms', size: 5 },
+  { x: '-8px', y: '-28px', delay: '25ms', size: 4 },
+  { x: '12px', y: '24px', delay: '125ms', size: 3 },
 ];
 
 // --- Auto-dismiss duration ---
@@ -256,10 +296,12 @@ function AchievementBanner() {
           dark:ring-0 dark:shadow-2xl dark:shadow-black/30
           ${animClass}
         `}
-        style={{
-          '--glow-light': cats.glowLight,
-          '--glow-dark': cats.glowDark,
-        } as React.CSSProperties}
+        style={
+          {
+            '--glow-light': cats.glowLight,
+            '--glow-dark': cats.glowDark,
+          } as React.CSSProperties
+        }
       >
         {/* Shimmer sweep — runs once on entrance */}
         {visible && !exiting && (
@@ -283,28 +325,30 @@ function AchievementBanner() {
               ${cats.iconTextLight} ${cats.iconTextDark}
             `}
             style={{
-              animation: visible && !exiting
-                ? 'achievement-icon-bounce 500ms ease-out 200ms both'
-                : undefined,
+              animation: visible && !exiting ? 'achievement-icon-bounce 500ms ease-out 200ms both' : undefined,
             }}
           >
             <Icon size={26} />
-            {visible && !exiting && PARTICLES.map((p, i) => (
-              <span
-                key={i}
-                className="absolute rounded-full pointer-events-none"
-                style={{
-                  '--px': p.x,
-                  '--py': p.y,
-                  width: p.size,
-                  height: p.size,
-                  backgroundColor: 'currentColor',
-                  animation: `achievement-particle 700ms ease-out ${p.delay} forwards`,
-                  top: '50%',
-                  left: '50%',
-                } as React.CSSProperties}
-              />
-            ))}
+            {visible &&
+              !exiting &&
+              PARTICLES.map((p, i) => (
+                <span
+                  key={i}
+                  className="absolute rounded-full pointer-events-none"
+                  style={
+                    {
+                      '--px': p.x,
+                      '--py': p.y,
+                      width: p.size,
+                      height: p.size,
+                      backgroundColor: 'currentColor',
+                      animation: `achievement-particle 700ms ease-out ${p.delay} forwards`,
+                      top: '50%',
+                      left: '50%',
+                    } as React.CSSProperties
+                  }
+                />
+              ))}
           </div>
 
           {/* Text content */}

@@ -6,7 +6,12 @@
 import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Save, RotateCcw } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
-import type { AIProvider, AIProviderName, AITaskType, TaskModelConfig as TaskModelConfigType } from '../../shared/types';
+import type {
+  AIProvider,
+  AIProviderName,
+  AITaskType,
+  TaskModelConfig as TaskModelConfigType,
+} from '../../shared/types';
 import HudSelect from './HudSelect';
 
 // Human-readable labels for task types
@@ -19,7 +24,11 @@ const TASK_TYPE_INFO: { type: AITaskType; label: string; description: string }[]
   { type: 'standup', label: 'Daily Standup', description: 'Auto-generated standup reports' },
   { type: 'card-description', label: 'Card Description', description: 'AI-generated card descriptions' },
   { type: 'task_structuring', label: 'Task Structuring', description: 'AI project planning and breakdown' },
-  { type: 'background_agent', label: 'Background Agent', description: 'Autonomous stale card detection and project insights' },
+  {
+    type: 'background_agent',
+    label: 'Background Agent',
+    description: 'Autonomous stale card detection and project insights',
+  },
   { type: 'project_agent', label: 'Project Agent', description: 'AI agent for cross-board project analysis' },
 ];
 
@@ -54,15 +63,13 @@ const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
 //   - Summarization, Meeting Prep, Standup, Card Description → structured output, efficient model is fine
 //   - Task Structuring → structured planning, efficient models handle this well
 //   - Background Agent → autonomous checks, no need for flagship
-const FLAGSHIP_TASKS: Set<AITaskType> = new Set([
-  'brainstorming', 'idea_analysis', 'card_agent', 'project_agent',
-]);
+const FLAGSHIP_TASKS: Set<AITaskType> = new Set(['brainstorming', 'idea_analysis', 'card_agent', 'project_agent']);
 
 const RECOMMENDED_MODELS: Record<AIProviderName, { flagship: string; efficient: string }> = {
-  openai:    { flagship: 'gpt-5.2',          efficient: 'gpt-5-mini' },
-  anthropic: { flagship: 'claude-opus-4-6',   efficient: 'claude-sonnet-4-6' },
-  kimi:      { flagship: 'kimi-k2.5',        efficient: 'kimi-k2.5' },
-  ollama:    { flagship: 'llama3.2',          efficient: 'llama3.2' },
+  openai: { flagship: 'gpt-5.2', efficient: 'gpt-5-mini' },
+  anthropic: { flagship: 'claude-opus-4-6', efficient: 'claude-sonnet-4-6' },
+  kimi: { flagship: 'kimi-k2.5', efficient: 'kimi-k2.5' },
+  ollama: { flagship: 'llama3.2', efficient: 'llama3.2' },
 };
 
 export interface TaskModelConfigHandle {
@@ -75,18 +82,21 @@ interface TaskModelConfigProps {
 
 type DraftConfig = Record<AITaskType, { providerId: string; model: string }>;
 
-const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(function TaskModelConfig({ providers }, ref) {
-  const getTaskModels = useSettingsStore(s => s.getTaskModels);
-  const setTaskModels = useSettingsStore(s => s.setTaskModels);
+const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(function TaskModelConfig(
+  { providers },
+  ref,
+) {
+  const getTaskModels = useSettingsStore((s) => s.getTaskModels);
+  const setTaskModels = useSettingsStore((s) => s.setTaskModels);
   // Subscribe to the actual setting value so we re-render when loadSettings() completes
-  const taskModelsJson = useSettingsStore(s => s.settings['ai.taskModels']);
+  const taskModelsJson = useSettingsStore((s) => s.settings['ai.taskModels']);
   const [draft, setDraft] = useState<DraftConfig>({} as DraftConfig);
   const [customModel, setCustomModel] = useState<Record<AITaskType, string>>({} as Record<AITaskType, string>);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const enabledProviders = providers.filter(p => p.enabled);
+  const enabledProviders = providers.filter((p) => p.enabled);
 
   // Load saved config when settings become available (after async loadSettings)
   useEffect(() => {
@@ -107,7 +117,7 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
   }, [taskModelsJson, getTaskModels]);
 
   const updateDraft = (type: AITaskType, field: 'providerId' | 'model', value: string) => {
-    setDraft(prev => ({
+    setDraft((prev) => ({
       ...prev,
       [type]: {
         ...prev[type],
@@ -121,7 +131,7 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
   };
 
   const getProviderName = (providerId: string): AIProviderName | null => {
-    const p = providers.find(prov => prov.id === providerId);
+    const p = providers.find((prov) => prov.id === providerId);
     return p ? p.name : null;
   };
 
@@ -208,8 +218,7 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
         const isOllama = providerName === 'ollama';
 
         return (
-          <div key={type}
-            className="p-3 hud-panel clip-corner-cut-sm">
+          <div key={type} className="p-3 hud-panel clip-corner-cut-sm">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-sm font-medium text-[var(--color-text-primary)]">{label}</div>
@@ -224,21 +233,23 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
                   compact
                   options={[
                     { value: '', label: 'Select provider' },
-                    ...enabledProviders.map(p => ({ value: p.id, label: p.displayName || p.name })),
+                    ...enabledProviders.map((p) => ({ value: p.id, label: p.displayName || p.name })),
                   ]}
                 />
 
                 {/* Model selector (dropdown for known models, text input for Ollama/custom) */}
-                {entry.providerId && (
-                  isOllama || models.length === 0 ? (
-                    <input type="text"
+                {entry.providerId &&
+                  (isOllama || models.length === 0 ? (
+                    <input
+                      type="text"
                       value={entry.model || customModel[type] || ''}
-                      onChange={e => {
-                        setCustomModel(prev => ({ ...prev, [type]: e.target.value }));
+                      onChange={(e) => {
+                        setCustomModel((prev) => ({ ...prev, [type]: e.target.value }));
                         updateDraft(type, 'model', e.target.value);
                       }}
                       placeholder="Model name..."
-                      className="text-xs bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] w-36 font-data" />
+                      className="text-xs bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] w-36 font-data"
+                    />
                   ) : (
                     <HudSelect
                       value={entry.model}
@@ -247,11 +258,10 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
                       compact
                       options={[
                         { value: '', label: 'Select model' },
-                        ...models.map(m => ({ value: m.id, label: m.label })),
+                        ...models.map((m) => ({ value: m.id, label: m.label })),
                       ]}
                     />
-                  )
-                )}
+                  ))}
               </div>
             </div>
           </div>
@@ -260,14 +270,19 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
 
       {/* Save / Reset buttons */}
       <div className="flex items-center gap-2 pt-2">
-        <button onClick={handleSave} disabled={saving || !dirty}
-          className="flex items-center gap-1.5 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 px-3 py-1.5 text-sm transition-all">
+        <button
+          onClick={handleSave}
+          disabled={saving || !dirty}
+          className="flex items-center gap-1.5 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 px-3 py-1.5 text-sm transition-all"
+        >
           <Save size={14} />
           {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Assignments'}
         </button>
         {dirty && (
-          <button onClick={handleReset}
-            className="flex items-center gap-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] text-sm transition-colors">
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] text-sm transition-colors"
+          >
             <RotateCcw size={14} />
             Reset
           </button>

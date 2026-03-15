@@ -14,11 +14,23 @@ import { z } from 'zod';
 import { eq, asc, desc, and, ilike, inArray, count } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import {
-  cards, columns, boards, projects,
-  cardChecklistItems, cardComments, cardRelationships,
-  cardAgentMessages, cardAgentThreads,
+  cards,
+  columns,
+  boards,
+  projects,
+  cardChecklistItems,
+  cardComments,
+  cardRelationships,
+  cardAgentMessages,
+  cardAgentThreads,
 } from '../db/schema';
-import type { CardAgentMessage, CardAgentThread, ToolCallRecord, ToolResultRecord, AgentAction } from '../../shared/types';
+import type {
+  CardAgentMessage,
+  CardAgentThread,
+  ToolCallRecord,
+  ToolResultRecord,
+  AgentAction,
+} from '../../shared/types';
 import { createLogger } from './logger';
 
 const log = createLogger('CardAgent');
@@ -53,38 +65,39 @@ export async function buildCardContext(cardId: string): Promise<string> {
 
   // Traverse card -> column -> board -> project
   const [column] = await db.select().from(columns).where(eq(columns.id, card.columnId));
-  const [board] = column
-    ? await db.select().from(boards).where(eq(boards.id, column.boardId))
-    : [undefined];
-  const [project] = board
-    ? await db.select().from(projects).where(eq(projects.id, board.projectId))
-    : [undefined];
+  const [board] = column ? await db.select().from(boards).where(eq(boards.id, column.boardId)) : [undefined];
+  const [project] = board ? await db.select().from(projects).where(eq(projects.id, board.projectId)) : [undefined];
 
   // Parallel: checklist, comments, relationships
   const [checklist, comments, relsAsSource, relsAsTarget] = await Promise.all([
-    db.select().from(cardChecklistItems)
+    db
+      .select()
+      .from(cardChecklistItems)
       .where(eq(cardChecklistItems.cardId, cardId))
       .orderBy(asc(cardChecklistItems.position)),
-    db.select().from(cardComments)
+    db
+      .select()
+      .from(cardComments)
       .where(eq(cardComments.cardId, cardId))
       .orderBy(desc(cardComments.createdAt))
       .limit(10),
-    db.select().from(cardRelationships)
-      .where(eq(cardRelationships.sourceCardId, cardId)),
-    db.select().from(cardRelationships)
-      .where(eq(cardRelationships.targetCardId, cardId)),
+    db.select().from(cardRelationships).where(eq(cardRelationships.sourceCardId, cardId)),
+    db.select().from(cardRelationships).where(eq(cardRelationships.targetCardId, cardId)),
   ]);
 
   // Enrich relationships with card titles
   const allRels = [...relsAsSource, ...relsAsTarget];
-  const relCardIds = [...new Set(allRels.flatMap(r => [r.sourceCardId, r.targetCardId]))].filter(id => id !== cardId);
-  const relCards = relCardIds.length > 0
-    ? await db.select({ id: cards.id, title: cards.title }).from(cards).where(inArray(cards.id, relCardIds))
-    : [];
-  const relCardMap = new Map(relCards.map(c => [c.id, c.title]));
+  const relCardIds = [...new Set(allRels.flatMap((r) => [r.sourceCardId, r.targetCardId]))].filter(
+    (id) => id !== cardId,
+  );
+  const relCards =
+    relCardIds.length > 0
+      ? await db.select({ id: cards.id, title: cards.title }).from(cards).where(inArray(cards.id, relCardIds))
+      : [];
+  const relCardMap = new Map(relCards.map((c) => [c.id, c.title]));
 
   // Build system prompt
-  const doneCount = checklist.filter(i => i.completed).length;
+  const doneCount = checklist.filter((i) => i.completed).length;
   let ctx = `## Your Role
 You are an AI assistant attached to a project card. You help the user accomplish
 the task described in this card by taking concrete actions: creating checklist items,
@@ -146,7 +159,8 @@ Priority: ${card.priority}`;
     }
     for (const rel of relsAsTarget) {
       const title = relCardMap.get(rel.sourceCardId) ?? 'Unknown';
-      if (rel.type === 'blocks') dependsOn.push(title); // reverse: if source blocks us, we depend on it
+      if (rel.type === 'blocks')
+        dependsOn.push(title); // reverse: if source blocks us, we depend on it
       else if (rel.type === 'depends_on') blocks.push(title);
       else relatedTo.push(title);
     }
@@ -177,10 +191,14 @@ export function createCardAgentTools(cardId: string, projectId: string | null) {
         const [targetCard] = await db.select().from(cards).where(eq(cards.id, targetCardId));
         if (!targetCard) return { error: 'Card not found' };
 
-        const checklist = await db.select().from(cardChecklistItems)
+        const checklist = await db
+          .select()
+          .from(cardChecklistItems)
           .where(eq(cardChecklistItems.cardId, targetCardId))
           .orderBy(asc(cardChecklistItems.position));
-        const comments = await db.select().from(cardComments)
+        const comments = await db
+          .select()
+          .from(cardComments)
           .where(eq(cardComments.cardId, targetCardId))
           .orderBy(desc(cardComments.createdAt))
           .limit(10);
@@ -189,8 +207,8 @@ export function createCardAgentTools(cardId: string, projectId: string | null) {
           title: targetCard.title,
           description: targetCard.description,
           priority: targetCard.priority,
-          checklist: checklist.map(i => ({ id: i.id, title: i.title, completed: i.completed })),
-          comments: comments.map(c => ({
+          checklist: checklist.map((i) => ({ id: i.id, title: i.title, completed: i.completed })),
+          comments: comments.map((c) => ({
             id: c.id,
             content: c.content.slice(0, 200),
             createdAt: c.createdAt.toISOString(),
@@ -209,27 +227,26 @@ export function createCardAgentTools(cardId: string, projectId: string | null) {
         if (!projectId) return { cards: [], note: 'Card is not in a project' };
 
         // Get all boards + columns for this project
-        const projectBoards = await db.select({ id: boards.id }).from(boards)
-          .where(eq(boards.projectId, projectId));
+        const projectBoards = await db.select({ id: boards.id }).from(boards).where(eq(boards.projectId, projectId));
         if (projectBoards.length === 0) return { cards: [] };
 
-        const boardIds = projectBoards.map(b => b.id);
-        const projectColumns = await db.select({ id: columns.id }).from(columns)
+        const boardIds = projectBoards.map((b) => b.id);
+        const projectColumns = await db
+          .select({ id: columns.id })
+          .from(columns)
           .where(inArray(columns.boardId, boardIds));
-        const columnIds = projectColumns.map(c => c.id);
+        const columnIds = projectColumns.map((c) => c.id);
         if (columnIds.length === 0) return { cards: [] };
 
-        const results = await db.select({
-          id: cards.id,
-          title: cards.title,
-          priority: cards.priority,
-          columnId: cards.columnId,
-        }).from(cards)
-          .where(and(
-            inArray(cards.columnId, columnIds),
-            eq(cards.archived, false),
-            ilike(cards.title, `%${query}%`),
-          ))
+        const results = await db
+          .select({
+            id: cards.id,
+            title: cards.title,
+            priority: cards.priority,
+            columnId: cards.columnId,
+          })
+          .from(cards)
+          .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false), ilike(cards.title, `%${query}%`)))
           .limit(limit);
 
         return { cards: results };
@@ -237,10 +254,15 @@ export function createCardAgentTools(cardId: string, projectId: string | null) {
     }),
 
     addChecklistItem: tool({
-      description: 'Add a new checklist item to a card. Defaults to the current card, but pass targetCardId to add to a different card (e.g. one you just created).',
+      description:
+        'Add a new checklist item to a card. Defaults to the current card, but pass targetCardId to add to a different card (e.g. one you just created).',
       inputSchema: z.object({
         title: z.string().describe('The checklist item text'),
-        targetCardId: z.string().uuid().optional().describe('ID of the card to add the item to. Omit to add to the current card.'),
+        targetCardId: z
+          .string()
+          .uuid()
+          .optional()
+          .describe('ID of the card to add the item to. Omit to add to the current card.'),
       }),
       execute: async ({ title, targetCardId }) => {
         const resolvedCardId = targetCardId ?? cardId;
@@ -249,11 +271,14 @@ export function createCardAgentTools(cardId: string, projectId: string | null) {
           .from(cardChecklistItems)
           .where(eq(cardChecklistItems.cardId, resolvedCardId));
 
-        const [item] = await db.insert(cardChecklistItems).values({
-          cardId: resolvedCardId,
-          title,
-          position: existingCount,
-        }).returning();
+        const [item] = await db
+          .insert(cardChecklistItems)
+          .values({
+            cardId: resolvedCardId,
+            title,
+            position: existingCount,
+          })
+          .returning();
 
         return { success: true, item: { id: item.id, title: item.title }, cardId: resolvedCardId };
       },
@@ -266,7 +291,8 @@ export function createCardAgentTools(cardId: string, projectId: string | null) {
         completed: z.boolean().describe('Whether the item should be marked as completed'),
       }),
       execute: async ({ itemId, completed }) => {
-        const [item] = await db.update(cardChecklistItems)
+        const [item] = await db
+          .update(cardChecklistItems)
           .set({ completed })
           .where(eq(cardChecklistItems.id, itemId))
           .returning();
@@ -281,10 +307,13 @@ export function createCardAgentTools(cardId: string, projectId: string | null) {
         content: z.string().describe('The comment text'),
       }),
       execute: async ({ content }) => {
-        const [comment] = await db.insert(cardComments).values({
-          cardId,
-          content,
-        }).returning();
+        const [comment] = await db
+          .insert(cardComments)
+          .values({
+            cardId,
+            content,
+          })
+          .returning();
         return { success: true, commentId: comment.id };
       },
     }),
@@ -295,41 +324,45 @@ export function createCardAgentTools(cardId: string, projectId: string | null) {
         description: z.string().describe('The new card description'),
       }),
       execute: async ({ description }) => {
-        await db.update(cards)
-          .set({ description, updatedAt: new Date() })
-          .where(eq(cards.id, cardId));
+        await db.update(cards).set({ description, updatedAt: new Date() }).where(eq(cards.id, cardId));
         return { success: true };
       },
     }),
 
     createCard: tool({
-      description: 'Create a new card in the same column as this card. Keep the description to 1-2 sentences — use addChecklistItem separately for tasks.',
+      description:
+        'Create a new card in the same column as this card. Keep the description to 1-2 sentences — use addChecklistItem separately for tasks.',
       inputSchema: z.object({
         title: z.string().describe('Short, clear title for the new card'),
-        description: z.string().optional().describe('Brief 1-2 sentence summary. Do NOT include task lists or steps here — use addChecklistItem instead'),
+        description: z
+          .string()
+          .optional()
+          .describe(
+            'Brief 1-2 sentence summary. Do NOT include task lists or steps here — use addChecklistItem instead',
+          ),
         priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().describe('Priority level'),
       }),
       execute: async ({ title, description, priority }) => {
         // Get current card's column
-        const [currentCard] = await db.select({ columnId: cards.columnId })
-          .from(cards).where(eq(cards.id, cardId));
+        const [currentCard] = await db.select({ columnId: cards.columnId }).from(cards).where(eq(cards.id, cardId));
         if (!currentCard) return { success: false, error: 'Current card not found' };
 
         // Count existing cards for position
-        const existing = await db.select().from(cards)
-          .where(eq(cards.columnId, currentCard.columnId));
+        const existing = await db.select().from(cards).where(eq(cards.columnId, currentCard.columnId));
 
-        const [newCard] = await db.insert(cards).values({
-          columnId: currentCard.columnId,
-          title,
-          description: description ?? null,
-          priority: priority ?? 'medium',
-          position: existing.length,
-        }).returning();
+        const [newCard] = await db
+          .insert(cards)
+          .values({
+            columnId: currentCard.columnId,
+            title,
+            description: description ?? null,
+            priority: priority ?? 'medium',
+            position: existing.length,
+          })
+          .returning();
 
         // Get column name for result
-        const [col] = await db.select({ name: columns.name })
-          .from(columns).where(eq(columns.id, currentCard.columnId));
+        const [col] = await db.select({ name: columns.name }).from(columns).where(eq(columns.id, currentCard.columnId));
 
         return {
           success: true,
@@ -354,24 +387,28 @@ export async function getThreads(cardId: string): Promise<CardAgentThread[]> {
   const db = getDb();
 
   // Step 1: fetch all threads for this card
-  const threads = await db.select().from(cardAgentThreads)
+  const threads = await db
+    .select()
+    .from(cardAgentThreads)
     .where(eq(cardAgentThreads.cardId, cardId))
     .orderBy(desc(cardAgentThreads.createdAt));
 
   if (threads.length === 0) return [];
 
   // Step 2: count messages per thread (single query, group by threadId)
-  const threadIds = threads.map(t => t.id);
-  const counts = await db.select({
-    threadId: cardAgentMessages.threadId,
-    value: count(),
-  }).from(cardAgentMessages)
+  const threadIds = threads.map((t) => t.id);
+  const counts = await db
+    .select({
+      threadId: cardAgentMessages.threadId,
+      value: count(),
+    })
+    .from(cardAgentMessages)
     .where(inArray(cardAgentMessages.threadId, threadIds))
     .groupBy(cardAgentMessages.threadId);
 
-  const countMap = new Map(counts.map(c => [c.threadId, c.value]));
+  const countMap = new Map(counts.map((c) => [c.threadId, c.value]));
 
-  return threads.map(t => ({
+  return threads.map((t) => ({
     id: t.id,
     cardId: t.cardId,
     title: t.title,
@@ -382,10 +419,13 @@ export async function getThreads(cardId: string): Promise<CardAgentThread[]> {
 
 export async function createThread(cardId: string, title: string): Promise<CardAgentThread> {
   const db = getDb();
-  const [row] = await db.insert(cardAgentThreads).values({
-    cardId,
-    title,
-  }).returning();
+  const [row] = await db
+    .insert(cardAgentThreads)
+    .values({
+      cardId,
+      title,
+    })
+    .returning();
   return {
     id: row.id,
     cardId: row.cardId,
@@ -409,9 +449,7 @@ export async function getMessages(cardId: string, threadId?: string): Promise<Ca
   const condition = threadId
     ? and(eq(cardAgentMessages.cardId, cardId), eq(cardAgentMessages.threadId, threadId))
     : eq(cardAgentMessages.cardId, cardId);
-  const rows = await db.select().from(cardAgentMessages)
-    .where(condition)
-    .orderBy(asc(cardAgentMessages.createdAt));
+  const rows = await db.select().from(cardAgentMessages).where(condition).orderBy(asc(cardAgentMessages.createdAt));
   return rows.map(toMessage);
 }
 
@@ -424,14 +462,17 @@ export async function addMessage(
   threadId?: string,
 ): Promise<CardAgentMessage> {
   const db = getDb();
-  const [row] = await db.insert(cardAgentMessages).values({
-    cardId,
-    role,
-    content,
-    toolCalls: toolCalls ?? null,
-    toolResults: toolResults ?? null,
-    threadId: threadId ?? null,
-  }).returning();
+  const [row] = await db
+    .insert(cardAgentMessages)
+    .values({
+      cardId,
+      role,
+      content,
+      toolCalls: toolCalls ?? null,
+      toolResults: toolResults ?? null,
+      threadId: threadId ?? null,
+    })
+    .returning();
   return toMessage(row);
 }
 
@@ -445,9 +486,7 @@ export async function getMessageCount(cardId: string, threadId?: string): Promis
   const condition = threadId
     ? and(eq(cardAgentMessages.cardId, cardId), eq(cardAgentMessages.threadId, threadId))
     : eq(cardAgentMessages.cardId, cardId);
-  const [{ value }] = await db.select({ value: count() })
-    .from(cardAgentMessages)
-    .where(condition);
+  const [{ value }] = await db.select({ value: count() }).from(cardAgentMessages).where(condition);
   return value;
 }
 

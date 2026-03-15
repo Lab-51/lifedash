@@ -17,12 +17,16 @@ export const brainstormSessions = pgTable('brainstorm_sessions', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const brainstormMessages = pgTable('brainstorm_messages', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  sessionId: uuid('session_id').notNull().references(() => brainstormSessions.id, { onDelete: 'cascade' }),
-  role: brainstormMessageRoleEnum('role').notNull(),
-  content: text('content').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  index('brainstorm_messages_session_id_idx').on(table.sessionId),
-]);
+export const brainstormMessages = pgTable(
+  'brainstorm_messages',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => brainstormSessions.id, { onDelete: 'cascade' }),
+    role: brainstormMessageRoleEnum('role').notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('brainstorm_messages_session_id_idx').on(table.sessionId)],
+);

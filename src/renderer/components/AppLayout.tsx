@@ -10,7 +10,7 @@ import PageSkeleton from './PageSkeleton';
 import { useFocusStore } from '../stores/focusStore';
 
 function AppLayout() {
-  const focusMode = useFocusStore(s => s.mode);
+  const focusMode = useFocusStore((s) => s.mode);
 
   return (
     <div className="flex-1 flex overflow-hidden">
@@ -19,9 +19,7 @@ function AppLayout() {
         <div className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--color-accent)] to-transparent opacity-[0.07] animate-scanline" />
       </div>
       {focusMode !== 'focus' && focusMode !== 'break' && <Sidebar />}
-      <main
-        className="flex-1 overflow-auto transition-colors duration-300 bg-surface-50 dark:bg-surface-950 text-[var(--color-text-primary)]"
-      >
+      <main className="flex-1 overflow-auto transition-colors duration-300 bg-surface-50 dark:bg-surface-950 text-[var(--color-text-primary)]">
         <ErrorBoundary>
           <Suspense fallback={<PageSkeleton />}>
             <Outlet />

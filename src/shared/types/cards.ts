@@ -24,8 +24,14 @@ export interface CardRelationship {
 }
 
 export type CardActivityAction =
-  | 'created' | 'updated' | 'moved' | 'commented'
-  | 'archived' | 'restored' | 'relationship_added' | 'relationship_removed';
+  | 'created'
+  | 'updated'
+  | 'moved'
+  | 'commented'
+  | 'archived'
+  | 'restored'
+  | 'relationship_added'
+  | 'relationship_removed';
 
 export interface CardActivity {
   id: string;

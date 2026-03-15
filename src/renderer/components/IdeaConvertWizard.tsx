@@ -21,7 +21,7 @@ interface IdeaConvertWizardProps {
 }
 
 export default function IdeaConvertWizard({ ideaId, onComplete, onCancel }: IdeaConvertWizardProps) {
-  const convertToCard = useIdeaStore(s => s.convertToCard);
+  const convertToCard = useIdeaStore((s) => s.convertToCard);
 
   // Wizard internal state
   const [convertStep, setConvertStep] = useState<1 | 2 | 3>(1);
@@ -39,7 +39,9 @@ export default function IdeaConvertWizard({ ideaId, onComplete, onCancel }: Idea
     window.electronAPI.getProjects().then((result) => {
       if (!cancelled) setProjects(result.filter((p) => !p.archived));
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Load boards when project selected
@@ -55,7 +57,9 @@ export default function IdeaConvertWizard({ ideaId, onComplete, onCancel }: Idea
         }
       }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedProjectId]);
 
   // Load columns when board selected
@@ -68,7 +72,9 @@ export default function IdeaConvertWizard({ ideaId, onComplete, onCancel }: Idea
         if (result.length === 1) setSelectedColumnId(result[0].id);
       }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedBoardId]);
 
   // === HANDLERS ===
@@ -164,11 +170,7 @@ export default function IdeaConvertWizard({ ideaId, onComplete, onCancel }: Idea
                   </span>
                 </div>
               ))}
-              {projects.length === 0 && (
-                <p className="text-sm text-surface-500 text-center py-4">
-                  No projects found
-                </p>
-              )}
+              {projects.length === 0 && <p className="text-sm text-surface-500 text-center py-4">No projects found</p>}
             </div>
           </div>
         )}
@@ -191,11 +193,7 @@ export default function IdeaConvertWizard({ ideaId, onComplete, onCancel }: Idea
                   <span className="text-sm text-surface-200">{b.name}</span>
                 </div>
               ))}
-              {boards.length === 0 && (
-                <p className="text-sm text-surface-500 text-center py-4">
-                  No boards found
-                </p>
-              )}
+              {boards.length === 0 && <p className="text-sm text-surface-500 text-center py-4">No boards found</p>}
             </div>
           </div>
         )}
@@ -218,11 +216,7 @@ export default function IdeaConvertWizard({ ideaId, onComplete, onCancel }: Idea
                   <span className="text-sm text-surface-200">{c.name}</span>
                 </div>
               ))}
-              {columns.length === 0 && (
-                <p className="text-sm text-surface-500 text-center py-4">
-                  No columns found
-                </p>
-              )}
+              {columns.length === 0 && <p className="text-sm text-surface-500 text-center py-4">No columns found</p>}
             </div>
           </div>
         )}
@@ -242,10 +236,7 @@ export default function IdeaConvertWizard({ ideaId, onComplete, onCancel }: Idea
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={onCancel}
-            className="text-sm text-surface-400 hover:text-surface-200 transition-colors"
-          >
+          <button onClick={onCancel} className="text-sm text-surface-400 hover:text-surface-200 transition-colors">
             Cancel
           </button>
           {convertStep < 3 ? (

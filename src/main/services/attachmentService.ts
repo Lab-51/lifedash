@@ -111,10 +111,7 @@ export async function addAttachment(cardId: string): Promise<CardAttachment | nu
 
 export async function deleteAttachment(id: string): Promise<void> {
   const db = getDb();
-  const [att] = await db
-    .select()
-    .from(cardAttachments)
-    .where(eq(cardAttachments.id, id));
+  const [att] = await db.select().from(cardAttachments).where(eq(cardAttachments.id, id));
 
   if (att) {
     // Delete file from disk (ignore errors if file already missing)

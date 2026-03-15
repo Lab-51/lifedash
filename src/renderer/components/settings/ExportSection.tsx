@@ -19,7 +19,7 @@ function formatSize(bytes: number): string {
 }
 
 export default function ExportSection() {
-  const exportData = useBackupStore(s => s.exportData);
+  const exportData = useBackupStore((s) => s.exportData);
 
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState<ExportResult | null>(null);

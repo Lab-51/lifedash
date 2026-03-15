@@ -18,7 +18,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Startups & Funding': 'text-pink-400 bg-pink-400/10 border-pink-400/20',
   'Open Source': 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
   'Tutorials & Guides': 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  'Other': 'text-gray-400 bg-gray-400/10 border-gray-400/20',
+  Other: 'text-gray-400 bg-gray-400/10 border-gray-400/20',
 };
 
 /** Format a date string into a human-readable relative time. */
@@ -89,7 +89,10 @@ export default function IntelItemCard({
       >
         {/* Top image */}
         {item.imageUrl && (
-          <div className="w-full h-[140px] -mt-3 -mx-3 mb-3 rounded-t-lg overflow-hidden border-b border-[var(--color-border)] bg-[var(--color-chrome)]" style={{ width: 'calc(100% + 1.5rem)' }}>
+          <div
+            className="w-full h-[140px] -mt-3 -mx-3 mb-3 rounded-t-lg overflow-hidden border-b border-[var(--color-border)] bg-[var(--color-chrome)]"
+            style={{ width: 'calc(100% + 1.5rem)' }}
+          >
             <img
               src={item.imageUrl}
               alt=""
@@ -105,16 +108,20 @@ export default function IntelItemCard({
         {/* Category badge */}
         {item.category && (
           <div className="mb-1.5">
-            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${CATEGORY_COLORS[item.category] || CATEGORY_COLORS['Other']}`}>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded border ${CATEGORY_COLORS[item.category] || CATEGORY_COLORS['Other']}`}
+            >
               {item.category}
             </span>
           </div>
         )}
 
         {/* Title */}
-        <h3 className={`text-sm font-bold leading-snug group-hover:text-[var(--color-accent)] transition-colors line-clamp-2 mb-1 ${
-          item.isRead ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'
-        }`}>
+        <h3
+          className={`text-sm font-bold leading-snug group-hover:text-[var(--color-accent)] transition-colors line-clamp-2 mb-1 ${
+            item.isRead ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'
+          }`}
+        >
           {!item.isRead && (
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] mr-1.5 align-middle" />
           )}
@@ -124,7 +131,15 @@ export default function IntelItemCard({
         {/* Source + time (compact) */}
         <div className="flex items-center gap-1.5 text-[0.6875rem] font-data text-[var(--color-text-muted)] mb-1.5">
           {item.sourceIconUrl && (
-            <img src={item.sourceIconUrl} alt="" className="w-4 h-4 rounded-sm shrink-0" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <img
+              src={item.sourceIconUrl}
+              alt=""
+              className="w-4 h-4 rounded-sm shrink-0"
+              loading="lazy"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
           )}
           <span className="text-[var(--color-accent-dim)]">{item.sourceName}</span>
           <span className="opacity-40">|</span>
@@ -133,9 +148,7 @@ export default function IntelItemCard({
 
         {/* Description (compact) */}
         {item.description && (
-          <p className="text-xs text-[var(--color-text-muted)] line-clamp-2 leading-relaxed">
-            {item.description}
-          </p>
+          <p className="text-xs text-[var(--color-text-muted)] line-clamp-2 leading-relaxed">{item.description}</p>
         )}
 
         {/* Spacer */}
@@ -178,9 +191,11 @@ export default function IntelItemCard({
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className={`text-sm font-bold leading-snug group-hover:text-[var(--color-accent)] transition-colors line-clamp-2 ${
-            item.isRead ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'
-          }`}>
+          <h3
+            className={`text-sm font-bold leading-snug group-hover:text-[var(--color-accent)] transition-colors line-clamp-2 ${
+              item.isRead ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'
+            }`}
+          >
             {/* Unread dot */}
             {!item.isRead && (
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] mr-2 align-middle" />
@@ -207,10 +222,7 @@ export default function IntelItemCard({
                   : 'text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 hover:text-amber-400'
               }`}
             >
-              <Star
-                size={14}
-                fill={item.isBookmarked ? 'currentColor' : 'none'}
-              />
+              <Star size={14} fill={item.isBookmarked ? 'currentColor' : 'none'} />
             </button>
           </div>
         </div>
@@ -218,7 +230,15 @@ export default function IntelItemCard({
         {/* Source + time + category */}
         <div className="flex items-center gap-1.5 text-[0.6875rem] font-data text-[var(--color-text-muted)] mb-1.5">
           {item.sourceIconUrl && (
-            <img src={item.sourceIconUrl} alt="" className="w-4 h-4 rounded-sm shrink-0" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <img
+              src={item.sourceIconUrl}
+              alt=""
+              className="w-4 h-4 rounded-sm shrink-0"
+              loading="lazy"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
           )}
           <span className="text-[var(--color-accent-dim)]">{item.sourceName}</span>
           <span className="opacity-40">|</span>
@@ -230,7 +250,9 @@ export default function IntelItemCard({
             </>
           )}
           {item.category && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${CATEGORY_COLORS[item.category] || CATEGORY_COLORS['Other']}`}>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded border ${CATEGORY_COLORS[item.category] || CATEGORY_COLORS['Other']}`}
+            >
               {item.category}
             </span>
           )}
@@ -238,16 +260,12 @@ export default function IntelItemCard({
 
         {/* Description */}
         {item.description && (
-          <p className="text-xs text-[var(--color-text-muted)] line-clamp-2 leading-relaxed">
-            {item.description}
-          </p>
+          <p className="text-xs text-[var(--color-text-muted)] line-clamp-2 leading-relaxed">{item.description}</p>
         )}
 
         {/* AI Summary */}
         {item.summary && (
-          <p className="text-xs italic text-[var(--color-accent-dim)] mt-1 line-clamp-2">
-            AI Summary: {item.summary}
-          </p>
+          <p className="text-xs italic text-[var(--color-accent-dim)] mt-1 line-clamp-2">AI Summary: {item.summary}</p>
         )}
 
         {/* Summarize button */}

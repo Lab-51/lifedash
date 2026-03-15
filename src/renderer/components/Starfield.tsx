@@ -96,8 +96,8 @@ export default function Starfield() {
           star.targetOffsetY = 0;
         }
 
-        const dx = (star.x + star.offsetX) - mouse.x;
-        const dy = (star.y + star.offsetY) - mouse.y;
+        const dx = star.x + star.offsetX - mouse.x;
+        const dy = star.y + star.offsetY - mouse.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         const maxDistance = 120;
 
@@ -121,13 +121,19 @@ export default function Starfield() {
         star.size += (targetSize - star.size) * 0.1;
         star.opacity += (targetOpacity - star.opacity) * 0.1;
 
-        let r = 255, g = 255, b = 255;
+        let r = 255,
+          g = 255,
+          b = 255;
         const a = Math.max(0, star.opacity);
 
         if (star.colorIndex > 0.95) {
-          r = 62; g = 232; b = 228; // Cyan accent
-        } else if (star.colorIndex > 0.90) {
-          r = 232; g = 163; b = 62; // Warm accent
+          r = 62;
+          g = 232;
+          b = 228; // Cyan accent
+        } else if (star.colorIndex > 0.9) {
+          r = 232;
+          g = 163;
+          b = 62; // Warm accent
         }
 
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
@@ -154,11 +160,5 @@ export default function Starfield() {
     };
   }, []);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 pointer-events-none"
-      style={{ opacity: 0.6 }}
-    />
-  );
+  return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" style={{ opacity: 0.6 }} />;
 }

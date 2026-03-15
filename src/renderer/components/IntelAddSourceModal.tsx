@@ -19,9 +19,9 @@ export default function IntelAddSourceModal({ isOpen, onClose }: IntelAddSourceM
 
   const urlInputRef = useRef<HTMLInputElement>(null);
 
-  const createSource = useIntelFeedStore(s => s.createSource);
-  const fetchAll = useIntelFeedStore(s => s.fetchAll);
-  const loadSources = useIntelFeedStore(s => s.loadSources);
+  const createSource = useIntelFeedStore((s) => s.createSource);
+  const fetchAll = useIntelFeedStore((s) => s.fetchAll);
+  const loadSources = useIntelFeedStore((s) => s.loadSources);
 
   // Auto-focus URL input on open
   useEffect(() => {
@@ -42,9 +42,12 @@ export default function IntelAddSourceModal({ isOpen, onClose }: IntelAddSourceM
   }, [isOpen]);
 
   // Escape key closes modal
-  const handleEscape = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose();
-  }, [onClose]);
+  const handleEscape = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    },
+    [onClose],
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -96,18 +99,16 @@ export default function IntelAddSourceModal({ isOpen, onClose }: IntelAddSourceM
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-[2px]"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div
-        className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-xl shadow-2xl w-full max-w-md mx-4"
-      >
+      <div className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-xl shadow-2xl w-full max-w-md mx-4">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-3">
           <div className="flex items-center gap-2">
             <Rss size={16} className="text-[var(--color-accent)]" />
-            <h2 className="font-hud text-sm tracking-wide text-[var(--color-text-primary)]">
-              Add RSS Feed
-            </h2>
+            <h2 className="font-hud text-sm tracking-wide text-[var(--color-text-primary)]">Add RSS Feed</h2>
           </div>
           <button
             onClick={onClose}
@@ -129,7 +130,7 @@ export default function IntelAddSourceModal({ isOpen, onClose }: IntelAddSourceM
               ref={urlInputRef}
               type="url"
               value={url}
-              onChange={e => setUrl(e.target.value)}
+              onChange={(e) => setUrl(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="https://example.com/feed.xml"
               className="w-full text-sm bg-surface-50/50 dark:bg-surface-950/30 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] focus:ring-1 focus:ring-[var(--color-accent-dim)]/50 transition-colors"
@@ -143,7 +144,7 @@ export default function IntelAddSourceModal({ isOpen, onClose }: IntelAddSourceM
             <input
               type="text"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Source name"
               className="w-full text-sm bg-surface-50/50 dark:bg-surface-950/30 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] focus:ring-1 focus:ring-[var(--color-accent-dim)]/50 transition-colors"

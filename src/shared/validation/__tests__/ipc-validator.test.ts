@@ -37,15 +37,11 @@ describe('validateInput', () => {
   });
 
   it('error message contains field path for object validation', () => {
-    expect(() =>
-      validateInput(objectSchema, { id: 'not-a-uuid', name: 'Test' }),
-    ).toThrow(/id/);
+    expect(() => validateInput(objectSchema, { id: 'not-a-uuid', name: 'Test' })).toThrow(/id/);
   });
 
   it('error message contains validation issue description', () => {
-    expect(() =>
-      validateInput(objectSchema, { id: 'not-a-uuid', name: 'Test' }),
-    ).toThrow(/Invalid uuid/i);
+    expect(() => validateInput(objectSchema, { id: 'not-a-uuid', name: 'Test' })).toThrow(/Invalid uuid/i);
   });
 
   // --- Nested / compound validation ---
@@ -59,9 +55,7 @@ describe('validateInput', () => {
     const valid = { card: { columnId: '550e8400-e29b-41d4-a716-446655440000' } };
     expect(validateInput(nestedSchema, valid)).toEqual(valid);
 
-    expect(() =>
-      validateInput(nestedSchema, { card: { columnId: 'bad' } }),
-    ).toThrow(/card\.columnId/);
+    expect(() => validateInput(nestedSchema, { card: { columnId: 'bad' } })).toThrow(/card\.columnId/);
   });
 
   // --- Optional fields ---
@@ -72,9 +66,7 @@ describe('validateInput', () => {
   });
 
   it('rejects null for non-nullable optional fields', () => {
-    expect(() =>
-      validateInput(optionalFieldsSchema, { required: 'hello', optional: null }),
-    ).toThrow(Error);
+    expect(() => validateInput(optionalFieldsSchema, { required: 'hello', optional: null })).toThrow(Error);
   });
 
   // --- Multiple errors ---

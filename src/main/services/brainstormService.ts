@@ -18,12 +18,23 @@
 import { eq, desc, asc, and, inArray, not } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import {
-  brainstormSessions, brainstormMessages,
-  projects, boards, columns, cards, meetings, meetingBriefs, ideas,
+  brainstormSessions,
+  brainstormMessages,
+  projects,
+  boards,
+  columns,
+  cards,
+  meetings,
+  meetingBriefs,
+  ideas,
 } from '../db/schema';
 import type {
-  BrainstormSession, BrainstormMessage, BrainstormSessionWithMessages,
-  CreateBrainstormSessionInput, BrainstormSessionStatus, Idea,
+  BrainstormSession,
+  BrainstormMessage,
+  BrainstormSessionWithMessages,
+  CreateBrainstormSessionInput,
+  BrainstormSessionStatus,
+  Idea,
 } from '../../shared/types';
 
 // ---------------------------------------------------------------------------
@@ -114,8 +125,7 @@ When project context is provided below, use it. Don't re-ask what the context al
  */
 export async function getSessions(): Promise<BrainstormSession[]> {
   const db = getDb();
-  const rows = await db.select().from(brainstormSessions)
-    .orderBy(desc(brainstormSessions.updatedAt));
+  const rows = await db.select().from(brainstormSessions).orderBy(desc(brainstormSessions.updatedAt));
   return rows.map(toSession);
 }
 
@@ -124,11 +134,12 @@ export async function getSessions(): Promise<BrainstormSession[]> {
  */
 export async function getSession(id: string): Promise<BrainstormSessionWithMessages | null> {
   const db = getDb();
-  const [sessionRow] = await db.select().from(brainstormSessions)
-    .where(eq(brainstormSessions.id, id));
+  const [sessionRow] = await db.select().from(brainstormSessions).where(eq(brainstormSessions.id, id));
   if (!sessionRow) return null;
 
-  const messageRows = await db.select().from(brainstormMessages)
+  const messageRows = await db
+    .select()
+    .from(brainstormMessages)
     .where(eq(brainstormMessages.sessionId, id))
     .orderBy(asc(brainstormMessages.createdAt));
 
@@ -143,10 +154,13 @@ export async function getSession(id: string): Promise<BrainstormSessionWithMessa
  */
 export async function createSession(data: CreateBrainstormSessionInput): Promise<BrainstormSession> {
   const db = getDb();
-  const [row] = await db.insert(brainstormSessions).values({
-    title: data.title,
-    projectId: data.projectId ?? null,
-  }).returning();
+  const [row] = await db
+    .insert(brainstormSessions)
+    .values({
+      title: data.title,
+      projectId: data.projectId ?? null,
+    })
+    .returning();
   return toSession(row);
 }
 
@@ -162,10 +176,7 @@ export async function updateSession(
   if (data.title !== undefined) updateObj.title = data.title;
   if (data.status !== undefined) updateObj.status = data.status;
 
-  const [row] = await db.update(brainstormSessions)
-    .set(updateObj)
-    .where(eq(brainstormSessions.id, id))
-    .returning();
+  const [row] = await db.update(brainstormSessions).set(updateObj).where(eq(brainstormSessions.id, id)).returning();
   if (!row) throw new Error(`Session not found: ${id}`);
   return toSession(row);
 }
@@ -187,16 +198,17 @@ export async function addMessage(
   content: string,
 ): Promise<BrainstormMessage> {
   const db = getDb();
-  const [row] = await db.insert(brainstormMessages).values({
-    sessionId,
-    role,
-    content,
-  }).returning();
+  const [row] = await db
+    .insert(brainstormMessages)
+    .values({
+      sessionId,
+      role,
+      content,
+    })
+    .returning();
 
   // Touch session updatedAt
-  await db.update(brainstormSessions)
-    .set({ updatedAt: new Date() })
-    .where(eq(brainstormSessions.id, sessionId));
+  await db.update(brainstormSessions).set({ updatedAt: new Date() }).where(eq(brainstormSessions.id, sessionId));
 
   return toMessage(row);
 }
@@ -206,7 +218,9 @@ export async function addMessage(
  */
 export async function getMessages(sessionId: string): Promise<BrainstormMessage[]> {
   const db = getDb();
-  const rows = await db.select().from(brainstormMessages)
+  const rows = await db
+    .select()
+    .from(brainstormMessages)
     .where(eq(brainstormMessages.sessionId, sessionId))
     .orderBy(asc(brainstormMessages.createdAt));
   return rows.map(toMessage);
@@ -220,16 +234,14 @@ export async function getMessages(sessionId: string): Promise<BrainstormMessage[
 export async function buildContext(sessionId: string): Promise<string> {
   const db = getDb();
 
-  const [session] = await db.select().from(brainstormSessions)
-    .where(eq(brainstormSessions.id, sessionId));
+  const [session] = await db.select().from(brainstormSessions).where(eq(brainstormSessions.id, sessionId));
   if (!session) return getBaseSystemPrompt();
 
   let context = getBaseSystemPrompt();
 
   if (!session.projectId) return context;
 
-  const [project] = await db.select().from(projects)
-    .where(eq(projects.id, session.projectId));
+  const [project] = await db.select().from(projects).where(eq(projects.id, session.projectId));
   if (!project) return context;
 
   context += `\n\n## Current Project: ${project.name}`;
@@ -239,19 +251,17 @@ export async function buildContext(sessionId: string): Promise<string> {
 
   // Parallel queries: boards, meetings, ideas
   const [projectBoards, projectMeetings, projectIdeas] = await Promise.all([
-    db.select().from(boards)
-      .where(eq(boards.projectId, project.id)),
-    db.select({ id: meetings.id, title: meetings.title })
+    db.select().from(boards).where(eq(boards.projectId, project.id)),
+    db
+      .select({ id: meetings.id, title: meetings.title })
       .from(meetings)
       .where(eq(meetings.projectId, project.id))
       .orderBy(desc(meetings.createdAt))
       .limit(3),
-    db.select({ title: ideas.title, status: ideas.status })
+    db
+      .select({ title: ideas.title, status: ideas.status })
       .from(ideas)
-      .where(and(
-        eq(ideas.projectId, project.id),
-        not(eq(ideas.status, 'archived')),
-      ))
+      .where(and(eq(ideas.projectId, project.id), not(eq(ideas.status, 'archived'))))
       .orderBy(desc(ideas.updatedAt))
       .limit(5),
   ]);
@@ -260,22 +270,19 @@ export async function buildContext(sessionId: string): Promise<string> {
   if (projectBoards.length > 0) {
     context += `\n\n## Boards`;
     for (const board of projectBoards) {
-      const boardColumns = await db.select({ id: columns.id })
-        .from(columns).where(eq(columns.boardId, board.id));
-      const columnIds = boardColumns.map(c => c.id);
+      const boardColumns = await db.select({ id: columns.id }).from(columns).where(eq(columns.boardId, board.id));
+      const columnIds = boardColumns.map((c) => c.id);
 
       if (columnIds.length > 0) {
-        const boardCards = await db.select({ title: cards.title })
+        const boardCards = await db
+          .select({ title: cards.title })
           .from(cards)
-          .where(and(
-            inArray(cards.columnId, columnIds),
-            eq(cards.archived, false),
-          ))
+          .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false)))
           .orderBy(desc(cards.updatedAt))
           .limit(5);
 
         if (boardCards.length > 0) {
-          context += `\n- ${board.name}: ${boardCards.map(c => c.title).join(', ')}`;
+          context += `\n- ${board.name}: ${boardCards.map((c) => c.title).join(', ')}`;
         } else {
           context += `\n- ${board.name} (no cards)`;
         }
@@ -298,15 +305,14 @@ export async function buildContext(sessionId: string): Promise<string> {
     context += `\n\n## Recent Meetings`;
     for (const mtg of projectMeetings) {
       context += `\n- ${mtg.title}`;
-      const [brief] = await db.select({ summary: meetingBriefs.summary })
+      const [brief] = await db
+        .select({ summary: meetingBriefs.summary })
         .from(meetingBriefs)
         .where(eq(meetingBriefs.meetingId, mtg.id))
         .orderBy(desc(meetingBriefs.createdAt))
         .limit(1);
       if (brief) {
-        const truncated = brief.summary.length > 200
-          ? brief.summary.slice(0, 200) + '...'
-          : brief.summary;
+        const truncated = brief.summary.length > 200 ? brief.summary.slice(0, 200) + '...' : brief.summary;
         context += ` — ${truncated}`;
       }
     }
@@ -322,47 +328,60 @@ export async function exportToCard(
   sessionId: string,
   messageId: string,
 ): Promise<{
-  id: string; columnId: string; title: string; description: string | null;
-  position: number; priority: string; dueDate: null; archived: boolean;
-  createdAt: string; updatedAt: string;
+  id: string;
+  columnId: string;
+  title: string;
+  description: string | null;
+  position: number;
+  priority: string;
+  dueDate: null;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
 }> {
   const db = getDb();
 
-  const [msg] = await db.select().from(brainstormMessages)
-    .where(eq(brainstormMessages.id, messageId));
+  const [msg] = await db.select().from(brainstormMessages).where(eq(brainstormMessages.id, messageId));
   if (!msg) throw new Error(`Message not found: ${messageId}`);
 
-  const [session] = await db.select().from(brainstormSessions)
-    .where(eq(brainstormSessions.id, sessionId));
+  const [session] = await db.select().from(brainstormSessions).where(eq(brainstormSessions.id, sessionId));
   if (!session?.projectId) throw new Error('Session must be linked to a project to save as card');
 
   // Find the project's board
-  const [board] = await db.select().from(boards)
-    .where(eq(boards.projectId, session.projectId));
+  const [board] = await db.select().from(boards).where(eq(boards.projectId, session.projectId));
   if (!board) throw new Error('Project has no board');
 
   // Find the first column (by position)
-  const [firstColumn] = await db.select().from(columns)
+  const [firstColumn] = await db
+    .select()
+    .from(columns)
     .where(eq(columns.boardId, board.id))
     .orderBy(asc(columns.position))
     .limit(1);
   if (!firstColumn) throw new Error('Board has no columns');
 
   // Count existing cards to get position
-  const existingCards = await db.select().from(cards)
-    .where(eq(cards.columnId, firstColumn.id));
+  const existingCards = await db.select().from(cards).where(eq(cards.columnId, firstColumn.id));
 
   // Create the title: first line stripped of markdown #, truncated to 100 chars
-  const title = msg.content.split('\n')[0].replace(/^#+\s*/, '').trim().slice(0, 100) || 'Brainstorm card';
+  const title =
+    msg.content
+      .split('\n')[0]
+      .replace(/^#+\s*/, '')
+      .trim()
+      .slice(0, 100) || 'Brainstorm card';
 
   // Create the card
-  const [card] = await db.insert(cards).values({
-    columnId: firstColumn.id,
-    title,
-    description: msg.content,
-    priority: 'medium',
-    position: existingCards.length,
-  }).returning();
+  const [card] = await db
+    .insert(cards)
+    .values({
+      columnId: firstColumn.id,
+      title,
+      description: msg.content,
+      priority: 'medium',
+      position: existingCards.length,
+    })
+    .returning();
 
   return {
     id: card.id,
@@ -382,25 +401,23 @@ export async function exportToCard(
  * Export an assistant message as a new idea.
  * Uses the message content as the idea description and a truncated version as the title.
  */
-export async function exportToIdea(
-  sessionId: string,
-  messageId: string,
-): Promise<Idea> {
+export async function exportToIdea(sessionId: string, messageId: string): Promise<Idea> {
   const db = getDb();
 
-  const [msg] = await db.select().from(brainstormMessages)
-    .where(eq(brainstormMessages.id, messageId));
+  const [msg] = await db.select().from(brainstormMessages).where(eq(brainstormMessages.id, messageId));
   if (!msg) throw new Error(`Message not found: ${messageId}`);
 
-  const [session] = await db.select().from(brainstormSessions)
-    .where(eq(brainstormSessions.id, sessionId));
+  const [session] = await db.select().from(brainstormSessions).where(eq(brainstormSessions.id, sessionId));
 
-  const [ideaRow] = await db.insert(ideas).values({
-    title: msg.content.slice(0, 100).replace(/\n/g, ' ').trim(),
-    description: msg.content,
-    projectId: session?.projectId ?? null,
-    status: 'new',
-  }).returning();
+  const [ideaRow] = await db
+    .insert(ideas)
+    .values({
+      title: msg.content.slice(0, 100).replace(/\n/g, ' ').trim(),
+      description: msg.content,
+      projectId: session?.projectId ?? null,
+      status: 'new',
+    })
+    .returning();
 
   return {
     id: ideaRow.id,

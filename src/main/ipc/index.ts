@@ -46,9 +46,7 @@ function installIpcTimingWrapper(): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (ipcMain as any).handle = (channel: string, listener: (...args: any[]) => any) => {
     return originalHandle(channel, async (...args: any[]) => {
-      return trackTiming(`IPC: ${channel}`, () =>
-        Promise.resolve(listener(...args)),
-      );
+      return trackTiming(`IPC: ${channel}`, () => Promise.resolve(listener(...args)));
     });
   };
 }

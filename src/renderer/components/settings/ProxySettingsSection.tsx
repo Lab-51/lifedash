@@ -29,13 +29,12 @@ export default function ProxySettingsSection() {
   useEffect(() => {
     async function load() {
       try {
-        const [savedUrl, savedNoProxy, savedUseSystem, currentProxy] =
-          await Promise.all([
-            window.electronAPI.getSetting(PROXY_URL_KEY),
-            window.electronAPI.getSetting(PROXY_NO_PROXY_KEY),
-            window.electronAPI.getSetting(PROXY_USE_SYSTEM_KEY),
-            window.electronAPI.getProxy(),
-          ]);
+        const [savedUrl, savedNoProxy, savedUseSystem, currentProxy] = await Promise.all([
+          window.electronAPI.getSetting(PROXY_URL_KEY),
+          window.electronAPI.getSetting(PROXY_NO_PROXY_KEY),
+          window.electronAPI.getSetting(PROXY_USE_SYSTEM_KEY),
+          window.electronAPI.getProxy(),
+        ]);
 
         // Detect if a system proxy is active (from env vars)
         // If getProxy returns a value but no savedUrl is in DB, it came from env
@@ -85,10 +84,7 @@ export default function ProxySettingsSection() {
 
     try {
       // Save use-system preference
-      await window.electronAPI.setSetting(
-        PROXY_USE_SYSTEM_KEY,
-        String(useSystem),
-      );
+      await window.electronAPI.setSetting(PROXY_USE_SYSTEM_KEY, String(useSystem));
 
       if (useSystem) {
         // Clear manual proxy settings when using system proxy
@@ -104,10 +100,7 @@ export default function ProxySettingsSection() {
 
         const trimmedNoProxy = noProxy.trim();
         if (trimmedNoProxy) {
-          await window.electronAPI.setSetting(
-            PROXY_NO_PROXY_KEY,
-            trimmedNoProxy,
-          );
+          await window.electronAPI.setSetting(PROXY_NO_PROXY_KEY, trimmedNoProxy);
         } else {
           await window.electronAPI.deleteSetting(PROXY_NO_PROXY_KEY);
         }
@@ -132,9 +125,7 @@ export default function ProxySettingsSection() {
     return (
       <section className="mb-10">
         <div className="mb-4">
-          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">
-            Network Proxy
-          </h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Network Proxy</h2>
         </div>
         <div className="flex items-center justify-center py-6 text-surface-500">
           <Loader2 size={20} className="animate-spin" />
@@ -149,9 +140,7 @@ export default function ProxySettingsSection() {
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <Globe size={18} className="text-primary-400" />
-          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">
-            Network Proxy
-          </h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Network Proxy</h2>
         </div>
         <p className="text-sm text-surface-500 mt-1">
           Configure an HTTP proxy for AI API calls in enterprise networks.
@@ -168,13 +157,9 @@ export default function ProxySettingsSection() {
             className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
           />
           <div>
-            <span className="text-sm font-medium text-[var(--color-text-primary)]">
-              Use system proxy
-            </span>
+            <span className="text-sm font-medium text-[var(--color-text-primary)]">Use system proxy</span>
             <p className="text-xs text-surface-500">
-              {systemProxy
-                ? `Detected: ${systemProxy}`
-                : 'Reads from HTTPS_PROXY / HTTP_PROXY environment variables'}
+              {systemProxy ? `Detected: ${systemProxy}` : 'Reads from HTTPS_PROXY / HTTP_PROXY environment variables'}
             </p>
           </div>
         </label>
@@ -183,9 +168,7 @@ export default function ProxySettingsSection() {
         {!useSystem && (
           <div className="space-y-3 pt-2 border-t border-[var(--color-border)]">
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">
-                Proxy URL
-              </label>
+              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">Proxy URL</label>
               <input
                 type="text"
                 value={proxyUrl}
@@ -193,15 +176,11 @@ export default function ProxySettingsSection() {
                 placeholder="http://proxy.corp.com:8080"
                 className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
               />
-              <p className="text-xs text-surface-500 mt-1">
-                Must start with http:// or https://
-              </p>
+              <p className="text-xs text-surface-500 mt-1">Must start with http:// or https://</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">
-                No-proxy list
-              </label>
+              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">No-proxy list</label>
               <input
                 type="text"
                 value={noProxy}
@@ -209,9 +188,7 @@ export default function ProxySettingsSection() {
                 placeholder="localhost, 127.0.0.1, .internal.corp.com"
                 className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
               />
-              <p className="text-xs text-surface-500 mt-1">
-                Comma-separated domains that bypass the proxy
-              </p>
+              <p className="text-xs text-surface-500 mt-1">Comma-separated domains that bypass the proxy</p>
             </div>
           </div>
         )}
@@ -223,25 +200,17 @@ export default function ProxySettingsSection() {
             disabled={saving}
             className="flex items-center gap-2 px-4 py-2 text-sm border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 disabled:border-[var(--color-border)] disabled:text-[var(--color-text-muted)] transition-all"
           >
-            {saving ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : null}
+            {saving ? <Loader2 size={14} className="animate-spin" /> : null}
             {saving ? 'Saving...' : 'Save'}
           </button>
 
           {feedback && (
             <span
               className={`flex items-center gap-1.5 text-sm ${
-                feedback.type === 'success'
-                  ? 'text-emerald-400'
-                  : 'text-red-400'
+                feedback.type === 'success' ? 'text-emerald-400' : 'text-red-400'
               }`}
             >
-              {feedback.type === 'success' ? (
-                <Check size={14} />
-              ) : (
-                <AlertCircle size={14} />
-              )}
+              {feedback.type === 'success' ? <Check size={14} /> : <AlertCircle size={14} />}
               {feedback.message}
             </span>
           )}

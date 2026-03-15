@@ -10,10 +10,18 @@ export function formatDateStr(date: Date): string {
 export function getNextRecurrenceDate(dueDate: string, recurrenceType: string): Date {
   const d = new Date(dueDate);
   switch (recurrenceType) {
-    case 'daily': d.setDate(d.getDate() + 1); break;
-    case 'weekly': d.setDate(d.getDate() + 7); break;
-    case 'biweekly': d.setDate(d.getDate() + 14); break;
-    case 'monthly': d.setMonth(d.getMonth() + 1); break;
+    case 'daily':
+      d.setDate(d.getDate() + 1);
+      break;
+    case 'weekly':
+      d.setDate(d.getDate() + 7);
+      break;
+    case 'biweekly':
+      d.setDate(d.getDate() + 14);
+      break;
+    case 'monthly':
+      d.setMonth(d.getMonth() + 1);
+      break;
   }
   return d;
 }

@@ -4,10 +4,7 @@
 
 import { eq, gte, desc, and, or, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import {
-  projects, boards, columns, cards, cardActivities,
-  meetings, actionItems,
-} from '../db/schema';
+import { projects, boards, columns, cards, cardActivities, meetings, actionItems } from '../db/schema';
 import { resolveTaskModel, generate } from './ai-provider';
 import { createLogger } from './logger';
 import type { MeetingPrepData } from '../../shared/types';
@@ -18,10 +15,7 @@ export async function generateMeetingPrep(projectId: string): Promise<MeetingPre
   const db = getDb();
 
   // a. Get project name
-  const [project] = await db
-    .select({ name: projects.name })
-    .from(projects)
-    .where(eq(projects.id, projectId));
+  const [project] = await db.select({ name: projects.name }).from(projects).where(eq(projects.id, projectId));
 
   if (!project) throw new Error(`Project not found: ${projectId}`);
 
@@ -32,12 +26,7 @@ export async function generateMeetingPrep(projectId: string): Promise<MeetingPre
       endedAt: meetings.endedAt,
     })
     .from(meetings)
-    .where(
-      and(
-        eq(meetings.projectId, projectId),
-        eq(meetings.status, 'completed'),
-      ),
-    )
+    .where(and(eq(meetings.projectId, projectId), eq(meetings.status, 'completed')))
     .orderBy(desc(meetings.endedAt))
     .limit(1);
 
@@ -105,13 +94,7 @@ export async function generateMeetingPrep(projectId: string): Promise<MeetingPre
     .from(actionItems)
     .innerJoin(meetings, eq(actionItems.meetingId, meetings.id))
     .where(
-      and(
-        eq(meetings.projectId, projectId),
-        or(
-          eq(actionItems.status, 'pending'),
-          eq(actionItems.status, 'approved'),
-        ),
-      ),
+      and(eq(meetings.projectId, projectId), or(eq(actionItems.status, 'pending'), eq(actionItems.status, 'approved'))),
     );
 
   // f. Query high-priority cards (not archived, in this project)
@@ -128,10 +111,7 @@ export async function generateMeetingPrep(projectId: string): Promise<MeetingPre
       and(
         eq(boards.projectId, projectId),
         eq(cards.archived, false),
-        or(
-          eq(cards.priority, 'high'),
-          eq(cards.priority, 'urgent'),
-        ),
+        or(eq(cards.priority, 'high'), eq(cards.priority, 'urgent')),
       ),
     );
 
@@ -139,28 +119,28 @@ export async function generateMeetingPrep(projectId: string): Promise<MeetingPre
   const provider = await resolveTaskModel('meeting_prep');
   if (!provider) throw new Error('No AI provider configured. Go to Settings to add one.');
 
-  const createdText = created.length > 0
-    ? created.map(c => `- "${c.title}" added to ${c.column}`).join('\n')
-    : 'None';
+  const createdText =
+    created.length > 0 ? created.map((c) => `- "${c.title}" added to ${c.column}`).join('\n') : 'None';
 
-  const completedText = completed.length > 0
-    ? completed.map(c => `- "${c.title}"`).join('\n')
-    : 'None';
+  const completedText = completed.length > 0 ? completed.map((c) => `- "${c.title}"`).join('\n') : 'None';
 
-  const movedText = moved.length > 0
-    ? moved.map(m => `- "${m.title}" from ${m.from || '?'} to ${m.to}`).join('\n')
-    : 'None';
+  const movedText =
+    moved.length > 0 ? moved.map((m) => `- "${m.title}" from ${m.from || '?'} to ${m.to}`).join('\n') : 'None';
 
-  const pendingActionsText = pendingActions.length > 0
-    ? pendingActions.map(a => `- "${a.description}" (from: ${a.meetingTitle})`).join('\n')
-    : 'None';
+  const pendingActionsText =
+    pendingActions.length > 0
+      ? pendingActions.map((a) => `- "${a.description}" (from: ${a.meetingTitle})`).join('\n')
+      : 'None';
 
-  const highPriorityText = highPriorityCards.length > 0
-    ? highPriorityCards.map(c => {
-        const due = c.dueDate ? ` (due: ${new Date(c.dueDate).toLocaleDateString()})` : '';
-        return `- "${c.title}" in ${c.columnName}${due}`;
-      }).join('\n')
-    : 'None';
+  const highPriorityText =
+    highPriorityCards.length > 0
+      ? highPriorityCards
+          .map((c) => {
+            const due = c.dueDate ? ` (due: ${new Date(c.dueDate).toLocaleDateString()})` : '';
+            return `- "${c.title}" in ${c.columnName}${due}`;
+          })
+          .join('\n')
+      : 'None';
 
   const lastMeetingInfo = lastMeeting
     ? `Last meeting: "${lastMeeting.title}" on ${new Date(lastMeeting.endedAt!).toLocaleDateString()}`
@@ -225,15 +205,13 @@ Be concise and actionable. Use markdown bullet points.`;
   return {
     projectName: project.name,
     lastMeetingTitle: lastMeeting?.title ?? null,
-    lastMeetingDate: lastMeeting?.endedAt
-      ? new Date(lastMeeting.endedAt).toISOString()
-      : null,
+    lastMeetingDate: lastMeeting?.endedAt ? new Date(lastMeeting.endedAt).toISOString() : null,
     cardChanges: { created, completed, moved },
-    pendingActions: pendingActions.map(a => ({
+    pendingActions: pendingActions.map((a) => ({
       description: a.description,
       meetingTitle: a.meetingTitle,
     })),
-    highPriorityCards: highPriorityCards.map(c => ({
+    highPriorityCards: highPriorityCards.map((c) => ({
       title: c.title,
       column: c.columnName,
       dueDate: c.dueDate ? new Date(c.dueDate).toISOString() : null,

@@ -62,7 +62,7 @@ describe('computeCardMove', () => {
       expect(result.updates).toContainEqual({ id: 'b', position: 2 });
       expect(result.updates).toContainEqual({ id: 'c', position: 3 });
       // 'a' stays at 0
-      expect(result.updates.find(u => u.id === 'a')).toBeUndefined();
+      expect(result.updates.find((u) => u.id === 'a')).toBeUndefined();
     });
 
     it('moves card to empty column (no siblings)', () => {
@@ -90,7 +90,7 @@ describe('computeCardMove', () => {
       // 'd' moves from 3 to 3 — but it was at position 3 originally and is now at 3? Let's check.
       // filtered = [b=1, c=2, d=3], reordered = [b, c, a, d]
       // b: was 1, now 0 → update. c: was 2, now 1 → update. a: always updated. d: was 3, now 3 → no update.
-      expect(result.updates.find(u => u.id === 'd')).toBeUndefined();
+      expect(result.updates.find((u) => u.id === 'd')).toBeUndefined();
     });
 
     it('moves card backward from position 3 to position 1', () => {
@@ -104,7 +104,7 @@ describe('computeCardMove', () => {
       expect(result.updates).toContainEqual({ id: 'b', position: 2 });
       expect(result.updates).toContainEqual({ id: 'c', position: 3 });
       // 'a' stays at 0
-      expect(result.updates.find(u => u.id === 'a')).toBeUndefined();
+      expect(result.updates.find((u) => u.id === 'a')).toBeUndefined();
     });
 
     it('handles move to current position (always includes moved card)', () => {
@@ -136,7 +136,7 @@ describe('computeCardMove', () => {
       const result = computeCardMove('x', 0, siblings);
 
       const allPositions = reconstructPositions('x', siblings, result.updates);
-      const positionValues = allPositions.map(p => p.position);
+      const positionValues = allPositions.map((p) => p.position);
       expect(positionValues).toEqual([0, 1, 2, 3]);
     });
   });
@@ -241,7 +241,7 @@ describe('computeCardMove', () => {
       it(`forms contiguous 0..N-1 sequence: ${s.name}`, () => {
         const result = computeCardMove(s.movedCardId, s.targetPosition, s.siblings);
         const all = reconstructPositions(s.movedCardId, s.siblings, result.updates);
-        const positions = all.map(p => p.position).sort((a, b) => a - b);
+        const positions = all.map((p) => p.position).sort((a, b) => a - b);
         const expected = Array.from({ length: all.length }, (_, i) => i);
         expect(positions).toEqual(expected);
       });
@@ -254,7 +254,7 @@ describe('computeCardMove', () => {
 
       for (const update of result.updates) {
         if (update.id === 'x') continue; // moved card is always included
-        const original = siblings.find(s => s.id === update.id);
+        const original = siblings.find((s) => s.id === update.id);
         expect(original).toBeDefined();
         expect(update.position).not.toBe(original!.position);
       }

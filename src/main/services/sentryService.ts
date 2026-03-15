@@ -69,10 +69,7 @@ function filterBreadcrumb(breadcrumb: Sentry.Breadcrumb): Sentry.Breadcrumb | nu
 async function readSetting(): Promise<string | null> {
   try {
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, SETTING_KEY));
+    const rows = await db.select().from(settings).where(eq(settings.key, SETTING_KEY));
     return rows.length > 0 ? rows[0].value : null;
   } catch {
     return null;

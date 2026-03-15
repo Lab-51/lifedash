@@ -42,10 +42,7 @@ export const useTaskStructuringStore = create<TaskStructuringState>((set, get) =
   generatePlan: async (projectId: string, description?: string) => {
     set({ planLoading: true, planError: null });
     try {
-      const plan = await window.electronAPI.taskStructuringGeneratePlan(
-        projectId,
-        description || '',
-      );
+      const plan = await window.electronAPI.taskStructuringGeneratePlan(projectId, description || '');
       set({ plan, planLoading: false });
       useGamificationStore.getState().awardXP('ai_plan');
     } catch (error) {
@@ -74,7 +71,7 @@ export const useTaskStructuringStore = create<TaskStructuringState>((set, get) =
     set({ breakdownLoadingCardId: cardId, breakdownError: null });
     try {
       const breakdown = await window.electronAPI.taskStructuringBreakdown(cardId);
-      set(state => ({
+      set((state) => ({
         breakdowns: { ...state.breakdowns, [cardId]: breakdown },
         breakdownLoadingCardId: null,
       }));
@@ -89,39 +86,42 @@ export const useTaskStructuringStore = create<TaskStructuringState>((set, get) =
 
   clearPlan: () => set({ plan: null, planLoading: false, planError: null }),
 
-  clearBreakdown: (cardId: string) => set(state => {
-    const { [cardId]: _, ...rest } = state.breakdowns;
-    return { breakdowns: rest, breakdownError: null };
-  }),
-
-  deleteSubtask: (cardId: string, index: number) => set(state => {
-    const breakdown = state.breakdowns[cardId];
-    if (!breakdown) return state;
-    const subtasks = breakdown.subtasks.filter((_, i) => i !== index);
-    // If no subtasks left, remove the breakdown entirely
-    if (subtasks.length === 0) {
+  clearBreakdown: (cardId: string) =>
+    set((state) => {
       const { [cardId]: _, ...rest } = state.breakdowns;
-      return { breakdowns: rest };
-    }
-    return {
-      breakdowns: {
-        ...state.breakdowns,
-        [cardId]: { ...breakdown, subtasks },
-      },
-    };
-  }),
+      return { breakdowns: rest, breakdownError: null };
+    }),
 
-  moveSubtask: (cardId: string, fromIndex: number, toIndex: number) => set(state => {
-    const breakdown = state.breakdowns[cardId];
-    if (!breakdown) return state;
-    const subtasks = [...breakdown.subtasks];
-    const [moved] = subtasks.splice(fromIndex, 1);
-    subtasks.splice(toIndex, 0, moved);
-    return {
-      breakdowns: {
-        ...state.breakdowns,
-        [cardId]: { ...breakdown, subtasks },
-      },
-    };
-  }),
+  deleteSubtask: (cardId: string, index: number) =>
+    set((state) => {
+      const breakdown = state.breakdowns[cardId];
+      if (!breakdown) return state;
+      const subtasks = breakdown.subtasks.filter((_, i) => i !== index);
+      // If no subtasks left, remove the breakdown entirely
+      if (subtasks.length === 0) {
+        const { [cardId]: _, ...rest } = state.breakdowns;
+        return { breakdowns: rest };
+      }
+      return {
+        breakdowns: {
+          ...state.breakdowns,
+          [cardId]: { ...breakdown, subtasks },
+        },
+      };
+    }),
+
+  moveSubtask: (cardId: string, fromIndex: number, toIndex: number) =>
+    set((state) => {
+      const breakdown = state.breakdowns[cardId];
+      if (!breakdown) return state;
+      const subtasks = [...breakdown.subtasks];
+      const [moved] = subtasks.splice(fromIndex, 1);
+      subtasks.splice(toIndex, 0, moved);
+      return {
+        breakdowns: {
+          ...state.breakdowns,
+          [cardId]: { ...breakdown, subtasks },
+        },
+      };
+    }),
 }));

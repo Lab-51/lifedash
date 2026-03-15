@@ -54,10 +54,7 @@ export function configureSupabase(url: string, anonKey: string): void {
 /**
  * Set the auth session on the Supabase client after successful login.
  */
-export async function setSupabaseSession(
-  accessToken: string,
-  refreshToken: string,
-): Promise<void> {
+export async function setSupabaseSession(accessToken: string, refreshToken: string): Promise<void> {
   const supabase = getSupabaseClient();
   const { error } = await supabase.auth.setSession({
     access_token: accessToken,

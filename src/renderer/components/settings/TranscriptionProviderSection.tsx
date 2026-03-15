@@ -338,7 +338,9 @@ export default function TranscriptionProviderSection() {
     return (
       <section className="mb-10">
         <div className="mb-4">
-          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Transcription Provider</h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">
+            Transcription Provider
+          </h2>
         </div>
         <div className="flex items-center justify-center py-6 text-surface-500">
           <Loader2 size={20} className="animate-spin" />
@@ -353,11 +355,11 @@ export default function TranscriptionProviderSection() {
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <Mic size={18} className="text-[var(--color-accent-dim)]" />
-          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Transcription Provider</h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">
+            Transcription Provider
+          </h2>
         </div>
-        <p className="text-sm text-surface-500 mt-1">
-          Select how meeting audio is transcribed.
-        </p>
+        <p className="text-sm text-surface-500 mt-1">Select how meeting audio is transcribed.</p>
       </div>
 
       <div className="p-4 hud-panel clip-corner-cut-sm space-y-4">
@@ -375,115 +377,118 @@ export default function TranscriptionProviderSection() {
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-[var(--color-text-primary)]">
-                    {provider.label}
-                  </span>
+                  <span className="text-sm font-medium text-[var(--color-text-primary)]">{provider.label}</span>
                   {renderStatus(provider.type)}
                 </div>
-                <p className="text-xs text-surface-500 mt-0.5">
-                  {provider.description}
-                </p>
+                <p className="text-xs text-surface-500 mt-0.5">{provider.description}</p>
               </div>
             </label>
 
             {/* Whisper model picker for local provider */}
-            {provider.type === 'local' && config.type === 'local' && whisperModels.length > 0 && (() => {
-              // Show only recommended models, filtered by language context
-              const needsMultilingual = selectedLanguage !== 'en';
-              const visibleModels = whisperModels.filter((m) => {
-                if (!m.recommended) return false;
-                const isEnOnly = m.name.endsWith('.en');
-                return needsMultilingual ? !isEnOnly : isEnOnly;
-              });
+            {provider.type === 'local' &&
+              config.type === 'local' &&
+              whisperModels.length > 0 &&
+              (() => {
+                // Show only recommended models, filtered by language context
+                const needsMultilingual = selectedLanguage !== 'en';
+                const visibleModels = whisperModels.filter((m) => {
+                  if (!m.recommended) return false;
+                  const isEnOnly = m.name.endsWith('.en');
+                  return needsMultilingual ? !isEnOnly : isEnOnly;
+                });
 
-              return (
-                <div className="mt-2 ml-6 space-y-1.5">
-                  <p className="text-xs text-surface-400 mb-1">
-                    Choose a model {needsMultilingual ? '(multilingual)' : '(English)'}:
-                  </p>
-                  {visibleModels.map((model) => {
-                    const isActive = activeModelName === model.fileName;
-                    const isDownloading = downloadingModel === model.fileName;
-                    const isSmall = model.name.startsWith('small');
+                return (
+                  <div className="mt-2 ml-6 space-y-1.5">
+                    <p className="text-xs text-surface-400 mb-1">
+                      Choose a model {needsMultilingual ? '(multilingual)' : '(English)'}:
+                    </p>
+                    {visibleModels.map((model) => {
+                      const isActive = activeModelName === model.fileName;
+                      const isDownloading = downloadingModel === model.fileName;
+                      const isSmall = model.name.startsWith('small');
 
-                    return (
-                      <div
-                        key={model.fileName}
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors ${
-                          isActive
-                            ? 'border-[var(--color-border-accent)] bg-[var(--color-accent-muted)]'
-                            : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-medium text-[var(--color-text-primary)]">
-                              {isSmall ? 'High Quality' : 'Standard'}
-                            </span>
-                            {isSmall && (
-                              <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-[var(--color-accent-muted)] text-[var(--color-accent)] font-medium">
-                                Recommended
+                      return (
+                        <div
+                          key={model.fileName}
+                          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-colors ${
+                            isActive
+                              ? 'border-[var(--color-border-accent)] bg-[var(--color-accent-muted)]'
+                              : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)]'
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium text-[var(--color-text-primary)]">
+                                {isSmall ? 'High Quality' : 'Standard'}
                               </span>
-                            )}
-                            {isActive && (
-                              <span className="inline-flex items-center gap-0.5 text-[0.625rem] text-emerald-400 font-medium">
-                                <Check size={10} />
-                                Active
+                              {isSmall && (
+                                <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-[var(--color-accent-muted)] text-[var(--color-accent)] font-medium">
+                                  Recommended
+                                </span>
+                              )}
+                              {isActive && (
+                                <span className="inline-flex items-center gap-0.5 text-[0.625rem] text-emerald-400 font-medium">
+                                  <Check size={10} />
+                                  Active
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[0.6875rem] text-surface-500">
+                                {isSmall
+                                  ? needsMultilingual
+                                    ? 'Best accuracy · 99 languages'
+                                    : 'Best transcription accuracy'
+                                  : needsMultilingual
+                                    ? 'Faster, lower accuracy · 99 languages'
+                                    : 'Faster, lower accuracy'}
                               </span>
-                            )}
+                              <span className="inline-flex items-center gap-0.5 text-[0.6875rem] text-surface-500">
+                                <HardDrive size={10} />
+                                {model.size}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[0.6875rem] text-surface-500">
-                              {isSmall
-                                ? (needsMultilingual ? 'Best accuracy · 99 languages' : 'Best transcription accuracy')
-                                : (needsMultilingual ? 'Faster, lower accuracy · 99 languages' : 'Faster, lower accuracy')}
-                            </span>
-                            <span className="inline-flex items-center gap-0.5 text-[0.6875rem] text-surface-500">
-                              <HardDrive size={10} />
-                              {model.size}
-                            </span>
-                          </div>
-                        </div>
 
-                        {model.available ? (
-                          !isActive && (
+                          {model.available ? (
+                            !isActive && (
+                              <button
+                                onClick={() => handleSetActiveModel(model.fileName)}
+                                className="flex items-center gap-1 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] px-2.5 py-1 rounded-lg text-xs transition-colors shrink-0"
+                              >
+                                Use
+                              </button>
+                            )
+                          ) : isDownloading ? (
+                            <div className="flex items-center gap-1.5 text-xs text-[var(--color-accent-dim)] shrink-0">
+                              <Loader2 size={12} className="animate-spin" />
+                              {downloadPercent}%
+                            </div>
+                          ) : (
                             <button
-                              onClick={() => handleSetActiveModel(model.fileName)}
-                              className="flex items-center gap-1 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] px-2.5 py-1 rounded-lg text-xs transition-colors shrink-0"
+                              onClick={() => handleDownloadModel(model.fileName)}
+                              disabled={!!downloadingModel}
+                              className="flex items-center gap-1 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed px-2.5 py-1 rounded-lg text-xs transition-colors shrink-0"
                             >
-                              Use
+                              <Download size={12} />
+                              Download
                             </button>
-                          )
-                        ) : isDownloading ? (
-                          <div className="flex items-center gap-1.5 text-xs text-[var(--color-accent-dim)] shrink-0">
-                            <Loader2 size={12} className="animate-spin" />
-                            {downloadPercent}%
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => handleDownloadModel(model.fileName)}
-                            disabled={!!downloadingModel}
-                            className="flex items-center gap-1 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed px-2.5 py-1 rounded-lg text-xs transition-colors shrink-0"
-                          >
-                            <Download size={12} />
-                            Download
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
             {/* API key input for cloud providers */}
-            {provider.type === 'deepgram' && (
-              config.type === 'deepgram' || config.hasDeepgramKey
-            ) && renderApiKeyInput('deepgram')}
+            {provider.type === 'deepgram' &&
+              (config.type === 'deepgram' || config.hasDeepgramKey) &&
+              renderApiKeyInput('deepgram')}
 
-            {provider.type === 'assemblyai' && (
-              config.type === 'assemblyai' || config.hasAssemblyaiKey
-            ) && renderApiKeyInput('assemblyai')}
+            {provider.type === 'assemblyai' &&
+              (config.type === 'assemblyai' || config.hasAssemblyaiKey) &&
+              renderApiKeyInput('assemblyai')}
           </div>
         ))}
 
@@ -496,15 +501,17 @@ export default function TranscriptionProviderSection() {
             value={selectedLanguage}
             onChange={(v) => handleLanguageChange(v)}
             icon={Globe}
-            options={TRANSCRIPTION_LANGUAGES.map(lang => ({ value: lang.code, label: lang.label }))}
+            options={TRANSCRIPTION_LANGUAGES.map((lang) => ({ value: lang.code, label: lang.label }))}
           />
           {showModelWarning && (
             <p className="mt-1.5 text-xs text-amber-400">
-              {'\u26A0'} Current model is English-only. Download a multilingual model above to transcribe other languages.
+              {'\u26A0'} Current model is English-only. Download a multilingual model above to transcribe other
+              languages.
             </p>
           )}
           <p className="mt-1 text-xs text-surface-500">
-            For non-English or mixed-language meetings, select &ldquo;Multilingual&rdquo; and use a multilingual Whisper model.
+            For non-English or mixed-language meetings, select &ldquo;Multilingual&rdquo; and use a multilingual Whisper
+            model.
           </p>
         </div>
 
@@ -515,11 +522,7 @@ export default function TranscriptionProviderSection() {
             disabled={testing}
             className="flex items-center gap-2 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-sm transition-all"
           >
-            {testing ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Mic size={16} />
-            )}
+            {testing ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
             {testing ? 'Testing...' : 'Test Connection'}
           </button>
 
@@ -531,9 +534,7 @@ export default function TranscriptionProviderSection() {
                   <Check size={14} />
                   Connected successfully
                   {testResult.latencyMs != null && (
-                    <span className="text-xs text-surface-400 ml-1">
-                      ({testResult.latencyMs}ms)
-                    </span>
+                    <span className="text-xs text-surface-400 ml-1">({testResult.latencyMs}ms)</span>
                   )}
                 </span>
               ) : (

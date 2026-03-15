@@ -13,40 +13,37 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
+import * as schema from '../db/schema';
 import { settings } from '../db/schema';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { settingKeySchema, settingValueSchema } from '../../shared/validation/schemas';
 import { getProxyConfig, applyGlobalProxy } from '../services/proxyService';
-import { getLogDirectory } from '../services/logger';
+import { createLogger, getLogDirectory } from '../services/logger';
+
+const log = createLogger('Settings');
 
 export function registerSettingsHandlers(mainWindow: BrowserWindow): void {
   // Get a single setting by key; returns null if not found
   ipcMain.handle('settings:get', async (_event, key: unknown) => {
     const validKey = validateInput(settingKeySchema, key);
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, validKey));
+    const rows = await db.select().from(settings).where(eq(settings.key, validKey));
     return rows.length > 0 ? rows[0].value : null;
   });
 
   // Set (upsert) a setting — inserts or updates on conflict
-  ipcMain.handle(
-    'settings:set',
-    async (_event, key: unknown, value: unknown) => {
-      const validKey = validateInput(settingKeySchema, key);
-      const validValue = validateInput(settingValueSchema, value);
-      const db = getDb();
-      await db
-        .insert(settings)
-        .values({ key: validKey, value: validValue })
-        .onConflictDoUpdate({
-          target: settings.key,
-          set: { value: validValue, updatedAt: new Date() },
-        });
-    },
-  );
+  ipcMain.handle('settings:set', async (_event, key: unknown, value: unknown) => {
+    const validKey = validateInput(settingKeySchema, key);
+    const validValue = validateInput(settingValueSchema, value);
+    const db = getDb();
+    await db
+      .insert(settings)
+      .values({ key: validKey, value: validValue })
+      .onConflictDoUpdate({
+        target: settings.key,
+        set: { value: validValue, updatedAt: new Date() },
+      });
+  });
 
   // Get all settings as a Record<key, value>
   ipcMain.handle('settings:get-all', async () => {
@@ -93,5 +90,65 @@ export function registerSettingsHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('settings:open-logs-folder', async () => {
     const dir = getLogDirectory();
     return await shell.openPath(dir);
+  });
+
+  // Factory reset: delete all data from all tables in FK-safe order
+  ipcMain.handle('settings:factory-reset', async () => {
+    try {
+      const db = getDb();
+
+      // Delete order: children first, parents last (reverse FK dependency)
+      const tablesToDelete = [
+        // Junction / leaf tables
+        schema.cardLabels,
+        schema.cardComments,
+        schema.cardRelationships,
+        schema.cardActivities,
+        schema.cardAttachments,
+        schema.cardChecklistItems,
+        schema.cardTemplates,
+        schema.ideaTags,
+        schema.brainstormMessages,
+        schema.transcripts,
+        schema.meetingBriefs,
+        schema.actionItems,
+        schema.aiUsage,
+        schema.xpEvents,
+        schema.focusAchievements,
+        schema.focusSessions,
+        schema.agentInsights,
+        schema.cardAgentMessages,
+        schema.cardAgentThreads,
+        schema.projectAgentMessages,
+        schema.projectAgentThreads,
+        schema.intelBriefs,
+        schema.intelItems,
+        schema.intelSources,
+        schema.syncTracking,
+        // Mid-level tables
+        schema.cards,
+        schema.columns,
+        schema.brainstormSessions,
+        schema.meetings,
+        schema.ideas,
+        schema.boards,
+        schema.labels,
+        // Root tables
+        schema.aiProviders,
+        schema.settings,
+        schema.projects,
+      ];
+
+      for (const table of tablesToDelete) {
+        await db.delete(table);
+      }
+
+      log.info('Factory reset completed — all tables cleared');
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      log.error('Factory reset failed:', error);
+      return { success: false, error: message };
+    }
   });
 }

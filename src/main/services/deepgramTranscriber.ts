@@ -61,7 +61,7 @@ export async function transcribeSegment(
   const response = await net.fetch(url, {
     method: 'POST',
     headers: {
-      'Authorization': `Token ${apiKey}`,
+      Authorization: `Token ${apiKey}`,
       'Content-Type': 'audio/raw',
     },
     body: new Uint8Array(pcmBuffer),
@@ -72,33 +72,35 @@ export async function transcribeSegment(
     throw new Error(`Deepgram API error ${response.status}: ${bodyText}`);
   }
 
-  const data = await response.json() as DeepgramResponse;
+  const data = (await response.json()) as DeepgramResponse;
 
-  const transcript: string =
-    data.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? '';
+  const transcript: string = data.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? '';
 
-  const words: DeepgramWord[] =
-    data.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
+  const words: DeepgramWord[] = data.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
 
   // Build result — word timing is in seconds (float), convert to ms
   if (words.length === 0) {
     return {
       text: transcript,
-      segments: [{
-        text: transcript,
-        startMs: startTimeMs,
-        endMs: startTimeMs + 10000,
-      }],
+      segments: [
+        {
+          text: transcript,
+          startMs: startTimeMs,
+          endMs: startTimeMs + 10000,
+        },
+      ],
     };
   }
 
   return {
     text: transcript,
-    segments: [{
-      text: transcript,
-      startMs: startTimeMs + Math.round((words[0]?.start ?? 0) * 1000),
-      endMs: startTimeMs + Math.round((words[words.length - 1]?.end ?? 10) * 1000),
-    }],
+    segments: [
+      {
+        text: transcript,
+        startMs: startTimeMs + Math.round((words[0]?.start ?? 0) * 1000),
+        endMs: startTimeMs + Math.round((words[words.length - 1]?.end ?? 10) * 1000),
+      },
+    ],
   };
 }
 
@@ -142,7 +144,7 @@ export async function transcribeFileWithDiarization(
   const response = await net.fetch(url, {
     method: 'POST',
     headers: {
-      'Authorization': `Token ${apiKey}`,
+      Authorization: `Token ${apiKey}`,
       'Content-Type': 'audio/wav',
     },
     body: new Uint8Array(wavBuffer),
@@ -153,7 +155,7 @@ export async function transcribeFileWithDiarization(
     throw new Error(`Deepgram diarization error ${response.status}: ${bodyText}`);
   }
 
-  const data = await response.json() as DeepgramResponse;
+  const data = (await response.json()) as DeepgramResponse;
   const words: DeepgramWord[] = data.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
 
   // Deepgram speakers are integers (0, 1, 2...) — normalize to "Speaker 1", "Speaker 2"

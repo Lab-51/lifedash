@@ -22,8 +22,8 @@ export interface CardAgentThread {
 }
 
 export interface ToolCallRecord {
-  id: string;       // tool call ID (from AI SDK)
-  name: string;     // tool name (e.g. 'addChecklistItem')
+  id: string; // tool call ID (from AI SDK)
+  name: string; // tool name (e.g. 'addChecklistItem')
   args: Record<string, unknown>;
 }
 
@@ -36,6 +36,6 @@ export interface ToolResultRecord {
 /** What the agent did — rendered in the UI as action badges */
 export interface AgentAction {
   toolName: string;
-  description: string;  // human-readable: "Added checklist item: Set up JWT"
+  description: string; // human-readable: "Added checklist item: Set up JWT"
   success: boolean;
 }

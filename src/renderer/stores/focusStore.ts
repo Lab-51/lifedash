@@ -35,9 +35,17 @@ interface FocusState {
   loadSettings: () => Promise<void>;
   setShowStartModal: (show: boolean) => void;
   clearFocusedCard: () => void;
-  saveSession: (input: { cardId?: string; projectId?: string; durationMinutes: number; note?: string; billable?: boolean }) =>
-    Promise<{ newAchievements: Achievement[] }>;
-  updateSession: (id: string, input: { projectId?: string | null; note?: string | null; billable?: boolean }) => Promise<void>;
+  saveSession: (input: {
+    cardId?: string;
+    projectId?: string;
+    durationMinutes: number;
+    note?: string;
+    billable?: boolean;
+  }) => Promise<{ newAchievements: Achievement[] }>;
+  updateSession: (
+    id: string,
+    input: { projectId?: string | null; note?: string | null; billable?: boolean },
+  ) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
 }
 
@@ -146,10 +154,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
       if (state.intervalId) clearInterval(state.intervalId);
 
       if (state.mode === 'focus') {
-        window.electronAPI.notificationShow(
-          'Focus Complete',
-          'Great work! Time for a break.',
-        );
+        window.electronAPI.notificationShow('Focus Complete', 'Great work! Time for a break.');
         set({
           timeRemaining: 0,
           intervalId: null,
@@ -158,10 +163,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
           completedDuration: Math.round(state.totalSeconds / 60),
         });
       } else if (state.mode === 'break') {
-        window.electronAPI.notificationShow(
-          'Break Over',
-          'Ready to focus again?',
-        );
+        window.electronAPI.notificationShow('Break Over', 'Ready to focus again?');
         set({
           timeRemaining: 0,
           intervalId: null,

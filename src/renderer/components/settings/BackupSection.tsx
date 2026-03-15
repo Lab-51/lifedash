@@ -6,17 +6,8 @@
 // === DEPENDENCIES ===
 // React, zustand (useBackupStore), lucide-react icons
 
-import { useEffect, useState, useRef } from 'react';
-import {
-  Database,
-  Upload,
-  Trash2,
-  RotateCcw,
-  AlertCircle,
-  Check,
-  X,
-  Loader2,
-} from 'lucide-react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { Database, Upload, Trash2, RotateCcw, AlertCircle, Check, X, Loader2, AlertTriangle } from 'lucide-react';
 import { useBackupStore } from '../../stores/backupStore';
 import type { AutoBackupFrequency } from '../../../shared/types';
 import HudSelect from '../HudSelect';
@@ -41,24 +32,30 @@ function formatDate(iso: string): string {
 }
 
 export default function BackupSection() {
-  const backups = useBackupStore(s => s.backups);
-  const loading = useBackupStore(s => s.loading);
-  const error = useBackupStore(s => s.error);
-  const progress = useBackupStore(s => s.progress);
-  const autoSettings = useBackupStore(s => s.autoSettings);
-  const loadBackups = useBackupStore(s => s.loadBackups);
-  const createBackup = useBackupStore(s => s.createBackup);
-  const restoreBackup = useBackupStore(s => s.restoreBackup);
-  const restoreFromFile = useBackupStore(s => s.restoreFromFile);
-  const deleteBackup = useBackupStore(s => s.deleteBackup);
-  const loadAutoSettings = useBackupStore(s => s.loadAutoSettings);
-  const updateAutoSettings = useBackupStore(s => s.updateAutoSettings);
-  const clearError = useBackupStore(s => s.clearError);
+  const backups = useBackupStore((s) => s.backups);
+  const loading = useBackupStore((s) => s.loading);
+  const error = useBackupStore((s) => s.error);
+  const progress = useBackupStore((s) => s.progress);
+  const autoSettings = useBackupStore((s) => s.autoSettings);
+  const loadBackups = useBackupStore((s) => s.loadBackups);
+  const createBackup = useBackupStore((s) => s.createBackup);
+  const restoreBackup = useBackupStore((s) => s.restoreBackup);
+  const restoreFromFile = useBackupStore((s) => s.restoreFromFile);
+  const deleteBackup = useBackupStore((s) => s.deleteBackup);
+  const loadAutoSettings = useBackupStore((s) => s.loadAutoSettings);
+  const updateAutoSettings = useBackupStore((s) => s.updateAutoSettings);
+  const clearError = useBackupStore((s) => s.clearError);
 
   // Inline confirmation state
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmRestoreFile, setConfirmRestoreFile] = useState(false);
+
+  // Factory reset state
+  const [showFactoryReset, setShowFactoryReset] = useState(false);
+  const [factoryResetInput, setFactoryResetInput] = useState('');
+  const [factoryResetBusy, setFactoryResetBusy] = useState(false);
+  const [factoryResetError, setFactoryResetError] = useState<string | null>(null);
 
   // Timer ref for auto-clearing progress
   const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -94,12 +91,31 @@ export default function BackupSection() {
     await deleteBackup(fileName);
   };
 
+  const handleFactoryReset = useCallback(async () => {
+    setFactoryResetBusy(true);
+    setFactoryResetError(null);
+    try {
+      const result = await window.electronAPI.factoryReset();
+      if (result.success) {
+        window.location.reload();
+      } else {
+        setFactoryResetError(result.error || 'Factory reset failed');
+      }
+    } catch (err) {
+      setFactoryResetError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setFactoryResetBusy(false);
+    }
+  }, []);
+
   return (
     <section className="mb-10">
       {/* Section header */}
       <div className="mb-4">
         <div className="flex items-center gap-2">
-          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Database Backups</h2>
+          <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">
+            Database Backups
+          </h2>
         </div>
         <p className="text-sm text-surface-500">
           Create and manage database backups. Restore from a previous snapshot at any time.
@@ -126,7 +142,10 @@ export default function BackupSection() {
               Cancel
             </button>
             <button
-              onClick={() => { setConfirmRestoreFile(false); restoreFromFile(); }}
+              onClick={() => {
+                setConfirmRestoreFile(false);
+                restoreFromFile();
+              }}
               className="text-xs bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 px-2 py-1 rounded transition-colors"
             >
               Confirm
@@ -163,9 +182,7 @@ export default function BackupSection() {
             <Loader2 size={16} className="animate-spin" />
           )}
           <span>{progress.message}</span>
-          {progress.error && (
-            <span className="ml-2 text-red-300">({progress.error})</span>
-          )}
+          {progress.error && <span className="ml-2 text-red-300">({progress.error})</span>}
         </div>
       )}
 
@@ -189,9 +206,7 @@ export default function BackupSection() {
             <div key={backup.fileName}>
               <div className="hud-panel rounded-lg px-4 py-3 flex items-center justify-between">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-[var(--color-text-primary)] truncate">
-                    {backup.fileName}
-                  </div>
+                  <div className="text-sm font-medium text-[var(--color-text-primary)] truncate">{backup.fileName}</div>
                   <div className="text-xs text-surface-500 mt-0.5">
                     {formatDate(backup.createdAt)} &middot; {formatSize(backup.sizeBytes)}
                   </div>
@@ -221,9 +236,7 @@ export default function BackupSection() {
               {/* Restore confirmation */}
               {confirmRestore === backup.fileName && (
                 <div className="mt-1 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm text-amber-300 flex items-center justify-between">
-                  <span>
-                    This will replace ALL current data. A safety backup will be created first.
-                  </span>
+                  <span>This will replace ALL current data. A safety backup will be created first.</span>
                   <div className="flex items-center gap-2 ml-4 shrink-0">
                     <button
                       onClick={() => setConfirmRestore(null)}
@@ -269,18 +282,81 @@ export default function BackupSection() {
           <div className="flex flex-col items-center justify-center text-surface-500 py-6 mb-4">
             <Database size={32} className="mb-2 text-surface-600" />
             <p className="text-sm">No backups yet</p>
-            <p className="text-xs text-surface-600 mt-1">
-              Create your first backup to protect your data
-            </p>
+            <p className="text-xs text-surface-600 mt-1">Create your first backup to protect your data</p>
           </div>
         )
       )}
 
       {/* Info note */}
       <p className="text-xs text-surface-500 mt-4">
-        Backups include all database data (projects, boards, cards, meetings, ideas, etc.).
-        Audio recording files are not included in backups and must be managed separately.
+        Backups include all database data (projects, boards, cards, meetings, ideas, etc.). Audio recording files are
+        not included in backups and must be managed separately.
       </p>
+
+      {/* Delete All Data */}
+      <div className="mt-6 p-4 border border-red-500/20 rounded-lg bg-red-500/5">
+        <div className="flex items-center gap-2 mb-1">
+          <AlertTriangle size={16} className="text-red-400" />
+          <h3 className="text-sm font-medium text-red-400">Danger Zone</h3>
+        </div>
+        <p className="text-xs text-surface-500 mb-3">
+          Permanently delete all data from the database. This cannot be undone.
+        </p>
+
+        {factoryResetError && (
+          <div className="mb-3 p-2 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+            <AlertCircle size={14} />
+            <span>{factoryResetError}</span>
+            <button onClick={() => setFactoryResetError(null)} className="ml-auto">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {showFactoryReset ? (
+          <div className="space-y-2">
+            <p className="text-xs text-red-300">
+              Type <span className="font-mono font-bold">DELETE</span> to confirm:
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={factoryResetInput}
+                onChange={(e) => setFactoryResetInput(e.target.value)}
+                placeholder="DELETE"
+                className="w-32 text-sm bg-surface-950 border border-red-500/30 rounded px-2 py-1 text-[var(--color-text-primary)] focus:outline-none focus:border-red-500"
+                autoFocus
+              />
+              <button
+                onClick={handleFactoryReset}
+                disabled={factoryResetInput !== 'DELETE' || factoryResetBusy}
+                className="flex items-center gap-1 text-xs bg-red-600/30 hover:bg-red-600/50 text-red-200 px-3 py-1.5 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {factoryResetBusy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                Delete Everything
+              </button>
+              <button
+                onClick={() => {
+                  setShowFactoryReset(false);
+                  setFactoryResetInput('');
+                }}
+                className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowFactoryReset(true)}
+            disabled={isBusy}
+            className="flex items-center gap-2 border border-red-500/30 hover:border-red-500/60 text-red-400 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-sm transition-all"
+          >
+            <Trash2 size={16} />
+            Delete All Data
+          </button>
+        )}
+      </div>
 
       {/* Auto-backup settings */}
       {autoSettings && (

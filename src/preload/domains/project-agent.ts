@@ -2,14 +2,12 @@
 import { ipcRenderer } from 'electron';
 
 export const projectAgentBridge = {
-  projectAgentGetThreads: (projectId: string) =>
-    ipcRenderer.invoke('project-agent:get-threads', projectId),
+  projectAgentGetThreads: (projectId: string) => ipcRenderer.invoke('project-agent:get-threads', projectId),
 
   projectAgentCreateThread: (projectId: string, title: string) =>
     ipcRenderer.invoke('project-agent:create-thread', projectId, title),
 
-  projectAgentDeleteThread: (threadId: string) =>
-    ipcRenderer.invoke('project-agent:delete-thread', threadId),
+  projectAgentDeleteThread: (threadId: string) => ipcRenderer.invoke('project-agent:delete-thread', threadId),
 
   projectAgentSendMessage: (projectId: string, content: string, threadId?: string) =>
     ipcRenderer.invoke('project-agent:send-message', projectId, content, threadId),
@@ -17,41 +15,41 @@ export const projectAgentBridge = {
   projectAgentGetMessages: (projectId: string, threadId?: string) =>
     ipcRenderer.invoke('project-agent:get-messages', projectId, threadId),
 
-  projectAgentClearMessages: (projectId: string) =>
-    ipcRenderer.invoke('project-agent:clear-messages', projectId),
+  projectAgentClearMessages: (projectId: string) => ipcRenderer.invoke('project-agent:clear-messages', projectId),
 
-  projectAgentGetMessageCount: (projectId: string) =>
-    ipcRenderer.invoke('project-agent:get-message-count', projectId),
+  projectAgentGetMessageCount: (projectId: string) => ipcRenderer.invoke('project-agent:get-message-count', projectId),
 
-  projectAgentAbort: (projectId: string) =>
-    ipcRenderer.invoke('project-agent:abort', projectId),
+  projectAgentAbort: (projectId: string) => ipcRenderer.invoke('project-agent:abort', projectId),
 
-  projectAgentGetModelInfo: () =>
-    ipcRenderer.invoke('project-agent:get-model-info'),
+  projectAgentGetModelInfo: () => ipcRenderer.invoke('project-agent:get-model-info'),
 
   onProjectAgentChunk: (callback: (data: { projectId: string; chunk: string }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: { projectId: string; chunk: string }) =>
-      callback(data);
+    const handler = (_event: Electron.IpcRendererEvent, data: { projectId: string; chunk: string }) => callback(data);
     ipcRenderer.on('project-agent:stream-chunk', handler);
     return () => {
       ipcRenderer.removeListener('project-agent:stream-chunk', handler);
     };
   },
 
-  onProjectAgentToolEvent: (callback: (data: {
-    projectId: string;
-    type: 'call' | 'result';
-    toolName: string;
-    args?: unknown;
-    result?: unknown;
-  }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: {
+  onProjectAgentToolEvent: (
+    callback: (data: {
       projectId: string;
       type: 'call' | 'result';
       toolName: string;
       args?: unknown;
       result?: unknown;
-    }) => callback(data);
+    }) => void,
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: {
+        projectId: string;
+        type: 'call' | 'result';
+        toolName: string;
+        args?: unknown;
+        result?: unknown;
+      },
+    ) => callback(data);
     ipcRenderer.on('project-agent:tool-event', handler);
     return () => {
       ipcRenderer.removeListener('project-agent:tool-event', handler);

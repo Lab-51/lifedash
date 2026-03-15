@@ -5,15 +5,7 @@
 // Links to full changelog on GitHub.
 
 import FocusTrap from './FocusTrap';
-import {
-  X,
-  Wrench,
-  Sparkles,
-  Rocket,
-  ArrowRight,
-  Check,
-  ExternalLink,
-} from 'lucide-react';
+import { X, Wrench, Sparkles, Rocket, ArrowRight, Check, ExternalLink } from 'lucide-react';
 import type { ReleaseType, ReleaseNoteSection, ReleaseNotesData } from '../../shared/releaseNotes';
 
 interface WhatsNewModalProps {
@@ -30,16 +22,19 @@ const CHANGELOG_URL = 'https://github.com/Lab-51/lifedash/releases';
 // Per-tier visual config
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TIER_CONFIG: Record<ReleaseType, {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  buttonLabel: string;
-  buttonIcon: React.ReactNode;
-  maxWidth: string;
-  glowColor: string;
-  accentClass: string;
-}> = {
+const TIER_CONFIG: Record<
+  ReleaseType,
+  {
+    icon: React.ReactNode;
+    title: string;
+    subtitle: string;
+    buttonLabel: string;
+    buttonIcon: React.ReactNode;
+    maxWidth: string;
+    glowColor: string;
+    accentClass: string;
+  }
+> = {
   patch: {
     icon: <Wrench size={28} />,
     title: 'Bug Fix Update',
@@ -81,7 +76,7 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 function ReleaseSections({ sections }: { sections: ReleaseNoteSection[] }) {
   return (
     <div className="space-y-3">
-      {sections.map(section => (
+      {sections.map((section) => (
         <div key={section.category}>
           <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)] mb-1.5">
             {section.label}
@@ -100,7 +95,13 @@ function ReleaseSections({ sections }: { sections: ReleaseNoteSection[] }) {
   );
 }
 
-export default function WhatsNewModal({ version, releaseType, sections, previousVersions, onDismiss }: WhatsNewModalProps) {
+export default function WhatsNewModal({
+  version,
+  releaseType,
+  sections,
+  previousVersions,
+  onDismiss,
+}: WhatsNewModalProps) {
   const tier = TIER_CONFIG[releaseType];
   const hasPrevious = previousVersions && previousVersions.length > 0;
 
@@ -110,95 +111,89 @@ export default function WhatsNewModal({ version, releaseType, sections, previous
       onClick={onDismiss}
     >
       <FocusTrap active={true} onDeactivate={onDismiss}>
-      <div
-        className={`w-full ${tier.maxWidth} mx-4 hud-panel-accent clip-corner-cut shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh] ${tier.accentClass}`}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Ambient glow */}
         <div
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[200px] pointer-events-none"
-          style={{ background: `radial-gradient(ellipse, ${tier.glowColor} 0%, transparent 70%)` }}
-        />
+          className={`w-full ${tier.maxWidth} mx-4 hud-panel-accent clip-corner-cut shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh] ${tier.accentClass}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Ambient glow */}
+          <div
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[200px] pointer-events-none"
+            style={{ background: `radial-gradient(ellipse, ${tier.glowColor} 0%, transparent 70%)` }}
+          />
 
-        {/* Header bar */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border-accent)] shrink-0 relative">
-          <span className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)]">
-            {releaseType === 'major' ? 'Major Release' : releaseType === 'minor' ? 'Feature Update' : 'Patch Notes'}
-          </span>
-          <button
-            onClick={onDismiss}
-            className="p-1 rounded-md hover:bg-[var(--color-accent-subtle)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
-            aria-label="Close"
-          >
-            <X size={15} />
-          </button>
-        </div>
+          {/* Header bar */}
+          <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border-accent)] shrink-0 relative">
+            <span className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)]">
+              {releaseType === 'major' ? 'Major Release' : releaseType === 'minor' ? 'Feature Update' : 'Patch Notes'}
+            </span>
+            <button
+              onClick={onDismiss}
+              className="p-1 rounded-md hover:bg-[var(--color-accent-subtle)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+              aria-label="Close"
+            >
+              <X size={15} />
+            </button>
+          </div>
 
-        {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 relative">
-          <div className="px-6 py-5">
-            {/* Icon + title */}
-            <div className="flex flex-col items-center text-center mb-5">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--color-accent-subtle)] border border-[var(--color-accent-dim)] flex items-center justify-center mb-4">
-                <span className="text-[var(--color-accent)]">{tier.icon}</span>
+          {/* Scrollable body */}
+          <div className="overflow-y-auto flex-1 relative">
+            <div className="px-6 py-5">
+              {/* Icon + title */}
+              <div className="flex flex-col items-center text-center mb-5">
+                <div className="w-14 h-14 rounded-2xl bg-[var(--color-accent-subtle)] border border-[var(--color-accent-dim)] flex items-center justify-center mb-4">
+                  <span className="text-[var(--color-accent)]">{tier.icon}</span>
+                </div>
+
+                <h2 className="font-hud text-lg tracking-tight text-[var(--color-text-primary)] mb-1">{tier.title}</h2>
+                <p className="text-[var(--color-text-secondary)] text-sm mb-1">{tier.subtitle}</p>
+                <span className="font-data text-xs text-[var(--color-accent-dim)]">v{version}</span>
               </div>
 
-              <h2 className="font-hud text-lg tracking-tight text-[var(--color-text-primary)] mb-1">
-                {tier.title}
-              </h2>
-              <p className="text-[var(--color-text-secondary)] text-sm mb-1">
-                {tier.subtitle}
-              </p>
-              <span className="font-data text-xs text-[var(--color-accent-dim)]">
-                v{version}
-              </span>
-            </div>
-
-            {/* Current release notes */}
-            <div className="mb-6">
-              <ReleaseSections sections={sections} />
-            </div>
-
-            {/* Previous versions */}
-            {hasPrevious && (
-              <div className="border-t border-[var(--color-border)] pt-4 space-y-4">
-                <span className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-text-muted)]">
-                  Previous Updates
-                </span>
-                {previousVersions.map(release => (
-                  <div key={release.version} className="pl-3 border-l-2 border-[var(--color-border)]">
-                    <span className="font-data text-xs text-[var(--color-accent-dim)] mb-2 block">
-                      v{release.version}
-                    </span>
-                    <ReleaseSections sections={release.sections} />
-                  </div>
-                ))}
+              {/* Current release notes */}
+              <div className="mb-6">
+                <ReleaseSections sections={sections} />
               </div>
-            )}
+
+              {/* Previous versions */}
+              {hasPrevious && (
+                <div className="border-t border-[var(--color-border)] pt-4 space-y-4">
+                  <span className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-text-muted)]">
+                    Previous Updates
+                  </span>
+                  {previousVersions.map((release) => (
+                    <div key={release.version} className="pl-3 border-l-2 border-[var(--color-border)]">
+                      <span className="font-data text-xs text-[var(--color-accent-dim)] mb-2 block">
+                        v{release.version}
+                      </span>
+                      <ReleaseSections sections={release.sections} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer: button + changelog link */}
+          <div className="px-6 py-4 border-t border-[var(--color-border)] shrink-0 flex flex-col items-center gap-3 relative">
+            <button
+              onClick={onDismiss}
+              className="flex items-center justify-center gap-2 px-6 py-2.5 btn-primary clip-corner-cut-sm text-sm font-medium"
+              autoFocus
+            >
+              {tier.buttonLabel}
+              {tier.buttonIcon}
+            </button>
+            <a
+              href={CHANGELOG_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+            >
+              <ExternalLink size={12} />
+              Full changelog on GitHub
+            </a>
           </div>
         </div>
-
-        {/* Footer: button + changelog link */}
-        <div className="px-6 py-4 border-t border-[var(--color-border)] shrink-0 flex flex-col items-center gap-3 relative">
-          <button
-            onClick={onDismiss}
-            className="flex items-center justify-center gap-2 px-6 py-2.5 btn-primary clip-corner-cut-sm text-sm font-medium"
-            autoFocus
-          >
-            {tier.buttonLabel}
-            {tier.buttonIcon}
-          </button>
-          <a
-            href={CHANGELOG_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
-          >
-            <ExternalLink size={12} />
-            Full changelog on GitHub
-          </a>
-        </div>
-      </div>
       </FocusTrap>
     </div>
   );

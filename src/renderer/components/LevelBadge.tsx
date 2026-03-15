@@ -38,9 +38,8 @@ export default function LevelBadge({ level, size = 'md', showName = true, classN
     bgStyle.background = tier.colors.gradient;
     if (tier.animate) {
       bgStyle.backgroundSize = '200% 100%';
-      bgStyle.animation = tier.family === 'ultimate'
-        ? 'level-badge-shimmer 2s ease infinite'
-        : 'level-badge-shimmer 3s ease infinite';
+      bgStyle.animation =
+        tier.family === 'ultimate' ? 'level-badge-shimmer 2s ease infinite' : 'level-badge-shimmer 3s ease infinite';
     }
   } else {
     bgClass = tier.colors.bg;

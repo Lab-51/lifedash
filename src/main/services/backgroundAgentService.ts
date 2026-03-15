@@ -8,7 +8,13 @@ import { settings, agentInsights, boards, columns, cards, projects } from '../db
 import { eq, and, desc, count, lt, lte, inArray, ne } from 'drizzle-orm';
 import { createLogger } from './logger';
 import { generate, resolveTaskModel } from './ai-provider';
-import type { BackgroundAgentPreferences, AgentInsight, InsightType, InsightSeverity, InsightStatus } from '../../shared/types/background-agent';
+import type {
+  BackgroundAgentPreferences,
+  AgentInsight,
+  InsightType,
+  InsightSeverity,
+  InsightStatus,
+} from '../../shared/types/background-agent';
 
 const log = createLogger('BackgroundAgent');
 
@@ -34,11 +40,7 @@ const DEFAULT_PREFERENCES: BackgroundAgentPreferences = {
 export async function getPreferences(): Promise<BackgroundAgentPreferences> {
   try {
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, SETTINGS_KEY))
-      .limit(1);
+    const rows = await db.select().from(settings).where(eq(settings.key, SETTINGS_KEY)).limit(1);
 
     if (rows.length === 0) {
       return { ...DEFAULT_PREFERENCES };
@@ -56,9 +58,7 @@ export async function getPreferences(): Promise<BackgroundAgentPreferences> {
  * Update background agent preferences (partial update supported).
  * Merges new values into current preferences and upserts to DB.
  */
-export async function updatePreferences(
-  prefs: Partial<BackgroundAgentPreferences>,
-): Promise<void> {
+export async function updatePreferences(prefs: Partial<BackgroundAgentPreferences>): Promise<void> {
   const current = await getPreferences();
   const merged = { ...current, ...prefs };
   const value = JSON.stringify(merged);
@@ -94,11 +94,7 @@ function todayString(): string {
 export async function getDailyUsage(): Promise<DailyUsage> {
   try {
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, DAILY_USAGE_KEY))
-      .limit(1);
+    const rows = await db.select().from(settings).where(eq(settings.key, DAILY_USAGE_KEY)).limit(1);
 
     if (rows.length === 0) {
       return { date: todayString(), tokensUsed: 0 };
@@ -160,10 +156,7 @@ export interface GetInsightsOptions {
  * Get insights for a project, optionally filtered by status and type.
  * Ordered by createdAt descending (newest first).
  */
-export async function getInsights(
-  projectId: string,
-  options: GetInsightsOptions = {},
-): Promise<AgentInsight[]> {
+export async function getInsights(projectId: string, options: GetInsightsOptions = {}): Promise<AgentInsight[]> {
   const db = getDb();
 
   const conditions = [eq(agentInsights.projectId, projectId)];
@@ -194,11 +187,7 @@ export async function getInsights(
  */
 export async function getInsightById(id: string): Promise<AgentInsight | null> {
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(agentInsights)
-    .where(eq(agentInsights.id, id))
-    .limit(1);
+  const rows = await db.select().from(agentInsights).where(eq(agentInsights.id, id)).limit(1);
 
   if (rows.length === 0) return null;
   return rowToInsight(rows[0]);
@@ -210,10 +199,7 @@ export async function getInsightById(id: string): Promise<AgentInsight | null> {
  */
 export async function getAllNewInsightsCount(): Promise<number> {
   const db = getDb();
-  const result = await db
-    .select({ count: count() })
-    .from(agentInsights)
-    .where(eq(agentInsights.status, 'new'));
+  const result = await db.select({ count: count() }).from(agentInsights).where(eq(agentInsights.status, 'new'));
 
   return result[0]?.count ?? 0;
 }
@@ -223,10 +209,7 @@ export async function getAllNewInsightsCount(): Promise<number> {
  */
 export async function markAsRead(id: string): Promise<void> {
   const db = getDb();
-  await db
-    .update(agentInsights)
-    .set({ status: 'read', readAt: new Date() })
-    .where(eq(agentInsights.id, id));
+  await db.update(agentInsights).set({ status: 'read', readAt: new Date() }).where(eq(agentInsights.id, id));
 }
 
 /**
@@ -234,10 +217,7 @@ export async function markAsRead(id: string): Promise<void> {
  */
 export async function dismissInsight(id: string): Promise<void> {
   const db = getDb();
-  await db
-    .update(agentInsights)
-    .set({ status: 'dismissed', dismissedAt: new Date() })
-    .where(eq(agentInsights.id, id));
+  await db.update(agentInsights).set({ status: 'dismissed', dismissedAt: new Date() }).where(eq(agentInsights.id, id));
 }
 
 /**
@@ -245,10 +225,7 @@ export async function dismissInsight(id: string): Promise<void> {
  */
 export async function markActedOn(id: string): Promise<void> {
   const db = getDb();
-  await db
-    .update(agentInsights)
-    .set({ status: 'acted_on' })
-    .where(eq(agentInsights.id, id));
+  await db.update(agentInsights).set({ status: 'acted_on' }).where(eq(agentInsights.id, id));
 }
 
 export interface CreateInsightData {
@@ -289,10 +266,7 @@ export async function createInsight(data: CreateInsightData): Promise<AgentInsig
  * already exists. When projectId is provided, scopes to that project;
  * when omitted, checks globally across all projects. Used for deduplication.
  */
-export async function hasActiveInsight(
-  type: InsightType,
-  projectId?: string,
-): Promise<boolean> {
+export async function hasActiveInsight(type: InsightType, projectId?: string): Promise<boolean> {
   const db = getDb();
   const conditions = [
     eq(agentInsights.type, type),
@@ -313,16 +287,10 @@ export async function hasActiveInsight(
  * Get insights across multiple projects (or all projects if no IDs specified).
  * Excludes dismissed and acted_on insights. Ordered by createdAt descending.
  */
-export async function getAllProjectInsights(
-  projectIds?: string[],
-  limit = 50,
-): Promise<AgentInsight[]> {
+export async function getAllProjectInsights(projectIds?: string[], limit = 50): Promise<AgentInsight[]> {
   const db = getDb();
 
-  const conditions = [
-    ne(agentInsights.status, 'dismissed'),
-    ne(agentInsights.status, 'acted_on'),
-  ];
+  const conditions = [ne(agentInsights.status, 'dismissed'), ne(agentInsights.status, 'acted_on')];
   if (projectIds && projectIds.length > 0) {
     conditions.push(inArray(agentInsights.projectId, projectIds));
   }
@@ -351,14 +319,7 @@ export async function cleanupOldInsights(): Promise<void> {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 30);
 
-  await db
-    .delete(agentInsights)
-    .where(
-      and(
-        eq(agentInsights.status, 'dismissed'),
-        lt(agentInsights.createdAt, cutoff),
-      ),
-    );
+  await db.delete(agentInsights).where(and(eq(agentInsights.status, 'dismissed'), lt(agentInsights.createdAt, cutoff)));
 
   // 2. Deduplicate visible insights of the same type — keep only the newest
   //    Includes acted_on so old insights don't linger in the panel
@@ -408,9 +369,7 @@ interface ProjectRef {
  *
  * Returns the created insight, or null if no stale cards exist.
  */
-export async function analyzeStaleCardsConsolidated(
-  projectList: ProjectRef[],
-): Promise<AgentInsight | null> {
+export async function analyzeStaleCardsConsolidated(projectList: ProjectRef[]): Promise<AgentInsight | null> {
   try {
     if (projectList.length === 0) return null;
 
@@ -420,12 +379,7 @@ export async function analyzeStaleCardsConsolidated(
     const existingVisible = await db
       .select()
       .from(agentInsights)
-      .where(
-        and(
-          eq(agentInsights.type, 'stale_cards'),
-          ne(agentInsights.status, 'dismissed'),
-        ),
-      )
+      .where(and(eq(agentInsights.type, 'stale_cards'), ne(agentInsights.status, 'dismissed')))
       .orderBy(desc(agentInsights.createdAt));
 
     if (existingVisible.length > 0) {
@@ -472,10 +426,7 @@ export async function analyzeStaleCardsConsolidated(
 
     for (const project of projectList) {
       // Step 1: Get all boards for this project
-      const projectBoards = await db
-        .select({ id: boards.id })
-        .from(boards)
-        .where(eq(boards.projectId, project.id));
+      const projectBoards = await db.select({ id: boards.id }).from(boards).where(eq(boards.projectId, project.id));
 
       if (projectBoards.length === 0) continue;
 
@@ -525,9 +476,7 @@ export async function analyzeStaleCardsConsolidated(
       projectCardCounts.set(project.id, staleCards.length);
 
       for (const card of staleCards) {
-        const daysSinceUpdate = Math.floor(
-          (Date.now() - new Date(card.updatedAt).getTime()) / (1000 * 60 * 60 * 24),
-        );
+        const daysSinceUpdate = Math.floor((Date.now() - new Date(card.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
         allStaleCards.push({
           id: card.id,
           title: card.title,

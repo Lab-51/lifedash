@@ -1,0 +1,1 @@
+ALTER TABLE "cards" ADD CONSTRAINT "cards_source_recurring_id_cards_id_fk" FOREIGN KEY ("source_recurring_id") REFERENCES "public"."cards"("id") ON DELETE set null ON UPDATE no action;

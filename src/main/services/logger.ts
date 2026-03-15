@@ -78,7 +78,11 @@ function rotateIfNeeded(logFilePath: string): string {
     if (stat.size > MAX_FILE_SIZE) {
       const rotatedPath = logFilePath + '.1';
       // Remove old rotated file if it exists
-      try { fs.unlinkSync(rotatedPath); } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(rotatedPath);
+      } catch {
+        /* ignore */
+      }
       fs.renameSync(logFilePath, rotatedPath);
     }
   } catch {
@@ -128,9 +132,8 @@ function formatMessage(level: LogLevel, prefix: string, message: string, ...args
   }
 
   // Write to file
-  const argsStr = args.length > 0
-    ? ' ' + args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
-    : '';
+  const argsStr =
+    args.length > 0 ? ' ' + args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ') : '';
   writeToFile(`${tag} ${message}${argsStr}`);
 }
 

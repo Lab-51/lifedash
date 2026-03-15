@@ -3,9 +3,7 @@
 // ai_providers stores configured LLM providers with encrypted API keys.
 // ai_usage is an append-only log of AI API calls for cost tracking.
 
-import {
-  pgTable, uuid, varchar, text, boolean, integer, real, timestamp,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, integer, real, timestamp } from 'drizzle-orm/pg-core';
 
 export const aiProviders = pgTable('ai_providers', {
   id: uuid('id').defaultRandom().primaryKey(),

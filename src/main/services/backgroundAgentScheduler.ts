@@ -119,12 +119,7 @@ export async function checkAndRunInsights(): Promise<void> {
       projectsToAnalyze = await db
         .select({ id: projects.id, name: projects.name })
         .from(projects)
-        .where(
-          and(
-            inArray(projects.id, prefs.analyzedProjectIds),
-            eq(projects.archived, false),
-          ),
-        );
+        .where(and(inArray(projects.id, prefs.analyzedProjectIds), eq(projects.archived, false)));
     } else {
       // Analyze all non-archived projects
       projectsToAnalyze = await db

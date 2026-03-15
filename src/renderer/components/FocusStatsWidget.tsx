@@ -96,16 +96,90 @@ import AchievementsModal from './AchievementsModal';
 import LevelBadge from './LevelBadge';
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
-  Zap, Flame, Target, Cpu, Crown, Clock, BrainCircuit, TrendingUp, Calendar, CalendarCheck, Award, Trophy,
-  SquarePlus, Layers, CheckSquare, ListChecks, FolderPlus, Bot, Mic, Video, ArrowRightCircle,
-  Lightbulb, Sparkles, Brain, BrainCog, LayoutGrid, Rocket, BadgeCheck,
-  Timer, Medal, Shield, Hourglass, TreePine, Flag, Infinity, History, Globe, Mountain, Gem, Star,
-  Hash, Package, Database, ThumbsUp, Gift, Swords, CircleCheck, ScrollText, PenTool, GitBranch,
-  FolderTree, Folders, Map: MapIcon, Archive, Wand2, Coffee,
-  Headphones, Umbrella, Ear, FileText, BookOpen, Crosshair, Tornado,
-  Compass, Sun, Waves, Send, Search, Eye,
-  Wind, Hexagon, Anchor, Share, MessageCircle, GraduationCap,
-  Wrench, Coins, Wallet, Skull, Heart, Bird, Moon, Snowflake, Users,
+  Zap,
+  Flame,
+  Target,
+  Cpu,
+  Crown,
+  Clock,
+  BrainCircuit,
+  TrendingUp,
+  Calendar,
+  CalendarCheck,
+  Award,
+  Trophy,
+  SquarePlus,
+  Layers,
+  CheckSquare,
+  ListChecks,
+  FolderPlus,
+  Bot,
+  Mic,
+  Video,
+  ArrowRightCircle,
+  Lightbulb,
+  Sparkles,
+  Brain,
+  BrainCog,
+  LayoutGrid,
+  Rocket,
+  BadgeCheck,
+  Timer,
+  Medal,
+  Shield,
+  Hourglass,
+  TreePine,
+  Flag,
+  Infinity,
+  History,
+  Globe,
+  Mountain,
+  Gem,
+  Star,
+  Hash,
+  Package,
+  Database,
+  ThumbsUp,
+  Gift,
+  Swords,
+  CircleCheck,
+  ScrollText,
+  PenTool,
+  GitBranch,
+  FolderTree,
+  Folders,
+  Map: MapIcon,
+  Archive,
+  Wand2,
+  Coffee,
+  Headphones,
+  Umbrella,
+  Ear,
+  FileText,
+  BookOpen,
+  Crosshair,
+  Tornado,
+  Compass,
+  Sun,
+  Waves,
+  Send,
+  Search,
+  Eye,
+  Wind,
+  Hexagon,
+  Anchor,
+  Share,
+  MessageCircle,
+  GraduationCap,
+  Wrench,
+  Coins,
+  Wallet,
+  Skull,
+  Heart,
+  Bird,
+  Moon,
+  Snowflake,
+  Users,
 };
 
 // Tailwind color classes for each category
@@ -140,11 +214,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function FocusStatsWidget() {
-  const stats = useGamificationStore(s => s.stats);
-  const achievements = useGamificationStore(s => s.achievements);
-  const dailyXP = useGamificationStore(s => s.dailyXP);
-  const loadStats = useGamificationStore(s => s.loadStats);
-  const loadDailyXP = useGamificationStore(s => s.loadDailyXP);
+  const stats = useGamificationStore((s) => s.stats);
+  const achievements = useGamificationStore((s) => s.achievements);
+  const dailyXP = useGamificationStore((s) => s.dailyXP);
+  const loadStats = useGamificationStore((s) => s.loadStats);
+  const loadDailyXP = useGamificationStore((s) => s.loadDailyXP);
 
   const [achievementsModalOpen, setAchievementsModalOpen] = useState(false);
 
@@ -155,12 +229,10 @@ export default function FocusStatsWidget() {
 
   // Weekly XP total and max for chart
   const weeklyTotalXP = dailyXP.reduce((sum, d) => sum + d.xp, 0);
-  const maxDailyXP = Math.max(...dailyXP.map(d => d.xp), 1);
+  const maxDailyXP = Math.max(...dailyXP.map((d) => d.xp), 1);
 
   // Achievement unlock tracking
-  const unlockedSet = new Set(
-    achievements.filter(a => a.unlockedAt !== null).map(a => a.id),
-  );
+  const unlockedSet = new Set(achievements.filter((a) => a.unlockedAt !== null).map((a) => a.id));
   const unlockedCount = unlockedSet.size;
 
   return (
@@ -180,7 +252,9 @@ export default function FocusStatsWidget() {
             {stats && <LevelBadge level={stats.level} size="md" />}
             {/* Total XP */}
             {stats && (
-              <span className="font-data text-xs text-[var(--color-accent-dim)]">{stats.totalXp.toLocaleString()} XP</span>
+              <span className="font-data text-xs text-[var(--color-accent-dim)]">
+                {stats.totalXp.toLocaleString()} XP
+              </span>
             )}
           </div>
         </div>
@@ -203,7 +277,9 @@ export default function FocusStatsWidget() {
                 </>
               ) : (
                 <>
-                  <p className="font-[var(--font-display)] text-2xl text-[var(--color-text-muted)]">0 <span className="text-sm font-medium text-[var(--color-text-muted)]">XP</span></p>
+                  <p className="font-[var(--font-display)] text-2xl text-[var(--color-text-muted)]">
+                    0 <span className="text-sm font-medium text-[var(--color-text-muted)]">XP</span>
+                  </p>
                   <p className="font-data text-xs text-[var(--color-text-secondary)]">No activity yet</p>
                 </>
               )}
@@ -216,13 +292,16 @@ export default function FocusStatsWidget() {
                 <>
                   <p className="font-[var(--font-display)] text-2xl text-[var(--color-warm)] text-glow-warm flex items-center gap-1">
                     <Flame size={20} className="text-[var(--color-warm)]" />
-                    {stats.currentStreak} <span className="text-sm font-medium text-[var(--color-text-muted)]">days</span>
+                    {stats.currentStreak}{' '}
+                    <span className="text-sm font-medium text-[var(--color-text-muted)]">days</span>
                   </p>
                   <p className="font-data text-xs text-[var(--color-text-secondary)]">Best: {stats.longestStreak}</p>
                 </>
               ) : (
                 <>
-                  <p className="font-[var(--font-display)] text-2xl text-[var(--color-text-muted)]">0 <span className="text-sm font-medium text-[var(--color-text-muted)]">days</span></p>
+                  <p className="font-[var(--font-display)] text-2xl text-[var(--color-text-muted)]">
+                    0 <span className="text-sm font-medium text-[var(--color-text-muted)]">days</span>
+                  </p>
                   <p className="font-data text-xs text-[var(--color-text-secondary)]">Start your streak!</p>
                 </>
               )}
@@ -230,7 +309,9 @@ export default function FocusStatsWidget() {
 
             {/* Column 3: Level Progress */}
             <div className="col-span-12 sm:col-span-6 lg:col-span-4 flex flex-col hud-panel clip-corner-cut-sm p-3">
-              <p className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)] mb-2">Level Progress</p>
+              <p className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)] mb-2">
+                Level Progress
+              </p>
               {stats ? (
                 <div className="flex flex-col justify-end flex-1">
                   <div className="flex items-center gap-3 mb-2">
@@ -262,18 +343,17 @@ export default function FocusStatsWidget() {
                 <>
                   <div className="flex items-end gap-1 h-8">
                     {dailyXP.map((day) => {
-                      const height = day.xp > 0
-                        ? Math.max((day.xp / maxDailyXP) * 100, 10)
-                        : 4;
+                      const height = day.xp > 0 ? Math.max((day.xp / maxDailyXP) * 100, 10) : 4;
                       return (
                         <div
                           key={day.date}
                           className="flex-1 rounded-sm transition-all duration-300"
                           style={{
                             height: `${height}%`,
-                            backgroundColor: day.xp > 0
-                              ? 'rgb(16 185 129)' // emerald-500
-                              : 'var(--color-surface-300)', // neutral bar for zero-XP days
+                            backgroundColor:
+                              day.xp > 0
+                                ? 'rgb(16 185 129)' // emerald-500
+                                : 'var(--color-surface-300)', // neutral bar for zero-XP days
                           }}
                           title={`${new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}: ${day.xp} XP`}
                         />
@@ -287,9 +367,7 @@ export default function FocusStatsWidget() {
                       </p>
                     ))}
                   </div>
-                  <p className="text-xs text-surface-500">
-                    {weeklyTotalXP.toLocaleString()} XP this week
-                  </p>
+                  <p className="text-xs text-surface-500">{weeklyTotalXP.toLocaleString()} XP this week</p>
                 </>
               ) : (
                 <>
@@ -316,18 +394,17 @@ export default function FocusStatsWidget() {
                   return (
                     <div
                       key={cat}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${isZero
-                        ? 'bg-surface-100 dark:bg-surface-800 text-surface-400 dark:text-surface-600'
-                        : `${colors.bg} ${colors.text}`
-                        }`}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        isZero
+                          ? 'bg-surface-100 dark:bg-surface-800 text-surface-400 dark:text-surface-600'
+                          : `${colors.bg} ${colors.text}`
+                      }`}
                     >
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${isZero ? 'bg-surface-400 dark:bg-surface-600' : colors.dot}`}
                       />
                       {CATEGORY_LABELS[cat]}
-                      <span className={isZero ? 'text-surface-400 dark:text-surface-600' : ''}>
-                        {xp} XP
-                      </span>
+                      <span className={isZero ? 'text-surface-400 dark:text-surface-600' : ''}>{xp} XP</span>
                     </div>
                   );
                 })}
@@ -342,11 +419,15 @@ export default function FocusStatsWidget() {
             onClick={() => setAchievementsModalOpen(true)}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setAchievementsModalOpen(true); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setAchievementsModalOpen(true);
+            }}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
-                <span className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)]">Achievements</span>
+                <span className="font-hud text-[0.625rem] tracking-wider text-[var(--color-accent-dim)]">
+                  Achievements
+                </span>
                 <div className="h-px w-12 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
               </div>
               <p className="font-data text-xs text-[var(--color-text-secondary)] group-hover:text-[var(--color-accent)] transition-colors">
@@ -357,14 +438,17 @@ export default function FocusStatsWidget() {
               {ACHIEVEMENTS.map((ach) => {
                 const Icon = ICON_MAP[ach.icon] || Zap;
                 const unlocked = unlockedSet.has(ach.id);
-                const categoryClass = ACHIEVEMENT_CATEGORY_CLASS[ach.category] || 'bg-surface-200 dark:bg-surface-800 text-surface-500 dark:text-surface-400';
+                const categoryClass =
+                  ACHIEVEMENT_CATEGORY_CLASS[ach.category] ||
+                  'bg-surface-200 dark:bg-surface-800 text-surface-500 dark:text-surface-400';
                 return (
                   <div
                     key={ach.id}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${unlocked
-                      ? categoryClass
-                      : 'bg-surface-100 dark:bg-surface-800 text-surface-400 dark:text-surface-600'
-                      } group-hover:scale-105`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                      unlocked
+                        ? categoryClass
+                        : 'bg-surface-100 dark:bg-surface-800 text-surface-400 dark:text-surface-600'
+                    } group-hover:scale-105`}
                     title={unlocked ? `${ach.name}: ${ach.description}` : `Locked: ${ach.description}`}
                   >
                     <Icon size={14} />
@@ -376,10 +460,7 @@ export default function FocusStatsWidget() {
         </div>
       </div>
 
-      <AchievementsModal
-        isOpen={achievementsModalOpen}
-        onClose={() => setAchievementsModalOpen(false)}
-      />
+      <AchievementsModal isOpen={achievementsModalOpen} onClose={() => setAchievementsModalOpen(false)} />
     </>
   );
 }

@@ -12,274 +12,318 @@ import { toast } from '../hooks/useToast';
 import { useBoardStore } from '../stores/boardStore';
 
 interface KanbanCardProps {
-    card: Card;
-    onUpdate: (id: string, data: UpdateCardInput) => Promise<void>;
-    onDelete: (id: string) => Promise<void>;
-    onClick?: () => void;
-    justDropped?: boolean;
-    isBlocked?: boolean;
-    dependencyCount?: number;
+  card: Card;
+  onUpdate: (id: string, data: UpdateCardInput) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onClick?: () => void;
+  justDropped?: boolean;
+  isBlocked?: boolean;
+  dependencyCount?: number;
 }
 
 const PRIORITY_STYLES = {
-    low: { color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800', bar: 'bg-emerald-500' },
-    medium: { color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800', bar: 'bg-blue-500' },
-    high: { color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', bar: 'bg-amber-500' },
-    urgent: { color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800', bar: 'bg-red-500' },
+  low: {
+    color: 'text-emerald-500',
+    bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+    border: 'border-emerald-200 dark:border-emerald-800',
+    bar: 'bg-emerald-500',
+  },
+  medium: {
+    color: 'text-blue-500',
+    bg: 'bg-blue-50 dark:bg-blue-900/20',
+    border: 'border-blue-200 dark:border-blue-800',
+    bar: 'bg-blue-500',
+  },
+  high: {
+    color: 'text-amber-500',
+    bg: 'bg-amber-50 dark:bg-amber-900/20',
+    border: 'border-amber-200 dark:border-amber-800',
+    bar: 'bg-amber-500',
+  },
+  urgent: {
+    color: 'text-red-500',
+    bg: 'bg-red-50 dark:bg-red-900/20',
+    border: 'border-red-200 dark:border-red-800',
+    bar: 'bg-red-500',
+  },
 } as const;
 
-const KanbanCardModern = memo(function KanbanCardModern({ card, onUpdate, onDelete, onClick, justDropped, isBlocked, dependencyCount }: KanbanCardProps) {
-    const cardRef = useRef<HTMLDivElement>(null);
-    const [isDragging, setIsDragging] = useState(false);
-    const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
-    const [isEditing, setIsEditing] = useState(false);
-    const [editTitle, setEditTitle] = useState(card.title);
-    const editInputRef = useRef<HTMLInputElement>(null);
-    const removeCardFromUI = useBoardStore(s => s.removeCardFromUI);
-    const restoreCardToUI = useBoardStore(s => s.restoreCardToUI);
+const KanbanCardModern = memo(function KanbanCardModern({
+  card,
+  onUpdate,
+  onDelete,
+  onClick,
+  justDropped,
+  isBlocked,
+  dependencyCount,
+}: KanbanCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(card.title);
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const removeCardFromUI = useBoardStore((s) => s.removeCardFromUI);
+  const restoreCardToUI = useBoardStore((s) => s.restoreCardToUI);
 
-    const priorityStyle = PRIORITY_STYLES[card.priority] ?? PRIORITY_STYLES.medium;
+  const priorityStyle = PRIORITY_STYLES[card.priority] ?? PRIORITY_STYLES.medium;
 
-    // Auto-focus input when entering edit mode
-    useEffect(() => {
-        if (isEditing && editInputRef.current) {
-            editInputRef.current.focus();
-            editInputRef.current.select();
-        }
-    }, [isEditing]);
+  // Auto-focus input when entering edit mode
+  useEffect(() => {
+    if (isEditing && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [isEditing]);
 
-    // Set up drag behavior
-    useEffect(() => {
-        const el = cardRef.current;
-        if (!el) return;
+  // Set up drag behavior
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
 
-        return draggable({
-            element: el,
-            getInitialData: () => ({
-                type: 'card',
-                cardId: card.id,
-                sourceColumnId: card.columnId,
-                sourcePosition: card.position,
-            }),
-            onDragStart: () => setIsDragging(true),
-            onDrop: () => setIsDragging(false),
+    return draggable({
+      element: el,
+      getInitialData: () => ({
+        type: 'card',
+        cardId: card.id,
+        sourceColumnId: card.columnId,
+        sourcePosition: card.position,
+      }),
+      onDragStart: () => setIsDragging(true),
+      onDrop: () => setIsDragging(false),
+    });
+  }, [card.id, card.columnId, card.position]);
+
+  // Set up drop target behavior
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => source.data.type === 'card' && source.data.cardId !== card.id,
+      getData: ({ input, element }) => {
+        const data: Record<string, unknown> = {
+          type: 'card',
+          cardId: card.id,
+          columnId: card.columnId,
+          position: card.position,
+        };
+        return attachClosestEdge(data, {
+          input,
+          element,
+          allowedEdges: ['top', 'bottom'],
         });
-    }, [card.id, card.columnId, card.position]);
+      },
+      onDragEnter: ({ self }) => {
+        setClosestEdge(extractClosestEdge(self.data));
+      },
+      onDrag: ({ self }) => {
+        setClosestEdge(extractClosestEdge(self.data));
+      },
+      onDragLeave: () => setClosestEdge(null),
+      onDrop: () => setClosestEdge(null),
+    });
+  }, [card.id, card.columnId, card.position]);
 
-    // Set up drop target behavior
-    useEffect(() => {
-        const el = cardRef.current;
-        if (!el) return;
+  const startEditing = () => {
+    setEditTitle(card.title);
+    setIsEditing(true);
+  };
 
-        return dropTargetForElements({
-            element: el,
-            canDrop: ({ source }) =>
-                source.data.type === 'card' && source.data.cardId !== card.id,
-            getData: ({ input, element }) => {
-                const data: Record<string, unknown> = {
-                    type: 'card',
-                    cardId: card.id,
-                    columnId: card.columnId,
-                    position: card.position,
-                };
-                return attachClosestEdge(data, {
-                    input,
-                    element,
-                    allowedEdges: ['top', 'bottom'],
-                });
-            },
-            onDragEnter: ({ self }) => {
-                setClosestEdge(extractClosestEdge(self.data));
-            },
-            onDrag: ({ self }) => {
-                setClosestEdge(extractClosestEdge(self.data));
-            },
-            onDragLeave: () => setClosestEdge(null),
-            onDrop: () => setClosestEdge(null),
-        });
-    }, [card.id, card.columnId, card.position]);
+  const saveEdit = async () => {
+    const trimmed = editTitle.trim();
+    if (trimmed && trimmed !== card.title) {
+      await onUpdate(card.id, { title: trimmed });
+    }
+    setIsEditing(false);
+  };
 
-    const startEditing = () => {
-        setEditTitle(card.title);
-        setIsEditing(true);
-    };
+  const cancelEdit = () => {
+    setEditTitle(card.title);
+    setIsEditing(false);
+  };
 
-    const saveEdit = async () => {
-        const trimmed = editTitle.trim();
-        if (trimmed && trimmed !== card.title) {
-            await onUpdate(card.id, { title: trimmed });
-        }
-        setIsEditing(false);
-    };
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveEdit();
+    } else if (e.key === 'Escape') {
+      cancelEdit();
+    }
+  };
 
-    const cancelEdit = () => {
-        setEditTitle(card.title);
-        setIsEditing(false);
-    };
+  const handleDeleteClick = () => {
+    const cardSnapshot = { ...card };
+    const cardId = card.id;
 
-    const handleEditKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            saveEdit();
-        } else if (e.key === 'Escape') {
-            cancelEdit();
-        }
-    };
+    removeCardFromUI(cardId);
 
-    const handleDeleteClick = () => {
-        const cardSnapshot = { ...card };
-        const cardId = card.id;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!cancelled) {
+        onDelete(cardId);
+      }
+    }, 5000);
 
-        removeCardFromUI(cardId);
-
-        let cancelled = false;
-        const timer = setTimeout(() => {
-            if (!cancelled) {
-                onDelete(cardId);
-            }
-        }, 5000);
-
-        toast('Card deleted', 'info', {
-            label: 'Undo',
-            onClick: () => {
-                cancelled = true;
-                clearTimeout(timer);
-                restoreCardToUI(cardSnapshot);
-            },
-        }, 5000);
-    };
-
-    return (
-        <div
-            ref={cardRef}
-            onClick={onClick}
-            className={`group relative hud-panel clip-corner-cut-sm p-3.5 cursor-pointer hover:border-[var(--color-accent-dim)] hover:shadow-[0_0_8px_rgba(62,232,228,0.1)] transition-all ${isBlocked ? 'opacity-75' : ''
-                }`}
-            style={
-                isDragging
-                    ? { opacity: 0.5 }
-                    : justDropped
-                        ? { animation: 'card-drop 300ms ease-out' }
-                        : undefined
-            }
-        >
-            {/* Hover-reveal top gradient border */}
-            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--color-accent)] to-transparent opacity-0 group-hover:opacity-60 transition-opacity duration-700" />
-
-            {/* Drop edge indicators */}
-            {closestEdge === 'top' && (
-                <div className="absolute -top-1 left-0 right-0 h-1 bg-primary-500 rounded-full z-10" />
-            )}
-            {closestEdge === 'bottom' && (
-                <div className="absolute -bottom-1 left-0 right-0 h-1 bg-primary-500 rounded-full z-10" />
-            )}
-
-            {/* Priority Indicator Line */}
-            <div className={`absolute top-3 bottom-3 left-0 w-1 rounded-r-full ${priorityStyle.bar}`} />
-
-            <div className="pl-2.5">
-                {/* Header row */}
-                <div className="flex items-start justify-between gap-2 mb-1.5">
-                    <div className="flex items-start gap-2 flex-1 min-w-0">
-                        <button
-                            onClick={e => { e.stopPropagation(); onUpdate(card.id, { completed: !card.completed }); }}
-                            className="mt-0.5 shrink-0"
-                            title={card.completed ? 'Mark incomplete' : 'Mark complete'}
-                        >
-                            <div
-                                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                                    card.completed
-                                        ? 'bg-emerald-600 border-emerald-500'
-                                        : 'border-[var(--color-border)] bg-surface-50 dark:bg-surface-950 hover:border-[var(--color-border-accent)]'
-                                }`}
-                            >
-                                {card.completed && <Check size={10} className="text-white" />}
-                            </div>
-                        </button>
-                        <div className="flex-1 min-w-0">
-                            {isEditing ? (
-                                <input
-                                    ref={editInputRef}
-                                    type="text"
-                                    value={editTitle}
-                                    onChange={e => setEditTitle(e.target.value)}
-                                    onKeyDown={handleEditKeyDown}
-                                    onBlur={saveEdit}
-                                    onClick={e => e.stopPropagation()}
-                                    className="w-full bg-surface-50 dark:bg-surface-900 border border-primary-500 rounded px-2 py-1 text-sm font-medium focus:outline-none"
-                                />
-                            ) : (
-                                <h4 className={`text-sm font-medium leading-snug line-clamp-3 ${card.completed ? 'line-through text-surface-500' : isBlocked ? 'line-through text-surface-500' : 'text-surface-900 dark:text-surface-100'}`}>
-                                    {card.title}
-                                </h4>
-                            )}
-                        </div>
-                    </div>
-
-                    {isBlocked && (
-                        <AlertCircle size={14} className="text-red-500 shrink-0" />
-                    )}
-                </div>
-
-                {/* Footer info using badges */}
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    {/* Priority Badge */}
-                    <span className={`text-[0.625rem] uppercase font-bold px-1.5 py-0.5 rounded-md ${priorityStyle.bg} ${priorityStyle.color} border ${priorityStyle.border}`}>
-                        {card.priority}
-                    </span>
-
-                    {/* Link Count */}
-                    {(dependencyCount ?? 0) > 0 && (
-                        <span className="flex items-center gap-1 text-[0.625rem] text-surface-500 dark:text-surface-400 bg-surface-100 dark:bg-surface-700 px-1.5 py-0.5 rounded-md">
-                            <Link2 size={10} />
-                            {dependencyCount}
-                        </span>
-                    )}
-
-                    {/* Due Date */}
-                    {card.dueDate && (
-                        <span className={`font-data flex items-center gap-1 text-[0.625rem] px-1.5 py-0.5 rounded-md border ${getDueDateBadge(card.dueDate).classes.replace('text-', 'text-').replace('bg-', 'bg-').replace('/10', '/20')}`}>
-                            <Clock size={10} />
-                            {new Date(card.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                        </span>
-                    )}
-
-                    {/* Recurring badge */}
-                    {card.recurrenceType && (
-                        <span className="flex items-center gap-1 text-[0.625rem] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md" title={`Repeats ${card.recurrenceType}`}>
-                            <RefreshCw size={10} />
-                        </span>
-                    )}
-
-                    {/* Labels */}
-                    {card.labels?.map(label => (
-                        <span key={label.id} className="label-chip inline-flex items-center gap-1 text-[0.625rem] font-medium px-1.5 py-0.5 rounded-full" style={{ '--lc': label.color } as React.CSSProperties}>
-                            <span className="label-dot w-1.5 h-1.5 rounded-full shrink-0" />
-                            {label.name}
-                        </span>
-                    ))}
-                </div>
-
-                {/* Hover Actions */}
-                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--color-chrome)]/90 rounded-lg p-1 shadow-sm border border-[var(--color-border)] backdrop-blur-sm">
-                    {!isEditing && (
-                        <button
-                            onClick={e => { e.stopPropagation(); startEditing(); }}
-                            className="p-1 text-surface-400 hover:text-primary-600 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
-                        >
-                            <Pencil size={12} />
-                        </button>
-                    )}
-                    <button
-                        onClick={e => { e.stopPropagation(); handleDeleteClick(); }}
-                        className="p-1 text-surface-400 hover:text-red-500 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
-                    >
-                        <Trash2 size={12} />
-                    </button>
-                </div>
-
-            </div>
-        </div>
+    toast(
+      'Card deleted',
+      'info',
+      {
+        label: 'Undo',
+        onClick: () => {
+          cancelled = true;
+          clearTimeout(timer);
+          restoreCardToUI(cardSnapshot);
+        },
+      },
+      5000,
     );
+  };
+
+  return (
+    <div
+      ref={cardRef}
+      onClick={onClick}
+      className={`group relative hud-panel clip-corner-cut-sm p-3.5 cursor-pointer hover:border-[var(--color-accent-dim)] hover:shadow-[0_0_8px_rgba(62,232,228,0.1)] transition-all ${
+        isBlocked ? 'opacity-75' : ''
+      }`}
+      style={isDragging ? { opacity: 0.5 } : justDropped ? { animation: 'card-drop 300ms ease-out' } : undefined}
+    >
+      {/* Hover-reveal top gradient border */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--color-accent)] to-transparent opacity-0 group-hover:opacity-60 transition-opacity duration-700" />
+
+      {/* Drop edge indicators */}
+      {closestEdge === 'top' && <div className="absolute -top-1 left-0 right-0 h-1 bg-primary-500 rounded-full z-10" />}
+      {closestEdge === 'bottom' && (
+        <div className="absolute -bottom-1 left-0 right-0 h-1 bg-primary-500 rounded-full z-10" />
+      )}
+
+      {/* Priority Indicator Line */}
+      <div className={`absolute top-3 bottom-3 left-0 w-1 rounded-r-full ${priorityStyle.bar}`} />
+
+      <div className="pl-2.5">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-2 mb-1.5">
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdate(card.id, { completed: !card.completed });
+              }}
+              className="mt-0.5 shrink-0"
+              title={card.completed ? 'Mark incomplete' : 'Mark complete'}
+            >
+              <div
+                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                  card.completed
+                    ? 'bg-emerald-600 border-emerald-500'
+                    : 'border-[var(--color-border)] bg-surface-50 dark:bg-surface-950 hover:border-[var(--color-border-accent)]'
+                }`}
+              >
+                {card.completed && <Check size={10} className="text-white" />}
+              </div>
+            </button>
+            <div className="flex-1 min-w-0">
+              {isEditing ? (
+                <input
+                  ref={editInputRef}
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  onKeyDown={handleEditKeyDown}
+                  onBlur={saveEdit}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full bg-surface-50 dark:bg-surface-900 border border-primary-500 rounded px-2 py-1 text-sm font-medium focus:outline-none"
+                />
+              ) : (
+                <h4
+                  className={`text-sm font-medium leading-snug line-clamp-3 ${card.completed ? 'line-through text-surface-500' : isBlocked ? 'line-through text-surface-500' : 'text-surface-900 dark:text-surface-100'}`}
+                >
+                  {card.title}
+                </h4>
+              )}
+            </div>
+          </div>
+
+          {isBlocked && <AlertCircle size={14} className="text-red-500 shrink-0" />}
+        </div>
+
+        {/* Footer info using badges */}
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          {/* Priority Badge */}
+          <span
+            className={`text-[0.625rem] uppercase font-bold px-1.5 py-0.5 rounded-md ${priorityStyle.bg} ${priorityStyle.color} border ${priorityStyle.border}`}
+          >
+            {card.priority}
+          </span>
+
+          {/* Link Count */}
+          {(dependencyCount ?? 0) > 0 && (
+            <span className="flex items-center gap-1 text-[0.625rem] text-surface-500 dark:text-surface-400 bg-surface-100 dark:bg-surface-700 px-1.5 py-0.5 rounded-md">
+              <Link2 size={10} />
+              {dependencyCount}
+            </span>
+          )}
+
+          {/* Due Date */}
+          {card.dueDate && (
+            <span
+              className={`font-data flex items-center gap-1 text-[0.625rem] px-1.5 py-0.5 rounded-md border ${getDueDateBadge(card.dueDate).classes.replace('text-', 'text-').replace('bg-', 'bg-').replace('/10', '/20')}`}
+            >
+              <Clock size={10} />
+              {new Date(card.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            </span>
+          )}
+
+          {/* Recurring badge */}
+          {card.recurrenceType && (
+            <span
+              className="flex items-center gap-1 text-[0.625rem] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md"
+              title={`Repeats ${card.recurrenceType}`}
+            >
+              <RefreshCw size={10} />
+            </span>
+          )}
+
+          {/* Labels */}
+          {card.labels?.map((label) => (
+            <span
+              key={label.id}
+              className="label-chip inline-flex items-center gap-1 text-[0.625rem] font-medium px-1.5 py-0.5 rounded-full"
+              style={{ '--lc': label.color } as React.CSSProperties}
+            >
+              <span className="label-dot w-1.5 h-1.5 rounded-full shrink-0" />
+              {label.name}
+            </span>
+          ))}
+        </div>
+
+        {/* Hover Actions */}
+        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--color-chrome)]/90 rounded-lg p-1 shadow-sm border border-[var(--color-border)] backdrop-blur-sm">
+          {!isEditing && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                startEditing();
+              }}
+              className="p-1 text-surface-400 hover:text-primary-600 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+            >
+              <Pencil size={12} />
+            </button>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteClick();
+            }}
+            className="p-1 text-surface-400 hover:text-red-500 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 });
 
 export default KanbanCardModern;

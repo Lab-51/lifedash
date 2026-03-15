@@ -14,11 +14,7 @@ interface IntelBriefChatProps {
   onClear: () => void;
 }
 
-const STARTER_SUGGESTIONS = [
-  "What are today's biggest themes?",
-  'Any security concerns?',
-  'What should I act on?',
-];
+const STARTER_SUGGESTIONS = ["What are today's biggest themes?", 'Any security concerns?', 'What should I act on?'];
 
 /** Parse **bold** markers into spans. */
 function parseInlineBold(text: string): React.ReactNode {
@@ -92,13 +88,7 @@ function renderMessageContent(content: string): React.ReactNode {
   return elements;
 }
 
-export default function IntelBriefChat({
-  messages,
-  sending,
-  hasBrief,
-  onSend,
-  onClear,
-}: IntelBriefChatProps) {
+export default function IntelBriefChat({ messages, sending, hasBrief, onSend, onClear }: IntelBriefChatProps) {
   const [input, setInput] = useState('');
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -131,9 +121,7 @@ export default function IntelBriefChat({
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-2">
           <MessageSquare size={14} className="text-[var(--color-accent)]" />
-          <span className="text-sm font-hud text-[var(--color-accent)] text-glow">
-            Brief Discussion
-          </span>
+          <span className="text-sm font-hud text-[var(--color-accent)] text-glow">Brief Discussion</span>
         </div>
         {messages.length > 0 && (
           <button
@@ -157,7 +145,7 @@ export default function IntelBriefChat({
             </p>
             {hasBrief && (
               <div className="flex flex-col gap-1.5 w-full mt-1">
-                {STARTER_SUGGESTIONS.map(suggestion => (
+                {STARTER_SUGGESTIONS.map((suggestion) => (
                   <button
                     key={suggestion}
                     onClick={() => onSend(suggestion)}
@@ -171,11 +159,8 @@ export default function IntelBriefChat({
           </div>
         ) : (
           <>
-            {messages.map(msg => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[85%] px-3 py-2 rounded-lg ${
                     msg.role === 'user'
@@ -216,7 +201,7 @@ export default function IntelBriefChat({
             ref={inputRef}
             type="text"
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={hasBrief ? 'Ask about the brief...' : 'Generate a brief first'}
             disabled={!hasBrief || sending}

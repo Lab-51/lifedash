@@ -38,24 +38,27 @@ const TEST_MODELS: Record<AIProviderName, string> = {
 
 // Pricing per token (USD). Prices sourced from provider pricing pages (Feb 2026).
 // Local models (Ollama) are free. Unknown models default to 0.
-interface TokenPricing { input: number; output: number }
+interface TokenPricing {
+  input: number;
+  output: number;
+}
 const MODEL_PRICING: Record<string, TokenPricing> = {
   // OpenAI — GPT-5 family
-  'gpt-5.2':        { input: 1.75 / 1e6, output: 14.00 / 1e6 },
-  'gpt-5':          { input: 1.25 / 1e6, output: 10.00 / 1e6 },
-  'gpt-5-mini':     { input: 0.25 / 1e6, output: 2.00 / 1e6 },
+  'gpt-5.2': { input: 1.75 / 1e6, output: 14.0 / 1e6 },
+  'gpt-5': { input: 1.25 / 1e6, output: 10.0 / 1e6 },
+  'gpt-5-mini': { input: 0.25 / 1e6, output: 2.0 / 1e6 },
   // OpenAI — Reasoning
-  'o4-mini':        { input: 1.10 / 1e6, output: 4.40 / 1e6 },
-  'o3-mini':        { input: 1.10 / 1e6, output: 4.40 / 1e6 },
+  'o4-mini': { input: 1.1 / 1e6, output: 4.4 / 1e6 },
+  'o3-mini': { input: 1.1 / 1e6, output: 4.4 / 1e6 },
   // OpenAI — Legacy (still available in API)
-  'gpt-4o':         { input: 2.50 / 1e6, output: 10.00 / 1e6 },
-  'gpt-4o-mini':    { input: 0.15 / 1e6, output: 0.60 / 1e6 },
+  'gpt-4o': { input: 2.5 / 1e6, output: 10.0 / 1e6 },
+  'gpt-4o-mini': { input: 0.15 / 1e6, output: 0.6 / 1e6 },
   // Anthropic
-  'claude-sonnet-4-5-20250929': { input: 3.00 / 1e6, output: 15.00 / 1e6 },
-  'claude-haiku-4-5-20251001':  { input: 0.80 / 1e6, output: 4.00 / 1e6 },
+  'claude-sonnet-4-5-20250929': { input: 3.0 / 1e6, output: 15.0 / 1e6 },
+  'claude-haiku-4-5-20251001': { input: 0.8 / 1e6, output: 4.0 / 1e6 },
   // Kimi (Moonshot)
-  'kimi-k2.5':         { input: 1.00 / 1e6, output: 4.00 / 1e6 },
-  'kimi-k2.5-preview': { input: 1.00 / 1e6, output: 4.00 / 1e6 },
+  'kimi-k2.5': { input: 1.0 / 1e6, output: 4.0 / 1e6 },
+  'kimi-k2.5-preview': { input: 1.0 / 1e6, output: 4.0 / 1e6 },
 };
 
 /** Estimate cost in USD from token counts and model ID. Returns 0 for unknown/local models. */
@@ -100,11 +103,7 @@ function sanitizeMaxTokens(providerName: AIProviderName, maxTokens?: number): nu
 // Cache provider factories by DB id (invalidated on config change)
 const providerCache = new Map<string, ProviderFactory>();
 
-function createFactory(
-  name: AIProviderName,
-  apiKey?: string,
-  baseUrl?: string,
-): ProviderFactory {
+function createFactory(name: AIProviderName, apiKey?: string, baseUrl?: string): ProviderFactory {
   // Each SDK provider is a callable object that returns its own LanguageModel version.
   // OpenAI/Anthropic return LanguageModelV3, Ollama returns LanguageModelV1.
   // generateText accepts all versions at runtime, so the cast is safe.
@@ -133,12 +132,7 @@ function createFactory(
  * Get or create a cached provider factory for the given DB provider row.
  * Call clearProviderCache(id) when provider config changes.
  */
-export function getProvider(
-  id: string,
-  name: AIProviderName,
-  apiKeyEncrypted: string | null,
-  baseUrl: string | null,
-) {
+export function getProvider(id: string, name: AIProviderName, apiKeyEncrypted: string | null, baseUrl: string | null) {
   if (providerCache.has(id)) return providerCache.get(id)!;
   const apiKey = apiKeyEncrypted ? decryptString(apiKeyEncrypted) : undefined;
   const factory = createFactory(name, apiKey, baseUrl ?? undefined);
@@ -158,14 +152,18 @@ export function clearProviderCache(id?: string): void {
 /** Map raw SDK error messages to short, user-friendly strings. */
 function friendlyConnectionError(raw: string): string {
   const lower = raw.toLowerCase();
-  if (lower.includes('401') || lower.includes('incorrect api key') || lower.includes('invalid.*api.key') || lower.includes('authentication'))
+  if (
+    lower.includes('401') ||
+    lower.includes('incorrect api key') ||
+    lower.includes('invalid.*api.key') ||
+    lower.includes('authentication')
+  )
     return 'Invalid API key. Please check and try again.';
   if (lower.includes('403') || lower.includes('forbidden') || lower.includes('permission'))
     return 'Access denied. Your API key may lack permissions.';
   if (lower.includes('429') || lower.includes('rate limit') || lower.includes('too many'))
     return 'Rate limited. Wait a moment and retry.';
-  if (lower.includes('404') || lower.includes('not found'))
-    return 'Model or endpoint not found. Check your Base URL.';
+  if (lower.includes('404') || lower.includes('not found')) return 'Model or endpoint not found. Check your Base URL.';
   if (lower.includes('timeout') || lower.includes('timed out') || lower.includes('econnaborted'))
     return 'Connection timed out. Check your network or Base URL.';
   if (lower.includes('econnrefused') || lower.includes('connection refused'))
@@ -229,12 +227,7 @@ export async function generate(options: {
   temperature?: number;
   maxTokens?: number;
 }) {
-  const factory = getProvider(
-    options.providerId,
-    options.providerName,
-    options.apiKeyEncrypted,
-    options.baseUrl,
-  );
+  const factory = getProvider(options.providerId, options.providerName, options.apiKeyEncrypted, options.baseUrl);
 
   const result = await generateText({
     model: factory(options.model) as LanguageModel,
@@ -248,7 +241,7 @@ export async function generate(options: {
   // reasoning instead of text. Use reasoning as fallback when text is empty.
   let text = result.text;
   if (!text && result.reasoning && result.reasoning.length > 0) {
-    const reasoningText = result.reasoning.map(r => r.text).join('\n');
+    const reasoningText = result.reasoning.map((r) => r.text).join('\n');
     log.info(`[AI] text empty but reasoning has ${reasoningText.length} chars — using reasoning as text`);
     text = reasoningText;
   }
@@ -319,20 +312,14 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
   const db = getDb();
 
   // 1. Try ai.taskModels setting (matches the key used by the renderer settingsStore)
-  const [settingRow] = await db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, 'ai.taskModels'));
+  const [settingRow] = await db.select().from(settings).where(eq(settings.key, 'ai.taskModels'));
 
   if (settingRow) {
     try {
       const taskModels: Record<string, TaskModelConfig> = JSON.parse(settingRow.value);
       const config = taskModels[taskType];
       if (config) {
-        const [provider] = await db
-          .select()
-          .from(aiProviders)
-          .where(eq(aiProviders.id, config.providerId));
+        const [provider] = await db.select().from(aiProviders).where(eq(aiProviders.id, config.providerId));
         if (provider && provider.enabled) {
           return {
             providerId: provider.id,
@@ -351,11 +338,7 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
   }
 
   // 2. Fallback: first enabled provider
-  const [fallbackProvider] = await db
-    .select()
-    .from(aiProviders)
-    .where(eq(aiProviders.enabled, true))
-    .limit(1);
+  const [fallbackProvider] = await db.select().from(aiProviders).where(eq(aiProviders.enabled, true)).limit(1);
 
   if (!fallbackProvider) return null;
 
@@ -417,12 +400,7 @@ export function streamGenerate(options: {
   maxTokens?: number;
   abortSignal?: AbortSignal;
 }) {
-  const factory = getProvider(
-    options.providerId,
-    options.providerName,
-    options.apiKeyEncrypted,
-    options.baseUrl,
-  );
+  const factory = getProvider(options.providerId, options.providerName, options.apiKeyEncrypted, options.baseUrl);
 
   return streamText({
     model: factory(options.model) as LanguageModel,

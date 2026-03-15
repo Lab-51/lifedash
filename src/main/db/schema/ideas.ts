@@ -22,10 +22,13 @@ export const ideas = pgTable('ideas', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const ideaTags = pgTable('idea_tags', {
-  ideaId: uuid('idea_id').notNull().references(() => ideas.id, { onDelete: 'cascade' }),
-  tag: varchar('tag', { length: 100 }).notNull(),
-}, (table) => [
-  primaryKey({ columns: [table.ideaId, table.tag] }),
-  index('idea_tags_idea_id_idx').on(table.ideaId),
-]);
+export const ideaTags = pgTable(
+  'idea_tags',
+  {
+    ideaId: uuid('idea_id')
+      .notNull()
+      .references(() => ideas.id, { onDelete: 'cascade' }),
+    tag: varchar('tag', { length: 100 }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.ideaId, table.tag] }), index('idea_tags_idea_id_idx').on(table.ideaId)],
+);

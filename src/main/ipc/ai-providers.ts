@@ -17,10 +17,7 @@ import { ipcMain } from 'electron';
 import { eq, desc, sql, gte } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { aiProviders, aiUsage } from '../db/schema';
-import {
-  encryptString,
-  isEncryptionAvailable,
-} from '../services/secure-storage';
+import { encryptString, isEncryptionAvailable } from '../services/secure-storage';
 import { testConnection, clearProviderCache } from '../services/ai-provider';
 import type { AIProviderName } from '../../shared/types';
 import { validateInput } from '../../shared/validation/ipc-validator';
@@ -55,57 +52,42 @@ export function registerAIProviderHandlers(): void {
   });
 
   // Create a new provider (encrypts API key if provided)
-  ipcMain.handle(
-    'ai:create-provider',
-    async (_event, data: unknown) => {
-      const input = validateInput(createAIProviderInputSchema, data);
-      const db = getDb();
-      const values: {
-        name: string;
-        displayName: string | null;
-        baseUrl: string | null;
-        apiKeyEncrypted?: string;
-      } = {
-        name: input.name,
-        displayName: input.displayName ?? null,
-        baseUrl: input.baseUrl ?? null,
-      };
-      if (input.apiKey) {
-        values.apiKeyEncrypted = encryptString(input.apiKey);
-      }
-      const [row] = await db
-        .insert(aiProviders)
-        .values(values)
-        .returning();
-      return toAIProvider(row);
-    },
-  );
+  ipcMain.handle('ai:create-provider', async (_event, data: unknown) => {
+    const input = validateInput(createAIProviderInputSchema, data);
+    const db = getDb();
+    const values: {
+      name: string;
+      displayName: string | null;
+      baseUrl: string | null;
+      apiKeyEncrypted?: string;
+    } = {
+      name: input.name,
+      displayName: input.displayName ?? null,
+      baseUrl: input.baseUrl ?? null,
+    };
+    if (input.apiKey) {
+      values.apiKeyEncrypted = encryptString(input.apiKey);
+    }
+    const [row] = await db.insert(aiProviders).values(values).returning();
+    return toAIProvider(row);
+  });
 
   // Update a provider (re-encrypts API key if changed)
-  ipcMain.handle(
-    'ai:update-provider',
-    async (_event, id: unknown, data: unknown) => {
-      const validId = validateInput(idParamSchema, id);
-      const input = validateInput(updateAIProviderInputSchema, data);
-      const db = getDb();
-      const updates: Record<string, unknown> = { updatedAt: new Date() };
-      if (input.displayName !== undefined) updates.displayName = input.displayName;
-      if (input.baseUrl !== undefined) updates.baseUrl = input.baseUrl;
-      if (input.enabled !== undefined) updates.enabled = input.enabled;
-      if (input.apiKey !== undefined) {
-        updates.apiKeyEncrypted = input.apiKey
-          ? encryptString(input.apiKey)
-          : null;
-      }
-      const [row] = await db
-        .update(aiProviders)
-        .set(updates)
-        .where(eq(aiProviders.id, validId))
-        .returning();
-      clearProviderCache(validId);
-      return toAIProvider(row);
-    },
-  );
+  ipcMain.handle('ai:update-provider', async (_event, id: unknown, data: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const input = validateInput(updateAIProviderInputSchema, data);
+    const db = getDb();
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.displayName !== undefined) updates.displayName = input.displayName;
+    if (input.baseUrl !== undefined) updates.baseUrl = input.baseUrl;
+    if (input.enabled !== undefined) updates.enabled = input.enabled;
+    if (input.apiKey !== undefined) {
+      updates.apiKeyEncrypted = input.apiKey ? encryptString(input.apiKey) : null;
+    }
+    const [row] = await db.update(aiProviders).set(updates).where(eq(aiProviders.id, validId)).returning();
+    clearProviderCache(validId);
+    return toAIProvider(row);
+  });
 
   // Delete a provider
   ipcMain.handle('ai:delete-provider', async (_event, id: unknown) => {
@@ -121,16 +103,9 @@ export function registerAIProviderHandlers(): void {
   ipcMain.handle('ai:test-connection', async (_event, id: unknown) => {
     const validId = validateInput(idParamSchema, id);
     const db = getDb();
-    const [row] = await db
-      .select()
-      .from(aiProviders)
-      .where(eq(aiProviders.id, validId));
+    const [row] = await db.select().from(aiProviders).where(eq(aiProviders.id, validId));
     if (!row) throw new Error('Provider not found');
-    return testConnection(
-      row.name as AIProviderName,
-      row.apiKeyEncrypted,
-      row.baseUrl,
-    );
+    return testConnection(row.name as AIProviderName, row.apiKeyEncrypted, row.baseUrl);
   });
 
   // Check if OS-level encryption is available
@@ -146,7 +121,7 @@ export function registerAIProviderHandlers(): void {
       const resp = await fetch('http://localhost:11434/api/tags', { signal: controller.signal });
       clearTimeout(timeout);
       if (!resp.ok) return { running: false, models: [] };
-      const data = await resp.json() as { models?: { name: string }[] };
+      const data = (await resp.json()) as { models?: { name: string }[] };
       const models = (data.models || []).map((m: { name: string }) => m.name);
       return { running: true, models };
     } catch {
@@ -159,11 +134,7 @@ export function registerAIProviderHandlers(): void {
   // Get recent usage entries (newest first, max 100)
   ipcMain.handle('ai:get-usage', async () => {
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(aiUsage)
-      .orderBy(desc(aiUsage.createdAt))
-      .limit(100);
+    const rows = await db.select().from(aiUsage).orderBy(desc(aiUsage.createdAt)).limit(100);
     return rows.map((r) => ({
       ...r,
       createdAt: r.createdAt.toISOString(),
@@ -177,7 +148,7 @@ export function registerAIProviderHandlers(): void {
       db.select().from(aiUsage),
       db.select({ id: aiProviders.id, name: aiProviders.name, displayName: aiProviders.displayName }).from(aiProviders),
     ]);
-    const providerNameMap = new Map(providers.map(p => [p.id, p.displayName || p.name]));
+    const providerNameMap = new Map(providers.map((p) => [p.id, p.displayName || p.name]));
     const summary = {
       totalTokens: 0,
       totalCost: 0,

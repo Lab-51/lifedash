@@ -132,7 +132,8 @@ const WEEKLY_SYSTEM_PROMPT = `You are an AI news intelligence analyst. Given art
    - 3-4: Niche or minor
    - 1-2: Low relevance`;
 
-const SUMMARIZE_SYSTEM_PROMPT = 'You are a concise news summarizer. Produce a 1-2 sentence summary that captures the key point and significance of the article.';
+const SUMMARIZE_SYSTEM_PROMPT =
+  'You are a concise news summarizer. Produce a 1-2 sentence summary that captures the key point and significance of the article.';
 
 // ---------------------------------------------------------------------------
 // Exported Functions
@@ -148,14 +149,10 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
 
   // Compute date key
   const now = new Date();
-  const dateKey = type === 'daily'
-    ? now.toISOString().slice(0, 10)
-    : getISOWeek(now);
+  const dateKey = type === 'daily' ? now.toISOString().slice(0, 10) : getISOWeek(now);
 
   // Delete existing brief for this type+date (regenerate)
-  await db.delete(intelBriefs).where(
-    and(eq(intelBriefs.type, type), eq(intelBriefs.date, dateKey)),
-  );
+  await db.delete(intelBriefs).where(and(eq(intelBriefs.type, type), eq(intelBriefs.date, dateKey)));
 
   // Get items for the period.
   // Daily: publishedAt >= start of today (matches the "Today" feed filter exactly).
@@ -181,10 +178,7 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
     })
     .from(intelItems)
     .innerJoin(intelSources, eq(intelItems.sourceId, intelSources.id))
-    .where(and(
-      dateCondition,
-      eq(intelSources.enabled, true),
-    ))
+    .where(and(dateCondition, eq(intelSources.enabled, true)))
     .orderBy(desc(intelItems.publishedAt))
     .limit(itemLimit);
 
@@ -196,9 +190,7 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
   // Build articles list for the prompt
   const articlesList = articleRows
     .map((r, i) => {
-      const desc = r.item.description
-        ? r.item.description.slice(0, 200)
-        : 'No description available';
+      const desc = r.item.description ? r.item.description.slice(0, 200) : 'No description available';
       return `${i + 1}. [${r.item.title}] (Source: ${r.sourceName}, URL: ${r.item.url})\n   Description: ${desc}`;
     })
     .join('\n');
@@ -228,8 +220,12 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
   });
 
   if (!result.text || result.text.trim().length === 0) {
-    log.warn('AI returned empty text for brief — model may have exhausted tokens on reasoning. Increase max tokens or use a different model.');
-    throw new Error('AI returned an empty brief. Try regenerating or switching to a model with higher output capacity.');
+    log.warn(
+      'AI returned empty text for brief — model may have exhausted tokens on reasoning. Increase max tokens or use a different model.',
+    );
+    throw new Error(
+      'AI returned an empty brief. Try regenerating or switching to a model with higher output capacity.',
+    );
   }
 
   // Parse response: extract brief content, categories, and relevance scores
@@ -291,18 +287,22 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
   }
 
   // Store the brief
-  const [briefRow] = await db.insert(intelBriefs).values({
-    type,
-    date: dateKey,
-    content: briefContent.trim(),
-    articleCount: articleRows.length,
-  }).returning();
+  const [briefRow] = await db
+    .insert(intelBriefs)
+    .values({
+      type,
+      date: dateKey,
+      content: briefContent.trim(),
+      articleCount: articleRows.length,
+    })
+    .returning();
 
   // Update article categories (best-effort)
   if (Object.keys(categories).length > 0) {
     for (const [url, category] of Object.entries(categories)) {
       try {
-        await db.update(intelItems)
+        await db
+          .update(intelItems)
           .set({ category: String(category) })
           .where(eq(intelItems.url, url));
       } catch (err) {
@@ -316,9 +316,7 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
     for (const [url, score] of Object.entries(relevanceScores)) {
       try {
         const numScore = Math.max(1, Math.min(10, Math.round(Number(score))));
-        await db.update(intelItems)
-          .set({ relevanceScore: numScore })
-          .where(eq(intelItems.url, url));
+        await db.update(intelItems).set({ relevanceScore: numScore }).where(eq(intelItems.url, url));
       } catch (err) {
         log.warn(`Failed to update relevance score for URL ${url}:`, err);
       }
@@ -408,9 +406,10 @@ Be concise, insightful, and actionable. When discussing specific articles, refer
   const lastUserMessage = messages[messages.length - 1];
 
   // Build a conversation history string for context
-  const historyContext = messages.slice(0, -1).map(m =>
-    `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`,
-  ).join('\n\n');
+  const historyContext = messages
+    .slice(0, -1)
+    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .join('\n\n');
 
   const userPrompt = historyContext
     ? `Previous conversation:\n${historyContext}\n\nUser: ${lastUserMessage.content}`

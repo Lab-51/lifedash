@@ -30,12 +30,18 @@ export default function EmptyFeatureState({
   const containerSize = compact ? 'w-14 h-14' : 'w-20 h-20';
 
   return (
-    <div className={`flex flex-col items-center justify-center text-center ${compact ? 'py-6 px-4' : 'py-10 px-6'} max-w-md mx-auto`}>
-      <div className={`${containerSize} rounded-full bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] flex items-center justify-center ${compact ? 'mb-3' : 'mb-5'}`}>
+    <div
+      className={`flex flex-col items-center justify-center text-center ${compact ? 'py-6 px-4' : 'py-10 px-6'} max-w-md mx-auto`}
+    >
+      <div
+        className={`${containerSize} rounded-full bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] flex items-center justify-center ${compact ? 'mb-3' : 'mb-5'}`}
+      >
         <Icon size={iconSize} className="text-[var(--color-accent-dim)]" />
       </div>
 
-      <h3 className={`font-hud tracking-wide text-[var(--color-text-primary)] ${compact ? 'text-sm mb-1' : 'text-base mb-2'}`}>
+      <h3
+        className={`font-hud tracking-wide text-[var(--color-text-primary)] ${compact ? 'text-sm mb-1' : 'text-base mb-2'}`}
+      >
         {title}
       </h3>
 

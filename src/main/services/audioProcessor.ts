@@ -40,10 +40,7 @@ function getDefaultRecordingsDir(): string {
 async function getRecordingsDir(): Promise<string> {
   try {
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, 'recordings:savePath'));
+    const rows = await db.select().from(settings).where(eq(settings.key, 'recordings:savePath'));
     if (rows.length > 0 && rows[0].value) {
       return rows[0].value;
     }
@@ -115,10 +112,7 @@ export async function stopRecording(): Promise<string> {
   let saveEnabled = true;
   try {
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, 'audio:saveRecordings'));
+    const rows = await db.select().from(settings).where(eq(settings.key, 'audio:saveRecordings'));
     if (rows.length > 0 && rows[0].value === 'false') {
       saveEnabled = false;
     }
@@ -147,20 +141,14 @@ async function saveWav(meetingId: string, pcmBuffer: Buffer): Promise<string> {
   const filePath = path.join(dir, `${meetingId}.wav`);
 
   // Convert Buffer to Int16Array for WAV encoding
-  const int16 = new Int16Array(
-    pcmBuffer.buffer,
-    pcmBuffer.byteOffset,
-    pcmBuffer.byteLength / 2,
-  );
+  const int16 = new Int16Array(pcmBuffer.buffer, pcmBuffer.byteOffset, pcmBuffer.byteLength / 2);
 
   // Create WAV: 1 channel (mono), 16kHz, 16-bit PCM
   const wav = new WaveFile();
   wav.fromScratch(1, 16000, '16', int16);
 
   fs.writeFileSync(filePath, wav.toBuffer());
-  log.debug(
-    `Saved WAV: ${filePath} (${(pcmBuffer.byteLength / 1024).toFixed(0)} KB)`,
-  );
+  log.debug(`Saved WAV: ${filePath} (${(pcmBuffer.byteLength / 1024).toFixed(0)} KB)`);
 
   return filePath;
 }
@@ -171,9 +159,7 @@ function pushState(): void {
   const state: RecordingState = {
     isRecording: currentMeetingId !== null,
     meetingId: currentMeetingId,
-    elapsed: currentMeetingId
-      ? Math.floor((Date.now() - startTime) / 1000)
-      : 0,
+    elapsed: currentMeetingId ? Math.floor((Date.now() - startTime) / 1000) : 0,
     lastTranscript: transcriptionService.getLastTranscript(),
   };
 

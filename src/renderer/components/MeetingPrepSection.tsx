@@ -47,7 +47,9 @@ function renderBriefing(text: string): React.ReactNode[] {
       );
     } else {
       nodes.push(
-        <p key={i} className="text-xs text-surface-700 dark:text-surface-300">{trimmed}</p>,
+        <p key={i} className="text-xs text-surface-700 dark:text-surface-300">
+          {trimmed}
+        </p>,
       );
     }
   }
@@ -68,7 +70,7 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const setPrepBriefing = useRecordingStore(s => s.setPrepBriefing);
+  const setPrepBriefing = useRecordingStore((s) => s.setPrepBriefing);
 
   // Track the projectId we last fetched for so we can detect changes
   const lastFetchedProjectId = useRef<string | null>(null);
@@ -165,7 +167,12 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
         role="button"
         tabIndex={0}
         onClick={() => setExpanded(!expanded)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded); } }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
         className="w-full flex items-center justify-between p-3 text-left hover:bg-[var(--color-accent-subtle)] transition-colors rounded-lg cursor-pointer"
       >
         <span className="text-sm font-medium text-surface-800 dark:text-surface-200 truncate">
@@ -198,9 +205,7 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
           {prepData.lastMeetingTitle && (
             <p className="text-xs text-surface-400">
               Since last meeting: &ldquo;{prepData.lastMeetingTitle}&rdquo;
-              {prepData.lastMeetingDate && (
-                <span className="ml-1">({formatShortDate(prepData.lastMeetingDate)})</span>
-              )}
+              {prepData.lastMeetingDate && <span className="ml-1">({formatShortDate(prepData.lastMeetingDate)})</span>}
             </p>
           )}
           {!prepData.lastMeetingTitle && (
@@ -210,22 +215,23 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
           {/* Card changes */}
           {totalChanges > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-medium text-surface-700 dark:text-surface-300">
-                Changes ({totalChanges}):
-              </p>
+              <p className="text-xs font-medium text-surface-700 dark:text-surface-300">Changes ({totalChanges}):</p>
               {prepData.cardChanges.created.length > 0 && (
                 <p className="text-xs text-emerald-400 pl-2">
-                  + {prepData.cardChanges.created.length} card{prepData.cardChanges.created.length !== 1 ? 's' : ''} created
+                  + {prepData.cardChanges.created.length} card{prepData.cardChanges.created.length !== 1 ? 's' : ''}{' '}
+                  created
                 </p>
               )}
               {prepData.cardChanges.completed.length > 0 && (
                 <p className="text-xs text-emerald-400 pl-2">
-                  {'\u2713'} {prepData.cardChanges.completed.length} card{prepData.cardChanges.completed.length !== 1 ? 's' : ''} completed
+                  {'\u2713'} {prepData.cardChanges.completed.length} card
+                  {prepData.cardChanges.completed.length !== 1 ? 's' : ''} completed
                 </p>
               )}
               {prepData.cardChanges.moved.length > 0 && (
                 <p className="text-xs text-blue-400 pl-2">
-                  {'\u2192'} {prepData.cardChanges.moved.length} card{prepData.cardChanges.moved.length !== 1 ? 's' : ''} moved
+                  {'\u2192'} {prepData.cardChanges.moved.length} card
+                  {prepData.cardChanges.moved.length !== 1 ? 's' : ''} moved
                 </p>
               )}
             </div>
@@ -258,11 +264,7 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 mr-1.5 align-middle" />
                   &ldquo;{card.title}&rdquo;
                   <span className="text-surface-500 ml-1">in {card.column}</span>
-                  {card.dueDate && (
-                    <span className="text-surface-500 ml-1">
-                      (due {formatShortDate(card.dueDate)})
-                    </span>
-                  )}
+                  {card.dueDate && <span className="text-surface-500 ml-1">(due {formatShortDate(card.dueDate)})</span>}
                 </p>
               ))}
             </div>
@@ -272,9 +274,7 @@ export default function MeetingPrepSection({ projectId }: MeetingPrepSectionProp
           {prepData.aiBriefing && (
             <div className="space-y-1 pt-2 border-t border-surface-200 dark:border-surface-700">
               <p className="text-xs font-medium text-surface-700 dark:text-surface-300">AI Briefing</p>
-              <div className="space-y-0.5">
-                {renderBriefing(prepData.aiBriefing)}
-              </div>
+              <div className="space-y-0.5">{renderBriefing(prepData.aiBriefing)}</div>
             </div>
           )}
         </div>

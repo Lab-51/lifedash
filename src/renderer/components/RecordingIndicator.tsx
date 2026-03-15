@@ -12,16 +12,18 @@ import { Square, Loader2 } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
 
 function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const m = Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, '0');
   const s = (seconds % 60).toString().padStart(2, '0');
   return `${m}:${s}`;
 }
 
 export default function RecordingIndicator() {
-  const isRecording = useRecordingStore(s => s.isRecording);
-  const isProcessing = useRecordingStore(s => s.isProcessing);
-  const elapsed = useRecordingStore(s => s.elapsed);
-  const stopRecording = useRecordingStore(s => s.stopRecording);
+  const isRecording = useRecordingStore((s) => s.isRecording);
+  const isProcessing = useRecordingStore((s) => s.isProcessing);
+  const elapsed = useRecordingStore((s) => s.elapsed);
+  const stopRecording = useRecordingStore((s) => s.stopRecording);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -52,8 +54,10 @@ export default function RecordingIndicator() {
   // Processing state — amber indicator
   if (isProcessing) {
     return (
-      <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-500/20
-                      border border-amber-500/30">
+      <div
+        className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-500/20
+                      border border-amber-500/30"
+      >
         <Loader2 size={12} className="text-amber-400 animate-spin" />
         <span className="text-[0.625rem] font-medium text-amber-400">Saving</span>
       </div>
@@ -64,14 +68,12 @@ export default function RecordingIndicator() {
   return (
     <div ref={popoverRef} className="relative">
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-500/20
                    border border-red-500/30 hover:bg-red-500/30 transition-colors cursor-pointer"
       >
         <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-        <span className="text-xs font-mono text-red-400">
-          {formatElapsed(elapsed)}
-        </span>
+        <span className="text-xs font-mono text-red-400">{formatElapsed(elapsed)}</span>
       </button>
 
       {open && (

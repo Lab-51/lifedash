@@ -30,7 +30,7 @@ function formatCost(cost: number): string {
 function formatTaskType(type: string): string {
   return type
     .split('_')
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
 }
 
@@ -45,13 +45,13 @@ function formatShortDate(dateStr: string): string {
 // ---------------------------------------------------------------------------
 
 const TASK_TYPE_COLORS: Record<string, { bar: string; bg: string }> = {
-  brainstorming:   { bar: 'bg-emerald-500', bg: 'bg-emerald-500/20' },
-  summarization:   { bar: 'bg-blue-500',    bg: 'bg-blue-500/20' },
-  transcription:   { bar: 'bg-amber-500',   bg: 'bg-amber-500/20' },
-  standup:         { bar: 'bg-rose-500',     bg: 'bg-rose-500/20' },
-  task_generation: { bar: 'bg-violet-500',   bg: 'bg-violet-500/20' },
-  task_structuring:{ bar: 'bg-violet-400',   bg: 'bg-violet-400/20' },
-  idea_analysis:   { bar: 'bg-indigo-500',   bg: 'bg-indigo-500/20' },
+  brainstorming: { bar: 'bg-emerald-500', bg: 'bg-emerald-500/20' },
+  summarization: { bar: 'bg-blue-500', bg: 'bg-blue-500/20' },
+  transcription: { bar: 'bg-amber-500', bg: 'bg-amber-500/20' },
+  standup: { bar: 'bg-rose-500', bg: 'bg-rose-500/20' },
+  task_generation: { bar: 'bg-violet-500', bg: 'bg-violet-500/20' },
+  task_structuring: { bar: 'bg-violet-400', bg: 'bg-violet-400/20' },
+  idea_analysis: { bar: 'bg-indigo-500', bg: 'bg-indigo-500/20' },
 };
 const DEFAULT_COLOR = { bar: 'bg-surface-400', bg: 'bg-surface-400/20' };
 
@@ -62,11 +62,11 @@ function getTaskColor(type: string) {
 // Provider/model colors cycle
 const MODEL_COLORS = [
   { bar: 'bg-primary-500', bg: 'bg-primary-500/20' },
-  { bar: 'bg-teal-500',    bg: 'bg-teal-500/20' },
-  { bar: 'bg-orange-500',  bg: 'bg-orange-500/20' },
-  { bar: 'bg-pink-500',    bg: 'bg-pink-500/20' },
-  { bar: 'bg-cyan-500',    bg: 'bg-cyan-500/20' },
-  { bar: 'bg-lime-500',    bg: 'bg-lime-500/20' },
+  { bar: 'bg-teal-500', bg: 'bg-teal-500/20' },
+  { bar: 'bg-orange-500', bg: 'bg-orange-500/20' },
+  { bar: 'bg-pink-500', bg: 'bg-pink-500/20' },
+  { bar: 'bg-cyan-500', bg: 'bg-cyan-500/20' },
+  { bar: 'bg-lime-500', bg: 'bg-lime-500/20' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -74,7 +74,12 @@ const MODEL_COLORS = [
 // ---------------------------------------------------------------------------
 
 /** Summary stat card matching dashboard design pattern */
-function StatCard({ label, value, icon: Icon, accentClass }: {
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  accentClass,
+}: {
   label: string;
   value: string;
   icon: typeof Hash;
@@ -83,7 +88,9 @@ function StatCard({ label, value, icon: Icon, accentClass }: {
   return (
     <div className="hud-panel clip-corner-cut-sm p-4 flex items-center justify-between">
       <div>
-        <p className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">{label}</p>
+        <p className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-1">
+          {label}
+        </p>
         <p className="text-2xl font-[var(--font-display)] font-bold text-[var(--color-text-primary)]">{value}</p>
       </div>
       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${accentClass}`}>
@@ -94,7 +101,13 @@ function StatCard({ label, value, icon: Icon, accentClass }: {
 }
 
 /** Single vertical bar for the daily chart */
-function DailyBar({ day, maxTokens, onHover, onLeave, isHovered }: {
+function DailyBar({
+  day,
+  maxTokens,
+  onHover,
+  onLeave,
+  isHovered,
+}: {
   day: AIUsageDaily;
   maxTokens: number;
   onHover: () => void;
@@ -117,14 +130,14 @@ function DailyBar({ day, maxTokens, onHover, onLeave, isHovered }: {
           <div className="text-surface-400">
             {formatCompactNumber(day.tokens)} tokens &middot; {formatCost(day.cost)}
           </div>
-          <div className="text-surface-500">{day.count} call{day.count !== 1 ? 's' : ''}</div>
+          <div className="text-surface-500">
+            {day.count} call{day.count !== 1 ? 's' : ''}
+          </div>
         </div>
       )}
       {/* Bar */}
       <div
-        className={`w-full rounded-t transition-all duration-150 ${
-          isHovered ? 'bg-primary-400' : 'bg-primary-500'
-        }`}
+        className={`w-full rounded-t transition-all duration-150 ${isHovered ? 'bg-primary-400' : 'bg-primary-500'}`}
         style={{ height: `${barHeight}%`, minWidth: '2px' }}
       />
     </div>
@@ -132,7 +145,14 @@ function DailyBar({ day, maxTokens, onHover, onLeave, isHovered }: {
 }
 
 /** Horizontal progress bar row for breakdowns */
-function BreakdownRow({ label, value, maxValue, barColor, bgColor, suffix }: {
+function BreakdownRow({
+  label,
+  value,
+  maxValue,
+  barColor,
+  bgColor,
+  suffix,
+}: {
   label: string;
   value: number;
   maxValue: number;
@@ -189,9 +209,7 @@ export default function UsageSummary() {
 
   // Loading state
   if (loading) {
-    return (
-      <div className="text-sm text-surface-500 py-4">Loading usage data...</div>
-    );
+    return <div className="text-sm text-surface-500 py-4">Loading usage data...</div>;
   }
 
   // Empty state
@@ -201,9 +219,7 @@ export default function UsageSummary() {
       <div className="flex flex-col items-center justify-center text-surface-500 py-8">
         <BarChart3 size={36} className="mb-3 text-surface-600" />
         <p className="text-sm font-medium">No AI usage recorded yet</p>
-        <p className="text-xs text-surface-600 mt-1 max-w-xs text-center">
-          Start using AI features to see stats here.
-        </p>
+        <p className="text-xs text-surface-600 mt-1 max-w-xs text-center">Start using AI features to see stats here.</p>
       </div>
     );
   }
@@ -215,17 +231,19 @@ export default function UsageSummary() {
   const maxTaskTokens = taskEntries.length > 0 ? taskEntries[0][1].tokens : 0;
   const maxProviderTokens = providerEntries.length > 0 ? providerEntries[0][1].tokens : 0;
   const maxModelTokens = modelEntries.length > 0 ? modelEntries[0][1].tokens : 0;
-  const maxDayTokens = Math.max(...daily.map(d => d.tokens), 0);
+  const maxDayTokens = Math.max(...daily.map((d) => d.tokens), 0);
   const totalDailyTokens = daily.reduce((sum, d) => sum + d.tokens, 0);
 
   // Label indices for x-axis (show ~4-5 labels spaced across the 30 bars)
-  const labelIndices = [0, 7, 14, 21, 29].filter(i => i < daily.length);
+  const labelIndices = [0, 7, 14, 21, 29].filter((i) => i < daily.length);
 
   return (
     <div className="space-y-5">
       {/* Header with refresh */}
       <div className="flex items-center justify-between">
-        <h3 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">AI Usage Dashboard</h3>
+        <h3 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">
+          AI Usage Dashboard
+        </h3>
         <button
           onClick={fetchUsage}
           className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors font-data"
@@ -261,7 +279,9 @@ export default function UsageSummary() {
       <div className="hud-panel clip-corner-cut-sm p-4">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)]">Last 30 Days</h4>
+            <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)]">
+              Last 30 Days
+            </h4>
             <p className="text-xs text-surface-500 mt-0.5">{formatCompactNumber(totalDailyTokens)} tokens total</p>
           </div>
         </div>
@@ -282,7 +302,7 @@ export default function UsageSummary() {
 
         {/* X-axis labels */}
         <div className="relative flex h-5 mt-1">
-          {labelIndices.map(idx => {
+          {labelIndices.map((idx) => {
             const leftPct = daily.length > 1 ? (idx / (daily.length - 1)) * 100 : 50;
             return (
               <span
@@ -302,7 +322,9 @@ export default function UsageSummary() {
         {/* By Task Type */}
         {taskEntries.length > 0 && (
           <div className="hud-panel clip-corner-cut-sm p-4">
-            <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Task Type</h4>
+            <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">
+              By Task Type
+            </h4>
             <div className="space-y-3">
               {taskEntries.map(([type, data]) => {
                 const colors = getTaskColor(type);
@@ -325,7 +347,9 @@ export default function UsageSummary() {
         {/* By Provider */}
         {providerEntries.length > 0 && (
           <div className="hud-panel clip-corner-cut-sm p-4">
-            <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Provider</h4>
+            <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">
+              By Provider
+            </h4>
             <div className="space-y-3">
               {providerEntries.map(([id, data], idx) => {
                 const colors = MODEL_COLORS[idx % MODEL_COLORS.length];
@@ -349,7 +373,9 @@ export default function UsageSummary() {
       {/* Section 4 — By Model */}
       {modelEntries.length > 0 && (
         <div className="hud-panel clip-corner-cut-sm p-4">
-          <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">By Model</h4>
+          <h4 className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mb-3">
+            By Model
+          </h4>
           <div className="space-y-3">
             {modelEntries.map(([model, data], idx) => {
               const colors = MODEL_COLORS[idx % MODEL_COLORS.length];

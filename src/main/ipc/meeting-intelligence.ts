@@ -5,11 +5,7 @@
 import { ipcMain } from 'electron';
 import * as intelligence from '../services/meetingIntelligenceService';
 import { validateInput } from '../../shared/validation/ipc-validator';
-import {
-  idParamSchema,
-  actionItemStatusSchema,
-} from '../../shared/validation/schemas';
-
+import { idParamSchema, actionItemStatusSchema } from '../../shared/validation/schemas';
 
 export function registerMeetingIntelligenceHandlers(): void {
   // Generate AI brief for a completed meeting
@@ -37,22 +33,16 @@ export function registerMeetingIntelligenceHandlers(): void {
   });
 
   // Update action item status (approve/dismiss)
-  ipcMain.handle(
-    'meetings:update-action-status',
-    async (_event, id: unknown, status: unknown) => {
-      const validId = validateInput(idParamSchema, id);
-      const validStatus = validateInput(actionItemStatusSchema, status);
-      return intelligence.updateActionItemStatus(validId, validStatus);
-    },
-  );
+  ipcMain.handle('meetings:update-action-status', async (_event, id: unknown, status: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const validStatus = validateInput(actionItemStatusSchema, status);
+    return intelligence.updateActionItemStatus(validId, validStatus);
+  });
 
   // Convert an action item to a project card
-  ipcMain.handle(
-    'meetings:convert-action-to-card',
-    async (_event, actionItemId: unknown, columnId: unknown) => {
-      const validActionItemId = validateInput(idParamSchema, actionItemId);
-      const validColumnId = validateInput(idParamSchema, columnId);
-      return intelligence.convertActionToCard(validActionItemId, validColumnId);
-    },
-  );
+  ipcMain.handle('meetings:convert-action-to-card', async (_event, actionItemId: unknown, columnId: unknown) => {
+    const validActionItemId = validateInput(idParamSchema, actionItemId);
+    const validColumnId = validateInput(idParamSchema, columnId);
+    return intelligence.convertActionToCard(validActionItemId, validColumnId);
+  });
 }

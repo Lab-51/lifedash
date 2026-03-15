@@ -9,10 +9,7 @@ export const windowBridge = {
   windowSetAlwaysOnTop: (value: boolean) => ipcRenderer.invoke('window:set-always-on-top', value),
   windowIsAlwaysOnTop: () => ipcRenderer.invoke('window:is-always-on-top'),
   onWindowMaximizeChange: (callback: (isMaximized: boolean) => void) => {
-    const handler = (
-      _event: Electron.IpcRendererEvent,
-      isMaximized: boolean,
-    ) => {
+    const handler = (_event: Electron.IpcRendererEvent, isMaximized: boolean) => {
       callback(isMaximized);
     };
     ipcRenderer.on('window:maximize-change', handler);
@@ -20,8 +17,7 @@ export const windowBridge = {
       ipcRenderer.removeListener('window:maximize-change', handler);
     };
   },
-  recordingSetState: (isRecording: boolean) =>
-    ipcRenderer.invoke('recording:set-state', isRecording),
+  recordingSetState: (isRecording: boolean) => ipcRenderer.invoke('recording:set-state', isRecording),
   onRecordingForceStop: (callback: () => void) => {
     const handler = () => {
       callback();

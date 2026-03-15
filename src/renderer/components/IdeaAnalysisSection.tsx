@@ -42,11 +42,7 @@ export default function IdeaAnalysisSection({
           disabled={analyzing}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] hover:bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-lg text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {analyzing ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Sparkles size={14} />
-          )}
+          {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
           {analyzing ? 'Analyzing...' : 'Analyze with AI'}
         </button>
       </div>
@@ -65,9 +61,7 @@ export default function IdeaAnalysisSection({
           <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-red-400">{analysisError}</p>
-            <p className="text-surface-500 text-xs mt-1">
-              Make sure an AI provider is configured in Settings.
-            </p>
+            <p className="text-surface-500 text-xs mt-1">Make sure an AI provider is configured in Settings.</p>
           </div>
         </div>
       )}

@@ -52,17 +52,12 @@ async function resolveProvider(): Promise<'deepgram' | 'assemblyai' | null> {
  * For each segment, find all words whose time range overlaps the segment's range,
  * count speaker occurrences, and assign the majority speaker.
  */
-function mapSpeakersToSegments(
-  segments: TranscriptSegment[],
-  words: DiarizationWord[],
-): Map<string, string> {
+function mapSpeakersToSegments(segments: TranscriptSegment[], words: DiarizationWord[]): Map<string, string> {
   const speakerMap = new Map<string, string>();
 
   for (const segment of segments) {
     // Find words that overlap this segment's time range
-    const overlapping = words.filter(
-      (w) => w.startMs < segment.endTime && w.endMs > segment.startTime,
-    );
+    const overlapping = words.filter((w) => w.startMs < segment.endTime && w.endMs > segment.startTime);
 
     if (overlapping.length === 0) continue;
 
@@ -128,7 +123,8 @@ export async function diarizeMeeting(
       return {
         success: false,
         speakers: [],
-        error: 'Speaker diarization requires a cloud transcription provider (Deepgram or AssemblyAI). Configure an API key in Settings.',
+        error:
+          'Speaker diarization requires a cloud transcription provider (Deepgram or AssemblyAI). Configure an API key in Settings.',
       };
     }
 
@@ -142,9 +138,10 @@ export async function diarizeMeeting(
 
     // 6. Call provider with diarization
     log.info(`Starting ${provider} diarization for meeting ${meetingId}`);
-    const result = provider === 'deepgram'
-      ? await deepgramTranscriber.transcribeFileWithDiarization(wavBuffer, language)
-      : await assemblyaiTranscriber.transcribeFileWithDiarization(wavBuffer, language);
+    const result =
+      provider === 'deepgram'
+        ? await deepgramTranscriber.transcribeFileWithDiarization(wavBuffer, language)
+        : await assemblyaiTranscriber.transcribeFileWithDiarization(wavBuffer, language);
 
     log.debug(`Got ${result.words.length} words, ${result.speakers.length} speakers`);
 

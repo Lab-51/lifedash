@@ -33,7 +33,7 @@ export function registerFocusHandlers(): void {
     const newAchievements = await gamificationService.checkAndUnlockAchievements(stats, counts);
 
     if (newAchievements.length > 0) {
-      log.info(`New achievements unlocked: ${newAchievements.map(a => a.name).join(', ')}`);
+      log.info(`New achievements unlocked: ${newAchievements.map((a) => a.name).join(', ')}`);
     }
     return { session, stats, newAchievements };
   });

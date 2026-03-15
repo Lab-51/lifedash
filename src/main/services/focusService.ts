@@ -6,7 +6,16 @@
 import { eq, gte, lte, and, sql, desc } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { focusSessions, cards, columns, boards, projects } from '../db/schema';
-import { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats, FocusTimeReportOptions, FocusSessionFull, FocusProjectTime, FocusTimeReport } from '../../shared/types/focus';
+import {
+  FocusSession,
+  FocusDailyData,
+  FocusSessionWithCard,
+  FocusPeriodStats,
+  FocusTimeReportOptions,
+  FocusSessionFull,
+  FocusProjectTime,
+  FocusTimeReport,
+} from '../../shared/types/focus';
 import { billableHours } from '../../shared/utils/billing';
 import { formatDateStr } from '../../shared/utils/date-utils';
 
@@ -18,13 +27,16 @@ export async function saveSession(input: {
   billable?: boolean;
 }): Promise<FocusSession> {
   const db = getDb();
-  const [row] = await db.insert(focusSessions).values({
-    cardId: input.cardId || null,
-    projectId: input.projectId || null,
-    durationMinutes: input.durationMinutes,
-    note: input.note || null,
-    billable: input.billable ?? true,
-  }).returning();
+  const [row] = await db
+    .insert(focusSessions)
+    .values({
+      cardId: input.cardId || null,
+      projectId: input.projectId || null,
+      durationMinutes: input.durationMinutes,
+      note: input.note || null,
+      billable: input.billable ?? true,
+    })
+    .returning();
 
   return {
     id: row.id,
@@ -55,7 +67,7 @@ export async function getDailyData(days: number = 30): Promise<FocusDailyData[]>
 
   // Fill gaps with zero-value entries
   const result: FocusDailyData[] = [];
-  const dataMap = new Map(rows.map(r => [r.date, r]));
+  const dataMap = new Map(rows.map((r) => [r.date, r]));
 
   for (let i = 0; i < days; i++) {
     const d = new Date(startDate);
@@ -72,15 +84,15 @@ export async function getDailyData(days: number = 30): Promise<FocusDailyData[]>
   return result;
 }
 
-export async function getSessionHistory(options: { offset?: number; limit?: number } = {}): Promise<{ sessions: FocusSessionWithCard[]; total: number }> {
+export async function getSessionHistory(
+  options: { offset?: number; limit?: number } = {},
+): Promise<{ sessions: FocusSessionWithCard[]; total: number }> {
   const db = getDb();
   const limit = options.limit ?? 50;
   const offset = options.offset ?? 0;
 
   // Get total count
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(focusSessions);
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(focusSessions);
 
   // Get paginated sessions with card title via LEFT JOIN
   const rows = await db
@@ -100,7 +112,7 @@ export async function getSessionHistory(options: { offset?: number; limit?: numb
     .offset(offset);
 
   return {
-    sessions: rows.map(r => ({
+    sessions: rows.map((r) => ({
       id: r.id,
       cardId: r.cardId,
       durationMinutes: r.durationMinutes,
@@ -165,17 +177,15 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
   const projectJoin = sql`${projects.id} = COALESCE(${focusSessions.projectId}, ${boards.projectId})`;
 
   // Build billable filter condition
-  const billableCondition = options.billableOnly === true
-    ? eq(focusSessions.billable, true)
-    : options.billableOnly === false
-      ? eq(focusSessions.billable, false)
-      : undefined;
+  const billableCondition =
+    options.billableOnly === true
+      ? eq(focusSessions.billable, true)
+      : options.billableOnly === false
+        ? eq(focusSessions.billable, false)
+        : undefined;
 
   // Build base WHERE conditions
-  const baseConditions = [
-    gte(focusSessions.completedAt, startDate),
-    lte(focusSessions.completedAt, endDate),
-  ];
+  const baseConditions = [gte(focusSessions.completedAt, startDate), lte(focusSessions.completedAt, endDate)];
   if (options.projectId) baseConditions.push(eq(projects.id, options.projectId));
   if (billableCondition) baseConditions.push(billableCondition);
   const baseWhere = and(...baseConditions);
@@ -203,7 +213,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
     .where(baseWhere)
     .orderBy(desc(focusSessions.completedAt));
 
-  const sessions: FocusSessionFull[] = sessionRows.map(r => ({
+  const sessions: FocusSessionFull[] = sessionRows.map((r) => ({
     id: r.id,
     cardId: r.cardId,
     durationMinutes: r.durationMinutes,
@@ -218,10 +228,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
   }));
 
   // 2. Per-project aggregation (always uses date range, not billable filter, for full breakdown)
-  const projectWhereConditions = [
-    gte(focusSessions.completedAt, startDate),
-    lte(focusSessions.completedAt, endDate),
-  ];
+  const projectWhereConditions = [gte(focusSessions.completedAt, startDate), lte(focusSessions.completedAt, endDate)];
   if (billableCondition) projectWhereConditions.push(billableCondition);
 
   const projectRows = await db
@@ -244,7 +251,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
     .groupBy(projects.id, projects.name, projects.color, projects.hourlyRate)
     .orderBy(sql`coalesce(sum(${focusSessions.durationMinutes}), 0) desc`);
 
-  const projectBreakdown: FocusProjectTime[] = projectRows.map(r => ({
+  const projectBreakdown: FocusProjectTime[] = projectRows.map((r) => ({
     projectId: r.projectId ?? null,
     projectName: r.projectName ?? null,
     projectColor: r.projectColor ?? null,
@@ -254,10 +261,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
   }));
 
   // 3. Summary stats
-  const summaryConditions = [
-    gte(focusSessions.completedAt, startDate),
-    lte(focusSessions.completedAt, endDate),
-  ];
+  const summaryConditions = [gte(focusSessions.completedAt, startDate), lte(focusSessions.completedAt, endDate)];
   if (options.projectId) summaryConditions.push(eq(projects.id, options.projectId));
   if (billableCondition) summaryConditions.push(billableCondition);
   const summaryWhere = and(...summaryConditions);
@@ -283,10 +287,7 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
         .leftJoin(boards, eq(columns.boardId, boards.id))
         .leftJoin(projects, projectJoin)
         .where(summaryWhere)
-    : db
-        .select(summarySelectFields)
-        .from(focusSessions)
-        .where(summaryWhere);
+    : db.select(summarySelectFields).from(focusSessions).where(summaryWhere);
 
   const [summaryRow] = await summaryQuery;
 
@@ -294,7 +295,8 @@ export async function getTimeReport(options: FocusTimeReportOptions): Promise<Fo
   const billableCost = projectBreakdown.reduce((sum, p) => sum + (p.cost ?? 0), 0);
 
   // 4. Daily data for the date range
-  const dayCount = Math.round((new Date(options.endDate).getTime() - new Date(options.startDate).getTime()) / 86_400_000) + 1;
+  const dayCount =
+    Math.round((new Date(options.endDate).getTime() - new Date(options.startDate).getTime()) / 86_400_000) + 1;
   const dailyData = await getDailyDataForRange(startDate, endDate, dayCount, options.projectId);
 
   return {
@@ -334,11 +336,13 @@ async function getDailyDataForRange(
         .leftJoin(columns, eq(cards.columnId, columns.id))
         .leftJoin(boards, eq(columns.boardId, boards.id))
         .leftJoin(projects, projectJoin)
-        .where(and(
-          gte(focusSessions.completedAt, startDate),
-          lte(focusSessions.completedAt, endDate),
-          eq(projects.id, projectId),
-        ))
+        .where(
+          and(
+            gte(focusSessions.completedAt, startDate),
+            lte(focusSessions.completedAt, endDate),
+            eq(projects.id, projectId),
+          ),
+        )
         .groupBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`)
         .orderBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`)
     : db
@@ -348,15 +352,12 @@ async function getDailyDataForRange(
           minutes: sql<number>`coalesce(sum(${focusSessions.durationMinutes}), 0)::int`,
         })
         .from(focusSessions)
-        .where(and(
-          gte(focusSessions.completedAt, startDate),
-          lte(focusSessions.completedAt, endDate),
-        ))
+        .where(and(gte(focusSessions.completedAt, startDate), lte(focusSessions.completedAt, endDate)))
         .groupBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`)
         .orderBy(sql`to_char(${focusSessions.completedAt}, 'YYYY-MM-DD')`);
 
   const rows = await baseQuery;
-  const dataMap = new Map(rows.map(r => [r.date, r]));
+  const dataMap = new Map(rows.map((r) => [r.date, r]));
   const result: FocusDailyData[] = [];
 
   for (let i = 0; i < dayCount; i++) {

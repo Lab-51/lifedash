@@ -23,32 +23,23 @@ import {
 } from '../services/backupService';
 import { exportAllData, writeJSON, tableToCsv } from '../services/exportService';
 import { validateInput } from '../../shared/validation/ipc-validator';
-import {
-  filePathSchema,
-  exportOptionsSchema,
-  autoBackupSettingsUpdateSchema,
-} from '../../shared/validation/schemas';
-
+import { filePathSchema, exportOptionsSchema, autoBackupSettingsUpdateSchema } from '../../shared/validation/schemas';
 
 export function registerBackupHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('backup:create', async () => {
-
     return createBackup(mainWindow);
   });
 
   ipcMain.handle('backup:list', async () => {
-
     return listBackups();
   });
 
   ipcMain.handle('backup:restore', async (_event, filePath: unknown) => {
-
     const validPath = validateInput(filePathSchema, filePath);
     return restoreBackup(validPath, mainWindow);
   });
 
   ipcMain.handle('backup:restore-from-file', async () => {
-
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Select Backup File',
       filters: [{ name: 'SQL Backup', extensions: ['sql'] }],
@@ -59,13 +50,11 @@ export function registerBackupHandlers(mainWindow: BrowserWindow): void {
   });
 
   ipcMain.handle('backup:delete', async (_event, fileName: unknown) => {
-
     const validFileName = validateInput(filePathSchema, fileName);
     return deleteBackup(validFileName);
   });
 
   ipcMain.handle('backup:export', async (_event, options: unknown) => {
-
     const input = validateInput(exportOptionsSchema, options);
     const data = await exportAllData(input.tables);
     const tables = Object.keys(data);
@@ -110,16 +99,11 @@ export function registerBackupHandlers(mainWindow: BrowserWindow): void {
 
   // Auto-backup settings
   ipcMain.handle('backup:auto-settings-get', async () => {
-
     return getAutoBackupSettings();
   });
 
-  ipcMain.handle(
-    'backup:auto-settings-update',
-    async (_event, partialSettings: unknown) => {
-  
-      const input = validateInput(autoBackupSettingsUpdateSchema, partialSettings);
-      return updateAutoBackupSettings(input);
-    },
-  );
+  ipcMain.handle('backup:auto-settings-update', async (_event, partialSettings: unknown) => {
+    const input = validateInput(autoBackupSettingsUpdateSchema, partialSettings);
+    return updateAutoBackupSettings(input);
+  });
 }

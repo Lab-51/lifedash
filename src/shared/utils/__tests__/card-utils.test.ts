@@ -37,11 +37,7 @@ describe('buildCardLabelMap', () => {
   });
 
   it('handles multiple labels per card', () => {
-    const labels = [
-      makeLabel('l1', 'Bug'),
-      makeLabel('l2', 'Feature'),
-      makeLabel('l3', 'Urgent'),
-    ];
+    const labels = [makeLabel('l1', 'Bug'), makeLabel('l2', 'Feature'), makeLabel('l3', 'Urgent')];
     const junctions = [
       { cardId: 'c1', labelId: 'l1' },
       { cardId: 'c1', labelId: 'l2' },

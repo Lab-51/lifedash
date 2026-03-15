@@ -91,10 +91,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
  * Download an update asset to a temp directory.
  * Uses Electron net.request() to track download progress.
  */
-export function downloadUpdate(
-  assetUrl: string,
-  onProgress: (percent: number) => void,
-): Promise<string> {
+export function downloadUpdate(assetUrl: string, onProgress: (percent: number) => void): Promise<string> {
   return new Promise((resolve, reject) => {
     const destPath = path.join(app.getPath('temp'), 'LifeDash-Update-Setup.exe');
 

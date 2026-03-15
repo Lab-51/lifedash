@@ -45,9 +45,7 @@ const SENSITIVE_COLUMNS: Record<string, string[]> = {
   aiProviders: ['apiKeyEncrypted'],
 };
 
-export async function exportAllData(
-  tables?: string[],
-): Promise<Record<string, Record<string, unknown>[]>> {
+export async function exportAllData(tables?: string[]): Promise<Record<string, Record<string, unknown>[]>> {
   const db = getDb();
   const result: Record<string, Record<string, unknown>[]> = {};
   const tableNames = tables || Object.keys(EXPORT_TABLES);
@@ -76,10 +74,7 @@ export async function exportAllData(
   return result;
 }
 
-export async function writeJSON(
-  data: Record<string, Record<string, unknown>[]>,
-  filePath: string,
-): Promise<number> {
+export async function writeJSON(data: Record<string, Record<string, unknown>[]>, filePath: string): Promise<number> {
   const json = JSON.stringify(data, null, 2);
   await fs.promises.writeFile(filePath, json, 'utf-8');
   return Buffer.byteLength(json, 'utf-8');

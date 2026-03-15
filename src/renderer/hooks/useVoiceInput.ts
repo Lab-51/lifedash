@@ -14,7 +14,7 @@ function float32ToInt16(float32: Float32Array): Int16Array {
   const int16 = new Int16Array(float32.length);
   for (let i = 0; i < float32.length; i++) {
     const s = Math.max(-1, Math.min(1, float32[i]));
-    int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
   }
   return int16;
 }
@@ -41,7 +41,7 @@ export function useVoiceInput({ onTranscript }: UseVoiceInputOptions) {
       sourceRef.current = null;
     }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
     if (audioCtxRef.current) {

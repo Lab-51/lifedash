@@ -4,11 +4,7 @@
 import { ipcMain } from 'electron';
 import * as ideaService from '../services/ideaService';
 import { validateInput } from '../../shared/validation/ipc-validator';
-import {
-  idParamSchema,
-  createIdeaInputSchema,
-  updateIdeaInputSchema,
-} from '../../shared/validation/schemas';
+import { idParamSchema, createIdeaInputSchema, updateIdeaInputSchema } from '../../shared/validation/schemas';
 
 export function registerIdeaHandlers(): void {
   ipcMain.handle('ideas:list', async () => {

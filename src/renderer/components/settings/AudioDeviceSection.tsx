@@ -45,7 +45,9 @@ export default function AudioDeviceSection() {
 
   // Listen for device changes (plugging in/out headsets)
   useEffect(() => {
-    const handler = () => { loadDevices(); };
+    const handler = () => {
+      loadDevices();
+    };
     navigator.mediaDevices.addEventListener('devicechange', handler);
     return () => navigator.mediaDevices.removeEventListener('devicechange', handler);
   }, [loadDevices]);
@@ -92,18 +94,14 @@ export default function AudioDeviceSection() {
           <Headphones size={18} className="text-primary-400" />
           <h2 className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">Audio Devices</h2>
         </div>
-        <p className="text-sm text-surface-500 mt-1">
-          Select which microphone to use for meeting recordings.
-        </p>
+        <p className="text-sm text-surface-500 mt-1">Select which microphone to use for meeting recordings.</p>
       </div>
 
       <div className="p-4 hud-panel clip-corner-cut-sm space-y-4">
         {/* Microphone selection */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-[var(--color-text-primary)]">
-              Microphone Input
-            </label>
+            <label className="text-sm font-medium text-[var(--color-text-primary)]">Microphone Input</label>
             <button
               onClick={handleRefresh}
               disabled={refreshing}
@@ -122,7 +120,7 @@ export default function AudioDeviceSection() {
             placeholder="System Default"
             options={[
               { value: '', label: 'System Default' },
-              ...inputDevices.map(device => ({ value: device.deviceId, label: device.label })),
+              ...inputDevices.map((device) => ({ value: device.deviceId, label: device.label })),
             ]}
           />
 
@@ -136,8 +134,7 @@ export default function AudioDeviceSection() {
         {/* System audio info */}
         <div className="pt-3 border-t border-[var(--color-border)]">
           <p className="text-xs text-surface-500">
-            System audio (what you hear) is captured automatically via the operating system.
-            No configuration needed.
+            System audio (what you hear) is captured automatically via the operating system. No configuration needed.
           </p>
         </div>
       </div>

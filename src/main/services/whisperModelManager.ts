@@ -20,21 +20,57 @@ import { settings } from '../db/schema';
 const HF_BASE_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main';
 
 export interface WhisperModelInfo {
-  name: string;         // e.g., 'base.en'
-  fileName: string;     // e.g., 'ggml-base.en.bin'
-  size: string;         // Human-readable size
+  name: string; // e.g., 'base.en'
+  fileName: string; // e.g., 'ggml-base.en.bin'
+  size: string; // Human-readable size
   description: string;
   recommended: boolean; // Show in UI model picker
 }
 
 /** Available models for download */
 export const AVAILABLE_MODELS: WhisperModelInfo[] = [
-  { name: 'tiny.en', fileName: 'ggml-tiny.en.bin', size: '39 MB', description: 'Fastest, English-only', recommended: false },
-  { name: 'base.en', fileName: 'ggml-base.en.bin', size: '74 MB', description: 'Good speed, English-only', recommended: true },
-  { name: 'small.en', fileName: 'ggml-small.en.bin', size: '244 MB', description: 'Best accuracy, English-only', recommended: true },
-  { name: 'tiny', fileName: 'ggml-tiny.bin', size: '39 MB', description: 'Fastest, multilingual (99 languages)', recommended: false },
-  { name: 'base', fileName: 'ggml-base.bin', size: '74 MB', description: 'Good speed, multilingual (99 languages)', recommended: true },
-  { name: 'small', fileName: 'ggml-small.bin', size: '244 MB', description: 'Best accuracy, multilingual (99 languages)', recommended: true },
+  {
+    name: 'tiny.en',
+    fileName: 'ggml-tiny.en.bin',
+    size: '39 MB',
+    description: 'Fastest, English-only',
+    recommended: false,
+  },
+  {
+    name: 'base.en',
+    fileName: 'ggml-base.en.bin',
+    size: '74 MB',
+    description: 'Good speed, English-only',
+    recommended: true,
+  },
+  {
+    name: 'small.en',
+    fileName: 'ggml-small.en.bin',
+    size: '244 MB',
+    description: 'Best accuracy, English-only',
+    recommended: true,
+  },
+  {
+    name: 'tiny',
+    fileName: 'ggml-tiny.bin',
+    size: '39 MB',
+    description: 'Fastest, multilingual (99 languages)',
+    recommended: false,
+  },
+  {
+    name: 'base',
+    fileName: 'ggml-base.bin',
+    size: '74 MB',
+    description: 'Good speed, multilingual (99 languages)',
+    recommended: true,
+  },
+  {
+    name: 'small',
+    fileName: 'ggml-small.bin',
+    size: '244 MB',
+    description: 'Best accuracy, multilingual (99 languages)',
+    recommended: true,
+  },
 ];
 
 export function getModelsDir(): string {
@@ -71,10 +107,7 @@ export async function setPreferredModel(fileName: string): Promise<void> {
 /** Get the preferred model fileName from settings, or null if not set */
 async function getPreferredModelFileName(): Promise<string | null> {
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, PREFERRED_MODEL_KEY));
+  const rows = await db.select().from(settings).where(eq(settings.key, PREFERRED_MODEL_KEY));
   return rows.length > 0 ? rows[0].value : null;
 }
 

@@ -75,7 +75,7 @@ export const useIdeaStore = create<IdeaStore>((set, get) => ({
   updateIdea: async (id: string, data: UpdateIdeaInput) => {
     const updated = await window.electronAPI.updateIdea(id, data);
     set({
-      ideas: get().ideas.map(i => (i.id === id ? updated : i)),
+      ideas: get().ideas.map((i) => (i.id === id ? updated : i)),
       selectedIdea: get().selectedIdea?.id === id ? updated : get().selectedIdea,
     });
   },
@@ -83,7 +83,7 @@ export const useIdeaStore = create<IdeaStore>((set, get) => ({
   deleteIdea: async (id: string) => {
     await window.electronAPI.deleteIdea(id);
     set({
-      ideas: get().ideas.filter(i => i.id !== id),
+      ideas: get().ideas.filter((i) => i.id !== id),
       selectedIdea: get().selectedIdea?.id === id ? null : get().selectedIdea,
     });
   },
@@ -93,7 +93,7 @@ export const useIdeaStore = create<IdeaStore>((set, get) => ({
   convertToProject: async (id: string) => {
     const result = await window.electronAPI.convertIdeaToProject(id);
     set({
-      ideas: get().ideas.map(i => (i.id === id ? result.idea : i)),
+      ideas: get().ideas.map((i) => (i.id === id ? result.idea : i)),
       selectedIdea: get().selectedIdea?.id === id ? result.idea : get().selectedIdea,
     });
     useGamificationStore.getState().awardXP('idea_convert', id);
@@ -103,7 +103,7 @@ export const useIdeaStore = create<IdeaStore>((set, get) => ({
   convertToCard: async (ideaId: string, columnId: string) => {
     const result = await window.electronAPI.convertIdeaToCard(ideaId, columnId);
     set({
-      ideas: get().ideas.map(i => (i.id === ideaId ? result.idea : i)),
+      ideas: get().ideas.map((i) => (i.id === ideaId ? result.idea : i)),
       selectedIdea: get().selectedIdea?.id === ideaId ? result.idea : get().selectedIdea,
     });
     useGamificationStore.getState().awardXP('idea_convert', ideaId);

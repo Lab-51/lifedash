@@ -25,7 +25,7 @@ export const INTEL_CATEGORIES = [
   'Other',
 ] as const;
 
-export type IntelCategory = typeof INTEL_CATEGORIES[number];
+export type IntelCategory = (typeof INTEL_CATEGORIES)[number];
 
 export interface IntelSource {
   id: string;
@@ -63,12 +63,12 @@ export interface IntelItem {
 
 export interface ArticleContent {
   title: string;
-  content: string;       // cleaned HTML from Readability
-  textContent: string;   // plain text version
-  excerpt: string;       // first ~200 chars
+  content: string; // cleaned HTML from Readability
+  textContent: string; // plain text version
+  excerpt: string; // first ~200 chars
   byline: string | null;
   siteName: string | null;
-  length: number;        // word count
+  length: number; // word count
 }
 
 export interface CreateIntelSourceInput {

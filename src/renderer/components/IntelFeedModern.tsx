@@ -82,46 +82,44 @@ export default function IntelFeedModern() {
   const [showSourceManager, setShowSourceManager] = useState(false);
   const [showAddArticle, setShowAddArticle] = useState(false);
 
-  const items = useIntelFeedStore(s => s.items);
-  const sources = useIntelFeedStore(s => s.sources);
-  const dateFilter = useIntelFeedStore(s => s.dateFilter);
-  const loading = useIntelFeedStore(s => s.loading);
-  const fetching = useIntelFeedStore(s => s.fetching);
-  const error = useIntelFeedStore(s => s.error);
-  const loadItems = useIntelFeedStore(s => s.loadItems);
-  const loadSources = useIntelFeedStore(s => s.loadSources);
-  const setDateFilter = useIntelFeedStore(s => s.setDateFilter);
-  const fetchAll = useIntelFeedStore(s => s.fetchAll);
-  const seedDefaults = useIntelFeedStore(s => s.seedDefaults);
-  const markRead = useIntelFeedStore(s => s.markRead);
-  const toggleBookmark = useIntelFeedStore(s => s.toggleBookmark);
-  const brief = useIntelFeedStore(s => s.brief);
-  const briefLoading = useIntelFeedStore(s => s.briefLoading);
-  const briefType = useIntelFeedStore(s => s.briefType);
-  const categoryFilter = useIntelFeedStore(s => s.categoryFilter);
-  const generateBrief = useIntelFeedStore(s => s.generateBrief);
-  const setBriefType = useIntelFeedStore(s => s.setBriefType);
-  const setCategoryFilter = useIntelFeedStore(s => s.setCategoryFilter);
-  const summarizeItem = useIntelFeedStore(s => s.summarizeItem);
-  const readerItem = useIntelFeedStore(s => s.readerItem);
-  const readerContent = useIntelFeedStore(s => s.readerContent);
-  const readerLoading = useIntelFeedStore(s => s.readerLoading);
-  const openReader = useIntelFeedStore(s => s.openReader);
-  const closeReader = useIntelFeedStore(s => s.closeReader);
-  const briefChatMessages = useIntelFeedStore(s => s.briefChatMessages);
-  const briefChatSending = useIntelFeedStore(s => s.briefChatSending);
-  const sendBriefChatMessage = useIntelFeedStore(s => s.sendBriefChatMessage);
-  const clearBriefChat = useIntelFeedStore(s => s.clearBriefChat);
+  const items = useIntelFeedStore((s) => s.items);
+  const sources = useIntelFeedStore((s) => s.sources);
+  const dateFilter = useIntelFeedStore((s) => s.dateFilter);
+  const loading = useIntelFeedStore((s) => s.loading);
+  const fetching = useIntelFeedStore((s) => s.fetching);
+  const error = useIntelFeedStore((s) => s.error);
+  const loadItems = useIntelFeedStore((s) => s.loadItems);
+  const loadSources = useIntelFeedStore((s) => s.loadSources);
+  const setDateFilter = useIntelFeedStore((s) => s.setDateFilter);
+  const fetchAll = useIntelFeedStore((s) => s.fetchAll);
+  const seedDefaults = useIntelFeedStore((s) => s.seedDefaults);
+  const markRead = useIntelFeedStore((s) => s.markRead);
+  const toggleBookmark = useIntelFeedStore((s) => s.toggleBookmark);
+  const brief = useIntelFeedStore((s) => s.brief);
+  const briefLoading = useIntelFeedStore((s) => s.briefLoading);
+  const briefType = useIntelFeedStore((s) => s.briefType);
+  const categoryFilter = useIntelFeedStore((s) => s.categoryFilter);
+  const generateBrief = useIntelFeedStore((s) => s.generateBrief);
+  const setBriefType = useIntelFeedStore((s) => s.setBriefType);
+  const setCategoryFilter = useIntelFeedStore((s) => s.setCategoryFilter);
+  const summarizeItem = useIntelFeedStore((s) => s.summarizeItem);
+  const readerItem = useIntelFeedStore((s) => s.readerItem);
+  const readerContent = useIntelFeedStore((s) => s.readerContent);
+  const readerLoading = useIntelFeedStore((s) => s.readerLoading);
+  const openReader = useIntelFeedStore((s) => s.openReader);
+  const closeReader = useIntelFeedStore((s) => s.closeReader);
+  const briefChatMessages = useIntelFeedStore((s) => s.briefChatMessages);
+  const briefChatSending = useIntelFeedStore((s) => s.briefChatSending);
+  const sendBriefChatMessage = useIntelFeedStore((s) => s.sendBriefChatMessage);
+  const clearBriefChat = useIntelFeedStore((s) => s.clearBriefChat);
 
   // --- Action handlers for article cards ---
 
   const handleSaveAsIdea = async (item: IntelItem) => {
     try {
-      const description = [
-        item.summary || item.description || '',
-        '',
-        `Source: ${item.url}`,
-      ].filter(Boolean).join('\n');
+      const description = [item.summary || item.description || '', '', `Source: ${item.url}`]
+        .filter(Boolean)
+        .join('\n');
 
       const idea = await useIdeaStore.getState().createIdea({
         title: item.title,
@@ -143,7 +141,9 @@ export default function IntelFeedModern() {
         item.summary || item.description || '',
         '',
         `Source: ${item.url}`,
-      ].filter(Boolean).join('\n');
+      ]
+        .filter(Boolean)
+        .join('\n');
 
       const project = await useProjectStore.getState().createProject({
         name: item.title.slice(0, 100),
@@ -216,7 +216,9 @@ export default function IntelFeedModern() {
     }
 
     init();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -234,7 +236,7 @@ export default function IntelFeedModern() {
   // Filter items by category (client-side)
   const filteredItems = useMemo(() => {
     if (!categoryFilter) return items;
-    return items.filter(i => i.category === categoryFilter);
+    return items.filter((i) => i.category === categoryFilter);
   }, [items, categoryFilter]);
 
   // Sort by relevance, then by date
@@ -274,9 +276,7 @@ export default function IntelFeedModern() {
               </span>
               <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
             </div>
-            <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">
-              Intelligence Feed
-            </h1>
+            <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Intelligence Feed</h1>
             <p className="text-[var(--color-text-secondary)] text-sm mt-1">
               Stay informed with curated news from your sources.
             </p>
@@ -311,7 +311,7 @@ export default function IntelFeedModern() {
         {/* Filters row: date tabs + article count + category pills */}
         <div className="flex items-center gap-3 flex-wrap mt-2">
           <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
-            {DATE_FILTER_TABS.map(tab => (
+            {DATE_FILTER_TABS.map((tab) => (
               <button
                 key={tab.value}
                 onClick={() => setDateFilter(tab.value)}
@@ -422,7 +422,7 @@ export default function IntelFeedModern() {
             )}
 
             {/* Grid of remaining articles, grouped by date */}
-            {groupedGridItems.map(group => (
+            {groupedGridItems.map((group) => (
               <div key={group.label}>
                 {/* Date Header */}
                 <div className="flex items-center gap-3 mb-3">
@@ -434,7 +434,7 @@ export default function IntelFeedModern() {
 
                 {/* Responsive Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {group.items.map(item => (
+                  {group.items.map((item) => (
                     <IntelItemCard
                       key={item.id}
                       item={item}
@@ -456,16 +456,10 @@ export default function IntelFeedModern() {
       </div>
 
       {/* Source Manager Panel */}
-      <IntelSourceManager
-        isOpen={showSourceManager}
-        onClose={() => setShowSourceManager(false)}
-      />
+      <IntelSourceManager isOpen={showSourceManager} onClose={() => setShowSourceManager(false)} />
 
       {/* Add Article Modal */}
-      <IntelAddArticleModal
-        isOpen={showAddArticle}
-        onClose={() => setShowAddArticle(false)}
-      />
+      <IntelAddArticleModal isOpen={showAddArticle} onClose={() => setShowAddArticle(false)} />
 
       {/* Article Reader */}
       {readerItem && (

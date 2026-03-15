@@ -22,20 +22,14 @@ export async function calculateAnalytics(meetingId: string): Promise<MeetingAnal
   const db = getDb();
 
   // 1. Load meeting record
-  const [meeting] = await db
-    .select()
-    .from(meetings)
-    .where(eq(meetings.id, meetingId));
+  const [meeting] = await db.select().from(meetings).where(eq(meetings.id, meetingId));
 
   if (!meeting) {
     throw new Error(`Meeting ${meetingId} not found`);
   }
 
   // 2. Load all transcript segments
-  const segments = await db
-    .select()
-    .from(transcripts)
-    .where(eq(transcripts.meetingId, meetingId));
+  const segments = await db.select().from(transcripts).where(eq(transcripts.meetingId, meetingId));
 
   // 3. Query action item counts by status
   const actionRows = await db
@@ -68,10 +62,7 @@ export async function calculateAnalytics(meetingId: string): Promise<MeetingAnal
     : 0;
 
   // 5. Calculate total words
-  const totalWords = segments.reduce(
-    (sum, seg) => sum + seg.content.split(/\s+/).filter(Boolean).length,
-    0,
-  );
+  const totalWords = segments.reduce((sum, seg) => sum + seg.content.split(/\s+/).filter(Boolean).length, 0);
 
   // 6. Speaker breakdown (if diarized)
   const hasDiarization = segments.some((s) => s.speaker !== null);
@@ -85,30 +76,18 @@ export async function calculateAnalytics(meetingId: string): Promise<MeetingAnal
       bySpkr.get(spkr)!.push(seg);
     }
 
-    const totalTalkTime = segments.reduce(
-      (sum, s) => sum + (s.endTime - s.startTime),
-      0,
-    );
+    const totalTalkTime = segments.reduce((sum, s) => sum + (s.endTime - s.startTime), 0);
 
     speakers = Array.from(bySpkr.entries())
       .map(([speaker, segs]) => {
-        const talkTimeMs = segs.reduce(
-          (sum, s) => sum + (s.endTime - s.startTime),
-          0,
-        );
-        const wordCount = segs.reduce(
-          (sum, s) => sum + s.content.split(/\s+/).filter(Boolean).length,
-          0,
-        );
+        const talkTimeMs = segs.reduce((sum, s) => sum + (s.endTime - s.startTime), 0);
+        const wordCount = segs.reduce((sum, s) => sum + s.content.split(/\s+/).filter(Boolean).length, 0);
         return {
           speaker,
           segmentCount: segs.length,
           wordCount,
           talkTimeMs,
-          talkTimePercent:
-            totalTalkTime > 0
-              ? Math.round((talkTimeMs / totalTalkTime) * 100)
-              : 0,
+          talkTimePercent: totalTalkTime > 0 ? Math.round((talkTimeMs / totalTalkTime) * 100) : 0,
         };
       })
       .sort((a, b) => b.talkTimeMs - a.talkTimeMs);

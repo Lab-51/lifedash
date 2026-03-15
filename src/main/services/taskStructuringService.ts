@@ -120,7 +120,10 @@ function isValidEffort(v: unknown): v is 'small' | 'medium' | 'large' {
  * Strip markdown code fences and parse JSON from AI response text.
  */
 function parseJsonResponse(text: string): unknown {
-  const jsonStr = text.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim();
+  const jsonStr = text
+    .replace(/```json?\n?/g, '')
+    .replace(/```\n?/g, '')
+    .trim();
   return JSON.parse(jsonStr);
 }
 
@@ -166,8 +169,8 @@ function validateProjectPlan(parsed: unknown): ProjectPlan {
       return {
         title: typeof task.title === 'string' ? task.title : `Task ${j + 1}`,
         description: typeof task.description === 'string' ? task.description : '',
-        priority: isValidPriority(task.priority) ? task.priority : 'medium' as const,
-        effort: isValidEffort(task.effort) ? task.effort : 'medium' as const,
+        priority: isValidPriority(task.priority) ? task.priority : ('medium' as const),
+        effort: isValidEffort(task.effort) ? task.effort : ('medium' as const),
         dependencies: Array.isArray(task.dependencies)
           ? task.dependencies.filter((d): d is string => typeof d === 'string')
           : undefined,
@@ -223,8 +226,8 @@ function validateTaskBreakdown(parsed: unknown): TaskBreakdown {
     return {
       title: typeof sub.title === 'string' ? sub.title : `Subtask ${i + 1}`,
       description: typeof sub.description === 'string' ? sub.description : '',
-      priority: isValidPriority(sub.priority) ? sub.priority : 'medium' as const,
-      effort: isValidEffort(sub.effort) ? sub.effort : 'medium' as const,
+      priority: isValidPriority(sub.priority) ? sub.priority : ('medium' as const),
+      effort: isValidEffort(sub.effort) ? sub.effort : ('medium' as const),
       order: typeof sub.order === 'number' ? sub.order : i + 1,
     };
   });
@@ -242,10 +245,7 @@ function validateTaskBreakdown(parsed: unknown): TaskBreakdown {
  * Generate a production-focused project plan for an existing project.
  * Loads project + boards + columns + cards from DB to provide context to the AI.
  */
-export async function generateProjectPlan(
-  projectId: string,
-  additionalDescription?: string,
-): Promise<ProjectPlan> {
+export async function generateProjectPlan(projectId: string, additionalDescription?: string): Promise<ProjectPlan> {
   const db = getDb();
 
   // Load project
@@ -256,9 +256,7 @@ export async function generateProjectPlan(
   const projectBoards = await db.select().from(boards).where(eq(boards.projectId, projectId));
 
   // Build context with existing board/column/card structure
-  let contextParts: string[] = [
-    `Project: ${project.name}`,
-  ];
+  let contextParts: string[] = [`Project: ${project.name}`];
 
   if (project.description) {
     contextParts.push(`Description: ${project.description}`);
@@ -306,10 +304,7 @@ export async function generateProjectPlan(
  * Generate a project plan without loading from DB.
  * Used for planning a project before it's created.
  */
-export async function generateQuickPlan(
-  projectName: string,
-  projectDescription: string,
-): Promise<ProjectPlan> {
+export async function generateQuickPlan(projectName: string, projectDescription: string): Promise<ProjectPlan> {
   const contextString = `Project: ${projectName}\nDescription: ${projectDescription}`;
   return generatePlanFromContext(contextString);
 }
@@ -327,18 +322,11 @@ export async function generateTaskBreakdown(cardId: string): Promise<TaskBreakdo
 
   // Load column -> board -> project for context
   const [column] = await db.select().from(columns).where(eq(columns.id, card.columnId));
-  const [board] = column
-    ? await db.select().from(boards).where(eq(boards.id, column.boardId))
-    : [undefined];
-  const [project] = board
-    ? await db.select().from(projects).where(eq(projects.id, board.projectId))
-    : [undefined];
+  const [board] = column ? await db.select().from(boards).where(eq(boards.id, column.boardId)) : [undefined];
+  const [project] = board ? await db.select().from(projects).where(eq(projects.id, board.projectId)) : [undefined];
 
   // Load sibling cards in the same column for context
-  const siblingCards = await db
-    .select({ title: cards.title })
-    .from(cards)
-    .where(eq(cards.columnId, card.columnId));
+  const siblingCards = await db.select({ title: cards.title }).from(cards).where(eq(cards.columnId, card.columnId));
   const siblingTitles = siblingCards
     .filter((c) => c.title !== card.title)
     .slice(0, 10)

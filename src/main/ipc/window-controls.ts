@@ -13,9 +13,7 @@ import { booleanParamSchema } from '../../shared/validation/schemas';
  * Also sets up event forwarding so the renderer is notified when
  * the maximize state changes (e.g. from Windows snap gestures).
  */
-export function registerWindowControlHandlers(
-  mainWindow: BrowserWindow,
-): void {
+export function registerWindowControlHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('window:minimize', () => {
     mainWindow.minimize();
   });

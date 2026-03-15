@@ -63,7 +63,7 @@ function useSyncStatus(): SyncStatusHook {
 
   const loadInitialState = useCallback(async () => {
     if (typeof window === 'undefined' || !window.electronAPI?.syncGetAuthState) {
-      setState(prev => ({ ...prev, loading: false }));
+      setState((prev) => ({ ...prev, loading: false }));
       return;
     }
 
@@ -83,7 +83,7 @@ function useSyncStatus(): SyncStatusHook {
       });
     } catch (err) {
       console.error('Failed to load sync state:', err);
-      setState(prev => ({ ...prev, loading: false }));
+      setState((prev) => ({ ...prev, loading: false }));
     }
   }, []);
 
@@ -96,7 +96,7 @@ function useSyncStatus(): SyncStatusHook {
     if (!window.electronAPI?.onSyncStatusChanged) return;
 
     return window.electronAPI.onSyncStatusChanged((data) => {
-      setState(prev => {
+      setState((prev) => {
         const status = data.status as SyncStatus;
         // When status goes to 'disconnected' with null lastSyncedAt, the user
         // signed out — reset auth-related fields so all consumers (TitleBar,
@@ -123,7 +123,7 @@ function useSyncStatus(): SyncStatusHook {
     if (!window.electronAPI?.onSyncError) return;
 
     return window.electronAPI.onSyncError((data) => {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         status: 'error',
         errorDetails: `${data.table}: ${data.error}`,

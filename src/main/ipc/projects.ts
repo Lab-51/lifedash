@@ -33,38 +33,32 @@ export function registerProjectHandlers(): void {
     return db.select().from(projects).orderBy(desc(projects.pinned), asc(projects.createdAt));
   });
 
-  ipcMain.handle(
-    'projects:create',
-    async (_event, data: unknown) => {
-      const input = validateInput(createProjectInputSchema, data);
-      const db = getDb();
-      const [project] = await db
-        .insert(projects)
-        .values({
-          name: input.name,
-          description: input.description ?? null,
-          color: input.color ?? null,
-          hourlyRate: input.hourlyRate ?? null,
-        })
-        .returning();
-      return project;
-    },
-  );
+  ipcMain.handle('projects:create', async (_event, data: unknown) => {
+    const input = validateInput(createProjectInputSchema, data);
+    const db = getDb();
+    const [project] = await db
+      .insert(projects)
+      .values({
+        name: input.name,
+        description: input.description ?? null,
+        color: input.color ?? null,
+        hourlyRate: input.hourlyRate ?? null,
+      })
+      .returning();
+    return project;
+  });
 
-  ipcMain.handle(
-    'projects:update',
-    async (_event, id: unknown, data: unknown) => {
-      const validId = validateInput(idParamSchema, id);
-      const input = validateInput(updateProjectInputSchema, data);
-      const db = getDb();
-      const [project] = await db
-        .update(projects)
-        .set({ ...input, updatedAt: new Date() })
-        .where(eq(projects.id, validId))
-        .returning();
-      return project;
-    },
-  );
+  ipcMain.handle('projects:update', async (_event, id: unknown, data: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const input = validateInput(updateProjectInputSchema, data);
+    const db = getDb();
+    const [project] = await db
+      .update(projects)
+      .set({ ...input, updatedAt: new Date() })
+      .where(eq(projects.id, validId))
+      .returning();
+    return project;
+  });
 
   ipcMain.handle('projects:delete', async (_event, id: unknown) => {
     const validId = validateInput(idParamSchema, id);
@@ -77,18 +71,13 @@ export function registerProjectHandlers(): void {
     const db = getDb();
 
     // Fetch source project
-    const [source] = await db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, validId));
+    const [source] = await db.select().from(projects).where(eq(projects.id, validId));
     if (!source) throw new Error('Project not found');
 
     // Generate a unique copy name: "Name (copy)", "Name (copy 2)", etc.
     const baseName = source.name.replace(/\s*\(copy(?:\s+\d+)?\)$/, '');
-    const existing = await db
-      .select({ name: projects.name })
-      .from(projects);
-    const existingNames = new Set(existing.map(r => r.name));
+    const existing = await db.select({ name: projects.name }).from(projects);
+    const existingNames = new Set(existing.map((r) => r.name));
     let copyName = `${baseName} (copy)`;
     let i = 2;
     while (existingNames.has(copyName)) {
@@ -132,11 +121,14 @@ export function registerProjectHandlers(): void {
         .orderBy(asc(columns.position));
 
       for (const srcCol of srcColumns) {
-        const [newCol] = await db.insert(columns).values({
-          boardId: newBoard.id,
-          name: srcCol.name,
-          position: srcCol.position,
-        }).returning();
+        const [newCol] = await db
+          .insert(columns)
+          .values({
+            boardId: newBoard.id,
+            name: srcCol.name,
+            position: srcCol.position,
+          })
+          .returning();
 
         // Duplicate cards in this column
         const srcCards = await db
@@ -167,60 +159,43 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('boards:list', async (_event, projectId: unknown) => {
     const validProjectId = validateInput(idParamSchema, projectId);
     const db = getDb();
-    return db
-      .select()
-      .from(boards)
-      .where(eq(boards.projectId, validProjectId))
-      .orderBy(asc(boards.position));
+    return db.select().from(boards).where(eq(boards.projectId, validProjectId)).orderBy(asc(boards.position));
   });
 
-  ipcMain.handle(
-    'boards:create',
-    async (_event, data: unknown) => {
-      const input = validateInput(createBoardInputSchema, data);
-      const db = getDb();
-      // Get next position
-      const existing = await db
-        .select()
-        .from(boards)
-        .where(eq(boards.projectId, input.projectId));
-      const [board] = await db
-        .insert(boards)
-        .values({
-          projectId: input.projectId,
-          name: input.name,
-          position: existing.length,
-        })
-        .returning();
+  ipcMain.handle('boards:create', async (_event, data: unknown) => {
+    const input = validateInput(createBoardInputSchema, data);
+    const db = getDb();
+    // Get next position
+    const existing = await db.select().from(boards).where(eq(boards.projectId, input.projectId));
+    const [board] = await db
+      .insert(boards)
+      .values({
+        projectId: input.projectId,
+        name: input.name,
+        position: existing.length,
+      })
+      .returning();
 
-      // Auto-create default columns for new boards
-      const defaultColumns = ['To Do', 'In Progress', 'Done'];
-      for (let i = 0; i < defaultColumns.length; i++) {
-        await db.insert(columns).values({
-          boardId: board.id,
-          name: defaultColumns[i],
-          position: i,
-        });
-      }
+    // Auto-create default columns for new boards
+    const defaultColumns = ['To Do', 'In Progress', 'Done'];
+    for (let i = 0; i < defaultColumns.length; i++) {
+      await db.insert(columns).values({
+        boardId: board.id,
+        name: defaultColumns[i],
+        position: i,
+      });
+    }
 
-      return board;
-    },
-  );
+    return board;
+  });
 
-  ipcMain.handle(
-    'boards:update',
-    async (_event, id: unknown, data: unknown) => {
-      const validId = validateInput(idParamSchema, id);
-      const input = validateInput(updateBoardInputSchema, data);
-      const db = getDb();
-      const [board] = await db
-        .update(boards)
-        .set(input)
-        .where(eq(boards.id, validId))
-        .returning();
-      return board;
-    },
-  );
+  ipcMain.handle('boards:update', async (_event, id: unknown, data: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const input = validateInput(updateBoardInputSchema, data);
+    const db = getDb();
+    const [board] = await db.update(boards).set(input).where(eq(boards.id, validId)).returning();
+    return board;
+  });
 
   ipcMain.handle('boards:delete', async (_event, id: unknown) => {
     const validId = validateInput(idParamSchema, id);
@@ -233,48 +208,31 @@ export function registerProjectHandlers(): void {
   ipcMain.handle('columns:list', async (_event, boardId: unknown) => {
     const validBoardId = validateInput(idParamSchema, boardId);
     const db = getDb();
-    return db
-      .select()
-      .from(columns)
-      .where(eq(columns.boardId, validBoardId))
-      .orderBy(asc(columns.position));
+    return db.select().from(columns).where(eq(columns.boardId, validBoardId)).orderBy(asc(columns.position));
   });
 
-  ipcMain.handle(
-    'columns:create',
-    async (_event, data: unknown) => {
-      const input = validateInput(createColumnInputSchema, data);
-      const db = getDb();
-      const existing = await db
-        .select()
-        .from(columns)
-        .where(eq(columns.boardId, input.boardId));
-      const [column] = await db
-        .insert(columns)
-        .values({
-          boardId: input.boardId,
-          name: input.name,
-          position: existing.length,
-        })
-        .returning();
-      return column;
-    },
-  );
+  ipcMain.handle('columns:create', async (_event, data: unknown) => {
+    const input = validateInput(createColumnInputSchema, data);
+    const db = getDb();
+    const existing = await db.select().from(columns).where(eq(columns.boardId, input.boardId));
+    const [column] = await db
+      .insert(columns)
+      .values({
+        boardId: input.boardId,
+        name: input.name,
+        position: existing.length,
+      })
+      .returning();
+    return column;
+  });
 
-  ipcMain.handle(
-    'columns:update',
-    async (_event, id: unknown, data: unknown) => {
-      const validId = validateInput(idParamSchema, id);
-      const input = validateInput(updateColumnInputSchema, data);
-      const db = getDb();
-      const [column] = await db
-        .update(columns)
-        .set(input)
-        .where(eq(columns.id, validId))
-        .returning();
-      return column;
-    },
-  );
+  ipcMain.handle('columns:update', async (_event, id: unknown, data: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const input = validateInput(updateColumnInputSchema, data);
+    const db = getDb();
+    const [column] = await db.update(columns).set(input).where(eq(columns.id, validId)).returning();
+    return column;
+  });
 
   ipcMain.handle('columns:delete', async (_event, id: unknown) => {
     const validId = validateInput(idParamSchema, id);
@@ -282,22 +240,16 @@ export function registerProjectHandlers(): void {
     await db.delete(columns).where(eq(columns.id, validId));
   });
 
-  ipcMain.handle(
-    'columns:reorder',
-    async (_event, boardId: unknown, columnIds: unknown) => {
-      const validBoardId = validateInput(idParamSchema, boardId);
-      const validColumnIds = validateInput(columnReorderSchema, columnIds);
-      const db = getDb();
-      // boardId validated for consistency; used for future scope constraints
-      void validBoardId;
-      await db.transaction(async (tx) => {
-        for (let i = 0; i < validColumnIds.length; i++) {
-          await tx
-            .update(columns)
-            .set({ position: i })
-            .where(eq(columns.id, validColumnIds[i]));
-        }
-      });
-    },
-  );
+  ipcMain.handle('columns:reorder', async (_event, boardId: unknown, columnIds: unknown) => {
+    const validBoardId = validateInput(idParamSchema, boardId);
+    const validColumnIds = validateInput(columnReorderSchema, columnIds);
+    const db = getDb();
+    // boardId validated for consistency; used for future scope constraints
+    void validBoardId;
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < validColumnIds.length; i++) {
+        await tx.update(columns).set({ position: i }).where(eq(columns.id, validColumnIds[i]));
+      }
+    });
+  });
 }

@@ -37,9 +37,7 @@ export const impactLevelSchema = z.enum(['minimal', 'low', 'medium', 'high', 'cr
 
 export const meetingStatusSchema = z.enum(['recording', 'processing', 'completed']);
 
-export const meetingTemplateTypeSchema = z.enum([
-  'none', 'standup', 'retro', 'planning', 'brainstorm', 'one_on_one',
-]);
+export const meetingTemplateTypeSchema = z.enum(['none', 'standup', 'retro', 'planning', 'brainstorm', 'one_on_one']);
 
 export const exportFormatSchema = z.enum(['json', 'csv']);
 
@@ -390,10 +388,12 @@ export const focusSaveSessionSchema = z.object({
 
 export const focusGetDailySchema = z.number().int().positive().optional();
 
-export const focusGetHistorySchema = z.object({
-  offset: z.number().int().min(0).optional(),
-  limit: z.number().int().positive().optional(),
-}).optional();
+export const focusGetHistorySchema = z
+  .object({
+    offset: z.number().int().min(0).optional(),
+    limit: z.number().int().positive().optional(),
+  })
+  .optional();
 
 export const focusGetTimeReportSchema = z.object({
   startDate: z.string().min(1),
@@ -415,11 +415,24 @@ export const focusDeleteSessionSchema = uuid;
 // ============================================================================
 
 export const xpEventTypeSchema = z.enum([
-  'focus_session', 'card_create', 'card_complete', 'checklist_complete',
-  'project_create', 'project_archive', 'ai_plan', 'meeting_complete',
-  'meeting_brief', 'action_convert', 'idea_create', 'idea_convert',
-  'idea_analyze', 'brainstorm_start', 'brainstorm_export', 'ai_standup',
-  'ai_description', 'ai_breakdown',
+  'focus_session',
+  'card_create',
+  'card_complete',
+  'checklist_complete',
+  'project_create',
+  'project_archive',
+  'ai_plan',
+  'meeting_complete',
+  'meeting_brief',
+  'action_convert',
+  'idea_create',
+  'idea_convert',
+  'idea_analyze',
+  'brainstorm_start',
+  'brainstorm_export',
+  'ai_standup',
+  'ai_description',
+  'ai_breakdown',
 ]);
 
 export const gamificationGetDailySchema = z.number().int().positive().optional();

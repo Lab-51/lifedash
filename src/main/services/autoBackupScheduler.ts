@@ -11,12 +11,7 @@
 // - Requires Docker running when backup triggers
 
 import { BrowserWindow } from 'electron';
-import {
-  createBackup,
-  cleanOldBackups,
-  getAutoBackupSettings,
-  updateAutoBackupSettings,
-} from './backupService';
+import { createBackup, cleanOldBackups, getAutoBackupSettings, updateAutoBackupSettings } from './backupService';
 import { createLogger } from './logger';
 
 const log = createLogger('AutoBackup');

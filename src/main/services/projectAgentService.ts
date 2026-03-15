@@ -15,11 +15,24 @@ import { z } from 'zod';
 import { eq, asc, desc, and, ilike, inArray, count, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import {
-  projects, boards, columns, cards,
-  cardActivities, meetings, meetingBriefs, actionItems,
-  projectAgentMessages, projectAgentThreads,
+  projects,
+  boards,
+  columns,
+  cards,
+  cardActivities,
+  meetings,
+  meetingBriefs,
+  actionItems,
+  projectAgentMessages,
+  projectAgentThreads,
 } from '../db/schema';
-import type { ProjectAgentMessage, ProjectAgentThread, ToolCallRecord, ToolResultRecord, ProjectAgentAction } from '../../shared/types';
+import type {
+  ProjectAgentMessage,
+  ProjectAgentThread,
+  ToolCallRecord,
+  ToolResultRecord,
+  ProjectAgentAction,
+} from '../../shared/types';
 import { createLogger } from './logger';
 
 const log = createLogger('ProjectAgent');
@@ -53,92 +66,95 @@ export async function buildProjectContext(projectId: string): Promise<string> {
   if (!project) return 'Project not found.';
 
   // Fetch all boards for this project
-  const projectBoards = await db.select().from(boards)
+  const projectBoards = await db
+    .select()
+    .from(boards)
     .where(eq(boards.projectId, projectId))
     .orderBy(asc(boards.position));
 
-  const boardIds = projectBoards.map(b => b.id);
+  const boardIds = projectBoards.map((b) => b.id);
 
   // Fetch columns and meeting data in parallel
   const [projectColumns, projectMeetings] = await Promise.all([
     boardIds.length > 0
-      ? db.select().from(columns)
-          .where(inArray(columns.boardId, boardIds))
-          .orderBy(asc(columns.position))
+      ? db.select().from(columns).where(inArray(columns.boardId, boardIds)).orderBy(asc(columns.position))
       : Promise.resolve([]),
-    db.select({ id: meetings.id, title: meetings.title })
+    db
+      .select({ id: meetings.id, title: meetings.title })
       .from(meetings)
       .where(eq(meetings.projectId, projectId))
       .orderBy(desc(meetings.createdAt))
       .limit(10),
   ]);
 
-  const columnIds = projectColumns.map(c => c.id);
+  const columnIds = projectColumns.map((c) => c.id);
 
   // Fetch cards, meeting briefs, and action items in parallel
-  const meetingIds = projectMeetings.map(m => m.id);
+  const meetingIds = projectMeetings.map((m) => m.id);
   const [projectCards, recentBriefs, pendingActionItems] = await Promise.all([
     columnIds.length > 0
-      ? db.select({
-          id: cards.id,
-          title: cards.title,
-          columnId: cards.columnId,
-          priority: cards.priority,
-          completed: cards.completed,
-          dueDate: cards.dueDate,
-        }).from(cards)
+      ? db
+          .select({
+            id: cards.id,
+            title: cards.title,
+            columnId: cards.columnId,
+            priority: cards.priority,
+            completed: cards.completed,
+            dueDate: cards.dueDate,
+          })
+          .from(cards)
           .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false)))
       : Promise.resolve([]),
     meetingIds.length > 0
-      ? db.select({
-          id: meetingBriefs.id,
-          meetingId: meetingBriefs.meetingId,
-          summary: meetingBriefs.summary,
-          createdAt: meetingBriefs.createdAt,
-        }).from(meetingBriefs)
+      ? db
+          .select({
+            id: meetingBriefs.id,
+            meetingId: meetingBriefs.meetingId,
+            summary: meetingBriefs.summary,
+            createdAt: meetingBriefs.createdAt,
+          })
+          .from(meetingBriefs)
           .where(inArray(meetingBriefs.meetingId, meetingIds))
           .orderBy(desc(meetingBriefs.createdAt))
           .limit(3)
       : Promise.resolve([]),
     meetingIds.length > 0
-      ? db.select({ value: count() }).from(actionItems)
-          .where(and(
-            inArray(actionItems.meetingId, meetingIds),
-            eq(actionItems.status, 'pending'),
-          ))
+      ? db
+          .select({ value: count() })
+          .from(actionItems)
+          .where(and(inArray(actionItems.meetingId, meetingIds), eq(actionItems.status, 'pending')))
       : Promise.resolve([{ value: 0 }]),
   ]);
 
   // Fetch recent card activities (up to 5)
-  const cardIds = projectCards.map(c => c.id);
-  const recentActivities = cardIds.length > 0
-    ? await db.select({
-        id: cardActivities.id,
-        cardId: cardActivities.cardId,
-        action: cardActivities.action,
-        createdAt: cardActivities.createdAt,
-      }).from(cardActivities)
-        .where(inArray(cardActivities.cardId, cardIds))
-        .orderBy(desc(cardActivities.createdAt))
-        .limit(5)
-    : [];
+  const cardIds = projectCards.map((c) => c.id);
+  const recentActivities =
+    cardIds.length > 0
+      ? await db
+          .select({
+            id: cardActivities.id,
+            cardId: cardActivities.cardId,
+            action: cardActivities.action,
+            createdAt: cardActivities.createdAt,
+          })
+          .from(cardActivities)
+          .where(inArray(cardActivities.cardId, cardIds))
+          .orderBy(desc(cardActivities.createdAt))
+          .limit(5)
+      : [];
 
   // Build lookup maps
-  const boardMap = new Map(projectBoards.map(b => [b.id, b]));
-  const columnMap = new Map(projectColumns.map(c => [c.id, c]));
-  const cardMap = new Map(projectCards.map(c => [c.id, c]));
-  const meetingTitleMap = new Map(projectMeetings.map(m => [m.id, m.title]));
+  const boardMap = new Map(projectBoards.map((b) => [b.id, b]));
+  const columnMap = new Map(projectColumns.map((c) => [c.id, c]));
+  const cardMap = new Map(projectCards.map((c) => [c.id, c]));
+  const meetingTitleMap = new Map(projectMeetings.map((m) => [m.id, m.title]));
 
   // Summary stats
   const totalCards = projectCards.length;
-  const completedCards = projectCards.filter(c => c.completed).length;
-  const completionPercent = totalCards > 0
-    ? Math.round((completedCards / totalCards) * 100)
-    : 0;
+  const completedCards = projectCards.filter((c) => c.completed).length;
+  const completionPercent = totalCards > 0 ? Math.round((completedCards / totalCards) * 100) : 0;
   const now = new Date();
-  const overdueCount = projectCards.filter(
-    c => !c.completed && c.dueDate && new Date(c.dueDate) < now,
-  ).length;
+  const overdueCount = projectCards.filter((c) => !c.completed && c.dueDate && new Date(c.dueDate) < now).length;
 
   const byPriority: Record<string, number> = { low: 0, medium: 0, high: 0, urgent: 0 };
   for (const card of projectCards) {
@@ -161,11 +177,11 @@ Priority breakdown: Low ${byPriority.low} / Medium ${byPriority.medium} / High $
 ## Boards (${projectBoards.length})`;
 
   for (const board of projectBoards) {
-    const boardColumns = projectColumns.filter(c => c.boardId === board.id);
+    const boardColumns = projectColumns.filter((c) => c.boardId === board.id);
     ctx += `\n### ${board.name}`;
     for (const col of boardColumns) {
-      const colCards = projectCards.filter(c => c.columnId === col.id);
-      const recentTitles = colCards.slice(0, 5).map(c => c.title);
+      const colCards = projectCards.filter((c) => c.columnId === col.id);
+      const recentTitles = colCards.slice(0, 5).map((c) => c.title);
       ctx += `\n  - ${col.name} (${colCards.length} cards)`;
       if (recentTitles.length > 0) {
         ctx += `: ${recentTitles.join(', ')}${colCards.length > 5 ? ', ...' : ''}`;
@@ -177,9 +193,7 @@ Priority breakdown: Low ${byPriority.low} / Medium ${byPriority.medium} / High $
     ctx += '\n\n## Recent Meeting Briefs';
     for (const brief of recentBriefs) {
       const title = meetingTitleMap.get(brief.meetingId) ?? 'Untitled meeting';
-      const excerpt = brief.summary.length > 200
-        ? brief.summary.slice(0, 200) + '...'
-        : brief.summary;
+      const excerpt = brief.summary.length > 200 ? brief.summary.slice(0, 200) + '...' : brief.summary;
       ctx += `\n- **${title}**: ${excerpt}`;
     }
   }
@@ -209,23 +223,25 @@ export function createProjectAgentTools(projectId: string) {
       description: 'List all boards in this project with their columns',
       inputSchema: z.object({}),
       execute: async () => {
-        const projectBoards = await db.select().from(boards)
+        const projectBoards = await db
+          .select()
+          .from(boards)
           .where(eq(boards.projectId, projectId))
           .orderBy(asc(boards.position));
 
         if (projectBoards.length === 0) return { boards: [] };
 
-        const boardIds = projectBoards.map(b => b.id);
-        const boardColumns = await db.select().from(columns)
+        const boardIds = projectBoards.map((b) => b.id);
+        const boardColumns = await db
+          .select()
+          .from(columns)
           .where(inArray(columns.boardId, boardIds))
           .orderBy(asc(columns.position));
 
-        const result = projectBoards.map(board => ({
+        const result = projectBoards.map((board) => ({
           id: board.id,
           name: board.name,
-          columns: boardColumns
-            .filter(c => c.boardId === board.id)
-            .map(c => ({ id: c.id, name: c.name })),
+          columns: boardColumns.filter((c) => c.boardId === board.id).map((c) => ({ id: c.id, name: c.name })),
         }));
 
         return { boards: result };
@@ -238,19 +254,21 @@ export function createProjectAgentTools(projectId: string) {
         columnId: z.string().uuid().describe('The ID of the column to list cards for'),
       }),
       execute: async ({ columnId }) => {
-        const colCards = await db.select({
-          id: cards.id,
-          title: cards.title,
-          priority: cards.priority,
-          completed: cards.completed,
-          updatedAt: cards.updatedAt,
-        }).from(cards)
+        const colCards = await db
+          .select({
+            id: cards.id,
+            title: cards.title,
+            priority: cards.priority,
+            completed: cards.completed,
+            updatedAt: cards.updatedAt,
+          })
+          .from(cards)
           .where(and(eq(cards.columnId, columnId), eq(cards.archived, false)))
           .orderBy(asc(cards.position))
           .limit(20);
 
         return {
-          cards: colCards.map(c => ({
+          cards: colCards.map((c) => ({
             id: c.id,
             title: c.title,
             priority: c.priority,
@@ -269,25 +287,30 @@ export function createProjectAgentTools(projectId: string) {
       }),
       execute: async ({ cardId, targetColumnId }) => {
         // Get current card
-        const [card] = await db.select({
-          id: cards.id,
-          title: cards.title,
-          columnId: cards.columnId,
-        }).from(cards).where(eq(cards.id, cardId));
+        const [card] = await db
+          .select({
+            id: cards.id,
+            title: cards.title,
+            columnId: cards.columnId,
+          })
+          .from(cards)
+          .where(eq(cards.id, cardId));
         if (!card) return { success: false, error: 'Card not found' };
 
         // Get source and target column names sequentially (no same-table double join)
-        const [sourceColumn] = await db.select({ name: columns.name })
-          .from(columns).where(eq(columns.id, card.columnId));
-        const [targetColumn] = await db.select({ name: columns.name })
-          .from(columns).where(eq(columns.id, targetColumnId));
+        const [sourceColumn] = await db
+          .select({ name: columns.name })
+          .from(columns)
+          .where(eq(columns.id, card.columnId));
+        const [targetColumn] = await db
+          .select({ name: columns.name })
+          .from(columns)
+          .where(eq(columns.id, targetColumnId));
 
         if (!targetColumn) return { success: false, error: 'Target column not found' };
 
         // Move the card
-        await db.update(cards)
-          .set({ columnId: targetColumnId, updatedAt: new Date() })
-          .where(eq(cards.id, cardId));
+        await db.update(cards).set({ columnId: targetColumnId, updatedAt: new Date() }).where(eq(cards.id, cardId));
 
         // Log the activity
         await db.insert(cardActivities).values({
@@ -312,48 +335,59 @@ export function createProjectAgentTools(projectId: string) {
       description: 'Create a new board in this project with optional custom columns',
       inputSchema: z.object({
         name: z.string().describe('Name for the new board'),
-        columns: z.array(z.string()).optional()
+        columns: z
+          .array(z.string())
+          .optional()
           .describe('Column names to create. Defaults to: To Do, In Progress, Done'),
       }),
       execute: async ({ name, columns: columnNames }) => {
-        const colNames = columnNames && columnNames.length > 0
-          ? columnNames
-          : ['To Do', 'In Progress', 'Done'];
+        const colNames = columnNames && columnNames.length > 0 ? columnNames : ['To Do', 'In Progress', 'Done'];
 
         // Get current board count for position
-        const [{ value: boardCount }] = await db.select({ value: count() })
-          .from(boards).where(eq(boards.projectId, projectId));
+        const [{ value: boardCount }] = await db
+          .select({ value: count() })
+          .from(boards)
+          .where(eq(boards.projectId, projectId));
 
-        const [newBoard] = await db.insert(boards).values({
-          projectId,
-          name,
-          position: boardCount,
-        }).returning();
+        const [newBoard] = await db
+          .insert(boards)
+          .values({
+            projectId,
+            name,
+            position: boardCount,
+          })
+          .returning();
 
         // Insert columns
-        const insertedColumns = await db.insert(columns).values(
-          colNames.map((colName, i) => ({
-            boardId: newBoard.id,
-            name: colName,
-            position: i,
-          })),
-        ).returning();
+        const insertedColumns = await db
+          .insert(columns)
+          .values(
+            colNames.map((colName, i) => ({
+              boardId: newBoard.id,
+              name: colName,
+              position: i,
+            })),
+          )
+          .returning();
 
         return {
           success: true,
           board: { id: newBoard.id, name: newBoard.name },
-          columns: insertedColumns.map(c => ({ id: c.id, name: c.name })),
+          columns: insertedColumns.map((c) => ({ id: c.id, name: c.name })),
         };
       },
     }),
 
     getProjectStats: tool({
-      description: 'Get aggregate statistics for this project: card counts by column/priority, completion rate, and overdue cards',
+      description:
+        'Get aggregate statistics for this project: card counts by column/priority, completion rate, and overdue cards',
       inputSchema: z.object({}),
       execute: async () => {
         // Chain: project -> boards -> columns -> cards (no duplicate table joins)
-        const projectBoards = await db.select({ id: boards.id, name: boards.name })
-          .from(boards).where(eq(boards.projectId, projectId));
+        const projectBoards = await db
+          .select({ id: boards.id, name: boards.name })
+          .from(boards)
+          .where(eq(boards.projectId, projectId));
 
         if (projectBoards.length === 0) {
           return {
@@ -365,9 +399,11 @@ export function createProjectAgentTools(projectId: string) {
           };
         }
 
-        const boardIds = projectBoards.map(b => b.id);
-        const projectColumns = await db.select({ id: columns.id, name: columns.name, boardId: columns.boardId })
-          .from(columns).where(inArray(columns.boardId, boardIds));
+        const boardIds = projectBoards.map((b) => b.id);
+        const projectColumns = await db
+          .select({ id: columns.id, name: columns.name, boardId: columns.boardId })
+          .from(columns)
+          .where(inArray(columns.boardId, boardIds));
 
         if (projectColumns.length === 0) {
           return {
@@ -379,35 +415,33 @@ export function createProjectAgentTools(projectId: string) {
           };
         }
 
-        const columnIds = projectColumns.map(c => c.id);
-        const allCards = await db.select({
-          id: cards.id,
-          columnId: cards.columnId,
-          priority: cards.priority,
-          completed: cards.completed,
-          dueDate: cards.dueDate,
-        }).from(cards)
+        const columnIds = projectColumns.map((c) => c.id);
+        const allCards = await db
+          .select({
+            id: cards.id,
+            columnId: cards.columnId,
+            priority: cards.priority,
+            completed: cards.completed,
+            dueDate: cards.dueDate,
+          })
+          .from(cards)
           .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false)));
 
         const totalCards = allCards.length;
-        const completedCards = allCards.filter(c => c.completed).length;
-        const completionPercent = totalCards > 0
-          ? Math.round((completedCards / totalCards) * 100)
-          : 0;
+        const completedCards = allCards.filter((c) => c.completed).length;
+        const completionPercent = totalCards > 0 ? Math.round((completedCards / totalCards) * 100) : 0;
         const now = new Date();
-        const overdueCount = allCards.filter(
-          c => !c.completed && c.dueDate && new Date(c.dueDate) < now,
-        ).length;
+        const overdueCount = allCards.filter((c) => !c.completed && c.dueDate && new Date(c.dueDate) < now).length;
 
         const byPriority = { low: 0, medium: 0, high: 0, urgent: 0 };
         for (const card of allCards) {
           byPriority[card.priority] = (byPriority[card.priority] ?? 0) + 1;
         }
 
-        const byColumn = projectColumns.map(col => ({
+        const byColumn = projectColumns.map((col) => ({
           columnId: col.id,
           columnName: col.name,
-          cardCount: allCards.filter(c => c.columnId === col.id).length,
+          cardCount: allCards.filter((c) => c.columnId === col.id).length,
         }));
 
         return { totalCards, byColumn, byPriority, completionPercent, overdueCount };
@@ -419,28 +453,29 @@ export function createProjectAgentTools(projectId: string) {
       inputSchema: z.object({}),
       execute: async () => {
         // Get meeting IDs for this project first
-        const projectMeetings = await db.select({ id: meetings.id, title: meetings.title })
-          .from(meetings).where(eq(meetings.projectId, projectId));
+        const projectMeetings = await db
+          .select({ id: meetings.id, title: meetings.title })
+          .from(meetings)
+          .where(eq(meetings.projectId, projectId));
 
         if (projectMeetings.length === 0) return { actionItems: [] };
 
-        const meetingIds = projectMeetings.map(m => m.id);
-        const meetingTitleMap = new Map(projectMeetings.map(m => [m.id, m.title]));
+        const meetingIds = projectMeetings.map((m) => m.id);
+        const meetingTitleMap = new Map(projectMeetings.map((m) => [m.id, m.title]));
 
-        const pendingItems = await db.select({
-          id: actionItems.id,
-          meetingId: actionItems.meetingId,
-          description: actionItems.description,
-          createdAt: actionItems.createdAt,
-        }).from(actionItems)
-          .where(and(
-            inArray(actionItems.meetingId, meetingIds),
-            eq(actionItems.status, 'pending'),
-          ))
+        const pendingItems = await db
+          .select({
+            id: actionItems.id,
+            meetingId: actionItems.meetingId,
+            description: actionItems.description,
+            createdAt: actionItems.createdAt,
+          })
+          .from(actionItems)
+          .where(and(inArray(actionItems.meetingId, meetingIds), eq(actionItems.status, 'pending')))
           .orderBy(desc(actionItems.createdAt));
 
         return {
-          actionItems: pendingItems.map(item => ({
+          actionItems: pendingItems.map((item) => ({
             id: item.id,
             description: item.description,
             meetingTitle: meetingTitleMap.get(item.meetingId) ?? 'Unknown meeting',
@@ -457,39 +492,44 @@ export function createProjectAgentTools(projectId: string) {
       }),
       execute: async ({ limit }) => {
         // Chain: project -> boards -> columns -> cards -> cardActivities
-        const projectBoards = await db.select({ id: boards.id })
-          .from(boards).where(eq(boards.projectId, projectId));
+        const projectBoards = await db.select({ id: boards.id }).from(boards).where(eq(boards.projectId, projectId));
 
         if (projectBoards.length === 0) return { activities: [] };
 
-        const boardIds = projectBoards.map(b => b.id);
-        const projectColumns = await db.select({ id: columns.id })
-          .from(columns).where(inArray(columns.boardId, boardIds));
+        const boardIds = projectBoards.map((b) => b.id);
+        const projectColumns = await db
+          .select({ id: columns.id })
+          .from(columns)
+          .where(inArray(columns.boardId, boardIds));
 
         if (projectColumns.length === 0) return { activities: [] };
 
-        const columnIds = projectColumns.map(c => c.id);
-        const projectCards = await db.select({ id: cards.id, title: cards.title })
-          .from(cards).where(inArray(cards.columnId, columnIds));
+        const columnIds = projectColumns.map((c) => c.id);
+        const projectCards = await db
+          .select({ id: cards.id, title: cards.title })
+          .from(cards)
+          .where(inArray(cards.columnId, columnIds));
 
         if (projectCards.length === 0) return { activities: [] };
 
-        const cardIds = projectCards.map(c => c.id);
-        const cardTitleMap = new Map(projectCards.map(c => [c.id, c.title]));
+        const cardIds = projectCards.map((c) => c.id);
+        const cardTitleMap = new Map(projectCards.map((c) => [c.id, c.title]));
 
-        const activities = await db.select({
-          id: cardActivities.id,
-          cardId: cardActivities.cardId,
-          action: cardActivities.action,
-          details: cardActivities.details,
-          createdAt: cardActivities.createdAt,
-        }).from(cardActivities)
+        const activities = await db
+          .select({
+            id: cardActivities.id,
+            cardId: cardActivities.cardId,
+            action: cardActivities.action,
+            details: cardActivities.details,
+            createdAt: cardActivities.createdAt,
+          })
+          .from(cardActivities)
           .where(inArray(cardActivities.cardId, cardIds))
           .orderBy(desc(cardActivities.createdAt))
           .limit(limit);
 
         return {
-          activities: activities.map(a => ({
+          activities: activities.map((a) => ({
             id: a.id,
             cardTitle: cardTitleMap.get(a.cardId) ?? 'Unknown card',
             action: a.action,
@@ -508,30 +548,29 @@ export function createProjectAgentTools(projectId: string) {
       }),
       execute: async ({ query, limit }) => {
         // Get all boards -> columns -> search cards
-        const projectBoards = await db.select({ id: boards.id })
-          .from(boards).where(eq(boards.projectId, projectId));
+        const projectBoards = await db.select({ id: boards.id }).from(boards).where(eq(boards.projectId, projectId));
 
         if (projectBoards.length === 0) return { cards: [] };
 
-        const boardIds = projectBoards.map(b => b.id);
-        const projectColumns = await db.select({ id: columns.id })
-          .from(columns).where(inArray(columns.boardId, boardIds));
+        const boardIds = projectBoards.map((b) => b.id);
+        const projectColumns = await db
+          .select({ id: columns.id })
+          .from(columns)
+          .where(inArray(columns.boardId, boardIds));
 
         if (projectColumns.length === 0) return { cards: [] };
 
-        const columnIds = projectColumns.map(c => c.id);
+        const columnIds = projectColumns.map((c) => c.id);
 
-        const results = await db.select({
-          id: cards.id,
-          title: cards.title,
-          priority: cards.priority,
-          columnId: cards.columnId,
-        }).from(cards)
-          .where(and(
-            inArray(cards.columnId, columnIds),
-            eq(cards.archived, false),
-            ilike(cards.title, `%${query}%`),
-          ))
+        const results = await db
+          .select({
+            id: cards.id,
+            title: cards.title,
+            priority: cards.priority,
+            columnId: cards.columnId,
+          })
+          .from(cards)
+          .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false), ilike(cards.title, `%${query}%`)))
           .limit(limit);
 
         return { cards: results };
@@ -548,24 +587,28 @@ export async function getThreads(projectId: string): Promise<ProjectAgentThread[
   const db = getDb();
 
   // Step 1: fetch all threads for this project
-  const threads = await db.select().from(projectAgentThreads)
+  const threads = await db
+    .select()
+    .from(projectAgentThreads)
     .where(eq(projectAgentThreads.projectId, projectId))
     .orderBy(desc(projectAgentThreads.createdAt));
 
   if (threads.length === 0) return [];
 
   // Step 2: count messages per thread (single query, group by threadId)
-  const threadIds = threads.map(t => t.id);
-  const counts = await db.select({
-    threadId: projectAgentMessages.threadId,
-    value: count(),
-  }).from(projectAgentMessages)
+  const threadIds = threads.map((t) => t.id);
+  const counts = await db
+    .select({
+      threadId: projectAgentMessages.threadId,
+      value: count(),
+    })
+    .from(projectAgentMessages)
     .where(inArray(projectAgentMessages.threadId, threadIds))
     .groupBy(projectAgentMessages.threadId);
 
-  const countMap = new Map(counts.map(c => [c.threadId, c.value]));
+  const countMap = new Map(counts.map((c) => [c.threadId, c.value]));
 
-  return threads.map(t => ({
+  return threads.map((t) => ({
     id: t.id,
     projectId: t.projectId,
     title: t.title,
@@ -576,10 +619,13 @@ export async function getThreads(projectId: string): Promise<ProjectAgentThread[
 
 export async function createThread(projectId: string, title: string): Promise<ProjectAgentThread> {
   const db = getDb();
-  const [row] = await db.insert(projectAgentThreads).values({
-    projectId,
-    title,
-  }).returning();
+  const [row] = await db
+    .insert(projectAgentThreads)
+    .values({
+      projectId,
+      title,
+    })
+    .returning();
   return {
     id: row.id,
     projectId: row.projectId,
@@ -603,7 +649,9 @@ export async function getMessages(projectId: string, threadId?: string): Promise
   const condition = threadId
     ? and(eq(projectAgentMessages.projectId, projectId), eq(projectAgentMessages.threadId, threadId))
     : eq(projectAgentMessages.projectId, projectId);
-  const rows = await db.select().from(projectAgentMessages)
+  const rows = await db
+    .select()
+    .from(projectAgentMessages)
     .where(condition)
     .orderBy(asc(projectAgentMessages.createdAt));
   return rows.map(toMessage);
@@ -618,14 +666,17 @@ export async function addMessage(
   threadId?: string,
 ): Promise<ProjectAgentMessage> {
   const db = getDb();
-  const [row] = await db.insert(projectAgentMessages).values({
-    projectId,
-    role,
-    content,
-    toolCalls: toolCalls ?? null,
-    toolResults: toolResults ?? null,
-    threadId: threadId ?? null,
-  }).returning();
+  const [row] = await db
+    .insert(projectAgentMessages)
+    .values({
+      projectId,
+      role,
+      content,
+      toolCalls: toolCalls ?? null,
+      toolResults: toolResults ?? null,
+      threadId: threadId ?? null,
+    })
+    .returning();
   return toMessage(row);
 }
 
@@ -639,9 +690,7 @@ export async function getMessageCount(projectId: string, threadId?: string): Pro
   const condition = threadId
     ? and(eq(projectAgentMessages.projectId, projectId), eq(projectAgentMessages.threadId, threadId))
     : eq(projectAgentMessages.projectId, projectId);
-  const [{ value }] = await db.select({ value: count() })
-    .from(projectAgentMessages)
-    .where(condition);
+  const [{ value }] = await db.select({ value: count() }).from(projectAgentMessages).where(condition);
   return value;
 }
 

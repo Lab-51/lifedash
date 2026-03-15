@@ -6,7 +6,17 @@
 
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, AlertCircle, Info, ChevronDown, X, ArrowRight, Clock, LayoutGrid, ArrowUpRight } from 'lucide-react';
+import {
+  AlertTriangle,
+  AlertCircle,
+  Info,
+  ChevronDown,
+  X,
+  ArrowRight,
+  Clock,
+  LayoutGrid,
+  ArrowUpRight,
+} from 'lucide-react';
 import type { AgentInsight, InsightSeverity } from '../../../shared/types/background-agent';
 import { useBackgroundAgentStore } from '../../stores/backgroundAgentStore';
 import { formatRelativeTime } from '../../utils/date-utils';
@@ -27,10 +37,30 @@ interface StaleCardDetail {
 }
 
 const PRIORITY_STYLES: Record<string, { color: string; bg: string; border: string; bar: string }> = {
-  low: { color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800', bar: 'bg-emerald-500' },
-  medium: { color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800', bar: 'bg-blue-500' },
-  high: { color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', bar: 'bg-amber-500' },
-  urgent: { color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800', bar: 'bg-red-500' },
+  low: {
+    color: 'text-emerald-500',
+    bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+    border: 'border-emerald-200 dark:border-emerald-800',
+    bar: 'bg-emerald-500',
+  },
+  medium: {
+    color: 'text-blue-500',
+    bg: 'bg-blue-50 dark:bg-blue-900/20',
+    border: 'border-blue-200 dark:border-blue-800',
+    bar: 'bg-blue-500',
+  },
+  high: {
+    color: 'text-amber-500',
+    bg: 'bg-amber-50 dark:bg-amber-900/20',
+    border: 'border-amber-200 dark:border-amber-800',
+    bar: 'bg-amber-500',
+  },
+  urgent: {
+    color: 'text-red-500',
+    bg: 'bg-red-50 dark:bg-red-900/20',
+    border: 'border-red-200 dark:border-red-800',
+    bar: 'bg-red-500',
+  },
 };
 
 function SeverityIcon({ severity }: { severity: InsightSeverity }) {
@@ -44,17 +74,24 @@ function SeverityIcon({ severity }: { severity: InsightSeverity }) {
 }
 
 function severityAccent(severity: InsightSeverity) {
-  if (severity === 'critical') return { border: 'border-red-500/30', bg: 'bg-red-500/5', glow: 'shadow-red-500/5', indicator: 'bg-red-400' };
-  if (severity === 'warning') return { border: 'border-amber-500/30', bg: 'bg-amber-500/5', glow: 'shadow-amber-500/5', indicator: 'bg-amber-400' };
+  if (severity === 'critical')
+    return { border: 'border-red-500/30', bg: 'bg-red-500/5', glow: 'shadow-red-500/5', indicator: 'bg-red-400' };
+  if (severity === 'warning')
+    return {
+      border: 'border-amber-500/30',
+      bg: 'bg-amber-500/5',
+      glow: 'shadow-amber-500/5',
+      indicator: 'bg-amber-400',
+    };
   return { border: 'border-[var(--color-border)]', bg: '', glow: '', indicator: 'bg-[var(--color-accent)]' };
 }
 
 export default function InsightCard({ insight, projectName }: InsightCardProps) {
   const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
-  const markAsRead = useBackgroundAgentStore(s => s.markAsRead);
-  const markActedOn = useBackgroundAgentStore(s => s.markActedOn);
-  const dismissInsight = useBackgroundAgentStore(s => s.dismissInsight);
+  const markAsRead = useBackgroundAgentStore((s) => s.markAsRead);
+  const markActedOn = useBackgroundAgentStore((s) => s.markActedOn);
+  const dismissInsight = useBackgroundAgentStore((s) => s.dismissInsight);
 
   const accent = severityAccent(insight.severity);
 
@@ -63,7 +100,7 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
     (insight.details as { staleCards?: StaleCardDetail[] } | null)?.staleCards ?? [];
 
   // Build a lookup of cardId → card info for richer display
-  const cardInfoMap = new Map(staleCards.map(c => [c.id, c]));
+  const cardInfoMap = new Map(staleCards.map((c) => [c.id, c]));
 
   const handleExpand = () => {
     const next = !expanded;
@@ -119,7 +156,12 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
         role="button"
         tabIndex={0}
         onClick={() => handleNavigateToCard(cardId)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavigateToCard(cardId); } }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleNavigateToCard(cardId);
+          }
+        }}
         className="group/card relative hud-panel clip-corner-cut-sm p-3.5 cursor-pointer
           hover:border-[var(--color-accent-dim)] hover:shadow-[0_0_8px_rgba(62,232,228,0.1)]
           transition-all"
@@ -131,11 +173,16 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
             <h4 className="text-sm font-medium leading-snug text-surface-900 dark:text-surface-100 line-clamp-2 flex-1 min-w-0">
               {info?.title ?? `Card ${cardId.slice(0, 8)}...`}
             </h4>
-            <ArrowUpRight size={13} className="text-[var(--color-accent-dim)] shrink-0 mt-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity" />
+            <ArrowUpRight
+              size={13}
+              className="text-[var(--color-accent-dim)] shrink-0 mt-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity"
+            />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {info?.priority && (
-              <span className={`text-[0.625rem] uppercase font-bold px-1.5 py-0.5 rounded-md ${pStyle.bg} ${pStyle.color} border ${pStyle.border}`}>
+              <span
+                className={`text-[0.625rem] uppercase font-bold px-1.5 py-0.5 rounded-md ${pStyle.bg} ${pStyle.color} border ${pStyle.border}`}
+              >
                 {info.priority}
               </span>
             )}
@@ -145,13 +192,15 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
               </span>
             )}
             {info?.daysSinceUpdate !== undefined && (
-              <span className={`flex items-center gap-1 text-[0.6875rem] font-medium px-1.5 py-0.5 rounded-md border ${
-                info.daysSinceUpdate >= 30
-                  ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                  : info.daysSinceUpdate >= 14
-                    ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
-                    : 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
-              }`}>
+              <span
+                className={`flex items-center gap-1 text-[0.6875rem] font-medium px-1.5 py-0.5 rounded-md border ${
+                  info.daysSinceUpdate >= 30
+                    ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                    : info.daysSinceUpdate >= 14
+                      ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                      : 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+                }`}
+              >
                 <Clock size={10} />
                 {info.daysSinceUpdate}d inactive
               </span>
@@ -162,9 +211,7 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
     );
   };
 
-  const createdAt = insight.createdAt instanceof Date
-    ? insight.createdAt.toISOString()
-    : String(insight.createdAt);
+  const createdAt = insight.createdAt instanceof Date ? insight.createdAt.toISOString() : String(insight.createdAt);
 
   const isNew = insight.status === 'new';
 
@@ -173,16 +220,19 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
       className={`group relative overflow-hidden rounded-lg border ${accent.border} ${accent.bg} transition-all duration-200 hover:shadow-lg ${accent.glow}`}
     >
       {/* New indicator bar */}
-      {isNew && (
-        <div className={`absolute top-0 left-0 w-0.5 h-full ${accent.indicator}`} />
-      )}
+      {isNew && <div className={`absolute top-0 left-0 w-0.5 h-full ${accent.indicator}`} />}
 
       {/* Header — always visible */}
       <div
         role="button"
         tabIndex={0}
         onClick={handleExpand}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpand(); } }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleExpand();
+          }
+        }}
         className="w-full text-left p-4 flex items-start gap-3 hover:bg-white/[0.03] dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
       >
         <SeverityIcon severity={insight.severity} />
@@ -196,14 +246,19 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
               </span>
             )}
           </div>
-          <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2 mt-1 leading-relaxed">{insight.summary}</p>
+          <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2 mt-1 leading-relaxed">
+            {insight.summary}
+          </p>
           <div className="flex items-center gap-3 mt-2">
             <span className="inline-flex items-center gap-1 text-[0.6875rem] text-[var(--color-text-muted)]">
               <Clock size={10} className="opacity-60" />
               {formatRelativeTime(createdAt)}
             </span>
             {projectName && (
-              <span className="text-[0.6875rem] text-[var(--color-accent-dim)] truncate max-w-[150px]" title={projectName}>
+              <span
+                className="text-[0.6875rem] text-[var(--color-accent-dim)] truncate max-w-[150px]"
+                title={projectName}
+              >
                 {projectName}
               </span>
             )}
@@ -245,7 +300,7 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
               {isMultiProject ? (
                 // Group cards by project
                 [...uniqueProjects.entries()].map(([pid, pName]) => {
-                  const projectCards = staleCards.filter(c => c.projectId === pid);
+                  const projectCards = staleCards.filter((c) => c.projectId === pid);
                   if (projectCards.length === 0) return null;
                   return (
                     <div key={pid} className="mb-3 last:mb-0">
@@ -253,7 +308,7 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
                         {pName}
                       </p>
                       <div className="grid grid-cols-3 gap-2">
-                        {projectCards.map(card => renderCardTile(card.id, cardInfoMap.get(card.id)))}
+                        {projectCards.map((card) => renderCardTile(card.id, cardInfoMap.get(card.id)))}
                       </div>
                     </div>
                   );
@@ -261,7 +316,7 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
               ) : (
                 // Single project — flat grid, no subheader
                 <div className="grid grid-cols-3 gap-2">
-                  {insight.relatedCardIds.map(cardId => renderCardTile(cardId, cardInfoMap.get(cardId)))}
+                  {insight.relatedCardIds.map((cardId) => renderCardTile(cardId, cardInfoMap.get(cardId)))}
                 </div>
               )}
             </div>

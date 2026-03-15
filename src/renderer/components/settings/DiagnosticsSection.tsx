@@ -10,7 +10,8 @@ export default function DiagnosticsSection() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    window.electronAPI.diagnosticsGetCrashReportsEnabled()
+    window.electronAPI
+      .diagnosticsGetCrashReportsEnabled()
       .then((val) => setCrashReports(val))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -32,9 +33,7 @@ export default function DiagnosticsSection() {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-[var(--color-text-secondary)]">
-        Access diagnostic information for troubleshooting.
-      </p>
+      <p className="text-sm text-[var(--color-text-secondary)]">Access diagnostic information for troubleshooting.</p>
 
       <div className="flex items-center justify-between">
         <div>
@@ -56,8 +55,8 @@ export default function DiagnosticsSection() {
         <div>
           <p className="text-sm font-medium text-[var(--color-text-primary)]">Send anonymous crash reports</p>
           <p className="text-xs text-[var(--color-text-muted)] mt-0.5 max-w-md">
-            Help improve LifeDash by sending crash data when errors occur.
-            No meeting content, transcripts, API keys, or personal data is ever included.
+            Help improve LifeDash by sending crash data when errors occur. No meeting content, transcripts, API keys, or
+            personal data is ever included.
           </p>
         </div>
         {loading ? (

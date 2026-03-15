@@ -20,349 +20,370 @@ import { ConfirmDialog } from './ConfirmDialog';
 type SortOption = 'newest' | 'oldest' | 'title';
 
 export default function MeetingsModern() {
-    const meetings = useMeetingStore(s => s.meetings);
-    const loading = useMeetingStore(s => s.loading);
-    const error = useMeetingStore(s => s.error);
-    const loadMeetings = useMeetingStore(s => s.loadMeetings);
-    const loadMeeting = useMeetingStore(s => s.loadMeeting);
-    const deleteMeeting = useMeetingStore(s => s.deleteMeeting);
-    const addTranscriptSegment = useMeetingStore(s => s.addTranscriptSegment);
-    const actionItemCounts = useMeetingStore(s => s.actionItemCounts);
-    const loadActionItemCounts = useMeetingStore(s => s.loadActionItemCounts);
-    const isRecording = useRecordingStore(s => s.isRecording);
-    const completedMeetingId = useRecordingStore(s => s.completedMeetingId);
-    const clearCompletedMeetingId = useRecordingStore(s => s.clearCompletedMeetingId);
-    const projects = useProjectStore(s => s.projects);
-    const loadProjects = useProjectStore(s => s.loadProjects);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [sortBy, setSortBy] = useState<SortOption>('newest');
-    const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
-    const [deleteMeetingConfirm, setDeleteMeetingConfirm] = useState<{ id: string; title: string } | null>(null);
-    const [autoOpenedMeetingId, setAutoOpenedMeetingId] = useState<string | null>(null);
-    const [initialTranscriptSearch, setInitialTranscriptSearch] = useState<string | undefined>(undefined);
-    const prevIsRecording = useRef(isRecording);
-    const [hasModel, setHasModel] = useState<boolean | null>(null);
-    const [downloading, setDownloading] = useState(false);
-    const [downloadProgress, setDownloadProgress] = useState(0);
-    const [showControls, setShowControls] = useState(false);
-    const [searchParams, setSearchParams] = useSearchParams();
+  const meetings = useMeetingStore((s) => s.meetings);
+  const loading = useMeetingStore((s) => s.loading);
+  const error = useMeetingStore((s) => s.error);
+  const loadMeetings = useMeetingStore((s) => s.loadMeetings);
+  const loadMeeting = useMeetingStore((s) => s.loadMeeting);
+  const deleteMeeting = useMeetingStore((s) => s.deleteMeeting);
+  const addTranscriptSegment = useMeetingStore((s) => s.addTranscriptSegment);
+  const actionItemCounts = useMeetingStore((s) => s.actionItemCounts);
+  const loadActionItemCounts = useMeetingStore((s) => s.loadActionItemCounts);
+  const isRecording = useRecordingStore((s) => s.isRecording);
+  const completedMeetingId = useRecordingStore((s) => s.completedMeetingId);
+  const clearCompletedMeetingId = useRecordingStore((s) => s.clearCompletedMeetingId);
+  const projects = useProjectStore((s) => s.projects);
+  const loadProjects = useProjectStore((s) => s.loadProjects);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
+  const [deleteMeetingConfirm, setDeleteMeetingConfirm] = useState<{ id: string; title: string } | null>(null);
+  const [autoOpenedMeetingId, setAutoOpenedMeetingId] = useState<string | null>(null);
+  const [initialTranscriptSearch, setInitialTranscriptSearch] = useState<string | undefined>(undefined);
+  const prevIsRecording = useRef(isRecording);
+  const [hasModel, setHasModel] = useState<boolean | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [showControls, setShowControls] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-    // Open meeting from URL search param (e.g. ?openMeeting=<id> from dashboard deep-link)
-    useEffect(() => {
-        const openMeetingId = searchParams.get('openMeeting');
-        if (openMeetingId && !loading && meetings.length > 0) {
-            const tsSearch = searchParams.get('transcriptSearch') ?? undefined;
-            setInitialTranscriptSearch(tsSearch);
-            setSelectedMeetingId(openMeetingId);
-            searchParams.delete('openMeeting');
-            searchParams.delete('transcriptSearch');
-            setSearchParams(searchParams, { replace: true });
-        }
-    }, [searchParams, setSearchParams, loading, meetings.length]);
-
-    // Handle ?action=record — just clear the param (recording controls are always visible)
-    // Handle ?action=record
-    useEffect(() => {
-        if (searchParams.get('action') === 'record') {
-            setShowControls(true);
-            searchParams.delete('action');
-            setSearchParams(searchParams, { replace: true });
-        }
-    }, [searchParams, setSearchParams]);
-
-    // Load meetings and projects on mount
-    useEffect(() => {
-        loadMeetings();
-        loadProjects();
-    }, [loadMeetings, loadProjects]);
-
-    // Load action item counts once meetings are available
-    useEffect(() => {
-        if (meetings.length > 0) {
-            loadActionItemCounts();
-        }
-    }, [meetings.length, loadActionItemCounts]);
-
-    // Check if whisper model is available
-    useEffect(() => {
-        window.electronAPI.hasWhisperModel().then(setHasModel);
-    }, []);
-
-    // Refresh meetings list when recording stops
-    useEffect(() => {
-        if (prevIsRecording.current && !isRecording) {
-            loadMeetings();
-        }
-        prevIsRecording.current = isRecording;
-    }, [isRecording, loadMeetings]);
-
-    // Auto-open meeting detail when a recording finishes processing
-    useEffect(() => {
-        if (completedMeetingId) {
-            loadMeetings();
-            setSelectedMeetingId(completedMeetingId);
-            setAutoOpenedMeetingId(completedMeetingId);
-            clearCompletedMeetingId();
-        }
-    }, [completedMeetingId, loadMeetings, clearCompletedMeetingId]);
-
-    // Load selected meeting detail
-    useEffect(() => {
-        if (selectedMeetingId) {
-            loadMeeting(selectedMeetingId);
-        }
-    }, [selectedMeetingId, loadMeeting]);
-
-    // Listen for real-time transcript segments
-    useEffect(() => {
-        const cleanup = window.electronAPI.onTranscriptSegment((segment) => {
-            addTranscriptSegment(segment);
-        });
-        return cleanup;
-    }, [addTranscriptSegment]);
-
-    // Download whisper model
-    const handleDownloadModel = async () => {
-        setDownloading(true);
-        const cleanup = window.electronAPI.onWhisperDownloadProgress((progress) => {
-            setDownloadProgress(progress.percent);
-        });
-        try {
-            await window.electronAPI.downloadWhisperModel('ggml-base.en.bin');
-            setHasModel(true);
-        } catch {
-            // Download failed - user can retry
-        } finally {
-            setDownloading(false);
-            cleanup();
-        }
-    };
-
-    // Build project name and color lookup maps
-    const projectNameMap = new Map(projects.map(p => [p.id, p.name]));
-    const projectColorMap = useMemo(() => {
-        const map = new Map<string, string>();
-        projects.forEach(p => map.set(p.id, p.color ?? '#6366f1'));
-        return map;
-    }, [projects]);
-
-    // Filter meetings by search query
-    const filteredMeetings = meetings.filter(m => {
-        if (searchQuery.trim()) {
-            const query = searchQuery.trim().toLowerCase();
-            if (!m.title.toLowerCase().includes(query)) return false;
-        }
-        return true;
-    });
-
-    // Sort filtered meetings
-    const sortedMeetings = [...filteredMeetings].sort((a, b) => {
-        if (sortBy === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        if (sortBy === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        return a.title.localeCompare(b.title);
-    });
-
-    if (loading && meetings.length === 0) {
-        return (
-            <div className="flex-1 flex items-center justify-center">
-                <LoadingSpinner />
-            </div>
-        );
+  // Open meeting from URL search param (e.g. ?openMeeting=<id> from dashboard deep-link)
+  useEffect(() => {
+    const openMeetingId = searchParams.get('openMeeting');
+    if (openMeetingId && !loading && meetings.length > 0) {
+      const tsSearch = searchParams.get('transcriptSearch') ?? undefined;
+      setInitialTranscriptSearch(tsSearch);
+      setSelectedMeetingId(openMeetingId);
+      searchParams.delete('openMeeting');
+      searchParams.delete('transcriptSearch');
+      setSearchParams(searchParams, { replace: true });
     }
+  }, [searchParams, setSearchParams, loading, meetings.length]);
 
+  // Handle ?action=record — just clear the param (recording controls are always visible)
+  // Handle ?action=record
+  useEffect(() => {
+    if (searchParams.get('action') === 'record') {
+      setShowControls(true);
+      searchParams.delete('action');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  // Load meetings and projects on mount
+  useEffect(() => {
+    loadMeetings();
+    loadProjects();
+  }, [loadMeetings, loadProjects]);
+
+  // Load action item counts once meetings are available
+  useEffect(() => {
+    if (meetings.length > 0) {
+      loadActionItemCounts();
+    }
+  }, [meetings.length, loadActionItemCounts]);
+
+  // Check if whisper model is available
+  useEffect(() => {
+    window.electronAPI.hasWhisperModel().then(setHasModel);
+  }, []);
+
+  // Refresh meetings list when recording stops
+  useEffect(() => {
+    if (prevIsRecording.current && !isRecording) {
+      loadMeetings();
+    }
+    prevIsRecording.current = isRecording;
+  }, [isRecording, loadMeetings]);
+
+  // Auto-open meeting detail when a recording finishes processing
+  useEffect(() => {
+    if (completedMeetingId) {
+      loadMeetings();
+      setSelectedMeetingId(completedMeetingId);
+      setAutoOpenedMeetingId(completedMeetingId);
+      clearCompletedMeetingId();
+    }
+  }, [completedMeetingId, loadMeetings, clearCompletedMeetingId]);
+
+  // Load selected meeting detail
+  useEffect(() => {
+    if (selectedMeetingId) {
+      loadMeeting(selectedMeetingId);
+    }
+  }, [selectedMeetingId, loadMeeting]);
+
+  // Listen for real-time transcript segments
+  useEffect(() => {
+    const cleanup = window.electronAPI.onTranscriptSegment((segment) => {
+      addTranscriptSegment(segment);
+    });
+    return cleanup;
+  }, [addTranscriptSegment]);
+
+  // Download whisper model
+  const handleDownloadModel = async () => {
+    setDownloading(true);
+    const cleanup = window.electronAPI.onWhisperDownloadProgress((progress) => {
+      setDownloadProgress(progress.percent);
+    });
+    try {
+      await window.electronAPI.downloadWhisperModel('ggml-base.en.bin');
+      setHasModel(true);
+    } catch {
+      // Download failed - user can retry
+    } finally {
+      setDownloading(false);
+      cleanup();
+    }
+  };
+
+  // Build project name and color lookup maps
+  const projectNameMap = useMemo(() => new Map(projects.map((p) => [p.id, p.name])), [projects]);
+  const projectColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    projects.forEach((p) => map.set(p.id, p.color ?? '#6366f1'));
+    return map;
+  }, [projects]);
+
+  // Filter meetings by search query
+  const filteredMeetings = useMemo(() => {
+    return meetings.filter((m) => {
+      if (searchQuery.trim()) {
+        const query = searchQuery.trim().toLowerCase();
+        if (!m.title.toLowerCase().includes(query)) return false;
+      }
+      return true;
+    });
+  }, [meetings, searchQuery]);
+
+  // Sort filtered meetings
+  const sortedMeetings = useMemo(() => {
+    return [...filteredMeetings].sort((a, b) => {
+      if (sortBy === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (sortBy === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return a.title.localeCompare(b.title);
+    });
+  }, [filteredMeetings, sortBy]);
+
+  if (loading && meetings.length === 0) {
     return (
-        <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950 relative">
-            <HudBackground />
-            {/* HUD Header */}
-            <div className="p-8 pb-4 shrink-0">
-                <div className="flex items-center justify-between gap-4 mb-2">
-                    <div>
-                        <div className="flex items-center gap-4 mb-1">
-                            <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">SYS.MEETINGS</span>
-                            <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
-                        </div>
-                        <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Meetings</h1>
-                        <p className="text-[var(--color-text-secondary)] text-sm mt-1">Capture and analyze conversations.</p>
-                    </div>
-
-                    <button
-                        onClick={() => setShowControls(!showControls)}
-                        disabled={isRecording}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${showControls || isRecording
-                                ? 'bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] text-[var(--color-text-primary)] cursor-default'
-                                : 'bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] shadow-md hover:shadow-lg'
-                            }`}
-                    >
-                        {isRecording ? (
-                            <>
-                                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
-                                <span>Recording...</span>
-                            </>
-                        ) : showControls ? (
-                            <>
-                                <X size={18} />
-                                <span>Close Recorder</span>
-                            </>
-                        ) : (
-                            <>
-                                <Mic size={18} />
-                                <span>New Recording</span>
-                            </>
-                        )}
-                    </button>
-                </div>
-
-                <div className="mb-6" />
-                {/* Collapsible Recording Area */}
-                {(showControls || isRecording) && (
-                    <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-300">
-                        <div className="max-w-2xl mx-auto shadow-2xl rounded-xl overflow-hidden ring-1 ring-surface-950/5">
-                            <RecordingControls hasModel={hasModel} />
-                        </div>
-                    </div>
-                )}
-
-                {/* Filters & Search Toolbar */}
-                <div className="flex hud-panel p-1.5 rounded-xl items-center gap-2 mb-2">
-                    <div className="relative flex-1">
-                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
-                        <input
-                            type="text"
-                            placeholder="Search transcripts..."
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            className="w-full pl-8 pr-8 py-1.5 text-sm bg-transparent border-none focus:ring-0 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
-                        />
-                        {searchQuery && (
-                            <button
-                                onClick={() => setSearchQuery('')}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
-                            >
-                                <X size={12} />
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="h-6 w-px bg-[var(--color-border)] mx-1" />
-
-                    <div className="w-[130px] shrink-0">
-                        <HudSelect
-                            value={sortBy}
-                            onChange={(v) => setSortBy(v as typeof sortBy)}
-                            icon={ArrowDownWideNarrow}
-                            compact
-                            options={[
-                                { value: 'newest', label: 'Newest' },
-                                { value: 'oldest', label: 'Oldest' },
-                                { value: 'title', label: 'A-Z' },
-                            ]}
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {hasModel === false && (
-                <div className="px-8 mb-4">
-                    <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 flex items-start gap-3">
-                        <Info size={18} className="text-blue-500 mt-0.5" />
-                        <div className="flex-1">
-                            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Transcription Model Missing</p>
-                            <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
-                                Download the Whisper model to generate transcripts and use AI features.
-                            </p>
-                            {downloading ? (
-                                <div className="mt-3 w-full max-w-xs">
-                                    <div className="h-1.5 bg-blue-200 dark:bg-blue-900 rounded-full overflow-hidden">
-                                        <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
-                                    </div>
-                                    <p className="text-[0.625rem] text-blue-500 mt-1 font-medium">{downloadProgress}% Downloaded</p>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={handleDownloadModel}
-                                    className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mt-2 flex items-center gap-1"
-                                >
-                                    Download Model (74 MB)
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {error && (
-                <div className="px-8 mb-4">
-                    <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm">
-                        {error}
-                    </div>
-                </div>
-            )}
-
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto px-8 pb-8">
-                {sortedMeetings.length === 0 ? (
-                    searchQuery ? (
-                        <div className="mt-20 flex flex-col items-center justify-center text-center">
-                            <div className="w-24 h-24 bg-[var(--color-accent-subtle)] rounded-full flex items-center justify-center mb-6 border border-[var(--color-border-accent)]">
-                                <Mic size={40} className="text-[var(--color-accent-dim)]" />
-                            </div>
-                            <h3 className="text-xl font-medium text-[var(--color-text-primary)] mb-2">No matching meetings</h3>
-                            <p className="text-[var(--color-text-secondary)] max-w-md mx-auto">Try adjusting your filters or search query.</p>
-                        </div>
-                    ) : (
-                        <div className="mt-20">
-                            <EmptyFeatureState
-                                icon={Mic}
-                                title="Capture every meeting, privately"
-                                description="Record any meeting, get automatic transcripts and AI summaries, and push action items straight to your project board. Your recordings never leave your machine."
-                                benefits={['Private — all audio stays on your device', 'AI briefs and action items in seconds', 'One-click push to project boards']}
-                                ctaLabel="Record Your First Meeting"
-                                ctaAction={() => setShowControls(true)}
-                            />
-                        </div>
-                    )
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {sortedMeetings.map(meeting => (
-                            <MeetingCardModern
-                                key={meeting.id}
-                                meeting={meeting}
-                                projectName={meeting.projectId ? projectNameMap.get(meeting.projectId) : undefined}
-                                projectColor={meeting.projectId ? projectColorMap.get(meeting.projectId) : undefined}
-                                actionItemCount={actionItemCounts[meeting.id] || 0}
-                                onClick={() => setSelectedMeetingId(meeting.id)}
-                                onDelete={() => setDeleteMeetingConfirm({ id: meeting.id, title: meeting.title })}
-                            />
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* Meeting detail modal */}
-            <Suspense fallback={null}>
-                {selectedMeetingId && (
-                    <MeetingDetailModal
-                        autoGenerate={selectedMeetingId === autoOpenedMeetingId}
-                        initialTranscriptSearch={initialTranscriptSearch}
-                        onClose={() => {
-                            setSelectedMeetingId(null);
-                            setAutoOpenedMeetingId(null);
-                            setInitialTranscriptSearch(undefined);
-                            loadMeetings(); // Refresh list after viewing/editing
-                        }}
-                    />
-                )}
-            </Suspense>
-
-            <ConfirmDialog
-                open={!!deleteMeetingConfirm}
-                title="Delete Meeting"
-                message={deleteMeetingConfirm ? `Delete "${deleteMeetingConfirm.title}"? This cannot be undone.` : ''}
-                confirmLabel="Delete"
-                variant="danger"
-                onConfirm={() => { if (deleteMeetingConfirm) { deleteMeeting(deleteMeetingConfirm.id); setDeleteMeetingConfirm(null); } }}
-                onCancel={() => setDeleteMeetingConfirm(null)}
-            />
-        </div>
+      <div className="flex-1 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
     );
+  }
+
+  return (
+    <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950 relative">
+      <HudBackground />
+      {/* HUD Header */}
+      <div className="p-8 pb-4 shrink-0">
+        <div className="flex items-center justify-between gap-4 mb-2">
+          <div>
+            <div className="flex items-center gap-4 mb-1">
+              <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">
+                SYS.MEETINGS
+              </span>
+              <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
+            </div>
+            <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Meetings</h1>
+            <p className="text-[var(--color-text-secondary)] text-sm mt-1">Capture and analyze conversations.</p>
+          </div>
+
+          <button
+            onClick={() => setShowControls(!showControls)}
+            disabled={isRecording}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              showControls || isRecording
+                ? 'bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] text-[var(--color-text-primary)] cursor-default'
+                : 'bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] shadow-md hover:shadow-lg'
+            }`}
+          >
+            {isRecording ? (
+              <>
+                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                <span>Recording...</span>
+              </>
+            ) : showControls ? (
+              <>
+                <X size={18} />
+                <span>Close Recorder</span>
+              </>
+            ) : (
+              <>
+                <Mic size={18} />
+                <span>New Recording</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        <div className="mb-6" />
+        {/* Collapsible Recording Area */}
+        {(showControls || isRecording) && (
+          <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="max-w-2xl mx-auto shadow-2xl rounded-xl overflow-hidden ring-1 ring-surface-950/5">
+              <RecordingControls hasModel={hasModel} />
+            </div>
+          </div>
+        )}
+
+        {/* Filters & Search Toolbar */}
+        <div className="flex hud-panel p-1.5 rounded-xl items-center gap-2 mb-2">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+            <input
+              type="text"
+              placeholder="Search transcripts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-8 py-1.5 text-sm bg-transparent border-none focus:ring-0 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          <div className="h-6 w-px bg-[var(--color-border)] mx-1" />
+
+          <div className="w-[130px] shrink-0">
+            <HudSelect
+              value={sortBy}
+              onChange={(v) => setSortBy(v as typeof sortBy)}
+              icon={ArrowDownWideNarrow}
+              compact
+              options={[
+                { value: 'newest', label: 'Newest' },
+                { value: 'oldest', label: 'Oldest' },
+                { value: 'title', label: 'A-Z' },
+              ]}
+            />
+          </div>
+        </div>
+      </div>
+
+      {hasModel === false && (
+        <div className="px-8 mb-4">
+          <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 flex items-start gap-3">
+            <Info size={18} className="text-blue-500 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Transcription Model Missing</p>
+              <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+                Download the Whisper model to generate transcripts and use AI features.
+              </p>
+              {downloading ? (
+                <div className="mt-3 w-full max-w-xs">
+                  <div className="h-1.5 bg-blue-200 dark:bg-blue-900 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${downloadProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-[0.625rem] text-blue-500 mt-1 font-medium">{downloadProgress}% Downloaded</p>
+                </div>
+              ) : (
+                <button
+                  onClick={handleDownloadModel}
+                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mt-2 flex items-center gap-1"
+                >
+                  Download Model (74 MB)
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="px-8 mb-4">
+          <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm">
+            {error}
+          </div>
+        </div>
+      )}
+
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto px-8 pb-8">
+        {sortedMeetings.length === 0 ? (
+          searchQuery ? (
+            <div className="mt-20 flex flex-col items-center justify-center text-center">
+              <div className="w-24 h-24 bg-[var(--color-accent-subtle)] rounded-full flex items-center justify-center mb-6 border border-[var(--color-border-accent)]">
+                <Mic size={40} className="text-[var(--color-accent-dim)]" />
+              </div>
+              <h3 className="text-xl font-medium text-[var(--color-text-primary)] mb-2">No matching meetings</h3>
+              <p className="text-[var(--color-text-secondary)] max-w-md mx-auto">
+                Try adjusting your filters or search query.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-20">
+              <EmptyFeatureState
+                icon={Mic}
+                title="Capture every meeting, privately"
+                description="Record any meeting, get automatic transcripts and AI summaries, and push action items straight to your project board. Your recordings never leave your machine."
+                benefits={[
+                  'Private — all audio stays on your device',
+                  'AI briefs and action items in seconds',
+                  'One-click push to project boards',
+                ]}
+                ctaLabel="Record Your First Meeting"
+                ctaAction={() => setShowControls(true)}
+              />
+            </div>
+          )
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {sortedMeetings.map((meeting) => (
+              <MeetingCardModern
+                key={meeting.id}
+                meeting={meeting}
+                projectName={meeting.projectId ? projectNameMap.get(meeting.projectId) : undefined}
+                projectColor={meeting.projectId ? projectColorMap.get(meeting.projectId) : undefined}
+                actionItemCount={actionItemCounts[meeting.id] || 0}
+                onClick={() => setSelectedMeetingId(meeting.id)}
+                onDelete={() => setDeleteMeetingConfirm({ id: meeting.id, title: meeting.title })}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Meeting detail modal */}
+      <Suspense fallback={null}>
+        {selectedMeetingId && (
+          <MeetingDetailModal
+            autoGenerate={selectedMeetingId === autoOpenedMeetingId}
+            initialTranscriptSearch={initialTranscriptSearch}
+            onClose={() => {
+              setSelectedMeetingId(null);
+              setAutoOpenedMeetingId(null);
+              setInitialTranscriptSearch(undefined);
+              loadMeetings(); // Refresh list after viewing/editing
+            }}
+          />
+        )}
+      </Suspense>
+
+      <ConfirmDialog
+        open={!!deleteMeetingConfirm}
+        title="Delete Meeting"
+        message={deleteMeetingConfirm ? `Delete "${deleteMeetingConfirm.title}"? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (deleteMeetingConfirm) {
+            deleteMeeting(deleteMeetingConfirm.id);
+            setDeleteMeetingConfirm(null);
+          }
+        }}
+        onCancel={() => setDeleteMeetingConfirm(null)}
+      />
+    </div>
+  );
 }

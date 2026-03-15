@@ -107,9 +107,7 @@ export default function SyncSettings() {
             <Check size={12} />
             Synced
             {sync.lastSyncedAt && (
-              <span className="text-surface-500 ml-1">
-                {formatRelativeTime(sync.lastSyncedAt)}
-              </span>
+              <span className="text-surface-500 ml-1">{formatRelativeTime(sync.lastSyncedAt)}</span>
             )}
           </span>
         );
@@ -151,20 +149,14 @@ export default function SyncSettings() {
         {!sync.isAuthenticated ? (
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-[var(--color-text-secondary)]">
-                Sign in to enable cloud sync.
-              </p>
+              <p className="text-sm text-[var(--color-text-secondary)]">Sign in to enable cloud sync.</p>
             </div>
             <button
               onClick={handleSignIn}
               disabled={signingIn}
               className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] hover:shadow-[0_0_12px_var(--color-chrome-glow)] disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-sm transition-all"
             >
-              {signingIn ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <LogIn size={16} />
-              )}
+              {signingIn ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
               {signingIn ? 'Signing in...' : 'Sign In'}
             </button>
           </div>
@@ -179,12 +171,8 @@ export default function SyncSettings() {
                   </span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                    {sync.user?.email}
-                  </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {renderStatusIndicator()}
-                  </div>
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">{sync.user?.email}</p>
+                  <div className="flex items-center gap-2 mt-0.5">{renderStatusIndicator()}</div>
                 </div>
               </div>
               <button
@@ -218,13 +206,10 @@ export default function SyncSettings() {
                 <Info size={16} className="text-[var(--color-accent)] shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-[var(--color-text-primary)]">
-                    Your data will sync to the cloud so you can access it from the web.
-                    Audio recordings always stay on your machine.
+                    Your data will sync to the cloud so you can access it from the web. Audio recordings always stay on
+                    your machine.
                   </p>
-                  <button
-                    onClick={dismissFirstRun}
-                    className="text-xs text-[var(--color-accent)] hover:underline mt-1"
-                  >
+                  <button onClick={dismissFirstRun} className="text-xs text-[var(--color-accent)] hover:underline mt-1">
                     Got it
                   </button>
                 </div>
@@ -253,7 +238,10 @@ export default function SyncSettings() {
               <div className="pt-3 border-t border-[var(--color-border)] flex items-center justify-between">
                 <div className="text-xs text-surface-500">
                   {sync.lastSyncedAt ? (
-                    <>Last synced: {formatRelativeTime(sync.lastSyncedAt) || new Date(sync.lastSyncedAt).toLocaleString()}</>
+                    <>
+                      Last synced:{' '}
+                      {formatRelativeTime(sync.lastSyncedAt) || new Date(sync.lastSyncedAt).toLocaleString()}
+                    </>
                   ) : (
                     'Not yet synced'
                   )}
@@ -263,11 +251,7 @@ export default function SyncSettings() {
                   disabled={syncing || sync.status === 'syncing'}
                   className="flex items-center gap-2 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-sm transition-all"
                 >
-                  {syncing ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <RefreshCw size={16} />
-                  )}
+                  {syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                   {syncing ? 'Syncing...' : 'Sync Now'}
                 </button>
               </div>

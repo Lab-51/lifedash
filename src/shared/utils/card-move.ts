@@ -28,7 +28,7 @@ export function computeCardMove(
   siblingsInTarget: CardSibling[],
 ): MoveResult {
   // Remove the moved card from siblings (may already be in column for same-column reorder)
-  const filtered = siblingsInTarget.filter(c => c.id !== movedCardId);
+  const filtered = siblingsInTarget.filter((c) => c.id !== movedCardId);
 
   // Clamp position to valid range
   const clampedPosition = Math.max(0, Math.min(targetPosition, filtered.length));

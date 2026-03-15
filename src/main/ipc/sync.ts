@@ -68,10 +68,7 @@ export function registerSyncHandlers(mainWindow: BrowserWindow): void {
       if (!authState.isAuthenticated) return 'disconnected';
 
       const db = getDb();
-      const rows = await db
-        .select()
-        .from(settings)
-        .where(eq(settings.key, SETTINGS_KEY_SYNC_ENABLED));
+      const rows = await db.select().from(settings).where(eq(settings.key, SETTINGS_KEY_SYNC_ENABLED));
 
       const enabled = rows.length > 0 && rows[0].value === 'true';
       if (!enabled) return 'disconnected';
@@ -90,7 +87,8 @@ export function registerSyncHandlers(mainWindow: BrowserWindow): void {
     const db = getDb();
     const value = validEnabled ? 'true' : 'false';
 
-    await db.insert(settings)
+    await db
+      .insert(settings)
       .values({ key: SETTINGS_KEY_SYNC_ENABLED, value })
       .onConflictDoUpdate({
         target: settings.key,

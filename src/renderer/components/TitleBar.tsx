@@ -4,7 +4,20 @@
 // Includes cloud sync status indicator and app update status.
 
 import { useEffect, useState } from 'react';
-import { Minus, Square, Copy, X, Pin, PinOff, Download, CheckCircle, Loader2, Cloud, CloudOff, AlertCircle } from 'lucide-react';
+import {
+  Minus,
+  Square,
+  Copy,
+  X,
+  Pin,
+  PinOff,
+  Download,
+  CheckCircle,
+  Loader2,
+  Cloud,
+  CloudOff,
+  AlertCircle,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import dashIcon from '../assets/icon.svg';
 import useSyncStatus, { formatRelativeTime } from '../hooks/useSyncStatus';
@@ -60,19 +73,22 @@ function TitleBar() {
           </span>
         </div>
 
-        <div
-          className="flex h-full"
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
+        <div className="flex h-full" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {/* Update status indicator */}
           {updateStatus === 'checking' && (
-            <div className="h-full inline-flex items-center gap-1.5 px-3 text-xs text-[var(--color-text-muted)]" title="Checking for updates...">
+            <div
+              className="h-full inline-flex items-center gap-1.5 px-3 text-xs text-[var(--color-text-muted)]"
+              title="Checking for updates..."
+            >
               <Loader2 size={12} className="animate-spin" />
               <span>Checking</span>
             </div>
           )}
           {updateStatus === 'up-to-date' && (
-            <div className="h-full inline-flex items-center gap-1.5 px-3 text-xs text-emerald-500/70" title="You're on the latest version">
+            <div
+              className="h-full inline-flex items-center gap-1.5 px-3 text-xs text-emerald-500/70"
+              title="You're on the latest version"
+            >
               <CheckCircle size={12} />
               <span>Up to date</span>
             </div>
@@ -144,10 +160,11 @@ function TitleBar() {
           <button
             type="button"
             onClick={toggleAlwaysOnTop}
-            className={`w-10 h-full inline-flex items-center justify-center transition-colors ${isAlwaysOnTop
-              ? 'text-[var(--color-accent)] bg-[var(--color-accent-subtle)]'
-              : 'text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
-              }`}
+            className={`w-10 h-full inline-flex items-center justify-center transition-colors ${
+              isAlwaysOnTop
+                ? 'text-[var(--color-accent)] bg-[var(--color-accent-subtle)]'
+                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
+            }`}
             title={isAlwaysOnTop ? 'Unpin' : 'Pin on top'}
           >
             {isAlwaysOnTop ? <Pin size={13} fill="currentColor" /> : <PinOff size={13} />}

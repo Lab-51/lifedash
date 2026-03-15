@@ -62,10 +62,7 @@ async function loadTagsForIdeas(ideaIds: string[]): Promise<Map<string, string[]
   if (ideaIds.length === 0) return tagMap;
 
   const db = getDb();
-  const tagRows = await db
-    .select()
-    .from(ideaTags)
-    .where(inArray(ideaTags.ideaId, ideaIds));
+  const tagRows = await db.select().from(ideaTags).where(inArray(ideaTags.ideaId, ideaIds));
 
   for (const row of tagRows) {
     const existing = tagMap.get(row.ideaId) ?? [];
@@ -87,9 +84,7 @@ async function replaceTags(ideaId: string, tags: string[]): Promise<void> {
 
   // Insert new tags (if any)
   if (tags.length > 0) {
-    await db.insert(ideaTags).values(
-      tags.map((tag) => ({ ideaId, tag })),
-    );
+    await db.insert(ideaTags).values(tags.map((tag) => ({ ideaId, tag })));
   }
 }
 
@@ -155,11 +150,7 @@ export async function updateIdea(id: string, data: UpdateIdeaInput): Promise<Ide
   if (data.effort !== undefined) updateData.effort = data.effort;
   if (data.impact !== undefined) updateData.impact = data.impact;
 
-  const [row] = await db
-    .update(ideas)
-    .set(updateData)
-    .where(eq(ideas.id, id))
-    .returning();
+  const [row] = await db.update(ideas).set(updateData).where(eq(ideas.id, id)).returning();
 
   if (!row) throw new Error(`Idea not found: ${id}`);
 
@@ -222,20 +213,14 @@ export async function convertIdeaToProject(id: string): Promise<ConvertIdeaToPro
  * Convert an idea into a board card in the specified column.
  * Creates the card at the end of the column and sets the idea status to 'active'.
  */
-export async function convertIdeaToCard(
-  ideaId: string,
-  columnId: string,
-): Promise<ConvertIdeaToCardResult> {
+export async function convertIdeaToCard(ideaId: string, columnId: string): Promise<ConvertIdeaToCardResult> {
   const idea = await getIdea(ideaId);
   if (!idea) throw new Error(`Idea not found: ${ideaId}`);
 
   const db = getDb();
 
   // Count existing cards in target column for position
-  const [{ value: cardCount }] = await db
-    .select({ value: count() })
-    .from(cards)
-    .where(eq(cards.columnId, columnId));
+  const [{ value: cardCount }] = await db.select({ value: count() }).from(cards).where(eq(cards.columnId, columnId));
 
   // Create card
   const [card] = await db
@@ -310,10 +295,7 @@ export async function analyzeIdea(ideaId: string): Promise<IdeaAnalysis> {
   if (!ideaRow) throw new Error(`Idea not found: ${ideaId}`);
 
   // Load tags
-  const tagRows = await db
-    .select({ tag: ideaTags.tag })
-    .from(ideaTags)
-    .where(eq(ideaTags.ideaId, ideaId));
+  const tagRows = await db.select({ tag: ideaTags.tag }).from(ideaTags).where(eq(ideaTags.ideaId, ideaId));
   const tags = tagRows.map((r) => r.tag);
 
   // Resolve AI provider
@@ -385,12 +367,7 @@ function validateAnalysis(parsed: Record<string, unknown>): IdeaAnalysis {
       ? (parsed.suggestedImpact as ImpactLevel)
       : 'medium',
     feasibilityNotes:
-      typeof parsed.feasibilityNotes === 'string'
-        ? parsed.feasibilityNotes
-        : 'No feasibility notes provided.',
-    rationale:
-      typeof parsed.rationale === 'string'
-        ? parsed.rationale
-        : 'No rationale provided.',
+      typeof parsed.feasibilityNotes === 'string' ? parsed.feasibilityNotes : 'No feasibility notes provided.',
+    rationale: typeof parsed.rationale === 'string' ? parsed.rationale : 'No rationale provided.',
   };
 }

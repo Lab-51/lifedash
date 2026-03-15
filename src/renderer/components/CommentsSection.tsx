@@ -27,10 +27,10 @@ interface CommentsSectionProps {
 }
 
 function CommentsSection({ cardId }: CommentsSectionProps) {
-  const selectedCardComments = useCardDetailStore(s => s.selectedCardComments);
-  const addComment = useCardDetailStore(s => s.addComment);
-  const updateComment = useCardDetailStore(s => s.updateComment);
-  const deleteComment = useCardDetailStore(s => s.deleteComment);
+  const selectedCardComments = useCardDetailStore((s) => s.selectedCardComments);
+  const addComment = useCardDetailStore((s) => s.addComment);
+  const updateComment = useCardDetailStore((s) => s.updateComment);
+  const deleteComment = useCardDetailStore((s) => s.deleteComment);
 
   const [newComment, setNewComment] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -39,7 +39,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
 
   const commentVoice = useVoiceInput({
     onTranscript: (text) => {
-      setNewComment(prev => {
+      setNewComment((prev) => {
         const base = prev.endsWith(' ') || prev === '' ? prev : prev + ' ';
         return base + text;
       });
@@ -113,9 +113,15 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
       <div className="mb-4">
         <textarea
           value={newComment}
-          onChange={e => setNewComment(e.target.value)}
+          onChange={(e) => setNewComment(e.target.value)}
           onKeyDown={handleAddKeyDown}
-          placeholder={commentVoice.isListening ? 'Listening...' : commentVoice.isProcessing ? 'Transcribing...' : 'Write a comment...'}
+          placeholder={
+            commentVoice.isListening
+              ? 'Listening...'
+              : commentVoice.isProcessing
+                ? 'Transcribing...'
+                : 'Write a comment...'
+          }
           rows={3}
           className={`bg-[var(--color-accent-subtle)]/30 border rounded-lg p-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] resize-none w-full focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-dim)] transition-colors ${commentVoice.isListening ? 'border-red-400 dark:border-red-500 focus:border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-accent-dim)]'}`}
         />
@@ -132,13 +138,20 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
           <button
             onClick={commentVoice.toggle}
             disabled={commentVoice.isProcessing}
-            className={`p-1.5 rounded-lg transition-all ${commentVoice.isListening
-              ? 'bg-red-500/15 text-red-500 hover:bg-red-500/25 animate-pulse'
-              : commentVoice.isProcessing
-                ? 'text-[var(--color-accent)] animate-pulse cursor-wait'
-                : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
-              }`}
-            title={commentVoice.isListening ? 'Stop & transcribe' : commentVoice.isProcessing ? 'Transcribing...' : 'Voice input'}
+            className={`p-1.5 rounded-lg transition-all ${
+              commentVoice.isListening
+                ? 'bg-red-500/15 text-red-500 hover:bg-red-500/25 animate-pulse'
+                : commentVoice.isProcessing
+                  ? 'text-[var(--color-accent)] animate-pulse cursor-wait'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
+            }`}
+            title={
+              commentVoice.isListening
+                ? 'Stop & transcribe'
+                : commentVoice.isProcessing
+                  ? 'Transcribing...'
+                  : 'Voice input'
+            }
           >
             {commentVoice.isListening ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
@@ -158,17 +171,14 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
       ) : (
         <div>
           <div className="space-y-2">
-            {(expanded ? selectedCardComments : selectedCardComments.slice(0, 3)).map(comment => (
-              <div
-                key={comment.id}
-                className="hud-panel rounded-lg px-3 py-2.5"
-              >
+            {(expanded ? selectedCardComments : selectedCardComments.slice(0, 3)).map((comment) => (
+              <div key={comment.id} className="hud-panel rounded-lg px-3 py-2.5">
                 {editingId === comment.id ? (
                   /* Edit mode */
                   <div>
                     <textarea
                       value={editContent}
-                      onChange={e => setEditContent(e.target.value)}
+                      onChange={(e) => setEditContent(e.target.value)}
                       onKeyDown={handleEditKeyDown}
                       rows={3}
                       autoFocus
@@ -193,9 +203,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
                 ) : (
                   /* Display mode */
                   <div>
-                    <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap">
-                      {comment.content}
-                    </p>
+                    <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap">{comment.content}</p>
                     <div className="flex items-center gap-2 mt-1.5">
                       <span className="font-data text-xs text-[var(--color-text-muted)]">
                         {timeAgo(comment.createdAt)}
@@ -225,7 +233,7 @@ function CommentsSection({ cardId }: CommentsSectionProps) {
           {/* Expand/collapse toggle */}
           {selectedCardComments.length > 3 && (
             <button
-              onClick={() => setExpanded(prev => !prev)}
+              onClick={() => setExpanded((prev) => !prev)}
               className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
             >
               {expanded ? (

@@ -25,7 +25,7 @@ const SPEAKER_COLORS = [
 ];
 
 /** Get color scheme for a speaker label. Exported for reuse in transcript display. */
-export function getSpeakerColor(speaker: string): typeof SPEAKER_COLORS[0] {
+export function getSpeakerColor(speaker: string): (typeof SPEAKER_COLORS)[0] {
   // Extract number from "Speaker N" to get consistent colors
   const match = speaker.match(/(\d+)$/);
   const index = match ? (parseInt(match[1], 10) - 1) % SPEAKER_COLORS.length : 0;
@@ -44,16 +44,13 @@ function formatDurationLong(ms: number): string {
   return `${seconds}s`;
 }
 
-export default function MeetingAnalyticsSection({
-  meetingId,
-  isCompleted,
-}: MeetingAnalyticsSectionProps) {
-  const analytics = useMeetingStore(s => s.analytics);
-  const analyticsLoading = useMeetingStore(s => s.analyticsLoading);
-  const diarizing = useMeetingStore(s => s.diarizing);
-  const diarizationError = useMeetingStore(s => s.diarizationError);
-  const loadAnalytics = useMeetingStore(s => s.loadAnalytics);
-  const diarizeMeeting = useMeetingStore(s => s.diarizeMeeting);
+export default function MeetingAnalyticsSection({ meetingId, isCompleted }: MeetingAnalyticsSectionProps) {
+  const analytics = useMeetingStore((s) => s.analytics);
+  const analyticsLoading = useMeetingStore((s) => s.analyticsLoading);
+  const diarizing = useMeetingStore((s) => s.diarizing);
+  const diarizationError = useMeetingStore((s) => s.diarizationError);
+  const loadAnalytics = useMeetingStore((s) => s.loadAnalytics);
+  const diarizeMeeting = useMeetingStore((s) => s.diarizeMeeting);
 
   // Load analytics on mount
   useEffect(() => {
@@ -134,7 +131,9 @@ export default function MeetingAnalyticsSection({
                   <div key={spkr.speaker} className="group">
                     <div className="flex flex-wrap items-end justify-between text-sm mb-2 gap-2">
                       <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${color.bg.replace('bg-', 'bg-').replace('-500', '-500/10')} ${color.text}`}>
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-bold ${color.bg.replace('bg-', 'bg-').replace('-500', '-500/10')} ${color.text}`}
+                        >
                           {spkr.speaker}
                         </span>
                         <span className="text-surface-600 dark:text-surface-300 font-medium">
@@ -164,9 +163,7 @@ export default function MeetingAnalyticsSection({
                 Speaker Data
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-surface-500">
-                  Not available
-                </span>
+                <span className="text-sm font-medium text-surface-500">Not available</span>
                 <button
                   onClick={() => diarizeMeeting(meetingId)}
                   disabled={diarizing}
@@ -184,7 +181,9 @@ export default function MeetingAnalyticsSection({
               </div>
             </div>
             {diarizationError && (
-              <p className="text-sm text-red-500 dark:text-red-400 mt-2 bg-red-50 dark:bg-red-500/10 p-2 rounded-md">{diarizationError}</p>
+              <p className="text-sm text-red-500 dark:text-red-400 mt-2 bg-red-50 dark:bg-red-500/10 p-2 rounded-md">
+                {diarizationError}
+              </p>
             )}
           </div>
         )}

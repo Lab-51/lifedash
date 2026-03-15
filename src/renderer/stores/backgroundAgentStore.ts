@@ -101,7 +101,7 @@ export const useBackgroundAgentStore = create<BackgroundAgentStore>((set, get) =
   markAsRead: async (id: string) => {
     // Optimistic update — change status to 'read' in local state
     set({
-      insights: get().insights.map(insight =>
+      insights: get().insights.map((insight) =>
         insight.id === id ? { ...insight, status: 'read' as const, readAt: new Date() } : insight,
       ),
     });
@@ -114,7 +114,7 @@ export const useBackgroundAgentStore = create<BackgroundAgentStore>((set, get) =
 
   dismissInsight: async (id: string) => {
     // Optimistic update — remove from local state
-    set({ insights: get().insights.filter(insight => insight.id !== id) });
+    set({ insights: get().insights.filter((insight) => insight.id !== id) });
     try {
       await window.electronAPI.backgroundAgentDismiss(id);
     } catch (error) {
@@ -125,7 +125,7 @@ export const useBackgroundAgentStore = create<BackgroundAgentStore>((set, get) =
   markActedOn: async (id: string) => {
     // Optimistic update — change status to 'acted_on'
     set({
-      insights: get().insights.map(insight =>
+      insights: get().insights.map((insight) =>
         insight.id === id ? { ...insight, status: 'acted_on' as const } : insight,
       ),
     });

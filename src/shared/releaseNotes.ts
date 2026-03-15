@@ -33,9 +33,7 @@ export const releaseHistory: ReleaseNotesData[] = [
       {
         category: 'fixes',
         label: 'Fixes',
-        items: [
-          'Links now open in your default browser instead of getting trapped in an in-app window',
-        ],
+        items: ['Links now open in your default browser instead of getting trapped in an in-app window'],
       },
     ],
   },
@@ -50,7 +48,7 @@ export const releaseHistory: ReleaseNotesData[] = [
           'AI Daily & Weekly Briefs — get an AI-generated summary of the most important stories',
           'In-app article reader with clean typography and comfortable reading experience',
           'Reddit support — posts and top comments rendered natively in the reader',
-          'Brief Discussion chat — ask AI about the day\'s news directly from the brief panel',
+          "Brief Discussion chat — ask AI about the day's news directly from the brief panel",
           'Magazine-style grid layout with hero card for top stories',
           'Article actions — save as idea, start a project, or discuss with AI from any article',
           'Clickable article titles in the daily brief open the in-app reader',
@@ -62,7 +60,7 @@ export const releaseHistory: ReleaseNotesData[] = [
         category: 'fixes',
         label: 'Fixes',
         items: [
-          'Daily brief now correctly analyzes only today\'s articles',
+          "Daily brief now correctly analyzes only today's articles",
           'Source toggle and delete immediately refreshes the article feed',
           'Fixed modals closing instantly when opened (FocusTrap issue)',
           'RSS feeds work reliably with Reddit, Google AI Blog, and other tricky sources',

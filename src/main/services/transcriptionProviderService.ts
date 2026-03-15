@@ -34,11 +34,7 @@ const DEFAULT_CONFIG: TranscriptionProviderConfig = { type: 'local' };
 export async function getConfig(): Promise<TranscriptionProviderConfig> {
   try {
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, SETTINGS_KEY))
-      .limit(1);
+    const rows = await db.select().from(settings).where(eq(settings.key, SETTINGS_KEY)).limit(1);
 
     if (rows.length === 0) {
       return { ...DEFAULT_CONFIG };
@@ -78,10 +74,7 @@ export async function setProviderType(type: TranscriptionProviderType): Promise<
  * Store an encrypted API key for a cloud transcription provider.
  * The plain-text key is encrypted via Electron safeStorage before storage.
  */
-export async function setApiKey(
-  provider: 'deepgram' | 'assemblyai',
-  apiKey: string,
-): Promise<void> {
+export async function setApiKey(provider: 'deepgram' | 'assemblyai', apiKey: string): Promise<void> {
   const config = await getConfig();
   const encrypted = encryptString(apiKey);
 
@@ -98,14 +91,9 @@ export async function setApiKey(
  * Decrypt and return an API key for internal use by transcriber services.
  * Never exposed via IPC — only used by main-process transcription logic.
  */
-export async function getDecryptedKey(
-  provider: 'deepgram' | 'assemblyai',
-): Promise<string | null> {
+export async function getDecryptedKey(provider: 'deepgram' | 'assemblyai'): Promise<string | null> {
   const config = await getConfig();
-  const encrypted =
-    provider === 'deepgram'
-      ? config.deepgramKeyEncrypted
-      : config.assemblyaiKeyEncrypted;
+  const encrypted = provider === 'deepgram' ? config.deepgramKeyEncrypted : config.assemblyaiKeyEncrypted;
 
   if (!encrypted) return null;
 
@@ -126,17 +114,10 @@ async function saveConfig(config: TranscriptionProviderConfig): Promise<void> {
   const db = getDb();
   const value = JSON.stringify(config);
 
-  const existing = await db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, SETTINGS_KEY))
-    .limit(1);
+  const existing = await db.select().from(settings).where(eq(settings.key, SETTINGS_KEY)).limit(1);
 
   if (existing.length > 0) {
-    await db
-      .update(settings)
-      .set({ value, updatedAt: new Date() })
-      .where(eq(settings.key, SETTINGS_KEY));
+    await db.update(settings).set({ value, updatedAt: new Date() }).where(eq(settings.key, SETTINGS_KEY));
   } else {
     await db.insert(settings).values({
       key: SETTINGS_KEY,

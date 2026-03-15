@@ -11,8 +11,8 @@ export const TRANSCRIPTION_LANGUAGES: { code: TranscriptionLanguage; label: stri
 
 export interface TranscriptionProviderConfig {
   type: TranscriptionProviderType;
-  deepgramKeyEncrypted?: string;    // Encrypted via safeStorage
-  assemblyaiKeyEncrypted?: string;  // Encrypted via safeStorage
+  deepgramKeyEncrypted?: string; // Encrypted via safeStorage
+  assemblyaiKeyEncrypted?: string; // Encrypted via safeStorage
 }
 
 export interface TranscriptionProviderStatus {

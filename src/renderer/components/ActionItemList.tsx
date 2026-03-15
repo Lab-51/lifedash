@@ -163,10 +163,7 @@ export default function ActionItemList({
   onPushToColumn,
   pushing,
 }: ActionItemListProps) {
-  const approvedItems = useMemo(
-    () => actionItems.filter((a) => a.status === 'approved'),
-    [actionItems],
-  );
+  const approvedItems = useMemo(() => actionItems.filter((a) => a.status === 'approved'), [actionItems]);
 
   const hasLinkedProject = !!meetingProjectId;
   const showInlinePush = hasLinkedProject && approvedItems.length > 0 && !!onPushToColumn;
@@ -241,11 +238,7 @@ export default function ActionItemList({
               disabled={!selectedColumnId || pushing}
               className="flex items-center gap-1.5 text-sm bg-primary-600 hover:bg-primary-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg transition-colors shrink-0"
             >
-              {pushing ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Send size={14} />
-              )}
+              {pushing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               Push {approvedItems.length} approved
               {selectedColumnName ? ` to ${selectedColumnName}` : ''}
             </button>
@@ -266,9 +259,7 @@ export default function ActionItemList({
 
       {/* Info text for non-completed meetings */}
       {actionItems.length === 0 && !generatingActions && !isCompleted && (
-        <p className="text-sm text-surface-500">
-          Complete the recording to extract action items
-        </p>
+        <p className="text-sm text-surface-500">Complete the recording to extract action items</p>
       )}
     </div>
   );

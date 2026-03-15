@@ -53,9 +53,7 @@ function SyncIndicator() {
       break;
     case 'synced':
       icon = <Cloud size={14} className="text-emerald-400/70" />;
-      tooltip = sync.lastSyncedAt
-        ? `Synced ${formatRelativeTime(sync.lastSyncedAt)}`
-        : 'Synced';
+      tooltip = sync.lastSyncedAt ? `Synced ${formatRelativeTime(sync.lastSyncedAt)}` : 'Synced';
       break;
     case 'error':
       icon = <AlertCircle size={14} className="text-red-400" />;
@@ -91,9 +89,9 @@ function SyncIndicator() {
 
 function StatusBar() {
   const { connected, checking } = useDatabaseStatus();
-  const pendingActionCount = useMeetingStore(s => s.pendingActionCount);
-  const focusMode = useFocusStore(s => s.mode);
-  const stats = useGamificationStore(s => s.stats);
+  const pendingActionCount = useMeetingStore((s) => s.pendingActionCount);
+  const focusMode = useFocusStore((s) => s.mode);
+  const stats = useGamificationStore((s) => s.stats);
 
   useEffect(() => {
     const load = useMeetingStore.getState().loadPendingActionCount;
@@ -113,10 +111,7 @@ function StatusBar() {
       <div className="h-6 flex items-center justify-between bg-[var(--color-chrome)] border-t border-[var(--color-border)] px-3 font-data">
         {/* Left: database connection status */}
         <div className="flex items-center gap-1.5">
-          <span
-            className={`w-2 h-2 rounded-full ${getIndicatorClass(connected, checking)}`}
-            aria-hidden="true"
-          />
+          <span className={`w-2 h-2 rounded-full ${getIndicatorClass(connected, checking)}`} aria-hidden="true" />
           <span className="text-xs text-[var(--color-text-secondary)] animate-data-flicker">
             {getStatusLabel(connected, checking)}
           </span>
@@ -141,9 +136,7 @@ function StatusBar() {
           )}
 
           {/* Level indicator when idle */}
-          {focusMode === 'idle' && stats && (
-            <LevelBadge level={stats.level} size="sm" />
-          )}
+          {focusMode === 'idle' && stats && <LevelBadge level={stats.level} size="sm" />}
 
           <span className="text-[var(--color-text-muted)]">Ctrl+K: Commands</span>
         </div>

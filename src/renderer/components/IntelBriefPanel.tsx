@@ -54,7 +54,10 @@ function parseInlineFormatting(
         return (
           <button
             key={i}
-            onClick={(e) => { e.stopPropagation(); onOpenArticle(matchedItem); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenArticle(matchedItem);
+            }}
             className="cursor-pointer text-[var(--color-accent)] font-semibold hover:underline hover:text-[var(--color-accent-hover)] transition-colors text-left"
             title="Open article"
           >
@@ -62,7 +65,11 @@ function parseInlineFormatting(
           </button>
         );
       }
-      return <strong key={i} className="text-[var(--color-text-primary)] font-semibold">{inner}</strong>;
+      return (
+        <strong key={i} className="text-[var(--color-text-primary)] font-semibold">
+          {inner}
+        </strong>
+      );
     }
     // Check for non-bold article title mentions (exact match within text)
     return linkifyTitles(part, titleMap, onOpenArticle, i);
@@ -95,7 +102,8 @@ function linkifyTitles(
   // Try to find any article title mentioned in the text
   for (const [title, item] of titleMap) {
     const idx = text.toLowerCase().indexOf(title);
-    if (idx >= 0 && title.length > 15) { // Only link titles longer than 15 chars to avoid false positives
+    if (idx >= 0 && title.length > 15) {
+      // Only link titles longer than 15 chars to avoid false positives
       const before = text.slice(0, idx);
       const match = text.slice(idx, idx + title.length);
       const after = text.slice(idx + title.length);
@@ -104,7 +112,10 @@ function linkifyTitles(
           {before}
           <button
             key={`link-${keyBase}`}
-            onClick={(e) => { e.stopPropagation(); onOpenArticle(item); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenArticle(item);
+            }}
             className="cursor-pointer text-[var(--color-accent)] hover:underline hover:text-[var(--color-accent-hover)] transition-colors text-left"
             title="Open article"
           >
@@ -188,7 +199,9 @@ function renderBriefContent(
       const bulletText = trimmed.replace(/^\d+\.\s/, '');
       listItems.push(
         <li key={i} className="flex gap-2.5 text-sm text-[var(--color-text-secondary)] leading-relaxed">
-          <span className="text-[var(--color-accent)] shrink-0 mt-0.5 text-xs font-data">{trimmed.match(/^\d+/)?.[0]}.</span>
+          <span className="text-[var(--color-accent)] shrink-0 mt-0.5 text-xs font-data">
+            {trimmed.match(/^\d+/)?.[0]}.
+          </span>
           <span>{parseInlineFormatting(bulletText, titleMap, onOpenArticle)}</span>
         </li>,
       );
@@ -249,7 +262,7 @@ export default function IntelBriefPanel({
       {/* Header */}
       <div
         className="flex items-center justify-between px-5 py-4 cursor-pointer select-none hover:bg-[var(--color-accent-subtle)] transition-colors"
-        onClick={() => setCollapsed(c => !c)}
+        onClick={() => setCollapsed((c) => !c)}
       >
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-[var(--color-accent-muted)] flex items-center justify-center">
@@ -271,7 +284,7 @@ export default function IntelBriefPanel({
           {/* Daily / Weekly toggle */}
           <div
             className="flex rounded-lg border border-[var(--color-border)] overflow-hidden"
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => onSetType('daily')}
@@ -298,7 +311,7 @@ export default function IntelBriefPanel({
           {/* Generate / Regenerate button */}
           {!loading && (
             <button
-              onClick={e => {
+              onClick={(e) => {
                 e.stopPropagation();
                 onGenerate();
               }}
@@ -326,9 +339,7 @@ export default function IntelBriefPanel({
               <div className="w-10 h-10 rounded-full bg-[var(--color-accent-muted)] flex items-center justify-center">
                 <Loader2 size={20} className="animate-spin text-[var(--color-accent)]" />
               </div>
-              <span className="text-sm text-[var(--color-text-muted)]">
-                Generating your intelligence brief...
-              </span>
+              <span className="text-sm text-[var(--color-text-muted)]">Generating your intelligence brief...</span>
               <span className="text-xs text-[var(--color-text-muted)] opacity-60">
                 Analyzing articles and ranking by relevance
               </span>

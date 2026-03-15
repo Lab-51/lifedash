@@ -38,11 +38,7 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {
   try {
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, SETTINGS_KEY))
-      .limit(1);
+    const rows = await db.select().from(settings).where(eq(settings.key, SETTINGS_KEY)).limit(1);
 
     if (rows.length === 0) {
       return { ...DEFAULT_PREFERENCES };
@@ -60,9 +56,7 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
  * Update notification preferences (partial update supported).
  * Loads current preferences, merges with new values, and upserts to DB.
  */
-export async function updateNotificationPreferences(
-  prefs: Partial<NotificationPreferences>,
-): Promise<void> {
+export async function updateNotificationPreferences(prefs: Partial<NotificationPreferences>): Promise<void> {
   const current = await getNotificationPreferences();
   const merged = { ...current, ...prefs };
   const value = JSON.stringify(merged);
@@ -70,17 +64,10 @@ export async function updateNotificationPreferences(
   const db = getDb();
 
   // Check if key exists
-  const existing = await db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, SETTINGS_KEY))
-    .limit(1);
+  const existing = await db.select().from(settings).where(eq(settings.key, SETTINGS_KEY)).limit(1);
 
   if (existing.length > 0) {
-    await db
-      .update(settings)
-      .set({ value, updatedAt: new Date() })
-      .where(eq(settings.key, SETTINGS_KEY));
+    await db.update(settings).set({ value, updatedAt: new Date() }).where(eq(settings.key, SETTINGS_KEY));
   } else {
     await db.insert(settings).values({
       key: SETTINGS_KEY,

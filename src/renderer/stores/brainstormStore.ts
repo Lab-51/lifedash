@@ -102,17 +102,15 @@ export const useBrainstormStore = create<BrainstormStore>((set, get) => ({
   updateSession: async (id: string, data) => {
     const updated = await window.electronAPI.updateBrainstormSession(id, data);
     set({
-      sessions: get().sessions.map(s => (s.id === id ? updated : s)),
-      activeSession: get().activeSession?.id === id
-        ? { ...get().activeSession!, ...updated }
-        : get().activeSession,
+      sessions: get().sessions.map((s) => (s.id === id ? updated : s)),
+      activeSession: get().activeSession?.id === id ? { ...get().activeSession!, ...updated } : get().activeSession,
     });
   },
 
   deleteSession: async (id: string) => {
     await window.electronAPI.deleteBrainstormSession(id);
     set({
-      sessions: get().sessions.filter(s => s.id !== id),
+      sessions: get().sessions.filter((s) => s.id !== id),
       activeSession: get().activeSession?.id === id ? null : get().activeSession,
     });
   },
@@ -158,9 +156,7 @@ export const useBrainstormStore = create<BrainstormStore>((set, get) => ({
         activeSession: updatedSession,
         streaming: false,
         streamingText: '',
-        sessions: get().sessions.map(s =>
-          s.id === session.id ? { ...s, updatedAt: new Date().toISOString() } : s
-        ),
+        sessions: get().sessions.map((s) => (s.id === session.id ? { ...s, updatedAt: new Date().toISOString() } : s)),
       });
     } catch (error) {
       set({

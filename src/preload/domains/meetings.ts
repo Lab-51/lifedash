@@ -1,9 +1,6 @@
 // === Preload bridge: Meetings, recording, whisper, intelligence, diarization, analytics ===
 import { ipcRenderer } from 'electron';
-import type {
-  CreateMeetingInput, UpdateMeetingInput,
-  RecordingState, TranscriptSegment,
-} from '../../shared/types';
+import type { CreateMeetingInput, UpdateMeetingInput, RecordingState, TranscriptSegment } from '../../shared/types';
 import type { ActionItemStatus } from '../../shared/types';
 import type { WhisperDownloadProgress } from '../../shared/types';
 
@@ -12,20 +9,15 @@ export const meetingsBridge = {
   getMeetings: () => ipcRenderer.invoke('meetings:list'),
   getMeeting: (id: string) => ipcRenderer.invoke('meetings:get', id),
   createMeeting: (data: CreateMeetingInput) => ipcRenderer.invoke('meetings:create', data),
-  updateMeeting: (id: string, data: UpdateMeetingInput) =>
-    ipcRenderer.invoke('meetings:update', id, data),
+  updateMeeting: (id: string, data: UpdateMeetingInput) => ipcRenderer.invoke('meetings:update', id, data),
   deleteMeeting: (id: string) => ipcRenderer.invoke('meetings:delete', id),
-  getActionItemCounts: (meetingIds: string[]) =>
-    ipcRenderer.invoke('meetings:action-item-counts', meetingIds),
-  meetingsGetPendingActionCount: () =>
-    ipcRenderer.invoke('meetings:pending-action-count'),
+  getActionItemCounts: (meetingIds: string[]) => ipcRenderer.invoke('meetings:action-item-counts', meetingIds),
+  meetingsGetPendingActionCount: () => ipcRenderer.invoke('meetings:pending-action-count'),
 
   // Recording
-  startRecording: (meetingId: string) =>
-    ipcRenderer.invoke('recording:start', meetingId),
+  startRecording: (meetingId: string) => ipcRenderer.invoke('recording:start', meetingId),
   stopRecording: () => ipcRenderer.invoke('recording:stop'),
-  sendAudioChunk: (buffer: ArrayBuffer) =>
-    ipcRenderer.send('audio:chunk', Buffer.from(buffer)),
+  sendAudioChunk: (buffer: ArrayBuffer) => ipcRenderer.send('audio:chunk', Buffer.from(buffer)),
   enableLoopbackAudio: () => ipcRenderer.invoke('enable-loopback-audio'),
   disableLoopbackAudio: () => ipcRenderer.invoke('disable-loopback-audio'),
   onRecordingState: (callback: (state: RecordingState) => void) => {
@@ -59,8 +51,7 @@ export const meetingsBridge = {
 
   // Whisper Models
   getWhisperModels: () => ipcRenderer.invoke('whisper:list-models'),
-  downloadWhisperModel: (fileName: string) =>
-    ipcRenderer.invoke('whisper:download-model', fileName),
+  downloadWhisperModel: (fileName: string) => ipcRenderer.invoke('whisper:download-model', fileName),
   hasWhisperModel: () => ipcRenderer.invoke('whisper:has-model'),
   whisperGetActiveModel: () => ipcRenderer.invoke('whisper:get-active-model') as Promise<string | null>,
   whisperSetActiveModel: (fileName: string) => ipcRenderer.invoke('whisper:set-active-model', fileName),
@@ -75,14 +66,10 @@ export const meetingsBridge = {
   },
 
   // Meeting Intelligence
-  generateBrief: (meetingId: string) =>
-    ipcRenderer.invoke('meetings:generate-brief', meetingId),
-  generateActionItems: (meetingId: string) =>
-    ipcRenderer.invoke('meetings:generate-actions', meetingId),
-  getMeetingBrief: (meetingId: string) =>
-    ipcRenderer.invoke('meetings:get-brief', meetingId),
-  getMeetingActionItems: (meetingId: string) =>
-    ipcRenderer.invoke('meetings:get-actions', meetingId),
+  generateBrief: (meetingId: string) => ipcRenderer.invoke('meetings:generate-brief', meetingId),
+  generateActionItems: (meetingId: string) => ipcRenderer.invoke('meetings:generate-actions', meetingId),
+  getMeetingBrief: (meetingId: string) => ipcRenderer.invoke('meetings:get-brief', meetingId),
+  getMeetingActionItems: (meetingId: string) => ipcRenderer.invoke('meetings:get-actions', meetingId),
   updateActionItemStatus: (id: string, status: ActionItemStatus) =>
     ipcRenderer.invoke('meetings:update-action-status', id, status),
   convertActionToCard: (actionItemId: string, columnId: string) =>
@@ -92,14 +79,11 @@ export const meetingsBridge = {
   diarizeMeeting: (meetingId: string) => ipcRenderer.invoke('meeting:diarize', meetingId),
 
   // Meeting Analytics
-  getMeetingAnalytics: (meetingId: string) =>
-    ipcRenderer.invoke('meeting:analytics', meetingId),
+  getMeetingAnalytics: (meetingId: string) => ipcRenderer.invoke('meeting:analytics', meetingId),
 
   // Transcript Search
-  searchTranscripts: (query: string, limit?: number) =>
-    ipcRenderer.invoke('meetings:search-transcripts', query, limit),
+  searchTranscripts: (query: string, limit?: number) => ipcRenderer.invoke('meetings:search-transcripts', query, limit),
 
   // Meeting Prep
-  meetingsGeneratePrep: (projectId: string) =>
-    ipcRenderer.invoke('meetings:generate-prep', projectId),
+  meetingsGeneratePrep: (projectId: string) => ipcRenderer.invoke('meetings:generate-prep', projectId),
 };

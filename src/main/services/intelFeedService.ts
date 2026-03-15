@@ -24,6 +24,10 @@ import { createLogger } from './logger';
 
 const log = createLogger('IntelFeedService');
 
+// Debounce map for fetchArticleContent — prevents rapid duplicate fetches
+const recentFetches = new Map<string, number>();
+const FETCH_DEBOUNCE_MS = 2000;
+
 /** Escape user-generated text for safe insertion into HTML strings. */
 function escapeHtml(text: string): string {
   return text
@@ -617,6 +621,19 @@ export async function addManualItem(input: AddManualItemInput): Promise<IntelIte
  * This function never throws — it always returns a valid ArticleContent object.
  */
 export async function fetchArticleContent(itemId: string): Promise<ArticleContent> {
+  // Debounce: if same item was fetched within 2s, only return DB-cached content
+  const now = Date.now();
+  const lastFetch = recentFetches.get(itemId);
+  const isDebounced = lastFetch != null && now - lastFetch < FETCH_DEBOUNCE_MS;
+  recentFetches.set(itemId, now);
+
+  // Periodically clean old entries (keep map bounded)
+  if (recentFetches.size > 200) {
+    for (const [key, ts] of recentFetches) {
+      if (now - ts > FETCH_DEBOUNCE_MS * 5) recentFetches.delete(key);
+    }
+  }
+
   const db = getDb();
 
   // Get item with source
@@ -664,6 +681,12 @@ export async function fetchArticleContent(itemId: string): Promise<ArticleConten
     siteName: row.sourceName,
     length: 0,
   };
+
+  // If debounced and no cached content, return fallback without fetching
+  if (isDebounced) {
+    log.debug(`Debounced duplicate fetch for item ${itemId}`);
+    return fallback;
+  }
 
   try {
     // Reddit posts: fetch via JSON API to get selftext + comments.

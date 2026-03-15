@@ -12,7 +12,12 @@ import { cards } from './cards';
 export const meetingStatusEnum = pgEnum('meeting_status', ['recording', 'processing', 'completed']);
 
 export const meetingTemplateEnum = pgEnum('meeting_template', [
-  'none', 'standup', 'retro', 'planning', 'brainstorm', 'one_on_one',
+  'none',
+  'standup',
+  'retro',
+  'planning',
+  'brainstorm',
+  'one_on_one',
 ]);
 
 export const meetings = pgTable('meetings', {
@@ -29,35 +34,47 @@ export const meetings = pgTable('meetings', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const transcripts = pgTable('transcripts', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  meetingId: uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
-  content: text('content').notNull(),
-  startTime: integer('start_time').notNull(), // milliseconds from recording start
-  endTime: integer('end_time').notNull(),
-  speaker: varchar('speaker', { length: 50 }),  // nullable — null means not diarized
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  index('transcripts_meeting_id_idx').on(table.meetingId),
-]);
+export const transcripts = pgTable(
+  'transcripts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    meetingId: uuid('meeting_id')
+      .notNull()
+      .references(() => meetings.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    startTime: integer('start_time').notNull(), // milliseconds from recording start
+    endTime: integer('end_time').notNull(),
+    speaker: varchar('speaker', { length: 50 }), // nullable — null means not diarized
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('transcripts_meeting_id_idx').on(table.meetingId)],
+);
 
 export const meetingBriefs = pgTable('meeting_briefs', {
   id: uuid('id').defaultRandom().primaryKey(),
-  meetingId: uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
+  meetingId: uuid('meeting_id')
+    .notNull()
+    .references(() => meetings.id, { onDelete: 'cascade' }),
   summary: text('summary').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const actionItemStatusEnum = pgEnum('action_item_status', ['pending', 'approved', 'dismissed', 'converted']);
 
-export const actionItems = pgTable('action_items', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  meetingId: uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
-  cardId: uuid('card_id').references(() => cards.id, { onDelete: 'set null' }),
-  description: text('description').notNull(),
-  status: actionItemStatusEnum('status').default('pending').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [
-  index('action_items_meeting_id_idx').on(table.meetingId),
-  index('action_items_status_idx').on(table.status),
-]);
+export const actionItems = pgTable(
+  'action_items',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    meetingId: uuid('meeting_id')
+      .notNull()
+      .references(() => meetings.id, { onDelete: 'cascade' }),
+    cardId: uuid('card_id').references(() => cards.id, { onDelete: 'set null' }),
+    description: text('description').notNull(),
+    status: actionItemStatusEnum('status').default('pending').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('action_items_meeting_id_idx').on(table.meetingId),
+    index('action_items_status_idx').on(table.status),
+  ],
+);

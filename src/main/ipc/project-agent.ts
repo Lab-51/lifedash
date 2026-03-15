@@ -14,7 +14,6 @@ import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema, projectAgentMessageContentSchema } from '../../shared/validation/schemas';
 import type { ToolCallRecord, ToolResultRecord } from '../../shared/types';
 
-
 const log = createLogger('ProjectAgent');
 
 // Per-project abort controllers — allows multiple projects to stream simultaneously
@@ -46,7 +45,6 @@ export function registerProjectAgentHandlers(): void {
   ipcMain.handle(
     'project-agent:send-message',
     async (event, projectId: unknown, content: unknown, threadId: unknown) => {
-
       const validProjectId = validateInput(idParamSchema, projectId);
       const validContent = validateInput(projectAgentMessageContentSchema, content);
       const validThreadId = threadId ? validateInput(idParamSchema, threadId) : undefined;
@@ -60,7 +58,14 @@ export function registerProjectAgentHandlers(): void {
       }
 
       // 1. Save user message
-      await projectAgentService.addMessage(validProjectId, 'user', validContent, undefined, undefined, resolvedThreadId);
+      await projectAgentService.addMessage(
+        validProjectId,
+        'user',
+        validContent,
+        undefined,
+        undefined,
+        resolvedThreadId,
+      );
 
       // 2. Load conversation history (scoped to thread)
       const messages = await projectAgentService.getMessages(validProjectId, resolvedThreadId);
@@ -82,7 +87,7 @@ export function registerProjectAgentHandlers(): void {
 
       // 6. Convert messages to AI SDK format (windowed to last N messages)
       const recentMessages = messages.slice(-CONVERSATION_WINDOW);
-      const aiMessages = recentMessages.map(m => {
+      const aiMessages = recentMessages.map((m) => {
         if (m.role === 'user') {
           return { role: 'user' as const, content: m.content ?? '' };
         }
@@ -122,7 +127,8 @@ export function registerProjectAgentHandlers(): void {
       let fullText = '';
       let aborted = false;
       const collectedToolCalls: Array<{ toolName: string; toolCallId: string; input: Record<string, unknown> }> = [];
-      const collectedToolResults: Array<{ toolCallId: string; toolName: string; output: unknown; success: boolean }> = [];
+      const collectedToolResults: Array<{ toolCallId: string; toolName: string; output: unknown; success: boolean }> =
+        [];
 
       try {
         for await (const part of result.fullStream) {
@@ -194,7 +200,7 @@ export function registerProjectAgentHandlers(): void {
       // 10. Save assistant message with tool calls
       const toolCallRecords: ToolCallRecord[] | undefined =
         collectedToolCalls.length > 0
-          ? collectedToolCalls.map(tc => ({
+          ? collectedToolCalls.map((tc) => ({
               id: tc.toolCallId,
               name: tc.toolName,
               args: tc.input,
@@ -203,7 +209,7 @@ export function registerProjectAgentHandlers(): void {
 
       const toolResultRecords: ToolResultRecord[] | undefined =
         collectedToolResults.length > 0
-          ? collectedToolResults.map(tr => ({
+          ? collectedToolResults.map((tr) => ({
               toolCallId: tr.toolCallId,
               toolName: tr.toolName,
               result: tr.output,
@@ -231,8 +237,8 @@ export function registerProjectAgentHandlers(): void {
 
       // 12. Collect actions for UI
       const actions = projectAgentService.collectAgentActions(
-        collectedToolCalls.map(tc => ({ toolName: tc.toolName, input: tc.input })),
-        collectedToolResults.map(tr => ({ success: tr.success })),
+        collectedToolCalls.map((tc) => ({ toolName: tc.toolName, input: tc.input })),
+        collectedToolResults.map((tr) => ({ success: tr.success })),
       );
 
       return { assistantMessage: assistantMsg, actions, threadId: resolvedThreadId };
@@ -241,7 +247,6 @@ export function registerProjectAgentHandlers(): void {
 
   // --- Get conversation history ---
   ipcMain.handle('project-agent:get-messages', async (_event, projectId: unknown, threadId: unknown) => {
-
     const validProjectId = validateInput(idParamSchema, projectId);
     const validThreadId = threadId ? validateInput(idParamSchema, threadId) : undefined;
     return projectAgentService.getMessages(validProjectId, validThreadId);
@@ -249,7 +254,6 @@ export function registerProjectAgentHandlers(): void {
 
   // --- Clear conversation ---
   ipcMain.handle('project-agent:clear-messages', async (_event, projectId: unknown) => {
-
     const validProjectId = validateInput(idParamSchema, projectId);
     await projectAgentService.clearMessages(validProjectId);
   });
@@ -262,7 +266,6 @@ export function registerProjectAgentHandlers(): void {
 
   // --- Resolved model info (for UI display) ---
   ipcMain.handle('project-agent:get-model-info', async () => {
-
     const provider = await resolveTaskModel('project_agent');
     if (!provider) return null;
     return { providerName: provider.providerName, model: provider.model };
@@ -270,7 +273,6 @@ export function registerProjectAgentHandlers(): void {
 
   // --- Abort active stream ---
   ipcMain.handle('project-agent:abort', async (_event, projectId: unknown) => {
-
     const validProjectId = validateInput(idParamSchema, projectId);
     const controller = activeStreams.get(validProjectId);
     if (controller) {

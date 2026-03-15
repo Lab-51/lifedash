@@ -4,10 +4,7 @@
 import { ipcMain } from 'electron';
 import { eq, gte, desc, and, or, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import {
-  cards, cardActivities, columns, boards, projects,
-  actionItems, meetings, ideas,
-} from '../db/schema';
+import { cards, cardActivities, columns, boards, projects, actionItems, meetings, ideas } from '../db/schema';
 import { resolveTaskModel, generate } from '../services/ai-provider';
 import { createLogger } from '../services/logger';
 
@@ -57,10 +54,7 @@ export function registerDashboardHandlers(): void {
       .where(
         and(
           gte(actionItems.createdAt, sevenDaysAgo),
-          or(
-            eq(actionItems.status, 'pending'),
-            eq(actionItems.status, 'approved'),
-          ),
+          or(eq(actionItems.status, 'pending'), eq(actionItems.status, 'approved')),
           projectId ? eq(meetings.projectId, projectId) : undefined,
         ),
       );
@@ -91,23 +85,22 @@ export function registerDashboardHandlers(): void {
     }
 
     // e. Build prompt
-    const activitiesText = recentActivities.length > 0
-      ? recentActivities.map(a =>
-          `- [${a.action}] "${a.cardTitle}" in ${a.columnName} (${a.projectName})`,
-        ).join('\n')
-      : 'No recent card activity.';
+    const activitiesText =
+      recentActivities.length > 0
+        ? recentActivities
+            .map((a) => `- [${a.action}] "${a.cardTitle}" in ${a.columnName} (${a.projectName})`)
+            .join('\n')
+        : 'No recent card activity.';
 
-    const activeCardsText = activeCards.length > 0
-      ? activeCards.map(c =>
-          `- "${c.cardTitle}" in ${c.columnName} (${c.projectName})`,
-        ).join('\n')
-      : 'No cards currently in progress.';
+    const activeCardsText =
+      activeCards.length > 0
+        ? activeCards.map((c) => `- "${c.cardTitle}" in ${c.columnName} (${c.projectName})`).join('\n')
+        : 'No cards currently in progress.';
 
-    const pendingActionsText = pendingActions.length > 0
-      ? pendingActions.map(a =>
-          `- "${a.description}" (from: ${a.meetingTitle}) [${a.status}]`,
-        ).join('\n')
-      : 'No pending action items.';
+    const pendingActionsText =
+      pendingActions.length > 0
+        ? pendingActions.map((a) => `- "${a.description}" (from: ${a.meetingTitle}) [${a.status}]`).join('\n')
+        : 'No pending action items.';
 
     const prompt = `Generate a concise daily standup report based on this activity data.
 Format with 3 sections using markdown:
@@ -139,7 +132,8 @@ Today's date: ${now.toLocaleDateString()}`;
       baseUrl: resolved.baseUrl,
       model: resolved.model,
       taskType: 'standup',
-      system: 'You are a concise project assistant that generates daily standup reports from activity data. Always respond with markdown.',
+      system:
+        'You are a concise project assistant that generates daily standup reports from activity data. Always respond with markdown.',
       prompt,
       temperature: 0.7,
       maxTokens: 1024,
@@ -147,7 +141,9 @@ Today's date: ${now.toLocaleDateString()}`;
 
     log.info(`Standup result: ${result.text.length} chars`);
     if (!result.text) {
-      throw new Error(`AI provider (${resolved.providerName}/${resolved.model}) returned empty text. Try a different provider or model in Settings.`);
+      throw new Error(
+        `AI provider (${resolved.providerName}/${resolved.model}) returned empty text. Try a different provider or model in Settings.`,
+      );
     }
     return { standup: result.text };
   });

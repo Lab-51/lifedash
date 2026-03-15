@@ -74,11 +74,11 @@ function AppShell({ children }: { children: ReactNode }) {
     sections: ReleaseNoteSection[];
     previousVersions: ReleaseNotesData[];
   } | null>(null);
-  const showStartModal = useFocusStore(s => s.showStartModal);
-  const focusMode = useFocusStore(s => s.mode);
+  const showStartModal = useFocusStore((s) => s.showStartModal);
+  const focusMode = useFocusStore((s) => s.mode);
 
   const toggleCommandPalette = useCallback(() => {
-    setShowCommandPalette(prev => !prev);
+    setShowCommandPalette((prev) => !prev);
   }, []);
 
   const closeCommandPalette = useCallback(() => {
@@ -86,7 +86,7 @@ function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleShortcutsHelp = useCallback(() => {
-    setShowShortcutsHelp(prev => !prev);
+    setShowShortcutsHelp((prev) => !prev);
   }, []);
 
   const closeShortcutsHelp = useCallback(() => {
@@ -120,11 +120,16 @@ function AppShell({ children }: { children: ReactNode }) {
   // Check for crash recovery on mount
   useEffect(() => {
     if (!window.electronAPI?.checkRecovery) return;
-    window.electronAPI.checkRecovery().then(({ hasCrash, state }) => {
-      if (hasCrash && state) {
-        setRecoveryState(state);
-      }
-    }).catch(() => { /* ignore — recovery check is best-effort */ });
+    window.electronAPI
+      .checkRecovery()
+      .then(({ hasCrash, state }) => {
+        if (hasCrash && state) {
+          setRecoveryState(state);
+        }
+      })
+      .catch(() => {
+        /* ignore — recovery check is best-effort */
+      });
   }, []);
 
   const handleRecoveryRestore = useCallback(async () => {
@@ -189,10 +194,7 @@ function AppShell({ children }: { children: ReactNode }) {
     if (!appReady) return;
     async function checkFirstLaunch() {
       const settingsStore = useSettingsStore.getState();
-      await Promise.all([
-        settingsStore.loadProviders(),
-        settingsStore.loadSettings(),
-      ]);
+      await Promise.all([settingsStore.loadProviders(), settingsStore.loadSettings()]);
       const providers = useSettingsStore.getState().providers;
       const settings = useSettingsStore.getState().settings;
       const tourCompleted = settings['featureTour.completed'] === 'true';
@@ -227,8 +229,7 @@ function AppShell({ children }: { children: ReactNode }) {
       if (!lastSeen) {
         // Setting never existed — could be first install OR existing user upgrading
         // to the version that introduced this feature. Check setupWizard flag to tell apart.
-        const isExistingUser = settings['setupWizard.completed'] === 'true'
-          || Object.keys(settings).length > 0;
+        const isExistingUser = settings['setupWizard.completed'] === 'true' || Object.keys(settings).length > 0;
         if (isExistingUser && releaseNotes.version === currentVersion) {
           // Persist immediately so the modal won't reappear if the app is closed
           // before the user clicks dismiss.
@@ -297,7 +298,6 @@ function AppShell({ children }: { children: ReactNode }) {
     });
   }, []);
 
-
   // Show toast when break timer ends (break -> idle transition)
   const prevModeRef = useRef(focusMode);
   useEffect(() => {
@@ -315,27 +315,14 @@ function AppShell({ children }: { children: ReactNode }) {
         navigate={navigate}
         onShowShortcuts={openShortcutsHelp}
       />
-      <KeyboardShortcutsModal
-        isOpen={showShortcutsHelp}
-        onClose={closeShortcutsHelp}
-      />
+      <KeyboardShortcutsModal isOpen={showShortcutsHelp} onClose={closeShortcutsHelp} />
       <Suspense fallback={null}>
-        <FocusStartModal
-          isOpen={showStartModal}
-          onClose={() => useFocusStore.getState().setShowStartModal(false)}
-        />
+        <FocusStartModal isOpen={showStartModal} onClose={() => useFocusStore.getState().setShowStartModal(false)} />
         {(focusMode === 'focus' || focusMode === 'break') && <FocusOverlay />}
-        <FocusCompleteModal
-          isOpen={focusMode === 'completed'}
-          onClose={() => useFocusStore.getState().stop()}
-        />
+        <FocusCompleteModal isOpen={focusMode === 'completed'} onClose={() => useFocusStore.getState().stop()} />
       </Suspense>
       {recoveryState && (
-        <RecoveryDialog
-          state={recoveryState}
-          onRestore={handleRecoveryRestore}
-          onDiscard={handleRecoveryDiscard}
-        />
+        <RecoveryDialog state={recoveryState} onRestore={handleRecoveryRestore} onDiscard={handleRecoveryDiscard} />
       )}
       {showTour && (
         <FeatureTour
@@ -347,9 +334,7 @@ function AppShell({ children }: { children: ReactNode }) {
           }}
         />
       )}
-      {showWizard && (
-        <SetupWizard onClose={() => setShowWizard(false)} />
-      )}
+      {showWizard && <SetupWizard onClose={() => setShowWizard(false)} />}
       {whatsNew && (
         <WhatsNewModal
           version={whatsNew.version}

@@ -66,12 +66,7 @@ function renderLine(line: string, idx: number) {
   );
 }
 
-export default function BriefSection({
-  brief,
-  isCompleted,
-  generatingBrief,
-  onGenerate,
-}: BriefSectionProps) {
+export default function BriefSection({ brief, isCompleted, generatingBrief, onGenerate }: BriefSectionProps) {
   return (
     <div>
       <h3 className="font-hud text-xs text-[var(--color-text-secondary)] mb-2">Brief</h3>
@@ -86,9 +81,7 @@ export default function BriefSection({
       {brief && !generatingBrief && (
         <div className="hud-panel rounded-lg p-3">
           <div>{brief.summary.split('\n').map(renderLine)}</div>
-          <p className="text-xs text-surface-500 mt-3">
-            {formatBriefDate(brief.createdAt)}
-          </p>
+          <p className="text-xs text-surface-500 mt-3">{formatBriefDate(brief.createdAt)}</p>
         </div>
       )}
 
@@ -103,9 +96,7 @@ export default function BriefSection({
       )}
 
       {!brief && !generatingBrief && !isCompleted && (
-        <p className="text-sm text-surface-500">
-          Complete the recording to generate a brief
-        </p>
+        <p className="text-sm text-surface-500">Complete the recording to generate a brief</p>
       )}
     </div>
   );

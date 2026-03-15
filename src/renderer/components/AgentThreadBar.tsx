@@ -50,22 +50,28 @@ export default function AgentThreadBar({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [expanded]);
 
-  const handleSelect = useCallback((threadId: string) => {
-    onSelect(threadId);
-    setExpanded(false);
-  }, [onSelect]);
+  const handleSelect = useCallback(
+    (threadId: string) => {
+      onSelect(threadId);
+      setExpanded(false);
+    },
+    [onSelect],
+  );
 
-  const handleDelete = useCallback((e: React.MouseEvent, threadId: string) => {
-    e.stopPropagation();
-    if (window.confirm('Delete this conversation? This cannot be undone.')) {
-      onDelete(threadId);
-    }
-  }, [onDelete]);
+  const handleDelete = useCallback(
+    (e: React.MouseEvent, threadId: string) => {
+      e.stopPropagation();
+      if (window.confirm('Delete this conversation? This cannot be undone.')) {
+        onDelete(threadId);
+      }
+    },
+    [onDelete],
+  );
 
   // Don't render if no threads and no active conversation
   if (threads.length === 0 && activeThreadId === null) return null;
 
-  const activeThread = threads.find(t => t.id === activeThreadId);
+  const activeThread = threads.find((t) => t.id === activeThreadId);
   const displayTitle = activeThread?.title ?? 'New conversation';
 
   return (
@@ -84,7 +90,7 @@ export default function AgentThreadBar({
             <Plus size={14} />
           </button>
           <button
-            onClick={() => setExpanded(prev => !prev)}
+            onClick={() => setExpanded((prev) => !prev)}
             className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] rounded transition-colors"
             title={expanded ? 'Collapse' : 'Show conversations'}
           >
@@ -97,11 +103,9 @@ export default function AgentThreadBar({
       {expanded && (
         <div className="absolute left-0 right-0 top-8 z-10 bg-[var(--color-chrome)] border border-[var(--color-border)] border-t-0 rounded-b-lg shadow-lg max-h-[200px] overflow-y-auto">
           {threads.length === 0 ? (
-            <div className="px-3 py-3 text-xs text-[var(--color-text-muted)] text-center">
-              No conversations yet
-            </div>
+            <div className="px-3 py-3 text-xs text-[var(--color-text-muted)] text-center">No conversations yet</div>
           ) : (
-            threads.map(thread => {
+            threads.map((thread) => {
               const isActive = thread.id === activeThreadId;
               return (
                 <div
@@ -109,7 +113,9 @@ export default function AgentThreadBar({
                   role="button"
                   tabIndex={0}
                   onClick={() => handleSelect(thread.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelect(thread.id); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') handleSelect(thread.id);
+                  }}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors cursor-pointer group/thread ${
                     isActive
                       ? 'bg-[var(--color-accent-muted)] border-l-2 border-l-[var(--color-accent)]'

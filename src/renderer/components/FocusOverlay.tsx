@@ -15,7 +15,7 @@ import { Pause, Play, Square, Timer, Clock, Zap, Flame, Coffee } from 'lucide-re
 const FOCUS_QUOTES = [
   '"The secret of getting ahead is getting started." \u2014 Mark Twain',
   '"Focus on being productive instead of busy." \u2014 Tim Ferriss',
-  '"It\'s not that I\'m so smart, it\'s just that I stay with problems longer." \u2014 Einstein',
+  "\"It's not that I'm so smart, it's just that I stay with problems longer.\" \u2014 Einstein",
   '"Deep work is the ability to focus without distraction on a cognitively demanding task." \u2014 Cal Newport',
   '"The successful warrior is the average man, with laser-like focus." \u2014 Bruce Lee',
   '"Concentrate all your thoughts upon the work at hand." \u2014 Alexander Graham Bell',
@@ -56,23 +56,12 @@ function formatTime(seconds: number): string {
 // --- Component ---
 
 export default function FocusOverlay() {
-  const {
-    mode,
-    timeRemaining,
-    totalSeconds,
-    isPaused,
-    focusedCardTitle,
-    pause,
-    resume,
-    stop,
-  } = useFocusStore();
+  const { mode, timeRemaining, totalSeconds, isPaused, focusedCardTitle, pause, resume, stop } = useFocusStore();
 
   const stats = useGamificationStore((s) => s.stats);
 
   // Pick a random quote on mount
-  const [quote] = useState(
-    () => FOCUS_QUOTES[Math.floor(Math.random() * FOCUS_QUOTES.length)],
-  );
+  const [quote] = useState(() => FOCUS_QUOTES[Math.floor(Math.random() * FOCUS_QUOTES.length)]);
 
   // Fade-in on mount
   const [visible, setVisible] = useState(false);
@@ -108,7 +97,10 @@ export default function FocusOverlay() {
   const todayXp = stats?.todayXp ?? 0;
 
   return (
-    <div className={`fixed inset-0 z-40 flex flex-col items-center bg-surface-50 dark:bg-[#06080df2] scanlines transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`} style={{ pointerEvents: 'auto' }}>
+    <div
+      className={`fixed inset-0 z-40 flex flex-col items-center bg-surface-50 dark:bg-[#06080df2] scanlines transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}
+      style={{ pointerEvents: 'auto' }}
+    >
       {/* Breathing gradient overlay */}
       <div
         className="absolute inset-0 pointer-events-none"
@@ -123,9 +115,7 @@ export default function FocusOverlay() {
         {/* Left: Level badge + XP */}
         <div className="flex items-center gap-2">
           <LevelBadge level={level} size="sm" />
-          <span className="text-surface-600 dark:text-surface-400 text-sm">
-            {totalXp.toLocaleString()} XP
-          </span>
+          <span className="text-surface-600 dark:text-surface-400 text-sm">{totalXp.toLocaleString()} XP</span>
         </div>
 
         {/* Right: Streak */}
@@ -141,8 +131,13 @@ export default function FocusOverlay() {
       <div className="flex flex-col items-center justify-center flex-1 pt-16 pb-4 relative">
         {/* Decorative rotating wireframe — dark mode only */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.04] animate-rotate-slow pointer-events-none dark:block hidden">
-          <svg viewBox="0 0 200 200" fill="none" stroke="currentColor" strokeWidth="0.5"
-            className="w-[300px] h-[300px] text-[var(--color-accent)]">
+          <svg
+            viewBox="0 0 200 200"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="0.5"
+            className="w-[300px] h-[300px] text-[var(--color-accent)]"
+          >
             <polygon points="100,10 190,180 10,180" opacity="0.4" />
             <polygon points="100,40 170,165 30,165" opacity="0.3" />
             <polygon points="100,70 150,150 50,150" opacity="0.2" />
@@ -184,7 +179,9 @@ export default function FocusOverlay() {
 
           {/* Timer text inside the ring */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={`font-[var(--font-display)] text-7xl font-bold tracking-wider ${timerColor} ${isFocus ? 'text-glow' : 'text-glow-warm'}`}>
+            <span
+              className={`font-[var(--font-display)] text-7xl font-bold tracking-wider ${timerColor} ${isFocus ? 'text-glow' : 'text-glow-warm'}`}
+            >
               {formatTime(timeRemaining)}
             </span>
             <span className="font-hud text-sm text-[var(--color-text-muted)] mt-2">
@@ -249,9 +246,7 @@ export default function FocusOverlay() {
               <Pause className="w-6 h-6 text-surface-700 dark:text-surface-300" />
             )}
           </button>
-          <span className="text-xs text-surface-500 mt-1.5">
-            {isPaused ? 'Resume' : 'Pause'}
-          </span>
+          <span className="text-xs text-surface-500 mt-1.5">{isPaused ? 'Resume' : 'Pause'}</span>
         </div>
 
         {/* Stop */}

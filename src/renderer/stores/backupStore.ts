@@ -6,13 +6,7 @@
 // zustand, shared types, window.electronAPI
 
 import { create } from 'zustand';
-import type {
-  BackupInfo,
-  BackupProgress,
-  ExportOptions,
-  ExportResult,
-  AutoBackupSettings,
-} from '../../shared/types';
+import type { BackupInfo, BackupProgress, ExportOptions, ExportResult, AutoBackupSettings } from '../../shared/types';
 
 interface BackupState {
   backups: BackupInfo[];

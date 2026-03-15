@@ -117,9 +117,7 @@ export default function NotificationSection() {
                 />
                 <span className="text-sm text-[var(--color-text-secondary)]">Due date reminders</span>
               </label>
-              <p className="text-xs text-surface-500 mt-1 ml-6">
-                Notify when cards are due within 24 hours
-              </p>
+              <p className="text-xs text-surface-500 mt-1 ml-6">Notify when cards are due within 24 hours</p>
             </div>
 
             {/* Daily digest */}
@@ -133,9 +131,7 @@ export default function NotificationSection() {
                 />
                 <span className="text-sm text-[var(--color-text-secondary)]">Daily digest</span>
               </label>
-              <p className="text-xs text-surface-500 mt-1 ml-6">
-                Receive a morning summary of tasks and meetings
-              </p>
+              <p className="text-xs text-surface-500 mt-1 ml-6">Receive a morning summary of tasks and meetings</p>
 
               {preferences.dailyDigest && (
                 <div className="flex items-center gap-3 mt-2 ml-6">
@@ -164,9 +160,7 @@ export default function NotificationSection() {
                 />
                 <span className="text-sm text-[var(--color-text-secondary)]">Recording reminders</span>
               </label>
-              <p className="text-xs text-surface-500 mt-1 ml-6">
-                Remind to start recording for upcoming meetings
-              </p>
+              <p className="text-xs text-surface-500 mt-1 ml-6">Remind to start recording for upcoming meetings</p>
             </div>
           </div>
         )}
@@ -178,11 +172,7 @@ export default function NotificationSection() {
             disabled={testing || !preferences.enabled}
             className="flex items-center gap-2 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-sm transition-all"
           >
-            {testing ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Bell size={16} />
-            )}
+            {testing ? <Loader2 size={16} className="animate-spin" /> : <Bell size={16} />}
             {testing ? 'Sent!' : 'Send Test Notification'}
           </button>
         </div>

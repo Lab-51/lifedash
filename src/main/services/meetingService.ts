@@ -76,10 +76,7 @@ function toActionItem(row: typeof actionItems.$inferSelect): ActionItem {
 /** Get total count of pending action items across all meetings */
 export async function getPendingActionCount(): Promise<number> {
   const db = getDb();
-  const [row] = await db
-    .select({ value: count() })
-    .from(actionItems)
-    .where(eq(actionItems.status, 'pending'));
+  const [row] = await db.select({ value: count() }).from(actionItems).where(eq(actionItems.status, 'pending'));
   return row?.value ?? 0;
 }
 
@@ -90,11 +87,13 @@ export async function getActionItemCounts(meetingIds: string[]): Promise<Record<
   const rows = await db
     .select({ meetingId: actionItems.meetingId, value: count() })
     .from(actionItems)
-    .where(and(
-      inArray(actionItems.meetingId, meetingIds),
-      ne(actionItems.status, 'dismissed'),
-      ne(actionItems.status, 'converted'),
-    ))
+    .where(
+      and(
+        inArray(actionItems.meetingId, meetingIds),
+        ne(actionItems.status, 'dismissed'),
+        ne(actionItems.status, 'converted'),
+      ),
+    )
     .groupBy(actionItems.meetingId);
 
   const result: Record<string, number> = {};
@@ -168,11 +167,7 @@ export async function updateMeeting(id: string, data: UpdateMeetingInput): Promi
   if (data.audioPath !== undefined) updateData.audioPath = data.audioPath;
   if (data.status !== undefined) updateData.status = data.status;
 
-  const [row] = await db
-    .update(meetings)
-    .set(updateData)
-    .where(eq(meetings.id, id))
-    .returning();
+  const [row] = await db.update(meetings).set(updateData).where(eq(meetings.id, id)).returning();
   return toMeeting(row);
 }
 
@@ -210,16 +205,10 @@ export async function getTranscripts(meetingId: string): Promise<TranscriptSegme
  * @param meetingId The meeting to update
  * @param speakerMap Map of segment ID -> speaker label
  */
-export async function updateSegmentSpeakers(
-  meetingId: string,
-  speakerMap: Map<string, string>,
-): Promise<void> {
+export async function updateSegmentSpeakers(meetingId: string, speakerMap: Map<string, string>): Promise<void> {
   const db = getDb();
   for (const [segmentId, speaker] of speakerMap) {
-    await db
-      .update(transcripts)
-      .set({ speaker })
-      .where(eq(transcripts.id, segmentId));
+    await db.update(transcripts).set({ speaker }).where(eq(transcripts.id, segmentId));
   }
 }
 
@@ -242,7 +231,7 @@ export async function searchTranscripts(query: string, limit = 20): Promise<Tran
     .orderBy(desc(meetings.startedAt), asc(transcripts.startTime))
     .limit(limit);
 
-  return rows.map(row => ({
+  return rows.map((row) => ({
     segmentId: row.segmentId,
     meetingId: row.meetingId,
     meetingTitle: row.meetingTitle,

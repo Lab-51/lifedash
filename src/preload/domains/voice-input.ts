@@ -2,6 +2,5 @@
 import { ipcRenderer } from 'electron';
 
 export const voiceInputBridge = {
-  voiceTranscribe: (audioBuffer: ArrayBuffer) =>
-    ipcRenderer.invoke('voice:transcribe', audioBuffer),
+  voiceTranscribe: (audioBuffer: ArrayBuffer) => ipcRenderer.invoke('voice:transcribe', audioBuffer),
 };

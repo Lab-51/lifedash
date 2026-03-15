@@ -50,9 +50,11 @@ export default function HelpTip({ text, position = 'top' }: HelpTipProps) {
   // Arrow/caret classes
   const arrowClasses: Record<string, string> = {
     top: 'top-full left-1/2 -translate-x-1/2 border-t-[var(--color-border-accent)] border-x-transparent border-b-transparent',
-    bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-[var(--color-border-accent)] border-x-transparent border-t-transparent',
+    bottom:
+      'bottom-full left-1/2 -translate-x-1/2 border-b-[var(--color-border-accent)] border-x-transparent border-t-transparent',
     left: 'left-full top-1/2 -translate-y-1/2 border-l-[var(--color-border-accent)] border-y-transparent border-r-transparent',
-    right: 'right-full top-1/2 -translate-y-1/2 border-r-[var(--color-border-accent)] border-y-transparent border-l-transparent',
+    right:
+      'right-full top-1/2 -translate-y-1/2 border-r-[var(--color-border-accent)] border-y-transparent border-l-transparent',
   };
 
   return (
@@ -62,10 +64,15 @@ export default function HelpTip({ text, position = 'top' }: HelpTipProps) {
         tabIndex={0}
         aria-describedby={open ? id : undefined}
         className="inline-flex items-center text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] rounded-sm"
-        onClick={() => setOpen(prev => !prev)}
+        onClick={() => setOpen((prev) => !prev)}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(prev => !prev); } }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen((prev) => !prev);
+          }
+        }}
       >
         <HelpCircle size={14} />
       </span>

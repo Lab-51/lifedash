@@ -29,21 +29,29 @@ interface KanbanCardProps {
 }
 
 const PRIORITY_CONFIG = {
-  low:    { border: 'border-l-emerald-500', badge: 'bg-emerald-500/20 text-emerald-400', label: 'LOW' },
-  medium: { border: 'border-l-blue-500',    badge: 'bg-blue-500/20 text-blue-400',       label: 'MED' },
-  high:   { border: 'border-l-amber-500',   badge: 'bg-amber-500/20 text-amber-400',     label: 'HIGH' },
-  urgent: { border: 'border-l-red-500',     badge: 'bg-red-500/20 text-red-400',         label: 'URG' },
+  low: { border: 'border-l-emerald-500', badge: 'bg-emerald-500/20 text-emerald-400', label: 'LOW' },
+  medium: { border: 'border-l-blue-500', badge: 'bg-blue-500/20 text-blue-400', label: 'MED' },
+  high: { border: 'border-l-amber-500', badge: 'bg-amber-500/20 text-amber-400', label: 'HIGH' },
+  urgent: { border: 'border-l-red-500', badge: 'bg-red-500/20 text-red-400', label: 'URG' },
 } as const;
 
-const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick, justDropped, isBlocked, dependencyCount }: KanbanCardProps) {
+const KanbanCard = memo(function KanbanCard({
+  card,
+  onUpdate,
+  onDelete,
+  onClick,
+  justDropped,
+  isBlocked,
+  dependencyCount,
+}: KanbanCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(card.title);
   const editInputRef = useRef<HTMLInputElement>(null);
-  const removeCardFromUI = useBoardStore(s => s.removeCardFromUI);
-  const restoreCardToUI = useBoardStore(s => s.restoreCardToUI);
+  const removeCardFromUI = useBoardStore((s) => s.removeCardFromUI);
+  const restoreCardToUI = useBoardStore((s) => s.restoreCardToUI);
 
   const priority = PRIORITY_CONFIG[card.priority] ?? PRIORITY_CONFIG.medium;
 
@@ -81,8 +89,7 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
 
     return dropTargetForElements({
       element: el,
-      canDrop: ({ source }) =>
-        source.data.type === 'card' && source.data.cardId !== card.id,
+      canDrop: ({ source }) => source.data.type === 'card' && source.data.cardId !== card.id,
       getData: ({ input, element }) => {
         const data: Record<string, unknown> = {
           type: 'card',
@@ -150,14 +157,19 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
     }, 5000);
 
     // Show toast with undo button (5s duration to match delete delay)
-    toast('Card deleted', 'info', {
-      label: 'Undo',
-      onClick: () => {
-        cancelled = true;
-        clearTimeout(timer);
-        restoreCardToUI(cardSnapshot);
+    toast(
+      'Card deleted',
+      'info',
+      {
+        label: 'Undo',
+        onClick: () => {
+          cancelled = true;
+          clearTimeout(timer);
+          restoreCardToUI(cardSnapshot);
+        },
       },
-    }, 5000);
+      5000,
+    );
   };
 
   return (
@@ -174,9 +186,7 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
       }
     >
       {/* Drop edge indicators */}
-      {closestEdge === 'top' && (
-        <div className="absolute -top-0.5 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
-      )}
+      {closestEdge === 'top' && <div className="absolute -top-0.5 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />}
       {closestEdge === 'bottom' && (
         <div className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
       )}
@@ -186,7 +196,10 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
         {/* Completion tick + Title */}
         <div className="flex items-start gap-2 flex-1 min-w-0">
           <button
-            onClick={e => { e.stopPropagation(); onUpdate(card.id, { completed: !card.completed }); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUpdate(card.id, { completed: !card.completed });
+            }}
             className="mt-0.5 shrink-0"
             title={card.completed ? 'Mark incomplete' : 'Mark complete'}
           >
@@ -206,10 +219,10 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
                 ref={editInputRef}
                 type="text"
                 value={editTitle}
-                onChange={e => setEditTitle(e.target.value)}
+                onChange={(e) => setEditTitle(e.target.value)}
                 onKeyDown={handleEditKeyDown}
                 onBlur={saveEdit}
-                onClick={e => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 className="bg-surface-900 border border-surface-700 rounded px-2 py-1 text-sm text-surface-100 focus:outline-none focus:border-primary-500 w-full"
               />
             ) : (
@@ -235,9 +248,7 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
               BLOCKED
             </span>
           )}
-          <span
-            className={`text-[0.625rem] font-medium px-1.5 py-0.5 rounded ${priority.badge}`}
-          >
+          <span className={`text-[0.625rem] font-medium px-1.5 py-0.5 rounded ${priority.badge}`}>
             {priority.label}
           </span>
         </div>
@@ -247,7 +258,7 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
       <div className="flex items-center justify-between mt-2">
         {/* Label dots + due date badge */}
         <div className="flex items-center gap-1.5">
-          {card.labels?.map(label => (
+          {card.labels?.map((label) => (
             <span
               key={label.id}
               className="label-chip inline-flex items-center gap-1 text-[0.625rem] font-medium px-1.5 py-0.5 rounded-full"
@@ -258,7 +269,9 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
             </span>
           ))}
           {card.dueDate && (
-            <span className={`inline-flex items-center gap-1 text-[0.625rem] px-1.5 py-0.5 rounded ${getDueDateBadge(card.dueDate).classes}`}>
+            <span
+              className={`inline-flex items-center gap-1 text-[0.625rem] px-1.5 py-0.5 rounded ${getDueDateBadge(card.dueDate).classes}`}
+            >
               <Clock size={10} />
               {getDueDateBadge(card.dueDate).label}
             </span>
@@ -266,9 +279,7 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
           {(card.checklistTotal ?? 0) > 0 && (
             <span
               className={`inline-flex items-center gap-0.5 text-[0.625rem] ${
-                card.checklistDone === card.checklistTotal
-                  ? 'text-emerald-400'
-                  : 'text-surface-400'
+                card.checklistDone === card.checklistTotal ? 'text-emerald-400' : 'text-surface-400'
               }`}
               title={`${card.checklistDone}/${card.checklistTotal} checklist items completed`}
             >
@@ -293,7 +304,10 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {!isEditing && (
             <button
-              onClick={e => { e.stopPropagation(); startEditing(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                startEditing();
+              }}
               className="text-surface-500 hover:text-surface-300 p-0.5 transition-colors"
               title="Edit title"
             >
@@ -302,7 +316,10 @@ const KanbanCard = memo(function KanbanCard({ card, onUpdate, onDelete, onClick,
           )}
 
           <button
-            onClick={e => { e.stopPropagation(); handleDeleteClick(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteClick();
+            }}
             className="text-surface-500 hover:text-red-400 p-0.5 transition-colors"
             title="Delete card"
           >

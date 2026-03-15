@@ -16,19 +16,13 @@ import HudSelect from './HudSelect';
 
 /** Display label for each relationship type (outgoing / incoming) */
 const TYPE_LABELS: Record<CardRelationshipType, { outgoing: string; incoming: string }> = {
-  blocks:     { outgoing: 'Blocks',     incoming: 'Blocked by' },
+  blocks: { outgoing: 'Blocks', incoming: 'Blocked by' },
   depends_on: { outgoing: 'Depends on', incoming: 'Depended on by' },
   related_to: { outgoing: 'Related to', incoming: 'Related to' },
 };
 
 /** All group keys in display order */
-const GROUP_ORDER = [
-  'Blocks',
-  'Blocked by',
-  'Depends on',
-  'Depended on by',
-  'Related to',
-] as const;
+const GROUP_ORDER = ['Blocks', 'Blocked by', 'Depends on', 'Depended on by', 'Related to'] as const;
 
 interface ParsedRelationship {
   id: string;
@@ -41,10 +35,10 @@ interface RelationshipsSectionProps {
 }
 
 function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
-  const allCards = useBoardStore(s => s.allCards);
-  const selectedCardRelationships = useCardDetailStore(s => s.selectedCardRelationships);
-  const addRelationship = useCardDetailStore(s => s.addRelationship);
-  const deleteRelationship = useCardDetailStore(s => s.deleteRelationship);
+  const allCards = useBoardStore((s) => s.allCards);
+  const selectedCardRelationships = useCardDetailStore((s) => s.selectedCardRelationships);
+  const addRelationship = useCardDetailStore((s) => s.addRelationship);
+  const deleteRelationship = useCardDetailStore((s) => s.deleteRelationship);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState('');
@@ -52,7 +46,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
   const [expanded, setExpanded] = useState(false);
 
   // --- Parse relationships into display groups ---
-  const parsed: ParsedRelationship[] = selectedCardRelationships.map(rel => {
+  const parsed: ParsedRelationship[] = selectedCardRelationships.map((rel) => {
     const isOutgoing = rel.sourceCardId === cardId;
     const labels = TYPE_LABELS[rel.type];
     const groupLabel = isOutgoing ? labels.outgoing : labels.incoming;
@@ -72,12 +66,8 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
   }
 
   // Filter available cards (exclude self, archived, and already-linked)
-  const alreadyLinkedIds = new Set(
-    selectedCardRelationships.flatMap(r => [r.sourceCardId, r.targetCardId]),
-  );
-  const availableCards = allCards.filter(
-    c => c.id !== cardId && !c.archived && !alreadyLinkedIds.has(c.id),
-  );
+  const alreadyLinkedIds = new Set(selectedCardRelationships.flatMap((r) => [r.sourceCardId, r.targetCardId]));
+  const availableCards = allCards.filter((c) => c.id !== cardId && !c.archived && !alreadyLinkedIds.has(c.id));
 
   // --- Handlers ---
   const handleAdd = async () => {
@@ -125,7 +115,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
                 placeholder="Select a card..."
                 options={[
                   { value: '', label: 'Select a card...' },
-                  ...availableCards.map(c => ({ value: c.id, label: c.title })),
+                  ...availableCards.map((c) => ({ value: c.id, label: c.title })),
                 ]}
               />
             </div>
@@ -165,7 +155,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
 
             return (
               <>
-                {GROUP_ORDER.map(groupLabel => {
+                {GROUP_ORDER.map((groupLabel) => {
                   const items = groups.get(groupLabel);
                   if (!items || items.length === 0 || remaining <= 0) return null;
 
@@ -177,11 +167,8 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
                       <span className="font-hud text-[0.625rem] tracking-widest text-[var(--color-accent-dim)] mt-3 mb-1 block">
                         {groupLabel}
                       </span>
-                      {visibleItems.map(item => (
-                        <div
-                          key={item.id}
-                          className="flex items-center justify-between py-1 group"
-                        >
+                      {visibleItems.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between py-1 group">
                           <span className="text-sm text-surface-800 dark:text-surface-200 truncate">
                             {item.linkedCardTitle}
                           </span>
@@ -200,7 +187,7 @@ function RelationshipsSection({ cardId }: RelationshipsSectionProps) {
                 {/* Expand/collapse toggle */}
                 {parsed.length > COLLAPSED_COUNT && (
                   <button
-                    onClick={() => setExpanded(prev => !prev)}
+                    onClick={() => setExpanded((prev) => !prev)}
                     className="mt-2 flex items-center gap-1 text-xs text-surface-500 hover:text-surface-700 dark:text-surface-300 transition-colors"
                   >
                     {expanded ? (

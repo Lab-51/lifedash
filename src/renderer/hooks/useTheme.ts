@@ -11,9 +11,7 @@ export type ThemeMode = 'dark' | 'light' | 'system';
 /** Resolves 'system' to the actual theme based on OS preference */
 function resolveTheme(mode: ThemeMode): 'dark' | 'light' {
   if (mode === 'system') {
-    return window.matchMedia('(prefers-color-scheme: light)').matches
-      ? 'light'
-      : 'dark';
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
   return mode;
 }
@@ -32,8 +30,8 @@ function applyTheme(mode: ThemeMode) {
  * Applies CSS class to <html> and listens for system theme changes.
  */
 export function useTheme() {
-  const settings = useSettingsStore(s => s.settings);
-  const setSetting = useSettingsStore(s => s.setSetting);
+  const settings = useSettingsStore((s) => s.settings);
+  const setSetting = useSettingsStore((s) => s.setSetting);
 
   const themeMode = (settings['app.theme'] as ThemeMode) || 'system';
 

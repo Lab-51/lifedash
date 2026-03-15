@@ -35,9 +35,9 @@ export interface FocusPeriodStats {
 }
 
 export interface FocusTimeReportOptions {
-  startDate: string;   // ISO date YYYY-MM-DD
-  endDate: string;     // ISO date YYYY-MM-DD
-  projectId?: string;  // optional project filter
+  startDate: string; // ISO date YYYY-MM-DD
+  endDate: string; // ISO date YYYY-MM-DD
+  projectId?: string; // optional project filter
   billableOnly?: boolean; // true = only billable, false = only non-billable, undefined = all
 }
 

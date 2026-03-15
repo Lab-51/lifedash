@@ -18,7 +18,7 @@ type FilterTab = 'all' | 'new' | 'urgent';
 function LoadingSkeleton() {
   return (
     <div className="space-y-3">
-      {[1, 2].map(i => (
+      {[1, 2].map((i) => (
         <div key={i} className="rounded-lg border border-[var(--color-border)] p-4 animate-pulse">
           <div className="flex items-start gap-3">
             <div className="w-4 h-4 rounded-full bg-[var(--color-border)] shrink-0 mt-0.5" />
@@ -53,22 +53,19 @@ export default function InsightsPanel() {
   const [autoOpened, setAutoOpened] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
 
-  const insights = useBackgroundAgentStore(s => s.insights);
-  const loading = useBackgroundAgentStore(s => s.loading);
-  const preferences = useBackgroundAgentStore(s => s.preferences);
-  const runNow = useBackgroundAgentStore(s => s.runNow);
-  const loadAllInsights = useBackgroundAgentStore(s => s.loadAllInsights);
-  const updatePreferences = useBackgroundAgentStore(s => s.updatePreferences);
-  const projects = useProjectStore(s => s.projects);
+  const insights = useBackgroundAgentStore((s) => s.insights);
+  const loading = useBackgroundAgentStore((s) => s.loading);
+  const preferences = useBackgroundAgentStore((s) => s.preferences);
+  const runNow = useBackgroundAgentStore((s) => s.runNow);
+  const loadAllInsights = useBackgroundAgentStore((s) => s.loadAllInsights);
+  const updatePreferences = useBackgroundAgentStore((s) => s.updatePreferences);
+  const projects = useProjectStore((s) => s.projects);
 
-  const activeProjects = useMemo(() => projects.filter(p => !p.archived), [projects]);
+  const activeProjects = useMemo(() => projects.filter((p) => !p.archived), [projects]);
   const analyzedIds = preferences?.analyzedProjectIds ?? [];
 
   // Build projectId → name lookup
-  const projectNameMap = useMemo(
-    () => new Map(projects.map(p => [p.id, p.name])),
-    [projects],
-  );
+  const projectNameMap = useMemo(() => new Map(projects.map((p) => [p.id, p.name])), [projects]);
 
   // Reload insights when project selection changes
   const analyzedKey = analyzedIds.slice().sort().join(',');
@@ -79,7 +76,7 @@ export default function InsightsPanel() {
 
   // Auto-open panel when insights are found, but only once per mount
   // so that a manual close is respected
-  const activeInsights = insights.filter(i => i.status !== 'dismissed' && i.status !== 'acted_on');
+  const activeInsights = insights.filter((i) => i.status !== 'dismissed' && i.status !== 'acted_on');
 
   useEffect(() => {
     if (!autoOpened && activeInsights.length > 0 && preferences?.enabled) {
@@ -94,23 +91,22 @@ export default function InsightsPanel() {
     if (analyzedIds.length === 0) {
       // Currently "all" — switching to specific: select all except the unchecked one
       if (!checked) {
-        const allExcept = activeProjects.filter(p => p.id !== projectId).map(p => p.id);
+        const allExcept = activeProjects.filter((p) => p.id !== projectId).map((p) => p.id);
         updatePreferences({ analyzedProjectIds: allExcept });
       }
     } else {
-      const updated = checked
-        ? [...analyzedIds, projectId]
-        : analyzedIds.filter(id => id !== projectId);
+      const updated = checked ? [...analyzedIds, projectId] : analyzedIds.filter((id) => id !== projectId);
       // If empty after removal, reset to "all"
       updatePreferences({ analyzedProjectIds: updated.length === 0 ? [] : updated });
     }
   };
 
-  const scopeLabel = analyzedIds.length === 0
-    ? 'All Projects'
-    : analyzedIds.length === 1
-      ? (projectNameMap.get(analyzedIds[0]) ?? '1 project')
-      : `${analyzedIds.length} projects`;
+  const scopeLabel =
+    analyzedIds.length === 0
+      ? 'All Projects'
+      : analyzedIds.length === 1
+        ? (projectNameMap.get(analyzedIds[0]) ?? '1 project')
+        : `${analyzedIds.length} projects`;
 
   const handleRunNow = async () => {
     setRunning(true);
@@ -130,7 +126,7 @@ export default function InsightsPanel() {
   };
 
   const filteredInsights = sortInsights(
-    insights.filter(insight => {
+    insights.filter((insight) => {
       if (insight.status === 'dismissed' || insight.status === 'acted_on') return false;
       if (activeFilter === 'new') return insight.status === 'new';
       if (activeFilter === 'urgent') return insight.severity === 'warning' || insight.severity === 'critical';
@@ -138,10 +134,8 @@ export default function InsightsPanel() {
     }),
   );
 
-  const newCount = activeInsights.filter(i => i.status === 'new').length;
-  const urgentCount = activeInsights.filter(i =>
-    i.severity === 'warning' || i.severity === 'critical',
-  ).length;
+  const newCount = activeInsights.filter((i) => i.status === 'new').length;
+  const urgentCount = activeInsights.filter((i) => i.severity === 'warning' || i.severity === 'critical').length;
 
   const FILTER_TABS: { id: FilterTab; label: string; count?: number }[] = [
     { id: 'all', label: 'All', count: activeInsights.length },
@@ -154,7 +148,7 @@ export default function InsightsPanel() {
       {/* Panel header */}
       <div
         className={`p-5 flex items-center justify-between cursor-pointer${
-          (!isDisabled && panelOpen) ? ' border-b border-[var(--color-border)]' : ''
+          !isDisabled && panelOpen ? ' border-b border-[var(--color-border)]' : ''
         }`}
         onClick={() => {
           if (isDisabled) navigate('/settings');
@@ -177,7 +171,10 @@ export default function InsightsPanel() {
         {isDisabled ? (
           <div className="flex items-center gap-2.5">
             <button
-              onClick={(e) => { e.stopPropagation(); navigate('/settings'); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate('/settings');
+              }}
               className="flex items-center gap-1.5 text-xs border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 transition-all clip-corner-cut-sm"
             >
               <Settings size={12} />
@@ -189,7 +186,11 @@ export default function InsightsPanel() {
             {/* Project scope toggle */}
             {activeProjects.length > 1 && (
               <button
-                onClick={(e) => { e.stopPropagation(); setScopeOpen(prev => !prev); if (!panelOpen) setPanelOpen(true); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setScopeOpen((prev) => !prev);
+                  if (!panelOpen) setPanelOpen(true);
+                }}
                 title="Select projects to analyze"
                 className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 transition-all clip-corner-cut-sm max-w-[160px] border ${
                   scopeOpen
@@ -204,16 +205,15 @@ export default function InsightsPanel() {
             )}
             {/* Run Now */}
             <button
-              onClick={(e) => { e.stopPropagation(); handleRunNow(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRunNow();
+              }}
               disabled={running}
               title="Run background agent now"
               className="flex items-center gap-1.5 text-xs border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 transition-all clip-corner-cut-sm disabled:opacity-50 disabled:cursor-wait"
             >
-              {running ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <RefreshCw size={12} />
-              )}
+              {running ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
               {running ? 'Running...' : 'Run Now'}
             </button>
             <div
@@ -228,13 +228,15 @@ export default function InsightsPanel() {
 
       {/* Project scope picker — inline collapsible row below header */}
       {preferences?.enabled && panelOpen && activeProjects.length > 1 && (
-        <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
-          scopeOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-        }`}>
+        <div
+          className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+            scopeOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          }`}
+        >
           <div className="overflow-hidden min-h-0">
             <div className={`px-5 py-3 border-b border-[var(--color-border)] bg-[var(--color-accent-subtle)]/30`}>
               <div className="flex items-center flex-wrap gap-1.5">
-                {activeProjects.map(project => {
+                {activeProjects.map((project) => {
                   const isSelected = analyzedIds.length === 0 || analyzedIds.includes(project.id);
                   return (
                     <button
@@ -269,15 +271,13 @@ export default function InsightsPanel() {
       {preferences !== null && preferences.enabled && panelOpen && (
         <div className="p-5">
           {/* Loading state */}
-          {loading && insights.length === 0 && (
-            <LoadingSkeleton />
-          )}
+          {loading && insights.length === 0 && <LoadingSkeleton />}
 
           {/* Filter tabs */}
           {!loading && (
             <>
               <div className="flex items-center gap-1 mb-4">
-                {FILTER_TABS.map(tab => (
+                {FILTER_TABS.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveFilter(tab.id)}
@@ -289,11 +289,13 @@ export default function InsightsPanel() {
                   >
                     {tab.label}
                     {tab.count !== undefined && tab.count > 0 && (
-                      <span className={`text-[0.6875rem] font-semibold px-1.5 py-0.5 rounded-full border ${
-                        activeFilter === tab.id
-                          ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)] border-[var(--color-accent)]/30'
-                          : 'bg-[var(--color-accent-subtle)] text-[var(--color-accent-dim)] border-[var(--color-border-accent)]'
-                      }`}>
+                      <span
+                        className={`text-[0.6875rem] font-semibold px-1.5 py-0.5 rounded-full border ${
+                          activeFilter === tab.id
+                            ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)] border-[var(--color-accent)]/30'
+                            : 'bg-[var(--color-accent-subtle)] text-[var(--color-accent-dim)] border-[var(--color-border-accent)]'
+                        }`}
+                      >
                         {tab.count}
                       </span>
                     )}
@@ -320,21 +322,14 @@ export default function InsightsPanel() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {filteredInsights.map(insight => {
+                  {filteredInsights.map((insight) => {
                     // For consolidated insights, show "across N projects" instead of a single project name
                     const detailProjects = (insight.details as { projects?: Record<string, string> } | null)?.projects;
                     const projectCount = detailProjects ? Object.keys(detailProjects).length : 0;
-                    const displayName = projectCount > 1
-                      ? `across ${projectCount} projects`
-                      : projectNameMap.get(insight.projectId);
+                    const displayName =
+                      projectCount > 1 ? `across ${projectCount} projects` : projectNameMap.get(insight.projectId);
 
-                    return (
-                      <InsightCard
-                        key={insight.id}
-                        insight={insight}
-                        projectName={displayName}
-                      />
-                    );
+                    return <InsightCard key={insight.id} insight={insight} projectName={displayName} />;
                   })}
                 </div>
               )}
