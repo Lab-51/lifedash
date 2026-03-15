@@ -28,6 +28,37 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.14',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Intelligence Feed — browse AI and tech news from RSS sources right inside LifeDash',
+          'AI Daily & Weekly Briefs — get an AI-generated summary of the most important stories',
+          'In-app article reader with clean typography and comfortable reading experience',
+          'Reddit support — posts and top comments rendered natively in the reader',
+          'Brief Discussion chat — ask AI about the day\'s news directly from the brief panel',
+          'Magazine-style grid layout with hero card for top stories',
+          'Article actions — save as idea, start a project, or discuss with AI from any article',
+          'Clickable article titles in the daily brief open the in-app reader',
+          'Source favicons displayed next to article source names',
+          'Updated feature tour and setup wizard with quick-start actions',
+        ],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Daily brief now correctly analyzes only today\'s articles',
+          'Source toggle and delete immediately refreshes the article feed',
+          'Fixed modals closing instantly when opened (FocusTrap issue)',
+          'RSS feeds work reliably with Reddit, Google AI Blog, and other tricky sources',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.13',
     sections: [
       {
@@ -76,30 +107,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         label: 'Fixes',
         items: [
           'Sign-in now correctly updates the UI — no more stuck "Sign in to enable cloud sync" screen',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.9',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Two-way sync — edits made on the web companion now sync back to the desktop app in real time',
-          'Cloud sync indicator in the title bar — always visible next to "Up to date"',
-          'Redesigned sign-in window to match the app aesthetic',
-          'Sign-up flow now works correctly with email confirmation',
-        ],
-      },
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Items deleted on the web are now removed locally during sync',
-          'Sync schema is now idempotent — safe to re-run without errors',
-          'Sign-up toggle link now responds to clicks in the auth window',
         ],
       },
     ],
