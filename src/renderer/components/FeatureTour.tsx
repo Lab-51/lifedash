@@ -10,6 +10,8 @@ import {
   Mic,
   Brain,
   Lightbulb,
+  Newspaper,
+  Timer,
   PartyPopper,
 } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -40,30 +42,38 @@ const TOUR_STEPS: TourStep[] = [
     id: 'welcome',
     title: 'Welcome to LifeDash',
     description:
-      'Your private meeting intelligence hub. Record meetings, get AI summaries, and turn action items into projects. Everything stays on your machine.',
+      'Your private AI-powered dashboard for meetings, news intelligence, project management, and deep work. Everything stays on your machine.',
     icon: Rocket,
   },
   {
     id: 'meetings',
     title: 'Capture every meeting',
     description:
-      'Record from any app — Zoom, Teams, Google Meet. Get transcripts, briefs, and action items automatically.',
+      'Record from any app — Zoom, Teams, Google Meet. Get transcripts, AI briefs, and action items automatically.',
     icon: Mic,
     spotlightTarget: 'nav-meetings',
   },
   {
-    id: 'projects',
-    title: 'From meeting to execution',
+    id: 'intel',
+    title: 'Stay informed',
     description:
-      'Action items become project cards. Track progress with boards, columns, and checklists.',
+      'Your AI-curated news feed. Aggregate RSS sources, get daily intelligence briefs, read articles in-app, and turn insights into projects or ideas.',
+    icon: Newspaper,
+    spotlightTarget: 'nav-intel',
+  },
+  {
+    id: 'projects',
+    title: 'From insight to execution',
+    description:
+      'Manage projects with boards, columns, and checklists. Action items from meetings and news flow directly into cards.',
     icon: FolderKanban,
     spotlightTarget: 'nav-projects',
   },
   {
     id: 'brainstorm',
-    title: 'Continue the conversation',
+    title: 'Think with AI',
     description:
-      'Use AI to explore ideas, solve problems, or plan your next steps after a meeting.',
+      'Use AI to explore ideas, discuss articles, solve problems, or plan your next steps.',
     icon: Brain,
     spotlightTarget: 'nav-brainstorm',
   },
@@ -71,15 +81,23 @@ const TOUR_STEPS: TourStep[] = [
     id: 'ideas',
     title: 'Capture ideas on the fly',
     description:
-      'Quick-capture thoughts between meetings. Turn the best ones into projects when you\'re ready.',
+      'Quick-capture thoughts anytime. Turn the best ones into projects when you\'re ready.',
     icon: Lightbulb,
     spotlightTarget: 'nav-ideas',
+  },
+  {
+    id: 'focus',
+    title: 'Track deep work',
+    description:
+      'Start focus sessions, log time against projects, and build streaks. See where your hours go.',
+    icon: Timer,
+    spotlightTarget: 'nav-focus',
   },
   {
     id: 'ready',
     title: "You're all set!",
     description:
-      "Next, we'll connect an AI service to power transcription and summaries.",
+      "Next, we'll connect an AI service to power transcription, briefs, and intelligence features.",
     icon: PartyPopper,
   },
 ];

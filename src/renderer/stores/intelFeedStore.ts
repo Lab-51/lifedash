@@ -63,7 +63,7 @@ interface IntelFeedStore {
 export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   items: [],
   sources: [],
-  dateFilter: 'all',
+  dateFilter: 'today',
   loading: false,
   fetching: false,
   error: null,

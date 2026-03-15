@@ -22,6 +22,8 @@ import {
   Sparkles,
   Key,
   HelpCircle,
+  Newspaper,
+  Mic,
 } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useNavigate } from 'react-router-dom';
@@ -604,11 +606,15 @@ function StepTest({ status, error, latencyMs, onNext, onBack }: TestStepProps) {
 
 function StepDone({
   onClose,
+  onNavigateIntel,
   onNavigateBrainstorm,
+  onNavigateMeetings,
   onNavigateSettings,
 }: {
   onClose: () => void;
+  onNavigateIntel: () => void;
   onNavigateBrainstorm: () => void;
+  onNavigateMeetings: () => void;
   onNavigateSettings: () => void;
 }) {
   return (
@@ -619,33 +625,58 @@ function StepDone({
 
       <div>
         <h2 className="font-hud text-xl tracking-tight text-[var(--color-text-primary)] mb-1">
-          You're all set!
+          You're ready to go!
         </h2>
         <p className="text-sm text-[var(--color-text-secondary)] max-w-sm leading-relaxed">
-          AI features are now active. LifeDash can help you brainstorm ideas, summarize meetings, and more.
+          AI features are active. Pick something to try right now:
         </p>
       </div>
 
       <div className="flex flex-col gap-2 w-full max-w-xs pt-2">
         <button
-          onClick={onNavigateBrainstorm}
-          className="flex items-center justify-center gap-2 w-full py-2.5 btn-primary clip-corner-cut-sm text-sm font-medium"
+          onClick={onNavigateIntel}
+          className="cursor-pointer flex items-center gap-3 w-full py-3 px-4 btn-primary clip-corner-cut-sm text-sm font-medium text-left"
         >
-          <Sparkles size={16} />
-          Try brainstorming
+          <Newspaper size={18} className="shrink-0" />
+          <div>
+            <div>Fetch your AI news</div>
+            <div className="text-xs opacity-70 font-normal">Get today's top stories from 8 curated sources</div>
+          </div>
         </button>
         <button
-          onClick={onNavigateSettings}
-          className="flex items-center justify-center gap-2 w-full py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors"
+          onClick={onNavigateMeetings}
+          className="cursor-pointer flex items-center gap-3 w-full py-3 px-4 text-sm text-left rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
         >
-          Go to AI settings
-          <ArrowRight size={14} />
+          <Mic size={18} className="shrink-0" />
+          <div>
+            <div>Record a meeting</div>
+            <div className="text-xs opacity-50 font-normal">Capture audio, get AI transcripts and briefs</div>
+          </div>
+        </button>
+        <button
+          onClick={onNavigateBrainstorm}
+          className="cursor-pointer flex items-center gap-3 w-full py-3 px-4 text-sm text-left rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+        >
+          <Sparkles size={18} className="shrink-0" />
+          <div>
+            <div>Start a brainstorm</div>
+            <div className="text-xs opacity-50 font-normal">Explore ideas with AI assistance</div>
+          </div>
+        </button>
+      </div>
+
+      <div className="flex items-center gap-4 pt-1">
+        <button
+          onClick={onNavigateSettings}
+          className="cursor-pointer text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+        >
+          AI settings
         </button>
         <button
           onClick={onClose}
-          className="w-full py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+          className="cursor-pointer text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
         >
-          Close
+          Just explore
         </button>
       </div>
     </div>
@@ -981,10 +1012,22 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     onClose();
   }
 
+  async function handleNavigateIntel() {
+    await setSetting('setupWizard.completed', 'true');
+    onClose();
+    navigate('/intel');
+  }
+
   async function handleNavigateBrainstorm() {
     await setSetting('setupWizard.completed', 'true');
     onClose();
     navigate('/brainstorm');
+  }
+
+  async function handleNavigateMeetings() {
+    await setSetting('setupWizard.completed', 'true');
+    onClose();
+    navigate('/meetings');
   }
 
   async function handleNavigateSettings() {
@@ -1094,7 +1137,9 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           {step === 'done' && (
             <StepDone
               onClose={handleDone}
+              onNavigateIntel={handleNavigateIntel}
               onNavigateBrainstorm={handleNavigateBrainstorm}
+              onNavigateMeetings={handleNavigateMeetings}
               onNavigateSettings={handleNavigateSettings}
             />
           )}

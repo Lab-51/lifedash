@@ -35,11 +35,11 @@ interface NavItem {
 const navItems: NavItem[] = [
     { path: '/', label: 'Home', icon: LayoutDashboard },
     { path: '/meetings', label: 'Meetings', icon: Mic, tourId: 'nav-meetings' },
-    { path: '/intel', label: 'Intel', icon: Newspaper },
+    { path: '/intel', label: 'Intel', icon: Newspaper, tourId: 'nav-intel' },
     { path: '/projects', label: 'Projects', icon: FolderKanban, tourId: 'nav-projects' },
     { path: '/brainstorm', label: 'Brainstorm', icon: Brain, tourId: 'nav-brainstorm' },
     { path: '/ideas', label: 'Ideas', icon: Lightbulb, tourId: 'nav-ideas' },
-    { path: '/focus', label: 'Focus', icon: Clock },
+    { path: '/focus', label: 'Focus', icon: Clock, tourId: 'nav-focus' },
     { path: '/settings', label: 'Settings', icon: Settings },
 ];
 

@@ -130,6 +130,16 @@ function renderBriefContent(content: string): React.ReactNode[] {
   }
 
   flushList();
+
+  // Fallback: if parser produced nothing, show raw text as paragraphs
+  if (elements.length === 0 && content.trim()) {
+    return [
+      <p key="fallback" className="text-sm text-[var(--color-text-secondary)] leading-relaxed whitespace-pre-wrap">
+        {stripJsonBlocks(content)}
+      </p>,
+    ];
+  }
+
   return elements;
 }
 

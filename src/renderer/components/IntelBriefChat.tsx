@@ -64,7 +64,7 @@ function renderMessageContent(content: string): React.ReactNode {
 
     if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
       listItems.push(
-        <li key={i} className="flex gap-1.5 text-xs leading-relaxed">
+        <li key={i} className="flex gap-1.5 text-sm leading-relaxed">
           <span className="text-[var(--color-accent)] shrink-0 mt-0.5">-</span>
           <span>{parseInlineBold(trimmed.slice(2))}</span>
         </li>,
@@ -73,7 +73,7 @@ function renderMessageContent(content: string): React.ReactNode {
       const bulletText = trimmed.replace(/^\d+\.\s/, '');
       const num = trimmed.match(/^\d+/)?.[0];
       listItems.push(
-        <li key={i} className="flex gap-1.5 text-xs leading-relaxed">
+        <li key={i} className="flex gap-1.5 text-sm leading-relaxed">
           <span className="text-[var(--color-accent)] shrink-0">{num}.</span>
           <span>{parseInlineBold(bulletText)}</span>
         </li>,
@@ -81,7 +81,7 @@ function renderMessageContent(content: string): React.ReactNode {
     } else {
       flushList();
       elements.push(
-        <span key={i} className="block text-xs leading-relaxed">
+        <span key={i} className="block text-sm leading-relaxed">
           {parseInlineBold(trimmed)}
         </span>,
       );
@@ -100,11 +100,15 @@ export default function IntelBriefChat({
   onClear,
 }: IntelBriefChatProps) {
   const [input, setInput] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Auto-scroll only the chat container, not the parent page
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   }, [messages, sending]);
 
   const handleSend = () => {
@@ -127,7 +131,7 @@ export default function IntelBriefChat({
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-2">
           <MessageSquare size={14} className="text-[var(--color-accent)]" />
-          <span className="text-xs font-hud text-[var(--color-accent)] text-glow">
+          <span className="text-sm font-hud text-[var(--color-accent)] text-glow">
             Brief Discussion
           </span>
         </div>
@@ -143,10 +147,10 @@ export default function IntelBriefChat({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
         {messages.length === 0 && !sending ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 py-6">
-            <p className="text-xs text-[var(--color-text-muted)] text-center leading-relaxed max-w-[260px]">
+            <p className="text-sm text-[var(--color-text-muted)] text-center leading-relaxed max-w-[280px]">
               {hasBrief
                 ? 'Ask about the brief — implications, trends, or what to watch for.'
                 : 'Generate a brief first, then discuss it here.'}
@@ -157,7 +161,7 @@ export default function IntelBriefChat({
                   <button
                     key={suggestion}
                     onClick={() => onSend(suggestion)}
-                    className="cursor-pointer text-left px-3 py-2 text-xs rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:border-[var(--color-border-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+                    className="cursor-pointer text-left px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:border-[var(--color-border-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
                   >
                     {suggestion}
                   </button>
@@ -180,7 +184,7 @@ export default function IntelBriefChat({
                   }`}
                 >
                   {msg.role === 'user' ? (
-                    <span className="text-xs leading-relaxed">{parseInlineBold(msg.content)}</span>
+                    <span className="text-sm leading-relaxed">{parseInlineBold(msg.content)}</span>
                   ) : (
                     <div className="space-y-1">{renderMessageContent(msg.content)}</div>
                   )}
@@ -194,13 +198,13 @@ export default function IntelBriefChat({
                 <div className="px-3 py-2 rounded-lg bg-[var(--color-chrome)] border border-[var(--color-border)]">
                   <div className="flex items-center gap-1">
                     <Loader2 size={12} className="animate-spin text-[var(--color-accent)]" />
-                    <span className="text-xs text-[var(--color-text-muted)]">Thinking...</span>
+                    <span className="text-sm text-[var(--color-text-muted)]">Thinking...</span>
                   </div>
                 </div>
               </div>
             )}
 
-            <div ref={messagesEndRef} />
+            <div />
           </>
         )}
       </div>
@@ -216,7 +220,7 @@ export default function IntelBriefChat({
             onKeyDown={handleKeyDown}
             placeholder={hasBrief ? 'Ask about the brief...' : 'Generate a brief first'}
             disabled={!hasBrief || sending}
-            className="flex-1 px-3 py-2 text-xs rounded-lg bg-[var(--color-chrome)] border border-[var(--color-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-border-accent)] disabled:opacity-50 transition-colors"
+            className="flex-1 px-3 py-2 text-sm rounded-lg bg-[var(--color-chrome)] border border-[var(--color-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-border-accent)] disabled:opacity-50 transition-colors"
           />
           <button
             onClick={handleSend}

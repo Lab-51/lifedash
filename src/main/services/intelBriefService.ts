@@ -157,16 +157,20 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
     and(eq(intelBriefs.type, type), eq(intelBriefs.date, dateKey)),
   );
 
-  // Get items for the period
-  let sinceDate: Date;
+  // Get items for the period.
+  // Daily: publishedAt >= start of today (matches the "Today" feed filter exactly).
+  // Weekly: publishedAt >= 7 days ago.
+  let dateCondition;
   let itemLimit: number;
   if (type === 'daily') {
-    sinceDate = new Date(now);
-    sinceDate.setHours(0, 0, 0, 0);
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    dateCondition = gte(intelItems.publishedAt, startOfDay);
     itemLimit = 50;
   } else {
-    sinceDate = new Date(now);
-    sinceDate.setDate(sinceDate.getDate() - 7);
+    const since7d = new Date(now);
+    since7d.setDate(since7d.getDate() - 7);
+    dateCondition = gte(intelItems.publishedAt, since7d);
     itemLimit = 100;
   }
 
@@ -177,7 +181,10 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
     })
     .from(intelItems)
     .innerJoin(intelSources, eq(intelItems.sourceId, intelSources.id))
-    .where(gte(intelItems.publishedAt, sinceDate))
+    .where(and(
+      dateCondition,
+      eq(intelSources.enabled, true),
+    ))
     .orderBy(desc(intelItems.publishedAt))
     .limit(itemLimit);
 
@@ -217,21 +224,53 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
     prompt: userPrompt,
     system: systemPrompt,
     temperature: provider.temperature ?? 0.3,
-    maxTokens: provider.maxTokens ?? 2000,
+    maxTokens: Math.max(provider.maxTokens ?? 8000, 8000),
   });
 
-  // Parse response: extract brief content, categories, and relevance scores
-  // The AI returns markdown content followed by JSON blocks for categories and relevance
-  const jsonBlocks: string[] = [];
-  const jsonBlockRegex = /```json\s*\n?([\s\S]*?)```/g;
-  let match: RegExpExecArray | null;
-  while ((match = jsonBlockRegex.exec(result.text)) !== null) {
-    jsonBlocks.push(match[1]);
+  if (!result.text || result.text.trim().length === 0) {
+    log.warn('AI returned empty text for brief — model may have exhausted tokens on reasoning. Increase max tokens or use a different model.');
+    throw new Error('AI returned an empty brief. Try regenerating or switching to a model with higher output capacity.');
   }
 
-  // Brief content is everything before the first json block
-  const firstJsonIndex = result.text.indexOf('```json');
-  const briefContent = firstJsonIndex >= 0 ? result.text.slice(0, firstJsonIndex).trim() : result.text.trim();
+  // Parse response: extract brief content, categories, and relevance scores
+  // The AI returns markdown content followed by JSON blocks for categories and relevance.
+  // JSON blocks may use ```json, ```JSON, or just ``` fences.
+  const jsonBlocks: string[] = [];
+  const jsonBlockRegex = /```(?:json|JSON)?\s*\n?([\s\S]*?)```/g;
+  let match: RegExpExecArray | null;
+  while ((match = jsonBlockRegex.exec(result.text)) !== null) {
+    const content = match[1].trim();
+    // Only treat as JSON block if it looks like JSON (starts with { or [)
+    if (content.startsWith('{') || content.startsWith('[')) {
+      jsonBlocks.push(content);
+    }
+  }
+
+  // Brief content is everything before the first JSON block (or the full text if no blocks found)
+  let briefContent: string;
+  const firstFenceIndex = result.text.search(/```(?:json|JSON)?\s*\n?\s*\{/);
+  if (firstFenceIndex >= 0) {
+    briefContent = result.text.slice(0, firstFenceIndex).trim();
+  } else {
+    // No JSON fences found — try to find raw JSON at the end (some models skip fences)
+    const lastBraceIndex = result.text.lastIndexOf('\n{');
+    if (lastBraceIndex > result.text.length * 0.3) {
+      briefContent = result.text.slice(0, lastBraceIndex).trim();
+      // Try to parse the remaining text as JSON blocks
+      const remaining = result.text.slice(lastBraceIndex);
+      const rawJsonRegex = /(\{[\s\S]*?\})\s*/g;
+      let rawMatch: RegExpExecArray | null;
+      while ((rawMatch = rawJsonRegex.exec(remaining)) !== null) {
+        jsonBlocks.push(rawMatch[1].trim());
+      }
+    } else {
+      briefContent = result.text.trim();
+    }
+  }
+
+  log.info(`Brief raw response (first 300 chars): ${result.text.slice(0, 300)}`);
+  log.info(`Brief extracted content (first 300 chars): ${briefContent.slice(0, 300)}`);
+  log.info(`Brief generated: ${briefContent.length} chars content, ${jsonBlocks.length} JSON blocks found`);
 
   // Parse categories and relevance scores from JSON blocks
   let categories: Record<string, string> = {};
@@ -387,7 +426,7 @@ Be concise, insightful, and actionable. When discussing specific articles, refer
     prompt: userPrompt,
     system: systemPrompt,
     temperature: provider.temperature ?? 0.5,
-    maxTokens: provider.maxTokens ?? 1000,
+    maxTokens: Math.max(provider.maxTokens ?? 4000, 4000),
   });
 
   return result.text;

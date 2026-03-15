@@ -53,6 +53,7 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
     try {
       await updateSource(source.id, { enabled: !source.enabled });
       await loadSources();
+      await loadItems();
     } finally {
       setTogglingIds(prev => {
         const next = new Set(prev);

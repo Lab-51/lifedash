@@ -5,7 +5,7 @@
 // === DEPENDENCIES ===
 // drizzle-orm, rss-parser, ../db/connection, ../db/schema (intelSources, intelItems)
 
-import { eq, desc, count, gte, sql } from 'drizzle-orm';
+import { eq, desc, count, gte, and, sql } from 'drizzle-orm';
 import RSSParser from 'rss-parser';
 import { getDb } from '../db/connection';
 import { intelSources, intelItems } from '../db/schema';
@@ -302,12 +302,15 @@ export async function getItems(filter: IntelDateFilter): Promise<IntelItem[]> {
     .innerJoin(intelSources, eq(intelItems.sourceId, intelSources.id))
     .orderBy(desc(intelItems.publishedAt));
 
+  // Only show items from enabled sources
+  const enabledCondition = eq(intelSources.enabled, true);
+
   let rows;
   if (dateCondition) {
-    rows = await query.where(dateCondition);
+    rows = await query.where(and(dateCondition, enabledCondition));
   } else {
     // 'all' — no date filter, limit 200
-    rows = await query.limit(200);
+    rows = await query.where(enabledCondition).limit(200);
   }
 
   return rows.map((r) => toIntelItem(r.item, r.sourceName, r.sourceIconUrl || faviconUrl(r.sourceUrl)));
