@@ -3,9 +3,8 @@
 // with toggle controls, delete actions, and an "Add RSS Feed" button.
 // Renders as a slide-out overlay panel from the right side.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Trash2, Rss, Plus, Loader2 } from 'lucide-react';
-import FocusTrap from './FocusTrap';
 import { ConfirmDialog } from './ConfirmDialog';
 import IntelAddSourceModal from './IntelAddSourceModal';
 import { useIntelFeedStore } from '../stores/intelFeedStore';
@@ -34,6 +33,18 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
       loadSources();
     }
   }, [isOpen, loadSources]);
+
+  // Escape key closes panel
+  const handleEscape = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, handleEscape]);
 
   if (!isOpen) return null;
 
@@ -73,12 +84,11 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
       {/* Overlay backdrop */}
       <div
         className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px]"
-        onClick={onClose}
+        onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       />
 
       {/* Panel */}
-      <FocusTrap active={isOpen} onDeactivate={onClose} clickOutsideDeactivates={false}>
-        <div className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-[var(--color-chrome)] border-l border-[var(--color-border)] shadow-2xl flex flex-col">
+      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-[var(--color-chrome)] border-l border-[var(--color-border)] shadow-2xl flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-5 pb-3 shrink-0">
             <div className="flex items-center gap-2">
@@ -169,8 +179,7 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
               </div>
             )}
           </div>
-        </div>
-      </FocusTrap>
+      </div>
 
       {/* Add Source modal (managed internally) */}
       <IntelAddSourceModal
