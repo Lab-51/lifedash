@@ -308,10 +308,8 @@ export default function IntelFeedModern() {
           </div>
         </div>
 
-        <div className="mb-6" />
-
-        {/* Date Filter Tabs */}
-        <div className="flex hud-panel p-1.5 rounded-xl items-center gap-2 mb-2">
+        {/* Filters row: date tabs + article count + category pills */}
+        <div className="flex items-center gap-3 flex-wrap mt-2">
           <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
             {DATE_FILTER_TABS.map(tab => (
               <button
@@ -328,41 +326,42 @@ export default function IntelFeedModern() {
             ))}
           </div>
 
-          <div className="h-6 w-px bg-[var(--color-border)] mx-1" />
-
           <span className="text-xs font-data text-[var(--color-text-muted)]">
             {filteredItems.length} article{filteredItems.length !== 1 ? 's' : ''}
           </span>
-        </div>
 
-        {/* Category Filter Pills */}
-        {categories.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            <button
-              onClick={() => setCategoryFilter(null)}
-              className={`cursor-pointer px-2.5 py-1 text-xs rounded-full border transition-colors ${
-                !categoryFilter
-                  ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
-                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
-              }`}
-            >
-              All
-            </button>
-            {categories.map(([cat, count]) => (
-              <button
-                key={cat}
-                onClick={() => setCategoryFilter(cat)}
-                className={`cursor-pointer px-2.5 py-1 text-xs rounded-full border transition-colors ${
-                  categoryFilter === cat
-                    ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
-                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
-                }`}
-              >
-                {cat} ({count})
-              </button>
-            ))}
-          </div>
-        )}
+          {/* Category pills inline */}
+          {categories.length > 0 && (
+            <>
+              <div className="h-4 w-px bg-[var(--color-border)]" />
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setCategoryFilter(null)}
+                  className={`cursor-pointer px-2.5 py-0.5 text-[11px] rounded-full border transition-colors ${
+                    !categoryFilter
+                      ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
+                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+                  }`}
+                >
+                  All
+                </button>
+                {categories.map(([cat, count]) => (
+                  <button
+                    key={cat}
+                    onClick={() => setCategoryFilter(cat)}
+                    className={`cursor-pointer px-2.5 py-0.5 text-[11px] rounded-full border transition-colors ${
+                      categoryFilter === cat
+                        ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
+                        : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+                    }`}
+                  >
+                    {cat} ({count})
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Error */}
