@@ -123,6 +123,20 @@ function extractAuthor(item: RSSParser.Item): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Favicon Helper
+// ---------------------------------------------------------------------------
+
+/** Derive a favicon URL from a feed/site URL using Google's favicon service. */
+function faviconUrl(feedUrl: string): string {
+  try {
+    const domain = new URL(feedUrl).hostname;
+    return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+  } catch {
+    return '';
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Row Mappers
 // ---------------------------------------------------------------------------
 
@@ -137,6 +151,7 @@ function toIntelSource(
     url: row.url,
     type: row.type,
     enabled: row.enabled,
+    iconUrl: row.iconUrl || faviconUrl(row.url),
     lastFetchedAt: row.lastFetchedAt?.toISOString() ?? null,
     itemCount,
     createdAt: row.createdAt.toISOString(),
@@ -144,15 +159,17 @@ function toIntelSource(
   };
 }
 
-/** Map a DB item row + source name to the shared IntelItem type */
+/** Map a DB item row + source name + source icon to the shared IntelItem type */
 function toIntelItem(
   row: typeof intelItems.$inferSelect,
   sourceName: string,
+  sourceIconUrl?: string | null,
 ): IntelItem {
   return {
     id: row.id,
     sourceId: row.sourceId,
     sourceName,
+    sourceIconUrl: sourceIconUrl ?? null,
     title: row.title,
     description: row.description,
     url: row.url,
@@ -273,11 +290,13 @@ export async function getItems(filter: IntelDateFilter): Promise<IntelItem[]> {
     dateCondition = gte(intelItems.publishedAt, weekAgo);
   }
 
-  // Build query — join with sources to get source name
+  // Build query — join with sources to get source name + icon
   const query = db
     .select({
       item: intelItems,
       sourceName: intelSources.name,
+      sourceIconUrl: intelSources.iconUrl,
+      sourceUrl: intelSources.url,
     })
     .from(intelItems)
     .innerJoin(intelSources, eq(intelItems.sourceId, intelSources.id))
@@ -291,7 +310,7 @@ export async function getItems(filter: IntelDateFilter): Promise<IntelItem[]> {
     rows = await query.limit(200);
   }
 
-  return rows.map((r) => toIntelItem(r.item, r.sourceName));
+  return rows.map((r) => toIntelItem(r.item, r.sourceName, r.sourceIconUrl || faviconUrl(r.sourceUrl)));
 }
 
 /** Mark an item as read. */
@@ -510,6 +529,27 @@ export async function fetchArticleContent(itemId: string): Promise<ArticleConten
   };
 
   try {
+    // Reddit posts: skip Readability (Reddit HTML produces duplicate content).
+    // Use the stored description (selftext) directly.
+    if (/reddit\.com\//i.test(row.item.url)) {
+      const content = row.item.description || '';
+      // Cache it so we don't re-check next time
+      if (content) {
+        await db.update(intelItems)
+          .set({ fullContent: content })
+          .where(eq(intelItems.id, itemId));
+      }
+      return {
+        title: row.item.title,
+        content: `<p>${content.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`,
+        textContent: content,
+        excerpt: content.slice(0, 200),
+        byline: row.item.author,
+        siteName: 'Reddit',
+        length: content.split(/\s+/).length,
+      };
+    }
+
     // Fetch the article HTML
     const response = await fetch(row.item.url, {
       headers: {

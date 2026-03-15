@@ -1,0 +1,1 @@
+ALTER TABLE "intel_sources" ADD COLUMN "icon_url" varchar(500);

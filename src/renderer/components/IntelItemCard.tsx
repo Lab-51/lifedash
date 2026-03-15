@@ -123,6 +123,9 @@ export default function IntelItemCard({
 
         {/* Source + time (compact) */}
         <div className="flex items-center gap-1.5 text-[0.6875rem] font-data text-[var(--color-text-muted)] mb-1.5">
+          {item.sourceIconUrl && (
+            <img src={item.sourceIconUrl} alt="" className="w-4 h-4 rounded-sm shrink-0" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          )}
           <span className="text-[var(--color-accent-dim)]">{item.sourceName}</span>
           <span className="opacity-40">|</span>
           <span>{relativeTime(item.publishedAt)}</span>
@@ -214,6 +217,9 @@ export default function IntelItemCard({
 
         {/* Source + time + category */}
         <div className="flex items-center gap-1.5 text-[0.6875rem] font-data text-[var(--color-text-muted)] mb-1.5">
+          {item.sourceIconUrl && (
+            <img src={item.sourceIconUrl} alt="" className="w-4 h-4 rounded-sm shrink-0" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          )}
           <span className="text-[var(--color-accent-dim)]">{item.sourceName}</span>
           <span className="opacity-40">|</span>
           <span>{relativeTime(item.publishedAt)}</span>

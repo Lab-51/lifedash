@@ -14,6 +14,7 @@ export const intelSources = pgTable('intel_sources', {
   url: varchar('url', { length: 1000 }).notNull(),
   type: intelSourceTypeEnum('type').default('rss').notNull(),
   enabled: boolean('enabled').default(true).notNull(),
+  iconUrl: varchar('icon_url', { length: 500 }),
   lastFetchedAt: timestamp('last_fetched_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

@@ -33,6 +33,7 @@ export interface IntelSource {
   url: string;
   type: IntelSourceType;
   enabled: boolean;
+  iconUrl: string | null;
   lastFetchedAt: string | null;
   itemCount: number;
   createdAt: string;
@@ -43,6 +44,7 @@ export interface IntelItem {
   id: string;
   sourceId: string;
   sourceName: string;
+  sourceIconUrl: string | null;
   title: string;
   description: string | null;
   url: string;

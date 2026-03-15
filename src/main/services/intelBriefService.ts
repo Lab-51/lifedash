@@ -52,11 +52,13 @@ function toIntelBrief(row: typeof intelBriefs.$inferSelect): IntelBrief {
 function toIntelItem(
   row: typeof intelItems.$inferSelect,
   sourceName: string,
+  sourceIconUrl?: string | null,
 ): IntelItem {
   return {
     id: row.id,
     sourceId: row.sourceId,
     sourceName,
+    sourceIconUrl: sourceIconUrl ?? null,
     title: row.title,
     description: row.description,
     url: row.url,
