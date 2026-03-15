@@ -28,9 +28,99 @@ const log = createLogger('IntelFeedService');
 // RSS Parser instance (reused across fetches)
 // ---------------------------------------------------------------------------
 
+const RSS_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
 const rssParser = new RSSParser({
   timeout: 10_000,
+  headers: {
+    'User-Agent': RSS_USER_AGENT,
+    Accept: 'application/rss+xml, application/xml, text/xml, */*',
+  },
 });
+
+/** Fetch RSS feed with Electron's net module (uses Chromium networking stack, better header support). */
+async function fetchFeedWithBrowserUA(url: string): Promise<RSSParser.Output<Record<string, unknown>>> {
+  // Use Electron's net.fetch when available (respects custom headers better than Node fetch)
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  let fetchFn: typeof globalThis.fetch = globalThis.fetch;
+  try {
+    const { net } = require('electron');
+    if (net?.fetch) fetchFn = net.fetch;
+  } catch { /* not in Electron context, use global fetch */ }
+
+  const response = await fetchFn(url, {
+    headers: {
+      'User-Agent': RSS_USER_AGENT,
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Status code ${response.status}`);
+  }
+  const xml = await response.text();
+  return rssParser.parseString(xml);
+}
+
+/** Fetch a Reddit subreddit as a feed using Reddit's JSON API (more reliable than RSS). */
+async function fetchRedditFeed(url: string): Promise<{ title: string; link: string; description: string; author: string; publishedAt: Date }[]> {
+  // Convert any Reddit URL to JSON API: /r/ClaudeAI/.rss or /r/ClaudeAI/ → /r/ClaudeAI.json
+  const jsonUrl = url.replace(/\/?\.rss\/?$/, '').replace(/\/+$/, '') + '.json';
+
+  let fetchFn: typeof globalThis.fetch = globalThis.fetch;
+  try {
+    const { net } = require('electron');
+    if (net?.fetch) fetchFn = net.fetch;
+  } catch { /* fallback */ }
+
+  const response = await fetchFn(jsonUrl, {
+    headers: {
+      'User-Agent': RSS_USER_AGENT,
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) throw new Error(`Status code ${response.status}`);
+
+  const data = await response.json() as { data?: { children?: Array<{ data: Record<string, unknown> }> } };
+  const posts = data?.data?.children ?? [];
+
+  return posts.map((post) => {
+    const d = post.data;
+    return {
+      title: String(d.title ?? 'Untitled'),
+      link: `https://www.reddit.com${d.permalink ?? ''}`,
+      description: String(d.selftext ?? d.url ?? '').slice(0, 2000),
+      author: String(d.author ?? ''),
+      publishedAt: new Date((d.created_utc as number ?? 0) * 1000),
+    };
+  });
+}
+
+/** Check if a URL is a Reddit feed (with or without .rss suffix). */
+function isRedditFeed(url: string): boolean {
+  return /reddit\.com\/r\//i.test(url);
+}
+
+/** Safely coerce any RSS field to a string (fields can be objects at runtime). */
+function safeString(val: unknown, maxLen = 500): string | null {
+  if (val == null) return null;
+  if (typeof val === 'string') return val.slice(0, maxLen);
+  if (typeof val === 'object') {
+    const obj = val as Record<string, unknown>;
+    // Common patterns: { name: "..." }, { _: "..." }, { text: "..." }
+    for (const key of ['name', '_', 'text', 'value', '$t']) {
+      if (typeof obj[key] === 'string') return (obj[key] as string).slice(0, maxLen);
+    }
+    try { return JSON.stringify(val).slice(0, maxLen); } catch { /* fall through */ }
+  }
+  try { return String(val).slice(0, maxLen); } catch { return null; }
+}
+
+/** Safely extract author string from RSS item (can be string or object at runtime). */
+function extractAuthor(item: RSSParser.Item): string | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = (item as any).creator ?? (item as any).author;
+  return safeString(raw, 200);
+}
 
 // ---------------------------------------------------------------------------
 // Row Mappers
@@ -254,33 +344,55 @@ export async function fetchAllSources(): Promise<{ newItems: number }> {
     if (source.type !== 'rss') continue;
 
     try {
-      const feed = await rssParser.parseURL(source.url);
       let sourceNew = 0;
 
-      for (const item of feed.items) {
-        if (!item.link) continue;
+      if (isRedditFeed(source.url)) {
+        // Reddit: use JSON API (their RSS/Atom feed has broken XML)
+        const posts = await fetchRedditFeed(source.url);
+        for (const post of posts) {
+          const [existing] = await db
+            .select({ id: intelItems.id })
+            .from(intelItems)
+            .where(eq(intelItems.url, post.link));
+          if (existing) continue;
 
-        // Check if URL already exists (dedup)
-        const [existing] = await db
-          .select({ id: intelItems.id })
-          .from(intelItems)
-          .where(eq(intelItems.url, item.link));
+          await db.insert(intelItems).values({
+            sourceId: source.id,
+            title: post.title.slice(0, 500),
+            description: post.description || null,
+            url: post.link.slice(0, 2000),
+            imageUrl: null,
+            author: post.author.slice(0, 200) || null,
+            publishedAt: post.publishedAt,
+          });
+          sourceNew++;
+        }
+      } else {
+        // Standard RSS/Atom feed
+        const feed = await fetchFeedWithBrowserUA(source.url);
 
-        if (existing) continue;
+        for (const item of feed.items) {
+          if (!item.link) continue;
 
-        const publishedAt = item.pubDate ? new Date(item.pubDate) : new Date();
+          const [existing] = await db
+            .select({ id: intelItems.id })
+            .from(intelItems)
+            .where(eq(intelItems.url, item.link));
+          if (existing) continue;
 
-        await db.insert(intelItems).values({
-          sourceId: source.id,
-          title: (item.title ?? 'Untitled').slice(0, 500),
-          description: item.contentSnippet ?? item.content ?? null,
-          url: item.link.slice(0, 2000),
-          imageUrl: (item.enclosure?.url ?? null)?.slice(0, 2000) ?? null,
-          author: (item.creator ?? item.author ?? null)?.slice(0, 200) ?? null,
-          publishedAt,
-        });
+          const publishedAt = item.pubDate ? new Date(item.pubDate) : new Date();
 
-        sourceNew++;
+          await db.insert(intelItems).values({
+            sourceId: source.id,
+            title: safeString(item.title, 500) ?? 'Untitled',
+            description: safeString(item.contentSnippet ?? item.content, 5000),
+            url: item.link.slice(0, 2000),
+            imageUrl: safeString(item.enclosure?.url, 2000),
+            author: extractAuthor(item),
+            publishedAt,
+          });
+          sourceNew++;
+        }
       }
 
       // Update lastFetchedAt
@@ -450,7 +562,7 @@ export async function fetchArticleContent(itemId: string): Promise<ArticleConten
 // ---------------------------------------------------------------------------
 
 const DEFAULT_SOURCES = [
-  { name: 'Anthropic Blog', url: 'https://www.anthropic.com/feed.xml' },
+  { name: 'Anthropic Blog', url: 'https://www.anthropic.com/rss.xml' },
   { name: 'OpenAI Blog', url: 'https://openai.com/blog/rss.xml' },
   { name: 'TechCrunch AI', url: 'https://techcrunch.com/category/artificial-intelligence/feed/' },
   { name: 'The Verge AI', url: 'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml' },
