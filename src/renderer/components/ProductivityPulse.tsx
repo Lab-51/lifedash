@@ -98,7 +98,7 @@ export default function ProductivityPulse({ data }: Props) {
     const gridData = [];
     const months: { label: string; x: number }[] = [];
 
-    let currentDate = new Date(startDate);
+    const currentDate = new Date(startDate);
     let firstLabelAdded = false;
 
     for (let w = 0; w < numWeeks; w++) {

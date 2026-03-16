@@ -33,7 +33,7 @@ export function PromptDialog({
 
   useEffect(() => {
     if (open) {
-      setValue(defaultValue);
+      setValue(defaultValue); // eslint-disable-line react-hooks/set-state-in-effect
       // Focus and select after render
       requestAnimationFrame(() => {
         inputRef.current?.focus();

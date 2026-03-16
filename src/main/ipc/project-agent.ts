@@ -8,7 +8,6 @@ import { streamText, stepCountIs, type LanguageModel } from 'ai';
 import * as projectAgentService from '../services/projectAgentService';
 import { resolveTaskModel, getProvider, logUsage } from '../services/ai-provider';
 import { createLogger } from '../services/logger';
-import { trackTiming } from '../services/performanceTracker';
 import { z } from 'zod';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema, projectAgentMessageContentSchema } from '../../shared/validation/schemas';

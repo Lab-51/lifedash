@@ -5,7 +5,7 @@
 // === DEPENDENCIES ===
 // drizzle-orm, rss-parser, ../db/connection, ../db/schema (intelSources, intelItems)
 
-import { eq, desc, count, gte, and, ilike, or, isNotNull, ne, sql } from 'drizzle-orm';
+import { eq, desc, count, gte, and, ilike, or, isNotNull, ne } from 'drizzle-orm';
 import RSSParser from 'rss-parser';
 import { getDb } from '../db/connection';
 import { intelSources, intelItems } from '../db/schema';

@@ -256,7 +256,7 @@ export async function generateProjectPlan(projectId: string, additionalDescripti
   const projectBoards = await db.select().from(boards).where(eq(boards.projectId, projectId));
 
   // Build context with existing board/column/card structure
-  let contextParts: string[] = [`Project: ${project.name}`];
+  const contextParts: string[] = [`Project: ${project.name}`];
 
   if (project.description) {
     contextParts.push(`Description: ${project.description}`);
@@ -371,7 +371,9 @@ export async function generateTaskBreakdown(cardId: string): Promise<TaskBreakdo
     });
   } catch (err) {
     log.error('Task breakdown generation failed:', err);
-    throw new Error('Failed to generate task breakdown. Please check your AI provider configuration and try again.');
+    throw new Error('Failed to generate task breakdown. Please check your AI provider configuration and try again.', {
+      cause: err,
+    });
   }
 
   // Parse and validate JSON response
@@ -418,7 +420,9 @@ async function generatePlanFromContext(contextString: string): Promise<ProjectPl
     });
   } catch (err) {
     log.error('Project plan generation failed:', err);
-    throw new Error('Failed to generate project plan. Please check your AI provider configuration and try again.');
+    throw new Error('Failed to generate project plan. Please check your AI provider configuration and try again.', {
+      cause: err,
+    });
   }
 
   // Parse and validate JSON response

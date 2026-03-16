@@ -32,7 +32,7 @@ export default function Starfield() {
     let stars: Star[] = [];
     const numStars = 150;
     let animationFrameId: number;
-    let mouse = { x: -1000, y: -1000 };
+    const mouse = { x: -1000, y: -1000 };
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!canvas) return;

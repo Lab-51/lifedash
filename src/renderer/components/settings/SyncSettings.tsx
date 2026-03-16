@@ -9,7 +9,6 @@
 import { useState, useCallback } from 'react';
 import { LogIn, LogOut, RefreshCw, Loader2, Check, AlertCircle, Cloud, Info } from 'lucide-react';
 import useSyncStatus, { formatRelativeTime } from '../../hooks/useSyncStatus';
-import type { SyncStatus } from '../../../shared/types/sync';
 
 export default function SyncSettings() {
   const sync = useSyncStatus();

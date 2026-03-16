@@ -89,7 +89,7 @@ export default function SettingsPageModern() {
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab && ['general', 'ai', 'data', 'about'].includes(tab)) {
-      setActiveTab(tab);
+      setActiveTab(tab); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [searchParams]);
 

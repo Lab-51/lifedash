@@ -4,7 +4,7 @@
 // (e.g. stale card detection).
 
 import { getDb } from '../db/connection';
-import { settings, agentInsights, boards, columns, cards, projects } from '../db/schema';
+import { settings, agentInsights, boards, columns, cards } from '../db/schema';
 import { eq, and, desc, count, lt, lte, inArray, ne } from 'drizzle-orm';
 import { createLogger } from './logger';
 import { generate, resolveTaskModel } from './ai-provider';

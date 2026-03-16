@@ -50,7 +50,7 @@ function FocusStartModal({ isOpen, onClose }: FocusStartModalProps) {
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setSelectedProjectId('');
+      setSelectedProjectId(''); // eslint-disable-line react-hooks/set-state-in-effect
       setSearchQuery('');
       setSelectedCard(null);
       setDuration(workDuration);

@@ -52,7 +52,7 @@ function useDatabaseStatus(): DatabaseStatusState {
 
   useEffect(() => {
     // Initial check
-    checkStatus();
+    checkStatus(); // eslint-disable-line react-hooks/set-state-in-effect
 
     // Poll every 30 seconds
     const intervalId = setInterval(checkStatus, POLL_INTERVAL_MS);

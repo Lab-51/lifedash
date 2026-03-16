@@ -127,6 +127,7 @@ export async function start(meetingId: string, language?: string): Promise<void>
 
       const { context, backend } = await whisperModelManager.createWhisperContext(modelPath);
       whisperContext = context;
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       log.info(`Started (local) with model: ${require('path').basename(modelPath)} [${backend}]`);
     } catch (err) {
       log.error('Failed to initialize Whisper:', err);

@@ -31,9 +31,6 @@ import type {
   ToolResultRecord,
   AgentAction,
 } from '../../shared/types';
-import { createLogger } from './logger';
-
-const log = createLogger('CardAgent');
 
 // ---------------------------------------------------------------------------
 // Row Mapper

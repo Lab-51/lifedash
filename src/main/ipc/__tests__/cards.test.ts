@@ -3,14 +3,9 @@ import {
   createCardInputSchema,
   updateCardInputSchema,
   cardMoveSchema,
-  createLabelInputSchema,
-  createCardCommentInputSchema,
   createCardRelationshipInputSchema,
   addChecklistItemSchema,
-  updateChecklistItemSchema,
-  reorderChecklistItemsSchema,
   addChecklistItemsBatchSchema,
-  createCardTemplateSchema,
   idParamSchema,
 } from '../../../shared/validation/schemas';
 import { validateInput } from '../../../shared/validation/ipc-validator';

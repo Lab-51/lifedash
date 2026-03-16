@@ -167,7 +167,6 @@ export default function CardAgentPanel({ cardId }: { cardId: string }) {
   const streaming = useCardAgentStore((s) => s.streaming);
   const streamingText = useCardAgentStore((s) => s.streamingText);
   const toolEvents = useCardAgentStore((s) => s.toolEvents);
-  const actions = useCardAgentStore((s) => s.actions);
   const loading = useCardAgentStore((s) => s.loading);
   const loadMessages = useCardAgentStore((s) => s.loadMessages);
   const sendMessage = useCardAgentStore((s) => s.sendMessage);

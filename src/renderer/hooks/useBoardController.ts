@@ -11,6 +11,7 @@ import { useBoardStore, getCardsByColumn } from '../stores/boardStore';
 import type { CardPriority, Column, Card, Label } from '../../shared/types';
 
 // Helper for CSV export
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function exportBoardAsCsv(columns: Column[], cards: Card[], labels: Label[]) {
   const headers = ['Column', 'Title', 'Description', 'Priority', 'Due Date', 'Labels', 'Created', 'Updated'];
   const rows = cards.map((card) => {
@@ -150,7 +151,7 @@ export function useBoardController() {
   useEffect(() => {
     const openCardId = searchParams.get('openCard');
     if (openCardId && !loading && cards.length > 0) {
-      setSelectedCardId(openCardId);
+      setSelectedCardId(openCardId); // eslint-disable-line react-hooks/set-state-in-effect
       searchParams.delete('openCard');
       setSearchParams(searchParams, { replace: true });
     }

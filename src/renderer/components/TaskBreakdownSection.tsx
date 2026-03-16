@@ -55,7 +55,7 @@ function TaskBreakdownSection({ cardId, columnId }: TaskBreakdownSectionProps) {
   // Auto-select all subtasks when breakdown loads
   useEffect(() => {
     if (breakdown) {
-      setSelectedSubtasks(new Set(breakdown.subtasks.map((_, i) => i)));
+      setSelectedSubtasks(new Set(breakdown.subtasks.map((_, i) => i))); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [breakdown]);
 

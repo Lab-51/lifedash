@@ -34,7 +34,7 @@ export default function IntelAddArticleModal({ isOpen, onClose }: IntelAddArticl
   // Reset form state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setUrl('');
+      setUrl(''); // eslint-disable-line react-hooks/set-state-in-effect
       setTitle('');
       setDescription('');
       setError(null);

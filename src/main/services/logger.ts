@@ -93,6 +93,7 @@ function rotateIfNeeded(logFilePath: string): string {
 
 export function initFileLogging(): void {
   // Lazy import app to avoid issues when module is loaded before app is ready
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { app } = require('electron');
   const dir: string = app.getPath('logs');
   logDir = dir;
@@ -112,6 +113,7 @@ export function initFileLogging(): void {
 
 export function getLogDirectory(): string {
   if (logDir) return logDir;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { app } = require('electron');
   return app.getPath('logs');
 }

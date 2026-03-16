@@ -12,7 +12,7 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import { eq, asc, desc, and, ilike, inArray, count, isNull, sql } from 'drizzle-orm';
+import { eq, asc, desc, and, ilike, inArray, count } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import {
   projects,
@@ -144,8 +144,6 @@ export async function buildProjectContext(projectId: string): Promise<string> {
       : [];
 
   // Build lookup maps
-  const boardMap = new Map(projectBoards.map((b) => [b.id, b]));
-  const columnMap = new Map(projectColumns.map((c) => [c.id, c]));
   const cardMap = new Map(projectCards.map((c) => [c.id, c]));
   const meetingTitleMap = new Map(projectMeetings.map((m) => [m.id, m.title]));
 

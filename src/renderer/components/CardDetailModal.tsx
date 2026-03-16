@@ -28,7 +28,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { Card, UpdateCardInput, CardPriority } from '../../shared/types';
 import type { CardTemplate } from '../../shared/types/cards';
-import { BUILTIN_TEMPLATES, type BuiltinTemplate } from '../constants/card-templates';
+import { BUILTIN_TEMPLATES } from '../constants/card-templates';
 import { useBoardStore } from '../stores/boardStore';
 import { useCardDetailStore } from '../stores/cardDetailStore';
 import { getDueDateBadge, formatDate, formatRelativeTime } from '../utils/date-utils';

@@ -222,7 +222,7 @@ export default function FocusPage() {
   useEffect(() => {
     if (focusMode !== 'idle') return; // don't fetch while in focus/break/completed
     let cancelled = false;
-    setLoading(true);
+    setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect
     setDisplayCount(PAGE);
     window.electronAPI
       .focusGetTimeReport({
@@ -269,11 +269,11 @@ export default function FocusPage() {
   }, [report, projectId, activeProjects, startDate, endDate]);
 
   const summary = report?.summary;
-  const rawDaily = report?.dailyData ?? [];
 
   type ChartBucket = { key: string; label: string; minutes: number; sessions: number };
   type Granularity = 'daily' | 'weekly' | 'monthly';
   const chartInfo = useMemo<{ data: ChartBucket[]; granularity: Granularity }>(() => {
+    const rawDaily = report?.dailyData ?? [];
     const len = rawDaily.length;
     if (len <= 31) {
       return {
@@ -324,7 +324,7 @@ export default function FocusPage() {
         });
     }
     return { granularity: 'monthly', data: [...map.values()] };
-  }, [rawDaily]);
+  }, [report?.dailyData]);
 
   const chartData = chartInfo.data;
   const chartGranularity = chartInfo.granularity;

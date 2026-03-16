@@ -41,7 +41,7 @@ export function registerSyncHandlers(mainWindow: BrowserWindow): void {
       return await openAuthWindow();
     } catch (err) {
       log.error('Sign-in failed:', err);
-      throw new Error('Sign-in failed. Please try again.');
+      throw new Error('Sign-in failed. Please try again.', { cause: err });
     }
   });
 
@@ -57,7 +57,7 @@ export function registerSyncHandlers(mainWindow: BrowserWindow): void {
       });
     } catch (err) {
       log.error('Sign-out failed:', err);
-      throw new Error('Sign-out failed.');
+      throw new Error('Sign-out failed.', { cause: err });
     }
   });
 

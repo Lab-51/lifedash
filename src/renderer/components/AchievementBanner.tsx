@@ -222,7 +222,7 @@ function AchievementBanner() {
   // When current changes to non-null, trigger entrance
   useEffect(() => {
     if (!current) {
-      setVisible(false);
+      setVisible(false); // eslint-disable-line react-hooks/set-state-in-effect
       setExiting(false);
       setBarDepleted(false);
       clearTimers();

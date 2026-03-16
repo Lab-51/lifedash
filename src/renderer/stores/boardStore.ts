@@ -93,7 +93,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       }
 
       // Load or create board
-      let boards = await window.electronAPI.getBoards(projectId);
+      const boards = await window.electronAPI.getBoards(projectId);
       let board: Board;
       if (boards.length === 0) {
         board = await window.electronAPI.createBoard({ projectId, name: 'Board' });

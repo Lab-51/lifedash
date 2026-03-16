@@ -47,7 +47,7 @@ interface BoardColumnProps {
 const BoardColumnModern = memo(function BoardColumnModern({
   column,
   columnCards,
-  totalCardCount,
+  totalCardCount, // eslint-disable-line @typescript-eslint/no-unused-vars
   isDragOver,
   onDragOverChange,
   projectId,

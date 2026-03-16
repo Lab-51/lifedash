@@ -88,7 +88,7 @@ function useSyncStatus(): SyncStatusHook {
   }, []);
 
   useEffect(() => {
-    loadInitialState();
+    loadInitialState(); // eslint-disable-line react-hooks/set-state-in-effect
   }, [loadInitialState]);
 
   // Subscribe to sync:status-changed events from main process

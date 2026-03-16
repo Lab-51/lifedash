@@ -4,7 +4,7 @@
 import { ipcMain } from 'electron';
 import { eq, gte, desc, and, or, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { cards, cardActivities, columns, boards, projects, actionItems, meetings, ideas } from '../db/schema';
+import { cards, cardActivities, columns, boards, projects, actionItems, meetings } from '../db/schema';
 import { resolveTaskModel, generate } from '../services/ai-provider';
 import { createLogger } from '../services/logger';
 

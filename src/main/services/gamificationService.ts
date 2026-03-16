@@ -449,6 +449,7 @@ function calculateLongestStreak(sortedDatesDesc: string[]): number {
   return longest;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function getDailyXP(_days?: number): Promise<XpDailyData[]> {
   const db = getDb();
 

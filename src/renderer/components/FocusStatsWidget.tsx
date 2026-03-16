@@ -39,7 +39,7 @@ import {
   Hourglass,
   TreePine,
   Flag,
-  Infinity,
+  Infinity as InfinityIcon,
   History,
   Globe,
   Mountain,
@@ -91,7 +91,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useGamificationStore } from '../stores/gamificationStore';
-import { ACHIEVEMENTS, CATEGORY_COLORS, getTier } from '../../shared/types/gamification';
+import { ACHIEVEMENTS } from '../../shared/types/gamification';
 import AchievementsModal from './AchievementsModal';
 import LevelBadge from './LevelBadge';
 
@@ -130,7 +130,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: 
   Hourglass,
   TreePine,
   Flag,
-  Infinity,
+  Infinity: InfinityIcon,
   History,
   Globe,
   Mountain,

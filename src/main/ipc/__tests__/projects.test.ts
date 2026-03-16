@@ -5,7 +5,6 @@ import {
   createBoardInputSchema,
   updateBoardInputSchema,
   createColumnInputSchema,
-  updateColumnInputSchema,
   columnReorderSchema,
   idParamSchema,
 } from '../../../shared/validation/schemas';

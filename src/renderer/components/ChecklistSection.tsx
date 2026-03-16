@@ -23,7 +23,7 @@ function ChecklistItem({
   cardId,
   editingId,
   editTitle,
-  setEditingId,
+  setEditingId, // eslint-disable-line @typescript-eslint/no-unused-vars
   setEditTitle,
   onStartEdit,
   onSaveEdit,

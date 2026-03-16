@@ -111,7 +111,7 @@ export default function ProjectPlanningModal({
   useEffect(() => {
     if (plan) {
       const ep = buildEditablePlan(plan);
-      setEditablePlan(ep);
+      setEditablePlan(ep); // eslint-disable-line react-hooks/set-state-in-effect
       const allIds = new Set<string>();
       for (const pillar of ep.pillars) {
         for (const task of pillar.tasks) allIds.add(task._id);

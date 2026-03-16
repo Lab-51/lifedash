@@ -5,7 +5,7 @@
 // Stores a "setupWizard.completed" flag in settings so it only shows once.
 // This file is the orchestrator — individual steps live in ./setup-wizard/.
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useNavigate } from 'react-router-dom';
@@ -79,10 +79,10 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, selectedProvider]);
 
-  async function handleClose() {
+  const handleClose = useCallback(async () => {
     await setSetting('setupWizard.completed', 'true');
     onClose();
-  }
+  }, [setSetting, onClose]);
 
   function handleSkip() {
     handleClose();

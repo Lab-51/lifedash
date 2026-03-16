@@ -85,7 +85,8 @@ interface ActivityLogProps {
 
 const COLLAPSED_COUNT = 4;
 
-function ActivityLog({ cardId: _cardId }: ActivityLogProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function ActivityLog({ cardId }: ActivityLogProps) {
   const selectedCardActivities = useCardDetailStore((s) => s.selectedCardActivities);
   const loadingCardDetails = useCardDetailStore((s) => s.loadingCardDetails);
   const [expanded, setExpanded] = useState(false);

@@ -96,8 +96,10 @@ export default function InsightCard({ insight, projectName }: InsightCardProps) 
   const accent = severityAccent(insight.severity);
 
   // Extract card details from the insight's details field (stale_cards type stores these)
-  const staleCards: StaleCardDetail[] =
-    (insight.details as { staleCards?: StaleCardDetail[] } | null)?.staleCards ?? [];
+  const staleCards: StaleCardDetail[] = useMemo(
+    () => (insight.details as { staleCards?: StaleCardDetail[] } | null)?.staleCards ?? [],
+    [insight.details],
+  );
 
   // Build a lookup of cardId → card info for richer display
   const cardInfoMap = new Map(staleCards.map((c) => [c.id, c]));

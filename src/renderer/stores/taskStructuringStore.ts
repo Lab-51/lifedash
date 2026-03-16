@@ -31,7 +31,7 @@ interface TaskStructuringState {
   moveSubtask: (cardId: string, fromIndex: number, toIndex: number) => void;
 }
 
-export const useTaskStructuringStore = create<TaskStructuringState>((set, get) => ({
+export const useTaskStructuringStore = create<TaskStructuringState>((set) => ({
   plan: null,
   planLoading: false,
   planError: null,
@@ -88,7 +88,7 @@ export const useTaskStructuringStore = create<TaskStructuringState>((set, get) =
 
   clearBreakdown: (cardId: string) =>
     set((state) => {
-      const { [cardId]: _, ...rest } = state.breakdowns;
+      const rest = Object.fromEntries(Object.entries(state.breakdowns).filter(([k]) => k !== cardId));
       return { breakdowns: rest, breakdownError: null };
     }),
 
@@ -96,10 +96,10 @@ export const useTaskStructuringStore = create<TaskStructuringState>((set, get) =
     set((state) => {
       const breakdown = state.breakdowns[cardId];
       if (!breakdown) return state;
-      const subtasks = breakdown.subtasks.filter((_, i) => i !== index);
+      const subtasks = breakdown.subtasks.filter((_item, i) => i !== index);
       // If no subtasks left, remove the breakdown entirely
       if (subtasks.length === 0) {
-        const { [cardId]: _, ...rest } = state.breakdowns;
+        const rest = Object.fromEntries(Object.entries(state.breakdowns).filter(([k]) => k !== cardId));
         return { breakdowns: rest };
       }
       return {

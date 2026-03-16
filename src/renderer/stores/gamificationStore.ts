@@ -23,7 +23,7 @@ interface GamificationState {
   refreshStats: (stats: GamificationStats, newAchievements: Achievement[]) => void;
 }
 
-export const useGamificationStore = create<GamificationState>((set, get) => ({
+export const useGamificationStore = create<GamificationState>((set) => ({
   stats: null,
   achievements: [],
   dailyXP: [],

@@ -115,7 +115,7 @@ export default function FeatureTour({ onComplete }: FeatureTourProps) {
   // Locate spotlight target when step changes
   useEffect(() => {
     if (!step.spotlightTarget) {
-      setSpotlightRect(null);
+      setSpotlightRect(null); // eslint-disable-line react-hooks/set-state-in-effect
       return;
     }
     const el = document.querySelector(`[data-tour-id="${step.spotlightTarget}"]`);

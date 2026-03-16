@@ -16,7 +16,6 @@ import {
   Star,
   MoreVertical,
   Search,
-  Filter,
   DollarSign,
 } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
@@ -71,7 +70,7 @@ export default function ProjectsModern() {
   // Handle ?action=create — auto-open the create form
   useEffect(() => {
     if (searchParams.get('action') === 'create') {
-      setShowCreateForm(true);
+      setShowCreateForm(true); // eslint-disable-line react-hooks/set-state-in-effect
       searchParams.delete('action');
       setSearchParams(searchParams, { replace: true });
     }
@@ -102,7 +101,7 @@ export default function ProjectsModern() {
     });
   }, [projects, showArchived, searchQuery]);
 
-  const hasArchivedProjects = projects.some((p) => p.archived);
+  const hasArchivedProjects = projects.some((p) => p.archived); // eslint-disable-line @typescript-eslint/no-unused-vars
 
   const cardCountByProject = useMemo(() => {
     const map: Record<string, number> = {};

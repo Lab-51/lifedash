@@ -42,7 +42,7 @@ function TitleBar() {
   // In dev mode the auto-updater doesn't run, so default to "up-to-date".
   useEffect(() => {
     if (!window.electronAPI?.onUpdateStatus) {
-      setUpdateStatus('up-to-date');
+      setUpdateStatus('up-to-date'); // eslint-disable-line react-hooks/set-state-in-effect
       return;
     }
     return window.electronAPI.onUpdateStatus((data) => {

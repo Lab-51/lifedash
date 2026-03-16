@@ -4,7 +4,7 @@
 // Renders as a slide-out overlay panel from the right side.
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Trash2, Rss, Plus, Loader2 } from 'lucide-react';
+import { X, Trash2, Rss, Loader2 } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import IntelAddSourceModal from './IntelAddSourceModal';
 import { useIntelFeedStore } from '../stores/intelFeedStore';

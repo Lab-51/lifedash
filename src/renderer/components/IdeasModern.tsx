@@ -46,7 +46,7 @@ export default function IdeasModern() {
   useEffect(() => {
     const openIdeaId = searchParams.get('openIdea');
     if (openIdeaId && !loading && ideas.length > 0) {
-      setSelectedIdeaId(openIdeaId);
+      setSelectedIdeaId(openIdeaId); // eslint-disable-line react-hooks/set-state-in-effect
       searchParams.delete('openIdea');
       setSearchParams(searchParams, { replace: true });
     }
@@ -57,7 +57,7 @@ export default function IdeasModern() {
     if (searchParams.get('action') === 'create') {
       searchParams.delete('action');
       setSearchParams(searchParams, { replace: true });
-      setShowCreateModal(true);
+      setShowCreateModal(true); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [searchParams, setSearchParams]);
 

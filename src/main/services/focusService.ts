@@ -16,7 +16,6 @@ import {
   FocusProjectTime,
   FocusTimeReport,
 } from '../../shared/types/focus';
-import { billableHours } from '../../shared/utils/billing';
 import { formatDateStr } from '../../shared/utils/date-utils';
 
 export async function saveSession(input: {

@@ -40,7 +40,13 @@ export const cardDetailsBridge = {
 
   // Card Templates
   getCardTemplates: (projectId?: string) => ipcRenderer.invoke('card-templates:list', projectId),
-  createCardTemplate: (input: any) => ipcRenderer.invoke('card-templates:create', input),
+  createCardTemplate: (input: {
+    projectId?: string | null;
+    name: string;
+    description?: string | null;
+    priority?: string;
+    labelNames?: string[] | null;
+  }) => ipcRenderer.invoke('card-templates:create', input),
   deleteCardTemplate: (id: string) => ipcRenderer.invoke('card-templates:delete', id),
   saveCardAsTemplate: (cardId: string, name?: string) =>
     ipcRenderer.invoke('card-templates:save-from-card', cardId, name),

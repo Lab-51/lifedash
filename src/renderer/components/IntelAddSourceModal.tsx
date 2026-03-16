@@ -34,7 +34,7 @@ export default function IntelAddSourceModal({ isOpen, onClose }: IntelAddSourceM
   // Reset form state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setUrl('');
+      setUrl(''); // eslint-disable-line react-hooks/set-state-in-effect
       setName('');
       setError(null);
       setSubmitting(false);

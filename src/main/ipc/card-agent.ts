@@ -7,7 +7,6 @@ import { streamText, stepCountIs, type LanguageModel } from 'ai';
 import * as cardAgentService from '../services/cardAgentService';
 import { resolveTaskModel, getProvider, logUsage } from '../services/ai-provider';
 import { createLogger } from '../services/logger';
-import { trackTiming } from '../services/performanceTracker';
 import { z } from 'zod';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema, cardAgentMessageContentSchema } from '../../shared/validation/schemas';

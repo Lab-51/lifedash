@@ -43,7 +43,6 @@ import type {
   TranscriptSegment,
   TranscriptSearchResult,
   MeetingBrief,
-  MeetingTemplateType,
   RecordingState,
   MeetingPrepData,
   CreateMeetingInput,

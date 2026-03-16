@@ -14,7 +14,7 @@
 import { app, BrowserWindow } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { sql, getTableName } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { getDb } from '../db/connection';
 import * as schema from '../db/schema';

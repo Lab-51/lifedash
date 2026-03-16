@@ -40,7 +40,7 @@ export default function AudioDeviceSection() {
   }, []);
 
   useEffect(() => {
-    Promise.all([loadDevices(), loadSavedDevice()]).finally(() => setLoading(false));
+    Promise.all([loadDevices(), loadSavedDevice()]).finally(() => setLoading(false)); // eslint-disable-line react-hooks/set-state-in-effect
   }, [loadDevices, loadSavedDevice]);
 
   // Listen for device changes (plugging in/out headsets)

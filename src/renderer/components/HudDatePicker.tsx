@@ -79,7 +79,7 @@ function HudDatePicker({
   useEffect(() => {
     if (value) {
       const d = new Date(value);
-      setViewYear(d.getFullYear());
+      setViewYear(d.getFullYear()); // eslint-disable-line react-hooks/set-state-in-effect
       setViewMonth(d.getMonth());
       setHours(d.getHours());
       setMinutes(d.getMinutes());

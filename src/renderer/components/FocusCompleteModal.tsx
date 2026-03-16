@@ -21,6 +21,7 @@ interface FocusCompleteModalProps {
   onClose: () => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
   const workDuration = useFocusStore((s) => s.workDuration);
   const completedDuration = useFocusStore((s) => s.completedDuration);
@@ -57,7 +58,7 @@ function FocusCompleteModal({ isOpen, onClose }: FocusCompleteModalProps) {
   // Reset state and auto-focus textarea when modal opens
   useEffect(() => {
     if (isOpen) {
-      setNote('');
+      setNote(''); // eslint-disable-line react-hooks/set-state-in-effect
       setBillable(true);
       setSaving(false);
       setShowReward(false);

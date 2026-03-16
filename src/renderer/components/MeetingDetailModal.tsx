@@ -93,7 +93,7 @@ export default function MeetingDetailModal({
       transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
     prevSegmentCount.current = count;
-  }, [selectedMeeting?.segments.length, selectedMeeting?.status]);
+  }, [selectedMeeting?.segments.length, selectedMeeting?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-generate brief when modal opens post-recording
   useEffect(() => {
