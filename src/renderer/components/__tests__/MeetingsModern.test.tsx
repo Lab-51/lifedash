@@ -8,20 +8,17 @@ import '@testing-library/jest-dom';
 // ---------------------------------------------------------------------------
 // Mock window.electronAPI — must happen before any store or component import
 // ---------------------------------------------------------------------------
-vi.stubGlobal('window', {
-  ...window,
-  electronAPI: {
-    hasWhisperModel: vi.fn().mockResolvedValue(true),
-    onTranscriptSegment: vi.fn().mockReturnValue(() => {}),
-    onWhisperDownloadProgress: vi.fn().mockReturnValue(() => {}),
-    downloadWhisperModel: vi.fn().mockResolvedValue(undefined),
-    getMeetings: vi.fn().mockResolvedValue([]),
-    getProjects: vi.fn().mockResolvedValue([]),
-    getMeeting: vi.fn().mockResolvedValue(null),
-    deleteMeeting: vi.fn().mockResolvedValue(undefined),
-    getMeetingActionItems: vi.fn().mockResolvedValue([]),
-    loadActionItemCounts: vi.fn().mockResolvedValue({}),
-  },
+vi.stubGlobal('electronAPI', {
+  hasWhisperModel: vi.fn().mockResolvedValue(true),
+  onTranscriptSegment: vi.fn().mockReturnValue(() => {}),
+  onWhisperDownloadProgress: vi.fn().mockReturnValue(() => {}),
+  downloadWhisperModel: vi.fn().mockResolvedValue(undefined),
+  getMeetings: vi.fn().mockResolvedValue([]),
+  getProjects: vi.fn().mockResolvedValue([]),
+  getMeeting: vi.fn().mockResolvedValue(null),
+  deleteMeeting: vi.fn().mockResolvedValue(undefined),
+  getMeetingActionItems: vi.fn().mockResolvedValue([]),
+  loadActionItemCounts: vi.fn().mockResolvedValue({}),
 });
 
 // ---------------------------------------------------------------------------

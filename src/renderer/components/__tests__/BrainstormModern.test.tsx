@@ -14,30 +14,27 @@ if (typeof Element.prototype.scrollIntoView === 'undefined') {
 // ---------------------------------------------------------------------------
 // Mock window.electronAPI — must happen before any store or component import
 // ---------------------------------------------------------------------------
-vi.stubGlobal('window', {
-  ...window,
-  electronAPI: {
-    getBrainstormSessions: vi.fn().mockResolvedValue([]),
-    getBrainstormSession: vi.fn().mockResolvedValue(null),
-    createBrainstormSession: vi.fn().mockResolvedValue({ id: 'bs-1' }),
-    updateBrainstormSession: vi.fn().mockResolvedValue(undefined),
-    deleteBrainstormSession: vi.fn().mockResolvedValue(undefined),
-    sendBrainstormMessage: vi.fn().mockResolvedValue(undefined),
-    abortBrainstorm: vi.fn().mockResolvedValue(undefined),
-    exportBrainstormToIdea: vi.fn().mockResolvedValue({ id: 'idea-1' }),
-    exportBrainstormToCard: vi.fn().mockResolvedValue(undefined),
-    onBrainstormChunk: vi.fn().mockReturnValue(() => {}),
-    getProjects: vi.fn().mockResolvedValue([]),
-    getAIProviders: vi.fn().mockResolvedValue([]),
-    getAllSettings: vi.fn().mockResolvedValue({}),
-    isEncryptionAvailable: vi.fn().mockResolvedValue(true),
-    getSetting: vi.fn().mockResolvedValue(null),
-    voiceTranscribe: vi.fn().mockResolvedValue(''),
-    hasWhisperModel: vi.fn().mockResolvedValue(false),
-    onWhisperDownloadProgress: vi.fn().mockReturnValue(() => {}),
-    appVersion: '2.2.15',
-    platform: 'win32',
-  },
+vi.stubGlobal('electronAPI', {
+  getBrainstormSessions: vi.fn().mockResolvedValue([]),
+  getBrainstormSession: vi.fn().mockResolvedValue(null),
+  createBrainstormSession: vi.fn().mockResolvedValue({ id: 'bs-1' }),
+  updateBrainstormSession: vi.fn().mockResolvedValue(undefined),
+  deleteBrainstormSession: vi.fn().mockResolvedValue(undefined),
+  sendBrainstormMessage: vi.fn().mockResolvedValue(undefined),
+  abortBrainstorm: vi.fn().mockResolvedValue(undefined),
+  exportBrainstormToIdea: vi.fn().mockResolvedValue({ id: 'idea-1' }),
+  exportBrainstormToCard: vi.fn().mockResolvedValue(undefined),
+  onBrainstormChunk: vi.fn().mockReturnValue(() => {}),
+  getProjects: vi.fn().mockResolvedValue([]),
+  getAIProviders: vi.fn().mockResolvedValue([]),
+  getAllSettings: vi.fn().mockResolvedValue({}),
+  isEncryptionAvailable: vi.fn().mockResolvedValue(true),
+  getSetting: vi.fn().mockResolvedValue(null),
+  voiceTranscribe: vi.fn().mockResolvedValue(''),
+  hasWhisperModel: vi.fn().mockResolvedValue(false),
+  onWhisperDownloadProgress: vi.fn().mockReturnValue(() => {}),
+  appVersion: '2.2.15',
+  platform: 'win32',
 });
 
 // ---------------------------------------------------------------------------

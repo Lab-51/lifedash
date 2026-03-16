@@ -90,11 +90,8 @@ const matchMediaMock = vi.fn().mockImplementation((query: string) => ({
   dispatchEvent: vi.fn(),
 }));
 
-vi.stubGlobal('window', {
-  ...window,
-  electronAPI: electronAPIProxy,
-  matchMedia: matchMediaMock,
-});
+vi.stubGlobal('electronAPI', electronAPIProxy);
+vi.stubGlobal('matchMedia', matchMediaMock);
 
 // ---------------------------------------------------------------------------
 // Import stores and component after mocking

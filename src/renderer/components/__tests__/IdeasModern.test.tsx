@@ -8,20 +8,17 @@ import '@testing-library/jest-dom';
 // ---------------------------------------------------------------------------
 // Mock window.electronAPI — must happen before any store or component import
 // ---------------------------------------------------------------------------
-vi.stubGlobal('window', {
-  ...window,
-  electronAPI: {
-    getIdeas: vi.fn().mockResolvedValue([]),
-    getIdea: vi.fn().mockResolvedValue(null),
-    createIdea: vi.fn().mockResolvedValue({ id: 'idea-1' }),
-    updateIdea: vi.fn().mockResolvedValue(undefined),
-    deleteIdea: vi.fn().mockResolvedValue(undefined),
-    analyzeIdea: vi.fn().mockResolvedValue(null),
-    convertIdeaToProject: vi.fn().mockResolvedValue('proj-1'),
-    convertIdeaToCard: vi.fn().mockResolvedValue('card-1'),
-    appVersion: '2.2.15',
-    platform: 'win32',
-  },
+vi.stubGlobal('electronAPI', {
+  getIdeas: vi.fn().mockResolvedValue([]),
+  getIdea: vi.fn().mockResolvedValue(null),
+  createIdea: vi.fn().mockResolvedValue({ id: 'idea-1' }),
+  updateIdea: vi.fn().mockResolvedValue(undefined),
+  deleteIdea: vi.fn().mockResolvedValue(undefined),
+  analyzeIdea: vi.fn().mockResolvedValue(null),
+  convertIdeaToProject: vi.fn().mockResolvedValue('proj-1'),
+  convertIdeaToCard: vi.fn().mockResolvedValue('card-1'),
+  appVersion: '2.2.15',
+  platform: 'win32',
 });
 
 // ---------------------------------------------------------------------------

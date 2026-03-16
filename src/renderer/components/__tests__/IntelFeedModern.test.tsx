@@ -7,25 +7,22 @@ import '@testing-library/jest-dom';
 // ---------------------------------------------------------------------------
 // Mock window.electronAPI
 // ---------------------------------------------------------------------------
-vi.stubGlobal('window', {
-  ...window,
-  electronAPI: {
-    getIntelItems: vi.fn().mockResolvedValue([]),
-    getIntelSources: vi.fn().mockResolvedValue([]),
-    fetchIntelAll: vi.fn().mockResolvedValue({ newItems: 0 }),
-    seedIntelDefaults: vi.fn().mockResolvedValue(undefined),
-    markIntelRead: vi.fn().mockResolvedValue(undefined),
-    toggleIntelBookmark: vi.fn().mockResolvedValue(undefined),
-    getIntelBrief: vi.fn().mockResolvedValue(null),
-    generateIntelBrief: vi.fn().mockResolvedValue(null),
-    summarizeIntelItem: vi.fn().mockResolvedValue(''),
-    getProjects: vi.fn().mockResolvedValue([]),
-    getIdeas: vi.fn().mockResolvedValue([]),
-    createIdea: vi.fn().mockResolvedValue({ id: 'idea-1' }),
-    createProject: vi.fn().mockResolvedValue({ id: 'proj-1' }),
-    appVersion: '2.2.15',
-    platform: 'win32',
-  },
+vi.stubGlobal('electronAPI', {
+  getIntelItems: vi.fn().mockResolvedValue([]),
+  getIntelSources: vi.fn().mockResolvedValue([]),
+  fetchIntelAll: vi.fn().mockResolvedValue({ newItems: 0 }),
+  seedIntelDefaults: vi.fn().mockResolvedValue(undefined),
+  markIntelRead: vi.fn().mockResolvedValue(undefined),
+  toggleIntelBookmark: vi.fn().mockResolvedValue(undefined),
+  getIntelBrief: vi.fn().mockResolvedValue(null),
+  generateIntelBrief: vi.fn().mockResolvedValue(null),
+  summarizeIntelItem: vi.fn().mockResolvedValue(''),
+  getProjects: vi.fn().mockResolvedValue([]),
+  getIdeas: vi.fn().mockResolvedValue([]),
+  createIdea: vi.fn().mockResolvedValue({ id: 'idea-1' }),
+  createProject: vi.fn().mockResolvedValue({ id: 'proj-1' }),
+  appVersion: '2.2.15',
+  platform: 'win32',
 });
 
 // ---------------------------------------------------------------------------

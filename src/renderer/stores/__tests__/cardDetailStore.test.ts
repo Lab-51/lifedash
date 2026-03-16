@@ -1,35 +1,35 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock window.electronAPI before importing the store (node env — no window exists)
-vi.stubGlobal('window', {
-  electronAPI: {
-    getCardComments: vi.fn().mockResolvedValue([]),
-    getCardRelationships: vi.fn().mockResolvedValue([]),
-    getCardActivities: vi.fn().mockResolvedValue([]),
-    getCardAttachments: vi.fn().mockResolvedValue([]),
-    getChecklistItems: vi.fn().mockResolvedValue([]),
-    addCardComment: vi.fn().mockResolvedValue({ id: 'c1', content: 'test', createdAt: '2026-01-01T00:00:00Z' }),
-    updateCardComment: vi
-      .fn()
-      .mockImplementation((_id: string, content: string) =>
-        Promise.resolve({ id: _id, content, createdAt: '2026-01-01T00:00:00Z' }),
-      ),
-    deleteCardComment: vi.fn().mockResolvedValue(undefined),
-    addCardRelationship: vi.fn().mockResolvedValue({ id: 'r1', type: 'blocks' }),
-    deleteCardRelationship: vi.fn().mockResolvedValue(undefined),
-    addCardAttachment: vi.fn().mockResolvedValue({ id: 'a1', fileName: 'file.txt' }),
-    deleteCardAttachment: vi.fn().mockResolvedValue(undefined),
-    openCardAttachment: vi.fn().mockResolvedValue(undefined),
-    addChecklistItem: vi
-      .fn()
-      .mockImplementation((_cardId: string, title: string) =>
-        Promise.resolve({ id: 'cl1', title, completed: false, position: 0 }),
-      ),
-    updateChecklistItem: vi.fn().mockResolvedValue(undefined),
-    deleteChecklistItem: vi.fn().mockResolvedValue(undefined),
-    reorderChecklistItems: vi.fn().mockResolvedValue(undefined),
-  },
+// Mock electronAPI on globalThis, then alias window = globalThis so store code
+// that reads window.electronAPI works without replacing the entire window object.
+vi.stubGlobal('electronAPI', {
+  getCardComments: vi.fn().mockResolvedValue([]),
+  getCardRelationships: vi.fn().mockResolvedValue([]),
+  getCardActivities: vi.fn().mockResolvedValue([]),
+  getCardAttachments: vi.fn().mockResolvedValue([]),
+  getChecklistItems: vi.fn().mockResolvedValue([]),
+  addCardComment: vi.fn().mockResolvedValue({ id: 'c1', content: 'test', createdAt: '2026-01-01T00:00:00Z' }),
+  updateCardComment: vi
+    .fn()
+    .mockImplementation((_id: string, content: string) =>
+      Promise.resolve({ id: _id, content, createdAt: '2026-01-01T00:00:00Z' }),
+    ),
+  deleteCardComment: vi.fn().mockResolvedValue(undefined),
+  addCardRelationship: vi.fn().mockResolvedValue({ id: 'r1', type: 'blocks' }),
+  deleteCardRelationship: vi.fn().mockResolvedValue(undefined),
+  addCardAttachment: vi.fn().mockResolvedValue({ id: 'a1', fileName: 'file.txt' }),
+  deleteCardAttachment: vi.fn().mockResolvedValue(undefined),
+  openCardAttachment: vi.fn().mockResolvedValue(undefined),
+  addChecklistItem: vi
+    .fn()
+    .mockImplementation((_cardId: string, title: string) =>
+      Promise.resolve({ id: 'cl1', title, completed: false, position: 0 }),
+    ),
+  updateChecklistItem: vi.fn().mockResolvedValue(undefined),
+  deleteChecklistItem: vi.fn().mockResolvedValue(undefined),
+  reorderChecklistItems: vi.fn().mockResolvedValue(undefined),
 });
+vi.stubGlobal('window', globalThis);
 
 // Must import after stubGlobal
 const { useCardDetailStore } = await import('../cardDetailStore');

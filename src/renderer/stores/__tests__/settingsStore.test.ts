@@ -1,18 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock window.electronAPI before importing the store (node env — no window exists)
-vi.stubGlobal('window', {
-  electronAPI: {
-    getAIProviders: vi.fn().mockResolvedValue([]),
-    createAIProvider: vi.fn().mockImplementation((data: any) => Promise.resolve({ id: 'p-new', ...data })),
-    updateAIProvider: vi.fn().mockImplementation((id: string, data: any) => Promise.resolve({ id, ...data })),
-    deleteAIProvider: vi.fn().mockResolvedValue(undefined),
-    testAIConnection: vi.fn().mockResolvedValue({ success: true }),
-    getAllSettings: vi.fn().mockResolvedValue({}),
-    setSetting: vi.fn().mockResolvedValue(undefined),
-    isEncryptionAvailable: vi.fn().mockResolvedValue(true),
-  },
+// Mock electronAPI on globalThis, then alias window = globalThis so store code
+// that reads window.electronAPI works without replacing the entire window object.
+vi.stubGlobal('electronAPI', {
+  getAIProviders: vi.fn().mockResolvedValue([]),
+  createAIProvider: vi.fn().mockImplementation((data: any) => Promise.resolve({ id: 'p-new', ...data })),
+  updateAIProvider: vi.fn().mockImplementation((id: string, data: any) => Promise.resolve({ id, ...data })),
+  deleteAIProvider: vi.fn().mockResolvedValue(undefined),
+  testAIConnection: vi.fn().mockResolvedValue({ success: true }),
+  getAllSettings: vi.fn().mockResolvedValue({}),
+  setSetting: vi.fn().mockResolvedValue(undefined),
+  isEncryptionAvailable: vi.fn().mockResolvedValue(true),
 });
+vi.stubGlobal('window', globalThis);
 
 // Must import after stubGlobal
 const { useSettingsStore } = await import('../settingsStore');

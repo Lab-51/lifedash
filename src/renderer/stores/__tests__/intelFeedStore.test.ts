@@ -1,34 +1,34 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { IntelItem } from '../../../shared/types';
 
-// Mock window.electronAPI before importing the store (node env — no window exists)
-vi.stubGlobal('window', {
-  electronAPI: {
-    getIntelItems: vi.fn().mockResolvedValue([]),
-    getIntelSources: vi.fn().mockResolvedValue([]),
-    fetchAllIntelSources: vi.fn().mockResolvedValue({ newItems: 0 }),
-    markIntelItemRead: vi.fn().mockResolvedValue(undefined),
-    toggleIntelItemBookmark: vi.fn().mockResolvedValue(undefined),
-    addManualIntelItem: vi.fn().mockImplementation((input: any) => Promise.resolve({ id: 'i-new', ...input })),
-    createIntelSource: vi.fn().mockImplementation((input: any) => Promise.resolve({ id: 's-new', ...input })),
-    updateIntelSource: vi.fn().mockImplementation((id: string, input: any) => Promise.resolve({ id, ...input })),
-    deleteIntelSource: vi.fn().mockResolvedValue(undefined),
-    seedIntelDefaults: vi.fn().mockResolvedValue(undefined),
-    intelGetLatestBrief: vi.fn().mockResolvedValue(null),
-    intelGenerateBrief: vi.fn().mockResolvedValue({ id: 'b1', content: 'brief' }),
-    intelSummarizeItem: vi.fn().mockImplementation((id: string) => Promise.resolve({ id, summary: 'summarized' })),
-    intelFetchArticleContent: vi.fn().mockResolvedValue({
-      title: 'Article',
-      content: '<p>content</p>',
-      textContent: 'content',
-      excerpt: 'content',
-      byline: null,
-      siteName: null,
-      length: 100,
-    }),
-    intelBriefChat: vi.fn().mockResolvedValue('AI response'),
-  },
+// Mock electronAPI on globalThis, then alias window = globalThis so store code
+// that reads window.electronAPI works without replacing the entire window object.
+vi.stubGlobal('electronAPI', {
+  getIntelItems: vi.fn().mockResolvedValue([]),
+  getIntelSources: vi.fn().mockResolvedValue([]),
+  fetchAllIntelSources: vi.fn().mockResolvedValue({ newItems: 0 }),
+  markIntelItemRead: vi.fn().mockResolvedValue(undefined),
+  toggleIntelItemBookmark: vi.fn().mockResolvedValue(undefined),
+  addManualIntelItem: vi.fn().mockImplementation((input: any) => Promise.resolve({ id: 'i-new', ...input })),
+  createIntelSource: vi.fn().mockImplementation((input: any) => Promise.resolve({ id: 's-new', ...input })),
+  updateIntelSource: vi.fn().mockImplementation((id: string, input: any) => Promise.resolve({ id, ...input })),
+  deleteIntelSource: vi.fn().mockResolvedValue(undefined),
+  seedIntelDefaults: vi.fn().mockResolvedValue(undefined),
+  intelGetLatestBrief: vi.fn().mockResolvedValue(null),
+  intelGenerateBrief: vi.fn().mockResolvedValue({ id: 'b1', content: 'brief' }),
+  intelSummarizeItem: vi.fn().mockImplementation((id: string) => Promise.resolve({ id, summary: 'summarized' })),
+  intelFetchArticleContent: vi.fn().mockResolvedValue({
+    title: 'Article',
+    content: '<p>content</p>',
+    textContent: 'content',
+    excerpt: 'content',
+    byline: null,
+    siteName: null,
+    length: 100,
+  }),
+  intelBriefChat: vi.fn().mockResolvedValue('AI response'),
 });
+vi.stubGlobal('window', globalThis);
 
 // Must import after stubGlobal
 const { useIntelFeedStore } = await import('../intelFeedStore');

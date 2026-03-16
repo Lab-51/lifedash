@@ -18,57 +18,54 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 // ---------------------------------------------------------------------------
 // Mock window.electronAPI — comprehensive to cover all child components
 // ---------------------------------------------------------------------------
-vi.stubGlobal('window', {
-  ...window,
-  electronAPI: {
-    // Projects / Meetings / Ideas
-    getProjects: vi.fn().mockResolvedValue([]),
-    getMeetings: vi.fn().mockResolvedValue([]),
-    getIdeas: vi.fn().mockResolvedValue([]),
-    getMeetingActionItems: vi.fn().mockResolvedValue([]),
-    generateStandup: vi.fn().mockResolvedValue({ standup: '' }),
-    getActivityData: vi.fn().mockResolvedValue({ dayCounts: {} }),
-    // Background agent
-    onBackgroundAgentNewInsights: vi.fn().mockReturnValue(() => {}),
-    backgroundAgentGetPreferences: vi.fn().mockResolvedValue(null),
-    backgroundAgentGetInsights: vi.fn().mockResolvedValue([]),
-    backgroundAgentGetAllInsights: vi.fn().mockResolvedValue([]),
-    backgroundAgentGetNewCount: vi.fn().mockResolvedValue(0),
-    backgroundAgentGetDailyUsage: vi.fn().mockResolvedValue(null),
-    // Gamification
-    gamificationGetStats: vi.fn().mockResolvedValue({
-      totalXp: 0,
-      todayXp: 0,
-      level: 1,
-      levelName: 'Novice',
-      xpProgress: 0,
-      xpNextLevel: 100,
-      currentStreak: 0,
-      longestStreak: 0,
-      xpByCategory: {},
-      focusTodaySessions: 0,
-      focusTodayMinutes: 0,
-      focusTotalSessions: 0,
-      focusTotalMinutes: 0,
-    }),
-    gamificationGetAchievements: vi.fn().mockResolvedValue([]),
-    gamificationGetDaily: vi.fn().mockResolvedValue([]),
-    gamificationAwardXp: vi.fn().mockResolvedValue({ xpGained: 0 }),
-    // Focus
-    getFocusStats: vi.fn().mockResolvedValue({
-      totalSessions: 0,
-      totalMinutes: 0,
-      todaySessions: 0,
-      todayMinutes: 0,
-      streak: 0,
-    }),
-    getSetting: vi.fn().mockResolvedValue(null),
-    setSetting: vi.fn().mockResolvedValue(undefined),
-    notificationShow: vi.fn(),
-    // Misc
-    appVersion: '2.2.15',
-    platform: 'win32',
-  },
+vi.stubGlobal('electronAPI', {
+  // Projects / Meetings / Ideas
+  getProjects: vi.fn().mockResolvedValue([]),
+  getMeetings: vi.fn().mockResolvedValue([]),
+  getIdeas: vi.fn().mockResolvedValue([]),
+  getMeetingActionItems: vi.fn().mockResolvedValue([]),
+  generateStandup: vi.fn().mockResolvedValue({ standup: '' }),
+  getActivityData: vi.fn().mockResolvedValue({ dayCounts: {} }),
+  // Background agent
+  onBackgroundAgentNewInsights: vi.fn().mockReturnValue(() => {}),
+  backgroundAgentGetPreferences: vi.fn().mockResolvedValue(null),
+  backgroundAgentGetInsights: vi.fn().mockResolvedValue([]),
+  backgroundAgentGetAllInsights: vi.fn().mockResolvedValue([]),
+  backgroundAgentGetNewCount: vi.fn().mockResolvedValue(0),
+  backgroundAgentGetDailyUsage: vi.fn().mockResolvedValue(null),
+  // Gamification
+  gamificationGetStats: vi.fn().mockResolvedValue({
+    totalXp: 0,
+    todayXp: 0,
+    level: 1,
+    levelName: 'Novice',
+    xpProgress: 0,
+    xpNextLevel: 100,
+    currentStreak: 0,
+    longestStreak: 0,
+    xpByCategory: {},
+    focusTodaySessions: 0,
+    focusTodayMinutes: 0,
+    focusTotalSessions: 0,
+    focusTotalMinutes: 0,
+  }),
+  gamificationGetAchievements: vi.fn().mockResolvedValue([]),
+  gamificationGetDaily: vi.fn().mockResolvedValue([]),
+  gamificationAwardXp: vi.fn().mockResolvedValue({ xpGained: 0 }),
+  // Focus
+  getFocusStats: vi.fn().mockResolvedValue({
+    totalSessions: 0,
+    totalMinutes: 0,
+    todaySessions: 0,
+    todayMinutes: 0,
+    streak: 0,
+  }),
+  getSetting: vi.fn().mockResolvedValue(null),
+  setSetting: vi.fn().mockResolvedValue(undefined),
+  notificationShow: vi.fn(),
+  // Misc
+  appVersion: '2.2.15',
+  platform: 'win32',
 });
 
 // ---------------------------------------------------------------------------
