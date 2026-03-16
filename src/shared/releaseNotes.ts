@@ -28,6 +28,20 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.16',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Search the Intel Feed — find articles by keyword across all your sources',
+          'Bookmarks view — save articles and access them from a dedicated tab',
+          'Trending topics — see what themes are popular across your feed',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.15',
     sections: [
       {
@@ -91,20 +105,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Backup restore now works reliably — fixed date handling and settings conflicts',
           'Cloud sync no longer deletes local data when remote is empty',
           'Dashboard refreshes automatically after restoring a backup',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.11',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Cloud sync now works for all table types — fixed query errors for boards, columns, meetings, and more',
-          'Title bar sync status clears properly after signing out',
-          'Sign-in now correctly updates the UI',
         ],
       },
     ],
