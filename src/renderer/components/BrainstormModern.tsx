@@ -24,7 +24,6 @@ import {
   Square,
   X,
   Edit2,
-  MoreVertical,
 } from 'lucide-react';
 import EmptyFeatureState from './EmptyFeatureState';
 import ReactMarkdown from 'react-markdown';
@@ -97,7 +96,7 @@ export default function BrainstormModern() {
   // Handle ?action=create — auto-open the new session form
   useEffect(() => {
     if (searchParams.get('action') === 'create') {
-      setShowNewSession(true);
+      setShowNewSession(true); // eslint-disable-line react-hooks/set-state-in-effect -- one-time URL param sync
       searchParams.delete('action');
       setSearchParams(searchParams, { replace: true });
     }
@@ -226,7 +225,7 @@ export default function BrainstormModern() {
 
   // Reset chipsHidden when a new message arrives (new choices may appear)
   useEffect(() => {
-    setChipsHidden(false);
+    setChipsHidden(false); // eslint-disable-line react-hooks/set-state-in-effect -- sync derived state on message count change
   }, [activeSession?.messages.length]);
 
   // Parse quick-reply chips from the last assistant message
@@ -617,7 +616,10 @@ export default function BrainstormModern() {
                 </div>
 
                 {/* Messages */}
-                <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-6 scroll-smooth">
+                <div
+                  ref={messagesContainerRef}
+                  className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-6 scroll-smooth"
+                >
                   {activeSession.messages.length === 0 && !streaming && (
                     <div className="max-w-2xl mx-auto mt-10">
                       <div className="text-center mb-8">
@@ -648,7 +650,7 @@ export default function BrainstormModern() {
                     </div>
                   )}
 
-                  <div className="max-w-3xl mx-auto space-y-6">
+                  <div className="max-w-3xl mx-auto space-y-6 min-w-0">
                     {activeSession.messages.map((msg) => (
                       <ChatMessageModern
                         key={msg.id}
@@ -673,9 +675,12 @@ export default function BrainstormModern() {
                             </span>
                             <span className="text-[0.625rem] text-surface-400">Typing...</span>
                           </div>
-                          <div className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-2xl rounded-tl-sm p-5 shadow-sm">
-                            <div className="text-[0.9375rem] text-surface-800 dark:text-surface-200 leading-relaxed prose prose-base dark:prose-invert max-w-none">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents as any}>
+                          <div className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-2xl rounded-tl-sm p-5 shadow-sm overflow-hidden">
+                            <div className="text-[0.9375rem] text-surface-800 dark:text-surface-200 leading-relaxed prose prose-base dark:prose-invert max-w-none break-words [overflow-wrap:anywhere]">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={markdownComponents as Record<string, React.ComponentType>}
+                              >
                                 {streamingText}
                               </ReactMarkdown>
                               <span className="text-[var(--color-accent)] animate-pulse">▊</span>

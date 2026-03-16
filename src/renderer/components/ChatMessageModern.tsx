@@ -3,7 +3,7 @@
 // Enhanced styling for user and AI messages in the modern design system.
 
 import { useState } from 'react';
-import { Lightbulb, Check, User, Bot, LayoutList, Copy } from 'lucide-react';
+import { Lightbulb, Check, Bot, LayoutList, Copy } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { BrainstormMessage } from '../../shared/types';
@@ -119,8 +119,10 @@ export default function ChatMessageModern({ message, onExportToIdea, onExportToC
               {formatTimestamp(message.createdAt)}
             </span>
           </div>
-          <div className="bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-2xl rounded-tr-sm px-4 py-3 shadow-md border border-[var(--color-border-accent)]">
-            <div className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">{message.content}</div>
+          <div className="bg-[var(--color-accent-muted)] text-[var(--color-accent)] rounded-2xl rounded-tr-sm px-4 py-3 shadow-md border border-[var(--color-border-accent)] overflow-hidden">
+            <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[0.9375rem] leading-relaxed">
+              {message.content}
+            </div>
           </div>
         </div>
       </div>
@@ -141,9 +143,12 @@ export default function ChatMessageModern({ message, onExportToIdea, onExportToC
           </span>
         </div>
 
-        <div className="hud-panel rounded-2xl rounded-tl-sm p-5">
-          <div className="text-[0.9375rem] text-surface-800 dark:text-surface-200 leading-relaxed prose prose-base dark:prose-invert max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents as any}>
+        <div className="hud-panel rounded-2xl rounded-tl-sm p-5 overflow-hidden">
+          <div className="text-[0.9375rem] text-surface-800 dark:text-surface-200 leading-relaxed prose prose-base dark:prose-invert max-w-none break-words [overflow-wrap:anywhere]">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents as Record<string, React.ComponentType>}
+            >
               {stripChoicesMarkup(message.content)}
             </ReactMarkdown>
           </div>

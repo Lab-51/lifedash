@@ -27,7 +27,7 @@ Record, transcribe, and pull out action items. Nothing leaves your computer.
 
 ## What is LifeDash?
 
-LifeDash records your meetings, transcribes them locally with Whisper, generates briefs, and pulls out action items. No cloud. No accounts. Push those action items straight to a built-in Kanban board, brainstorm with AI, track your time. One app.
+LifeDash records your meetings, transcribes them locally with Whisper, generates briefs, and pulls out action items. No cloud. No accounts. Push those action items straight to a built-in Kanban board, brainstorm with AI, stay on top of your industry with an Intelligence Feed, track your time. One app.
 
 ### Platform Support
 
@@ -48,6 +48,7 @@ LifeDash records your meetings, transcribes them locally with Whisper, generates
 | AI briefs & summaries | Yes | Yes | Yes | Yes |
 | Action item extraction | Yes | Yes | Yes | Yes |
 | Project management | Yes | No | No | No |
+| Intelligence feed | Yes | No | No | No |
 | Bring your own AI key | Yes | No | No | No |
 | Open source | Yes | No | No | No |
 | **Price** | **Free** | **$204/yr** | **$216/yr** | **$384/yr** |
@@ -81,6 +82,16 @@ LifeDash records your meetings, transcribes them locally with Whisper, generates
 - Card detail view with rich text, comments, checklists, due dates
 - Labels, tags, and search across all projects
 
+### Intelligence Feed
+- RSS aggregation from sources you choose
+- AI-generated daily briefs that summarize what matters across your feed
+- Trending topic analysis across all your sources
+- In-app article reader with magazine-style typography
+- Reddit comments integration for linked discussions
+- Bookmark articles for later reading
+- Search across all articles by keyword
+- Chat with your daily brief for deeper exploration
+
 ### AI Agents
 - **Card Agent**: AI assistant per task (tool-calling, checklist management, research)
 - **Project Agent**: AI assistant per project (cross-board intelligence)
@@ -98,8 +109,9 @@ LifeDash records your meetings, transcribes them locally with Whisper, generates
 - All data stored locally in embedded PostgreSQL (PGlite)
 - Audio recordings stay on your machine
 - AI uses YOUR API keys. We never see your data
-- No accounts, no cloud sync, no telemetry
+- Optional cloud sync (Supabase) — off by default, fully opt-in
 - Encrypted API key storage via OS keychain
+- Factory reset with full data deletion
 - Open source. Read the code yourself
 
 ### Built to Last
@@ -111,6 +123,7 @@ LifeDash records your meetings, transcribes them locally with Whisper, generates
 - **Keyboard accessible** — Every modal in the app traps focus properly, cycles with Tab/Shift+Tab, and closes with Escape. Screen readers work out of the box
 - **Input validation everywhere** — Every IPC channel validates its inputs at runtime with Zod schemas, not just at compile time
 - **Optional crash reporting** — Opt-in Sentry integration strips all personal data (file paths, API keys) before sending. Off by default, always under your control
+- **"What's New" on update** — After each update, a release notes modal shows what changed so you always know what's new
 
 ---
 
@@ -140,6 +153,8 @@ No database setup. The app uses PGlite (embedded PostgreSQL) and runs migrations
 - **AI API keys:** Set them in the Settings page. Keys are stored using OS-level encryption via Electron safeStorage.
 - **Whisper model:** Download and manage local Whisper models from Settings.
 - **Transcription providers:** Deepgram and AssemblyAI can be configured as cloud alternatives to local Whisper.
+- **Cloud sync:** Optionally sign in with Supabase to sync data across devices. Off by default.
+- **Data export:** Export your entire database as JSON or CSV from Settings > Data & Storage.
 
 ### Troubleshooting
 
@@ -173,7 +188,8 @@ No database setup. The app uses PGlite (embedded PostgreSQL) and runs migrations
 | Database | PGlite (embedded WASM PostgreSQL) |
 | ORM | Drizzle ORM |
 | AI SDK | Vercel AI SDK |
-| AI Providers | OpenAI, Anthropic, Ollama, Deepgram, AssemblyAI |
+| AI Providers | OpenAI, Anthropic, Ollama, Kimi |
+| Transcription Providers | Deepgram, AssemblyAI |
 | Transcription | @fugood/whisper.node (local) |
 | Drag and Drop | @atlaskit/pragmatic-drag-and-drop |
 | State | Zustand |
@@ -182,6 +198,7 @@ No database setup. The app uses PGlite (embedded PostgreSQL) and runs migrations
 | Icons | Lucide React |
 | Routing | React Router |
 | Build | Vite |
+| Cloud Sync | Supabase (optional) |
 | Testing | Vitest |
 
 ## Project Structure
