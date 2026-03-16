@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Newspaper, Loader2, Plus, SlidersHorizontal, Search, Bookmark, X } from 'lucide-react';
+import { RefreshCw, Newspaper, Loader2, Plus, SlidersHorizontal, Search, Bookmark, Brain, X } from 'lucide-react';
 import HudBackground from './HudBackground';
 import EmptyFeatureState from './EmptyFeatureState';
 import IntelItemCard from './IntelItemCard';
@@ -19,7 +19,7 @@ import { useProjectStore } from '../stores/projectStore';
 import { useIdeaStore } from '../stores/ideaStore';
 import { useBrainstormStore } from '../stores/brainstormStore';
 import { toast } from '../hooks/useToast';
-import type { IntelItem, IntelDateFilter } from '../../shared/types';
+import type { IntelItem, IntelBrief, IntelDateFilter } from '../../shared/types';
 
 const DATE_FILTER_TABS: { label: string; value: IntelDateFilter }[] = [
   { label: 'Today', value: 'today' },
@@ -77,6 +77,94 @@ function groupItemsByDate(items: IntelItem[]): { label: string; items: IntelItem
   return result;
 }
 
+/** Format a brief date for display in saved brief cards. */
+function formatBriefDate(date: string, type: 'daily' | 'weekly'): string {
+  if (type === 'weekly') {
+    const [year, week] = date.split('-W');
+    return `Week ${parseInt(week)}, ${year}`;
+  }
+  return new Date(date + 'T00:00:00').toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+/** Format a relative time string from an ISO date. */
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+/** Saved Briefs section shown in the bookmarks view. */
+function SavedBriefsSection({
+  pinnedBriefs,
+  onClickBrief,
+  onUnpin,
+}: {
+  pinnedBriefs: IntelBrief[];
+  onClickBrief: (brief: IntelBrief) => void;
+  onUnpin: (id: string) => void;
+}) {
+  if (pinnedBriefs.length === 0) return null;
+
+  return (
+    <div className="mb-8">
+      <div className="flex items-center gap-2 mb-4">
+        <Brain size={16} className="text-[var(--color-accent)]" />
+        <h3 className="font-hud text-sm text-[var(--color-accent)] uppercase tracking-wider">Saved Briefs</h3>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {pinnedBriefs.map((brief) => (
+          <button
+            key={brief.id}
+            type="button"
+            onClick={() => onClickBrief(brief)}
+            className="cursor-pointer hud-panel rounded-xl p-4 text-left hover:border-[var(--color-border-accent)] transition-all group"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="px-2 py-0.5 text-[10px] rounded-full font-semibold uppercase tracking-wider bg-[var(--color-accent-muted)] text-[var(--color-accent)] border border-[var(--color-border-accent)]">
+                {brief.type === 'weekly' ? 'Weekly' : 'Daily'}
+              </span>
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUnpin(brief.id);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation();
+                    onUnpin(brief.id);
+                  }
+                }}
+                className="p-1 rounded-lg text-[var(--color-accent)] hover:bg-[var(--color-accent-muted)] transition-colors opacity-60 group-hover:opacity-100"
+                title="Unpin brief"
+              >
+                <Bookmark size={14} className="fill-current" />
+              </span>
+            </div>
+            <p className="text-sm font-medium text-[var(--color-text-primary)] mb-1">
+              {formatBriefDate(brief.date, brief.type)}
+            </p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {brief.articleCount} article{brief.articleCount !== 1 ? 's' : ''} &middot; Generated{' '}
+              {formatRelativeTime(brief.generatedAt)}
+            </p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function IntelFeedModern() {
   const navigate = useNavigate();
   const [showSourceManager, setShowSourceManager] = useState(false);
@@ -123,6 +211,11 @@ export default function IntelFeedModern() {
   const setViewMode = useIntelFeedStore((s) => s.setViewMode);
   const clearAllFilters = useIntelFeedStore((s) => s.clearAllFilters);
   const loadTrending = useIntelFeedStore((s) => s.loadTrending);
+  const briefHistory = useIntelFeedStore((s) => s.briefHistory);
+  const toggleBriefPin = useIntelFeedStore((s) => s.toggleBriefPin);
+  const loadSpecificBrief = useIntelFeedStore((s) => s.loadSpecificBrief);
+  const pinnedBriefs = useIntelFeedStore((s) => s.pinnedBriefs);
+  const loadPinnedBriefs = useIntelFeedStore((s) => s.loadPinnedBriefs);
 
   // Local search input + debounce
   const [searchInput, setSearchInput] = useState('');
@@ -230,8 +323,9 @@ export default function IntelFeedModern() {
         fetchAll();
       }
 
-      // Load existing brief
+      // Load existing brief and history
       await useIntelFeedStore.getState().loadBrief();
+      useIntelFeedStore.getState().loadBriefHistory();
 
       if (cancelled) return;
 
@@ -250,6 +344,13 @@ export default function IntelFeedModern() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load pinned briefs when switching to bookmarks view
+  useEffect(() => {
+    if (viewMode === 'bookmarks') {
+      loadPinnedBriefs();
+    }
+  }, [viewMode, loadPinnedBriefs]);
 
   // Compute categories from items
   const categories = useMemo(() => {
@@ -282,6 +383,24 @@ export default function IntelFeedModern() {
   const gridItems = sortedItems.slice(1);
 
   const groupedGridItems = useMemo(() => groupItemsByDate(gridItems), [gridItems]);
+
+  /** Handle clicking a saved brief card — switch to feed view and load it. */
+  const handleSavedBriefClick = useCallback(
+    (clickedBrief: IntelBrief) => {
+      loadSpecificBrief(clickedBrief);
+      setViewMode('feed');
+    },
+    [loadSpecificBrief, setViewMode],
+  );
+
+  /** Handle unpinning a brief from the saved section. */
+  const handleUnpinBrief = useCallback(
+    async (id: string) => {
+      await toggleBriefPin(id);
+      await loadPinnedBriefs();
+    },
+    [toggleBriefPin, loadPinnedBriefs],
+  );
 
   if (loading && items.length === 0) {
     return (
@@ -520,11 +639,23 @@ export default function IntelFeedModern() {
             onClearChat={clearBriefChat}
             items={items}
             onOpenArticle={openReader}
+            briefHistory={briefHistory}
+            onTogglePin={toggleBriefPin}
+            onLoadBrief={loadSpecificBrief}
           />
         )}
 
-        {viewMode === 'bookmarks' && items.length === 0 ? (
-          /* Bookmarks empty state */
+        {/* Saved Briefs — shown at top of bookmarks view when pinned briefs exist */}
+        {viewMode === 'bookmarks' && pinnedBriefs.length > 0 && (
+          <SavedBriefsSection
+            pinnedBriefs={pinnedBriefs}
+            onClickBrief={handleSavedBriefClick}
+            onUnpin={handleUnpinBrief}
+          />
+        )}
+
+        {viewMode === 'bookmarks' && items.length === 0 && pinnedBriefs.length === 0 ? (
+          /* Bookmarks empty state — no articles and no pinned briefs */
           <div className="mt-12 flex flex-col items-center justify-center text-center">
             <div className="w-14 h-14 rounded-2xl bg-[var(--color-accent-muted)] flex items-center justify-center mb-4">
               <Bookmark size={28} className="text-[var(--color-accent)]" />
@@ -540,7 +671,7 @@ export default function IntelFeedModern() {
               Browse Feed
             </button>
           </div>
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && viewMode !== 'bookmarks' ? (
           <div className="mt-12">
             <EmptyFeatureState
               icon={Newspaper}
@@ -555,7 +686,7 @@ export default function IntelFeedModern() {
               ctaAction={() => fetchAll()}
             />
           </div>
-        ) : (
+        ) : items.length > 0 ? (
           <div className="space-y-6">
             {/* Hero Card — only in feed view */}
             {viewMode === 'feed' && heroItem && (
@@ -602,7 +733,7 @@ export default function IntelFeedModern() {
               </div>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Source Manager Panel */}

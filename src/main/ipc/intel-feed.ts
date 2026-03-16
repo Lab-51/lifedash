@@ -109,6 +109,21 @@ export function registerIntelFeedHandlers(): void {
     return intelBriefService.chatAboutBrief(validContent, validMessages);
   });
 
+  // Brief pin & history
+  ipcMain.handle('intel:brief:toggle-pin', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    return intelBriefService.toggleBriefPin(validId);
+  });
+
+  ipcMain.handle('intel:brief:history', async (_event, type: unknown) => {
+    const validType = validateInput(intelBriefTypeSchema, type);
+    return intelBriefService.getBriefHistory(validType);
+  });
+
+  ipcMain.handle('intel:brief:pinned', async () => {
+    return intelBriefService.getPinnedBriefs();
+  });
+
   // Article content extraction
   ipcMain.handle('intel:item:fetchContent', async (_event, id: unknown) => {
     const validId = validateInput(idParamSchema, id);

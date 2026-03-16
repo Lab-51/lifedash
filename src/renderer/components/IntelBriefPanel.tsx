@@ -2,8 +2,8 @@
 // Collapsible AI brief panel for the Intelligence Feed.
 // Displays daily or weekly intelligence briefs with rich formatted content.
 
-import { useState, useMemo } from 'react';
-import { Brain, ChevronDown, ChevronUp, RefreshCw, Loader2, Newspaper } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { Brain, ChevronDown, ChevronUp, RefreshCw, Loader2, Newspaper, Bookmark, Clock } from 'lucide-react';
 import type { IntelBrief, IntelBriefType, IntelChatMessage, IntelItem } from '../../shared/types';
 import IntelBriefChat from './IntelBriefChat';
 
@@ -19,6 +19,22 @@ interface IntelBriefPanelProps {
   onClearChat: () => void;
   items: IntelItem[];
   onOpenArticle: (item: IntelItem) => void;
+  briefHistory?: IntelBrief[];
+  onTogglePin?: (id: string) => void;
+  onLoadBrief?: (brief: IntelBrief) => void;
+}
+
+/** Format a brief's date for the history dropdown. */
+function formatBriefDate(brief: IntelBrief): string {
+  const d = new Date(brief.date);
+  if (brief.type === 'weekly') {
+    // Calculate ISO week number
+    const startOfYear = new Date(d.getFullYear(), 0, 1);
+    const days = Math.floor((d.getTime() - startOfYear.getTime()) / 86400000);
+    const week = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+    return `Week ${week}`;
+  }
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function relativeTime(dateStr: string): string {
@@ -243,8 +259,13 @@ export default function IntelBriefPanel({
   onClearChat,
   items,
   onOpenArticle,
+  briefHistory,
+  onTogglePin,
+  onLoadBrief,
 }: IntelBriefPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const historyRef = useRef<HTMLDivElement>(null);
 
   // Build a map of lowercase article titles → items for linking in the brief
   const titleMap = useMemo(() => {
@@ -254,6 +275,18 @@ export default function IntelBriefPanel({
     }
     return map;
   }, [items]);
+
+  // Close history dropdown on outside click
+  useEffect(() => {
+    if (!showHistory) return;
+    const handleClick = (e: MouseEvent) => {
+      if (historyRef.current && !historyRef.current.contains(e.target as Node)) {
+        setShowHistory(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showHistory]);
 
   const typeLabel = briefType === 'daily' ? 'Daily' : 'Weekly';
 
@@ -320,6 +353,85 @@ export default function IntelBriefPanel({
               <RefreshCw size={12} />
               {brief ? 'Regenerate' : 'Generate'}
             </button>
+          )}
+
+          {/* Pin button */}
+          {brief && onTogglePin && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePin(brief.id);
+              }}
+              className={`cursor-pointer flex items-center justify-center w-7 h-7 rounded-lg border transition-colors ${
+                brief.isPinned
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
+                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-amber-400 hover:border-amber-500/30'
+              }`}
+              title={brief.isPinned ? 'Unpin brief' : 'Pin brief'}
+            >
+              <Bookmark size={13} className={brief.isPinned ? 'fill-current' : ''} />
+            </button>
+          )}
+
+          {/* History dropdown */}
+          {briefHistory && briefHistory.length > 0 && onLoadBrief && (
+            <div className="relative" ref={historyRef}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowHistory((v) => !v);
+                }}
+                className={`cursor-pointer flex items-center justify-center w-7 h-7 rounded-lg border transition-colors ${
+                  showHistory
+                    ? 'border-[var(--color-border-accent)] bg-[var(--color-accent-muted)] text-[var(--color-accent)]'
+                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:border-[var(--color-border-accent)]'
+                }`}
+                title="Brief history"
+              >
+                <Clock size={13} />
+              </button>
+
+              {showHistory && (
+                <div
+                  className="absolute right-0 top-full mt-1 z-50 w-64 max-h-64 overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-chrome)] shadow-xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-3 py-2 border-b border-[var(--color-border)]">
+                    <span className="text-[10px] font-data tracking-wider text-[var(--color-text-muted)] uppercase">
+                      {typeLabel} Brief History
+                    </span>
+                  </div>
+                  {briefHistory.map((entry) => {
+                    const isActive = brief?.id === entry.id;
+                    return (
+                      <button
+                        key={entry.id}
+                        onClick={() => {
+                          onLoadBrief(entry);
+                          setShowHistory(false);
+                        }}
+                        className={`cursor-pointer w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${
+                          isActive
+                            ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)]'
+                            : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)] hover:text-[var(--color-text-primary)]'
+                        }`}
+                      >
+                        {entry.isPinned && <Bookmark size={11} className="text-amber-400 fill-current shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <span className="block text-xs font-medium truncate">{formatBriefDate(entry)}</span>
+                          <span className="block text-[10px] font-data text-[var(--color-text-muted)]">
+                            {entry.articleCount} articles
+                          </span>
+                        </div>
+                        {isActive && (
+                          <span className="text-[9px] font-data text-[var(--color-accent)] shrink-0">ACTIVE</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Collapse toggle */}

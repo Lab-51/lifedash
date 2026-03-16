@@ -32,4 +32,7 @@ export const intelFeedBridge = {
   intelFetchArticleContent: (id: string) => ipcRenderer.invoke('intel:item:fetchContent', id),
   intelBriefChat: (briefContent: string, messages: { role: string; content: string }[]) =>
     ipcRenderer.invoke('intel:brief:chat', briefContent, messages),
+  intelToggleBriefPin: (id: string) => ipcRenderer.invoke('intel:brief:toggle-pin', id),
+  intelGetBriefHistory: (type: string) => ipcRenderer.invoke('intel:brief:history', type),
+  intelGetPinnedBriefs: () => ipcRenderer.invoke('intel:brief:pinned'),
 };

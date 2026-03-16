@@ -32,6 +32,8 @@ interface IntelFeedStore {
   brief: IntelBrief | null;
   briefLoading: boolean;
   briefType: IntelBriefType;
+  briefHistory: IntelBrief[];
+  pinnedBriefs: IntelBrief[];
   categoryFilter: string | null;
   searchQuery: string;
   sourceFilter: string | null;
@@ -50,6 +52,7 @@ interface IntelFeedStore {
   loadSources: () => Promise<void>;
   loadBookmarkCount: () => Promise<void>;
   loadTrending: () => Promise<void>;
+  loadPinnedBriefs: () => Promise<void>;
   setViewMode: (mode: ViewMode) => void;
   setDateFilter: (filter: IntelDateFilter) => void;
   setSearchQuery: (query: string) => void;
@@ -65,8 +68,11 @@ interface IntelFeedStore {
   deleteSource: (id: string) => Promise<void>;
   seedDefaults: () => Promise<void>;
   loadBrief: () => Promise<void>;
+  loadBriefHistory: () => Promise<void>;
   generateBrief: () => Promise<void>;
   setBriefType: (type: IntelBriefType) => void;
+  toggleBriefPin: (id: string) => Promise<void>;
+  loadSpecificBrief: (brief: IntelBrief) => void;
   setCategoryFilter: (category: string | null) => void;
   summarizeItem: (id: string) => Promise<void>;
   openReader: (item: IntelItem) => Promise<void>;
@@ -85,6 +91,8 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   brief: null,
   briefLoading: false,
   briefType: 'daily',
+  briefHistory: [],
+  pinnedBriefs: [],
   categoryFilter: null,
   searchQuery: '',
   sourceFilter: null,
@@ -135,6 +143,15 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
     try {
       const trendingTopics = await window.electronAPI.getIntelTrendingTopics();
       set({ trendingTopics });
+    } catch {
+      // Non-critical — silently ignore
+    }
+  },
+
+  loadPinnedBriefs: async () => {
+    try {
+      const pinnedBriefs = await window.electronAPI.intelGetPinnedBriefs();
+      set({ pinnedBriefs });
     } catch {
       // Non-critical — silently ignore
     }
@@ -287,6 +304,15 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
     }
   },
 
+  loadBriefHistory: async () => {
+    try {
+      const briefHistory = await window.electronAPI.intelGetBriefHistory(get().briefType);
+      set({ briefHistory });
+    } catch {
+      // Non-critical — silently ignore
+    }
+  },
+
   generateBrief: async () => {
     set({ briefLoading: true, error: null });
     try {
@@ -294,6 +320,7 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
       // Reload items since categories may have been updated
       await get().loadItems();
       set({ brief, briefLoading: false });
+      get().loadBriefHistory();
     } catch (error) {
       set({
         briefLoading: false,
@@ -305,6 +332,30 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   setBriefType: (type: IntelBriefType) => {
     set({ briefType: type, briefChatMessages: [], briefChatSending: false });
     get().loadBrief();
+    get().loadBriefHistory();
+  },
+
+  toggleBriefPin: async (id: string) => {
+    const { brief, briefHistory } = get();
+    // Optimistic update on current brief
+    if (brief?.id === id) {
+      set({ brief: { ...brief, isPinned: !brief.isPinned } });
+    }
+    // Optimistic update on history list
+    set({
+      briefHistory: briefHistory.map((b) => (b.id === id ? { ...b, isPinned: !b.isPinned } : b)),
+    });
+    try {
+      await window.electronAPI.intelToggleBriefPin(id);
+    } catch {
+      // Revert on failure
+      await get().loadBriefHistory();
+      await get().loadBrief();
+    }
+  },
+
+  loadSpecificBrief: (brief: IntelBrief) => {
+    set({ brief, briefChatMessages: [], briefChatSending: false });
   },
 
   setCategoryFilter: (category: string | null) => {

@@ -73,6 +73,7 @@ export const intelBriefs = pgTable(
     content: text('content').notNull(),
     articleCount: integer('article_count').notNull(),
     generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
+    isPinned: boolean('is_pinned').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [uniqueIndex('intel_briefs_type_date_idx').on(table.type, table.date)],

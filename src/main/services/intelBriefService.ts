@@ -10,7 +10,7 @@
 // - resolveTaskModel() API: verified from ai-provider.ts source
 // - DB schema: verified from intel-feed.ts
 
-import { eq, desc, gte, and } from 'drizzle-orm';
+import { eq, desc, gte, and, not } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { intelBriefs, intelItems, intelSources } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
@@ -45,6 +45,7 @@ function toIntelBrief(row: typeof intelBriefs.$inferSelect): IntelBrief {
     content: row.content,
     articleCount: row.articleCount,
     generatedAt: row.generatedAt.toISOString(),
+    isPinned: row.isPinned,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -151,8 +152,7 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
   const now = new Date();
   const dateKey = type === 'daily' ? now.toISOString().slice(0, 10) : getISOWeek(now);
 
-  // Delete existing brief for this type+date (regenerate)
-  await db.delete(intelBriefs).where(and(eq(intelBriefs.type, type), eq(intelBriefs.date, dateKey)));
+  // Upsert will handle existing briefs for this type+date (see insert below)
 
   // Get items for the period.
   // Daily: publishedAt >= start of today (matches the "Today" feed filter exactly).
@@ -286,7 +286,7 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
     }
   }
 
-  // Store the brief
+  // Upsert the brief — preserves isPinned when regenerating
   const [briefRow] = await db
     .insert(intelBriefs)
     .values({
@@ -294,6 +294,15 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
       date: dateKey,
       content: briefContent.trim(),
       articleCount: articleRows.length,
+      generatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [intelBriefs.type, intelBriefs.date],
+      set: {
+        content: briefContent.trim(),
+        articleCount: articleRows.length,
+        generatedAt: new Date(),
+      },
     })
     .returning();
 
@@ -457,4 +466,49 @@ export async function getLatestBrief(type: IntelBriefType): Promise<IntelBrief |
     .limit(1);
 
   return row ? toIntelBrief(row) : null;
+}
+
+/**
+ * Toggle the pinned state of a brief.
+ */
+export async function toggleBriefPin(id: string): Promise<IntelBrief> {
+  const db = getDb();
+  const [existing] = await db.select().from(intelBriefs).where(eq(intelBriefs.id, id));
+  if (!existing) throw new Error(`Intel brief not found: ${id}`);
+
+  const [updated] = await db
+    .update(intelBriefs)
+    .set({ isPinned: not(intelBriefs.isPinned) })
+    .where(eq(intelBriefs.id, id))
+    .returning();
+
+  return toIntelBrief(updated);
+}
+
+/**
+ * Get brief history for a given type, pinned briefs first, then by date descending.
+ */
+export async function getBriefHistory(type: IntelBriefType): Promise<IntelBrief[]> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(intelBriefs)
+    .where(eq(intelBriefs.type, type))
+    .orderBy(desc(intelBriefs.isPinned), desc(intelBriefs.date));
+
+  return rows.map(toIntelBrief);
+}
+
+/**
+ * Get all pinned briefs, ordered by date descending.
+ */
+export async function getPinnedBriefs(): Promise<IntelBrief[]> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(intelBriefs)
+    .where(eq(intelBriefs.isPinned, true))
+    .orderBy(desc(intelBriefs.date));
+
+  return rows.map(toIntelBrief);
 }

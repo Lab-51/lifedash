@@ -10,6 +10,7 @@ export interface IntelBrief {
   content: string;
   articleCount: number;
   generatedAt: string;
+  isPinned: boolean;
   createdAt: string;
 }
 

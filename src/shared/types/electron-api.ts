@@ -485,6 +485,9 @@ export interface ElectronAPI {
     briefContent: string,
     messages: { role: 'user' | 'assistant'; content: string }[],
   ) => Promise<string>;
+  intelToggleBriefPin: (id: string) => Promise<IntelBrief>;
+  intelGetBriefHistory: (type: IntelBriefType) => Promise<IntelBrief[]>;
+  intelGetPinnedBriefs: () => Promise<IntelBrief[]>;
 
   // Cloud Sync
   syncGetAuthState: () => Promise<AuthState>;
