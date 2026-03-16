@@ -40,25 +40,6 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   const [testError, setTestError] = useState<string | null>(null);
   const [testLatency, setTestLatency] = useState<number | undefined>(undefined);
 
-  // Escape key closes the wizard (marks it as completed).
-  // Use a ref to always call the latest handleClose without listing it as a dep,
-  // avoiding both the stale-closure problem and infinite-effect loops.
-  const handleCloseRef = useRef(handleClose);
-  useEffect(() => {
-    handleCloseRef.current = handleClose;
-  }, [handleClose]);
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleCloseRef.current();
-      }
-    }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, []);
-
   // Pre-fill base URL when provider changes and reset Ollama state
   useEffect(() => {
     if (selectedProvider === 'ollama') {
@@ -83,6 +64,25 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     await setSetting('setupWizard.completed', 'true');
     onClose();
   }, [setSetting, onClose]);
+
+  // Escape key closes the wizard (marks it as completed).
+  // Use a ref to always call the latest handleClose without listing it as a dep,
+  // avoiding both the stale-closure problem and infinite-effect loops.
+  const handleCloseRef = useRef(handleClose);
+  useEffect(() => {
+    handleCloseRef.current = handleClose;
+  }, [handleClose]);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCloseRef.current();
+      }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
 
   function handleSkip() {
     handleClose();
