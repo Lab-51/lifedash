@@ -222,9 +222,12 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   toggleBookmark: async (id: string) => {
     const item = get().items.find((i) => i.id === id);
     if (!item) return;
-    // Optimistic update
+    const newBookmarked = !item.isBookmarked;
+    // Optimistic update — items list + reader panel if same article is open
+    const { readerItem } = get();
     set({
-      items: get().items.map((i) => (i.id === id ? { ...i, isBookmarked: !i.isBookmarked } : i)),
+      items: get().items.map((i) => (i.id === id ? { ...i, isBookmarked: newBookmarked } : i)),
+      ...(readerItem?.id === id ? { readerItem: { ...readerItem, isBookmarked: newBookmarked } } : {}),
     });
     try {
       await window.electronAPI.toggleIntelItemBookmark(id);

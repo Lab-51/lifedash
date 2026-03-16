@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Newspaper, Loader2, Plus, SlidersHorizontal, Search, Bookmark, X, TrendingUp } from 'lucide-react';
+import { RefreshCw, Newspaper, Loader2, Plus, SlidersHorizontal, Search, Bookmark, X } from 'lucide-react';
 import HudBackground from './HudBackground';
 import EmptyFeatureState from './EmptyFeatureState';
 import IntelItemCard from './IntelItemCard';
@@ -122,7 +122,6 @@ export default function IntelFeedModern() {
   const setBookmarkFilter = useIntelFeedStore((s) => s.setBookmarkFilter);
   const setViewMode = useIntelFeedStore((s) => s.setViewMode);
   const clearAllFilters = useIntelFeedStore((s) => s.clearAllFilters);
-  const trendingTopics = useIntelFeedStore((s) => s.trendingTopics);
   const loadTrending = useIntelFeedStore((s) => s.loadTrending);
 
   // Local search input + debounce
@@ -501,33 +500,6 @@ export default function IntelFeedModern() {
         <div className="px-8 mb-4">
           <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm">
             {error}
-          </div>
-        </div>
-      )}
-
-      {/* Trending Topics — compact chip row, feed view only, 2+ topics */}
-      {viewMode === 'feed' && trendingTopics.length >= 2 && (
-        <div className="px-8 pb-2 shrink-0">
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <div className="flex items-center gap-1.5 shrink-0 text-[var(--color-text-muted)]">
-              <TrendingUp size={13} />
-              <span className="text-[10px] font-semibold uppercase tracking-wider">Trending</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              {trendingTopics.map((t) => (
-                <button
-                  key={t.topic}
-                  onClick={() => setCategoryFilter(categoryFilter === t.topic ? null : t.topic)}
-                  className={`cursor-pointer shrink-0 px-2.5 py-0.5 text-[11px] rounded-full transition-colors whitespace-nowrap ${
-                    categoryFilter === t.topic
-                      ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)]'
-                      : 'bg-surface-700/50 text-[var(--color-text-muted)] hover:bg-surface-700 hover:text-[var(--color-text-secondary)]'
-                  }`}
-                >
-                  {t.topic} ({t.count})
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       )}
