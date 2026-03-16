@@ -28,6 +28,20 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.17',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Bookmarking articles from the reader preview now works correctly',
+          'Long text no longer overflows chat message bubbles in Brainstorm',
+          'Cleaned up duplicate category row in the Intel Feed',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.16',
     sections: [
       {
@@ -91,20 +105,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Cloud sync pull no longer crashes on date fields from Supabase',
           'Enable Cloud Sync checkbox responds immediately after sign-in',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.12',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Backup restore now works reliably — fixed date handling and settings conflicts',
-          'Cloud sync no longer deletes local data when remote is empty',
-          'Dashboard refreshes automatically after restoring a backup',
         ],
       },
     ],
