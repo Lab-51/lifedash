@@ -21,6 +21,7 @@ import {
   intelItems,
   intelBriefs,
 } from '../../db/schema';
+import { xpEvents } from '../../db/schema/gamification';
 
 // --- Constants ---
 
@@ -243,6 +244,16 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     isJunction: false,
     conflictTarget: 'id',
   },
+  {
+    name: 'xp_events',
+    drizzleTable: xpEvents,
+    supabaseTable: 'xp_events',
+    watermarkColumn: 'earnedAt',
+    watermarkDbColumn: 'earned_at',
+    excludeColumns: [],
+    isJunction: false,
+    conflictTarget: 'id',
+  },
 ];
 
 // --- Column name mapping ---
@@ -292,6 +303,10 @@ const CAMEL_TO_SNAKE: Record<string, string> = {
   articleCount: 'article_count',
   generatedAt: 'generated_at',
   isPinned: 'is_pinned',
+  xpAmount: 'xp_amount',
+  earnedAt: 'earned_at',
+  eventType: 'event_type',
+  entityId: 'entity_id',
 };
 
 export function camelToSnake(key: string): string {
