@@ -221,17 +221,20 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   },
 
   fetchAll: async (force?: boolean) => {
-    // Skip if within cooldown period (unless forced by user)
+    // Skip if already fetching (race-condition guard) or within cooldown period
+    if (get().fetching) return { newItems: 0 };
     if (!force && Date.now() - get().lastFetchedAt < FETCH_COOLDOWN_MS) {
       return { newItems: 0 };
     }
 
-    set({ fetching: true, error: null });
+    // Set lastFetchedAt immediately (before the async call) so concurrent
+    // calls triggered within the same tick also hit the cooldown check.
+    set({ fetching: true, error: null, lastFetchedAt: Date.now() });
     try {
       const result = await window.electronAPI.fetchAllIntelSources();
       await get().loadItems();
       await get().loadSources();
-      set({ fetching: false, lastFetchedAt: Date.now() });
+      set({ fetching: false });
       return result;
     } catch (error) {
       set({
