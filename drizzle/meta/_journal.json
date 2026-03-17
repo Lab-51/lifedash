@@ -204,6 +204,13 @@
       "when": 1773617010734,
       "tag": "0028_fair_hitman",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1773763256366,
+      "tag": "0029_classy_lifeguard",
+      "breakpoints": true
     }
   ]
 }

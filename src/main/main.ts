@@ -202,8 +202,12 @@ const createWindow = async () => {
       throw new Error('All database connection attempts failed');
     }
 
-    await runMigrations();
-    log.info('DB connected and migrations applied');
+    try {
+      await runMigrations();
+      log.info('DB connected and migrations applied');
+    } catch (migrationErr) {
+      log.error('Migration failed (continuing with existing schema):', migrationErr);
+    }
 
     const integrity = await checkDatabaseIntegrity();
     if (!integrity.healthy) {
@@ -229,16 +233,17 @@ const createWindow = async () => {
 
     // Initialize opt-in crash reporting (reads preference from DB)
     await initSentry();
-
-    // Initialize cloud sync service (periodic push to Supabase)
-    try {
-      const supabase = getSupabaseClient();
-      initSyncService(supabase, mainWindow);
-    } catch (syncErr) {
-      log.warn('Sync service initialization failed (non-fatal):', syncErr);
-    }
   } catch (error) {
     log.error('DB connection failed:', error);
+  }
+
+  // Initialize cloud sync service (after DB + auth are ready, but independent
+  // of the DB try-catch so a failure in sentry/backup/etc. doesn't skip it)
+  try {
+    const supabase = getSupabaseClient();
+    initSyncService(supabase, mainWindow);
+  } catch (syncErr) {
+    log.warn('Sync service initialization failed (non-fatal):', syncErr);
   }
 
   // --- Close behavior ---

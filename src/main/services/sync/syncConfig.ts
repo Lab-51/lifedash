@@ -17,6 +17,9 @@ import {
   ideaTags,
   brainstormSessions,
   brainstormMessages,
+  intelSources,
+  intelItems,
+  intelBriefs,
 } from '../../db/schema';
 
 // --- Constants ---
@@ -210,6 +213,36 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     isJunction: false,
     conflictTarget: 'id',
   },
+  {
+    name: 'intel_sources',
+    drizzleTable: intelSources,
+    supabaseTable: 'intel_sources',
+    watermarkColumn: 'updatedAt',
+    watermarkDbColumn: 'updated_at',
+    excludeColumns: ['lastFetchedAt'],
+    isJunction: false,
+    conflictTarget: 'id',
+  },
+  {
+    name: 'intel_items',
+    drizzleTable: intelItems,
+    supabaseTable: 'intel_items',
+    watermarkColumn: 'createdAt',
+    watermarkDbColumn: 'created_at',
+    excludeColumns: ['fullContent'],
+    isJunction: false,
+    conflictTarget: 'id',
+  },
+  {
+    name: 'intel_briefs',
+    drizzleTable: intelBriefs,
+    supabaseTable: 'intel_briefs',
+    watermarkColumn: 'createdAt',
+    watermarkDbColumn: 'created_at',
+    excludeColumns: [],
+    isJunction: false,
+    conflictTarget: 'id',
+  },
 ];
 
 // --- Column name mapping ---
@@ -246,6 +279,19 @@ const CAMEL_TO_SNAKE: Record<string, string> = {
   mimeType: 'mime_type',
   transcriptionLanguage: 'transcription_language',
   labelNames: 'label_names',
+  sourceId: 'source_id',
+  iconUrl: 'icon_url',
+  lastFetchedAt: 'last_fetched_at',
+  imageUrl: 'image_url',
+  publishedAt: 'published_at',
+  fetchedAt: 'fetched_at',
+  isRead: 'is_read',
+  isBookmarked: 'is_bookmarked',
+  relevanceScore: 'relevance_score',
+  fullContent: 'full_content',
+  articleCount: 'article_count',
+  generatedAt: 'generated_at',
+  isPinned: 'is_pinned',
 };
 
 export function camelToSnake(key: string): string {

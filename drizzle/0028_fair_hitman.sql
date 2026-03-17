@@ -1,1 +1,2 @@
+UPDATE "cards" SET "source_recurring_id" = NULL WHERE "source_recurring_id" IS NOT NULL AND "source_recurring_id" NOT IN (SELECT "id" FROM "cards");--> statement-breakpoint
 ALTER TABLE "cards" ADD CONSTRAINT "cards_source_recurring_id_cards_id_fk" FOREIGN KEY ("source_recurring_id") REFERENCES "public"."cards"("id") ON DELETE set null ON UPDATE no action;

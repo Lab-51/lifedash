@@ -14,6 +14,7 @@ export default function SyncSettings() {
   const sync = useSyncStatus();
   const [signingIn, setSigningIn] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<'success' | 'error' | null>(null);
   const [firstRunDismissed, setFirstRunDismissed] = useState(false);
   const [showFirstRun, setShowFirstRun] = useState(false);
 
@@ -77,12 +78,25 @@ export default function SyncSettings() {
 
   const handleSyncNow = async () => {
     setSyncing(true);
+    setSyncResult(null);
     try {
-      await window.electronAPI.syncTriggerNow();
+      const result = await window.electronAPI.syncTriggerNow();
+      setSyncing(false);
+      if (result?.status === 'error') {
+        console.error('Sync failed:', result.message);
+        setSyncResult('error');
+      } else {
+        setSyncResult('success');
+      }
+      // Refresh hook state so timestamp updates immediately
+      await sync.refresh();
+      // Hold the result indicator for 2 seconds so the user sees feedback
+      setTimeout(() => setSyncResult(null), 2000);
     } catch (err) {
       console.error('Sync failed:', err);
-    } finally {
       setSyncing(false);
+      setSyncResult('error');
+      setTimeout(() => setSyncResult(null), 3000);
     }
   };
 
@@ -248,10 +262,30 @@ export default function SyncSettings() {
                 <button
                   onClick={handleSyncNow}
                   disabled={syncing || sync.status === 'syncing'}
-                  className="flex items-center gap-2 border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-sm transition-all"
+                  className={`flex items-center gap-2 border px-3 py-1.5 text-sm transition-all ${
+                    syncResult === 'success'
+                      ? 'border-emerald-500/50 text-emerald-400'
+                      : syncResult === 'error'
+                        ? 'border-red-500/50 text-red-400'
+                        : 'border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  {syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-                  {syncing ? 'Syncing...' : 'Sync Now'}
+                  {syncing ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : syncResult === 'success' ? (
+                    <Check size={16} />
+                  ) : syncResult === 'error' ? (
+                    <AlertCircle size={16} />
+                  ) : (
+                    <RefreshCw size={16} />
+                  )}
+                  {syncing
+                    ? 'Syncing...'
+                    : syncResult === 'success'
+                      ? 'Synced!'
+                      : syncResult === 'error'
+                        ? 'Failed'
+                        : 'Sync Now'}
                 </button>
               </div>
             )}
