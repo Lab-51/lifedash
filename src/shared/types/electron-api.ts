@@ -496,6 +496,7 @@ export interface ElectronAPI {
   syncGetStatus: () => Promise<SyncStatus>;
   syncToggleEnabled: (enabled: boolean) => Promise<void>;
   syncTriggerNow: () => Promise<{ status: SyncStatus; message: string }>;
+  syncDeleteAccount: () => Promise<void>;
   onSyncStatusChanged: (callback: (data: { status: string; lastSyncedAt: string | null }) => void) => () => void;
   onSyncError: (callback: (data: { table: string; error: string }) => void) => () => void;
   onSyncPullComplete: (callback: () => void) => () => void;

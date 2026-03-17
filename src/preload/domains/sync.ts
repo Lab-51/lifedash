@@ -8,6 +8,7 @@ export const syncBridge = {
   syncGetStatus: () => ipcRenderer.invoke('sync:get-status'),
   syncToggleEnabled: (enabled: boolean) => ipcRenderer.invoke('sync:toggle-enabled', enabled),
   syncTriggerNow: () => ipcRenderer.invoke('sync:trigger-now'),
+  syncDeleteAccount: () => ipcRenderer.invoke('sync:delete-account'),
 
   // Event listeners for real-time sync status updates from the main process
   onSyncStatusChanged: (callback: (data: { status: string; lastSyncedAt: string | null }) => void) => {

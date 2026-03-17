@@ -7,7 +7,7 @@
 // React, lucide-react icons, electronAPI (preload bridge), useSyncStatus hook
 
 import { useState, useCallback } from 'react';
-import { LogIn, LogOut, RefreshCw, Loader2, Check, AlertCircle, Cloud, Info } from 'lucide-react';
+import { LogIn, LogOut, RefreshCw, Loader2, Check, AlertCircle, Cloud, Info, Trash2 } from 'lucide-react';
 import useSyncStatus, { formatRelativeTime } from '../../hooks/useSyncStatus';
 
 export default function SyncSettings() {
@@ -17,6 +17,10 @@ export default function SyncSettings() {
   const [syncResult, setSyncResult] = useState<'success' | 'error' | null>(null);
   const [firstRunDismissed, setFirstRunDismissed] = useState(false);
   const [showFirstRun, setShowFirstRun] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteEmailInput, setDeleteEmailInput] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Check if we need to show the first-run callout when enabling sync
   const checkFirstRun = useCallback(async () => {
@@ -102,6 +106,21 @@ export default function SyncSettings() {
 
   const handleRetry = async () => {
     await handleSyncNow();
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await window.electronAPI.syncDeleteAccount();
+      setShowDeleteConfirm(false);
+      setDeleteEmailInput('');
+      await sync.refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Account deletion failed.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const renderStatusIndicator = () => {
@@ -289,6 +308,67 @@ export default function SyncSettings() {
                 </button>
               </div>
             )}
+
+            {/* Danger Zone */}
+            <div className="pt-3 border-t border-red-500/30">
+              <p className="text-xs font-medium text-red-400 uppercase tracking-wider mb-3">Danger Zone</p>
+
+              {!showDeleteConfirm ? (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex items-center gap-2 border border-red-500/30 hover:border-red-500/60 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1.5 text-sm transition-all"
+                >
+                  <Trash2 size={16} />
+                  Delete Account
+                </button>
+              ) : (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded space-y-3">
+                  <p className="text-sm text-red-400">
+                    This will permanently delete your cloud account and all remote data. Local data will not be
+                    affected.
+                  </p>
+                  <div>
+                    <label className="block text-xs text-[var(--color-text-secondary)] mb-1">
+                      Type your email to confirm deletion
+                    </label>
+                    <input
+                      type="email"
+                      value={deleteEmailInput}
+                      onChange={(e) => setDeleteEmailInput(e.target.value)}
+                      placeholder={sync.user?.email || ''}
+                      className="w-full px-3 py-1.5 text-sm bg-[var(--color-bg-surface)] border border-[var(--color-border)] text-[var(--color-text-primary)] rounded outline-none focus:border-red-500/50"
+                    />
+                  </div>
+                  {deleteError && (
+                    <p className="text-xs text-red-400">
+                      <AlertCircle size={12} className="inline mr-1" />
+                      {deleteError}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={deleting || deleteEmailInput !== sync.user?.email}
+                      className="flex items-center gap-2 border border-red-500/50 bg-red-500/20 hover:bg-red-500/30 text-red-400 px-3 py-1.5 text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                      {deleting ? 'Deleting...' : 'Permanently Delete'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowDeleteConfirm(false);
+                        setDeleteEmailInput('');
+                        setDeleteError(null);
+                      }}
+                      disabled={deleting}
+                      className="border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-3 py-1.5 text-sm transition-all disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>

@@ -7,7 +7,7 @@
 
 import { BrowserWindow, ipcMain } from 'electron';
 import { eq } from 'drizzle-orm';
-import { openAuthWindow, signOut, getAuthState } from '../services/authService';
+import { openAuthWindow, signOut, getAuthState, deleteAccount } from '../services/authService';
 import { getSyncService } from '../services/syncService';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
@@ -96,6 +96,25 @@ export function registerSyncHandlers(mainWindow: BrowserWindow): void {
       });
 
     log.info(`Sync ${validEnabled ? 'enabled' : 'disabled'}`);
+  });
+
+  // Delete account — removes all remote data and the auth user
+  ipcMain.handle('sync:delete-account', async () => {
+    const authState = await getAuthState();
+    if (!authState.isAuthenticated) {
+      throw new Error('Not authenticated.');
+    }
+
+    try {
+      await deleteAccount();
+      mainWindow.webContents.send('sync:status-changed', {
+        status: 'disconnected' as SyncStatus,
+        lastSyncedAt: null,
+      });
+    } catch (err) {
+      log.error('Account deletion failed:', err);
+      throw new Error('Account deletion failed. Please try again.', { cause: err });
+    }
   });
 
   // Manual sync trigger — calls the sync service

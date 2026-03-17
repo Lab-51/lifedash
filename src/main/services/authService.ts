@@ -13,7 +13,13 @@
 import { BrowserWindow, app } from 'electron';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
-import { getSupabaseClient, setSupabaseSession, resetSupabaseClient, DEFAULT_SUPABASE_URL } from './supabaseClient';
+import {
+  getSupabaseClient,
+  setSupabaseSession,
+  resetSupabaseClient,
+  DEFAULT_SUPABASE_URL,
+  DEFAULT_SUPABASE_ANON_KEY,
+} from './supabaseClient';
 import { isEncryptionAvailable, encryptString, decryptString } from './secure-storage';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
@@ -238,6 +244,70 @@ export async function tryRestoreSession(): Promise<boolean> {
     log.debug('Session restore failed:', err);
     return false;
   }
+}
+
+/**
+ * Permanently delete the user's cloud account and all remote data.
+ * Does NOT delete local PGlite data — only Supabase rows and the auth user.
+ */
+export async function deleteAccount(): Promise<void> {
+  // 1. Get current session for access token and user ID
+  const supabase = getSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    throw new Error('No active session. Sign in first.');
+  }
+
+  const userId = session.user.id;
+  const accessToken = session.access_token;
+
+  // 2. Delete all user rows from every synced Supabase table
+  // Import inline to avoid circular dependency at module level
+  const { SYNC_TABLES } = await import('./sync/syncConfig');
+
+  for (const table of SYNC_TABLES) {
+    try {
+      const { error } = await supabase.from(table.supabaseTable).delete().eq('user_id', userId);
+      if (error) {
+        log.warn(`Failed to delete rows from ${table.supabaseTable}:`, error.message);
+      } else {
+        log.info(`Deleted user rows from ${table.supabaseTable}`);
+      }
+    } catch (err) {
+      log.warn(`Error deleting from ${table.supabaseTable}:`, err);
+    }
+  }
+
+  // 3. Delete the Supabase auth user via REST API
+  const deleteUrl = `${DEFAULT_SUPABASE_URL}/auth/v1/user`;
+  const res = await fetch(deleteUrl, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: DEFAULT_SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    log.error(`Failed to delete auth user (${res.status}):`, body);
+    throw new Error(`Failed to delete account: ${res.statusText}`);
+  }
+
+  log.info('Supabase auth user deleted');
+
+  // 4. Sign out locally (clears tokens, resets client)
+  await signOut();
+
+  // 5. Stop the sync service
+  const { stopSyncService } = await import('./syncService');
+  stopSyncService();
+
+  log.info('Account deletion complete — all remote data removed');
 }
 
 // --- Internal helpers ---
