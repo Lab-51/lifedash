@@ -28,6 +28,20 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.20',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Fixed sync duplicating intel feed articles when the same URL appeared more than once',
+          'Fixed a race condition that caused RSS feeds to be fetched twice simultaneously during sync',
+          'Fixed sync pulling incorrect XP data column, which could cause XP events to be lost',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.19',
     sections: [
       {
@@ -92,16 +106,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Bookmarks view — save articles and access them from a dedicated tab',
           'Trending topics — see what themes are popular across your feed',
         ],
-      },
-    ],
-  },
-  {
-    version: '2.2.15',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: ['Links now open in your default browser instead of getting trapped in an in-app window'],
       },
     ],
   },
