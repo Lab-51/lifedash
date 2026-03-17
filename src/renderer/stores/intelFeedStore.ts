@@ -115,6 +115,7 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   lastFetchedAt: 0,
 
   loadItems: async () => {
+    const prevCount = get().items.length;
     set({ loading: true, error: null });
     try {
       const { dateFilter, searchQuery, sourceFilter, bookmarkFilter } = get();
@@ -130,6 +131,13 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
       set({ items, loading: false });
       // Load bookmark count alongside items (non-blocking)
       get().loadBookmarkCount();
+
+      // Auto-recovery: if we went from having items to empty with no filters,
+      // articles may have been lost — trigger a background RSS re-fetch
+      const hasFilters = !!(searchQuery || sourceFilter || bookmarkFilter);
+      if (items.length === 0 && prevCount > 0 && !hasFilters) {
+        setTimeout(() => get().fetchAll(true), 500);
+      }
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to load intel items',

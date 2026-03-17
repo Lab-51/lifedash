@@ -63,6 +63,10 @@ export interface SyncTableConfig {
    *  Use for syndicated/derived data (e.g. intel_items) where URL uniqueness conflicts
    *  across devices should be skipped rather than failing the whole batch. */
   ignoreDuplicates?: boolean;
+  /** If true, reconcileDeletes() skips this table entirely.
+   *  Use for locally-generated or syndicated data (e.g. RSS articles, AI briefs)
+   *  that may not exist on the remote yet. */
+  skipReconcileDeletes?: boolean;
 }
 
 // --- Table registry ---
@@ -241,6 +245,7 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     // local ID — resolving on url+user_id silently skips duplicates rather than erroring.
     conflictTarget: 'user_id,url',
     ignoreDuplicates: true,
+    skipReconcileDeletes: true, // RSS articles are fetched locally — remote may not have them
   },
   {
     name: 'intel_briefs',
@@ -251,6 +256,7 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     excludeColumns: [],
     isJunction: false,
     conflictTarget: 'id',
+    skipReconcileDeletes: true, // AI-generated locally — remote may not have them
   },
   {
     name: 'xp_events',

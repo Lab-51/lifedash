@@ -500,13 +500,13 @@ export async function markRead(id: string): Promise<void> {
   await db.update(intelItems).set({ isRead: true }).where(eq(intelItems.id, id));
 }
 
-/** Toggle bookmark on an item. Returns the updated item. */
-export async function toggleBookmark(id: string): Promise<IntelItem> {
+/** Toggle bookmark on an item. Returns the updated item, or null if the item no longer exists. */
+export async function toggleBookmark(id: string): Promise<IntelItem | null> {
   const db = getDb();
 
   // Get current state
   const [current] = await db.select().from(intelItems).where(eq(intelItems.id, id));
-  if (!current) throw new Error(`Intel item not found: ${id}`);
+  if (!current) return null; // Item may have been deleted by sync — graceful no-op
 
   const [updated] = await db
     .update(intelItems)

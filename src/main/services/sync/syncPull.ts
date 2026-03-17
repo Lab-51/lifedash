@@ -286,6 +286,7 @@ async function reconcileDeletes(supabase: SupabaseClient, userId: string): Promi
 
   for (const config of SYNC_TABLES) {
     if (config.isJunction) continue; // Junctions use full replace — already handled
+    if (config.skipReconcileDeletes) continue; // Syndicated/generated — never delete locally
 
     try {
       // SAFETY: Skip delete reconciliation if we've never pushed this table.
