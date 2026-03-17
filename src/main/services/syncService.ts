@@ -155,11 +155,14 @@ export class SyncService {
     };
 
     try {
-      // --- Phase 1: Pull remote changes into local PGlite ---
-      const pullHadChanges = await pullSync(this.supabase, userId, callbacks);
-
-      // --- Phase 2: Push local changes to Supabase ---
+      // --- Phase 1: Push local changes to Supabase first ---
+      // Push before pull so newly created local rows reach Supabase before
+      // reconcileDeletes runs. Pull-first ordering caused reconciliation to
+      // treat unpushed local rows as orphans and delete them (data loss).
       const hasErrors = await pushAllTables(this.supabase, userId, callbacks);
+
+      // --- Phase 2: Pull remote changes into local PGlite ---
+      const pullHadChanges = await pullSync(this.supabase, userId, callbacks);
 
       // Update the global last synced timestamp
       const now = new Date().toISOString();

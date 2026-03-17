@@ -211,6 +211,8 @@ export default function IntelFeedModern() {
   const setViewMode = useIntelFeedStore((s) => s.setViewMode);
   const clearAllFilters = useIntelFeedStore((s) => s.clearAllFilters);
   const loadTrending = useIntelFeedStore((s) => s.loadTrending);
+  const briefItems = useIntelFeedStore((s) => s.briefItems);
+  const loadBriefItems = useIntelFeedStore((s) => s.loadBriefItems);
   const briefHistory = useIntelFeedStore((s) => s.briefHistory);
   const toggleBriefPin = useIntelFeedStore((s) => s.toggleBriefPin);
   const loadSpecificBrief = useIntelFeedStore((s) => s.loadSpecificBrief);
@@ -311,6 +313,7 @@ export default function IntelFeedModern() {
       await loadItems();
       await loadSources();
       loadTrending();
+      loadBriefItems();
 
       if (cancelled) return;
 
@@ -446,7 +449,7 @@ export default function IntelFeedModern() {
               Sources ({sources.length})
             </button>
             <button
-              onClick={() => fetchAll()}
+              onClick={() => fetchAll(true)}
               disabled={fetching}
               className="cursor-pointer btn-primary shrink-0 rounded-xl px-5 py-2.5 font-medium text-sm flex items-center gap-2 disabled:opacity-50"
             >
@@ -637,7 +640,7 @@ export default function IntelFeedModern() {
             chatSending={briefChatSending}
             onSendChat={sendBriefChatMessage}
             onClearChat={clearBriefChat}
-            items={items}
+            items={briefItems}
             onOpenArticle={openReader}
             briefHistory={briefHistory}
             onTogglePin={toggleBriefPin}

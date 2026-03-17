@@ -410,12 +410,12 @@ export default function IntelArticleReader({
               )}
 
               {/* Article content */}
-              {!loading && content && content.length > 0 && (
+              {!loading && content && content.content && content.content.length > 0 && (
                 <div className="intel-reader-content" dangerouslySetInnerHTML={{ __html: sanitizedContent }} />
               )}
 
               {/* Fallback when content could not be loaded */}
-              {!loading && content && content.length === 0 && (
+              {!loading && content && (!content.content || content.content.length === 0) && (
                 <div className="mt-4 p-6 rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-center">
                   <p className="text-sm text-[var(--color-text-muted)] mb-4">Could not load full article content.</p>
                   <button

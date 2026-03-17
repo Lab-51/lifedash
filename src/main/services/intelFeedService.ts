@@ -755,7 +755,7 @@ export async function fetchArticleContent(itemId: string): Promise<ArticleConten
     excerpt: (row.item.description || '').slice(0, 200),
     byline: row.item.author,
     siteName: row.sourceName,
-    length: 0,
+    length: (row.item.description || '').split(/\s+/).filter(Boolean).length,
   };
 
   // If debounced and no cached content, return fallback without fetching

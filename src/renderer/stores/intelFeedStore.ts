@@ -21,9 +21,13 @@ import type {
 
 type ViewMode = 'feed' | 'bookmarks';
 
+// Cooldown for fetchAll — prevents re-fetching RSS on every tab switch
+const FETCH_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
 interface IntelFeedStore {
   // State
   items: IntelItem[];
+  briefItems: IntelItem[];
   sources: IntelSource[];
   dateFilter: IntelDateFilter;
   loading: boolean;
@@ -46,9 +50,11 @@ interface IntelFeedStore {
   briefChatMessages: IntelChatMessage[];
   briefChatSending: boolean;
   trendingTopics: { topic: string; count: number }[];
+  lastFetchedAt: number;
 
   // Actions
   loadItems: () => Promise<void>;
+  loadBriefItems: () => Promise<void>;
   loadSources: () => Promise<void>;
   loadBookmarkCount: () => Promise<void>;
   loadTrending: () => Promise<void>;
@@ -59,7 +65,7 @@ interface IntelFeedStore {
   setSourceFilter: (sourceId: string | null) => void;
   setBookmarkFilter: (enabled: boolean) => void;
   clearAllFilters: () => void;
-  fetchAll: () => Promise<{ newItems: number }>;
+  fetchAll: (force?: boolean) => Promise<{ newItems: number }>;
   markRead: (id: string) => Promise<void>;
   toggleBookmark: (id: string) => Promise<void>;
   addManualItem: (input: AddManualItemInput) => Promise<IntelItem>;
@@ -83,8 +89,9 @@ interface IntelFeedStore {
 
 export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   items: [],
+  briefItems: [],
   sources: [],
-  dateFilter: 'today',
+  dateFilter: 'week',
   loading: false,
   fetching: false,
   error: null,
@@ -105,6 +112,7 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   briefChatMessages: [],
   briefChatSending: false,
   trendingTopics: [],
+  lastFetchedAt: 0,
 
   loadItems: async () => {
     set({ loading: true, error: null });
@@ -127,6 +135,15 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to load intel items',
         loading: false,
       });
+    }
+  },
+
+  loadBriefItems: async () => {
+    try {
+      const briefItems = await window.electronAPI.getIntelItems('week');
+      set({ briefItems });
+    } catch {
+      // Non-critical — brief title matching will degrade gracefully
     }
   },
 
@@ -203,13 +220,18 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
     get().loadItems();
   },
 
-  fetchAll: async () => {
+  fetchAll: async (force?: boolean) => {
+    // Skip if within cooldown period (unless forced by user)
+    if (!force && Date.now() - get().lastFetchedAt < FETCH_COOLDOWN_MS) {
+      return { newItems: 0 };
+    }
+
     set({ fetching: true, error: null });
     try {
       const result = await window.electronAPI.fetchAllIntelSources();
       await get().loadItems();
       await get().loadSources();
-      set({ fetching: false });
+      set({ fetching: false, lastFetchedAt: Date.now() });
       return result;
     } catch (error) {
       set({
@@ -396,7 +418,7 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
           excerpt: (item.description || '').slice(0, 200),
           byline: item.author,
           siteName: item.sourceName,
-          length: 0,
+          length: (item.description || '').split(/\s+/).filter(Boolean).length,
         },
         readerLoading: false,
       });

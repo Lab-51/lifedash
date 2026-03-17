@@ -185,13 +185,15 @@ async function pullJunctionTable(supabase: SupabaseClient, config: SyncTableConf
 
   if (!remoteRows) return 0;
 
-  // Delete all local rows and re-insert from remote
-  await db.delete(config.drizzleTable);
-
+  // SAFETY: If remote has no rows, skip full-replace to protect local data
+  // that hasn't been pushed yet — deleting before this check wiped unpushed rows.
   if (remoteRows.length === 0) {
-    log.debug(`Pull ${config.name}: remote has no rows (cleared local)`);
+    log.debug(`Pull ${config.name}: remote has no rows — skipping full-replace to protect unpushed local data`);
     return 0;
   }
+
+  // Delete all local rows and re-insert from remote
+  await db.delete(config.drizzleTable);
 
   // Transform and insert all remote rows
   const transformed = remoteRows.map((row: Record<string, unknown>) =>
@@ -314,11 +316,28 @@ async function reconcileDeletes(supabase: SupabaseClient, userId: string): Promi
         continue;
       }
 
-      // Fetch all local IDs
-      const localRows = await db.select({ id: config.drizzleTable.id }).from(config.drizzleTable);
+      // Fetch the push watermark for this table so we can exclude unpushed rows
+      const pushWatermarkRows = await db.select().from(syncTracking).where(eq(syncTracking.tableName, config.name));
+      const pushWatermark = pushWatermarkRows.length > 0 ? pushWatermarkRows[0].lastSyncedAt : null;
 
-      // Find orphaned local rows (exist locally but not remotely)
-      const orphanIds = localRows.map((r: { id: string }) => r.id).filter((id: string) => !remoteIds.has(id));
+      // Fetch all local rows with their creation timestamps
+      const createdAtCol = config.drizzleTable.createdAt ?? config.drizzleTable.updatedAt;
+      const localRows = createdAtCol
+        ? await db.select({ id: config.drizzleTable.id, ts: createdAtCol }).from(config.drizzleTable)
+        : await db.select({ id: config.drizzleTable.id }).from(config.drizzleTable);
+
+      // Find orphaned local rows (exist locally but not remotely),
+      // but EXCLUDE rows created after the push watermark — those are pending-push
+      // rows that haven't reached Supabase yet and must never be deleted here.
+      const orphanIds = localRows
+        .filter((r: { id: string; ts?: Date | null }) => {
+          if (remoteIds.has(r.id)) return false; // not an orphan
+          if (!pushWatermark) return false; // no watermark — skip (shouldn't reach here)
+          if (!r.ts) return true; // no timestamp — treat as synced, include
+          // Only orphan rows that predate the push watermark (i.e., should have been pushed)
+          return new Date(r.ts).getTime() <= pushWatermark.getTime();
+        })
+        .map((r: { id: string }) => r.id);
 
       if (orphanIds.length === 0) continue;
 
