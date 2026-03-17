@@ -236,10 +236,10 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     watermarkDbColumn: 'created_at',
     excludeColumns: ['fullContent'],
     isJunction: false,
-    conflictTarget: 'id',
-    // RSS articles have a (user_id, url) unique constraint in Supabase.
-    // Multi-device or reinstall scenarios can produce the same URL with a different
-    // local ID — silently skip those conflicts rather than failing the batch.
+    // Use the (user_id, url) unique constraint as the conflict target.
+    // Multi-device or reinstall scenarios produce the same URL with a different
+    // local ID — resolving on url+user_id silently skips duplicates rather than erroring.
+    conflictTarget: 'user_id,url',
     ignoreDuplicates: true,
   },
   {
