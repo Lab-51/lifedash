@@ -59,6 +59,10 @@ export interface SyncTableConfig {
   isJunction: boolean;
   /** For upsert conflict resolution — the primary key column(s) */
   conflictTarget: string;
+  /** If true, rows that violate any unique constraint are silently ignored instead of erroring.
+   *  Use for syndicated/derived data (e.g. intel_items) where URL uniqueness conflicts
+   *  across devices should be skipped rather than failing the whole batch. */
+  ignoreDuplicates?: boolean;
 }
 
 // --- Table registry ---
@@ -233,6 +237,10 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     excludeColumns: ['fullContent'],
     isJunction: false,
     conflictTarget: 'id',
+    // RSS articles have a (user_id, url) unique constraint in Supabase.
+    // Multi-device or reinstall scenarios can produce the same URL with a different
+    // local ID — silently skip those conflicts rather than failing the batch.
+    ignoreDuplicates: true,
   },
   {
     name: 'intel_briefs',

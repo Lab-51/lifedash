@@ -85,7 +85,7 @@ async function pushTable(
   // Transform and batch upsert
   const transformed = rows.map((row: Record<string, unknown>) => transformRow(row, userId, config.excludeColumns));
 
-  await batchUpsert(supabase, config.supabaseTable, transformed, config.conflictTarget);
+  await batchUpsert(supabase, config.supabaseTable, transformed, config.conflictTarget, config.ignoreDuplicates);
 
   // Update watermark
   const now = new Date();
@@ -147,6 +147,8 @@ async function pushJunctionTable(
 
 /**
  * Upsert rows to Supabase in batches of BATCH_SIZE.
+ * When ignoreDuplicates is true, rows that violate any unique constraint are
+ * silently skipped instead of failing the entire batch.
  */
 async function batchUpsert(
   supabase: SupabaseClient,
@@ -154,10 +156,11 @@ async function batchUpsert(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rows: Record<string, any>[],
   conflictTarget: string,
+  ignoreDuplicates = false,
 ): Promise<void> {
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
-    const { error } = await supabase.from(table).upsert(batch, { onConflict: conflictTarget });
+    const { error } = await supabase.from(table).upsert(batch, { onConflict: conflictTarget, ignoreDuplicates });
 
     if (error) {
       throw new Error(`Upsert failed for ${table} (batch ${i / BATCH_SIZE + 1}): ${error.message}`);

@@ -93,10 +93,11 @@ async function pullTable(supabase: SupabaseClient, config: SyncTableConfig, user
   const lastPulledAt = watermarkRows.length > 0 ? watermarkRows[0].lastSyncedAt : null;
 
   // Query Supabase for rows changed since last pull.
-  // Use the table's watermark column for ordering and filtering.
-  // Tables without updated_at (e.g., brainstorm_messages) use created_at only.
+  // Use the table's configured watermark column for ordering and filtering.
+  // Tables with updated_at also filter on created_at to catch new rows.
+  // Tables with a custom watermark column (e.g. earned_at for xp_events) use it directly.
   const hasUpdatedAt = config.watermarkDbColumn === 'updated_at';
-  const orderColumn = hasUpdatedAt ? 'updated_at' : 'created_at';
+  const orderColumn = config.watermarkDbColumn ?? 'created_at';
 
   let query = supabase
     .from(config.supabaseTable)
@@ -107,12 +108,12 @@ async function pullTable(supabase: SupabaseClient, config: SyncTableConfig, user
 
   if (lastPulledAt) {
     const isoTimestamp = lastPulledAt instanceof Date ? lastPulledAt.toISOString() : String(lastPulledAt);
-    // Pull rows changed since last pull — include both updated_at and created_at
-    // if the table has updated_at, otherwise just created_at
+    // For tables with updated_at, also include rows added since last pull via created_at.
+    // For all other tables, filter on their configured watermark column directly.
     if (hasUpdatedAt) {
       query = query.or(`updated_at.gt.${isoTimestamp},created_at.gt.${isoTimestamp}`);
     } else {
-      query = query.gt('created_at', isoTimestamp);
+      query = query.gt(orderColumn, isoTimestamp);
     }
   }
 
