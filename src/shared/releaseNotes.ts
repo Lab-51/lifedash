@@ -28,6 +28,25 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.18',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: ['Brief history and pinning — save, browse, and pin your favorite intel briefs'],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Sync Now button now shows clear visual feedback (spinner, success, or error)',
+          'Cloud sync service initializes reliably on startup',
+          'Fixed database migration blocker that prevented sync from working',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.17',
     sections: [
       {
@@ -92,19 +111,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Source toggle and delete immediately refreshes the article feed',
           'Fixed modals closing instantly when opened (FocusTrap issue)',
           'RSS feeds work reliably with Reddit, Google AI Blog, and other tricky sources',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.13',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Cloud sync pull no longer crashes on date fields from Supabase',
-          'Enable Cloud Sync checkbox responds immediately after sign-in',
         ],
       },
     ],
