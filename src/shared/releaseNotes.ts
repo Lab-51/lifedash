@@ -28,6 +28,27 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.19',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: ['Delete your account and all cloud data from the Settings page'],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Fixed a critical bug where newly created projects and cards could be deleted by sync',
+          'Article links in the Intelligence Brief now open the in-app reader correctly',
+          'Article reader no longer shows "could not load" when a description is available',
+          'Intelligence Feed now shows articles from the past week by default instead of today only',
+          'Reduced background RSS fetch frequency to avoid unnecessary network activity',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.18',
     sections: [
       {
@@ -81,37 +102,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         category: 'fixes',
         label: 'Fixes',
         items: ['Links now open in your default browser instead of getting trapped in an in-app window'],
-      },
-    ],
-  },
-  {
-    version: '2.2.14',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Intelligence Feed — browse AI and tech news from RSS sources right inside LifeDash',
-          'AI Daily & Weekly Briefs — get an AI-generated summary of the most important stories',
-          'In-app article reader with clean typography and comfortable reading experience',
-          'Reddit support — posts and top comments rendered natively in the reader',
-          "Brief Discussion chat — ask AI about the day's news directly from the brief panel",
-          'Magazine-style grid layout with hero card for top stories',
-          'Article actions — save as idea, start a project, or discuss with AI from any article',
-          'Clickable article titles in the daily brief open the in-app reader',
-          'Source favicons displayed next to article source names',
-          'Updated feature tour and setup wizard with quick-start actions',
-        ],
-      },
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          "Daily brief now correctly analyzes only today's articles",
-          'Source toggle and delete immediately refreshes the article feed',
-          'Fixed modals closing instantly when opened (FocusTrap issue)',
-          'RSS feeds work reliably with Reddit, Google AI Blog, and other tricky sources',
-        ],
       },
     ],
   },
