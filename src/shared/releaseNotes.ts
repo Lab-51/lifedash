@@ -28,6 +28,16 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.22',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: ['Intelligence Brief article links are now reliably clickable for all mentioned stories'],
+      },
+    ],
+  },
+  {
     version: '2.2.21',
     sections: [
       {
@@ -101,20 +111,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Bookmarking articles from the reader preview now works correctly',
           'Long text no longer overflows chat message bubbles in Brainstorm',
           'Cleaned up duplicate category row in the Intel Feed',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.16',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Search the Intel Feed — find articles by keyword across all your sources',
-          'Bookmarks view — save articles and access them from a dedicated tab',
-          'Trending topics — see what themes are popular across your feed',
         ],
       },
     ],
