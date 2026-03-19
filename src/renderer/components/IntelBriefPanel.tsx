@@ -53,43 +53,116 @@ function stripJsonBlocks(content: string): string {
   return content.replace(/```json[\s\S]*?```/g, '').trimEnd();
 }
 
-/** Parse inline bold markers **text** into spans, linking article titles to the reader. */
+/** Parse inline formatting: [text](url) links, **bold** article mentions, and plain title mentions. */
 function parseInlineFormatting(
   text: string,
   titleMap: Map<string, IntelItem>,
+  urlMap: Map<string, IntelItem>,
   onOpenArticle: (item: IntelItem) => void,
 ): React.ReactNode {
-  // First split on bold markers
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      const inner = part.slice(2, -2);
-      // Check if this bold text matches an article title
-      const matchedItem = findMatchingItem(inner, titleMap);
-      if (matchedItem) {
-        return (
+  // Tokenize on markdown links [text](url) and bold **text** markers
+  const TOKEN_RE = /(\[([^\]]+)\]\(([^)]+)\)|\*\*[^*]+\*\*)/g;
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = TOKEN_RE.exec(text)) !== null) {
+    // Plain text before this token
+    if (match.index > lastIndex) {
+      nodes.push(linkifyTitles(text.slice(lastIndex, match.index), titleMap, onOpenArticle, key++));
+    }
+
+    const token = match[0];
+
+    if (token.startsWith('[')) {
+      // Markdown link: [text](url) — use URL lookup first, fall back to title matching
+      const linkText = match[2];
+      const url = match[3];
+      const item = urlMap.get(url) ?? findMatchingItem(linkText, titleMap);
+      if (item) {
+        nodes.push(
           <button
-            key={i}
+            key={key++}
             onClick={(e) => {
               e.stopPropagation();
-              onOpenArticle(matchedItem);
+              onOpenArticle(item);
             }}
             className="cursor-pointer text-[var(--color-accent)] font-semibold hover:underline hover:text-[var(--color-accent-hover)] transition-colors text-left"
             title="Open article"
           >
-            {inner}
-          </button>
+            {linkText}
+          </button>,
         );
+      } else {
+        nodes.push(<span key={key++}>{linkText}</span>);
       }
-      return (
-        <strong key={i} className="text-[var(--color-text-primary)] font-semibold">
-          {inner}
-        </strong>
-      );
+    } else {
+      // Bold token: **text** or **[text](url)**
+      const inner = token.slice(2, -2);
+      // Check if it's a bold markdown link: **[text](url)**
+      const boldLinkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(inner);
+      if (boldLinkMatch) {
+        const linkText = boldLinkMatch[1];
+        const url = boldLinkMatch[2];
+        const item = urlMap.get(url) ?? findMatchingItem(linkText, titleMap);
+        if (item) {
+          nodes.push(
+            <button
+              key={key++}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenArticle(item);
+              }}
+              className="cursor-pointer text-[var(--color-accent)] font-semibold hover:underline hover:text-[var(--color-accent-hover)] transition-colors text-left"
+              title="Open article"
+            >
+              {linkText}
+            </button>,
+          );
+        } else {
+          nodes.push(
+            <strong key={key++} className="text-[var(--color-text-primary)] font-semibold">
+              {linkText}
+            </strong>,
+          );
+        }
+      } else {
+        // Regular bold — fall back to title matching
+        const item = findMatchingItem(inner, titleMap);
+        if (item) {
+          nodes.push(
+            <button
+              key={key++}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenArticle(item);
+              }}
+              className="cursor-pointer text-[var(--color-accent)] font-semibold hover:underline hover:text-[var(--color-accent-hover)] transition-colors text-left"
+              title="Open article"
+            >
+              {inner}
+            </button>,
+          );
+        } else {
+          nodes.push(
+            <strong key={key++} className="text-[var(--color-text-primary)] font-semibold">
+              {inner}
+            </strong>,
+          );
+        }
+      }
     }
-    // Check for non-bold article title mentions (exact match within text)
-    return linkifyTitles(part, titleMap, onOpenArticle, i);
-  });
+
+    lastIndex = match.index + token.length;
+  }
+
+  // Remaining plain text
+  if (lastIndex < text.length) {
+    nodes.push(linkifyTitles(text.slice(lastIndex), titleMap, onOpenArticle, key));
+  }
+
+  return nodes.length === 1 ? nodes[0] : <>{nodes}</>;
 }
 
 /** Find an item whose title matches the given text (fuzzy: contains or close match). */
@@ -149,6 +222,7 @@ function linkifyTitles(
 function renderBriefContent(
   content: string,
   titleMap: Map<string, IntelItem>,
+  urlMap: Map<string, IntelItem>,
   onOpenArticle: (item: IntelItem) => void,
 ): React.ReactNode[] {
   const cleaned = stripJsonBlocks(content);
@@ -206,7 +280,7 @@ function renderBriefContent(
       listItems.push(
         <li key={i} className="flex gap-2.5 text-sm text-[var(--color-text-secondary)] leading-relaxed">
           <span className="text-[var(--color-accent)] shrink-0 mt-1 text-xs">&#9670;</span>
-          <span>{parseInlineFormatting(bulletText, titleMap, onOpenArticle)}</span>
+          <span>{parseInlineFormatting(bulletText, titleMap, urlMap, onOpenArticle)}</span>
         </li>,
       );
     }
@@ -218,7 +292,7 @@ function renderBriefContent(
           <span className="text-[var(--color-accent)] shrink-0 mt-0.5 text-xs font-data">
             {trimmed.match(/^\d+/)?.[0]}.
           </span>
-          <span>{parseInlineFormatting(bulletText, titleMap, onOpenArticle)}</span>
+          <span>{parseInlineFormatting(bulletText, titleMap, urlMap, onOpenArticle)}</span>
         </li>,
       );
     }
@@ -227,7 +301,7 @@ function renderBriefContent(
       flushList();
       elements.push(
         <p key={i} className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-3">
-          {parseInlineFormatting(trimmed, titleMap, onOpenArticle)}
+          {parseInlineFormatting(trimmed, titleMap, urlMap, onOpenArticle)}
         </p>,
       );
     }
@@ -272,6 +346,15 @@ export default function IntelBriefPanel({
     const map = new Map<string, IntelItem>();
     for (const item of items) {
       map.set(item.title.toLowerCase().trim(), item);
+    }
+    return map;
+  }, [items]);
+
+  // Build a URL → item map for exact URL-based linking (new briefs use [Title](url) format)
+  const urlMap = useMemo(() => {
+    const map = new Map<string, IntelItem>();
+    for (const item of items) {
+      map.set(item.url, item);
     }
     return map;
   }, [items]);
@@ -460,7 +543,7 @@ export default function IntelBriefPanel({
             <div className="flex">
               {/* Brief content — left side */}
               <div className="flex-1 px-6 py-5 min-w-0 overflow-y-auto max-h-[600px]">
-                {renderBriefContent(brief.content, titleMap, onOpenArticle)}
+                {renderBriefContent(brief.content, titleMap, urlMap, onOpenArticle)}
               </div>
 
               {/* Divider */}

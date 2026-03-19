@@ -86,7 +86,9 @@ const DAILY_SYSTEM_PROMPT = `You are an AI news intelligence analyst. Given a li
 1. A DAILY BRIEF in markdown format:
    - Opening paragraph: 2-3 sentences summarizing today's most important developments
    - Sections grouped by theme (use ## headers like "## Model Releases", "## Developer Tools")
-   - Under each section: bullet points with article title, source name, and a one-line "why this matters"
+   - Under each section: bullet points referencing articles in this exact format:
+     - [Exact Article Title](article_url) (Source Name) — one-line "why this matters"
+     IMPORTANT: Use the exact title and URL from the article list. This enables clickable links.
    - Highlight the top 5-7 most significant stories
    - Keep it concise and professional
 
@@ -112,7 +114,9 @@ const WEEKLY_SYSTEM_PROMPT = `You are an AI news intelligence analyst. Given art
 1. A WEEKLY ROUNDUP in markdown format:
    - Opening paragraph: 3-4 sentences summarizing the week's biggest themes
    - Sections grouped by major themes (use ## headers)
-   - Under each section: narrative paragraphs highlighting key developments, not just bullet lists
+   - Under each section: narrative paragraphs highlighting key developments
+   - When referencing a specific article, use markdown link format: [Exact Article Title](article_url)
+     IMPORTANT: Use the exact title and URL from the article list. This enables clickable links.
    - Call out the single most significant story of the week
    - Keep it concise and professional
 
