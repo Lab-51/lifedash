@@ -232,6 +232,19 @@ export async function tryRestoreSession(): Promise<boolean> {
 
     if (error || !data.session) {
       log.info('Failed to restore session from refresh token:', error?.message);
+
+      // Permanent token errors — token is irrecoverable, clear it to stop retry loop
+      const permanent =
+        error?.message?.includes('Already Used') ||
+        error?.message?.includes('Refresh Token Not Found') ||
+        error?.message?.includes('Invalid Refresh Token');
+      if (permanent) {
+        log.warn('Refresh token is permanently invalid, clearing stored auth data');
+        await db.delete(settings).where(eq(settings.key, SETTINGS_KEY_REFRESH_TOKEN));
+        await db.delete(settings).where(eq(settings.key, SETTINGS_KEY_USER_EMAIL));
+        await db.delete(settings).where(eq(settings.key, SETTINGS_KEY_USER_ID));
+      }
+
       return false;
     }
 
