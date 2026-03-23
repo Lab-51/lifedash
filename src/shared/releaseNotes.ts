@@ -28,6 +28,20 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.23',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'RSS article titles and brief text now display cleanly without HTML codes',
+          'Improved accessibility: better heading structure, ARIA labels, and command palette usability',
+          'Fixed login loop where expired tokens could cause repeated failed refresh attempts',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.22',
     sections: [
       {
@@ -78,39 +92,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Article reader no longer shows "could not load" when a description is available',
           'Intelligence Feed now shows articles from the past week by default instead of today only',
           'Reduced background RSS fetch frequency to avoid unnecessary network activity',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.18',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: ['Brief history and pinning — save, browse, and pin your favorite intel briefs'],
-      },
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Sync Now button now shows clear visual feedback (spinner, success, or error)',
-          'Cloud sync service initializes reliably on startup',
-          'Fixed database migration blocker that prevented sync from working',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.17',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Bookmarking articles from the reader preview now works correctly',
-          'Long text no longer overflows chat message bubbles in Brainstorm',
-          'Cleaned up duplicate category row in the Intel Feed',
         ],
       },
     ],
