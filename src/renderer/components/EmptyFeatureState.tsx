@@ -39,11 +39,11 @@ export default function EmptyFeatureState({
         <Icon size={iconSize} className="text-[var(--color-accent-dim)]" />
       </div>
 
-      <h3
+      <h2
         className={`font-hud tracking-wide text-[var(--color-text-primary)] ${compact ? 'text-sm mb-1' : 'text-base mb-2'}`}
       >
         {title}
-      </h3>
+      </h2>
 
       <p className={`text-[var(--color-text-secondary)] leading-relaxed ${compact ? 'text-xs mb-3' : 'text-sm mb-4'}`}>
         {description}

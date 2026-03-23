@@ -247,7 +247,10 @@ export default function BoardPageModern() {
             </Link>
             <div>
               <div className="flex items-center gap-3 mb-1">
-                <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">
+                <span
+                  className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow"
+                  aria-hidden="true"
+                >
                   SYS.BOARD
                 </span>
                 <div className="h-px w-10 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />

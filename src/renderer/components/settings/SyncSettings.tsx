@@ -223,6 +223,7 @@ export default function SyncSettings() {
                   type="checkbox"
                   checked={sync.isEnabled}
                   onChange={(e) => handleToggleSync(e.target.checked)}
+                  aria-label="Enable cloud sync"
                   className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
                 />
                 <span className="text-sm font-medium text-[var(--color-text-primary)]">Enable cloud sync</span>

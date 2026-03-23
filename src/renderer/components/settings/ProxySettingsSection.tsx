@@ -154,6 +154,7 @@ export default function ProxySettingsSection() {
             type="checkbox"
             checked={useSystem}
             onChange={(e) => setUseSystem(e.target.checked)}
+            aria-label="Use system proxy"
             className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
           />
           <div>

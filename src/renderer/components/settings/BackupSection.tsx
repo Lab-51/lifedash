@@ -297,7 +297,7 @@ export default function BackupSection() {
       <div className="mt-6 p-4 border border-red-500/20 rounded-lg bg-red-500/5">
         <div className="flex items-center gap-2 mb-1">
           <AlertTriangle size={16} className="text-red-400" />
-          <h3 className="text-sm font-medium text-red-400">Danger Zone</h3>
+          <h2 className="text-sm font-medium text-red-400">Danger Zone</h2>
         </div>
         <p className="text-xs text-surface-500 mb-3">
           Permanently delete all data from the database. This cannot be undone.
@@ -361,7 +361,7 @@ export default function BackupSection() {
       {/* Auto-backup settings */}
       {autoSettings && (
         <div className="mt-6 p-4 hud-panel clip-corner-cut-sm">
-          <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-3">Automatic Backups</h3>
+          <h2 className="text-sm font-medium text-[var(--color-text-primary)] mb-3">Automatic Backups</h2>
 
           {/* Enable toggle */}
           <label className="flex items-center gap-2 cursor-pointer mb-3">
@@ -369,6 +369,7 @@ export default function BackupSection() {
               type="checkbox"
               checked={autoSettings.enabled}
               onChange={(e) => updateAutoSettings({ enabled: e.target.checked })}
+              aria-label="Enable automatic backups"
               className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
             />
             <span className="text-sm text-surface-700 dark:text-surface-300">Enable automatic backups</span>

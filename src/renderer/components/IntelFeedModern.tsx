@@ -118,7 +118,7 @@ function SavedBriefsSection({
     <div className="mb-8">
       <div className="flex items-center gap-2 mb-4">
         <Brain size={16} className="text-[var(--color-accent)]" />
-        <h3 className="font-hud text-sm text-[var(--color-accent)] uppercase tracking-wider">Saved Briefs</h3>
+        <h2 className="font-hud text-sm text-[var(--color-accent)] uppercase tracking-wider">Saved Briefs</h2>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {pinnedBriefs.map((brief) => (
@@ -422,7 +422,10 @@ export default function IntelFeedModern() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
           <div>
             <div className="flex items-center gap-4 mb-1">
-              <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">
+              <span
+                className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow"
+                aria-hidden="true"
+              >
                 SYS.INTEL
               </span>
               <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
@@ -574,6 +577,7 @@ export default function IntelFeedModern() {
           <select
             value={sourceFilter ?? ''}
             onChange={(e) => setSourceFilter(e.target.value || null)}
+            aria-label="Filter by source"
             className="cursor-pointer px-3 py-1.5 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-chrome)] text-[var(--color-text-secondary)] focus:outline-none focus:border-[var(--color-border-accent)] transition-colors"
           >
             <option value="">All Sources</option>
@@ -663,7 +667,7 @@ export default function IntelFeedModern() {
             <div className="w-14 h-14 rounded-2xl bg-[var(--color-accent-muted)] flex items-center justify-center mb-4">
               <Bookmark size={28} className="text-[var(--color-accent)]" />
             </div>
-            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">No saved articles yet</h3>
+            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">No saved articles yet</h2>
             <p className="text-sm text-[var(--color-text-secondary)] max-w-sm">
               Bookmark articles from the feed to save them here for later reading.
             </p>

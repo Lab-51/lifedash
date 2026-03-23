@@ -153,7 +153,10 @@ export default function SettingsPageModern() {
       {/* Header */}
       <div className="px-8 pt-8 pb-6 shrink-0 bg-white dark:bg-[var(--color-chrome)] border-b border-surface-200 dark:border-[var(--color-border)]">
         <div className="flex items-center gap-4 mb-1">
-          <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">
+          <span
+            className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow"
+            aria-hidden="true"
+          >
             SYS.SETTINGS
           </span>
           <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
@@ -206,11 +209,11 @@ export default function SettingsPageModern() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
-                    <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Theme Mode</h3>
+                    <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Theme Mode</h2>
                     <ThemeSelector />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Font Size</h3>
+                    <h2 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Font Size</h2>
                     <FontScaleSelector />
                   </div>
                 </div>

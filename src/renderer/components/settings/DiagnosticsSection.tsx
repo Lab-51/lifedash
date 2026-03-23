@@ -52,21 +52,31 @@ export default function DiagnosticsSection() {
       </div>
 
       <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)]">
-        <div>
-          <p className="text-sm font-medium text-[var(--color-text-primary)]">Send anonymous crash reports</p>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5 max-w-md">
-            Help improve LifeDash by sending crash data when errors occur. No meeting content, transcripts, API keys, or
-            personal data is ever included.
-          </p>
-        </div>
         {loading ? (
-          <Loader2 size={16} className="animate-spin text-surface-500" />
+          <>
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">Send anonymous crash reports</p>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5 max-w-md">
+                Help improve LifeDash by sending crash data when errors occur. No meeting content, transcripts, API
+                keys, or personal data is ever included.
+              </p>
+            </div>
+            <Loader2 size={16} className="animate-spin text-surface-500" />
+          </>
         ) : (
-          <label className="relative inline-flex items-center cursor-pointer">
+          <label className="flex items-center justify-between w-full cursor-pointer">
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">Send anonymous crash reports</p>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5 max-w-md">
+                Help improve LifeDash by sending crash data when errors occur. No meeting content, transcripts, API
+                keys, or personal data is ever included.
+              </p>
+            </div>
             <input
               type="checkbox"
               checked={crashReports}
               onChange={(e) => handleToggleCrashReports(e.target.checked)}
+              aria-label="Send anonymous crash reports"
               className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
             />
           </label>

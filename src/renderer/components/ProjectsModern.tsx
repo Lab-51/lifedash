@@ -221,7 +221,10 @@ export default function ProjectsModern() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-4 mb-1">
-              <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">
+              <span
+                className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow"
+                aria-hidden="true"
+              >
                 SYS.PROJECTS
               </span>
               <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
@@ -273,9 +276,9 @@ export default function ProjectsModern() {
 
         {showCreateForm && (
           <div className="mb-8 hud-panel-accent clip-corner-cut-sm p-6 shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
-            <h3 className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)] mb-4">
+            <h2 className="font-hud text-sm tracking-widest uppercase text-[var(--color-accent)] mb-4">
               Create New Project
-            </h3>
+            </h2>
             <form onSubmit={handleCreate}>
               <div className="space-y-4">
                 <div>
@@ -378,9 +381,9 @@ export default function ProjectsModern() {
             <div className="w-20 h-20 bg-surface-100 dark:bg-surface-900 rounded-full flex items-center justify-center mb-6">
               <FolderKanban size={32} className="text-surface-400" />
             </div>
-            <h3 className="text-xl font-medium text-surface-900 dark:text-surface-100 mb-2">
+            <h2 className="text-xl font-medium text-surface-900 dark:text-surface-100 mb-2">
               {searchQuery ? 'No matching projects' : 'No projects yet'}
-            </h3>
+            </h2>
             <p className="text-surface-500 max-w-xs mx-auto mb-8">
               {searchQuery
                 ? 'Try adjusting your search terms.'

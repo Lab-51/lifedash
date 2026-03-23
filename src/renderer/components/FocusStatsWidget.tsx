@@ -243,7 +243,9 @@ export default function FocusStatsWidget() {
           <div className="flex items-center gap-2">
             <Trophy size={16} className="text-[var(--color-accent)]" />
             <div className="flex items-center gap-3">
-              <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROGRESS</span>
+              <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]" aria-hidden="true">
+                SYS.PROGRESS
+              </span>
               <div className="h-px w-16 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
             </div>
           </div>

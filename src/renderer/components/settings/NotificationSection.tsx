@@ -99,6 +99,7 @@ export default function NotificationSection() {
             type="checkbox"
             checked={preferences.enabled}
             onChange={(e) => updatePreference({ enabled: e.target.checked })}
+            aria-label="Enable notifications"
             className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
           />
           <span className="text-sm font-medium text-[var(--color-text-primary)]">Enable notifications</span>
@@ -113,6 +114,7 @@ export default function NotificationSection() {
                   type="checkbox"
                   checked={preferences.dueDateReminders}
                   onChange={(e) => updatePreference({ dueDateReminders: e.target.checked })}
+                  aria-label="Due date reminders"
                   className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
                 />
                 <span className="text-sm text-[var(--color-text-secondary)]">Due date reminders</span>
@@ -127,6 +129,7 @@ export default function NotificationSection() {
                   type="checkbox"
                   checked={preferences.dailyDigest}
                   onChange={(e) => updatePreference({ dailyDigest: e.target.checked })}
+                  aria-label="Daily digest"
                   className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
                 />
                 <span className="text-sm text-[var(--color-text-secondary)]">Daily digest</span>
@@ -156,6 +159,7 @@ export default function NotificationSection() {
                   type="checkbox"
                   checked={preferences.recordingReminders}
                   onChange={(e) => updatePreference({ recordingReminders: e.target.checked })}
+                  aria-label="Recording reminders"
                   className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
                 />
                 <span className="text-sm text-[var(--color-text-secondary)]">Recording reminders</span>

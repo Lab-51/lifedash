@@ -131,6 +131,7 @@ export default function BackgroundAgentSettings() {
                 type="checkbox"
                 checked={preferences.enabled}
                 onChange={(e) => handleToggleEnable(e.target.checked)}
+                aria-label="Enable Background Agents"
                 className="sr-only peer"
               />
               <div
@@ -212,6 +213,7 @@ export default function BackgroundAgentSettings() {
                       type="checkbox"
                       checked={preferences.enabledInsightTypes.includes('stale_cards')}
                       onChange={(e) => handleInsightTypeToggle('stale_cards', e.target.checked)}
+                      aria-label="Stale Card Detection"
                       className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
                     />
                     <div>

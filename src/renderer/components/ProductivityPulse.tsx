@@ -205,7 +205,9 @@ export default function ProductivityPulse({ data }: Props) {
       <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PULSE</span>
+            <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]" aria-hidden="true">
+              SYS.PULSE
+            </span>
             <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
           </div>
           <p className="font-data text-sm text-[var(--color-text-secondary)]">

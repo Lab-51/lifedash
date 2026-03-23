@@ -116,6 +116,7 @@ export default function RecordingsSavePathSection() {
             type="checkbox"
             checked={saveEnabled}
             onChange={(e) => handleToggleSave(e.target.checked)}
+            aria-label="Save audio recordings to disk"
             className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
           />
           <div>

@@ -346,7 +346,7 @@ export default function DashboardModern() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <ClipboardList size={16} className="text-emerald-500" />
-                <h3 className="font-semibold text-surface-900 dark:text-surface-100">Daily Standup</h3>
+                <h2 className="font-semibold text-surface-900 dark:text-surface-100">Daily Standup</h2>
                 {standupProjectId ? (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 font-medium">
                     {projects.find((p) => p.id === standupProjectId)?.name || 'Project'}
@@ -398,7 +398,9 @@ export default function DashboardModern() {
             <div className="hud-panel-accent clip-corner-cut-sm p-6 flex items-center justify-between group cursor-default hover:border-[var(--color-border-bright)] transition-all duration-300 relative overflow-hidden">
               <div className="flex flex-col gap-1 relative z-10">
                 <div className="flex items-center gap-2">
-                  <span className="font-hud text-xs tracking-widest text-[var(--color-magenta-dim)]">SYS.MEETINGS</span>
+                  <span className="font-hud text-xs tracking-widest text-[var(--color-magenta-dim)]" aria-hidden="true">
+                    SYS.MEETINGS
+                  </span>
                   <div className="h-px w-8 bg-gradient-to-r from-[var(--color-magenta)] to-transparent opacity-40" />
                 </div>
                 <p className="font-[var(--font-display)] text-3xl text-[var(--color-magenta)] text-glow-magenta">
@@ -414,7 +416,9 @@ export default function DashboardModern() {
             <div className="hud-panel-accent clip-corner-cut-sm p-6 flex items-center justify-between group cursor-default hover:border-[var(--color-border-bright)] transition-all duration-300 relative overflow-hidden">
               <div className="flex flex-col gap-1 relative z-10">
                 <div className="flex items-center gap-2">
-                  <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROJECTS</span>
+                  <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]" aria-hidden="true">
+                    SYS.PROJECTS
+                  </span>
                   <div className="h-px w-8 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-40" />
                 </div>
                 <p className="font-[var(--font-display)] text-3xl text-[var(--color-accent)] text-glow">
@@ -430,7 +434,9 @@ export default function DashboardModern() {
             <div className="hud-panel-accent clip-corner-cut-sm p-6 flex items-center justify-between group cursor-default hover:border-[var(--color-border-bright)] transition-all duration-300 relative overflow-hidden">
               <div className="flex flex-col gap-1 relative z-10">
                 <div className="flex items-center gap-2">
-                  <span className="font-hud text-xs tracking-widest text-[var(--color-warm-dim)]">SYS.IDEAS</span>
+                  <span className="font-hud text-xs tracking-widest text-[var(--color-warm-dim)]" aria-hidden="true">
+                    SYS.IDEAS
+                  </span>
                   <div className="h-px w-8 bg-gradient-to-r from-[var(--color-warm)] to-transparent opacity-40" />
                 </div>
                 <p className="font-[var(--font-display)] text-3xl text-[var(--color-warm)] text-glow-warm">
@@ -453,12 +459,14 @@ export default function DashboardModern() {
             <div className="hud-panel clip-corner-cut-sm overflow-hidden h-full flex flex-col">
               <div className="p-5 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
-                  <span className="font-hud text-xs tracking-widest text-[var(--color-magenta-dim)]">SYS.MEETINGS</span>
+                  <span className="font-hud text-xs tracking-widest text-[var(--color-magenta-dim)]" aria-hidden="true">
+                    SYS.MEETINGS
+                  </span>
                   <div className="h-px w-16 bg-gradient-to-r from-[var(--color-magenta)] to-transparent opacity-30" />
                 </div>
                 <button
                   onClick={() => navigate('/meetings')}
-                  className="text-sm text-[var(--color-magenta)] hover:text-[var(--color-magenta-dim)] font-medium flex items-center gap-1 transition-colors"
+                  className="text-sm text-[var(--color-magenta)] hover:text-[var(--color-magenta-dim)] font-medium flex items-center gap-1 py-1 px-2 transition-colors"
                 >
                   View All <ArrowRight size={14} />
                 </button>
@@ -521,7 +529,9 @@ export default function DashboardModern() {
             <div className="hud-panel clip-corner-cut-sm h-full flex flex-col">
               <div className="p-5 shrink-0">
                 <div className="flex items-center gap-3">
-                  <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]">SYS.PROJECTS</span>
+                  <span className="font-hud text-xs tracking-widest text-[var(--color-accent-dim)]" aria-hidden="true">
+                    SYS.PROJECTS
+                  </span>
                   <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
                 </div>
               </div>
@@ -589,7 +599,7 @@ export default function DashboardModern() {
             <div className="hud-panel clip-corner-cut-sm overflow-hidden">
               <div className="p-5 flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <span className="font-hud text-xs tracking-widest text-[var(--color-warm-dim)]">
+                  <span className="font-hud text-xs tracking-widest text-[var(--color-warm-dim)]" aria-hidden="true">
                     SYS.ACTION_ITEMS
                   </span>
                   <div className="h-px w-16 bg-gradient-to-r from-[var(--color-warm)] to-transparent opacity-30" />
@@ -597,7 +607,7 @@ export default function DashboardModern() {
                 {pendingActions.length > 0 && (
                   <button
                     onClick={() => navigate('/meetings')}
-                    className="text-sm text-[var(--color-warm)] hover:text-[var(--color-warm-dim)] font-medium flex items-center gap-1 transition-colors"
+                    className="text-sm text-[var(--color-warm)] hover:text-[var(--color-warm-dim)] font-medium flex items-center gap-1 py-1 px-2 transition-colors"
                   >
                     View All <ArrowRight size={14} />
                   </button>

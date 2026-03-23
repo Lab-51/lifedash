@@ -392,6 +392,9 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
 
   return (
     <div
+      role="dialog"
+      aria-label="Command palette"
+      aria-modal="true"
       className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/80"
       onClick={onClose}
       onKeyDown={handleKeyDown}
@@ -412,6 +415,7 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
               setSelectedIndex(0);
             }}
             placeholder="Search or jump to..."
+            aria-label="Search commands"
             className="flex-1 bg-transparent text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none text-sm font-data caret-[var(--color-accent)]"
           />
           <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[0.625rem] font-data text-[var(--color-text-muted)] bg-[var(--color-accent-subtle)] rounded border border-[var(--color-border)]">
@@ -420,7 +424,7 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
         </div>
 
         {/* Results list */}
-        <div ref={listRef} className="max-h-80 overflow-y-auto py-2">
+        <div ref={listRef} role="listbox" className="max-h-80 overflow-y-auto py-2">
           {results.length === 0 && (
             <div className="px-4 py-8 text-center text-[var(--color-text-muted)] text-sm font-data">
               No results found
@@ -439,6 +443,8 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
                   <button
                     key={item.id}
                     data-cmd-item
+                    role="option"
+                    aria-selected={sel}
                     className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${sel ? 'bg-[var(--color-accent-subtle)] text-[var(--color-accent)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)] hover:text-[var(--color-accent)]'}`}
                     onClick={() => item.action()}
                     onMouseEnter={() => setSelectedIndex(idx)}

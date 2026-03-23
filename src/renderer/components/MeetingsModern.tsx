@@ -182,7 +182,10 @@ export default function MeetingsModern() {
         <div className="flex items-center justify-between gap-4 mb-2">
           <div>
             <div className="flex items-center gap-4 mb-1">
-              <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">
+              <span
+                className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow"
+                aria-hidden="true"
+              >
                 SYS.MEETINGS
               </span>
               <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
@@ -270,27 +273,29 @@ export default function MeetingsModern() {
 
       {hasModel === false && (
         <div className="px-8 mb-4">
-          <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 flex items-start gap-3">
-            <Info size={18} className="text-blue-500 mt-0.5" />
+          <div className="p-4 rounded-xl bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] flex items-start gap-3">
+            <Info size={18} className="text-[var(--color-accent)] mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Transcription Model Missing</p>
-              <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
-                Download the Whisper model to generate transcripts and use AI features.
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">Set up AI transcription</p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+                Configure a transcription model in Settings to get AI-powered meeting summaries.
               </p>
               {downloading ? (
                 <div className="mt-3 w-full max-w-xs">
-                  <div className="h-1.5 bg-blue-200 dark:bg-blue-900 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-[var(--color-border)] rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-blue-500 transition-all duration-300"
+                      className="h-full bg-[var(--color-accent)] transition-all duration-300"
                       style={{ width: `${downloadProgress}%` }}
                     />
                   </div>
-                  <p className="text-[0.625rem] text-blue-500 mt-1 font-medium">{downloadProgress}% Downloaded</p>
+                  <p className="text-[0.625rem] text-[var(--color-accent)] mt-1 font-medium">
+                    {downloadProgress}% Downloaded
+                  </p>
                 </div>
               ) : (
                 <button
                   onClick={handleDownloadModel}
-                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mt-2 flex items-center gap-1"
+                  className="text-xs font-semibold text-[var(--color-accent)] hover:text-[var(--color-accent-dim)] mt-2 flex items-center gap-1"
                 >
                   Download Model (74 MB)
                 </button>
@@ -316,7 +321,7 @@ export default function MeetingsModern() {
               <div className="w-24 h-24 bg-[var(--color-accent-subtle)] rounded-full flex items-center justify-center mb-6 border border-[var(--color-border-accent)]">
                 <Mic size={40} className="text-[var(--color-accent-dim)]" />
               </div>
-              <h3 className="text-xl font-medium text-[var(--color-text-primary)] mb-2">No matching meetings</h3>
+              <h2 className="text-xl font-medium text-[var(--color-text-primary)] mb-2">No matching meetings</h2>
               <p className="text-[var(--color-text-secondary)] max-w-md mx-auto">
                 Try adjusting your filters or search query.
               </p>

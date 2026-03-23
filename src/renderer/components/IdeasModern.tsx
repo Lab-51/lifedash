@@ -104,7 +104,10 @@ export default function IdeasModern() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
           <div>
             <div className="flex items-center gap-4 mb-1">
-              <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">
+              <span
+                className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow"
+                aria-hidden="true"
+              >
                 SYS.IDEAS
               </span>
               <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
@@ -197,9 +200,9 @@ export default function IdeasModern() {
               <div className="w-20 h-20 bg-[var(--color-accent-subtle)] rounded-full flex items-center justify-center mb-6 border border-[var(--color-border-accent)]">
                 <Lightbulb size={32} className="text-[var(--color-accent-dim)]" />
               </div>
-              <h3 className="text-xl font-medium text-[var(--color-text-primary)] mb-2">
+              <h2 className="text-xl font-medium text-[var(--color-text-primary)] mb-2">
                 {searchQuery ? 'No matching ideas found' : `No ${filter} ideas found`}
-              </h3>
+              </h2>
               <p className="text-[var(--color-text-secondary)] max-w-xs mx-auto">
                 {searchQuery ? 'Try adjusting your search terms.' : 'Try a different filter to see more ideas.'}
               </p>

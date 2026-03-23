@@ -35,10 +35,10 @@ export default function EmptyAIState({ featureName, onSetup }: EmptyAIStateProps
       </div>
 
       {/* Heading */}
-      <h3 className="font-hud text-sm text-[var(--color-text-primary)] mb-1 flex items-center gap-1 justify-center">
+      <h2 className="font-hud text-sm text-[var(--color-text-primary)] mb-1 flex items-center gap-1 justify-center">
         Connect an AI provider to unlock {featureName}
         <HelpTip text="An AI provider powers smart features like summaries, brainstorming, and insights. You can use a free local option (Ollama) or connect to cloud services like OpenAI." />
-      </h3>
+      </h2>
 
       {/* Subtext */}
       <p className="text-xs text-[var(--color-text-secondary)] max-w-xs mb-5">

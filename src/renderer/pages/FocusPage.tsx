@@ -390,7 +390,10 @@ export default function FocusPage() {
     <div className="flex items-center justify-between">
       <div>
         <div className="flex items-center gap-4 mb-1">
-          <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">
+          <span
+            className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow"
+            aria-hidden="true"
+          >
             SYS.FOCUS
           </span>
           <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
@@ -501,7 +504,7 @@ export default function FocusPage() {
           {/* Project Breakdown */}
           {!projectId && report!.projectBreakdown.length > 0 && (
             <div className={`${cardCls} p-5`}>
-              <h3 className="font-hud text-xs text-[var(--color-accent)] mb-4">Project Breakdown</h3>
+              <h2 className="font-hud text-xs text-[var(--color-accent)] mb-4">Project Breakdown</h2>
               <div className="space-y-3">
                 {report!.projectBreakdown.map((pb) => {
                   const pct = summary.totalMinutes > 0 ? (pb.minutes / summary.totalMinutes) * 100 : 0;
@@ -598,7 +601,7 @@ export default function FocusPage() {
 
           {/* Session List */}
           <div className={`${cardCls} p-5`}>
-            <h3 className="font-hud text-xs text-[var(--color-accent)] mb-4">Sessions</h3>
+            <h2 className="font-hud text-xs text-[var(--color-accent)] mb-4">Sessions</h2>
             {(() => {
               let rendered = 0;
               const els: React.ReactNode[] = [];

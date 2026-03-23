@@ -373,6 +373,7 @@ export default function TranscriptionProviderSection() {
                 value={provider.type}
                 checked={config.type === provider.type}
                 onChange={() => handleProviderChange(provider.type)}
+                aria-label={provider.label}
                 className="w-4 h-4 mt-0.5"
               />
               <div className="flex-1 min-w-0">

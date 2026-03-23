@@ -297,7 +297,10 @@ export default function BrainstormModern() {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-4 mb-1">
-                <span className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow">
+                <span
+                  className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow"
+                  aria-hidden="true"
+                >
                   SYS.BRAINSTORM
                 </span>
                 <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
@@ -623,9 +626,9 @@ export default function BrainstormModern() {
                   {activeSession.messages.length === 0 && !streaming && (
                     <div className="max-w-2xl mx-auto mt-10">
                       <div className="text-center mb-8">
-                        <h3 className="text-xl font-bold text-surface-900 dark:text-surface-100 mb-2">
+                        <h2 className="text-xl font-bold text-surface-900 dark:text-surface-100 mb-2">
                           How can I help you today?
-                        </h3>
+                        </h2>
                         <p className="text-surface-500">Choose a starter prompt or type your own below.</p>
                       </div>
 
