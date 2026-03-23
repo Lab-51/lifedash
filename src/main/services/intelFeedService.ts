@@ -38,6 +38,49 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#039;');
 }
 
+/**
+ * Decode HTML entities (numeric decimal, numeric hex, and common named entities)
+ * that RSS feeds often include in titles and descriptions.
+ */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: '\u00A0',
+  ndash: '\u2013',
+  mdash: '\u2014',
+  lsquo: '\u2018',
+  rsquo: '\u2019',
+  ldquo: '\u201C',
+  rdquo: '\u201D',
+  bull: '\u2022',
+  hellip: '\u2026',
+  copy: '\u00A9',
+  reg: '\u00AE',
+  trade: '\u2122',
+  euro: '\u20AC',
+  pound: '\u00A3',
+  yen: '\u00A5',
+  laquo: '\u00AB',
+  raquo: '\u00BB',
+};
+
+export function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity: string) => {
+    if (entity.startsWith('#x') || entity.startsWith('#X')) {
+      const code = parseInt(entity.slice(2), 16);
+      return code ? String.fromCodePoint(code) : match;
+    }
+    if (entity.startsWith('#')) {
+      const code = parseInt(entity.slice(1), 10);
+      return code ? String.fromCodePoint(code) : match;
+    }
+    return NAMED_ENTITIES[entity] ?? NAMED_ENTITIES[entity.toLowerCase()] ?? match;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // RSS Parser instance (reused across fetches)
 // ---------------------------------------------------------------------------
@@ -595,8 +638,8 @@ export async function fetchAllSources(): Promise<{ newItems: number }> {
 
           await db.insert(intelItems).values({
             sourceId: source.id,
-            title: post.title.slice(0, 500),
-            description: post.description || null,
+            title: decodeHtmlEntities(post.title).slice(0, 500),
+            description: post.description ? decodeHtmlEntities(post.description) : null,
             url: post.link.slice(0, 2000),
             imageUrl: null,
             author: post.author.slice(0, 200) || null,
@@ -619,10 +662,12 @@ export async function fetchAllSources(): Promise<{ newItems: number }> {
 
           const publishedAt = item.pubDate ? new Date(item.pubDate) : new Date();
 
+          const rawTitle = safeString(item.title, 500) ?? 'Untitled';
+          const rawDesc = safeString(item.contentSnippet ?? item.content, 5000);
           await db.insert(intelItems).values({
             sourceId: source.id,
-            title: safeString(item.title, 500) ?? 'Untitled',
-            description: safeString(item.contentSnippet ?? item.content, 5000),
+            title: decodeHtmlEntities(rawTitle),
+            description: rawDesc ? decodeHtmlEntities(rawDesc) : rawDesc,
             url: item.link.slice(0, 2000),
             imageUrl: safeString(item.enclosure?.url, 2000),
             author: extractAuthor(item),

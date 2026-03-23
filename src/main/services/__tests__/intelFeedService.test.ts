@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { decodeHtmlEntities } from '../intelFeedService';
 
 // ---------------------------------------------------------------------------
 // We test pure logic functions from intelFeedService.
@@ -242,6 +243,55 @@ describe('intelFeedService — pure logic', () => {
 
     it('returns empty string for invalid URLs', () => {
       expect(faviconUrl('not-a-url')).toBe('');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 7. decodeHtmlEntities — numeric, hex, and named entities
+  // -------------------------------------------------------------------------
+  describe('decodeHtmlEntities', () => {
+    it('decodes numeric decimal entities (curly quotes)', () => {
+      expect(decodeHtmlEntities('&#8216;hello&#8217;')).toBe('\u2018hello\u2019');
+    });
+
+    it('decodes numeric decimal entities (en-dash)', () => {
+      expect(decodeHtmlEntities('2020&#8211;2025')).toBe('2020\u20132025');
+    });
+
+    it('decodes hex entities', () => {
+      expect(decodeHtmlEntities('&#x2018;hi&#x2019;')).toBe('\u2018hi\u2019');
+    });
+
+    it('decodes common named entities', () => {
+      expect(decodeHtmlEntities('AT&amp;T')).toBe('AT&T');
+      expect(decodeHtmlEntities('&lt;tag&gt;')).toBe('<tag>');
+      expect(decodeHtmlEntities('&quot;quoted&quot;')).toBe('"quoted"');
+      expect(decodeHtmlEntities('&ndash;')).toBe('\u2013');
+      expect(decodeHtmlEntities('&mdash;')).toBe('\u2014');
+      expect(decodeHtmlEntities('&lsquo;word&rsquo;')).toBe('\u2018word\u2019');
+      expect(decodeHtmlEntities('&ldquo;word&rdquo;')).toBe('\u201Cword\u201D');
+    });
+
+    it('handles mixed entities in a sentence', () => {
+      const input = 'Nvidia CEO says &#8216;I think we&#8217;ve achieved AGI&#8217;';
+      const expected = 'Nvidia CEO says \u2018I think we\u2019ve achieved AGI\u2019';
+      expect(decodeHtmlEntities(input)).toBe(expected);
+    });
+
+    it('leaves strings without entities unchanged', () => {
+      expect(decodeHtmlEntities('Hello World 123')).toBe('Hello World 123');
+    });
+
+    it('leaves unknown named entities unchanged', () => {
+      expect(decodeHtmlEntities('&notarealentity;')).toBe('&notarealentity;');
+    });
+
+    it('handles empty string', () => {
+      expect(decodeHtmlEntities('')).toBe('');
+    });
+
+    it('handles ampersands that are not part of entities', () => {
+      expect(decodeHtmlEntities('AT&T')).toBe('AT&T');
     });
   });
 });

@@ -14,6 +14,7 @@ import { eq, desc, gte, and, not } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { intelBriefs, intelItems, intelSources } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
+import { decodeHtmlEntities } from './intelFeedService';
 import { createLogger } from './logger';
 import type { IntelBrief, IntelBriefType, IntelItem } from '../../shared/types';
 
@@ -191,11 +192,15 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
     return null;
   }
 
-  // Build articles list for the prompt
+  // Build articles list for the prompt — decode HTML entities that RSS feeds
+  // may have left in titles/descriptions (e.g. &#8216; → ', &#8211; → –)
   const articlesList = articleRows
     .map((r, i) => {
-      const desc = r.item.description ? r.item.description.slice(0, 200) : 'No description available';
-      return `${i + 1}. [${r.item.title}] (Source: ${r.sourceName}, URL: ${r.item.url})\n   Description: ${desc}`;
+      const title = decodeHtmlEntities(r.item.title);
+      const desc = r.item.description
+        ? decodeHtmlEntities(r.item.description).slice(0, 200)
+        : 'No description available';
+      return `${i + 1}. [${title}] (Source: ${r.sourceName}, URL: ${r.item.url})\n   Description: ${desc}`;
     })
     .join('\n');
 
@@ -377,7 +382,7 @@ export async function summarizeArticle(itemId: string): Promise<IntelItem> {
     baseUrl: provider.baseUrl,
     model: provider.model,
     taskType: 'summarization',
-    prompt: `Summarize this article in 1-2 concise sentences:\n\nTitle: ${row.item.title}\nSource: ${row.sourceName}\nDescription: ${row.item.description || 'No description available'}`,
+    prompt: `Summarize this article in 1-2 concise sentences:\n\nTitle: ${decodeHtmlEntities(row.item.title)}\nSource: ${row.sourceName}\nDescription: ${row.item.description ? decodeHtmlEntities(row.item.description) : 'No description available'}`,
     system: SUMMARIZE_SYSTEM_PROMPT,
     temperature: 0.2,
     maxTokens: 200,

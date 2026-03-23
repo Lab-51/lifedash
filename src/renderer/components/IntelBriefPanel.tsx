@@ -53,6 +53,49 @@ function stripJsonBlocks(content: string): string {
   return content.replace(/```json[\s\S]*?```/g, '').trimEnd();
 }
 
+/**
+ * Decode HTML entities that RSS feeds embed in titles/descriptions.
+ * Handles numeric (&#8216;), hex (&#x2018;), and common named entities (&amp;).
+ */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: '\u00A0',
+  ndash: '\u2013',
+  mdash: '\u2014',
+  lsquo: '\u2018',
+  rsquo: '\u2019',
+  ldquo: '\u201C',
+  rdquo: '\u201D',
+  bull: '\u2022',
+  hellip: '\u2026',
+  copy: '\u00A9',
+  reg: '\u00AE',
+  trade: '\u2122',
+  euro: '\u20AC',
+  pound: '\u00A3',
+  yen: '\u00A5',
+  laquo: '\u00AB',
+  raquo: '\u00BB',
+};
+
+function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity: string) => {
+    if (entity.startsWith('#x') || entity.startsWith('#X')) {
+      const code = parseInt(entity.slice(2), 16);
+      return code ? String.fromCodePoint(code) : match;
+    }
+    if (entity.startsWith('#')) {
+      const code = parseInt(entity.slice(1), 10);
+      return code ? String.fromCodePoint(code) : match;
+    }
+    return NAMED_ENTITIES[entity] ?? NAMED_ENTITIES[entity.toLowerCase()] ?? match;
+  });
+}
+
 /** Parse inline formatting: [text](url) links, **bold** article mentions, and plain title mentions. */
 function parseInlineFormatting(
   text: string,
@@ -225,7 +268,7 @@ function renderBriefContent(
   urlMap: Map<string, IntelItem>,
   onOpenArticle: (item: IntelItem) => void,
 ): React.ReactNode[] {
-  const cleaned = stripJsonBlocks(content);
+  const cleaned = decodeHtmlEntities(stripJsonBlocks(content));
   const lines = cleaned.split('\n');
   const elements: React.ReactNode[] = [];
   let listItems: React.ReactNode[] = [];
