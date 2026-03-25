@@ -2,7 +2,10 @@
 // Thin wrapper around focus-trap-react that standardizes focus trap behavior
 // across all modals. Traps Tab/Shift+Tab within the modal, closes on Escape,
 // and restores focus to the trigger element when deactivated.
+// Guards onDeactivate so it only fires on user actions (Escape / click outside),
+// not during React StrictMode's unmount-remount cycle.
 
+import { useRef, useCallback } from 'react';
 import FocusTrapReact from 'focus-trap-react';
 import type { FocusTrapProps as FocusTrapReactProps } from 'focus-trap-react';
 
@@ -30,6 +33,35 @@ export default function FocusTrap({
   clickOutsideDeactivates = true,
   escapeDeactivates = true,
 }: FocusTrapProps) {
+  // Track whether a user action (Escape / click outside) triggered deactivation.
+  // focus-trap calls clickOutsideDeactivates/escapeDeactivates BEFORE onDeactivate,
+  // so we set the flag in those callbacks and check it in onDeactivate.
+  // This prevents StrictMode's unmount cycle from firing onDeactivate (which
+  // would close the modal immediately after opening).
+  const userTriggered = useRef(false);
+
+  const guardedClickOutside = useCallback(() => {
+    if (!clickOutsideDeactivates) return false;
+    userTriggered.current = true;
+    return true;
+  }, [clickOutsideDeactivates]);
+
+  const guardedEscape = useCallback(
+    (e: KeyboardEvent) => {
+      const result = typeof escapeDeactivates === 'function' ? escapeDeactivates(e) : escapeDeactivates !== false;
+      if (result) userTriggered.current = true;
+      return result;
+    },
+    [escapeDeactivates],
+  );
+
+  const guardedOnDeactivate = useCallback(() => {
+    if (userTriggered.current) {
+      userTriggered.current = false;
+      onDeactivate();
+    }
+  }, [onDeactivate]);
+
   const focusTrapOptions: FocusTrapReactProps['focusTrapOptions'] = {
     // Let each modal handle its own initial focus (autoFocus inputs, etc.)
     initialFocus: false,
@@ -41,9 +73,9 @@ export default function FocusTrap({
       const container = document.querySelector('[data-focus-trap-container]');
       return (container as HTMLElement) || document.body;
     },
-    escapeDeactivates,
-    clickOutsideDeactivates,
-    onDeactivate,
+    escapeDeactivates: guardedEscape,
+    clickOutsideDeactivates: guardedClickOutside,
+    onDeactivate: guardedOnDeactivate,
     // Prevent focus-trap from throwing when there are no tabbable elements
     allowOutsideClick: true,
   };
