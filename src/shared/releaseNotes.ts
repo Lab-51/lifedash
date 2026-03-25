@@ -28,6 +28,21 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.24',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: ['Faster recording stop — audio now streams to disk during recording instead of saving all at once'],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: ['Fixed modals occasionally failing to open when clicked'],
+      },
+    ],
+  },
+  {
     version: '2.2.23',
     sections: [
       {
@@ -71,27 +86,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Fixed sync duplicating intel feed articles when the same URL appeared more than once',
           'Fixed a race condition that caused RSS feeds to be fetched twice simultaneously during sync',
           'Fixed sync pulling incorrect XP data column, which could cause XP events to be lost',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.19',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: ['Delete your account and all cloud data from the Settings page'],
-      },
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Fixed a critical bug where newly created projects and cards could be deleted by sync',
-          'Article links in the Intelligence Brief now open the in-app reader correctly',
-          'Article reader no longer shows "could not load" when a description is available',
-          'Intelligence Feed now shows articles from the past week by default instead of today only',
-          'Reduced background RSS fetch frequency to avoid unnecessary network activity',
         ],
       },
     ],
