@@ -38,7 +38,7 @@ export function registerRecordingHandlers(mainWindow: BrowserWindow): void {
       // Non-fatal — will fall back to DB setting in transcriptionService
     }
 
-    audioProcessor.startRecording(validMeetingId, language);
+    await audioProcessor.startRecording(validMeetingId, language);
   });
 
   ipcMain.handle('recording:stop', async () => {

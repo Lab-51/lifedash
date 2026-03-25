@@ -3,14 +3,14 @@
 // transcription results. Uses upload + transcript + polling workflow.
 //
 // === DEPENDENCIES ===
-// Electron net (for fetch in main process), transcriptionProviderService (for API key), wavefile (WAV conversion)
+// Electron net (for fetch in main process), transcriptionProviderService (for API key), wavUtils (WAV conversion)
 //
 // === LIMITATIONS ===
 // - Polling-based (adds 3-10 seconds of latency per segment)
 // - Speaker diarization via transcribeFileWithDiarization (full-file, post-recording)
 
 import { net } from 'electron';
-import { WaveFile } from 'wavefile';
+import { pcmToWavBuffer } from './wavUtils';
 import * as transcriptionProviderService from './transcriptionProviderService';
 import type { TranscriberResult, DiarizationResult, DiarizationWord } from '../../shared/types';
 
@@ -46,9 +46,7 @@ interface AssemblyAITranscript {
  * AssemblyAI needs WAV format, not raw PCM.
  */
 function pcmToWav(pcmBuffer: Buffer): Buffer {
-  const wav = new WaveFile();
-  wav.fromScratch(1, 16000, '16', pcmBuffer);
-  return Buffer.from(wav.toBuffer());
+  return pcmToWavBuffer(pcmBuffer);
 }
 
 /**

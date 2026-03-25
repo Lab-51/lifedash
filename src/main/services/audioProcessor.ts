@@ -1,22 +1,18 @@
 // === FILE PURPOSE ===
-// Audio processing service — accumulates PCM chunks from renderer,
-// saves WAV files, manages recording state, and pushes updates.
+// Audio processing service — streams PCM chunks to a WAV file on disk
+// during recording, manages recording state, and pushes updates.
 //
 // === DEPENDENCIES ===
-// electron (app, BrowserWindow), wavefile, node:fs, node:path
+// electron (app, BrowserWindow), node:fs, node:fs/promises, node:path, wavUtils
 //
 // === LIMITATIONS ===
 // - No audio level metering
 // - Single recording at a time
-//
-// === VERIFICATION STATUS ===
-// - wavefile: named export { WaveFile } verified from source (export class WaveFile)
-// - fromScratch / toBuffer API verified from index.d.ts
-// - RecordingState shape verified from shared/types.ts
 
 import { app, BrowserWindow } from 'electron';
-import { WaveFile } from 'wavefile';
 import fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import type { RecordingState } from '../../shared/types';
@@ -24,10 +20,13 @@ import * as transcriptionService from './transcriptionService';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { createLogger } from './logger';
+import { createWavHeader } from './wavUtils';
 
 const log = createLogger('Audio');
 
-let chunks: Buffer[] = [];
+let wavFd: FileHandle | null = null;
+let wavPath = '';
+let dataBytes = 0;
 let currentMeetingId: string | null = null;
 let startTime = 0;
 let stateTimer: ReturnType<typeof setInterval> | null = null;
@@ -59,13 +58,39 @@ export function isRecording(): boolean {
   return currentMeetingId !== null;
 }
 
-export function startRecording(meetingId: string, language?: string): void {
+export async function startRecording(meetingId: string, language?: string): Promise<void> {
   if (currentMeetingId) {
     throw new Error('Already recording. Stop current recording first.');
   }
   currentMeetingId = meetingId;
-  chunks = [];
   startTime = Date.now();
+
+  // Check if audio saving is enabled (default: true) and open WAV file
+  let saveEnabled = true;
+  try {
+    const db = getDb();
+    const rows = await db.select().from(settings).where(eq(settings.key, 'audio:saveRecordings'));
+    if (rows.length > 0 && rows[0].value === 'false') {
+      saveEnabled = false;
+    }
+  } catch (err) {
+    log.error('Failed to read audio:saveRecordings setting, defaulting to save:', err);
+  }
+
+  if (saveEnabled) {
+    const dir = await getRecordingsDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const filePath = path.join(dir, `${meetingId}.wav`);
+    wavFd = await fsp.open(filePath, 'w');
+    await wavFd.write(createWavHeader(0));
+    dataBytes = 0;
+    wavPath = filePath;
+  } else {
+    log.debug('Audio saving disabled — skipping WAV file');
+    wavFd = null;
+    wavPath = '';
+    dataBytes = 0;
+  }
 
   // Push state updates to renderer every second
   stateTimer = setInterval(() => {
@@ -83,7 +108,15 @@ export function startRecording(meetingId: string, language?: string): void {
 
 export function addChunk(chunk: Buffer): void {
   if (!currentMeetingId) return; // Ignore chunks when not recording
-  chunks.push(chunk);
+
+  if (wavFd) {
+    wavFd.write(chunk).catch((err) => {
+      log.error('WAV write failed, disabling audio save:', err);
+      wavFd = null;
+    });
+    dataBytes += chunk.byteLength;
+  }
+
   transcriptionService.addChunk(chunk);
 }
 
@@ -98,35 +131,10 @@ export async function stopRecording(): Promise<string> {
     stateTimer = null;
   }
 
-  // Stop transcription pipeline (flushes remaining audio)
-  await transcriptionService.stop();
-
-  const meetingId = currentMeetingId;
   currentMeetingId = null;
 
-  // Combine all chunks into a single buffer
-  const combined = Buffer.concat(chunks);
-  chunks = []; // Free memory
-
-  // Check if audio saving is enabled (default: true)
-  let saveEnabled = true;
-  try {
-    const db = getDb();
-    const rows = await db.select().from(settings).where(eq(settings.key, 'audio:saveRecordings'));
-    if (rows.length > 0 && rows[0].value === 'false') {
-      saveEnabled = false;
-    }
-  } catch (err) {
-    log.error('Failed to read audio:saveRecordings setting, defaulting to save:', err);
-  }
-
-  // Save WAV file (or skip if disabled)
-  let audioPath = '';
-  if (saveEnabled) {
-    audioPath = await saveWav(meetingId, combined);
-  } else {
-    log.debug('Audio saving disabled — skipping WAV file');
-  }
+  // Flush transcription and finalize WAV in parallel
+  const [, audioPath] = await Promise.all([transcriptionService.stop(), finalizeWav()]);
 
   // Push stopped state
   pushState();
@@ -134,23 +142,25 @@ export async function stopRecording(): Promise<string> {
   return audioPath;
 }
 
-async function saveWav(meetingId: string, pcmBuffer: Buffer): Promise<string> {
-  const dir = await getRecordingsDir();
-  fs.mkdirSync(dir, { recursive: true });
-
-  const filePath = path.join(dir, `${meetingId}.wav`);
-
-  // Convert Buffer to Int16Array for WAV encoding
-  const int16 = new Int16Array(pcmBuffer.buffer, pcmBuffer.byteOffset, pcmBuffer.byteLength / 2);
-
-  // Create WAV: 1 channel (mono), 16kHz, 16-bit PCM
-  const wav = new WaveFile();
-  wav.fromScratch(1, 16000, '16', int16);
-
-  fs.writeFileSync(filePath, wav.toBuffer());
-  log.debug(`Saved WAV: ${filePath} (${(pcmBuffer.byteLength / 1024).toFixed(0)} KB)`);
-
-  return filePath;
+async function finalizeWav(): Promise<string> {
+  if (!wavFd) return '';
+  try {
+    const header = createWavHeader(dataBytes);
+    await wavFd.write(header, 0, 44, 0); // overwrite placeholder at position 0
+    await wavFd.close();
+    log.debug(`Saved WAV: ${wavPath} (${(dataBytes / 1024).toFixed(0)} KB)`);
+    return wavPath;
+  } catch (err) {
+    log.error('Failed to finalize WAV:', err);
+    try {
+      await wavFd.close();
+    } catch {
+      /* ignore */
+    }
+    return '';
+  } finally {
+    wavFd = null;
+  }
 }
 
 function pushState(): void {
