@@ -25,6 +25,7 @@ import { toast } from '../hooks/useToast';
 import type { FocusTimeReport, FocusSessionFull } from '../../shared/types/focus';
 import { billableHours } from '../../shared/utils/billing';
 import HudSelect from '../components/HudSelect';
+import FeatureTip from '../components/FeatureTip';
 
 type Period = 'thisWeek' | 'lastWeek' | 'last7Days' | 'thisMonth' | 'lastMonth' | 'allTime' | 'custom';
 
@@ -387,27 +388,37 @@ export default function FocusPage() {
   );
 
   const header = (
-    <div className="flex items-center justify-between">
-      <div>
-        <div className="flex items-center gap-4 mb-1">
-          <span
-            className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow"
-            aria-hidden="true"
-          >
-            SYS.FOCUS
-          </span>
-          <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
+    <>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-4 mb-1">
+            <span
+              className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow"
+              aria-hidden="true"
+            >
+              SYS.FOCUS
+            </span>
+            <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
+          </div>
+          <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Focus Time Tracking</h1>
         </div>
-        <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Focus Time Tracking</h1>
+        <div className="flex items-center gap-2">
+          <FeatureTip.Button id="focus" />
+          <button
+            onClick={handleExport}
+            disabled={!report || !allSessions.length}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Download size={15} /> Export CSV
+          </button>
+        </div>
       </div>
-      <button
-        onClick={handleExport}
-        disabled={!report || !allSessions.length}
-        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-accent)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        <Download size={15} /> Export CSV
-      </button>
-    </div>
+      <FeatureTip id="focus" title="How focus tracking works">
+        Start a focus session on any card or project to track your time. Sessions can be marked as billable for client
+        work. View weekly and monthly reports, and export to CSV for invoicing. Your project&apos;s hourly rate is used
+        to calculate earnings automatically.
+      </FeatureTip>
+    </>
   );
 
   // Empty state

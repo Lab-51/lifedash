@@ -27,6 +27,7 @@ import {
   Sparkles,
   Activity,
   Cloud,
+  Newspaper,
 } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -52,6 +53,7 @@ import ProxySettingsSection from '../components/settings/ProxySettingsSection';
 import BackgroundAgentSettings from '../components/settings/BackgroundAgentSettings';
 import DiagnosticsSection from '../components/settings/DiagnosticsSection';
 import SyncSettings from '../components/settings/SyncSettings';
+import IntelFeedInterestsSection from './settings/IntelFeedInterestsSection';
 import HudBackground from './HudBackground';
 import HelpTip from './HelpTip';
 
@@ -67,7 +69,7 @@ export default function SettingsPageModern() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     const tab = searchParams.get('tab');
-    return tab && ['general', 'ai', 'data', 'about'].includes(tab) ? tab : 'general';
+    return tab && ['general', 'ai', 'intel', 'data', 'about'].includes(tab) ? tab : 'general';
   });
   const [showWizard, setShowWizard] = useState(false);
   const [showTour, setShowTour] = useState(false);
@@ -88,7 +90,7 @@ export default function SettingsPageModern() {
   // Sync activeTab when URL query param changes
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && ['general', 'ai', 'data', 'about'].includes(tab)) {
+    if (tab && ['general', 'ai', 'intel', 'data', 'about'].includes(tab)) {
       setActiveTab(tab); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [searchParams]);
@@ -143,6 +145,7 @@ export default function SettingsPageModern() {
   const TABS = [
     { id: 'general', label: 'General', icon: <Settings size={18} /> },
     { id: 'ai', label: 'AI & Models', icon: <Cpu size={18} /> },
+    { id: 'intel', label: 'Intel Feed', icon: <Newspaper size={18} /> },
     { id: 'data', label: 'Data & Storage', icon: <Database size={18} /> },
     { id: 'about', label: 'About', icon: <Info size={18} /> },
   ];
@@ -439,6 +442,12 @@ export default function SettingsPageModern() {
 
               {/* Background Agents */}
               <BackgroundAgentSettings />
+            </div>
+          )}
+
+          {activeTab === 'intel' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <IntelFeedInterestsSection />
             </div>
           )}
 

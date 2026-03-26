@@ -16,6 +16,7 @@ const MeetingDetailModal = lazy(() => import('../components/MeetingDetailModal')
 import LoadingSpinner from '../components/LoadingSpinner';
 import HudBackground from './HudBackground';
 import { ConfirmDialog } from './ConfirmDialog';
+import FeatureTip from './FeatureTip';
 
 type SortOption = 'newest' | 'oldest' | 'title';
 
@@ -194,33 +195,42 @@ export default function MeetingsModern() {
             <p className="text-[var(--color-text-secondary)] text-sm mt-1">Capture and analyze conversations.</p>
           </div>
 
-          <button
-            onClick={() => setShowControls(!showControls)}
-            disabled={isRecording}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-              showControls || isRecording
-                ? 'bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] text-[var(--color-text-primary)] cursor-default'
-                : 'bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] shadow-md hover:shadow-lg'
-            }`}
-          >
-            {isRecording ? (
-              <>
-                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
-                <span>Recording...</span>
-              </>
-            ) : showControls ? (
-              <>
-                <X size={18} />
-                <span>Close Recorder</span>
-              </>
-            ) : (
-              <>
-                <Mic size={18} />
-                <span>New Recording</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-3">
+            <FeatureTip.Button id="meetings" />
+            <button
+              onClick={() => setShowControls(!showControls)}
+              disabled={isRecording}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                showControls || isRecording
+                  ? 'bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] text-[var(--color-text-primary)] cursor-default'
+                  : 'bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] shadow-md hover:shadow-lg'
+              }`}
+            >
+              {isRecording ? (
+                <>
+                  <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                  <span>Recording...</span>
+                </>
+              ) : showControls ? (
+                <>
+                  <X size={18} />
+                  <span>Close Recorder</span>
+                </>
+              ) : (
+                <>
+                  <Mic size={18} />
+                  <span>New Recording</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
+
+        <FeatureTip id="meetings" title="How meeting intelligence works">
+          Record any meeting by capturing system audio — works with Zoom, Teams, Google Meet, or any app. Audio is
+          transcribed in real-time using Whisper (local) or cloud providers. After recording, AI generates a summary and
+          extracts action items that you can convert into project cards with one click.
+        </FeatureTip>
 
         <div className="mb-6" />
         {/* Collapsible Recording Area */}

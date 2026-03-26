@@ -6,6 +6,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, Newspaper, Loader2, Plus, SlidersHorizontal, Search, Bookmark, Brain, X } from 'lucide-react';
+import FeatureTip from './FeatureTip';
 import HudBackground from './HudBackground';
 import EmptyFeatureState from './EmptyFeatureState';
 import IntelItemCard from './IntelItemCard';
@@ -28,7 +29,10 @@ const DATE_FILTER_TABS: { label: string; value: IntelDateFilter }[] = [
 ];
 
 /** Group items by date header: "Today", "Yesterday", or formatted date. */
-function groupItemsByDate(items: IntelItem[]): { label: string; items: IntelItem[] }[] {
+function groupItemsByDate(
+  items: IntelItem[],
+  sortMode: 'top' | 'recent' = 'top',
+): { label: string; items: IntelItem[] }[] {
   const now = new Date();
   const todayStr = now.toDateString();
   const yesterday = new Date(now);
@@ -57,7 +61,7 @@ function groupItemsByDate(items: IntelItem[]): { label: string; items: IntelItem
     groups.get(key)!.items.push(item);
   }
 
-  // Sort groups by date (newest first), items within each group by relevance then date
+  // Sort groups by date (newest first)
   const result = Array.from(groups.values());
   result.sort((a, b) => {
     const dateA = new Date(a.items[0].publishedAt).getTime();
@@ -65,13 +69,20 @@ function groupItemsByDate(items: IntelItem[]): { label: string; items: IntelItem
     return dateB - dateA;
   });
 
+  // Sort items within each group based on sort mode
   for (const group of result) {
-    group.items.sort((a, b) => {
-      const scoreA = a.relevanceScore ?? 0;
-      const scoreB = b.relevanceScore ?? 0;
-      if (scoreA !== scoreB) return scoreB - scoreA;
-      return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
-    });
+    if (sortMode === 'top') {
+      group.items.sort((a, b) => {
+        const scoreA = a.relevanceScore ?? 0;
+        const scoreB = b.relevanceScore ?? 0;
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+      });
+    } else {
+      group.items.sort((a, b) => {
+        return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+      });
+    }
   }
 
   return result;
@@ -169,7 +180,6 @@ export default function IntelFeedModern() {
   const navigate = useNavigate();
   const [showSourceManager, setShowSourceManager] = useState(false);
   const [showAddArticle, setShowAddArticle] = useState(false);
-
   const items = useIntelFeedStore((s) => s.items);
   const sources = useIntelFeedStore((s) => s.sources);
   const dateFilter = useIntelFeedStore((s) => s.dateFilter);
@@ -218,6 +228,8 @@ export default function IntelFeedModern() {
   const loadSpecificBrief = useIntelFeedStore((s) => s.loadSpecificBrief);
   const pinnedBriefs = useIntelFeedStore((s) => s.pinnedBriefs);
   const loadPinnedBriefs = useIntelFeedStore((s) => s.loadPinnedBriefs);
+  const sortMode = useIntelFeedStore((s) => s.sortMode);
+  const setSortMode = useIntelFeedStore((s) => s.setSortMode);
 
   // Local search input + debounce
   const [searchInput, setSearchInput] = useState('');
@@ -372,20 +384,22 @@ export default function IntelFeedModern() {
     return items.filter((i) => i.category === categoryFilter);
   }, [items, categoryFilter]);
 
-  // Sort by relevance, then by date
+  // Sort items based on sort mode: 'top' = relevance then date, 'recent' = date only
   const sortedItems = useMemo(() => {
     return [...filteredItems].sort((a, b) => {
-      const scoreA = a.relevanceScore ?? 0;
-      const scoreB = b.relevanceScore ?? 0;
-      if (scoreA !== scoreB) return scoreB - scoreA;
+      if (sortMode === 'top') {
+        const scoreA = a.relevanceScore ?? 0;
+        const scoreB = b.relevanceScore ?? 0;
+        if (scoreA !== scoreB) return scoreB - scoreA;
+      }
       return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
     });
-  }, [filteredItems]);
+  }, [filteredItems, sortMode]);
 
   const heroItem = sortedItems.length > 0 ? sortedItems[0] : null;
   const gridItems = sortedItems.slice(1);
 
-  const groupedGridItems = useMemo(() => groupItemsByDate(gridItems), [gridItems]);
+  const groupedGridItems = useMemo(() => groupItemsByDate(gridItems, sortMode), [gridItems, sortMode]);
 
   /** Handle clicking a saved brief card — switch to feed view and load it. */
   const handleSavedBriefClick = useCallback(
@@ -459,8 +473,22 @@ export default function IntelFeedModern() {
               <RefreshCw size={16} className={fetching ? 'animate-spin' : ''} />
               {fetching ? 'Fetching...' : 'Refresh'}
             </button>
+            <FeatureTip.Button id="intel-feed" />
           </div>
         </div>
+
+        <FeatureTip id="intel-feed" title="How article ranking works">
+          Articles are scored by AI when fetched. Use <strong>Top</strong> sort to see the most significant stories
+          first. Add specific interests in{' '}
+          <button
+            onClick={() => navigate('/settings?tab=intel')}
+            className="cursor-pointer text-[var(--color-accent)] hover:underline"
+          >
+            Settings &rarr; Intel Feed
+          </button>{' '}
+          to personalize scores — specific topics like &quot;AI agents&quot; or &quot;local LLMs&quot; work better than
+          broad terms. Project names are included automatically.
+        </FeatureTip>
 
         {/* View toggle: Feed / Saved */}
         <div className="flex items-center gap-3 mt-3 mb-1">
@@ -522,6 +550,30 @@ export default function IntelFeedModern() {
           <span className="text-xs font-data text-[var(--color-text-muted)]">
             {filteredItems.length} article{filteredItems.length !== 1 ? 's' : ''}
           </span>
+
+          {/* Sort toggle: Top / Recent */}
+          <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
+            <button
+              onClick={() => setSortMode('top')}
+              className={`cursor-pointer px-3 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
+                sortMode === 'top'
+                  ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
+                  : 'bg-[var(--color-chrome)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+              }`}
+            >
+              Top
+            </button>
+            <button
+              onClick={() => setSortMode('recent')}
+              className={`cursor-pointer px-3 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
+                sortMode === 'recent'
+                  ? 'bg-[var(--color-accent-muted)] text-[var(--color-accent)] border-[var(--color-border-accent)]'
+                  : 'bg-[var(--color-chrome)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+              }`}
+            >
+              Recent
+            </button>
+          </div>
 
           {/* Category pills inline */}
           {categories.length > 0 && (
@@ -710,7 +762,7 @@ export default function IntelFeedModern() {
             )}
 
             {/* Grid of articles, grouped by date */}
-            {(viewMode === 'bookmarks' ? groupItemsByDate(sortedItems) : groupedGridItems).map((group) => (
+            {(viewMode === 'bookmarks' ? groupItemsByDate(sortedItems, sortMode) : groupedGridItems).map((group) => (
               <div key={group.label}>
                 {/* Date Header */}
                 <div className="flex items-center gap-3 mb-3">

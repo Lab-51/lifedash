@@ -59,6 +59,7 @@ export interface IntelItem {
   summary: string | null;
   relevanceScore: number | null;
   fullContent: string | null;
+  alternateUrls: string[] | null;
   createdAt: string;
 }
 

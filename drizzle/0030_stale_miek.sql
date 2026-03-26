@@ -1,0 +1,1 @@
+ALTER TABLE "intel_items" ADD COLUMN "alternate_urls" text;

@@ -11,6 +11,7 @@ import HudSelect from '../components/HudSelect';
 import type { IdeaStatus } from '../../shared/types';
 
 import HudBackground from './HudBackground';
+import FeatureTip from './FeatureTip';
 
 const IdeaDetailModal = lazy(() => import('../components/IdeaDetailModal'));
 
@@ -117,14 +118,22 @@ export default function IdeasModern() {
               Capture, refine, and track your flashes of brilliance.
             </p>
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="btn-primary shrink-0 rounded-xl px-5 py-2.5 font-medium text-sm flex items-center gap-2 self-start md:self-auto"
-          >
-            <Plus size={16} />
-            Add Idea
-          </button>
+          <div className="flex items-center gap-3 self-start md:self-auto">
+            <FeatureTip.Button id="ideas" />
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="btn-primary shrink-0 rounded-xl px-5 py-2.5 font-medium text-sm flex items-center gap-2"
+            >
+              <Plus size={16} />
+              Add Idea
+            </button>
+          </div>
         </div>
+
+        <FeatureTip id="ideas" title="How ideas work">
+          Quickly capture ideas with tags, then refine them later. Ideas can be converted into project cards or full
+          projects when you're ready to act. Use AI analysis to evaluate feasibility and effort before committing.
+        </FeatureTip>
 
         <div className="mb-6" />
         {/* Filters & Search Toolbar */}

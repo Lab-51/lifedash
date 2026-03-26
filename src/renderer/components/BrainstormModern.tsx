@@ -26,6 +26,7 @@ import {
   Edit2,
 } from 'lucide-react';
 import EmptyFeatureState from './EmptyFeatureState';
+import FeatureTip from './FeatureTip';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useBrainstormStore } from '../stores/brainstormStore';
@@ -314,14 +315,22 @@ export default function BrainstormModern() {
               </p>
             </div>
 
-            <button
-              onClick={() => setShowNewSession(true)}
-              className="btn-primary clip-corner-cut-sm px-4 py-2 text-sm font-medium flex items-center gap-2"
-            >
-              <Plus size={16} />
-              New Session
-            </button>
+            <div className="flex items-center gap-2">
+              <FeatureTip.Button id="brainstorm" />
+              <button
+                onClick={() => setShowNewSession(true)}
+                className="btn-primary clip-corner-cut-sm px-4 py-2 text-sm font-medium flex items-center gap-2"
+              >
+                <Plus size={16} />
+                New Session
+              </button>
+            </div>
           </div>
+          <FeatureTip id="brainstorm" title="How brainstorming works">
+            Start a session and chat with AI to explore ideas. The AI has context from your projects and meetings, so it
+            can make relevant suggestions. Use quick chips to speed up the conversation. Sessions are saved so you can
+            revisit past brainstorms anytime.
+          </FeatureTip>
         </div>
 
         <div className="flex-1 flex overflow-hidden">

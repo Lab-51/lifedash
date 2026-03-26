@@ -51,6 +51,7 @@ export const intelItems = pgTable(
     summary: text('summary'),
     relevanceScore: integer('relevance_score'),
     fullContent: text('full_content'),
+    alternateUrls: text('alternate_urls'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [

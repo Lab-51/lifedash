@@ -43,6 +43,7 @@ interface IntelFeedStore {
   sourceFilter: string | null;
   bookmarkFilter: boolean;
   viewMode: ViewMode;
+  sortMode: 'top' | 'recent';
   bookmarkCount: number;
   readerItem: IntelItem | null;
   readerContent: ArticleContent | null;
@@ -80,6 +81,7 @@ interface IntelFeedStore {
   toggleBriefPin: (id: string) => Promise<void>;
   loadSpecificBrief: (brief: IntelBrief) => void;
   setCategoryFilter: (category: string | null) => void;
+  setSortMode: (mode: 'top' | 'recent') => void;
   summarizeItem: (id: string) => Promise<void>;
   openReader: (item: IntelItem) => Promise<void>;
   closeReader: () => void;
@@ -105,6 +107,7 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   sourceFilter: null,
   bookmarkFilter: false,
   viewMode: 'feed',
+  sortMode: 'top',
   bookmarkCount: 0,
   readerItem: null,
   readerContent: null,
@@ -393,6 +396,10 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
 
   setCategoryFilter: (category: string | null) => {
     set({ categoryFilter: category });
+  },
+
+  setSortMode: (mode: 'top' | 'recent') => {
+    set({ sortMode: mode });
   },
 
   summarizeItem: async (id: string) => {

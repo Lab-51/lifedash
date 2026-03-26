@@ -25,6 +25,7 @@ const ProjectPlanningModal = lazy(() => import('../components/ProjectPlanningMod
 import type { CreateProjectInput } from '../../shared/types';
 import { toast } from '../hooks/useToast';
 import HudBackground from './HudBackground';
+import FeatureTip from './FeatureTip';
 
 const PRESET_COLORS = [
   '#6366f1', // Indigo
@@ -232,13 +233,24 @@ export default function ProjectsModern() {
             <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Projects</h1>
             <p className="text-[var(--color-text-secondary)] text-sm mt-1">Manage and track your work.</p>
           </div>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="btn-primary clip-corner-cut-sm flex items-center gap-2 px-5 py-2.5 text-sm font-medium"
-          >
-            <Plus size={18} />
-            New Project
-          </button>
+          <div className="flex items-center gap-3">
+            <FeatureTip.Button id="projects" />
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="btn-primary clip-corner-cut-sm flex items-center gap-2 px-5 py-2.5 text-sm font-medium"
+            >
+              <Plus size={18} />
+              New Project
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-[10px]">
+          <FeatureTip id="projects" title="How projects work">
+            Create projects to organize your work into Kanban boards with drag-and-drop cards. Each project has its own
+            board with customizable columns. Cards support checklists, comments, attachments, labels, and priorities. AI
+            agents can help plan tasks and manage cards within each project.
+          </FeatureTip>
         </div>
 
         {/* Toolbar */}

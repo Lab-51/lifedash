@@ -12,7 +12,7 @@
 
 import { eq, desc, gte, and, not } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { intelBriefs, intelItems, intelSources } from '../db/schema';
+import { intelBriefs, intelItems, intelSources, projects, settings } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
 import { decodeHtmlEntities } from './intelFeedService';
 import { createLogger } from './logger';
@@ -74,6 +74,7 @@ function toIntelItem(
     summary: row.summary ?? null,
     relevanceScore: row.relevanceScore ?? null,
     fullContent: row.fullContent ?? null,
+    alternateUrls: row.alternateUrls ? (JSON.parse(row.alternateUrls) as string[]) : null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -140,6 +141,22 @@ const WEEKLY_SYSTEM_PROMPT = `You are an AI news intelligence analyst. Given art
 
 const SUMMARIZE_SYSTEM_PROMPT =
   'You are a concise news summarizer. Produce a 1-2 sentence summary that captures the key point and significance of the article.';
+
+const SCORE_SYSTEM_PROMPT = `You are an AI news analyst. Given a list of articles, output ONLY two JSON blocks — no prose, no markdown headings.
+
+1. Categories — assign each article exactly one category:
+\`\`\`json
+{"categories": {"<url>": "<category>", ...}}
+\`\`\`
+Valid categories: Model Releases, Research & Papers, Developer Tools, Policy & Regulation, Industry News, Startups & Funding, Open Source, Tutorials & Guides, Other
+
+2. Relevance scores (1-10):
+\`\`\`json
+{"relevance": {"<url>": <score>, ...}}
+\`\`\`
+Scale: 9-10 major breakthrough, 7-8 important, 5-6 routine, 3-4 niche, 1-2 low relevance
+
+Output ONLY the two JSON blocks above. No other text.`;
 
 // ---------------------------------------------------------------------------
 // Exported Functions
@@ -212,7 +229,9 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
     throw new Error('No AI provider configured. Add one in Settings > AI Providers.');
   }
 
-  const systemPrompt = type === 'daily' ? DAILY_SYSTEM_PROMPT : WEEKLY_SYSTEM_PROMPT;
+  // Inject user interests + project names into the brief prompt
+  const basePrompt = type === 'daily' ? DAILY_SYSTEM_PROMPT : WEEKLY_SYSTEM_PROMPT;
+  const systemPrompt = basePrompt + (await buildUserContextSuffix());
 
   // Generate brief
   const result = await generate({
@@ -343,6 +362,132 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
 
   log.info(`Generated ${type} brief for ${dateKey} (${articleRows.length} articles)`);
   return toIntelBrief(briefRow);
+}
+
+/**
+ * Score and categorize intel items using AI.
+ *
+ * Lightweight alternative to generateBrief() — produces no markdown brief,
+ * only assigns a category and relevance score (1-10) to each item.
+ * Items that already have a relevanceScore are skipped.
+ *
+ * Degrades gracefully: logs and returns if no AI provider is configured
+ * or if the AI call fails.
+ */
+export async function scoreArticles(items: IntelItem[]): Promise<void> {
+  // Filter out items that already have a relevanceScore
+  const unscored = items.filter((item) => item.relevanceScore == null);
+  if (unscored.length === 0) {
+    log.info('scoreArticles: all items already scored, nothing to do');
+    return;
+  }
+
+  // Resolve AI provider — return silently if none configured
+  const provider = await resolveTaskModel('summarization');
+  if (!provider) {
+    log.info('scoreArticles: no AI provider configured, skipping scoring');
+    return;
+  }
+
+  // Build a compact article list for the prompt
+  const articlesList = unscored
+    .map((item, i) => {
+      const title = decodeHtmlEntities(item.title);
+      const desc = item.description ? decodeHtmlEntities(item.description).slice(0, 200) : 'No description';
+      return `${i + 1}. [${title}] (URL: ${item.url})\n   ${desc}`;
+    })
+    .join('\n');
+
+  try {
+    // Inject user interests + project names into the scoring prompt
+    const systemPrompt = SCORE_SYSTEM_PROMPT + (await buildUserContextSuffix());
+
+    const result = await generate({
+      providerId: provider.providerId,
+      providerName: provider.providerName,
+      apiKeyEncrypted: provider.apiKeyEncrypted,
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+      taskType: 'summarization',
+      prompt: `Score these articles:\n${articlesList}`,
+      system: systemPrompt,
+      temperature: 0.2,
+      maxTokens: 2000,
+    });
+
+    if (!result.text || result.text.trim().length === 0) {
+      log.warn('scoreArticles: AI returned empty response');
+      return;
+    }
+
+    // Parse JSON blocks — reuse the same regex pattern as generateBrief()
+    const jsonBlocks: string[] = [];
+    const jsonBlockRegex = /```(?:json|JSON)?\s*\n?([\s\S]*?)```/g;
+    let match: RegExpExecArray | null;
+    while ((match = jsonBlockRegex.exec(result.text)) !== null) {
+      const content = match[1].trim();
+      if (content.startsWith('{') || content.startsWith('[')) {
+        jsonBlocks.push(content);
+      }
+    }
+
+    // Fallback: if no fenced blocks found, try to parse raw JSON objects
+    if (jsonBlocks.length === 0) {
+      const rawJsonRegex = /(\{[\s\S]*?\})\s*/g;
+      let rawMatch: RegExpExecArray | null;
+      while ((rawMatch = rawJsonRegex.exec(result.text)) !== null) {
+        jsonBlocks.push(rawMatch[1].trim());
+      }
+    }
+
+    let categories: Record<string, string> = {};
+    let relevanceScores: Record<string, number> = {};
+
+    for (const block of jsonBlocks) {
+      try {
+        const parsed = JSON.parse(block);
+        if (parsed.categories && typeof parsed.categories === 'object') {
+          categories = parsed.categories;
+        }
+        if (parsed.relevance && typeof parsed.relevance === 'object') {
+          relevanceScores = parsed.relevance;
+        }
+      } catch {
+        // Skip malformed blocks
+      }
+    }
+
+    const db = getDb();
+
+    // Update categories (best-effort, per-item)
+    for (const [url, category] of Object.entries(categories)) {
+      try {
+        await db
+          .update(intelItems)
+          .set({ category: String(category) })
+          .where(eq(intelItems.url, url));
+      } catch (err) {
+        log.warn(`scoreArticles: failed to update category for ${url}:`, err);
+      }
+    }
+
+    // Update relevance scores (best-effort, per-item)
+    for (const [url, score] of Object.entries(relevanceScores)) {
+      try {
+        const numScore = Math.max(1, Math.min(10, Math.round(Number(score))));
+        await db.update(intelItems).set({ relevanceScore: numScore }).where(eq(intelItems.url, url));
+      } catch (err) {
+        log.warn(`scoreArticles: failed to update relevance for ${url}:`, err);
+      }
+    }
+
+    log.info(
+      `scoreArticles: scored ${Object.keys(relevanceScores).length} items, ` +
+        `categorized ${Object.keys(categories).length} items`,
+    );
+  } catch (err) {
+    log.error('scoreArticles: AI scoring failed:', err);
+  }
 }
 
 /**
@@ -520,4 +665,47 @@ export async function getPinnedBriefs(): Promise<IntelBrief[]> {
     .orderBy(desc(intelBriefs.date));
 
   return rows.map(toIntelBrief);
+}
+
+// ---------------------------------------------------------------------------
+// Context helpers (for AI prompt injection)
+// ---------------------------------------------------------------------------
+
+/**
+ * Retrieve all project names from the DB for automatic context injection
+ * into the intel scoring prompt.
+ */
+export async function getProjectNames(): Promise<string[]> {
+  const db = getDb();
+  const rows = await db.select({ name: projects.name }).from(projects);
+  return rows.map((r) => r.name);
+}
+
+/**
+ * Retrieve the user's intel feed interests string from the settings table.
+ * Returns null if not set.
+ */
+export async function getIntelInterests(): Promise<string | null> {
+  const db = getDb();
+  const rows = await db.select().from(settings).where(eq(settings.key, 'intel.interests'));
+  return rows.length > 0 ? rows[0].value : null;
+}
+
+/**
+ * Build an optional user-context suffix to append to scoring / brief prompts.
+ * Returns an empty string when no context is available, so callers can just
+ * concatenate: `basePrompt + await buildUserContextSuffix()`.
+ */
+async function buildUserContextSuffix(): Promise<string> {
+  try {
+    const [interests, projectNames] = await Promise.all([getIntelInterests(), getProjectNames()]);
+    const parts: string[] = [];
+    if (interests) parts.push(`The user is interested in: ${interests}.`);
+    if (projectNames.length > 0) parts.push(`Their active projects: ${projectNames.join(', ')}.`);
+    if (parts.length === 0) return '';
+    return `\n\n## User Context\n${parts.join(' ')}\nScore articles higher if they're directly relevant to these topics.`;
+  } catch (err) {
+    log.warn('buildUserContextSuffix: failed to load user context, falling back to generic:', err);
+    return '';
+  }
 }

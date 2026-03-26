@@ -381,6 +381,7 @@ function toIntelItem(
     summary: row.summary ?? null,
     relevanceScore: row.relevanceScore ?? null,
     fullContent: row.fullContent ?? null,
+    alternateUrls: row.alternateUrls ? (JSON.parse(row.alternateUrls) as string[]) : null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -613,12 +614,83 @@ export async function getTrendingTopics(): Promise<{ topic: string; count: numbe
 // RSS Fetching
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Deduplication helpers
+// ---------------------------------------------------------------------------
+
+/** Normalize a title for similarity comparison: lowercase, strip punctuation, collapse whitespace. */
+function normalizeTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Compute Jaccard similarity between two strings (based on word sets). Returns 0–1. */
+function jaccardSimilarity(a: string, b: string): number {
+  const setA = new Set(a.split(' ').filter(Boolean));
+  const setB = new Set(b.split(' ').filter(Boolean));
+  if (setA.size === 0 && setB.size === 0) return 1;
+  if (setA.size === 0 || setB.size === 0) return 0;
+
+  let intersectionSize = 0;
+  for (const word of setA) {
+    if (setB.has(word)) intersectionSize++;
+  }
+  const unionSize = setA.size + setB.size - intersectionSize;
+  return unionSize === 0 ? 0 : intersectionSize / unionSize;
+}
+
+const DEDUP_SIMILARITY_THRESHOLD = 0.6;
+const DEDUP_WINDOW_HOURS = 48;
+
 /** Fetch all enabled RSS sources and insert new items. Returns count of new items. */
 export async function fetchAllSources(): Promise<{ newItems: number }> {
   const db = getDb();
   const sources = await db.select().from(intelSources).where(eq(intelSources.enabled, true));
 
+  // --- Deduplication: load recent items for cross-source similarity check ---
+  const dedupCutoff = new Date(Date.now() - DEDUP_WINDOW_HOURS * 60 * 60 * 1000);
+  const recentRows = await db
+    .select({
+      id: intelItems.id,
+      sourceId: intelItems.sourceId,
+      title: intelItems.title,
+      url: intelItems.url,
+      alternateUrls: intelItems.alternateUrls,
+    })
+    .from(intelItems)
+    .where(gte(intelItems.publishedAt, dedupCutoff));
+
+  // In-memory index: { normalizedTitle, sourceId, id, url, alternateUrls }
+  const recentIndex = recentRows.map((r) => ({
+    id: r.id,
+    sourceId: r.sourceId,
+    url: r.url,
+    normalizedTitle: normalizeTitle(r.title),
+    alternateUrls: r.alternateUrls ? (JSON.parse(r.alternateUrls) as string[]) : [],
+  }));
+  let totalDuplicatesSkipped = 0;
+
+  /**
+   * Check if a candidate item is a cross-source duplicate of an existing recent item.
+   * Returns the matching entry (to update) or null (to proceed with insertion).
+   */
+  function findDuplicate(candidateTitle: string, candidateSourceId: string) {
+    const normalizedCandidate = normalizeTitle(candidateTitle);
+    if (!normalizedCandidate) return null;
+    for (const entry of recentIndex) {
+      if (entry.sourceId === candidateSourceId) continue; // same source — skip
+      if (jaccardSimilarity(normalizedCandidate, entry.normalizedTitle) >= DEDUP_SIMILARITY_THRESHOLD) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
   let totalNew = 0;
+  const newlyInserted: IntelItem[] = [];
 
   for (const source of sources) {
     if (source.type !== 'rss') continue;
@@ -636,15 +708,44 @@ export async function fetchAllSources(): Promise<{ newItems: number }> {
             .where(eq(intelItems.url, post.link));
           if (existing) continue;
 
-          await db.insert(intelItems).values({
-            sourceId: source.id,
-            title: decodeHtmlEntities(post.title).slice(0, 500),
-            description: post.description ? decodeHtmlEntities(post.description) : null,
-            url: post.link.slice(0, 2000),
-            imageUrl: null,
-            author: post.author.slice(0, 200) || null,
-            publishedAt: post.publishedAt,
+          const decodedTitle = decodeHtmlEntities(post.title).slice(0, 500);
+
+          // Cross-source dedup check
+          const dupMatch = findDuplicate(decodedTitle, source.id);
+          if (dupMatch) {
+            const updatedAlts = [...dupMatch.alternateUrls, post.link.slice(0, 2000)];
+            await db
+              .update(intelItems)
+              .set({ alternateUrls: JSON.stringify(updatedAlts) })
+              .where(eq(intelItems.id, dupMatch.id));
+            dupMatch.alternateUrls = updatedAlts;
+            totalDuplicatesSkipped++;
+            continue;
+          }
+
+          const [row] = await db
+            .insert(intelItems)
+            .values({
+              sourceId: source.id,
+              title: decodedTitle,
+              description: post.description ? decodeHtmlEntities(post.description) : null,
+              url: post.link.slice(0, 2000),
+              imageUrl: null,
+              author: post.author.slice(0, 200) || null,
+              publishedAt: post.publishedAt,
+            })
+            .returning();
+
+          // Add newly inserted item to the in-memory dedup index
+          recentIndex.push({
+            id: row.id,
+            sourceId: row.sourceId,
+            url: row.url,
+            normalizedTitle: normalizeTitle(row.title),
+            alternateUrls: [],
           });
+
+          newlyInserted.push(toIntelItem(row, source.name, source.iconUrl || faviconUrl(source.url)));
           sourceNew++;
         }
       } else {
@@ -663,16 +764,45 @@ export async function fetchAllSources(): Promise<{ newItems: number }> {
           const publishedAt = item.pubDate ? new Date(item.pubDate) : new Date();
 
           const rawTitle = safeString(item.title, 500) ?? 'Untitled';
+          const decodedTitle = decodeHtmlEntities(rawTitle);
           const rawDesc = safeString(item.contentSnippet ?? item.content, 5000);
-          await db.insert(intelItems).values({
-            sourceId: source.id,
-            title: decodeHtmlEntities(rawTitle),
-            description: rawDesc ? decodeHtmlEntities(rawDesc) : rawDesc,
-            url: item.link.slice(0, 2000),
-            imageUrl: safeString(item.enclosure?.url, 2000),
-            author: extractAuthor(item),
-            publishedAt,
+
+          // Cross-source dedup check
+          const dupMatch = findDuplicate(decodedTitle, source.id);
+          if (dupMatch) {
+            const updatedAlts = [...dupMatch.alternateUrls, item.link.slice(0, 2000)];
+            await db
+              .update(intelItems)
+              .set({ alternateUrls: JSON.stringify(updatedAlts) })
+              .where(eq(intelItems.id, dupMatch.id));
+            dupMatch.alternateUrls = updatedAlts;
+            totalDuplicatesSkipped++;
+            continue;
+          }
+
+          const [row] = await db
+            .insert(intelItems)
+            .values({
+              sourceId: source.id,
+              title: decodedTitle,
+              description: rawDesc ? decodeHtmlEntities(rawDesc) : rawDesc,
+              url: item.link.slice(0, 2000),
+              imageUrl: safeString(item.enclosure?.url, 2000),
+              author: extractAuthor(item),
+              publishedAt,
+            })
+            .returning();
+
+          // Add newly inserted item to the in-memory dedup index
+          recentIndex.push({
+            id: row.id,
+            sourceId: row.sourceId,
+            url: row.url,
+            normalizedTitle: normalizeTitle(row.title),
+            alternateUrls: [],
           });
+
+          newlyInserted.push(toIntelItem(row, source.name, source.iconUrl || faviconUrl(source.url)));
           sourceNew++;
         }
       }
@@ -689,6 +819,21 @@ export async function fetchAllSources(): Promise<{ newItems: number }> {
       log.warn(`Failed to fetch source "${source.name}" (${source.url}): ${err}`);
       // Continue to next source — one failure doesn't block others
     }
+  }
+
+  if (totalDuplicatesSkipped > 0) {
+    log.info(`Skipped ${totalDuplicatesSkipped} duplicate articles`);
+  }
+
+  // Fire-and-forget: score newly inserted articles in the background.
+  // Dynamic import avoids circular dependency (intelBriefService imports from this file).
+  if (newlyInserted.length > 0) {
+    log.info(`Queued ${newlyInserted.length} articles for background scoring`);
+    import('./intelBriefService')
+      .then(({ scoreArticles }) => scoreArticles(newlyInserted))
+      .catch((err) => {
+        log.error('Background article scoring failed', err);
+      });
   }
 
   return { newItems: totalNew };

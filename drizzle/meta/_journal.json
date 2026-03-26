@@ -211,6 +211,13 @@
       "when": 1773763256366,
       "tag": "0029_classy_lifeguard",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1774539089052,
+      "tag": "0030_stale_miek",
+      "breakpoints": true
     }
   ]
 }

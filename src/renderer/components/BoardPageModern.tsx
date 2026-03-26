@@ -35,6 +35,7 @@ const CardDetailModal = lazy(() => import('../components/CardDetailModal'));
 import { useProjectAgentStore } from '../stores/projectAgentStore';
 const ProjectAgentPanel = lazy(() => import('./ProjectAgentPanel'));
 import { ConfirmDialog } from './ConfirmDialog';
+import FeatureTip from './FeatureTip';
 
 export default function BoardPageModern() {
   const {
@@ -330,6 +331,7 @@ export default function BoardPageModern() {
               <Download size={16} />
               Export
             </button>
+            <FeatureTip.Button id="board" />
           </div>
         </div>
 
@@ -653,6 +655,11 @@ export default function BoardPageModern() {
             </>
           )}
         </div>
+        <FeatureTip id="board" title="How the board works">
+          Drag and drop cards between columns to update their status. Click any card to open details where you can add
+          checklists, comments, and attachments. Use the card&apos;s AI agent to get help with planning and task
+          breakdown. Set an hourly rate on the project to track billable time.
+        </FeatureTip>
       </div>
 
       {/* Board Layout */}
