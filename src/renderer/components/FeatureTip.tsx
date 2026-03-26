@@ -13,22 +13,28 @@ import { Info, X, HelpCircle } from 'lucide-react';
 
 type Listener = () => void;
 const listeners = new Map<string, Set<Listener>>();
+/** In-memory cache so useSyncExternalStore always sees the latest value. */
+const cache = new Map<string, boolean>();
 
 function storageKey(id: string) {
   return `feature-tip-dismissed:${id}`;
 }
 
 function isDismissed(id: string): boolean {
-  return localStorage.getItem(storageKey(id)) === '1';
+  if (cache.has(id)) return cache.get(id)!;
+  const val = localStorage.getItem(storageKey(id)) === '1';
+  cache.set(id, val);
+  return val;
 }
 
 function setDismissed(id: string, value: boolean) {
+  cache.set(id, value);
   if (value) {
     localStorage.setItem(storageKey(id), '1');
   } else {
     localStorage.removeItem(storageKey(id));
   }
-  // Notify all subscribers for this ID
+  // Notify all subscribers for this ID — triggers synchronous re-render
   listeners.get(id)?.forEach((fn) => fn());
 }
 
