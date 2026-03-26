@@ -267,6 +267,7 @@ export default function BoardPageModern() {
           </div>
 
           <div className="flex items-center gap-3">
+            <FeatureTip.Button id="board" />
             {editingRate ? (
               <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl px-3 py-1.5 animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
@@ -331,7 +332,6 @@ export default function BoardPageModern() {
               <Download size={16} />
               Export
             </button>
-            <FeatureTip.Button id="board" />
           </div>
         </div>
 

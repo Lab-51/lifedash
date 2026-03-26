@@ -451,6 +451,7 @@ export default function IntelFeedModern() {
           </div>
 
           <div className="flex items-center gap-2 self-start md:self-auto">
+            <FeatureTip.Button id="intel-feed" />
             <button
               onClick={() => setShowAddArticle(true)}
               className="cursor-pointer shrink-0 rounded-xl px-4 py-2.5 font-medium text-sm flex items-center gap-2 border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-accent-subtle)] transition-colors"
@@ -473,7 +474,6 @@ export default function IntelFeedModern() {
               <RefreshCw size={16} className={fetching ? 'animate-spin' : ''} />
               {fetching ? 'Fetching...' : 'Refresh'}
             </button>
-            <FeatureTip.Button id="intel-feed" />
           </div>
         </div>
 
