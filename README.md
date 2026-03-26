@@ -17,7 +17,7 @@ Record, transcribe, and pull out action items. Nothing leaves your computer.
 
 <br />
 
-<img src="docs/lifedash.png" alt="LifeDash Dashboard" width="900" />
+<img src="docs/lifedash-demo.gif" alt="LifeDash Demo" width="900" />
 
 [Website](https://lifedash.space) · [Report Bug](https://github.com/Lab-51/lifedash/issues) · [Request Feature](https://github.com/Lab-51/lifedash/issues)
 
