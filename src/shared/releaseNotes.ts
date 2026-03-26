@@ -28,6 +28,22 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.25',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Smart article ranking — articles are now scored by AI automatically when fetched, so the best stories surface first',
+          'Personalized feed — add your interests in Settings → Intel Feed to boost articles that matter to you',
+          'Top/Recent sort toggle in the Intelligence Feed',
+          'Duplicate article detection — similar stories from different sources are now merged',
+          'Feature guides on every page — dismissible tips that explain how each feature works, with a "How does it work?" button to bring them back',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.24',
     sections: [
       {
@@ -73,20 +89,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         category: 'fixes',
         label: 'Fixes',
         items: ['Fixed sync deleting locally saved RSS articles and intelligence briefs'],
-      },
-    ],
-  },
-  {
-    version: '2.2.20',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Fixed sync duplicating intel feed articles when the same URL appeared more than once',
-          'Fixed a race condition that caused RSS feeds to be fetched twice simultaneously during sync',
-          'Fixed sync pulling incorrect XP data column, which could cause XP events to be lost',
-        ],
       },
     ],
   },
