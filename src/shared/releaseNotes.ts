@@ -28,6 +28,21 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.27',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Real-time progress bar when processing recordings — see exactly which segment is being transcribed and how far along it is',
+          'Parallel transcription — two audio segments now process at the same time, cutting wait times roughly in half',
+          'Speed presets for local Whisper (Fast / Balanced / Accurate) — choose your speed vs. accuracy trade-off in Settings',
+          'GPU vs CPU indicator in Settings — see whether Whisper is using GPU acceleration',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.26',
     sections: [
       {
@@ -84,16 +99,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Improved accessibility: better heading structure, ARIA labels, and command palette usability',
           'Fixed login loop where expired tokens could cause repeated failed refresh attempts',
         ],
-      },
-    ],
-  },
-  {
-    version: '2.2.22',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: ['Intelligence Brief article links are now reliably clickable for all mentioned stories'],
       },
     ],
   },
