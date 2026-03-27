@@ -182,8 +182,8 @@ jobs:
           gh release upload "${TAG}" \
             --repo "${REPO}" \
             --clobber \
-            "artifacts/LifeDash-${VERSION}-mac-arm64.dmg#macOS Apple Silicon (.dmg)" \
-            "artifacts/LifeDash-${VERSION}-mac-arm64.zip#macOS Apple Silicon (.zip)"
+            "artifacts/LifeDash-${VERSION}-mac-arm64.dmg#macOS Apple Silicon Beta (.dmg)" \
+            "artifacts/LifeDash-${VERSION}-mac-arm64.zip#macOS Apple Silicon Beta (.zip)"
 
           echo "macOS assets uploaded: https://github.com/${REPO}/releases/tag/${TAG}"
 

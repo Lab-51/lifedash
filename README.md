@@ -10,7 +10,7 @@ Free, open-source meeting intelligence that runs entirely on your desktop.
 Record, transcribe, and pull out action items. Nothing leaves your computer.
 
 [![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Lab-51/lifedash/releases/latest)
-[![Download for macOS](https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Lab-51/lifedash/releases/latest)
+[![Download for macOS (Beta)](https://img.shields.io/badge/Download-macOS%20(Beta)-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Lab-51/lifedash/releases/latest)
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/Lab-51/lifedash?style=social)](https://github.com/Lab-51/lifedash)
@@ -35,7 +35,7 @@ LifeDash records your meetings, transcribes them locally with Whisper, generates
 | Platform | Status |
 |----------|--------|
 | Windows 10+ | Available. [Download the installer](https://github.com/Lab-51/lifedash/releases/latest) |
-| macOS 12.3+ (Monterey) | Available. [Download the DMG](https://github.com/Lab-51/lifedash/releases/latest) or `brew tap lab-51/lifedash && brew install --cask lifedash` |
+| macOS 12.3+ (Monterey) | Beta. [Download the DMG](https://github.com/Lab-51/lifedash/releases/latest) or `brew tap lab-51/lifedash && brew install --cask lifedash` |
 | Linux | [Planned](https://github.com/Lab-51/lifedash/issues/2). Contributions welcome |
 
 ## Why LifeDash?
