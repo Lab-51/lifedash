@@ -54,6 +54,8 @@ export default function TranscriptionProviderSection() {
   const [whisperModels, setWhisperModels] = useState<WhisperModel[]>([]);
   const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
   const [downloadPercent, setDownloadPercent] = useState<number>(0);
+  const [whisperBackend, setWhisperBackend] = useState<string>('unknown');
+  const [speedPreset, setSpeedPreset] = useState<string>('balanced');
 
   const testResultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -96,15 +98,32 @@ export default function TranscriptionProviderSection() {
     return unsub;
   }, [loadWhisperModels, downloadingModel]);
 
-  // Load saved language and active model on mount
+  // Fetch whisper backend when local provider is active
+  useEffect(() => {
+    if (config?.type !== 'local') return;
+    (async () => {
+      try {
+        const backend = await window.electronAPI.getWhisperBackend();
+        setWhisperBackend(backend);
+      } catch {
+        // Non-critical
+      }
+    })();
+  }, [config?.type]);
+
+  // Load saved language, speed preset, and active model on mount
   useEffect(() => {
     (async () => {
       try {
-        const [savedLang, model] = await Promise.all([
+        const [savedLang, savedPreset, model] = await Promise.all([
           window.electronAPI.getSetting('transcription:language'),
+          window.electronAPI.getSetting('transcription:speed-preset'),
           window.electronAPI.whisperGetActiveModel(),
         ]);
         if (savedLang) setSelectedLanguage(savedLang);
+        if (savedPreset && ['fast', 'balanced', 'accurate'].includes(savedPreset)) {
+          setSpeedPreset(savedPreset);
+        }
         setActiveModelName(model);
       } catch {
         // Non-critical — keep defaults
@@ -128,6 +147,15 @@ export default function TranscriptionProviderSection() {
     setSelectedLanguage(value);
     try {
       await window.electronAPI.setSetting('transcription:language', value);
+    } catch {
+      // Settings save failed — non-critical
+    }
+  };
+
+  const handleSpeedPresetChange = async (value: string) => {
+    setSpeedPreset(value);
+    try {
+      await window.electronAPI.setSetting('transcription:speed-preset', value);
     } catch {
       // Settings save failed — non-critical
     }
@@ -481,6 +509,82 @@ export default function TranscriptionProviderSection() {
                   </div>
                 );
               })()}
+
+            {/* Whisper backend status */}
+            {provider.type === 'local' && config.type === 'local' && (
+              <div className="mt-2 ml-6 flex items-center gap-1.5 text-xs">
+                {whisperBackend === 'vulkan' || whisperBackend === 'cuda' ? (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    <span className="text-surface-400">
+                      Running on: <span className="text-emerald-400 font-medium">GPU ({whisperBackend})</span>
+                    </span>
+                  </>
+                ) : whisperBackend === 'cpu' ? (
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                      <span className="text-surface-400">
+                        Running on: <span className="text-amber-400 font-medium">CPU</span>
+                      </span>
+                    </div>
+                    <span className="text-surface-500 ml-3">GPU acceleration (Vulkan/CUDA) is 3-5x faster</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-surface-500 shrink-0" />
+                      <span className="text-surface-500">Backend: not yet detected</span>
+                    </div>
+                    <span className="text-surface-500 ml-3">Start a recording to detect GPU support</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Speed preset for local provider */}
+            {provider.type === 'local' && config.type === 'local' && (
+              <div className="mt-3 ml-6">
+                <p className="text-xs font-medium text-[var(--color-text-primary)] mb-1.5">Transcription Speed</p>
+                <div className="space-y-1.5">
+                  {(
+                    [
+                      { value: 'fast', label: 'Fast', description: 'Fastest transcription, slightly lower accuracy' },
+                      {
+                        value: 'balanced',
+                        label: 'Balanced',
+                        description: 'Good balance of speed and accuracy',
+                        recommended: true,
+                      },
+                      { value: 'accurate', label: 'Accurate', description: 'Best accuracy, slower processing' },
+                    ] as const
+                  ).map((preset) => (
+                    <label key={preset.value} className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="speed-preset"
+                        value={preset.value}
+                        checked={speedPreset === preset.value}
+                        onChange={() => handleSpeedPresetChange(preset.value)}
+                        className="w-3.5 h-3.5 mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium text-[var(--color-text-primary)]">{preset.label}</span>
+                        {'recommended' in preset && preset.recommended && (
+                          <span className="ml-1.5 text-[0.625rem] px-1.5 py-0.5 rounded bg-[var(--color-accent-muted)] text-[var(--color-accent)] font-medium">
+                            Default
+                          </span>
+                        )}
+                        <p className="text-[0.6875rem] text-surface-500 mt-0">{preset.description}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[0.6875rem] text-surface-500 mt-1.5">
+                  Takes effect on next recording. Fast uses greedy decoding; Accurate uses full beam search.
+                </p>
+              </div>
+            )}
 
             {/* API key input for cloud providers */}
             {provider.type === 'deepgram' &&

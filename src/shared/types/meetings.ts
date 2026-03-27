@@ -157,3 +157,12 @@ export interface RecordingState {
   elapsed: number; // seconds since recording started
   lastTranscript: string; // most recent transcript text
 }
+
+/** Granular progress during the stop/processing flow */
+export interface TranscriptionProgress {
+  phase: 'saving-audio' | 'transcribing' | 'finalizing';
+  currentSegment: number; // 1-based
+  totalSegments: number;
+  percentComplete: number; // 0-100
+  backendUsed: string; // 'vulkan' | 'cuda' | 'cpu' | 'deepgram' | 'assemblyai'
+}

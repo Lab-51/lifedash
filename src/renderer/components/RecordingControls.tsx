@@ -174,6 +174,101 @@ function AudioLevelMeter() {
   );
 }
 
+/** Returns a short label for the transcription backend. */
+function backendBadge(backend: string): { label: string; color: string } | null {
+  switch (backend) {
+    case 'vulkan':
+    case 'cuda':
+      return { label: 'GPU', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' };
+    case 'cpu':
+      return { label: 'CPU', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' };
+    case 'deepgram':
+      return { label: 'Deepgram', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
+    case 'assemblyai':
+      return { label: 'AssemblyAI', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
+    default:
+      return null;
+  }
+}
+
+/** Progress UI shown while the recording is being processed (saving + transcribing). */
+function ProcessingProgressPanel() {
+  const progress = useRecordingStore((s) => s.processingProgress);
+
+  // Determine phase text, progress percent, and whether to show indeterminate animation
+  let phaseText: string;
+  let percent: number;
+  let indeterminate = false;
+  let badge: { label: string; color: string } | null = null;
+
+  if (!progress) {
+    // Fallback: isProcessing is true but no granular progress yet
+    phaseText = 'Processing recording...';
+    percent = 0;
+    indeterminate = true;
+  } else {
+    switch (progress.phase) {
+      case 'saving-audio':
+        phaseText = 'Saving audio file...';
+        percent = progress.percentComplete;
+        indeterminate = true;
+        break;
+      case 'transcribing':
+        phaseText = `Transcribing segment ${progress.currentSegment} of ${progress.totalSegments}...`;
+        percent = progress.percentComplete;
+        badge = backendBadge(progress.backendUsed);
+        break;
+      case 'finalizing':
+        phaseText = 'Wrapping up...';
+        percent = 95;
+        break;
+      default:
+        phaseText = 'Processing...';
+        percent = progress.percentComplete;
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
+        <span className="text-sm font-medium text-amber-400">Processing recording</span>
+      </div>
+
+      {/* Phase text + backend badge */}
+      <div className="flex items-center gap-2">
+        <Loader2 size={14} className="text-surface-400 animate-spin shrink-0" />
+        <span className="text-sm text-surface-400">{phaseText}</span>
+        {badge && (
+          <span className={`text-[0.625rem] font-medium px-1.5 py-0.5 rounded border ${badge.color}`}>
+            {badge.label}
+          </span>
+        )}
+      </div>
+
+      {/* Progress bar */}
+      <div className="space-y-1">
+        <div className="bg-surface-800 rounded-full h-2 overflow-hidden">
+          {indeterminate ? (
+            <div className="h-2 rounded-full bg-amber-500/60 animate-pulse w-full" />
+          ) : (
+            <div
+              className="bg-amber-500 rounded-full h-2 transition-all duration-300"
+              style={{ width: `${Math.min(percent, 100)}%` }}
+            />
+          )}
+        </div>
+        {!indeterminate && (
+          <div className="text-right">
+            <span className="text-xs text-surface-500">{Math.round(percent)}%</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface RecordingControlsProps {
   hasModel?: boolean | null;
 }
@@ -275,16 +370,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
     <>
       <div className="hud-panel clip-corner-cut-sm rounded-xl p-4">
         {isProcessing ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
-              <span className="text-sm font-medium text-amber-400">Processing recording...</span>
-            </div>
-            <div className="flex items-center gap-2 text-surface-400">
-              <Loader2 size={16} className="animate-spin" />
-              <span className="text-sm">Saving audio and finalizing transcript...</span>
-            </div>
-          </div>
+          <ProcessingProgressPanel />
         ) : !isRecording ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-surface-800 dark:text-surface-200">

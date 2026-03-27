@@ -44,6 +44,7 @@ import type {
   TranscriptSearchResult,
   MeetingBrief,
   RecordingState,
+  TranscriptionProgress,
   MeetingPrepData,
   CreateMeetingInput,
   UpdateMeetingInput,
@@ -252,6 +253,7 @@ export interface ElectronAPI {
   onRecordingState: (callback: (state: RecordingState) => void) => () => void;
   onTranscriptSegment: (callback: (segment: TranscriptSegment) => void) => () => void;
   onTranscriptionStatus: (callback: (data: { status: string; reason: string }) => void) => () => void;
+  onProcessingProgress: (callback: (progress: TranscriptionProgress) => void) => () => void;
 
   // Whisper Models
   getWhisperModels: () => Promise<WhisperModel[]>;
@@ -259,6 +261,7 @@ export interface ElectronAPI {
   hasWhisperModel: () => Promise<boolean>;
   whisperGetActiveModel: () => Promise<string | null>;
   whisperSetActiveModel: (fileName: string) => Promise<void>;
+  getWhisperBackend: () => Promise<string>;
   onWhisperDownloadProgress: (callback: (progress: WhisperDownloadProgress) => void) => () => void;
 
   // Meeting Intelligence

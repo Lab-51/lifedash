@@ -73,6 +73,14 @@ export const AVAILABLE_MODELS: WhisperModelInfo[] = [
   },
 ];
 
+/** Last detected Whisper backend (vulkan, cuda, or cpu). Updated after createWhisperContext(). */
+let lastBackend = 'unknown';
+
+/** Return the last detected Whisper backend ('vulkan', 'cuda', 'cpu', or 'unknown' before first use). */
+export function getBackend(): string {
+  return lastBackend;
+}
+
 export function getModelsDir(): string {
   return path.join(app.getPath('userData'), 'whisper-models');
 }
@@ -144,6 +152,7 @@ export async function createWhisperContext(modelPath: string): Promise<{
   for (const variant of variants) {
     try {
       const context = await initWhisper({ filePath: modelPath, useGpu: true }, variant);
+      lastBackend = variant;
       return { context, backend: variant };
     } catch {
       // Variant not available or GPU init failed — try next
@@ -152,6 +161,7 @@ export async function createWhisperContext(modelPath: string): Promise<{
 
   // Fallback to CPU (default variant)
   const context = await initWhisper({ filePath: modelPath });
+  lastBackend = 'cpu';
   return { context, backend: 'cpu' };
 }
 

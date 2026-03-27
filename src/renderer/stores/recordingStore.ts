@@ -13,7 +13,7 @@ import { create } from 'zustand';
 import * as audioCaptureService from '../services/audioCaptureService';
 import { useGamificationStore } from './gamificationStore';
 import { toast } from '../hooks/useToast';
-import type { RecordingState, MeetingTemplateType } from '../../shared/types';
+import type { RecordingState, MeetingTemplateType, TranscriptionProgress } from '../../shared/types';
 
 interface RecordingStore {
   // State
@@ -27,6 +27,7 @@ interface RecordingStore {
   starting: boolean;
   includeMic: boolean;
   prepBriefing: string | null;
+  processingProgress: TranscriptionProgress | null;
 
   // Actions
   setIncludeMic: (value: boolean) => void;
@@ -54,6 +55,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   starting: false,
   includeMic: true,
   prepBriefing: null,
+  processingProgress: null,
 
   setIncludeMic: (value: boolean) => set({ includeMic: value }),
   setPrepBriefing: (text: string | null) => set({ prepBriefing: text }),
@@ -149,6 +151,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
 
       set({
         isProcessing: false,
+        processingProgress: null,
         meetingId: null,
         completedMeetingId: meetingId,
         elapsed: 0,
@@ -160,6 +163,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     } catch (error) {
       set({
         isProcessing: false,
+        processingProgress: null,
         error: error instanceof Error ? error.message : 'Failed to stop recording',
       });
     }
@@ -167,7 +171,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
 
   cancelRecording: async () => {
     const meetingId = get().meetingId;
-    set({ isRecording: false, isProcessing: false });
+    set({ isRecording: false, isProcessing: false, processingProgress: null });
     window.electronAPI.recordingSetState(false);
     try {
       await audioCaptureService.stopCapture();
@@ -200,6 +204,11 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       }
     });
 
+    // Listen for processing progress (transcription segments, saving audio, etc.)
+    const cleanupProgress = window.electronAPI.onProcessingProgress((progress) => {
+      set({ processingProgress: progress });
+    });
+
     // Listen for transcription status changes (failures, fallbacks)
     const cleanupTranscription = window.electronAPI.onTranscriptionStatus((data) => {
       if (data.status === 'failed' || data.status === 'error') {
@@ -212,6 +221,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     return () => {
       cleanupState();
       cleanupForceStop();
+      cleanupProgress();
       cleanupTranscription();
     };
   },

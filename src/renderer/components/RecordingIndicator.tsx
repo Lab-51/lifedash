@@ -23,6 +23,7 @@ export default function RecordingIndicator() {
   const isRecording = useRecordingStore((s) => s.isRecording);
   const isProcessing = useRecordingStore((s) => s.isProcessing);
   const elapsed = useRecordingStore((s) => s.elapsed);
+  const processingProgress = useRecordingStore((s) => s.processingProgress);
   const stopRecording = useRecordingStore((s) => s.stopRecording);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -51,15 +52,29 @@ export default function RecordingIndicator() {
 
   if (!isRecording && !isProcessing) return null;
 
-  // Processing state — amber indicator
   if (isProcessing) {
+    let statusText = 'Processing...';
+    if (processingProgress) {
+      switch (processingProgress.phase) {
+        case 'saving-audio':
+          statusText = 'Saving...';
+          break;
+        case 'transcribing':
+          statusText = `Processing ${processingProgress.currentSegment}/${processingProgress.totalSegments}...`;
+          break;
+        case 'finalizing':
+          statusText = 'Finishing...';
+          break;
+      }
+    }
+
     return (
       <div
         className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-500/20
                       border border-amber-500/30"
       >
         <Loader2 size={12} className="text-amber-400 animate-spin" />
-        <span className="text-[0.625rem] font-medium text-amber-400">Saving</span>
+        <span className="text-[0.625rem] font-medium text-amber-400">{statusText}</span>
       </div>
     );
   }

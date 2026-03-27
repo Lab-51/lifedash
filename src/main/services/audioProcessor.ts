@@ -15,7 +15,7 @@ import * as fsp from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
-import type { RecordingState } from '../../shared/types';
+import type { RecordingState, TranscriptionProgress } from '../../shared/types';
 import * as transcriptionService from './transcriptionService';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
@@ -133,8 +133,32 @@ export async function stopRecording(): Promise<string> {
 
   currentMeetingId = null;
 
+  // Emit saving-audio phase before flushing
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const progress = transcriptionService.getProgress();
+    mainWindow.webContents.send('recording:processing-progress', {
+      phase: 'saving-audio',
+      currentSegment: progress.currentSegment,
+      totalSegments: progress.totalSegments,
+      percentComplete: 0,
+      backendUsed: progress.backendUsed,
+    } satisfies TranscriptionProgress);
+  }
+
   // Flush transcription and finalize WAV in parallel
   const [, audioPath] = await Promise.all([transcriptionService.stop(), finalizeWav()]);
+
+  // Emit finalizing at 100% before returning
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const progress = transcriptionService.getProgress();
+    mainWindow.webContents.send('recording:processing-progress', {
+      phase: 'finalizing',
+      currentSegment: progress.totalSegments,
+      totalSegments: progress.totalSegments,
+      percentComplete: 100,
+      backendUsed: progress.backendUsed,
+    } satisfies TranscriptionProgress);
+  }
 
   // Push stopped state
   pushState();

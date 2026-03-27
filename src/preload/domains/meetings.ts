@@ -1,6 +1,12 @@
 // === Preload bridge: Meetings, recording, whisper, intelligence, diarization, analytics ===
 import { ipcRenderer } from 'electron';
-import type { CreateMeetingInput, UpdateMeetingInput, RecordingState, TranscriptSegment } from '../../shared/types';
+import type {
+  CreateMeetingInput,
+  UpdateMeetingInput,
+  RecordingState,
+  TranscriptSegment,
+  TranscriptionProgress,
+} from '../../shared/types';
 import type { ActionItemStatus } from '../../shared/types';
 import type { WhisperDownloadProgress } from '../../shared/types';
 
@@ -49,12 +55,23 @@ export const meetingsBridge = {
     };
   },
 
+  onProcessingProgress: (callback: (progress: TranscriptionProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: TranscriptionProgress) => {
+      callback(progress);
+    };
+    ipcRenderer.on('recording:processing-progress', handler);
+    return () => {
+      ipcRenderer.removeListener('recording:processing-progress', handler);
+    };
+  },
+
   // Whisper Models
   getWhisperModels: () => ipcRenderer.invoke('whisper:list-models'),
   downloadWhisperModel: (fileName: string) => ipcRenderer.invoke('whisper:download-model', fileName),
   hasWhisperModel: () => ipcRenderer.invoke('whisper:has-model'),
   whisperGetActiveModel: () => ipcRenderer.invoke('whisper:get-active-model') as Promise<string | null>,
   whisperSetActiveModel: (fileName: string) => ipcRenderer.invoke('whisper:set-active-model', fileName),
+  getWhisperBackend: () => ipcRenderer.invoke('whisper:get-backend') as Promise<string>,
   onWhisperDownloadProgress: (callback: (progress: WhisperDownloadProgress) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: WhisperDownloadProgress) => {
       callback(progress);

@@ -51,4 +51,8 @@ export function registerWhisperHandlers(mainWindow: BrowserWindow): void {
     const validFileName = validateInput(whisperModelNameSchema, fileName);
     await whisperModelManager.setPreferredModel(validFileName);
   });
+
+  ipcMain.handle('whisper:get-backend', () => {
+    return whisperModelManager.getBackend();
+  });
 }

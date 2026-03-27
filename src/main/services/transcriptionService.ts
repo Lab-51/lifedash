@@ -9,7 +9,6 @@
 // deepgramTranscriber, assemblyaiTranscriber
 //
 // === LIMITATIONS ===
-// - Sequential transcription (one segment at a time)
 // - Fixed 10-second segments (no VAD-based splitting)
 // - API providers add network latency per segment
 //
@@ -29,12 +28,20 @@ import { getDb } from '../db/connection';
 import { aiUsage, settings } from '../db/schema';
 import { createLogger } from './logger';
 import { trackTiming } from './performanceTracker';
-import type { TranscriptionProviderType } from '../../shared/types';
+import type { TranscriptionProviderType, TranscriptionProgress } from '../../shared/types';
 
 const log = createLogger('Transcription');
 
 // Whisper context type — imported as type-only to avoid eager native module loading
 import type { WhisperContext } from '@fugood/whisper.node';
+
+// Whisper speed presets — trade accuracy for speed via beam search parameters
+const WHISPER_PRESETS = {
+  fast: { beamSize: 1, bestOf: 1 },
+  balanced: { beamSize: 3, bestOf: 3 },
+  accurate: { beamSize: 5, bestOf: 5 },
+} as const;
+type WhisperPreset = keyof typeof WHISPER_PRESETS;
 
 const SAMPLE_RATE = 16000;
 const SEGMENT_DURATION_SEC = 10;
@@ -55,10 +62,17 @@ let accumulatorBuffer: Buffer = Buffer.alloc(0);
 let segmentIndex = 0;
 let lastTranscriptText = '';
 let pendingSegments: Buffer[] = []; // Queue of segments waiting to be transcribed
-let transcribing = false;
+let activeTranscriptions = 0;
+const MAX_CONCURRENT = 2;
 let activeProvider: TranscriptionProviderType = 'local';
 let activeLanguage: string = 'en';
+let activePreset: WhisperPreset = 'balanced';
 let lastSegmentPrompt: string = ''; // Previous segment text for context carryover
+
+// Progress tracking for the renderer
+let totalSegmentsQueued = 0;
+let segmentsCompleted = 0;
+let whisperBackend = 'cpu';
 
 export function setMainWindow(win: BrowserWindow): void {
   mainWindow = win;
@@ -66,6 +80,29 @@ export function setMainWindow(win: BrowserWindow): void {
 
 export function getLastTranscript(): string {
   return lastTranscriptText;
+}
+
+/** Emit a progress event to the renderer */
+function emitProgress(phase: TranscriptionProgress['phase']): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('recording:processing-progress', {
+    phase,
+    currentSegment: segmentsCompleted,
+    totalSegments: totalSegmentsQueued,
+    percentComplete: totalSegmentsQueued > 0 ? Math.round((segmentsCompleted / totalSegmentsQueued) * 100) : 0,
+    backendUsed: activeProvider === 'local' ? whisperBackend : activeProvider,
+  } satisfies TranscriptionProgress);
+}
+
+/** Return current progress state (for use by audioProcessor) */
+export function getProgress(): TranscriptionProgress {
+  return {
+    phase: 'transcribing',
+    currentSegment: segmentsCompleted,
+    totalSegments: totalSegmentsQueued,
+    percentComplete: totalSegmentsQueued > 0 ? Math.round((segmentsCompleted / totalSegmentsQueued) * 100) : 0,
+    backendUsed: activeProvider === 'local' ? whisperBackend : activeProvider,
+  };
 }
 
 /**
@@ -85,6 +122,10 @@ export async function start(meetingId: string, language?: string): Promise<void>
     const db = getDb();
     const langRows = await db.select().from(settings).where(eq(settings.key, 'transcription:language'));
     activeLanguage = langRows.length > 0 ? langRows[0].value : 'en';
+
+    const presetRows = await db.select().from(settings).where(eq(settings.key, 'transcription:speed-preset'));
+    const preset = presetRows.length > 0 ? presetRows[0].value : 'balanced';
+    activePreset = (preset in WHISPER_PRESETS ? preset : 'balanced') as WhisperPreset;
   }
 
   // Common state reset
@@ -94,7 +135,10 @@ export async function start(meetingId: string, language?: string): Promise<void>
   lastTranscriptText = '';
   lastSegmentPrompt = '';
   pendingSegments = [];
-  transcribing = false;
+  activeTranscriptions = 0;
+  totalSegmentsQueued = 0;
+  segmentsCompleted = 0;
+  whisperBackend = 'cpu';
 
   if (activeProvider === 'local') {
     // Local Whisper path — need a model
@@ -127,8 +171,9 @@ export async function start(meetingId: string, language?: string): Promise<void>
 
       const { context, backend } = await whisperModelManager.createWhisperContext(modelPath);
       whisperContext = context;
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      log.info(`Started (local) with model: ${require('path').basename(modelPath)} [${backend}]`);
+      whisperBackend = backend;
+      const modelName = modelPath.split(/[\\/]/).pop() ?? modelPath;
+      log.info(`Started (local) with model: ${modelName} [${backend}], speed preset: ${activePreset}`);
     } catch (err) {
       log.error('Failed to initialize Whisper:', err);
       currentMeetingId = null;
@@ -168,6 +213,7 @@ export function addChunk(chunk: Buffer): void {
   while (accumulatorBuffer.byteLength >= BYTES_PER_SEGMENT) {
     const segment = accumulatorBuffer.subarray(0, BYTES_PER_SEGMENT);
     pendingSegments.push(Buffer.from(segment)); // Copy to avoid reference issues
+    totalSegmentsQueued++;
     // Advance by (segment - overlap) so the next segment starts 1s earlier
     const advance = BYTES_PER_SEGMENT - OVERLAP_BYTES;
     accumulatorBuffer = accumulatorBuffer.subarray(advance);
@@ -186,7 +232,9 @@ export async function stop(): Promise<void> {
   // Transcribe remaining accumulated audio (partial segment)
   if (accumulatorBuffer.byteLength > 0 && currentMeetingId) {
     pendingSegments.push(Buffer.from(accumulatorBuffer));
+    totalSegmentsQueued++;
     accumulatorBuffer = Buffer.alloc(0);
+    emitProgress('finalizing');
     dispatchNext();
   }
 
@@ -223,7 +271,7 @@ function calculateInt16RMS(buffer: Buffer): number {
 
 /** Dispatch the next pending segment to Whisper or cloud API */
 function dispatchNext(): void {
-  if (transcribing || pendingSegments.length === 0) return;
+  if (activeTranscriptions >= MAX_CONCURRENT || pendingSegments.length === 0) return;
 
   // For local mode, need whisper context to be available
   if (activeProvider === 'local' && !whisperContext) return;
@@ -236,11 +284,13 @@ function dispatchNext(): void {
   const rms = calculateInt16RMS(segment);
   if (rms < SILENCE_RMS_THRESHOLD) {
     log.debug(`Skipping silent segment #${segmentIndex - 1} (RMS: ${rms.toFixed(0)})`);
+    segmentsCompleted++;
+    emitProgress('transcribing');
     dispatchNext(); // Try next segment
     return;
   }
 
-  transcribing = true;
+  activeTranscriptions++;
 
   if (activeProvider === 'local') {
     // Local Whisper: transcribe directly (non-blocking via native async worker)
@@ -249,6 +299,9 @@ function dispatchNext(): void {
     // Cloud API: dispatch async
     dispatchToApi(segment, startTimeMs);
   }
+
+  // Try to fill the next concurrent slot
+  dispatchNext();
 }
 
 /** Dispatch a segment to the local Whisper context for transcription */
@@ -262,9 +315,10 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
 
     // transcribeData returns { promise, stop }. The promise resolves when
     // the native Napi::AsyncWorker finishes on its background thread.
+    const presetOpts = WHISPER_PRESETS[activePreset];
     const whisperOpts: Record<string, unknown> = {
-      beamSize: 5, // Beam search (default 1 = greedy) — much better accuracy
-      bestOf: 5, // Sample multiple candidates and pick best
+      beamSize: presetOpts.beamSize,
+      bestOf: presetOpts.bestOf,
       temperature: 0, // Deterministic, less hallucination
       temperatureInc: 0.2, // Fallback temperature if decoding fails
     };
@@ -280,7 +334,9 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
 
     const result = await trackTiming(`Whisper: segment #${segmentIndex - 1}`, () => promise);
 
-    transcribing = false;
+    activeTranscriptions--;
+    segmentsCompleted++;
+    emitProgress('transcribing');
 
     if (result.result && result.result.trim() && currentMeetingId) {
       lastTranscriptText = result.result.trim();
@@ -321,7 +377,7 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
         reason: 'Transcription failed for audio chunk',
       });
     }
-    transcribing = false;
+    activeTranscriptions--;
   }
 
   // Process next pending segment
@@ -389,13 +445,15 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
         });
       }
       await dispatchToWhisper(segment, startTimeMs);
-      return; // dispatchToWhisper handles transcribing flag and dispatchNext
+      return; // dispatchToWhisper handles activeTranscriptions and dispatchNext
     }
 
     log.error('No fallback available. Skipping segment.');
   }
 
-  transcribing = false;
+  activeTranscriptions--;
+  segmentsCompleted++;
+  emitProgress('transcribing');
   dispatchNext();
 }
 
@@ -403,7 +461,7 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
 function waitForPending(): Promise<void> {
   return new Promise((resolve) => {
     const check = () => {
-      if (!transcribing && pendingSegments.length === 0) {
+      if (activeTranscriptions === 0 && pendingSegments.length === 0) {
         resolve();
       } else {
         setTimeout(check, 200);
