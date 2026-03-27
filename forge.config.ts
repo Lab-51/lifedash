@@ -61,6 +61,16 @@ const config: ForgeConfig = {
         teamId: process.env.APPLE_TEAM_ID!,
       },
     } : {}),
+    // macOS Info.plist permission descriptions — required for audio/screen capture.
+    // macOS 15 (Sequoia) silently produces empty audio without these entries.
+    extendInfo: {
+      NSAudioCaptureUsageDescription:
+        'LifeDash needs audio access to record and transcribe your meetings.',
+      NSMicrophoneUsageDescription:
+        'LifeDash can optionally capture your microphone alongside system audio for better transcription.',
+      NSScreenCaptureUsageDescription:
+        'LifeDash uses screen capture to record system audio from your meetings.',
+    },
   },
   rebuildConfig: {},
   hooks: {

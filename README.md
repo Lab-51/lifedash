@@ -10,6 +10,7 @@ Free, open-source meeting intelligence that runs entirely on your desktop.
 Record, transcribe, and pull out action items. Nothing leaves your computer.
 
 [![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Lab-51/lifedash/releases/latest)
+[![Download for macOS](https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Lab-51/lifedash/releases/latest)
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/Lab-51/lifedash?style=social)](https://github.com/Lab-51/lifedash)
@@ -34,7 +35,7 @@ LifeDash records your meetings, transcribes them locally with Whisper, generates
 | Platform | Status |
 |----------|--------|
 | Windows 10+ | Available. [Download the installer](https://github.com/Lab-51/lifedash/releases/latest) |
-| macOS | [Planned](https://github.com/Lab-51/lifedash/issues/1). Contributions welcome |
+| macOS 12.3+ (Monterey) | Available. [Download the DMG](https://github.com/Lab-51/lifedash/releases/latest) or `brew tap lab-51/lifedash && brew install --cask lifedash` |
 | Linux | [Planned](https://github.com/Lab-51/lifedash/issues/2). Contributions welcome |
 
 ## Why LifeDash?
@@ -57,10 +58,28 @@ LifeDash records your meetings, transcribes them locally with Whisper, generates
 
 **Just want to use it?** Grab the installer. No dev tools needed.
 
+### Windows
+
 1. Go to the [latest release](https://github.com/Lab-51/lifedash/releases/latest)
 2. Download `LifeDash-X.X.X-Setup.exe`
 3. Run the installer
 4. Open LifeDash, add your AI API key in the setup wizard, and start recording
+
+### macOS
+
+**Option A — Homebrew (recommended):**
+
+```bash
+brew tap lab-51/lifedash && brew install --cask lifedash
+```
+
+**Option B — Direct download:**
+
+1. Download `LifeDash-X.X.X-mac-arm64.dmg` from the [latest release](https://github.com/Lab-51/lifedash/releases/latest)
+2. Open the DMG, drag LifeDash to Applications
+3. First launch: right-click the app, select Open, then click "Open Anyway"
+
+> Requires macOS 12.3 (Monterey) or later for audio capture.
 
 > The app uses an embedded database and runs fully offline. No accounts, no cloud, nothing to configure beyond the installer.
 
@@ -136,6 +155,7 @@ LifeDash records your meetings, transcribes them locally with Whisper, generates
 - [Node.js](https://nodejs.org/) 18+ (includes npm)
 - [Git](https://git-scm.com/)
 - **Windows:** [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload (needed for native modules)
+- **macOS:** Xcode Command Line Tools (`xcode-select --install`)
 
 ### Install & Run
 

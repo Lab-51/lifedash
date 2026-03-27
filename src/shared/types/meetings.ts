@@ -164,5 +164,5 @@ export interface TranscriptionProgress {
   currentSegment: number; // 1-based
   totalSegments: number;
   percentComplete: number; // 0-100
-  backendUsed: string; // 'vulkan' | 'cuda' | 'cpu' | 'deepgram' | 'assemblyai'
+  backendUsed: string; // 'metal' | 'vulkan' | 'cuda' | 'cpu' | 'deepgram' | 'assemblyai'
 }

@@ -73,10 +73,10 @@ export const AVAILABLE_MODELS: WhisperModelInfo[] = [
   },
 ];
 
-/** Last detected Whisper backend (vulkan, cuda, or cpu). Updated after createWhisperContext(). */
+/** Last detected Whisper backend (metal, vulkan, cuda, or cpu). Updated after createWhisperContext(). */
 let lastBackend = 'unknown';
 
-/** Return the last detected Whisper backend ('vulkan', 'cuda', 'cpu', or 'unknown' before first use). */
+/** Return the last detected Whisper backend ('metal', 'vulkan', 'cuda', 'cpu', or 'unknown' before first use). */
 export function getBackend(): string {
   return lastBackend;
 }
@@ -139,16 +139,42 @@ export async function getDefaultModelPath(): Promise<string | null> {
 
 /**
  * Initialize a Whisper context with automatic GPU detection.
- * Tries Vulkan (broadest GPU support) → CUDA → CPU fallback.
+ *
+ * macOS (darwin):
+ *   The default @fugood/whisper.node binary on macOS includes Metal support.
+ *   There are no separate 'metal' or 'vulkan' variant packages for darwin.
+ *   We call initWhisper with useGpu: true (no variant), which activates Metal
+ *   on Apple Silicon (arm64). On x86_64 macOS, GPU is not supported and it
+ *   falls back to CPU automatically.
+ *
+ * Windows / Linux:
+ *   Tries Vulkan (broadest GPU support) → CUDA → CPU fallback, using the
+ *   separate variant packages (@fugood/node-whisper-*-vulkan, *-cuda).
  */
 export async function createWhisperContext(modelPath: string): Promise<{
   context: Awaited<ReturnType<typeof import('@fugood/whisper.node').initWhisper>>;
   backend: string;
 }> {
   const { initWhisper } = await import('@fugood/whisper.node');
-  const variants = ['vulkan', 'cuda'] as const;
 
-  // Try GPU variants first
+  if (process.platform === 'darwin') {
+    // Metal GPU is built into the default darwin binary — no variant needed.
+    // useGpu: true enables Metal on arm64; on x86_64 it's a no-op (CPU only).
+    try {
+      const context = await initWhisper({ filePath: modelPath, useGpu: true });
+      const backend = process.arch === 'arm64' ? 'metal' : 'cpu';
+      lastBackend = backend;
+      return { context, backend };
+    } catch {
+      // Metal/GPU init failed — fall back to CPU without useGpu
+      const context = await initWhisper({ filePath: modelPath });
+      lastBackend = 'cpu';
+      return { context, backend: 'cpu' };
+    }
+  }
+
+  // Windows / Linux: try GPU variant packages (vulkan → cuda), then CPU
+  const variants = ['vulkan', 'cuda'] as const;
   for (const variant of variants) {
     try {
       const context = await initWhisper({ filePath: modelPath, useGpu: true }, variant);

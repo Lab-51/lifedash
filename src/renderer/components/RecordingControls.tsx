@@ -177,6 +177,7 @@ function AudioLevelMeter() {
 /** Returns a short label for the transcription backend. */
 function backendBadge(backend: string): { label: string; color: string } | null {
   switch (backend) {
+    case 'metal':
     case 'vulkan':
     case 'cuda':
       return { label: 'GPU', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' };
