@@ -6,6 +6,12 @@
 
 'use strict';
 
+// Inno Setup is Windows-only — skip gracefully on other platforms.
+if (process.platform !== 'win32') {
+  console.log('Skipping Inno Setup installer (Windows-only)');
+  process.exit(0);
+}
+
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');

@@ -1,8 +1,8 @@
 // === FILE PURPOSE ===
 // Upload LifeDash release artifacts to GitHub Releases as a draft.
-// Uploads two artifacts:
-//   1. LifeDash-{version}.7z — primary download (7z avoids MOTW, no SmartScreen)
-//   2. LifeDash-{version}-Setup.exe — used by the in-app auto-updater
+// Platform-aware: detects the current OS and uploads the correct artifacts.
+//   Windows: LifeDash-{version}.7z + LifeDash-{version}-Setup.exe
+//   macOS:   LifeDash-{version}-mac-arm64.dmg + LifeDash-{version}-mac-arm64.zip
 // Uses the gh CLI (GitHub CLI) — requires GITHUB_TOKEN env var.
 // Usage: node scripts/upload-release.js
 
@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
+const platform = process.platform; // 'win32', 'darwin', 'linux'
 
 // Locate gh CLI — check PATH first, then known install locations
 function findGh() {
@@ -22,23 +23,30 @@ function findGh() {
   } catch (_) {
     // Not in PATH
   }
-  const candidates = [
-    'C:\\Program Files\\GitHub CLI\\gh.exe',
-    'C:\\Program Files (x86)\\GitHub CLI\\gh.exe',
-    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'GitHub CLI', 'gh.exe'),
-  ];
-  for (const candidate of candidates) {
-    if (candidate && fs.existsSync(candidate)) {
-      return `"${candidate}"`;
+  if (platform === 'win32') {
+    const candidates = [
+      'C:\\Program Files\\GitHub CLI\\gh.exe',
+      'C:\\Program Files (x86)\\GitHub CLI\\gh.exe',
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'GitHub CLI', 'gh.exe'),
+    ];
+    for (const candidate of candidates) {
+      if (candidate && fs.existsSync(candidate)) {
+        return `"${candidate}"`;
+      }
     }
   }
+  // On macOS/Linux, gh should be in PATH (checked above) or not available
   return null;
 }
 
 const gh = findGh();
 if (!gh) {
   console.error('ERROR: gh CLI not found.');
-  console.error('Install it: winget install GitHub.cli');
+  if (platform === 'win32') {
+    console.error('Install it: winget install GitHub.cli');
+  } else {
+    console.error('Install it: brew install gh');
+  }
   process.exit(1);
 }
 
@@ -47,19 +55,103 @@ const version = pkg.version;
 const tag = `v${version}`;
 const repo = 'Lab-51/lifedash';
 
-const archiveFile = path.join(ROOT, 'out', 'make', `LifeDash-${version}.7z`);
-const installerFile = path.join(ROOT, 'out', 'make', `LifeDash-${version}-Setup.exe`);
+// --- Determine platform artifacts ---
 
-// Verify artifacts exist
-if (!fs.existsSync(archiveFile)) {
-  console.error(`ERROR: Archive not found: ${archiveFile}`);
-  console.error('Run "npm run make:dist" first.');
+function getArtifacts() {
+  if (platform === 'win32') {
+    return {
+      label: 'Windows',
+      files: [
+        {
+          path: path.join(ROOT, 'out', 'make', `LifeDash-${version}.7z`),
+          description: '7z archive (primary download)',
+        },
+        {
+          path: path.join(ROOT, 'out', 'make', `LifeDash-${version}-Setup.exe`),
+          description: 'Installer (auto-updater)',
+        },
+      ],
+    };
+  }
+
+  if (platform === 'darwin') {
+    // Electron Forge outputs DMG at out/make/ and ZIP at out/make/zip/darwin/arm64/
+    // We rename them to include platform/arch for clarity on the release page.
+    const makeDir = path.join(ROOT, 'out', 'make');
+    const artifacts = [];
+
+    // DMG — Forge puts it at out/make/LifeDash-{version}-arm64.dmg or LifeDash.dmg
+    // Search for any .dmg in the make directory
+    const dmgCandidates = findFiles(makeDir, '.dmg');
+    if (dmgCandidates.length > 0) {
+      const dmgSource = dmgCandidates[0];
+      const dmgTarget = path.join(makeDir, `LifeDash-${version}-mac-arm64.dmg`);
+      if (dmgSource !== dmgTarget) {
+        fs.copyFileSync(dmgSource, dmgTarget);
+      }
+      artifacts.push({
+        path: dmgTarget,
+        description: 'macOS DMG (arm64)',
+      });
+    }
+
+    // ZIP — Forge puts it at out/make/zip/darwin/arm64/lifedash-darwin-arm64-{version}.zip
+    const zipDir = path.join(makeDir, 'zip');
+    const zipCandidates = findFiles(zipDir, '.zip');
+    if (zipCandidates.length > 0) {
+      const zipSource = zipCandidates[0];
+      const zipTarget = path.join(makeDir, `LifeDash-${version}-mac-arm64.zip`);
+      if (zipSource !== zipTarget) {
+        fs.copyFileSync(zipSource, zipTarget);
+      }
+      artifacts.push({
+        path: zipTarget,
+        description: 'macOS ZIP (arm64)',
+      });
+    }
+
+    return { label: 'macOS (arm64)', files: artifacts };
+  }
+
+  console.error(`ERROR: Unsupported platform: ${platform}`);
   process.exit(1);
 }
-if (!fs.existsSync(installerFile)) {
-  console.error(`ERROR: Installer not found: ${installerFile}`);
-  console.error('Run "npm run make:dist" first.');
+
+// Recursively find files with a given extension
+function findFiles(dir, ext) {
+  const results = [];
+  if (!fs.existsSync(dir)) return results;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...findFiles(fullPath, ext));
+    } else if (entry.name.endsWith(ext)) {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
+
+const { label, files } = getArtifacts();
+
+if (files.length === 0) {
+  console.error(`ERROR: No ${label} artifacts found in out/make/`);
+  console.error('Run the appropriate build command first:');
+  if (platform === 'win32') {
+    console.error('  npm run make:dist');
+  } else if (platform === 'darwin') {
+    console.error('  npx electron-forge make');
+  }
   process.exit(1);
+}
+
+// Verify all artifacts exist
+for (const artifact of files) {
+  if (!fs.existsSync(artifact.path)) {
+    console.error(`ERROR: Artifact not found: ${artifact.path}`);
+    process.exit(1);
+  }
 }
 
 // Verify GITHUB_TOKEN is set (gh CLI needs it for the public repo)
@@ -69,10 +161,11 @@ if (!process.env.GITHUB_TOKEN) {
   process.exit(1);
 }
 
-console.log(`Uploading LifeDash ${tag} to GitHub Releases (draft)...`);
+console.log(`Uploading LifeDash ${tag} (${label}) to GitHub Releases (draft)...`);
 console.log(`  Repo: ${repo}`);
-console.log(`  Archive:   ${archiveFile}`);
-console.log(`  Installer: ${installerFile}`);
+for (const artifact of files) {
+  console.log(`  ${artifact.description}: ${artifact.path}`);
+}
 
 // Create a draft release (fails gracefully if tag already exists)
 try {
@@ -85,10 +178,11 @@ try {
   console.warn(`Warning: release create may have failed (release may already exist). Attempting upload...`);
 }
 
-// Upload both artifacts
+// Upload artifacts
+const filePaths = files.map(f => `"${f.path}"`).join(' ');
 try {
   execSync(
-    `${gh} release upload ${tag} "${archiveFile}" "${installerFile}" --repo ${repo} --clobber`,
+    `${gh} release upload ${tag} ${filePaths} --repo ${repo} --clobber`,
     { stdio: 'inherit', cwd: ROOT }
   );
 } catch (err) {
@@ -98,5 +192,6 @@ try {
 
 console.log(`\nDraft release URL: https://github.com/${repo}/releases/tag/${tag}`);
 console.log('Artifacts uploaded:');
-console.log(`  - LifeDash-${version}.7z (primary download)`);
-console.log(`  - LifeDash-${version}-Setup.exe (auto-updater)`);
+for (const artifact of files) {
+  console.log(`  - ${path.basename(artifact.path)} (${artifact.description})`);
+}

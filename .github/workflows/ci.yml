@@ -42,3 +42,47 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
         continue-on-error: true
+
+  build-macos:
+    name: Build macOS (arm64)
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          brew install cmake python-setuptools
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (TypeScript type check)
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build macOS app
+        run: npx electron-forge make
+        env:
+          SKIP_OBFUSCATION: 'true'
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifedash-macos-arm64-dmg
+          path: out/make/*.dmg
+          if-no-files-found: warn
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifedash-macos-arm64-zip
+          path: out/make/zip/**/*.zip
+          if-no-files-found: warn

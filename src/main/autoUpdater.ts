@@ -2,7 +2,7 @@
 // Custom auto-updater that checks lifedash.space for new versions.
 // Downloads the Inno Setup installer and installs silently in-place.
 
-import { app, BrowserWindow, ipcMain, net } from 'electron';
+import { app, BrowserWindow, ipcMain, net, Notification, shell } from 'electron';
 import { createWriteStream } from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -32,8 +32,10 @@ let downloadedInstallerPath: string | null = null;
 let checkInterval: ReturnType<typeof setInterval> | null = null;
 
 const VERSION_API = 'https://lifedash.space/api/latest-version';
+const RELEASES_URL = 'https://github.com/Lab-51/lifedash/releases/latest';
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const STARTUP_DELAY_MS = 10_000; // 10 seconds after startup
+const IS_MAC = process.platform === 'darwin';
 
 // --- Semver comparison ---
 
@@ -49,6 +51,25 @@ function isNewerVersion(current: string, remote: string): boolean {
   if (rMajor !== cMajor) return rMajor > cMajor;
   if (rMinor !== cMinor) return rMinor > cMinor;
   return rPatch > cPatch;
+}
+
+// --- macOS notification ---
+
+/**
+ * Show a native notification that a new version is available.
+ * Clicking the notification opens the GitHub releases page in the default browser.
+ */
+function showMacUpdateNotification(version: string): void {
+  const notification = new Notification({
+    title: 'LifeDash Update Available',
+    body: `Version ${version} is available. Click to download.`,
+  });
+
+  notification.on('click', () => {
+    shell.openExternal(RELEASES_URL);
+  });
+
+  notification.show();
 }
 
 // --- Core functions ---
@@ -74,7 +95,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
     return null;
   }
 
-  if (!data.setupUrl) {
+  if (!data.setupUrl && !IS_MAC) {
     log.warn(`New version ${data.version} found but no Setup.exe download URL`);
     return null;
   }
@@ -82,7 +103,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
   log.info(`Update available: ${currentVersion} -> ${data.version}`);
   return {
     version: data.version,
-    assetUrl: data.setupUrl,
+    assetUrl: data.setupUrl ?? '',
     releaseName: data.releaseName,
   };
 }
@@ -185,6 +206,11 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
 
   // --- IPC handler: install downloaded update ---
   ipcMain.handle('app:install-update', () => {
+    if (IS_MAC) {
+      log.info('Opening releases page (macOS does not support in-app install)');
+      shell.openExternal(RELEASES_URL);
+      return;
+    }
     if (downloadedInstallerPath) {
       log.info('User accepted update -- quitting and installing');
       installUpdate(downloadedInstallerPath);
@@ -211,7 +237,15 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
         return;
       }
 
-      // Download the update
+      if (IS_MAC) {
+        // macOS: notify user and link to GitHub releases -- no download/install
+        log.info(`Update available for macOS: ${update.releaseName} -- showing notification`);
+        showMacUpdateNotification(update.version);
+        sendStatus('ready', update.releaseName);
+        return;
+      }
+
+      // Windows: download the .exe installer and prepare for silent install
       sendStatus('downloading', update.releaseName);
       const installerPath = await downloadUpdate(update.assetUrl, (percent) => {
         sendStatus('downloading', update.releaseName, percent);
