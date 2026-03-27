@@ -528,9 +528,9 @@ export default function SettingsPageModern() {
                     href="https://www.linkedin.com/in/daniel-rieger-marketing-technologist-ai-and-automation/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[var(--color-accent)] hover:text-[var(--color-accent-bright)] transition-colors"
+                    className="inline-flex items-baseline gap-1 text-[var(--color-accent)] hover:text-[var(--color-accent-bright)] transition-colors"
                   >
-                    <Linkedin size={14} />
+                    <Linkedin size={14} className="relative top-[2px]" />
                     Daniel Rieger
                   </a>
                 </p>
