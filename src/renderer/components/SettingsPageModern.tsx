@@ -57,6 +57,9 @@ import SyncSettings from '../components/settings/SyncSettings';
 import IntelFeedInterestsSection from './settings/IntelFeedInterestsSection';
 import HudBackground from './HudBackground';
 import HelpTip from './HelpTip';
+import MacUpdateModal from './MacUpdateModal';
+
+const IS_MAC = window.electronAPI.platform === 'darwin';
 
 export default function SettingsPageModern() {
   const providers = useSettingsStore((s) => s.providers);
@@ -87,6 +90,7 @@ export default function SettingsPageModern() {
   const [updateRelease, setUpdateRelease] = useState('');
   const [updateProgress, setUpdateProgress] = useState(0);
   const [updateError, setUpdateError] = useState('');
+  const [showMacUpdateModal, setShowMacUpdateModal] = useState(false);
 
   // Sync activeTab when URL query param changes
   useEffect(() => {
@@ -589,11 +593,11 @@ export default function SettingsPageModern() {
                       <div className="flex flex-col items-center gap-2">
                         <p className="text-sm text-emerald-500 font-medium">{updateRelease} is ready to install</p>
                         <button
-                          onClick={() => window.electronAPI.installUpdate()}
+                          onClick={() => (IS_MAC ? setShowMacUpdateModal(true) : window.electronAPI.installUpdate())}
                           className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 text-sm font-medium rounded-lg transition-colors"
                         >
                           <Download size={15} />
-                          Restart & Install
+                          {IS_MAC ? 'Update Instructions' : 'Restart & Install'}
                         </button>
                       </div>
                     )}
@@ -641,6 +645,11 @@ export default function SettingsPageModern() {
           }}
         />
       )}
+      <MacUpdateModal
+        version={updateRelease}
+        isOpen={showMacUpdateModal}
+        onClose={() => setShowMacUpdateModal(false)}
+      />
     </div>
   );
 }

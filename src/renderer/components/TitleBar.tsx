@@ -21,14 +21,18 @@ import {
 import { useNavigate } from 'react-router-dom';
 import dashIcon from '../assets/icon.svg';
 import useSyncStatus, { formatRelativeTime } from '../hooks/useSyncStatus';
+import MacUpdateModal from './MacUpdateModal';
 
 type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'ready' | 'error';
+
+const IS_MAC = window.electronAPI.platform === 'darwin';
 
 function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
   const [releaseName, setReleaseName] = useState<string>('');
+  const [showMacUpdateModal, setShowMacUpdateModal] = useState(false);
   const navigate = useNavigate();
   const sync = useSyncStatus();
 
@@ -57,151 +61,154 @@ function TitleBar() {
   };
 
   return (
-    <div className="relative shrink-0 select-none">
-      {/* Top accent line */}
-      <div className="ruled-line-accent" />
+    <>
+      <MacUpdateModal version={releaseName} isOpen={showMacUpdateModal} onClose={() => setShowMacUpdateModal(false)} />
+      <div className="relative shrink-0 select-none">
+        {/* Top accent line */}
+        <div className="ruled-line-accent" />
 
-      <div
-        className="h-9 flex items-center justify-between transition-colors duration-300 hud-chrome-bg border-b border-[var(--color-border)] text-[var(--color-text-primary)]"
-        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-      >
-        <div className="flex items-center gap-2 pl-3">
-          <img src={dashIcon} alt="LifeDash" className="w-5 h-5" />
-          <span className="font-hud text-xs tracking-tight font-bold">
-            <span className="text-[var(--color-text-primary)]">LIFE</span>
-            <span className="text-[var(--color-accent)] text-glow">DASH</span>
-          </span>
-        </div>
+        <div
+          className="h-9 flex items-center justify-between transition-colors duration-300 hud-chrome-bg border-b border-[var(--color-border)] text-[var(--color-text-primary)]"
+          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        >
+          <div className="flex items-center gap-2 pl-3">
+            <img src={dashIcon} alt="LifeDash" className="w-5 h-5" />
+            <span className="font-hud text-xs tracking-tight font-bold">
+              <span className="text-[var(--color-text-primary)]">LIFE</span>
+              <span className="text-[var(--color-accent)] text-glow">DASH</span>
+            </span>
+          </div>
 
-        <div className="flex h-full" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          {/* Update status indicator */}
-          {updateStatus === 'checking' && (
-            <div
-              className="h-full inline-flex items-center gap-1.5 px-3 text-xs text-[var(--color-text-muted)]"
-              title="Checking for updates..."
-            >
-              <Loader2 size={12} className="animate-spin" />
-              <span>Checking</span>
-            </div>
-          )}
-          {updateStatus === 'up-to-date' && (
-            <div
-              className="h-full inline-flex items-center gap-1.5 px-3 text-xs text-emerald-500/70"
-              title="You're on the latest version"
-            >
-              <CheckCircle size={12} />
-              <span>Up to date</span>
-            </div>
-          )}
-          {updateStatus === 'ready' && (
+          <div className="flex h-full" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            {/* Update status indicator */}
+            {updateStatus === 'checking' && (
+              <div
+                className="h-full inline-flex items-center gap-1.5 px-3 text-xs text-[var(--color-text-muted)]"
+                title="Checking for updates..."
+              >
+                <Loader2 size={12} className="animate-spin" />
+                <span>Checking</span>
+              </div>
+            )}
+            {updateStatus === 'up-to-date' && (
+              <div
+                className="h-full inline-flex items-center gap-1.5 px-3 text-xs text-emerald-500/70"
+                title="You're on the latest version"
+              >
+                <CheckCircle size={12} />
+                <span>Up to date</span>
+              </div>
+            )}
+            {updateStatus === 'ready' && (
+              <button
+                type="button"
+                onClick={() => (IS_MAC ? setShowMacUpdateModal(true) : window.electronAPI.installUpdate())}
+                className="h-full inline-flex items-center gap-1.5 px-3 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/15 transition-colors"
+                title={`Update ${releaseName} ready — click to ${IS_MAC ? 'see update options' : 'restart and install'}`}
+              >
+                <Download size={13} />
+                <span>Update</span>
+              </button>
+            )}
+
+            {/* Separator: update status | sync status */}
+            <div className="w-px h-4 self-center bg-[var(--color-border)]" />
+
+            {/* Cloud sync status indicator */}
+            {!sync.loading && (
+              <button
+                type="button"
+                onClick={() => navigate('/settings?tab=data')}
+                className={`h-full inline-flex items-center gap-1.5 px-3 text-xs transition-colors hover:bg-[var(--color-accent-subtle)] ${
+                  sync.status === 'error'
+                    ? 'text-red-400'
+                    : sync.status === 'syncing'
+                      ? 'text-blue-400'
+                      : sync.status === 'synced'
+                        ? 'text-emerald-500/70'
+                        : 'text-[var(--color-text-muted)]'
+                }`}
+                title={
+                  !sync.isAuthenticated
+                    ? 'Click to set up cloud sync'
+                    : sync.status === 'error'
+                      ? `Sync error: ${sync.errorDetails ?? 'unknown'}`
+                      : sync.status === 'syncing'
+                        ? 'Syncing in progress...'
+                        : sync.status === 'synced'
+                          ? `Last synced ${formatRelativeTime(sync.lastSyncedAt) ?? 'recently'}`
+                          : 'Cloud sync is off'
+                }
+              >
+                {sync.status === 'error' && <AlertCircle size={12} />}
+                {sync.status === 'syncing' && <Cloud size={12} className="animate-pulse" />}
+                {sync.status === 'synced' && <Cloud size={12} />}
+                {(sync.status === 'disconnected' || sync.status === 'offline') && <CloudOff size={12} />}
+
+                <span>
+                  {!sync.isAuthenticated
+                    ? 'Cloud Sync'
+                    : sync.status === 'error'
+                      ? 'Sync error'
+                      : sync.status === 'syncing'
+                        ? 'Syncing...'
+                        : sync.status === 'synced'
+                          ? `Synced ${formatRelativeTime(sync.lastSyncedAt) ?? 'recently'}`
+                          : 'Sync off'}
+                </span>
+              </button>
+            )}
+
+            {/* Separator: sync status | window controls */}
+            <div className="w-px h-4 self-center bg-[var(--color-border)]" />
+
+            {/* Pin on top */}
             <button
               type="button"
-              onClick={() => window.electronAPI.installUpdate()}
-              className="h-full inline-flex items-center gap-1.5 px-3 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/15 transition-colors"
-              title={`Update ${releaseName} ready — click to restart and install`}
-            >
-              <Download size={13} />
-              <span>Update</span>
-            </button>
-          )}
-
-          {/* Separator: update status | sync status */}
-          <div className="w-px h-4 self-center bg-[var(--color-border)]" />
-
-          {/* Cloud sync status indicator */}
-          {!sync.loading && (
-            <button
-              type="button"
-              onClick={() => navigate('/settings?tab=data')}
-              className={`h-full inline-flex items-center gap-1.5 px-3 text-xs transition-colors hover:bg-[var(--color-accent-subtle)] ${
-                sync.status === 'error'
-                  ? 'text-red-400'
-                  : sync.status === 'syncing'
-                    ? 'text-blue-400'
-                    : sync.status === 'synced'
-                      ? 'text-emerald-500/70'
-                      : 'text-[var(--color-text-muted)]'
+              onClick={toggleAlwaysOnTop}
+              className={`w-10 h-full inline-flex items-center justify-center transition-colors ${
+                isAlwaysOnTop
+                  ? 'text-[var(--color-accent)] bg-[var(--color-accent-subtle)]'
+                  : 'text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
               }`}
-              title={
-                !sync.isAuthenticated
-                  ? 'Click to set up cloud sync'
-                  : sync.status === 'error'
-                    ? `Sync error: ${sync.errorDetails ?? 'unknown'}`
-                    : sync.status === 'syncing'
-                      ? 'Syncing in progress...'
-                      : sync.status === 'synced'
-                        ? `Last synced ${formatRelativeTime(sync.lastSyncedAt) ?? 'recently'}`
-                        : 'Cloud sync is off'
-              }
+              title={isAlwaysOnTop ? 'Unpin' : 'Pin on top'}
             >
-              {sync.status === 'error' && <AlertCircle size={12} />}
-              {sync.status === 'syncing' && <Cloud size={12} className="animate-pulse" />}
-              {sync.status === 'synced' && <Cloud size={12} />}
-              {(sync.status === 'disconnected' || sync.status === 'offline') && <CloudOff size={12} />}
-
-              <span>
-                {!sync.isAuthenticated
-                  ? 'Cloud Sync'
-                  : sync.status === 'error'
-                    ? 'Sync error'
-                    : sync.status === 'syncing'
-                      ? 'Syncing...'
-                      : sync.status === 'synced'
-                        ? `Synced ${formatRelativeTime(sync.lastSyncedAt) ?? 'recently'}`
-                        : 'Sync off'}
-              </span>
+              {isAlwaysOnTop ? <Pin size={13} fill="currentColor" /> : <PinOff size={13} />}
             </button>
-          )}
 
-          {/* Separator: sync status | window controls */}
-          <div className="w-px h-4 self-center bg-[var(--color-border)]" />
+            {/* Minimize */}
+            <button
+              type="button"
+              onClick={() => window.electronAPI.windowMinimize()}
+              className="w-12 h-full inline-flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+              aria-label="Minimize"
+            >
+              <Minus size={16} />
+            </button>
 
-          {/* Pin on top */}
-          <button
-            type="button"
-            onClick={toggleAlwaysOnTop}
-            className={`w-10 h-full inline-flex items-center justify-center transition-colors ${
-              isAlwaysOnTop
-                ? 'text-[var(--color-accent)] bg-[var(--color-accent-subtle)]'
-                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
-            }`}
-            title={isAlwaysOnTop ? 'Unpin' : 'Pin on top'}
-          >
-            {isAlwaysOnTop ? <Pin size={13} fill="currentColor" /> : <PinOff size={13} />}
-          </button>
+            {/* Maximize / Restore */}
+            <button
+              type="button"
+              onClick={() => window.electronAPI.windowMaximize()}
+              className="w-12 h-full inline-flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+              aria-label={isMaximized ? 'Restore' : 'Maximize'}
+            >
+              {isMaximized ? <Copy size={14} /> : <Square size={14} />}
+            </button>
 
-          {/* Minimize */}
-          <button
-            type="button"
-            onClick={() => window.electronAPI.windowMinimize()}
-            className="w-12 h-full inline-flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
-            aria-label="Minimize"
-          >
-            <Minus size={16} />
-          </button>
-
-          {/* Maximize / Restore */}
-          <button
-            type="button"
-            onClick={() => window.electronAPI.windowMaximize()}
-            className="w-12 h-full inline-flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
-            aria-label={isMaximized ? 'Restore' : 'Maximize'}
-          >
-            {isMaximized ? <Copy size={14} /> : <Square size={14} />}
-          </button>
-
-          {/* Close */}
-          <button
-            type="button"
-            onClick={() => window.electronAPI.windowClose()}
-            className="w-12 h-full inline-flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-red-500 hover:text-white transition-colors"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
+            {/* Close */}
+            <button
+              type="button"
+              onClick={() => window.electronAPI.windowClose()}
+              className="w-12 h-full inline-flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-red-500 hover:text-white transition-colors"
+              aria-label="Close"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
