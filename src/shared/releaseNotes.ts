@@ -28,6 +28,21 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.26',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: ['Creator credit with LinkedIn link in Settings → About'],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: ['Saved badge now shows the correct total count (bookmarked articles + saved briefs)'],
+      },
+    ],
+  },
+  {
     version: '2.2.25',
     sections: [
       {
@@ -79,16 +94,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         category: 'fixes',
         label: 'Fixes',
         items: ['Intelligence Brief article links are now reliably clickable for all mentioned stories'],
-      },
-    ],
-  },
-  {
-    version: '2.2.21',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: ['Fixed sync deleting locally saved RSS articles and intelligence briefs'],
       },
     ],
   },
