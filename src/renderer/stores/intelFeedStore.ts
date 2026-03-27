@@ -276,17 +276,21 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
     const item = get().items.find((i) => i.id === id);
     if (!item) return;
     const newBookmarked = !item.isBookmarked;
-    // Optimistic update — items list + reader panel if same article is open
-    const { readerItem } = get();
+    // Optimistic update — items list + reader panel + bookmark count
+    const { readerItem, bookmarkCount } = get();
     set({
       items: get().items.map((i) => (i.id === id ? { ...i, isBookmarked: newBookmarked } : i)),
       ...(readerItem?.id === id ? { readerItem: { ...readerItem, isBookmarked: newBookmarked } } : {}),
+      bookmarkCount: bookmarkCount + (newBookmarked ? 1 : -1),
     });
     try {
       await window.electronAPI.toggleIntelItemBookmark(id);
+      // Reconcile count from DB after successful persist
+      get().loadBookmarkCount();
     } catch (error) {
       // Revert on failure
       await get().loadItems();
+      await get().loadBookmarkCount();
       set({
         error: error instanceof Error ? error.message : 'Failed to toggle bookmark',
       });

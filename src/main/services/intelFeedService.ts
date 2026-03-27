@@ -535,7 +535,7 @@ export async function getItems(filter: IntelDateFilter, extra?: IntelItemFilters
 export async function getBookmarkCount(): Promise<number> {
   const db = getDb();
   const [row] = await db.select({ value: count() }).from(intelItems).where(eq(intelItems.isBookmarked, true));
-  return row?.value ?? 0;
+  return Number(row?.value ?? 0);
 }
 
 /** Mark an item as read. */

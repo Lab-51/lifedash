@@ -326,6 +326,7 @@ export default function IntelFeedModern() {
       await loadSources();
       loadTrending();
       loadBriefItems();
+      loadPinnedBriefs();
 
       if (cancelled) return;
 
@@ -514,7 +515,7 @@ export default function IntelFeedModern() {
             >
               <Bookmark size={13} className={viewMode === 'bookmarks' ? 'fill-current' : ''} />
               Saved
-              {bookmarkCount > 0 && (
+              {bookmarkCount + pinnedBriefs.length > 0 && (
                 <span
                   className={`ml-0.5 px-1.5 py-px text-[10px] rounded-full font-semibold leading-tight ${
                     viewMode === 'bookmarks'
@@ -522,7 +523,7 @@ export default function IntelFeedModern() {
                       : 'bg-[var(--color-border)] text-[var(--color-text-muted)]'
                   }`}
                 >
-                  {bookmarkCount}
+                  {bookmarkCount + pinnedBriefs.length}
                 </span>
               )}
             </button>
