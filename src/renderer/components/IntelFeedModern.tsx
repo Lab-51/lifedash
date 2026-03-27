@@ -15,6 +15,7 @@ import IntelBriefPanel from './IntelBriefPanel';
 import IntelSourceManager from './IntelSourceManager';
 import IntelAddArticleModal from './IntelAddArticleModal';
 import IntelArticleReader from './IntelArticleReader';
+import SavedBriefModal from './SavedBriefModal';
 import { useIntelFeedStore } from '../stores/intelFeedStore';
 import { useProjectStore } from '../stores/projectStore';
 import { useIdeaStore } from '../stores/ideaStore';
@@ -235,6 +236,9 @@ export default function IntelFeedModern() {
   const [searchInput, setSearchInput] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Saved brief modal overlay
+  const [savedBriefModal, setSavedBriefModal] = useState<IntelBrief | null>(null);
+
   const handleSearchChange = useCallback(
     (value: string) => {
       setSearchInput(value);
@@ -402,13 +406,13 @@ export default function IntelFeedModern() {
 
   const groupedGridItems = useMemo(() => groupItemsByDate(gridItems, sortMode), [gridItems, sortMode]);
 
-  /** Handle clicking a saved brief card — switch to feed view and load it. */
+  /** Handle clicking a saved brief card — open in modal overlay. */
   const handleSavedBriefClick = useCallback(
     (clickedBrief: IntelBrief) => {
       loadSpecificBrief(clickedBrief);
-      setViewMode('feed');
+      setSavedBriefModal(clickedBrief);
     },
-    [loadSpecificBrief, setViewMode],
+    [loadSpecificBrief],
   );
 
   /** Handle unpinning a brief from the saved section. */
@@ -714,23 +718,33 @@ export default function IntelFeedModern() {
           />
         )}
 
-        {viewMode === 'bookmarks' && items.length === 0 && pinnedBriefs.length === 0 ? (
-          /* Bookmarks empty state — no articles and no pinned briefs */
-          <div className="mt-12 flex flex-col items-center justify-center text-center">
-            <div className="w-14 h-14 rounded-2xl bg-[var(--color-accent-muted)] flex items-center justify-center mb-4">
-              <Bookmark size={28} className="text-[var(--color-accent)]" />
+        {viewMode === 'bookmarks' && items.length === 0 ? (
+          pinnedBriefs.length === 0 ? (
+            /* Bookmarks empty state — no articles and no pinned briefs */
+            <div className="mt-12 flex flex-col items-center justify-center text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[var(--color-accent-muted)] flex items-center justify-center mb-4">
+                <Bookmark size={28} className="text-[var(--color-accent)]" />
+              </div>
+              <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">No saved articles yet</h2>
+              <p className="text-sm text-[var(--color-text-secondary)] max-w-sm">
+                Bookmark articles from the feed to save them here for later reading.
+              </p>
+              <button
+                onClick={() => setViewMode('feed')}
+                className="cursor-pointer mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
+              >
+                Browse Feed
+              </button>
             </div>
-            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">No saved articles yet</h2>
-            <p className="text-sm text-[var(--color-text-secondary)] max-w-sm">
-              Bookmark articles from the feed to save them here for later reading.
-            </p>
-            <button
-              onClick={() => setViewMode('feed')}
-              className="cursor-pointer mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors"
-            >
-              Browse Feed
-            </button>
-          </div>
+          ) : (
+            /* Has pinned briefs above but no bookmarked articles */
+            <div className="py-8 flex flex-col items-center text-center">
+              <p className="text-sm text-[var(--color-text-muted)]">No bookmarked articles yet</p>
+              <p className="text-xs text-[var(--color-text-muted)] opacity-60 mt-1">
+                Bookmark articles from the feed to save them here for later reading.
+              </p>
+            </div>
+          )
         ) : items.length === 0 && viewMode !== 'bookmarks' ? (
           <div className="mt-12">
             <EmptyFeatureState
@@ -813,6 +827,24 @@ export default function IntelFeedModern() {
           onStartProject={handleStartProject}
           onDiscuss={handleDiscuss}
           onToggleBookmark={toggleBookmark}
+        />
+      )}
+
+      {/* Saved Brief Modal */}
+      {savedBriefModal && (
+        <SavedBriefModal
+          brief={savedBriefModal}
+          onClose={() => setSavedBriefModal(null)}
+          onUnpin={async (id) => {
+            await handleUnpinBrief(id);
+            setSavedBriefModal(null);
+          }}
+          items={briefItems.length > 0 ? briefItems : items}
+          onOpenArticle={openReader}
+          chatMessages={briefChatMessages}
+          chatSending={briefChatSending}
+          onSendChat={sendBriefChatMessage}
+          onClearChat={clearBriefChat}
         />
       )}
     </div>

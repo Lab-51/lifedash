@@ -49,7 +49,7 @@ function relativeTime(dateStr: string): string {
 }
 
 /** Strip JSON blocks that the AI appends for parsing (categories, relevance). */
-function stripJsonBlocks(content: string): string {
+export function stripJsonBlocks(content: string): string {
   return content.replace(/```json[\s\S]*?```/g, '').trimEnd();
 }
 
@@ -82,7 +82,7 @@ const NAMED_ENTITIES: Record<string, string> = {
   raquo: '\u00BB',
 };
 
-function decodeHtmlEntities(text: string): string {
+export function decodeHtmlEntities(text: string): string {
   return text.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity: string) => {
     if (entity.startsWith('#x') || entity.startsWith('#X')) {
       const code = parseInt(entity.slice(2), 16);
@@ -97,7 +97,7 @@ function decodeHtmlEntities(text: string): string {
 }
 
 /** Parse inline formatting: [text](url) links, **bold** article mentions, and plain title mentions. */
-function parseInlineFormatting(
+export function parseInlineFormatting(
   text: string,
   titleMap: Map<string, IntelItem>,
   urlMap: Map<string, IntelItem>,
@@ -209,7 +209,7 @@ function parseInlineFormatting(
 }
 
 /** Find an item whose title matches the given text (fuzzy: contains or close match). */
-function findMatchingItem(text: string, titleMap: Map<string, IntelItem>): IntelItem | undefined {
+export function findMatchingItem(text: string, titleMap: Map<string, IntelItem>): IntelItem | undefined {
   const normalized = text.toLowerCase().trim();
   // Exact match first
   const exact = titleMap.get(normalized);
@@ -224,7 +224,7 @@ function findMatchingItem(text: string, titleMap: Map<string, IntelItem>): Intel
 }
 
 /** Turn article title mentions in plain text into clickable links. */
-function linkifyTitles(
+export function linkifyTitles(
   text: string,
   titleMap: Map<string, IntelItem>,
   onOpenArticle: (item: IntelItem) => void,
@@ -262,7 +262,7 @@ function linkifyTitles(
 }
 
 /** Render brief content as richly formatted elements with clickable article links. */
-function renderBriefContent(
+export function renderBriefContent(
   content: string,
   titleMap: Map<string, IntelItem>,
   urlMap: Map<string, IntelItem>,
