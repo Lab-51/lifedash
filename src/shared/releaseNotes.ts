@@ -28,6 +28,19 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.28',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Saved briefs now open in a slide-in panel — no more losing your place in the feed when reviewing a pinned brief',
+          'macOS support (beta) — native Apple Silicon build with Metal GPU acceleration, Homebrew tap install, and automatic update notifications',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.27',
     sections: [
       {
@@ -85,20 +98,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         category: 'fixes',
         label: 'Fixes',
         items: ['Fixed modals occasionally failing to open when clicked'],
-      },
-    ],
-  },
-  {
-    version: '2.2.23',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'RSS article titles and brief text now display cleanly without HTML codes',
-          'Improved accessibility: better heading structure, ARIA labels, and command palette usability',
-          'Fixed login loop where expired tokens could cause repeated failed refresh attempts',
-        ],
       },
     ],
   },
