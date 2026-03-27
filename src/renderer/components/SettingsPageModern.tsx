@@ -28,6 +28,7 @@ import {
   Activity,
   Cloud,
   Newspaper,
+  Linkedin,
 } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -516,9 +517,22 @@ export default function SettingsPageModern() {
                   <span className="text-[var(--color-text-primary)]">LIFE</span>
                   <span className="text-[var(--color-accent)] text-glow">DASH</span>
                 </h2>
-                <p className="text-[var(--color-text-secondary)] mb-8 max-w-md mx-auto">
+                <p className="text-[var(--color-text-secondary)] mb-4 max-w-md mx-auto">
                   AI-powered desktop dashboard for meeting intelligence, project management, brainstorming, and idea
                   capture.
+                </p>
+
+                <p className="text-sm text-[var(--color-text-secondary)] mb-8">
+                  Created by{' '}
+                  <a
+                    href="https://www.linkedin.com/in/daniel-rieger-marketing-technologist-ai-and-automation/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[var(--color-accent)] hover:text-[var(--color-accent-bright)] transition-colors"
+                  >
+                    <Linkedin size={14} />
+                    Daniel Rieger
+                  </a>
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
