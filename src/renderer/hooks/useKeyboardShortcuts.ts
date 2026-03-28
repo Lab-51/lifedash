@@ -26,11 +26,19 @@ function useKeyboardShortcuts(
   onToggleCommandPalette?: () => void,
   onToggleShortcutsHelp?: () => void,
   onToggleFocusMode?: () => void,
+  onQuickRecord?: () => void,
 ): void {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // Require Ctrl (Windows/Linux) or Cmd (macOS)
       if (!e.ctrlKey && !e.metaKey) return;
+
+      // Ctrl+Shift+R — quick record / stop recording
+      if (e.shiftKey && e.key === 'R' && onQuickRecord) {
+        e.preventDefault();
+        onQuickRecord();
+        return;
+      }
 
       // Ctrl+Shift+F — toggle focus mode
       if (e.shiftKey && e.key === 'F' && onToggleFocusMode) {
@@ -65,7 +73,7 @@ function useKeyboardShortcuts(
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [navigate, onToggleCommandPalette, onToggleShortcutsHelp, onToggleFocusMode]);
+  }, [navigate, onToggleCommandPalette, onToggleShortcutsHelp, onToggleFocusMode, onQuickRecord]);
 }
 
 export default useKeyboardShortcuts;

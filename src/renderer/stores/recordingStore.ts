@@ -159,6 +159,17 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       });
       if (meetingId) {
         useGamificationStore.getState().awardXP('meeting_complete', meetingId);
+        toast(
+          'Meeting processed',
+          'success',
+          {
+            label: 'View Results',
+            onClick: () => {
+              window.location.hash = '#/meetings';
+            },
+          },
+          5000,
+        );
       }
     } catch (error) {
       set({

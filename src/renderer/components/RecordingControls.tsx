@@ -16,14 +16,7 @@ import { onAudioLevel } from '../services/audioCaptureService';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
 import HudSelect from './HudSelect';
-
-/** Generate a default meeting title with the current date and time. */
-function suggestMeetingTitle(): string {
-  const now = new Date();
-  const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  return `Meeting - ${date}, ${time}`;
-}
+import { suggestMeetingTitle } from '../../shared/utils/meetingTitle';
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60)

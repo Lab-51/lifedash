@@ -19,6 +19,7 @@ import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { useTheme } from './hooks/useTheme';
 import { useFontScale } from './hooks/useFontScale';
+import { suggestMeetingTitle } from '../shared/utils/meetingTitle';
 
 import { useRecordingStore } from './stores/recordingStore';
 import { useProjectStore } from './stores/projectStore';
@@ -107,7 +108,17 @@ function AppShell({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  useKeyboardShortcuts(navigate, toggleCommandPalette, toggleShortcutsHelp, toggleFocusMode);
+  const handleQuickRecord = useCallback(() => {
+    const { isRecording, isProcessing, startRecording, stopRecording } = useRecordingStore.getState();
+    if (isProcessing) return; // Ignore shortcut while transcription runs
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording(suggestMeetingTitle());
+    }
+  }, []);
+
+  useKeyboardShortcuts(navigate, toggleCommandPalette, toggleShortcutsHelp, toggleFocusMode, handleQuickRecord);
   useTheme();
   useFontScale();
   // eslint-disable-next-line react-hooks/purity
