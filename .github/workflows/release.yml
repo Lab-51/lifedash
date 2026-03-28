@@ -24,6 +24,9 @@ jobs:
   # ---------------------------------------------------------------------------
   macos-build:
     name: Build macOS (arm64)
+    # Only run on the private repo — the public repo (lifedash) receives the
+    # same workflow file but should not trigger its own build.
+    if: github.repository == 'Lab-51/living-dashboard'
     runs-on: macos-latest
 
     steps:
