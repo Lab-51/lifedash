@@ -28,6 +28,26 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.30',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Quick record shortcut (Ctrl+Shift+R) — start or stop a recording instantly from anywhere in the app',
+          'Recording completion toast — when a meeting finishes processing, a notification appears with a "View Results" button so you never miss it',
+        ],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Keyboard shortcuts help modal now shows the correct page for every shortcut (Ctrl+2 through Ctrl+8 were wrong)',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.29',
     sections: [
       {
@@ -79,22 +99,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         category: 'fixes',
         label: 'Fixes',
         items: ['Saved badge now shows the correct total count (bookmarked articles + saved briefs)'],
-      },
-    ],
-  },
-  {
-    version: '2.2.25',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Smart article ranking — articles are now scored by AI automatically when fetched, so the best stories surface first',
-          'Personalized feed — add your interests in Settings → Intel Feed to boost articles that matter to you',
-          'Top/Recent sort toggle in the Intelligence Feed',
-          'Duplicate article detection — similar stories from different sources are now merged',
-          'Feature guides on every page — dismissible tips that explain how each feature works, with a "How does it work?" button to bring them back',
-        ],
       },
     ],
   },
