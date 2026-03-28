@@ -24,9 +24,6 @@ jobs:
   # ---------------------------------------------------------------------------
   macos-build:
     name: Build macOS (arm64)
-    # Only run on the private repo — the public repo (lifedash) receives the
-    # same workflow file but should not trigger its own build.
-    if: github.repository == 'Lab-51/living-dashboard'
     runs-on: macos-latest
 
     steps:
@@ -103,8 +100,8 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Publish — download macOS artifacts, attach to the existing release on the
-  # public repo (created by the local Windows workflow), and update Homebrew cask
+  # Publish — download macOS artifacts, attach to the release (created by the
+  # local Windows workflow via npm run publish), and update Homebrew cask
   # ---------------------------------------------------------------------------
   publish-macos:
     name: Publish macOS Assets
@@ -144,19 +141,18 @@ jobs:
           test -f "artifacts/LifeDash-${VERSION}-mac-arm64.zip"
           echo "All macOS artifacts present."
 
-      # Wait for the release to exist on the public repo.
+      # Wait for the release to exist on this repo.
       # The local Windows workflow creates it via npm run publish + gh api.
       # This step polls until the release appears (up to 30 minutes).
       - name: Wait for release to exist
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ github.ref_name }}"
-          REPO="Lab-51/lifedash"
-          echo "Waiting for release ${TAG} on ${REPO}..."
+          echo "Waiting for release ${TAG}..."
 
           for i in $(seq 1 60); do
-            if gh release view "${TAG}" --repo "${REPO}" > /dev/null 2>&1; then
+            if gh release view "${TAG}" > /dev/null 2>&1; then
               echo "Release ${TAG} found!"
               exit 0
             fi
@@ -166,31 +162,29 @@ jobs:
 
           echo "ERROR: Release ${TAG} not found after 30 minutes. Creating it now..."
           gh release create "${TAG}" \
-            --repo "${REPO}" \
             --title "LifeDash v${{ steps.version.outputs.version }}" \
             --generate-notes \
             --latest
 
-      # Upload macOS assets to the existing release
+      # Upload macOS assets to the release
       - name: Upload macOS assets to release
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           TAG="${{ github.ref_name }}"
-          REPO="Lab-51/lifedash"
 
-          echo "Uploading macOS assets to ${TAG} on ${REPO}..."
+          echo "Uploading macOS assets to ${TAG}..."
 
           gh release upload "${TAG}" \
-            --repo "${REPO}" \
             --clobber \
             "artifacts/LifeDash-${VERSION}-mac-arm64.dmg#macOS Apple Silicon Beta (.dmg)" \
             "artifacts/LifeDash-${VERSION}-mac-arm64.zip#macOS Apple Silicon Beta (.zip)"
 
-          echo "macOS assets uploaded: https://github.com/${REPO}/releases/tag/${TAG}"
+          echo "macOS assets uploaded: https://github.com/Lab-51/lifedash/releases/tag/${TAG}"
 
       # Update the Homebrew cask with the new version and DMG SHA256
+      # Uses RELEASE_TOKEN because this writes to a different repo (Lab-51/homebrew-lifedash)
       - name: Update Homebrew cask
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
