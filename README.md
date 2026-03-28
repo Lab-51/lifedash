@@ -18,7 +18,7 @@ Record, transcribe, and pull out action items. Nothing leaves your computer.
 
 <br />
 
-<video src="docs/lifedash-demo.mp4" width="900" autoplay loop muted playsinline></video>
+<video src="https://github.com/Lab-51/lifedash/raw/main/docs/lifedash-demo.mp4" width="900" autoplay loop muted playsinline></video>
 
 [Website](https://lifedash.space) · [Report Bug](https://github.com/Lab-51/lifedash/issues) · [Request Feature](https://github.com/Lab-51/lifedash/issues)
 
