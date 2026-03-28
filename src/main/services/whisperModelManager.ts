@@ -165,8 +165,9 @@ export async function createWhisperContext(modelPath: string): Promise<{
       const backend = process.arch === 'arm64' ? 'metal' : 'cpu';
       lastBackend = backend;
       return { context, backend };
-    } catch {
+    } catch (err) {
       // Metal/GPU init failed — fall back to CPU without useGpu
+      console.warn('[whisper] Metal GPU init failed, falling back to CPU:', (err as Error).message ?? err);
       const context = await initWhisper({ filePath: modelPath });
       lastBackend = 'cpu';
       return { context, backend: 'cpu' };
@@ -179,13 +180,15 @@ export async function createWhisperContext(modelPath: string): Promise<{
     try {
       const context = await initWhisper({ filePath: modelPath, useGpu: true }, variant);
       lastBackend = variant;
+      console.info(`[whisper] GPU backend initialized: ${variant}`);
       return { context, backend: variant };
-    } catch {
-      // Variant not available or GPU init failed — try next
+    } catch (err) {
+      console.warn(`[whisper] ${variant} GPU init failed:`, (err as Error).message ?? err);
     }
   }
 
   // Fallback to CPU (default variant)
+  console.warn('[whisper] All GPU variants failed — falling back to CPU');
   const context = await initWhisper({ filePath: modelPath });
   lastBackend = 'cpu';
   return { context, backend: 'cpu' };

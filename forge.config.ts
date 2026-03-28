@@ -29,9 +29,11 @@ const EXTERNAL_PACKAGES = [
   '@electric-sql/pglite',
   '@fugood/whisper.node',
   // Platform-specific whisper binaries — only the current platform's
-  // package exists in node_modules (installed as optionalDependency).
+  // packages exist in node_modules (installed as optionalDependencies).
   // The copy loop below skips missing packages gracefully.
   '@fugood/node-whisper-win32-x64',
+  '@fugood/node-whisper-win32-x64-cuda',
+  '@fugood/node-whisper-win32-x64-vulkan',
   '@fugood/node-whisper-darwin-x64',
   '@fugood/node-whisper-darwin-arm64',
 ];
@@ -39,10 +41,9 @@ const EXTERNAL_PACKAGES = [
 const config: ForgeConfig = {
   packagerConfig: {
     icon: './src/assets/icon',
-    asar: true,
-    // Extract PGlite from the asar so its WASM binary loads as a real file
-    // @ts-ignore
-    asarUnpack: ['**/node_modules/@electric-sql/pglite/**'],
+    asar: {
+      unpack: '{**/node_modules/@electric-sql/pglite/**,**/node_modules/@fugood/**}',
+    },
     extraResource: ['./drizzle', './src/assets/icon.png'],
     // macOS code signing — only active when APPLE_IDENTITY env var is set.
     // Requires Apple Developer account ($99/year) and valid signing certificate.
