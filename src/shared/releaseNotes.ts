@@ -28,6 +28,18 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.29',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'GPU transcription now works in the packaged app — native Vulkan/CUDA addons were missing from the build, causing silent CPU fallback',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.28',
     sections: [
       {
@@ -83,21 +95,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Duplicate article detection — similar stories from different sources are now merged',
           'Feature guides on every page — dismissible tips that explain how each feature works, with a "How does it work?" button to bring them back',
         ],
-      },
-    ],
-  },
-  {
-    version: '2.2.24',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: ['Faster recording stop — audio now streams to disk during recording instead of saving all at once'],
-      },
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: ['Fixed modals occasionally failing to open when clicked'],
       },
     ],
   },
