@@ -10,6 +10,7 @@ export interface Project {
   archived: boolean;
   pinned: boolean;
   hourlyRate: number | null;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -75,6 +76,7 @@ export interface UpdateProjectInput {
   archived?: boolean;
   pinned?: boolean;
   hourlyRate?: number | null;
+  sortOrder?: number;
 }
 
 export interface CreateBoardInput {

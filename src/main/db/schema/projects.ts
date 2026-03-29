@@ -2,7 +2,7 @@
 // Schema definition for the projects table.
 // Projects are the top-level organizational unit in the dashboard.
 
-import { pgTable, uuid, varchar, text, boolean, real, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, real, integer, timestamp } from 'drizzle-orm/pg-core';
 
 export const projects = pgTable('projects', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -12,6 +12,7 @@ export const projects = pgTable('projects', {
   archived: boolean('archived').default(false).notNull(),
   pinned: boolean('pinned').default(false).notNull(),
   hourlyRate: real('hourly_rate'),
+  sortOrder: integer('sort_order').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

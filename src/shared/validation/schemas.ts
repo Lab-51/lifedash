@@ -73,7 +73,15 @@ export const updateProjectInputSchema = z.object({
   archived: z.boolean().optional(),
   pinned: z.boolean().optional(),
   hourlyRate: z.number().nullable().optional(),
+  sortOrder: z.number().int().optional(),
 });
+
+export const projectReorderSchema = z.array(
+  z.object({
+    id: uuid,
+    sortOrder: z.number().int().min(0),
+  }),
+);
 
 // ============================================================================
 // Boards

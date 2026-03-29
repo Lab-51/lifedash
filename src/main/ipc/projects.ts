@@ -10,7 +10,7 @@
 // - Column reorder does sequential updates (not batched).
 
 import { ipcMain } from 'electron';
-import { eq, asc, desc } from 'drizzle-orm';
+import { eq, asc, desc, sql } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { projects, boards, columns, cards } from '../db/schema';
 import { validateInput } from '../../shared/validation/ipc-validator';
@@ -23,6 +23,7 @@ import {
   updateColumnInputSchema,
   idParamSchema,
   columnReorderSchema,
+  projectReorderSchema,
 } from '../../shared/validation/schemas';
 
 export function registerProjectHandlers(): void {
@@ -30,12 +31,16 @@ export function registerProjectHandlers(): void {
 
   ipcMain.handle('projects:list', async () => {
     const db = getDb();
-    return db.select().from(projects).orderBy(desc(projects.pinned), asc(projects.createdAt));
+    return db.select().from(projects).orderBy(desc(projects.pinned), asc(projects.sortOrder), asc(projects.createdAt));
   });
 
   ipcMain.handle('projects:create', async (_event, data: unknown) => {
     const input = validateInput(createProjectInputSchema, data);
     const db = getDb();
+    // Place new projects at the end of the list
+    const [{ maxOrder }] = await db
+      .select({ maxOrder: sql<number>`coalesce(max(${projects.sortOrder}), -1)` })
+      .from(projects);
     const [project] = await db
       .insert(projects)
       .values({
@@ -43,6 +48,7 @@ export function registerProjectHandlers(): void {
         description: input.description ?? null,
         color: input.color ?? null,
         hourlyRate: input.hourlyRate ?? null,
+        sortOrder: maxOrder + 1,
       })
       .returning();
     return project;
@@ -152,6 +158,19 @@ export function registerProjectHandlers(): void {
     }
 
     return newProject;
+  });
+
+  ipcMain.handle('projects:reorder', async (_event, items: unknown) => {
+    const validItems = validateInput(projectReorderSchema, items);
+    const db = getDb();
+    await db.transaction(async (tx) => {
+      for (const item of validItems) {
+        await tx
+          .update(projects)
+          .set({ sortOrder: item.sortOrder, updatedAt: new Date() })
+          .where(eq(projects.id, item.id));
+      }
+    });
   });
 
   // --- Boards ---

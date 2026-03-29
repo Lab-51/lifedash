@@ -314,6 +314,7 @@ const CAMEL_TO_SNAKE: Record<string, string> = {
   isBookmarked: 'is_bookmarked',
   relevanceScore: 'relevance_score',
   fullContent: 'full_content',
+  alternateUrls: 'alternate_urls',
   articleCount: 'article_count',
   generatedAt: 'generated_at',
   isPinned: 'is_pinned',

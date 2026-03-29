@@ -2,7 +2,7 @@
 // Projects page — Modern Design
 // Displays the project list with CRUD operations, using the new enterprise design system.
 
-import { useEffect, useState, useMemo, lazy, Suspense } from 'react';
+import { useEffect, useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FolderKanban,
@@ -11,13 +11,14 @@ import {
   Sparkles,
   Pencil,
   Trash2,
-  LayoutList,
+  LayoutGrid,
+  List,
   Copy,
-  Star,
   MoreVertical,
   Search,
-  DollarSign,
 } from 'lucide-react';
+import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import { useProjectStore } from '../stores/projectStore';
 import { useBoardStore } from '../stores/boardStore';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -26,6 +27,7 @@ import type { CreateProjectInput } from '../../shared/types';
 import { toast } from '../hooks/useToast';
 import HudBackground from './HudBackground';
 import FeatureTip from './FeatureTip';
+import { ProjectGridItem, ProjectListItem } from './ProjectItem';
 
 const PRESET_COLORS = [
   '#6366f1', // Indigo
@@ -60,6 +62,14 @@ export default function ProjectsModern() {
   const [planningProjectId, setPlanningProjectId] = useState<string | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(
+    () => (localStorage.getItem('projects-view-mode') as 'grid' | 'list') || 'grid',
+  );
+
+  const handleViewModeChange = (mode: 'grid' | 'list') => {
+    setViewMode(mode);
+    localStorage.setItem('projects-view-mode', mode);
+  };
 
   const [formData, setFormData] = useState<CreateProjectInput>({
     name: '',
@@ -85,6 +95,8 @@ export default function ProjectsModern() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [loadProjects]);
 
+  const reorderProjects = useProjectStore((s) => s.reorderProjects);
+
   const filteredProjects = useMemo(() => {
     let result = showArchived ? projects : projects.filter((p) => !p.archived);
 
@@ -95,10 +107,10 @@ export default function ProjectsModern() {
       );
     }
 
-    // Sort pinned first
+    // Sort: pinned first, then by sortOrder within each group
     return result.sort((a, b) => {
-      if (a.pinned === b.pinned) return 0;
-      return a.pinned ? -1 : 1;
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
     });
   }, [projects, showArchived, searchQuery]);
 
@@ -111,6 +123,61 @@ export default function ProjectsModern() {
     }
     return map;
   }, [allCards]);
+
+  // Drag-and-drop monitor for project reordering
+  useEffect(() => {
+    return monitorForElements({
+      canMonitor: ({ source }) => source.data.type === 'project',
+      onDrop: ({ source, location }) => {
+        const destination = location.current.dropTargets[0];
+        if (!destination) return;
+
+        const sourceId = source.data.projectId as string;
+        const destId = destination.data.projectId as string;
+        if (sourceId === destId) return;
+
+        const closestEdge = extractClosestEdge(destination.data);
+
+        // Work with the current filtered+sorted list
+        const sourceIndex = filteredProjects.findIndex((p) => p.id === sourceId);
+        const destIndex = filteredProjects.findIndex((p) => p.id === destId);
+        if (sourceIndex === -1 || destIndex === -1) return;
+
+        // Calculate insert position based on edge
+        let insertIndex = destIndex;
+        if (viewMode === 'grid') {
+          if (closestEdge === 'right') insertIndex = destIndex + 1;
+        } else {
+          if (closestEdge === 'bottom') insertIndex = destIndex + 1;
+        }
+        if (sourceIndex < insertIndex) insertIndex--;
+        if (sourceIndex === insertIndex) return;
+
+        // Reorder: move source to insertIndex
+        const reordered = [...filteredProjects];
+        const [moved] = reordered.splice(sourceIndex, 1);
+        reordered.splice(insertIndex, 0, moved);
+
+        // Assign sequential sortOrder values within each pinned group
+        // so that pinned items have their own sequence and unpinned items have theirs
+        const pinned = reordered.filter((p) => p.pinned);
+        const unpinned = reordered.filter((p) => !p.pinned);
+        const updates = [
+          ...pinned.map((p, i) => ({ id: p.id, sortOrder: i })),
+          ...unpinned.map((p, i) => ({ id: p.id, sortOrder: i })),
+        ];
+
+        reorderProjects(updates);
+      },
+    });
+  }, [filteredProjects, reorderProjects, viewMode]);
+
+  const handlePinToggle = useCallback(
+    (id: string, pinned: boolean) => {
+      updateProject(id, { pinned });
+    },
+    [updateProject],
+  );
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,6 +273,63 @@ export default function ProjectsModern() {
     });
   };
 
+  /** Shared dropdown menu for both grid and list views */
+  const renderDropdown = (project: (typeof projects)[0]) => {
+    if (activeMenuId !== project.id) return null;
+    return (
+      <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-900 border border-[var(--color-border)] rounded-xl shadow-xl py-1 z-20 animate-in fade-in zoom-in-95 duration-100">
+        <button
+          onClick={(e) => handleStartRename(e, project)}
+          className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] flex items-center gap-2"
+        >
+          <Pencil size={14} /> Rename
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setPlanningProjectId(project.id);
+            setActiveMenuId(null);
+          }}
+          className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] flex items-center gap-2"
+        >
+          <Sparkles size={14} /> Plan with AI
+        </button>
+        <button
+          onClick={(e) => handleDuplicate(e, project.id)}
+          className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] flex items-center gap-2"
+        >
+          <Copy size={14} /> Duplicate
+        </button>
+        <div className="h-px bg-surface-100 dark:bg-surface-700 my-1" />
+        <button
+          onClick={(e) => (project.archived ? handleUnarchive(e, project.id) : handleArchive(e, project.id))}
+          className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] flex items-center gap-2"
+        >
+          <Archive size={14} /> {project.archived ? 'Unarchive' : 'Archive'}
+        </button>
+        <button
+          onClick={(e) => handleDelete(e, project.id, project.name)}
+          className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2"
+        >
+          <Trash2 size={14} /> Delete
+        </button>
+      </div>
+    );
+  };
+
+  /** Shared more-menu trigger button */
+  const renderMoreButton = (project: (typeof projects)[0]) => (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        setActiveMenuId(activeMenuId === project.id ? null : project.id);
+      }}
+      className="p-1.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg transition-colors"
+    >
+      <MoreVertical size={18} />
+    </button>
+  );
+
   if (loading && projects.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -267,6 +391,20 @@ export default function ProjectsModern() {
           </div>
 
           <div className="flex items-center gap-2 border-l border-surface-200 dark:border-surface-800 pl-3 ml-1">
+            <button
+              onClick={() => handleViewModeChange('grid')}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400' : 'text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800'}`}
+              title="Grid view"
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              onClick={() => handleViewModeChange('list')}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400' : 'text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800'}`}
+              title="List view"
+            >
+              <List size={16} />
+            </button>
             <button
               onClick={() => setShowArchived(!showArchived)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showArchived ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400' : 'text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800'}`}
@@ -411,153 +549,58 @@ export default function ProjectsModern() {
               </button>
             )}
           </div>
-        ) : (
+        ) : viewMode === 'grid' ? (
+          /* ===== GRID VIEW ===== */
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredProjects.map((project) => (
-              <div
+            {filteredProjects.map((project, index) => (
+              <ProjectGridItem
                 key={project.id}
-                onClick={() => navigate(`/projects/${project.id}`)}
-                className={`group relative flex flex-col hud-panel-accent clip-corner-cut-sm p-5 hover:shadow-[0_0_20px_var(--color-chrome-glow)] hover:border-[var(--color-accent-dim)] transition-all cursor-pointer ${project.archived ? 'opacity-60 grayscale' : ''}`}
-              >
-                {/* More Menu (Absolute) */}
-                <div className="absolute top-4 right-4 z-10">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveMenuId(activeMenuId === project.id ? null : project.id);
-                    }}
-                    className="p-1.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg transition-colors"
-                  >
-                    <MoreVertical size={18} />
-                  </button>
-                  {/* Dropdown */}
-                  {activeMenuId === project.id && (
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-surface-900 border border-[var(--color-border)] rounded-xl shadow-xl py-1 z-20 animate-in fade-in zoom-in-95 duration-100">
-                      <button
-                        onClick={(e) => handleStartRename(e, project)}
-                        className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] flex items-center gap-2"
-                      >
-                        <Pencil size={14} /> Rename
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPlanningProjectId(project.id);
-                          setActiveMenuId(null);
-                        }}
-                        className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] flex items-center gap-2"
-                      >
-                        <Sparkles size={14} /> Plan with AI
-                      </button>
-                      <button
-                        onClick={(e) => handleDuplicate(e, project.id)}
-                        className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] flex items-center gap-2"
-                      >
-                        <Copy size={14} /> Duplicate
-                      </button>
-                      <div className="h-px bg-surface-100 dark:bg-surface-700 my-1" />
-                      <button
-                        onClick={(e) =>
-                          project.archived ? handleUnarchive(e, project.id) : handleArchive(e, project.id)
-                        }
-                        className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] flex items-center gap-2"
-                      >
-                        <Archive size={14} /> {project.archived ? 'Unarchive' : 'Archive'}
-                      </button>
-                      <button
-                        onClick={(e) => handleDelete(e, project.id, project.name)}
-                        className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2"
-                      >
-                        <Trash2 size={14} /> Delete
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-start justify-between mb-4">
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-xl font-bold shadow-md"
-                    style={{ backgroundColor: project.color || '#3b82f6' }}
-                  >
-                    {project.name.charAt(0).toUpperCase()}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateProject(project.id, { pinned: !project.pinned });
-                    }}
-                    className={`mr-10 ${project.pinned ? 'text-amber-400' : 'text-surface-300 dark:text-surface-500 hover:text-amber-400'} transition-colors`}
-                  >
-                    <Star size={18} fill={project.pinned ? 'currentColor' : 'none'} />
-                  </button>
-                </div>
-
-                <div className="mb-4">
-                  {editingProjectId === project.id ? (
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onBlur={() => handleSaveRename(project.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveRename(project.id);
-                        if (e.key === 'Escape') setEditingProjectId(null);
-                      }}
-                      autoFocus
-                      className="w-full text-lg font-bold bg-surface-50 dark:bg-surface-800 border-none rounded px-2 -ml-2 outline-none focus:ring-1 focus:ring-primary-500"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <h3 className="text-lg font-bold text-surface-900 dark:text-surface-100 truncate pr-8">
-                      {project.name}
-                    </h3>
-                  )}
-                  {editingDescId === project.id ? (
-                    <textarea
-                      value={editDesc}
-                      onChange={(e) => setEditDesc(e.target.value)}
-                      onBlur={() => handleSaveDescription(project.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSaveDescription(project.id);
-                        }
-                        if (e.key === 'Escape') setEditingDescId(null);
-                      }}
-                      autoFocus
-                      rows={2}
-                      placeholder="Add a description..."
-                      className="w-full text-sm mt-1 bg-surface-50 dark:bg-surface-800 border-none rounded px-2 py-1 -ml-2 outline-none focus:ring-1 focus:ring-primary-500 resize-none text-surface-700 dark:text-surface-300 placeholder-surface-400"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <p
-                      className="text-sm text-surface-500 mt-1 line-clamp-2 h-10 cursor-text hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingDescId(project.id);
-                        setEditDesc(project.description || '');
-                      }}
-                    >
-                      {project.description || <span className="italic opacity-50">Add description...</span>}
-                    </p>
-                  )}
-                </div>
-
-                <div className="mt-auto pt-4 border-t border-[var(--color-border)] flex items-center justify-between text-xs font-data text-[var(--color-text-secondary)]">
-                  <div className="flex items-center gap-1.5 bg-[var(--color-accent-subtle)] px-2 py-1 rounded-md">
-                    <LayoutList size={14} />
-                    <span className="font-[var(--font-display)]">{cardCountByProject[project.id] || 0}</span> Tasks
-                  </div>
-                  {project.hourlyRate != null && (
-                    <span className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md text-xs font-medium">
-                      <DollarSign size={12} />
-                      {project.hourlyRate}/hr
-                    </span>
-                  )}
-                  <span>Updated {formatDate(project.updatedAt)}</span>
-                </div>
-              </div>
+                project={project}
+                index={index}
+                projects={filteredProjects}
+                cardCount={cardCountByProject[project.id] || 0}
+                editingProjectId={editingProjectId}
+                editName={editName}
+                setEditName={setEditName}
+                editingDescId={editingDescId}
+                editDesc={editDesc}
+                setEditDesc={setEditDesc}
+                onSaveRename={handleSaveRename}
+                onSaveDescription={handleSaveDescription}
+                setEditingProjectId={setEditingProjectId}
+                setEditingDescId={setEditingDescId}
+                onPinToggle={handlePinToggle}
+                renderMoreButton={renderMoreButton}
+                renderDropdown={renderDropdown}
+                formatDate={formatDate}
+              />
+            ))}
+          </div>
+        ) : (
+          /* ===== LIST VIEW ===== */
+          <div className="flex flex-col gap-2">
+            {filteredProjects.map((project, index) => (
+              <ProjectListItem
+                key={project.id}
+                project={project}
+                index={index}
+                projects={filteredProjects}
+                cardCount={cardCountByProject[project.id] || 0}
+                editingProjectId={editingProjectId}
+                editName={editName}
+                setEditName={setEditName}
+                editingDescId={editingDescId}
+                editDesc={editDesc}
+                setEditDesc={setEditDesc}
+                onSaveRename={handleSaveRename}
+                onSaveDescription={handleSaveDescription}
+                setEditingProjectId={setEditingProjectId}
+                setEditingDescId={setEditingDescId}
+                onPinToggle={handlePinToggle}
+                renderMoreButton={renderMoreButton}
+                renderDropdown={renderDropdown}
+                formatDate={formatDate}
+              />
             ))}
           </div>
         )}

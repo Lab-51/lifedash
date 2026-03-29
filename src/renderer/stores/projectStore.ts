@@ -24,6 +24,7 @@ interface ProjectStore {
   removeProjectFromUI: (id: string) => void;
   restoreProjectToUI: (project: Project) => void;
   duplicateProject: (id: string) => Promise<Project>;
+  reorderProjects: (items: { id: string; sortOrder: number }[]) => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -80,5 +81,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const project = await window.electronAPI.duplicateProject(id);
     set({ projects: [...get().projects, project] });
     return project;
+  },
+
+  reorderProjects: async (items) => {
+    // Optimistic update: apply new sortOrder values locally
+    const orderMap = new Map(items.map((item) => [item.id, item.sortOrder]));
+    set({
+      projects: get().projects.map((p) => (orderMap.has(p.id) ? { ...p, sortOrder: orderMap.get(p.id)! } : p)),
+    });
+    try {
+      await window.electronAPI.reorderProjects(items);
+    } catch {
+      // Rollback on failure — reload from DB
+      await get().loadProjects();
+    }
   },
 }));

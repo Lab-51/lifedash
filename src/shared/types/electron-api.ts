@@ -122,6 +122,7 @@ export interface ElectronAPI {
   updateProject: (id: string, data: UpdateProjectInput) => Promise<Project>;
   deleteProject: (id: string) => Promise<void>;
   duplicateProject: (id: string) => Promise<Project>;
+  reorderProjects: (items: { id: string; sortOrder: number }[]) => Promise<void>;
 
   // Boards
   getBoards: (projectId: string) => Promise<Board[]>;
