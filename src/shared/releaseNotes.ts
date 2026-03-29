@@ -28,6 +28,19 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.31',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Grid/list view toggle on the Projects page — switch between card grid and compact list view, preference is remembered',
+          'Drag-and-drop project reordering — arrange projects in any order you want by dragging them (works in both grid and list views)',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.30',
     sections: [
       {
@@ -84,21 +97,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Speed presets for local Whisper (Fast / Balanced / Accurate) — choose your speed vs. accuracy trade-off in Settings',
           'GPU vs CPU indicator in Settings — see whether Whisper is using GPU acceleration',
         ],
-      },
-    ],
-  },
-  {
-    version: '2.2.26',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: ['Creator credit with LinkedIn link in Settings → About'],
-      },
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: ['Saved badge now shows the correct total count (bookmarked articles + saved briefs)'],
       },
     ],
   },
