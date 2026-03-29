@@ -28,6 +28,19 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.32',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'UI sound effects — subtle click and hover sounds on buttons and navigation for a more tactile experience',
+          'Sound toggle in the title bar — quickly mute or unmute UI sounds with one click',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.31',
     sections: [
       {
@@ -81,21 +94,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Saved briefs now open in a slide-in panel — no more losing your place in the feed when reviewing a pinned brief',
           'macOS support (beta) — native Apple Silicon build with Metal GPU acceleration, Homebrew tap install, and automatic update notifications',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.27',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Real-time progress bar when processing recordings — see exactly which segment is being transcribed and how far along it is',
-          'Parallel transcription — two audio segments now process at the same time, cutting wait times roughly in half',
-          'Speed presets for local Whisper (Fast / Balanced / Accurate) — choose your speed vs. accuracy trade-off in Settings',
-          'GPU vs CPU indicator in Settings — see whether Whisper is using GPU acceleration',
         ],
       },
     ],
