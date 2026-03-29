@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useTheme } from '../hooks/useTheme';
+import { useSoundEffect } from '../hooks/useSoundEffect';
 import { useFocusStore } from '../stores/focusStore';
 import { useBackgroundAgentStore } from '../stores/backgroundAgentStore';
 
@@ -69,6 +70,7 @@ const THEME_LABELS: Record<ThemeMode, string> = {
 export default function SidebarModern() {
   const location = useLocation();
   const { themeMode, setTheme } = useTheme();
+  const { playHover } = useSoundEffect();
   const focusMode = useFocusStore((s) => s.mode);
   const newInsightsCount = useBackgroundAgentStore((s) => s.newInsightsCount);
   const refreshNewCount = useBackgroundAgentStore((s) => s.refreshNewCount);
@@ -103,6 +105,7 @@ export default function SidebarModern() {
               to={path}
               title={SHORTCUT_KEYS[path] ? `${label} (${SHORTCUT_KEYS[path]})` : label}
               {...(tourId ? { 'data-tour-id': tourId } : {})}
+              onMouseEnter={() => playHover()}
               className={`group relative w-full h-12 flex items-center justify-center rounded-xl transition-all duration-200 ${
                 isActive
                   ? 'hud-nav-active'
@@ -140,6 +143,7 @@ export default function SidebarModern() {
               useFocusStore.getState().stop();
             }
           }}
+          onMouseEnter={() => playHover()}
           title={focusMode === 'idle' ? 'Focus Mode (Ctrl+Shift+F)' : 'Stop Focus Session'}
           className="w-12 h-12 rounded-xl flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-all hover:scale-105 active:scale-95"
         >
@@ -149,6 +153,7 @@ export default function SidebarModern() {
         {/* Theme Toggle */}
         <button
           onClick={cycleTheme}
+          onMouseEnter={() => playHover()}
           title={THEME_LABELS[themeMode]}
           className="w-12 h-12 rounded-xl flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-all hover:scale-105 active:scale-95"
         >

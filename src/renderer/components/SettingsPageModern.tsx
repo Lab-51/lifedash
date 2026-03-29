@@ -43,6 +43,7 @@ import type { TaskModelConfigHandle } from '../components/TaskModelConfig';
 import ThemeSelector from '../components/ThemeSelector';
 import FontScaleSelector from '../components/FontScaleSelector';
 
+import { useSoundEffect } from '../hooks/useSoundEffect';
 import UsageSummary from '../components/UsageSummary';
 import BackupSection from '../components/settings/BackupSection';
 import ExportSection from '../components/settings/ExportSection';
@@ -62,6 +63,7 @@ import MacUpdateModal from './MacUpdateModal';
 const IS_MAC = window.electronAPI.platform === 'darwin';
 
 export default function SettingsPageModern() {
+  const { playHover } = useSoundEffect();
   const providers = useSettingsStore((s) => s.providers);
   const loading = useSettingsStore((s) => s.loading);
   const error = useSettingsStore((s) => s.error);
@@ -178,6 +180,7 @@ export default function SettingsPageModern() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              onMouseEnter={() => playHover()}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all ${
                 activeTab === tab.id
                   ? 'hud-nav-active rounded-lg'

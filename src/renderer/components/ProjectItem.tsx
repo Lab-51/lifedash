@@ -5,6 +5,7 @@
 import { useRef, useState, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Star, LayoutList, DollarSign, GripVertical } from 'lucide-react';
+import { useSoundEffect } from '../hooks/useSoundEffect';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -79,6 +80,7 @@ export const ProjectGridItem = memo(function ProjectGridItem({
   formatDate,
 }: ProjectItemProps) {
   const navigate = useNavigate();
+  const { playHover } = useSoundEffect();
   const ref = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
@@ -126,6 +128,7 @@ export const ProjectGridItem = memo(function ProjectGridItem({
     <div
       ref={ref}
       onClick={() => navigate(`/projects/${project.id}`)}
+      onMouseEnter={() => playHover()}
       className={`group relative flex flex-col hud-panel-accent clip-corner-cut-sm p-5 hover:shadow-[0_0_20px_var(--color-chrome-glow)] hover:border-[var(--color-accent-dim)] transition-all cursor-pointer ${
         project.archived ? 'opacity-60 grayscale' : ''
       } ${isDragging ? 'opacity-50 scale-95' : ''}`}
@@ -253,6 +256,7 @@ export const ProjectListItem = memo(function ProjectListItem({
   formatDate,
 }: ProjectItemProps) {
   const navigate = useNavigate();
+  const { playHover } = useSoundEffect();
   const ref = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
@@ -299,6 +303,7 @@ export const ProjectListItem = memo(function ProjectListItem({
     <div
       ref={ref}
       onClick={() => navigate(`/projects/${project.id}`)}
+      onMouseEnter={() => playHover()}
       className={`group relative flex items-center gap-4 hud-panel-accent px-4 py-3 hover:shadow-[0_0_20px_var(--color-chrome-glow)] hover:border-[var(--color-accent-dim)] transition-all cursor-pointer ${
         project.archived ? 'opacity-60 grayscale' : ''
       } ${isDragging ? 'opacity-50' : ''}`}

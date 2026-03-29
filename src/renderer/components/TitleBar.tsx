@@ -17,10 +17,13 @@ import {
   Cloud,
   CloudOff,
   AlertCircle,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import dashIcon from '../assets/icon.svg';
 import useSyncStatus, { formatRelativeTime } from '../hooks/useSyncStatus';
+import { useSettingsStore } from '../stores/settingsStore';
 import MacUpdateModal from './MacUpdateModal';
 
 type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'ready' | 'error';
@@ -35,6 +38,8 @@ function TitleBar() {
   const [showMacUpdateModal, setShowMacUpdateModal] = useState(false);
   const navigate = useNavigate();
   const sync = useSyncStatus();
+  const soundEnabled = (useSettingsStore((s) => s.settings)['app.uiSounds'] ?? 'true') === 'true';
+  const setSetting = useSettingsStore((s) => s.setSetting);
 
   useEffect(() => {
     window.electronAPI.windowIsMaximized().then(setIsMaximized);
@@ -161,6 +166,20 @@ function TitleBar() {
 
             {/* Separator: sync status | window controls */}
             <div className="w-px h-4 self-center bg-[var(--color-border)]" />
+
+            {/* UI Sounds toggle */}
+            <button
+              type="button"
+              onClick={() => setSetting('app.uiSounds', soundEnabled ? 'false' : 'true')}
+              className={`w-10 h-full inline-flex items-center justify-center transition-colors ${
+                soundEnabled
+                  ? 'text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]'
+              }`}
+              title={soundEnabled ? 'Mute UI sounds' : 'Unmute UI sounds'}
+            >
+              {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
+            </button>
 
             {/* Pin on top */}
             <button

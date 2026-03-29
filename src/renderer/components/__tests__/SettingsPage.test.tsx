@@ -93,6 +93,11 @@ const matchMediaMock = vi.fn().mockImplementation((query: string) => ({
 vi.stubGlobal('electronAPI', electronAPIProxy);
 vi.stubGlobal('matchMedia', matchMediaMock);
 
+// Mock useSoundEffect — AudioContext is not available in jsdom
+vi.mock('../../hooks/useSoundEffect', () => ({
+  useSoundEffect: () => ({ playClick: vi.fn(), playHover: vi.fn() }),
+}));
+
 // ---------------------------------------------------------------------------
 // Import stores and component after mocking
 // ---------------------------------------------------------------------------
