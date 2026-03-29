@@ -53,6 +53,7 @@ temp/
 # Internal planning (private — not for public repo)
 .nexus/
 .planning/
+.internal/
 STATE.md
 PLAN.md
 SUMMARY.md
@@ -70,6 +71,14 @@ PLAN-WEBSITE*.md
 animation-ad1.md
 APP-DESCRIPTION.md
 lemon-squeezy-reply.txt
+release-commands.txt
+
+# Temp/utility files
+prettier_err.txt
+tsc_out*.txt
+parse*.js
+.test-previous/
+.qoder/
 
 # Code signing certificates
 certs/

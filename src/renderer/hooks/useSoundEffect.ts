@@ -5,8 +5,8 @@
 
 import { useCallback } from 'react';
 import { useSettingsStore } from '../stores/settingsStore';
-import clickSoundUrl from '../assets/sounds/click-sound.wav';
-import hoverSoundUrl from '../assets/sounds/hover-sound.wav';
+import clickSoundUrl from '../assets/sounds/click-sound.ogg';
+import hoverSoundUrl from '../assets/sounds/hover-sound.ogg';
 
 // ---------------------------------------------------------------------------
 // SoundManager — module-level singleton
