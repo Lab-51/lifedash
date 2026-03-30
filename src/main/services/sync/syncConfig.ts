@@ -291,6 +291,7 @@ const CAMEL_TO_SNAKE: Record<string, string> = {
   prepBriefing: 'prep_briefing',
   dueDate: 'due_date',
   hourlyRate: 'hourly_rate',
+  sortOrder: 'sort_order',
   recurrenceType: 'recurrence_type',
   recurrenceEndDate: 'recurrence_end_date',
   sourceRecurringId: 'source_recurring_id',
