@@ -28,6 +28,18 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.33',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Fixed cloud sync failing for projects — sort order column was missing from the sync mapping, causing upsert errors',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.32',
     sections: [
       {
@@ -81,19 +93,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         label: 'Fixes',
         items: [
           'GPU transcription now works in the packaged app — native Vulkan/CUDA addons were missing from the build, causing silent CPU fallback',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.28',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Saved briefs now open in a slide-in panel — no more losing your place in the feed when reviewing a pinned brief',
-          'macOS support (beta) — native Apple Silicon build with Metal GPU acceleration, Homebrew tap install, and automatic update notifications',
         ],
       },
     ],
