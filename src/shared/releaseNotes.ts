@@ -28,6 +28,19 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.34',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Czech and French transcription language support — select Czech or French explicitly in the language picker for more accurate transcription',
+          'Language-aware AI summaries — meeting briefs and action items are now generated in the language of the recording',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.33',
     sections: [
       {
@@ -81,18 +94,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         label: 'Fixes',
         items: [
           'Keyboard shortcuts help modal now shows the correct page for every shortcut (Ctrl+2 through Ctrl+8 were wrong)',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.29',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'GPU transcription now works in the packaged app — native Vulkan/CUDA addons were missing from the build, causing silent CPU fallback',
         ],
       },
     ],
