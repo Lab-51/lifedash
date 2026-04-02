@@ -2,11 +2,13 @@
 
 export type TranscriptionProviderType = 'local' | 'deepgram' | 'assemblyai';
 
-export type TranscriptionLanguage = 'en' | 'auto';
+export type TranscriptionLanguage = 'en' | 'cs' | 'fr' | 'auto';
 
 export const TRANSCRIPTION_LANGUAGES: { code: TranscriptionLanguage; label: string }[] = [
   { code: 'en', label: 'English' },
-  { code: 'auto', label: 'Multilingual (99 languages, auto-detect)' },
+  { code: 'cs', label: 'Czech' },
+  { code: 'fr', label: 'French' },
+  { code: 'auto', label: 'Multilingual (auto-detect)' },
 ];
 
 export interface TranscriptionProviderConfig {

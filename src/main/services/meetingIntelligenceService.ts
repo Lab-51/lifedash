@@ -81,6 +81,16 @@ function getActionExtractionPrompt(template: MeetingTemplateType): string {
   return BASE_ACTION_EXTRACTION_PROMPT;
 }
 
+/**
+ * Map a transcription language code to a display name for AI prompt injection.
+ * Returns null for English, auto-detect, null, or unknown codes — these need no
+ * special instruction since prompts are already in English.
+ */
+function getLanguageName(code: string | null | undefined): string | null {
+  const names: Record<string, string> = { cs: 'Czech', fr: 'French' };
+  return code ? (names[code] ?? null) : null;
+}
+
 // ---------------------------------------------------------------------------
 // Row Mappers
 // ---------------------------------------------------------------------------
@@ -143,7 +153,13 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
     userPrompt += `\n\n## Pre-Meeting Prep Reference\nThe following prep briefing was generated before this meeting:\n---\n${prepBriefing}\n---\n\nIMPORTANT: After generating the summary, add a section:\n## Items Not Discussed\nList any topics from the prep briefing that were NOT covered in this meeting.\nIf all prep items were addressed, write "All prep items were discussed."`;
   }
 
-  // Generate summary (template-aware prompt)
+  // Generate summary (template-aware + language-aware prompt)
+  let systemPrompt = getSummarizationPrompt(meeting.template);
+  const briefLangName = getLanguageName(meeting.transcriptionLanguage);
+  if (briefLangName) {
+    systemPrompt += `\n\nIMPORTANT: The meeting transcript is in ${briefLangName}. Write the entire summary in ${briefLangName}.`;
+  }
+
   let summaryText: string;
   try {
     const result = await generate({
@@ -154,7 +170,7 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
       model: provider.model,
       taskType: 'summarization',
       prompt: userPrompt,
-      system: getSummarizationPrompt(meeting.template),
+      system: systemPrompt,
       temperature: provider.temperature,
       maxTokens: provider.maxTokens,
     });
@@ -204,7 +220,13 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
   const provider = await resolveTaskModel('summarization');
   if (!provider) throw new Error('No AI provider available for action extraction');
 
-  // Generate action items (template-aware prompt)
+  // Generate action items (template-aware + language-aware prompt)
+  let actionSystemPrompt = getActionExtractionPrompt(meeting.template);
+  const actionLangName = getLanguageName(meeting.transcriptionLanguage);
+  if (actionLangName) {
+    actionSystemPrompt += `\n\nIMPORTANT: The meeting transcript is in ${actionLangName}. Write action item descriptions in ${actionLangName}.`;
+  }
+
   let descriptions: string[];
   try {
     const result = await generate({
@@ -215,7 +237,7 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
       model: provider.model,
       taskType: 'summarization',
       prompt: `Meeting: ${meeting.title}\n\nTranscript:\n${transcript}`,
-      system: getActionExtractionPrompt(meeting.template),
+      system: actionSystemPrompt,
       temperature: provider.temperature,
       maxTokens: provider.maxTokens,
     });
