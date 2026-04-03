@@ -53,7 +53,51 @@ if (!gh) {
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
 const version = pkg.version;
 const tag = `v${version}`;
-const repo = 'Lab-51/lifedash';
+
+// Derive repo from git remote, falling back to package.json
+function resolveRepo() {
+  // Try git remote first
+  try {
+    const remoteUrl = execSync('git remote get-url origin', { stdio: 'pipe', cwd: ROOT })
+      .toString()
+      .trim();
+    // HTTPS: https://github.com/Owner/Repo.git -> Owner/Repo
+    // SSH:   git@github.com:Owner/Repo.git    -> Owner/Repo
+    const httpsMatch = remoteUrl.match(/github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/);
+    if (httpsMatch) return httpsMatch[1];
+    const sshMatch = remoteUrl.match(/github\.com:([^/]+\/[^/]+?)(?:\.git)?\/?$/);
+    if (sshMatch) return sshMatch[1];
+    console.warn(`Warning: Could not parse repo from remote URL: ${remoteUrl}`);
+  } catch (_) {
+    console.warn('Warning: Could not read git remote origin URL.');
+  }
+
+  // Fallback: package.json repository field
+  if (pkg.repository && pkg.repository.url) {
+    const pkgUrl = pkg.repository.url;
+    const pkgMatch = pkgUrl.match(/github\.com\/([^/]+\/[^/]+?)(?:\.git)?\/?$/);
+    if (pkgMatch) return pkgMatch[1];
+    // Handle shorthand "github:Owner/Repo" or just "Owner/Repo"
+    const shortMatch = pkgUrl.match(/^(?:github:)?([^/]+\/[^/]+?)(?:\.git)?\/?$/);
+    if (shortMatch) return shortMatch[1];
+  }
+  // Also handle string-form repository field (e.g. "Owner/Repo")
+  if (typeof pkg.repository === 'string') {
+    const strMatch = pkg.repository.match(/^(?:github:)?([^/]+\/[^/]+?)(?:\.git)?\/?$/);
+    if (strMatch) return strMatch[1];
+  }
+
+  console.error('ERROR: Could not determine GitHub repository.');
+  console.error('Ensure `git remote origin` is set or package.json has a repository.url field.');
+  process.exit(1);
+}
+
+const repo = resolveRepo();
+if (repo === 'Lab-51/lifedash') {
+  console.log('Publishing to official LifeDash repository');
+} else {
+  console.log('Publishing to fork: ' + repo);
+}
 
 // --- Determine platform artifacts ---
 

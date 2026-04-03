@@ -204,27 +204,6 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
     }
   };
 
-  // --- IPC handler: install downloaded update ---
-  ipcMain.handle('app:install-update', () => {
-    if (IS_MAC) {
-      log.info('Opening releases page (macOS does not support in-app install)');
-      shell.openExternal(RELEASES_URL);
-      return;
-    }
-    if (downloadedInstallerPath) {
-      log.info('User accepted update -- quitting and installing');
-      installUpdate(downloadedInstallerPath);
-    } else {
-      log.warn('Install requested but no update has been downloaded');
-    }
-  });
-
-  // --- IPC handler: manual "Check for Updates" ---
-  ipcMain.handle('app:check-for-updates', async () => {
-    log.info('Manual update check triggered');
-    await runUpdateCheck();
-  });
-
   // --- Check + download cycle ---
   const runUpdateCheck = async () => {
     try {
@@ -260,6 +239,42 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
       sendStatus('error', undefined, undefined, msg);
     }
   };
+
+  // Register IPC handlers BEFORE the OFFICIAL_BUILD guard so the renderer
+  // never gets an unhandled invoke error, even in unofficial builds.
+
+  // --- IPC handler: install downloaded update ---
+  ipcMain.handle('app:install-update', () => {
+    if (!process.env.OFFICIAL_BUILD) return;
+    if (IS_MAC) {
+      log.info('Opening releases page (macOS does not support in-app install)');
+      shell.openExternal(RELEASES_URL);
+      return;
+    }
+    if (downloadedInstallerPath) {
+      log.info('User accepted update -- quitting and installing');
+      installUpdate(downloadedInstallerPath);
+    } else {
+      log.warn('Install requested but no update has been downloaded');
+    }
+  });
+
+  // --- IPC handler: manual "Check for Updates" ---
+  ipcMain.handle('app:check-for-updates', async () => {
+    if (!process.env.OFFICIAL_BUILD) {
+      sendStatus('up-to-date');
+      return;
+    }
+    log.info('Manual update check triggered');
+    await runUpdateCheck();
+  });
+
+  // Gate the automatic update loop on OFFICIAL_BUILD so forks don't
+  // accidentally pull updates from the official LifeDash release channel.
+  if (!process.env.OFFICIAL_BUILD) {
+    log.info('Skipping auto-updater — not an official build (set OFFICIAL_BUILD=true to enable)');
+    return;
+  }
 
   // Check after startup delay
   setTimeout(() => {

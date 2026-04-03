@@ -17,7 +17,7 @@
     "make:archive": "node scripts/build-zip.js",
     "make:dmg": "electron-forge make --targets @electron-forge/maker-dmg",
     "make:dist": "electron-forge package && npm run make:installer && npm run make:archive",
-    "publish": "npm run make:dist && node scripts/upload-release.js",
+    "publish": "node scripts/preflight-release.js && npm run make:dist && node scripts/upload-release.js",
     "lint": "tsc --noEmit",
     "lint:eslint": "eslint src/",
     "lint:prettier": "prettier --check src/",

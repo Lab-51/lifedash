@@ -9,6 +9,7 @@ import path from 'path';
 export default defineConfig({
   define: {
     'process.env.SENTRY_DSN': JSON.stringify(process.env.SENTRY_DSN || ''),
+    'process.env.OFFICIAL_BUILD': JSON.stringify(process.env.OFFICIAL_BUILD || ''),
   },
   resolve: {
     alias: {
