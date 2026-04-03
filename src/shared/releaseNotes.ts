@@ -36,6 +36,7 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Czech and French transcription language support — select Czech or French explicitly in the language picker for more accurate transcription',
           'Language-aware AI summaries — meeting briefs and action items are now generated in the language of the recording',
+          'Fork-safe release infrastructure — forks no longer accidentally connect to the official update channel',
         ],
       },
     ],
