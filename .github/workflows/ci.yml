@@ -79,6 +79,7 @@ jobs:
           name: lifedash-macos-arm64-dmg
           path: out/make/*.dmg
           if-no-files-found: warn
+          retention-days: 3
 
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
@@ -86,3 +87,4 @@ jobs:
           name: lifedash-macos-arm64-zip
           path: out/make/zip/**/*.zip
           if-no-files-found: warn
+          retention-days: 3

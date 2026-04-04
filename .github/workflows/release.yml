@@ -91,6 +91,7 @@ jobs:
           name: macos-dmg
           path: out/make/LifeDash-${{ steps.version.outputs.version }}-mac-arm64.dmg
           if-no-files-found: error
+          retention-days: 1
 
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
@@ -98,6 +99,7 @@ jobs:
           name: macos-zip
           path: out/make/LifeDash-${{ steps.version.outputs.version }}-mac-arm64.zip
           if-no-files-found: error
+          retention-days: 1
 
   # ---------------------------------------------------------------------------
   # Publish — download macOS artifacts, attach to the release (created by the
