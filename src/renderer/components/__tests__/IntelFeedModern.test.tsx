@@ -66,8 +66,11 @@ describe('IntelFeedModern', () => {
       readerLoading: false,
       briefChatMessages: [],
       briefChatSending: false,
+      feeds: [],
+      activeFeedId: null,
       loadItems: vi.fn().mockResolvedValue(undefined),
       loadSources: vi.fn().mockResolvedValue(undefined),
+      loadFeeds: vi.fn().mockResolvedValue(undefined),
       seedDefaults: vi.fn().mockResolvedValue(undefined),
       fetchAll: vi.fn().mockResolvedValue({ newItems: 0 }),
       loadBrief: vi.fn().mockResolvedValue(undefined),
@@ -84,7 +87,7 @@ describe('IntelFeedModern', () => {
     renderComponent();
     expect(screen.getByText('Today')).toBeInTheDocument();
     expect(screen.getByText('This Week')).toBeInTheDocument();
-    expect(screen.getByText('All')).toBeInTheDocument();
+    expect(screen.getAllByText('All').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows empty state message when no articles', () => {

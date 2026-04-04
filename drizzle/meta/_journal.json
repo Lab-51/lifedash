@@ -225,6 +225,13 @@
       "when": 1774812737083,
       "tag": "0031_funny_the_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1775306931426,
+      "tag": "0032_true_karen_page",
+      "breakpoints": true
     }
   ]
 }

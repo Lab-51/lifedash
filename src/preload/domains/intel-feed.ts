@@ -5,6 +5,8 @@ import type {
   UpdateIntelSourceInput,
   AddManualItemInput,
   IntelDateFilter,
+  CreateIntelFeedInput,
+  UpdateIntelFeedInput,
 } from '../../shared/types';
 
 export const intelFeedBridge = {
@@ -24,15 +26,26 @@ export const intelFeedBridge = {
   fetchAllIntelSources: () => ipcRenderer.invoke('intel:fetchAll'),
   seedIntelDefaults: () => ipcRenderer.invoke('intel:seedDefaults'),
 
+  // Intel Feeds (custom curated feeds)
+  getIntelFeeds: () => ipcRenderer.invoke('intel:feeds:list'),
+  createIntelFeed: (data: CreateIntelFeedInput) => ipcRenderer.invoke('intel:feeds:create', data),
+  updateIntelFeed: (id: string, data: UpdateIntelFeedInput) => ipcRenderer.invoke('intel:feeds:update', id, data),
+  deleteIntelFeed: (id: string) => ipcRenderer.invoke('intel:feeds:delete', id),
+  setIntelFeedSources: (id: string, sourceIds: string[]) =>
+    ipcRenderer.invoke('intel:feeds:setSources', id, { sourceIds }),
+  getIntelFeedSources: (id: string) => ipcRenderer.invoke('intel:feeds:getSources', id),
+  reorderIntelFeeds: (feedIds: string[]) => ipcRenderer.invoke('intel:feeds:reorder', feedIds),
+
   // Intel Brief & Summarization
-  intelGenerateBrief: (type: string) => ipcRenderer.invoke('intel:brief:generate', type),
-  intelGetBrief: (type: string, date: string) => ipcRenderer.invoke('intel:brief:get', type, date),
-  intelGetLatestBrief: (type: string) => ipcRenderer.invoke('intel:brief:latest', type),
+  intelGenerateBrief: (type: string, feedId?: string) => ipcRenderer.invoke('intel:brief:generate', type, feedId),
+  intelGetBrief: (type: string, date: string, feedId?: string) =>
+    ipcRenderer.invoke('intel:brief:get', type, date, feedId),
+  intelGetLatestBrief: (type: string, feedId?: string) => ipcRenderer.invoke('intel:brief:latest', type, feedId),
   intelSummarizeItem: (id: string) => ipcRenderer.invoke('intel:item:summarize', id),
   intelFetchArticleContent: (id: string) => ipcRenderer.invoke('intel:item:fetchContent', id),
   intelBriefChat: (briefContent: string, messages: { role: string; content: string }[]) =>
     ipcRenderer.invoke('intel:brief:chat', briefContent, messages),
   intelToggleBriefPin: (id: string) => ipcRenderer.invoke('intel:brief:toggle-pin', id),
-  intelGetBriefHistory: (type: string) => ipcRenderer.invoke('intel:brief:history', type),
+  intelGetBriefHistory: (type: string, feedId?: string) => ipcRenderer.invoke('intel:brief:history', type, feedId),
   intelGetPinnedBriefs: () => ipcRenderer.invoke('intel:brief:pinned'),
 };

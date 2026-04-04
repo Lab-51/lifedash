@@ -13,6 +13,10 @@ import {
   addManualItemInputSchema,
   intelDateFilterSchema,
   intelBriefTypeSchema,
+  createIntelFeedInputSchema,
+  updateIntelFeedInputSchema,
+  feedSourcesSchema,
+  feedIdsArraySchema,
 } from '../../shared/validation/schemas';
 
 export function registerIntelFeedHandlers(): void {
@@ -82,21 +86,61 @@ export function registerIntelFeedHandlers(): void {
     return intelFeedService.seedDefaultSources();
   });
 
-  // Brief generation & retrieval
-  ipcMain.handle('intel:brief:generate', async (_event, type: unknown) => {
-    const validType = validateInput(intelBriefTypeSchema, type);
-    return intelBriefService.generateBrief(validType);
+  // Feed management (custom curated feeds)
+  ipcMain.handle('intel:feeds:list', async () => {
+    return intelFeedService.getFeeds();
   });
 
-  ipcMain.handle('intel:brief:get', async (_event, type: unknown, date: unknown) => {
+  ipcMain.handle('intel:feeds:create', async (_event, data: unknown) => {
+    const input = validateInput(createIntelFeedInputSchema, data);
+    return intelFeedService.createFeed(input);
+  });
+
+  ipcMain.handle('intel:feeds:update', async (_event, id: unknown, data: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const input = validateInput(updateIntelFeedInputSchema, data);
+    return intelFeedService.updateFeed(validId, input);
+  });
+
+  ipcMain.handle('intel:feeds:delete', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    return intelFeedService.deleteFeed(validId);
+  });
+
+  ipcMain.handle('intel:feeds:setSources', async (_event, id: unknown, data: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const { sourceIds } = validateInput(feedSourcesSchema, data);
+    return intelFeedService.setFeedSources(validId, sourceIds);
+  });
+
+  ipcMain.handle('intel:feeds:getSources', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    return intelFeedService.getFeedSourceIds(validId);
+  });
+
+  ipcMain.handle('intel:feeds:reorder', async (_event, feedIds: unknown) => {
+    const validFeedIds = validateInput(feedIdsArraySchema, feedIds);
+    return intelFeedService.reorderFeeds(validFeedIds);
+  });
+
+  // Brief generation & retrieval
+  ipcMain.handle('intel:brief:generate', async (_event, type: unknown, feedId?: unknown) => {
+    const validType = validateInput(intelBriefTypeSchema, type);
+    const validFeedId = feedId ? validateInput(idParamSchema, feedId) : undefined;
+    return intelBriefService.generateBrief(validType, validFeedId);
+  });
+
+  ipcMain.handle('intel:brief:get', async (_event, type: unknown, date: unknown, feedId?: unknown) => {
     const validType = validateInput(intelBriefTypeSchema, type);
     const validDate = validateInput(z.string(), date);
-    return intelBriefService.getBrief(validType, validDate);
+    const validFeedId = feedId ? validateInput(idParamSchema, feedId) : undefined;
+    return intelBriefService.getBrief(validType, validDate, validFeedId);
   });
 
-  ipcMain.handle('intel:brief:latest', async (_event, type: unknown) => {
+  ipcMain.handle('intel:brief:latest', async (_event, type: unknown, feedId?: unknown) => {
     const validType = validateInput(intelBriefTypeSchema, type);
-    return intelBriefService.getLatestBrief(validType);
+    const validFeedId = feedId ? validateInput(idParamSchema, feedId) : undefined;
+    return intelBriefService.getLatestBrief(validType, validFeedId);
   });
 
   // Brief chat
@@ -115,9 +159,10 @@ export function registerIntelFeedHandlers(): void {
     return intelBriefService.toggleBriefPin(validId);
   });
 
-  ipcMain.handle('intel:brief:history', async (_event, type: unknown) => {
+  ipcMain.handle('intel:brief:history', async (_event, type: unknown, feedId?: unknown) => {
     const validType = validateInput(intelBriefTypeSchema, type);
-    return intelBriefService.getBriefHistory(validType);
+    const validFeedId = feedId ? validateInput(idParamSchema, feedId) : undefined;
+    return intelBriefService.getBriefHistory(validType, validFeedId);
   });
 
   ipcMain.handle('intel:brief:pinned', async () => {

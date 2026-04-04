@@ -3,10 +3,36 @@
 export type IntelSourceType = 'rss' | 'manual';
 export type IntelBriefType = 'daily' | 'weekly';
 
+export interface IntelFeed {
+  id: string;
+  name: string;
+  emoji: string | null;
+  position: number;
+  sourceCount: number;
+  createdAt: string;
+}
+
+export interface CreateIntelFeedInput {
+  name: string;
+  emoji?: string;
+}
+
+export interface UpdateIntelFeedInput {
+  name?: string;
+  emoji?: string;
+  position?: number;
+}
+
+export interface IntelFeedSourceAssignment {
+  feedId: string;
+  sourceId: string;
+}
+
 export interface IntelBrief {
   id: string;
   type: IntelBriefType;
   date: string;
+  feedId?: string | null;
   content: string;
   articleCount: number;
   generatedAt: string;

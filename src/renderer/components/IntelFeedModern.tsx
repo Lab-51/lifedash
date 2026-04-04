@@ -16,6 +16,7 @@ import IntelSourceManager from './IntelSourceManager';
 import IntelAddArticleModal from './IntelAddArticleModal';
 import IntelArticleReader from './IntelArticleReader';
 import SavedBriefModal from './SavedBriefModal';
+import IntelFeedTabs from './IntelFeedTabs';
 import { useIntelFeedStore } from '../stores/intelFeedStore';
 import { useProjectStore } from '../stores/projectStore';
 import { useIdeaStore } from '../stores/ideaStore';
@@ -183,6 +184,8 @@ export default function IntelFeedModern() {
   const [showAddArticle, setShowAddArticle] = useState(false);
   const items = useIntelFeedStore((s) => s.items);
   const sources = useIntelFeedStore((s) => s.sources);
+  const feeds = useIntelFeedStore((s) => s.feeds);
+  const activeFeedId = useIntelFeedStore((s) => s.activeFeedId);
   const dateFilter = useIntelFeedStore((s) => s.dateFilter);
   const loading = useIntelFeedStore((s) => s.loading);
   const fetching = useIntelFeedStore((s) => s.fetching);
@@ -231,6 +234,10 @@ export default function IntelFeedModern() {
   const loadPinnedBriefs = useIntelFeedStore((s) => s.loadPinnedBriefs);
   const sortMode = useIntelFeedStore((s) => s.sortMode);
   const setSortMode = useIntelFeedStore((s) => s.setSortMode);
+
+  // Active feed name for display
+  const activeFeedName = activeFeedId ? (feeds.find((f) => f.id === activeFeedId)?.name ?? null) : null;
+  const activeFeed = activeFeedId ? feeds.find((f) => f.id === activeFeedId) : null;
 
   // Local search input + debounce
   const [searchInput, setSearchInput] = useState('');
@@ -331,6 +338,7 @@ export default function IntelFeedModern() {
       loadTrending();
       loadBriefItems();
       loadPinnedBriefs();
+      useIntelFeedStore.getState().loadFeeds();
 
       if (cancelled) return;
 
@@ -435,6 +443,11 @@ export default function IntelFeedModern() {
   return (
     <div className="h-full flex flex-col bg-surface-50/50 dark:bg-surface-950 relative">
       <HudBackground />
+
+      {/* Feed tab bar */}
+      <div className="px-8 pt-4 shrink-0">
+        <IntelFeedTabs />
+      </div>
 
       {/* Header */}
       <div className="p-8 pb-4 shrink-0">
@@ -706,6 +719,7 @@ export default function IntelFeedModern() {
             briefHistory={briefHistory}
             onTogglePin={toggleBriefPin}
             onLoadBrief={loadSpecificBrief}
+            feedName={activeFeedName}
           />
         )}
 
@@ -745,6 +759,24 @@ export default function IntelFeedModern() {
               </p>
             </div>
           )
+        ) : activeFeedId && items.length === 0 && activeFeed?.sourceCount === 0 && viewMode !== 'bookmarks' ? (
+          /* Feed-specific empty state: no sources assigned */
+          <div className="mt-12 flex flex-col items-center justify-center text-center">
+            <div className="w-14 h-14 rounded-2xl bg-[var(--color-accent-muted)] flex items-center justify-center mb-4">
+              <SlidersHorizontal size={28} className="text-[var(--color-accent)]" />
+            </div>
+            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">No sources assigned</h2>
+            <p className="text-sm text-[var(--color-text-secondary)] max-w-sm">
+              No sources assigned to this feed. Open the source manager to add some.
+            </p>
+            <button
+              onClick={() => setShowSourceManager(true)}
+              className="cursor-pointer mt-4 px-5 py-2.5 text-sm font-medium rounded-lg bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)] transition-colors flex items-center gap-2"
+            >
+              <SlidersHorizontal size={16} />
+              Manage Sources
+            </button>
+          </div>
         ) : items.length === 0 && viewMode !== 'bookmarks' ? (
           <div className="mt-12">
             <EmptyFeatureState

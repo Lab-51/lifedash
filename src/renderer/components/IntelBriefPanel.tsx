@@ -22,6 +22,7 @@ interface IntelBriefPanelProps {
   briefHistory?: IntelBrief[];
   onTogglePin?: (id: string) => void;
   onLoadBrief?: (brief: IntelBrief) => void;
+  feedName?: string | null;
 }
 
 /** Format a brief's date for the history dropdown. */
@@ -379,6 +380,7 @@ export default function IntelBriefPanel({
   briefHistory,
   onTogglePin,
   onLoadBrief,
+  feedName,
 }: IntelBriefPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -415,6 +417,7 @@ export default function IntelBriefPanel({
   }, [showHistory]);
 
   const typeLabel = briefType === 'daily' ? 'Daily' : 'Weekly';
+  const briefLabel = feedName ? `${feedName} ${typeLabel}` : typeLabel;
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] mb-6 overflow-hidden">
@@ -429,7 +432,7 @@ export default function IntelBriefPanel({
           </div>
           <div>
             <span className="font-hud text-base text-[var(--color-accent)] text-glow">
-              {typeLabel} Intelligence Brief
+              {briefLabel} Intelligence Brief
             </span>
             {brief && (
               <span className="block text-[11px] font-data text-[var(--color-text-muted)]">

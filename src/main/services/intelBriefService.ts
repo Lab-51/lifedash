@@ -10,9 +10,9 @@
 // - resolveTaskModel() API: verified from ai-provider.ts source
 // - DB schema: verified from intel-feed.ts
 
-import { eq, desc, gte, and, not } from 'drizzle-orm';
+import { eq, desc, gte, and, not, isNull, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { intelBriefs, intelItems, intelSources, projects, settings } from '../db/schema';
+import { intelBriefs, intelItems, intelSources, intelFeeds, intelFeedSources, projects, settings } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
 import { decodeHtmlEntities } from './intelFeedService';
 import { createLogger } from './logger';
@@ -43,6 +43,7 @@ function toIntelBrief(row: typeof intelBriefs.$inferSelect): IntelBrief {
     id: row.id,
     type: row.type,
     date: row.date,
+    feedId: row.feedId ?? null,
     content: row.content,
     articleCount: row.articleCount,
     generatedAt: row.generatedAt.toISOString(),
@@ -89,10 +90,23 @@ const DAILY_SYSTEM_PROMPT = `You are an AI news intelligence analyst. Given a li
    - Opening paragraph: 2-3 sentences summarizing today's most important developments
    - Sections grouped by theme (use ## headers like "## Model Releases", "## Developer Tools")
    - Under each section: bullet points referencing articles in this exact format:
-     - [Exact Article Title](article_url) (Source Name) — one-line "why this matters"
+     - **[Exact Article Title](article_url)** (Source Name) — one-line "why this matters"
      IMPORTANT: Use the exact title and URL from the article list. This enables clickable links.
    - Highlight the top 5-7 most significant stories
    - Keep it concise and professional
+
+   TOPIC CONSOLIDATION: When multiple articles cover the same event, announcement, or story,
+   consolidate them into a SINGLE bullet point. Use the primary/best source as the main link,
+   then list additional coverage as indented sub-links. Do NOT list each article about the
+   same event as a separate bullet. Format:
+     - **[Primary Article Title](url)** (Source) — one-line summary
+       - Also: [Thread Title](url) (Source) — community reaction
+       - Also: [Another Take](url) (Source) — different perspective
+
+   SMART SECTION GROUPING: Organize sections by THEME, not by source or category. Each ## section
+   should represent a distinct topic or development area. If a theme has only 1 article, include it
+   under the closest related section rather than creating a standalone section. Aim for 3-6 sections
+   maximum.
 
 2. CATEGORY ASSIGNMENTS as a JSON block at the very end, wrapped in triple backticks:
    \`\`\`json
@@ -121,6 +135,19 @@ const WEEKLY_SYSTEM_PROMPT = `You are an AI news intelligence analyst. Given art
      IMPORTANT: Use the exact title and URL from the article list. This enables clickable links.
    - Call out the single most significant story of the week
    - Keep it concise and professional
+
+   TOPIC CONSOLIDATION: When multiple articles cover the same event, announcement, or story,
+   consolidate them into a single narrative thread. Reference the primary/best source first,
+   then weave in additional coverage naturally. Do NOT dedicate separate paragraphs or bullet
+   points to each article about the same event. Where listing sources, use this format:
+     - **[Primary Article Title](url)** (Source) — one-line summary
+       - Also: [Additional Coverage Title](url) (Source) — added context
+       - Also: [Another Take](url) (Source) — different perspective
+
+   SMART SECTION GROUPING: Organize sections by THEME, not by source or category. Each ## section
+   should represent a distinct topic or development area. If a theme has only 1 article, include it
+   under the closest related section rather than creating a standalone section. Aim for 3-6 sections
+   maximum.
 
 2. CATEGORY ASSIGNMENTS as a JSON block at the very end, wrapped in triple backticks:
    \`\`\`json
@@ -167,14 +194,12 @@ Output ONLY the two JSON blocks above. No other text.`;
  * Also auto-categorizes articles based on the AI response.
  * Returns null if fewer than 3 items are available for the period.
  */
-export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | null> {
+export async function generateBrief(type: IntelBriefType, feedId?: string | null): Promise<IntelBrief | null> {
   const db = getDb();
 
   // Compute date key
   const now = new Date();
   const dateKey = type === 'daily' ? now.toISOString().slice(0, 10) : getISOWeek(now);
-
-  // Upsert will handle existing briefs for this type+date (see insert below)
 
   // Get items for the period.
   // Daily: publishedAt >= start of today (matches the "Today" feed filter exactly).
@@ -193,6 +218,21 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
     itemLimit = 100;
   }
 
+  // When feedId is provided, restrict to sources assigned to that feed
+  const conditions = [dateCondition, eq(intelSources.enabled, true)];
+  if (feedId) {
+    const feedSourceIds = await db
+      .select({ sourceId: intelFeedSources.sourceId })
+      .from(intelFeedSources)
+      .where(eq(intelFeedSources.feedId, feedId));
+    const sourceIds = feedSourceIds.map((r) => r.sourceId);
+    if (sourceIds.length === 0) {
+      log.info(`Feed ${feedId} has no sources assigned, cannot generate brief`);
+      return null;
+    }
+    conditions.push(inArray(intelItems.sourceId, sourceIds));
+  }
+
   const articleRows = await db
     .select({
       item: intelItems,
@@ -200,7 +240,7 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
     })
     .from(intelItems)
     .innerJoin(intelSources, eq(intelItems.sourceId, intelSources.id))
-    .where(and(dateCondition, eq(intelSources.enabled, true)))
+    .where(and(...conditions))
     .orderBy(desc(intelItems.publishedAt))
     .limit(itemLimit);
 
@@ -231,7 +271,15 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
 
   // Inject user interests + project names into the brief prompt
   const basePrompt = type === 'daily' ? DAILY_SYSTEM_PROMPT : WEEKLY_SYSTEM_PROMPT;
-  const systemPrompt = basePrompt + (await buildUserContextSuffix());
+  let systemPrompt = basePrompt + (await buildUserContextSuffix());
+
+  // When scoped to a feed, add feed name context for focused analysis
+  if (feedId) {
+    const [feedRow] = await db.select({ name: intelFeeds.name }).from(intelFeeds).where(eq(intelFeeds.id, feedId));
+    if (feedRow) {
+      systemPrompt += `\n\nThis brief covers the '${feedRow.name}' feed. Focus the analysis and grouping on topics most relevant to this theme.`;
+    }
+  }
 
   // Generate brief
   const result = await generate({
@@ -314,25 +362,47 @@ export async function generateBrief(type: IntelBriefType): Promise<IntelBrief | 
     }
   }
 
-  // Upsert the brief — preserves isPinned when regenerating
-  const [briefRow] = await db
-    .insert(intelBriefs)
-    .values({
-      type,
-      date: dateKey,
-      content: briefContent.trim(),
-      articleCount: articleRows.length,
-      generatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [intelBriefs.type, intelBriefs.date],
-      set: {
+  // Upsert the brief — preserves isPinned when regenerating.
+  // Two unique indexes exist: (type, date) for null feedId, and (type, date, feedId)
+  // for non-null feedId. Use SELECT-then-INSERT/UPDATE for safety.
+  const existingConditions = [eq(intelBriefs.type, type), eq(intelBriefs.date, dateKey)];
+  if (feedId) {
+    existingConditions.push(eq(intelBriefs.feedId, feedId));
+  } else {
+    existingConditions.push(isNull(intelBriefs.feedId));
+  }
+
+  const [existing] = await db
+    .select({ id: intelBriefs.id })
+    .from(intelBriefs)
+    .where(and(...existingConditions));
+
+  let briefRow: typeof intelBriefs.$inferSelect;
+  if (existing) {
+    const [updated] = await db
+      .update(intelBriefs)
+      .set({
         content: briefContent.trim(),
         articleCount: articleRows.length,
         generatedAt: new Date(),
-      },
-    })
-    .returning();
+      })
+      .where(eq(intelBriefs.id, existing.id))
+      .returning();
+    briefRow = updated;
+  } else {
+    const [inserted] = await db
+      .insert(intelBriefs)
+      .values({
+        type,
+        date: dateKey,
+        feedId: feedId ?? null,
+        content: briefContent.trim(),
+        articleCount: articleRows.length,
+        generatedAt: new Date(),
+      })
+      .returning();
+    briefRow = inserted;
+  }
 
   // Update article categories (best-effort)
   if (Object.keys(categories).length > 0) {
@@ -595,27 +665,41 @@ Be concise, insightful, and actionable. When discussing specific articles, refer
 }
 
 /**
- * Get a brief by type and date key.
+ * Get a brief by type and date key, optionally scoped to a feed.
  */
-export async function getBrief(type: IntelBriefType, date: string): Promise<IntelBrief | null> {
+export async function getBrief(type: IntelBriefType, date: string, feedId?: string | null): Promise<IntelBrief | null> {
   const db = getDb();
+  const conditions = [eq(intelBriefs.type, type), eq(intelBriefs.date, date)];
+  if (feedId) {
+    conditions.push(eq(intelBriefs.feedId, feedId));
+  } else {
+    conditions.push(isNull(intelBriefs.feedId));
+  }
+
   const [row] = await db
     .select()
     .from(intelBriefs)
-    .where(and(eq(intelBriefs.type, type), eq(intelBriefs.date, date)));
+    .where(and(...conditions));
 
   return row ? toIntelBrief(row) : null;
 }
 
 /**
- * Get the most recent brief for a given type.
+ * Get the most recent brief for a given type, optionally scoped to a feed.
  */
-export async function getLatestBrief(type: IntelBriefType): Promise<IntelBrief | null> {
+export async function getLatestBrief(type: IntelBriefType, feedId?: string | null): Promise<IntelBrief | null> {
   const db = getDb();
+  const conditions = [eq(intelBriefs.type, type)];
+  if (feedId) {
+    conditions.push(eq(intelBriefs.feedId, feedId));
+  } else {
+    conditions.push(isNull(intelBriefs.feedId));
+  }
+
   const [row] = await db
     .select()
     .from(intelBriefs)
-    .where(eq(intelBriefs.type, type))
+    .where(and(...conditions))
     .orderBy(desc(intelBriefs.generatedAt))
     .limit(1);
 
@@ -640,14 +724,22 @@ export async function toggleBriefPin(id: string): Promise<IntelBrief> {
 }
 
 /**
- * Get brief history for a given type, pinned briefs first, then by date descending.
+ * Get brief history for a given type, optionally scoped to a feed.
+ * Pinned briefs first, then by date descending.
  */
-export async function getBriefHistory(type: IntelBriefType): Promise<IntelBrief[]> {
+export async function getBriefHistory(type: IntelBriefType, feedId?: string | null): Promise<IntelBrief[]> {
   const db = getDb();
+  const conditions = [eq(intelBriefs.type, type)];
+  if (feedId) {
+    conditions.push(eq(intelBriefs.feedId, feedId));
+  } else {
+    conditions.push(isNull(intelBriefs.feedId));
+  }
+
   const rows = await db
     .select()
     .from(intelBriefs)
-    .where(eq(intelBriefs.type, type))
+    .where(and(...conditions))
     .orderBy(desc(intelBriefs.isPinned), desc(intelBriefs.date));
 
   return rows.map(toIntelBrief);

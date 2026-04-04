@@ -4,7 +4,7 @@
 // Renders as a slide-out overlay panel from the right side.
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Trash2, Rss, Loader2 } from 'lucide-react';
+import { X, Trash2, Rss, Loader2, Check } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import IntelAddSourceModal from './IntelAddSourceModal';
 import { useIntelFeedStore } from '../stores/intelFeedStore';
@@ -17,22 +17,35 @@ interface IntelSourceManagerProps {
 
 export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManagerProps) {
   const sources = useIntelFeedStore((s) => s.sources);
+  const feeds = useIntelFeedStore((s) => s.feeds);
+  const activeFeedId = useIntelFeedStore((s) => s.activeFeedId);
   const loadSources = useIntelFeedStore((s) => s.loadSources);
   const loadItems = useIntelFeedStore((s) => s.loadItems);
   const updateSource = useIntelFeedStore((s) => s.updateSource);
   const deleteSource = useIntelFeedStore((s) => s.deleteSource);
+  const setFeedSources = useIntelFeedStore((s) => s.setFeedSources);
+  const getFeedSourceIds = useIntelFeedStore((s) => s.getFeedSourceIds);
 
   const [showAddSource, setShowAddSource] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteSource, setConfirmDeleteSource] = useState<IntelSource | null>(null);
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
+  const [assignedSourceIds, setAssignedSourceIds] = useState<Set<string>>(new Set());
 
-  // Reload sources when panel opens
+  // Feed name for the active feed
+  const activeFeedName = activeFeedId ? (feeds.find((f) => f.id === activeFeedId)?.name ?? 'Feed') : null;
+
+  // Reload sources when panel opens; load feed assignments if a feed is active
   useEffect(() => {
     if (isOpen) {
       loadSources();
+      if (activeFeedId) {
+        getFeedSourceIds(activeFeedId).then((ids) => setAssignedSourceIds(new Set(ids)));
+      } else {
+        setAssignedSourceIds(new Set());
+      }
     }
-  }, [isOpen, loadSources]);
+  }, [isOpen, loadSources, activeFeedId, getFeedSourceIds]);
 
   // Escape key closes panel
   const handleEscape = useCallback(
@@ -80,6 +93,20 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
     }
   };
 
+  const handleFeedAssignToggle = async (sourceId: string) => {
+    if (!activeFeedId) return;
+    const next = new Set(assignedSourceIds);
+    if (next.has(sourceId)) {
+      next.delete(sourceId);
+    } else {
+      next.add(sourceId);
+    }
+    setAssignedSourceIds(next);
+    await setFeedSources(activeFeedId, Array.from(next));
+    // Reload items so the feed view updates immediately
+    await loadItems();
+  };
+
   const rssSources = sources.filter((s) => s.type === 'rss');
   const manualSources = sources.filter((s) => s.type === 'manual');
 
@@ -99,7 +126,9 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
         <div className="flex items-center justify-between px-6 pt-5 pb-3 shrink-0">
           <div className="flex items-center gap-2">
             <div className="node-point-sm" />
-            <h2 className="font-hud text-sm tracking-wide text-[var(--color-text-primary)]">Manage Sources</h2>
+            <h2 className="font-hud text-sm tracking-wide text-[var(--color-text-primary)]">
+              {activeFeedName ? `Sources for ${activeFeedName}` : 'Manage Sources'}
+            </h2>
             <span className="text-xs font-data text-[var(--color-text-muted)] ml-1">({sources.length})</span>
           </div>
           <button
@@ -152,6 +181,9 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
                       deleting={deletingId === source.id}
                       onToggle={() => handleToggle(source)}
                       onDelete={() => setConfirmDeleteSource(source)}
+                      feedMode={!!activeFeedId}
+                      assigned={assignedSourceIds.has(source.id)}
+                      onAssignToggle={() => handleFeedAssignToggle(source.id)}
                     />
                   ))}
                 </>
@@ -174,6 +206,9 @@ export default function IntelSourceManager({ isOpen, onClose }: IntelSourceManag
                       deleting={deletingId === source.id}
                       onToggle={() => handleToggle(source)}
                       onDelete={() => setConfirmDeleteSource(source)}
+                      feedMode={!!activeFeedId}
+                      assigned={assignedSourceIds.has(source.id)}
+                      onAssignToggle={() => handleFeedAssignToggle(source.id)}
                     />
                   ))}
                 </>
@@ -208,9 +243,21 @@ interface SourceRowProps {
   deleting: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  feedMode?: boolean;
+  assigned?: boolean;
+  onAssignToggle?: () => void;
 }
 
-function SourceRow({ source, toggling, deleting, onToggle, onDelete }: SourceRowProps) {
+function SourceRow({
+  source,
+  toggling,
+  deleting,
+  onToggle,
+  onDelete,
+  feedMode,
+  assigned,
+  onAssignToggle,
+}: SourceRowProps) {
   return (
     <div
       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors ${
@@ -219,6 +266,21 @@ function SourceRow({ source, toggling, deleting, onToggle, onDelete }: SourceRow
           : 'border-[var(--color-border)] bg-[var(--color-chrome)] opacity-60'
       }`}
     >
+      {/* Feed assignment checkbox — only in feed mode */}
+      {feedMode && (
+        <button
+          onClick={onAssignToggle}
+          className={`cursor-pointer shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+            assigned
+              ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white'
+              : 'border-[var(--color-text-muted)] hover:border-[var(--color-accent)]'
+          }`}
+          title={assigned ? 'Remove from this feed' : 'Add to this feed'}
+        >
+          {assigned && <Check size={12} strokeWidth={3} />}
+        </button>
+      )}
+
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">

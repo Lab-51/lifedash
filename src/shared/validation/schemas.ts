@@ -505,3 +505,21 @@ export const addManualItemInputSchema = z.object({
 export const intelDateFilterSchema = z.enum(['today', 'week', 'all']);
 
 export const intelBriefTypeSchema = z.enum(['daily', 'weekly']);
+
+// Intel Feeds (custom curated feeds)
+export const createIntelFeedInputSchema = z.object({
+  name: z.string().min(1).max(100),
+  emoji: z.string().max(10).optional(),
+});
+
+export const updateIntelFeedInputSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  emoji: z.string().max(10).optional(),
+  position: z.number().int().min(0).optional(),
+});
+
+export const feedSourcesSchema = z.object({
+  sourceIds: z.array(z.string().uuid()),
+});
+
+export const feedIdsArraySchema = z.array(z.string().uuid());

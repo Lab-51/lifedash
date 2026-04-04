@@ -5,18 +5,21 @@
 // === DEPENDENCIES ===
 // drizzle-orm, rss-parser, ../db/connection, ../db/schema (intelSources, intelItems)
 
-import { eq, desc, count, gte, and, ilike, or, isNotNull, ne } from 'drizzle-orm';
+import { eq, desc, count, gte, and, ilike, or, isNotNull, ne, asc, sql, max } from 'drizzle-orm';
 import RSSParser from 'rss-parser';
 import { getDb } from '../db/connection';
-import { intelSources, intelItems } from '../db/schema';
+import { intelSources, intelItems, intelFeeds, intelFeedSources } from '../db/schema';
 import { Readability } from '@mozilla/readability';
 import { parseHTML } from 'linkedom';
 import type {
   IntelSource,
   IntelItem,
+  IntelFeed,
   ArticleContent,
   CreateIntelSourceInput,
   UpdateIntelSourceInput,
+  CreateIntelFeedInput,
+  UpdateIntelFeedInput,
   AddManualItemInput,
   IntelDateFilter,
 } from '../../shared/types';
@@ -1055,4 +1058,141 @@ export async function seedDefaultSources(): Promise<void> {
   }
 
   log.info(`Seeded ${DEFAULT_SOURCES.length} default intel sources`);
+}
+
+// ---------------------------------------------------------------------------
+// Feed CRUD (user-defined source groupings / tabs)
+// ---------------------------------------------------------------------------
+
+/**
+ * Get all feeds ordered by position, with sourceCount computed from junction table.
+ */
+export async function getFeeds(): Promise<IntelFeed[]> {
+  const db = getDb();
+
+  // Count sources per feed via a subquery
+  const sourceCountSq = db
+    .select({
+      feedId: intelFeedSources.feedId,
+      cnt: count().as('cnt'),
+    })
+    .from(intelFeedSources)
+    .groupBy(intelFeedSources.feedId)
+    .as('source_count_sq');
+
+  const rows = await db
+    .select({
+      id: intelFeeds.id,
+      name: intelFeeds.name,
+      emoji: intelFeeds.emoji,
+      position: intelFeeds.position,
+      sourceCount: sql<number>`coalesce(${sourceCountSq.cnt}, 0)`.as('source_count'),
+      createdAt: intelFeeds.createdAt,
+    })
+    .from(intelFeeds)
+    .leftJoin(sourceCountSq, eq(intelFeeds.id, sourceCountSq.feedId))
+    .orderBy(asc(intelFeeds.position));
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    emoji: r.emoji,
+    position: r.position,
+    sourceCount: Number(r.sourceCount),
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+/**
+ * Create a new feed. Position is set to max(existing) + 1.
+ */
+export async function createFeed(input: CreateIntelFeedInput): Promise<IntelFeed> {
+  const db = getDb();
+
+  // Determine next position
+  const [maxRow] = await db.select({ maxPos: max(intelFeeds.position) }).from(intelFeeds);
+  const nextPosition = maxRow?.maxPos != null ? maxRow.maxPos + 1 : 0;
+
+  const [row] = await db
+    .insert(intelFeeds)
+    .values({
+      name: input.name,
+      emoji: input.emoji ?? null,
+      position: nextPosition,
+    })
+    .returning();
+
+  return {
+    id: row.id,
+    name: row.name,
+    emoji: row.emoji,
+    position: row.position,
+    sourceCount: 0,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Update a feed's name, emoji, or position. Only updates provided fields.
+ */
+export async function updateFeed(id: string, input: UpdateIntelFeedInput): Promise<void> {
+  const db = getDb();
+
+  const updates: Partial<{ name: string; emoji: string | null; position: number }> = {};
+  if (input.name !== undefined) updates.name = input.name;
+  if (input.emoji !== undefined) updates.emoji = input.emoji ?? null;
+  if (input.position !== undefined) updates.position = input.position;
+
+  if (Object.keys(updates).length === 0) return;
+
+  await db.update(intelFeeds).set(updates).where(eq(intelFeeds.id, id));
+}
+
+/**
+ * Delete a feed by id. Cascade handles junction rows and scoped briefs.
+ */
+export async function deleteFeed(id: string): Promise<void> {
+  const db = getDb();
+  await db.delete(intelFeeds).where(eq(intelFeeds.id, id));
+}
+
+/**
+ * Replace all junction rows for a feed with the given sourceIds.
+ */
+export async function setFeedSources(feedId: string, sourceIds: string[]): Promise<void> {
+  const db = getDb();
+
+  await db.transaction(async (tx) => {
+    // Remove existing assignments
+    await tx.delete(intelFeedSources).where(eq(intelFeedSources.feedId, feedId));
+
+    // Insert new assignments
+    if (sourceIds.length > 0) {
+      await tx.insert(intelFeedSources).values(sourceIds.map((sourceId) => ({ feedId, sourceId })));
+    }
+  });
+}
+
+/**
+ * Return array of sourceIds assigned to a feed.
+ */
+export async function getFeedSourceIds(feedId: string): Promise<string[]> {
+  const db = getDb();
+  const rows = await db
+    .select({ sourceId: intelFeedSources.sourceId })
+    .from(intelFeedSources)
+    .where(eq(intelFeedSources.feedId, feedId));
+
+  return rows.map((r) => r.sourceId);
+}
+
+/**
+ * Update position for each feed based on array index.
+ * feedIds[0] gets position 0, feedIds[1] gets position 1, etc.
+ */
+export async function reorderFeeds(feedIds: string[]): Promise<void> {
+  const db = getDb();
+  for (let i = 0; i < feedIds.length; i++) {
+    await db.update(intelFeeds).set({ position: i }).where(eq(intelFeeds.id, feedIds[i]));
+  }
 }

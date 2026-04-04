@@ -1,6 +1,8 @@
 // === FILE PURPOSE ===
-// Schema definitions for intel_sources, intel_items, and intel_briefs tables.
+// Schema definitions for intel_sources, intel_feeds, intel_feed_sources,
+// intel_items, and intel_briefs tables.
 // Intel sources are RSS feeds or manual entries that provide news items.
+// Intel feeds are user-defined groupings of sources (tabs in the UI).
 // Intel items are individual articles/links fetched from sources.
 // Intel briefs are AI-generated daily/weekly summaries of intel items.
 
@@ -15,6 +17,7 @@ import {
   integer,
   index,
   uniqueIndex,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 
 export const intelSourceTypeEnum = pgEnum('intel_source_type', ['rss', 'manual']);
@@ -30,6 +33,30 @@ export const intelSources = pgTable('intel_sources', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const intelFeeds = pgTable('intel_feeds', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  emoji: varchar('emoji', { length: 10 }),
+  position: integer('position').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const intelFeedSources = pgTable(
+  'intel_feed_sources',
+  {
+    feedId: uuid('feed_id')
+      .notNull()
+      .references(() => intelFeeds.id, { onDelete: 'cascade' }),
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => intelSources.id, { onDelete: 'cascade' }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.feedId, table.sourceId] }),
+    index('intel_feed_sources_source_id_idx').on(table.sourceId),
+  ],
+);
 
 export const intelItems = pgTable(
   'intel_items',
@@ -71,11 +98,15 @@ export const intelBriefs = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     type: intelBriefTypeEnum('type').notNull(),
     date: varchar('date', { length: 10 }).notNull(),
+    feedId: uuid('feed_id').references(() => intelFeeds.id, { onDelete: 'cascade' }),
     content: text('content').notNull(),
     articleCount: integer('article_count').notNull(),
     generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
     isPinned: boolean('is_pinned').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [uniqueIndex('intel_briefs_type_date_idx').on(table.type, table.date)],
+  (table) => [
+    uniqueIndex('intel_briefs_type_date_idx').on(table.type, table.date),
+    uniqueIndex('intel_briefs_type_date_feed_idx').on(table.type, table.date, table.feedId),
+  ],
 );

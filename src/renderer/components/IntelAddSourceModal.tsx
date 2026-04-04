@@ -22,6 +22,9 @@ export default function IntelAddSourceModal({ isOpen, onClose }: IntelAddSourceM
   const createSource = useIntelFeedStore((s) => s.createSource);
   const fetchAll = useIntelFeedStore((s) => s.fetchAll);
   const loadSources = useIntelFeedStore((s) => s.loadSources);
+  const activeFeedId = useIntelFeedStore((s) => s.activeFeedId);
+  const getFeedSourceIds = useIntelFeedStore((s) => s.getFeedSourceIds);
+  const setFeedSources = useIntelFeedStore((s) => s.setFeedSources);
 
   // Auto-focus URL input on open
   useEffect(() => {
@@ -74,11 +77,20 @@ export default function IntelAddSourceModal({ isOpen, onClose }: IntelAddSourceM
     setError(null);
 
     try {
-      await createSource({
+      const newSource = await createSource({
         url: trimmedUrl,
         name: name.trim() || trimmedUrl,
         type: 'rss',
       });
+      // Auto-assign to the active feed if one is selected
+      if (activeFeedId) {
+        try {
+          const existing = await getFeedSourceIds(activeFeedId);
+          await setFeedSources(activeFeedId, [...existing, newSource.id]);
+        } catch {
+          // Non-critical — source was created, assignment can be done manually
+        }
+      }
       // Fetch articles from the new source
       fetchAll();
       await loadSources();

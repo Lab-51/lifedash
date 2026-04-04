@@ -83,10 +83,13 @@ import type {
   IntelItem,
   IntelBrief,
   IntelBriefType,
+  IntelFeed,
   ArticleContent,
   CreateIntelSourceInput,
   UpdateIntelSourceInput,
   AddManualItemInput,
+  CreateIntelFeedInput,
+  UpdateIntelFeedInput,
   IntelDateFilter,
 } from './intel-feed';
 
@@ -479,10 +482,19 @@ export interface ElectronAPI {
   fetchAllIntelSources: () => Promise<{ newItems: number }>;
   seedIntelDefaults: () => Promise<void>;
 
+  // Intel Feeds (custom curated feeds)
+  getIntelFeeds: () => Promise<IntelFeed[]>;
+  createIntelFeed: (data: CreateIntelFeedInput) => Promise<IntelFeed>;
+  updateIntelFeed: (id: string, data: UpdateIntelFeedInput) => Promise<void>;
+  deleteIntelFeed: (id: string) => Promise<void>;
+  setIntelFeedSources: (id: string, sourceIds: string[]) => Promise<void>;
+  getIntelFeedSources: (id: string) => Promise<string[]>;
+  reorderIntelFeeds: (feedIds: string[]) => Promise<void>;
+
   // Intel Brief & Summarization
-  intelGenerateBrief: (type: IntelBriefType) => Promise<IntelBrief | null>;
-  intelGetBrief: (type: IntelBriefType, date: string) => Promise<IntelBrief | null>;
-  intelGetLatestBrief: (type: IntelBriefType) => Promise<IntelBrief | null>;
+  intelGenerateBrief: (type: IntelBriefType, feedId?: string) => Promise<IntelBrief | null>;
+  intelGetBrief: (type: IntelBriefType, date: string, feedId?: string) => Promise<IntelBrief | null>;
+  intelGetLatestBrief: (type: IntelBriefType, feedId?: string) => Promise<IntelBrief | null>;
   intelSummarizeItem: (id: string) => Promise<IntelItem>;
   intelFetchArticleContent: (id: string) => Promise<ArticleContent>;
   intelBriefChat: (
@@ -490,7 +502,7 @@ export interface ElectronAPI {
     messages: { role: 'user' | 'assistant'; content: string }[],
   ) => Promise<string>;
   intelToggleBriefPin: (id: string) => Promise<IntelBrief>;
-  intelGetBriefHistory: (type: IntelBriefType) => Promise<IntelBrief[]>;
+  intelGetBriefHistory: (type: IntelBriefType, feedId?: string) => Promise<IntelBrief[]>;
   intelGetPinnedBriefs: () => Promise<IntelBrief[]>;
 
   // Cloud Sync

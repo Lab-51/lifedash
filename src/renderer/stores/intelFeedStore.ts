@@ -13,9 +13,12 @@ import type {
   IntelBriefType,
   IntelDateFilter,
   IntelChatMessage,
+  IntelFeed,
   AddManualItemInput,
   CreateIntelSourceInput,
   UpdateIntelSourceInput,
+  CreateIntelFeedInput,
+  UpdateIntelFeedInput,
   ArticleContent,
 } from '../../shared/types';
 
@@ -29,6 +32,8 @@ interface IntelFeedStore {
   items: IntelItem[];
   briefItems: IntelItem[];
   sources: IntelSource[];
+  feeds: IntelFeed[];
+  activeFeedId: string | null;
   dateFilter: IntelDateFilter;
   loading: boolean;
   fetching: boolean;
@@ -87,12 +92,24 @@ interface IntelFeedStore {
   closeReader: () => void;
   sendBriefChatMessage: (content: string) => Promise<void>;
   clearBriefChat: () => void;
+
+  // Feed actions
+  loadFeeds: () => Promise<void>;
+  setActiveFeed: (feedId: string | null) => void;
+  createFeed: (input: CreateIntelFeedInput) => Promise<IntelFeed>;
+  updateFeed: (id: string, input: UpdateIntelFeedInput) => Promise<void>;
+  deleteFeed: (id: string) => Promise<void>;
+  setFeedSources: (feedId: string, sourceIds: string[]) => Promise<void>;
+  getFeedSourceIds: (feedId: string) => Promise<string[]>;
+  reorderFeeds: (feedIds: string[]) => Promise<void>;
 }
 
 export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   items: [],
   briefItems: [],
   sources: [],
+  feeds: [],
+  activeFeedId: null,
   dateFilter: 'week',
   loading: false,
   fetching: false,
@@ -121,7 +138,7 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
     const prevCount = get().items.length;
     set({ loading: true, error: null });
     try {
-      const { dateFilter, searchQuery, sourceFilter, bookmarkFilter } = get();
+      const { dateFilter, searchQuery, sourceFilter, bookmarkFilter, activeFeedId } = get();
       const extra =
         searchQuery || sourceFilter || bookmarkFilter
           ? {
@@ -130,7 +147,18 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
               bookmarkFilter: bookmarkFilter || undefined,
             }
           : undefined;
-      const items = await window.electronAPI.getIntelItems(dateFilter, extra);
+      let items = await window.electronAPI.getIntelItems(dateFilter, extra);
+
+      // Client-side filtering: when a feed is active, only show items from that feed's sources
+      if (activeFeedId) {
+        try {
+          const feedSourceIds = await window.electronAPI.getIntelFeedSources(activeFeedId);
+          items = items.filter((item) => feedSourceIds.includes(item.sourceId));
+        } catch {
+          // If fetching feed sources fails, show all items as fallback
+        }
+      }
+
       set({ items, loading: false });
       // Load bookmark count alongside items (non-blocking)
       get().loadBookmarkCount();
@@ -138,7 +166,7 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
       // Auto-recovery: if we went from having items to empty with no filters,
       // articles may have been lost — trigger a background RSS re-fetch
       const hasFilters = !!(searchQuery || sourceFilter || bookmarkFilter);
-      if (items.length === 0 && prevCount > 0 && !hasFilters) {
+      if (items.length === 0 && prevCount > 0 && !hasFilters && !activeFeedId) {
         setTimeout(() => get().fetchAll(true), 500);
       }
     } catch (error) {
@@ -151,7 +179,19 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
 
   loadBriefItems: async () => {
     try {
-      const briefItems = await window.electronAPI.getIntelItems('week');
+      let briefItems = await window.electronAPI.getIntelItems('week');
+
+      // Client-side filtering: when a feed is active, only show items from that feed's sources
+      const { activeFeedId } = get();
+      if (activeFeedId) {
+        try {
+          const feedSourceIds = await window.electronAPI.getIntelFeedSources(activeFeedId);
+          briefItems = briefItems.filter((item) => feedSourceIds.includes(item.sourceId));
+        } catch {
+          // Fallback: show all items
+        }
+      }
+
       set({ briefItems });
     } catch {
       // Non-critical — brief title matching will degrade gracefully
@@ -335,7 +375,8 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
 
   loadBrief: async () => {
     try {
-      const brief = await window.electronAPI.intelGetLatestBrief(get().briefType);
+      const { briefType, activeFeedId } = get();
+      const brief = await window.electronAPI.intelGetLatestBrief(briefType, activeFeedId ?? undefined);
       set({ brief });
     } catch (error) {
       set({
@@ -346,7 +387,8 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
 
   loadBriefHistory: async () => {
     try {
-      const briefHistory = await window.electronAPI.intelGetBriefHistory(get().briefType);
+      const { briefType, activeFeedId } = get();
+      const briefHistory = await window.electronAPI.intelGetBriefHistory(briefType, activeFeedId ?? undefined);
       set({ briefHistory });
     } catch {
       // Non-critical — silently ignore
@@ -356,7 +398,8 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   generateBrief: async () => {
     set({ briefLoading: true, error: null });
     try {
-      const brief = await window.electronAPI.intelGenerateBrief(get().briefType);
+      const { briefType, activeFeedId } = get();
+      const brief = await window.electronAPI.intelGenerateBrief(briefType, activeFeedId ?? undefined);
       // Reload items since categories may have been updated
       await get().loadItems();
       set({ brief, briefLoading: false });
@@ -502,5 +545,61 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
 
   clearBriefChat: () => {
     set({ briefChatMessages: [], briefChatSending: false });
+  },
+
+  // Feed actions
+  loadFeeds: async () => {
+    try {
+      const feeds = await window.electronAPI.getIntelFeeds();
+      set({ feeds });
+    } catch {
+      // Non-critical — silently ignore
+    }
+  },
+
+  setActiveFeed: (feedId: string | null) => {
+    set({ activeFeedId: feedId });
+    // Reload items + brief for the new feed scope
+    get().loadItems();
+    get().loadBrief();
+    get().loadBriefHistory();
+    get().loadBriefItems();
+  },
+
+  createFeed: async (input: CreateIntelFeedInput) => {
+    const feed = await window.electronAPI.createIntelFeed(input);
+    await get().loadFeeds();
+    return feed;
+  },
+
+  updateFeed: async (id: string, input: UpdateIntelFeedInput) => {
+    await window.electronAPI.updateIntelFeed(id, input);
+    await get().loadFeeds();
+  },
+
+  deleteFeed: async (id: string) => {
+    await window.electronAPI.deleteIntelFeed(id);
+    // If the deleted feed was active, reset to "All"
+    if (get().activeFeedId === id) {
+      set({ activeFeedId: null });
+      get().loadItems();
+      get().loadBrief();
+      get().loadBriefHistory();
+      get().loadBriefItems();
+    }
+    await get().loadFeeds();
+  },
+
+  setFeedSources: async (feedId: string, sourceIds: string[]) => {
+    await window.electronAPI.setIntelFeedSources(feedId, sourceIds);
+  },
+
+  getFeedSourceIds: async (feedId: string) => {
+    return window.electronAPI.getIntelFeedSources(feedId);
+  },
+
+  reorderFeeds: async (feedIds: string[]) => {
+    await window.electronAPI.reorderIntelFeeds(feedIds);
+    await get().loadFeeds();
   },
 }));
