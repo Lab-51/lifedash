@@ -28,6 +28,19 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.36',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Meeting briefs are now concise — short one-sentence bullets instead of verbose paragraphs',
+          'Action items now work reliably with local AI models (LM Studio, Ollama) — improved prompt and parser',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.35',
     sections: [
       {
@@ -76,19 +89,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'UI sound effects — subtle click and hover sounds on buttons and navigation for a more tactile experience',
           'Sound toggle in the title bar — quickly mute or unmute UI sounds with one click',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.31',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Grid/list view toggle on the Projects page — switch between card grid and compact list view, preference is remembered',
-          'Drag-and-drop project reordering — arrange projects in any order you want by dragging them (works in both grid and list views)',
         ],
       },
     ],
