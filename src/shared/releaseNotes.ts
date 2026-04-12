@@ -28,6 +28,20 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.35',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'LM Studio support — run local AI models through LM Studio with auto-detection, no API key needed',
+          'Multi-tab intelligence feeds — create themed tabs (AI, Business, etc.) with per-tab source selection and scoped AI briefs',
+          'Topic consolidation — daily briefs now merge same-event articles into single bullets with sub-links instead of repeating them',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.34',
     sections: [
       {
@@ -75,26 +89,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Grid/list view toggle on the Projects page — switch between card grid and compact list view, preference is remembered',
           'Drag-and-drop project reordering — arrange projects in any order you want by dragging them (works in both grid and list views)',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.30',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Quick record shortcut (Ctrl+Shift+R) — start or stop a recording instantly from anywhere in the app',
-          'Recording completion toast — when a meeting finishes processing, a notification appears with a "View Results" button so you never miss it',
-        ],
-      },
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Keyboard shortcuts help modal now shows the correct page for every shortcut (Ctrl+2 through Ctrl+8 were wrong)',
         ],
       },
     ],
