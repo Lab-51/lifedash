@@ -129,6 +129,23 @@ export function registerAIProviderHandlers(): void {
     }
   });
 
+  // Check if LM Studio is running locally and list loaded models.
+  // LM Studio's /v1/models returns OpenAI format: { data: [{ id: "model-name" }] }
+  ipcMain.handle('ai:check-lmstudio', async () => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const resp = await fetch('http://localhost:1234/v1/models', { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!resp.ok) return { running: false, models: [] };
+      const data = (await resp.json()) as { data?: { id: string }[] };
+      const models = (data.data || []).map((m: { id: string }) => m.id);
+      return { running: true, models };
+    } catch {
+      return { running: false, models: [] };
+    }
+  });
+
   // --- Usage Tracking ---
 
   // Get recent usage entries (newest first, max 100)

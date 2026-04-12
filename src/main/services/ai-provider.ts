@@ -34,6 +34,7 @@ const TEST_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-haiku-4-5-20251001',
   ollama: 'llama3.2',
   kimi: 'kimi-k2.5',
+  lmstudio: 'default',
 };
 
 // Pricing per token (USD). Prices sourced from provider pricing pages (Feb 2026).
@@ -123,6 +124,18 @@ function createFactory(name: AIProviderName, apiKey?: string, baseUrl?: string):
       });
       return ((modelId: string) => kimi.chat(modelId)) as unknown as ProviderFactory;
     }
+    case 'lmstudio': {
+      // LM Studio is OpenAI-compatible but only supports /chat/completions.
+      // API key is ignored by LM Studio but required by the SDK.
+      // Normalize base URL: ensure it ends with /v1 (users often paste without it).
+      let lmsUrl = baseUrl || 'http://localhost:1234/v1';
+      if (!lmsUrl.endsWith('/v1')) lmsUrl = lmsUrl.replace(/\/+$/, '') + '/v1';
+      const lms = createOpenAI({
+        apiKey: 'lm-studio',
+        baseURL: lmsUrl,
+      });
+      return ((modelId: string) => lms.chat(modelId)) as unknown as ProviderFactory;
+    }
     default:
       throw new Error(`Unknown AI provider: ${name}`);
   }
@@ -191,8 +204,31 @@ export async function testConnection(
   const start = Date.now();
   try {
     const apiKey = apiKeyEncrypted ? decryptString(apiKeyEncrypted) : undefined;
+
+    // LM Studio: resolve actual model ID from the running instance.
+    // The static TEST_MODELS entry ('default') isn't a real model — we need to
+    // query /v1/models to find what's loaded.
+    let testModelId = TEST_MODELS[name];
+    if (name === 'lmstudio') {
+      let lmsUrl = baseUrl || 'http://localhost:1234/v1';
+      if (!lmsUrl.endsWith('/v1')) lmsUrl = lmsUrl.replace(/\/+$/, '') + '/v1';
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 3000);
+        const resp = await fetch(`${lmsUrl}/models`, { signal: ctrl.signal });
+        clearTimeout(t);
+        if (resp.ok) {
+          const data = (await resp.json()) as { data?: { id: string }[] };
+          const models = (data.data || []).filter((m) => !m.id.includes('embed')).map((m) => m.id);
+          if (models.length > 0) testModelId = models[0];
+        }
+      } catch {
+        // If model list fails, fall through with 'default' — the generate call will give a clearer error
+      }
+    }
+
     const factory = createFactory(name, apiKey, baseUrl ?? undefined);
-    const model = factory(TEST_MODELS[name]) as LanguageModel;
+    const model = factory(testModelId) as LanguageModel;
 
     await generateText({
       model,
@@ -299,6 +335,7 @@ const DEFAULT_MODELS: Record<AIProviderName, string> = {
   anthropic: 'claude-haiku-4-5-20251001',
   ollama: 'llama3.2',
   kimi: 'kimi-k2.5',
+  lmstudio: 'default',
 };
 
 /**

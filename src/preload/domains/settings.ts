@@ -29,4 +29,7 @@ export const settingsBridge = {
 
   // Ollama health check
   checkOllama: () => ipcRenderer.invoke('ai:check-ollama'),
+
+  // LM Studio health check
+  checkLmStudio: () => ipcRenderer.invoke('ai:check-lmstudio'),
 };

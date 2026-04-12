@@ -54,6 +54,7 @@ const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
     { id: 'kimi-k2.5', label: 'Kimi K2.5' },
     { id: 'kimi-k2.5-preview', label: 'Kimi K2.5 Preview' },
   ],
+  lmstudio: [{ id: 'default', label: 'Loaded Model (default)' }],
 };
 
 // Recommended presets: which model to use per task type for each provider.
@@ -70,6 +71,7 @@ const RECOMMENDED_MODELS: Record<AIProviderName, { flagship: string; efficient: 
   anthropic: { flagship: 'claude-opus-4-6', efficient: 'claude-sonnet-4-6' },
   kimi: { flagship: 'kimi-k2.5', efficient: 'kimi-k2.5' },
   ollama: { flagship: 'llama3.2', efficient: 'llama3.2' },
+  lmstudio: { flagship: 'default', efficient: 'default' },
 };
 
 export interface TaskModelConfigHandle {

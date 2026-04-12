@@ -36,26 +36,35 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   const [baseUrl, setBaseUrl] = useState('');
   const [ollamaStatus, setOllamaStatus] = useState<'idle' | 'checking' | 'found' | 'not-found'>('idle');
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [lmStudioStatus, setLmStudioStatus] = useState<'idle' | 'checking' | 'found' | 'not-found'>('idle');
+  const [lmStudioModels, setLmStudioModels] = useState<string[]>([]);
   const [testStatus, setTestStatus] = useState<'running' | 'success' | 'failure'>('running');
   const [testError, setTestError] = useState<string | null>(null);
   const [testLatency, setTestLatency] = useState<number | undefined>(undefined);
 
-  // Pre-fill base URL when provider changes and reset Ollama state
+  // Pre-fill base URL when provider changes and reset local provider state
   useEffect(() => {
     if (selectedProvider === 'ollama') {
       setBaseUrl('http://localhost:11434');
+    } else if (selectedProvider === 'lmstudio') {
+      setBaseUrl('http://localhost:1234/v1');
     } else {
       setBaseUrl('');
     }
     setApiKey('');
     setOllamaStatus('idle');
     setOllamaModels([]);
+    setLmStudioStatus('idle');
+    setLmStudioModels([]);
   }, [selectedProvider]);
 
   // Auto-detect Ollama when entering the configure step for Ollama
   useEffect(() => {
     if (step === 'configure' && selectedProvider === 'ollama' && ollamaStatus === 'idle') {
       handleCheckOllama();
+    }
+    if (step === 'configure' && selectedProvider === 'lmstudio' && lmStudioStatus === 'idle') {
+      handleCheckLmStudio();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, selectedProvider]);
@@ -102,6 +111,23 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     } catch {
       setOllamaStatus('not-found');
       setOllamaModels([]);
+    }
+  }
+
+  async function handleCheckLmStudio() {
+    setLmStudioStatus('checking');
+    try {
+      const result = await window.electronAPI.checkLmStudio();
+      if (result.running) {
+        setLmStudioStatus('found');
+        setLmStudioModels(result.models);
+      } else {
+        setLmStudioStatus('not-found');
+        setLmStudioModels([]);
+      }
+    } catch {
+      setLmStudioStatus('not-found');
+      setLmStudioModels([]);
     }
   }
 
@@ -258,6 +284,9 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               ollamaStatus={ollamaStatus}
               ollamaModels={ollamaModels}
               onCheckOllama={handleCheckOllama}
+              lmStudioStatus={lmStudioStatus}
+              lmStudioModels={lmStudioModels}
+              onCheckLmStudio={handleCheckLmStudio}
               onNext={handleConfigureNext}
               onBack={() => setStep(prevStep)}
             />

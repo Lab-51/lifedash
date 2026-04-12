@@ -237,6 +237,9 @@ export interface ElectronAPI {
   // Ollama health check
   checkOllama: () => Promise<{ running: boolean; models: string[] }>;
 
+  // LM Studio health check
+  checkLmStudio: () => Promise<{ running: boolean; models: string[] }>;
+
   // Meetings
   getMeetings: () => Promise<Meeting[]>;
   getMeeting: (id: string) => Promise<MeetingWithTranscript | null>;

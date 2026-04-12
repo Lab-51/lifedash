@@ -11,6 +11,7 @@ const PROVIDER_OPTIONS: { value: AIProviderName; label: string; description: str
   { value: 'openai', label: 'OpenAI', description: 'GPT-5.2, GPT-5 Mini, o4-mini' },
   { value: 'anthropic', label: 'Anthropic', description: 'Claude Sonnet, Claude Haiku' },
   { value: 'ollama', label: 'Ollama', description: 'Local models (Llama, Mistral, etc.)' },
+  { value: 'lmstudio', label: 'LM Studio', description: 'Local models via LM Studio' },
   { value: 'kimi', label: 'Kimi', description: 'Kimi K2.5 by Moonshot AI' },
 ];
 
@@ -28,8 +29,9 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const needsApiKey = name !== 'ollama';
+  const needsApiKey = name !== 'ollama' && name !== 'lmstudio';
   const [ollamaDetected, setOllamaDetected] = useState<boolean | null>(null);
+  const [lmStudioDetected, setLmStudioDetected] = useState<boolean | null>(null);
 
   // Auto-detect Ollama when Ollama is selected as the provider
   useEffect(() => {
@@ -45,6 +47,23 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
       })
       .catch(() => {
         setOllamaDetected(false);
+      });
+  }, [name]);
+
+  // Auto-detect LM Studio when LM Studio is selected as the provider
+  useEffect(() => {
+    if (name !== 'lmstudio') {
+      setLmStudioDetected(null);
+      return;
+    }
+    setLmStudioDetected(null);
+    window.electronAPI
+      .checkLmStudio()
+      .then((result) => {
+        setLmStudioDetected(result.running);
+      })
+      .catch(() => {
+        setLmStudioDetected(false);
       });
   }, [name]);
 
@@ -96,6 +115,8 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
                   setName(opt.value);
                   if (opt.value === 'ollama' && !baseUrl) {
                     setBaseUrl('http://localhost:11434');
+                  } else if (opt.value === 'lmstudio' && !baseUrl) {
+                    setBaseUrl('http://localhost:1234/v1');
                   } else if (opt.value === 'kimi' && !baseUrl) {
                     setBaseUrl('https://api.moonshot.ai/v1');
                   }
@@ -133,6 +154,32 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
                   className="underline hover:no-underline"
                 >
                   ollama.com
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* LM Studio detection hint */}
+        {name === 'lmstudio' && lmStudioDetected !== null && (
+          <div
+            className={`flex items-center gap-1.5 text-xs font-data px-1 ${lmStudioDetected ? 'text-emerald-500' : 'text-amber-400'}`}
+          >
+            {lmStudioDetected ? (
+              <>
+                <CheckCircle size={13} />
+                LM Studio detected
+              </>
+            ) : (
+              <>
+                <AlertCircle size={13} />
+                Not detected — download at{' '}
+                <button
+                  type="button"
+                  onClick={() => window.electronAPI.openExternal('https://lmstudio.ai')}
+                  className="underline hover:no-underline"
+                >
+                  lmstudio.ai
                 </button>
               </>
             )}
@@ -181,14 +228,26 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
           <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">
             Base URL{' '}
             <span className="text-[var(--color-text-muted)]">
-              (optional{name === 'ollama' ? ', default: localhost:11434' : ''})
+              (optional
+              {name === 'ollama'
+                ? ', default: localhost:11434'
+                : name === 'lmstudio'
+                  ? ', default: localhost:1234'
+                  : ''}
+              )
             </span>
           </label>
           <input
             type="text"
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder={name === 'ollama' ? 'http://localhost:11434' : 'Leave blank for default'}
+            placeholder={
+              name === 'ollama'
+                ? 'http://localhost:11434'
+                : name === 'lmstudio'
+                  ? 'http://localhost:1234/v1'
+                  : 'Leave blank for default'
+            }
             className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
           />
         </div>

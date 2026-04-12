@@ -1,6 +1,6 @@
 // Provider selection step — choose between cloud AI providers.
 
-import { ArrowRight, ArrowLeft, Zap, Sparkles } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Zap, Sparkles, Monitor } from 'lucide-react';
 import HelpTip from '../HelpTip';
 import type { AIProviderName } from '../../../shared/types';
 import type { ProviderOption } from './types';
@@ -17,6 +17,12 @@ const CLOUD_PROVIDER_OPTIONS: ProviderOption[] = [
     label: 'Anthropic',
     tagline: 'Claude models — strong reasoning and safety',
     icon: <Sparkles size={22} />,
+  },
+  {
+    value: 'lmstudio',
+    label: 'LM Studio',
+    tagline: 'Local models via LM Studio — no API key needed',
+    icon: <Monitor size={22} />,
   },
 ];
 

@@ -1,4 +1,4 @@
-// Provider configuration step — enter API key or detect Ollama.
+// Provider configuration step — enter API key or detect Ollama/LM Studio.
 
 import { useState } from 'react';
 import { Eye, EyeOff, CheckCircle, XCircle, Loader2, ArrowRight, ArrowLeft, ExternalLink, Globe } from 'lucide-react';
@@ -7,6 +7,7 @@ import type { AIProviderName } from '../../../shared/types';
 
 const PROVIDER_LABELS: Record<string, string> = {
   ollama: 'Ollama',
+  lmstudio: 'LM Studio',
   openai: 'OpenAI',
   anthropic: 'Anthropic',
 };
@@ -20,6 +21,9 @@ export interface StepConfigureProps {
   ollamaStatus: 'idle' | 'checking' | 'found' | 'not-found';
   ollamaModels: string[];
   onCheckOllama: () => void;
+  lmStudioStatus: 'idle' | 'checking' | 'found' | 'not-found';
+  lmStudioModels: string[];
+  onCheckLmStudio: () => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -33,15 +37,23 @@ export default function StepConfigure({
   ollamaStatus,
   ollamaModels,
   onCheckOllama,
+  lmStudioStatus,
+  lmStudioModels,
+  onCheckLmStudio,
   onNext,
   onBack,
 }: StepConfigureProps) {
   const [showApiKey, setShowApiKey] = useState(false);
-  const needsApiKey = provider !== 'ollama';
+  const needsApiKey = provider !== 'ollama' && provider !== 'lmstudio';
 
   const providerName = PROVIDER_LABELS[provider] ?? provider;
 
-  const canContinue = provider === 'ollama' ? ollamaStatus === 'found' : apiKey.trim().length > 0;
+  const canContinue =
+    provider === 'ollama'
+      ? ollamaStatus === 'found'
+      : provider === 'lmstudio'
+        ? lmStudioStatus === 'found'
+        : apiKey.trim().length > 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -52,7 +64,9 @@ export default function StepConfigure({
         <p className="text-xs text-[var(--color-text-secondary)]">
           {provider === 'ollama'
             ? 'LifeDash will connect to your local Ollama instance.'
-            : `Enter your ${providerName} API key to get started.`}
+            : provider === 'lmstudio'
+              ? 'LifeDash will connect to your local LM Studio instance.'
+              : `Enter your ${providerName} API key to get started.`}
         </p>
       </div>
 
@@ -144,6 +158,87 @@ export default function StepConfigure({
               value={baseUrl}
               onChange={(e) => onBaseUrlChange(e.target.value)}
               placeholder="http://localhost:11434"
+              className="w-full text-sm bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+            />
+          </div>
+        </div>
+      )}
+
+      {provider === 'lmstudio' && (
+        <div className="flex flex-col gap-3">
+          <div className="p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-chrome)] text-sm text-[var(--color-text-secondary)] space-y-2 leading-relaxed">
+            <p className="font-medium text-[var(--color-text-primary)]">How to set up LM Studio:</p>
+            <ol className="list-decimal list-inside space-y-1 text-xs text-[var(--color-text-secondary)]">
+              <li>Download and install LM Studio from lmstudio.ai</li>
+              <li>Open LM Studio and download a model</li>
+              <li>Start the local server in LM Studio (Local Server tab)</li>
+              <li>Click "Detect LM Studio" below</li>
+            </ol>
+            <a
+              href="https://lmstudio.ai"
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => {
+                e.preventDefault();
+                window.electronAPI.openExternal('https://lmstudio.ai');
+              }}
+              className="inline-flex items-center gap-1 text-xs text-[var(--color-accent)] hover:underline mt-1"
+            >
+              Download LM Studio
+              <ExternalLink size={11} />
+            </a>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onCheckLmStudio}
+              disabled={lmStudioStatus === 'checking'}
+              className="flex items-center gap-2 border border-[var(--color-accent-dim)] hover:border-[var(--color-accent)] text-[var(--color-accent)] px-4 py-2 text-sm transition-all clip-corner-cut-sm disabled:opacity-50"
+            >
+              {lmStudioStatus === 'checking' ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
+              {lmStudioStatus === 'checking' ? 'Detecting...' : 'Detect LM Studio'}
+            </button>
+
+            {lmStudioStatus === 'found' && (
+              <div className="flex items-center gap-1.5 text-sm text-emerald-500">
+                <CheckCircle size={16} />
+                LM Studio is running
+              </div>
+            )}
+            {lmStudioStatus === 'not-found' && (
+              <div className="flex items-center gap-1.5 text-sm text-red-400">
+                <XCircle size={16} />
+                Not detected
+              </div>
+            )}
+          </div>
+
+          {/* Model list after successful detection */}
+          {lmStudioStatus === 'found' && (
+            <div className="text-xs text-[var(--color-text-secondary)] font-data">
+              {lmStudioModels.length > 0 ? (
+                <span>
+                  Loaded models: <span className="text-[var(--color-accent)]">{lmStudioModels.join(', ')}</span>
+                </span>
+              ) : (
+                <span className="text-amber-400">
+                  No models loaded — open LM Studio and load a model from the Discover tab
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Base URL for LM Studio */}
+          <div>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">
+              Base URL <span className="text-[var(--color-text-muted)]">(default: localhost:1234)</span>
+            </label>
+            <input
+              type="text"
+              value={baseUrl}
+              onChange={(e) => onBaseUrlChange(e.target.value)}
+              placeholder="http://localhost:1234/v1"
               className="w-full text-sm bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
             />
           </div>

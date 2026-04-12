@@ -1,6 +1,6 @@
 // === AI provider, usage, and configuration types ===
 
-export type AIProviderName = 'openai' | 'anthropic' | 'ollama' | 'kimi';
+export type AIProviderName = 'openai' | 'anthropic' | 'ollama' | 'kimi' | 'lmstudio';
 export type AITaskType =
   | 'summarization'
   | 'brainstorming'
