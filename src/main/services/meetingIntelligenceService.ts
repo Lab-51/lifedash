@@ -30,20 +30,40 @@ const log = createLogger('MeetingIntelligence');
 // Prompt Templates
 // ---------------------------------------------------------------------------
 
-const BASE_SUMMARIZATION_PROMPT = `You are a meeting summarization assistant. Given a meeting transcript, produce a structured summary.
+const BASE_SUMMARIZATION_PROMPT = `You are a meeting summarization assistant. Summarize the transcript into three sections. Be extremely concise — every bullet must be one short sentence (max 20 words).
 
-Format your response as:
+Format:
 
 ## Key Points
-- [Main discussion points as bullet items]
+- [One-sentence summary of a main topic discussed]
 
 ## Decisions Made
-- [Any decisions that were reached]
+- [One-sentence decision, or "None" if no decisions were made]
 
 ## Follow-ups
-- [Items that need follow-up action]
+- [One-sentence follow-up task with owner if mentioned]
 
-Be concise. Focus on substance, not filler. If the transcript is short or unclear, summarize what's available.`;
+Example output for a 30-minute product meeting:
+
+## Key Points
+- Team agreed to launch the beta in Q2 instead of Q1
+- Mobile app has 3 critical bugs blocking release
+- Design team presented new onboarding flow, well received
+
+## Decisions Made
+- Push beta launch to April 15 to fix critical bugs
+- Hire one more QA engineer for the mobile team
+
+## Follow-ups
+- Sarah: share updated timeline with stakeholders by Friday
+- Dev team: fix the 3 critical bugs before next sprint
+
+Rules:
+- Maximum 6 bullets per section
+- No filler phrases ("The team discussed...", "It was mentioned that...")
+- Start Key Points with the topic, not "Discussion about..."
+- Start Follow-ups with the person responsible if known
+- If a section has nothing, write "- None"`;
 
 function getSummarizationPrompt(template: MeetingTemplateType): string {
   const templateInfo = MEETING_TEMPLATES.find((t) => t.type === template);
@@ -53,20 +73,20 @@ function getSummarizationPrompt(template: MeetingTemplateType): string {
   return `${BASE_SUMMARIZATION_PROMPT}\n\nIMPORTANT CONTEXT: ${templateInfo.aiPromptHint}`;
 }
 
-const BASE_ACTION_EXTRACTION_PROMPT = `You are a meeting action item extractor. Given a meeting transcript, identify concrete action items — tasks, assignments, and follow-ups that someone needs to do.
+const BASE_ACTION_EXTRACTION_PROMPT = `You are a meeting action item extractor. Given a meeting transcript, identify concrete action items — tasks, assignments, and follow-ups.
 
-Respond ONLY with a JSON array of objects, each with a 'description' field:
-[
-  { "description": "Schedule follow-up meeting with design team" },
-  { "description": "Update the Q4 budget spreadsheet with new numbers" }
-]
+Respond with a bullet list of action items:
+
+- Schedule follow-up meeting with design team
+- Update the Q4 budget spreadsheet with new numbers
+- Send project timeline to stakeholders by Friday
 
 Rules:
-- Each action item should be a specific, actionable task
-- Start each description with a verb (Schedule, Update, Review, Create, Send, etc.)
-- If no clear action items exist, return an empty array: []
-- Do NOT include general observations or discussion summaries
-- Maximum 10 action items`;
+- Start each item with a verb (Schedule, Update, Review, Create, Send, etc.)
+- One item per line, prefixed with "- "
+- If no clear action items exist, respond with: No action items.
+- Maximum 10 items
+- Do NOT include observations, summaries, or commentary — only actionable tasks`;
 
 function getActionExtractionPrompt(template: MeetingTemplateType): string {
   if (template === 'standup') {
