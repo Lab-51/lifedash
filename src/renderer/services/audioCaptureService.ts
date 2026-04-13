@@ -41,6 +41,10 @@ let micGainNode: GainNode | null = null;
 let currentAudioLevel = 0; // 0.0 (silence) to 1.0 (max)
 let audioLevelCallback: ((level: number) => void) | null = null;
 
+// Track health monitoring
+let audioInterruptedCallback: ((type: 'mic' | 'system', recovered: boolean) => void) | null = null;
+let currentMicDeviceId: string | undefined = undefined;
+
 /**
  * Calculate RMS (root-mean-square) level of Float32 audio samples.
  * Returns a value between 0.0 (silence) and 1.0 (max).
@@ -166,6 +170,17 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
     throw new Error('No audio tracks in captured stream.');
   }
 
+  // Watch for system audio track ending unexpectedly (e.g., screen share stopped)
+  // Recovery is NOT attempted — getDisplayMedia requires user interaction via picker dialog
+  const systemTrack = audioTracks[0];
+  systemTrack.onended = () => {
+    // Bail if recording already stopped
+    if (!audioContext) return;
+
+    console.error('[audioCaptureService] System audio track ended unexpectedly — cannot auto-recover.');
+    if (audioInterruptedCallback) audioInterruptedCallback('system', false);
+  };
+
   // Step 5: Create AudioContext at 16kHz -- browser handles resampling from 48kHz
   audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
 
@@ -181,8 +196,9 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
   systemGainNode.connect(processorNode);
 
   // Step 7: Optionally add microphone input
+  currentMicDeviceId = micDeviceId;
   if (includeMic) {
-    micStream = await acquireMicStream(micDeviceId);
+    micStream = await acquireMicStream(currentMicDeviceId);
     if (micStream) {
       micSourceNode = audioContext.createMediaStreamSource(micStream);
       micGainNode = audioContext.createGain();
@@ -190,6 +206,46 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
       // Connect mic: source → gain → processor (sums with system audio)
       micSourceNode.connect(micGainNode);
       micGainNode.connect(processorNode);
+
+      // Watch for mic track ending unexpectedly (e.g., device disconnected)
+      const micTrack = micStream.getAudioTracks()[0];
+      if (micTrack) {
+        micTrack.onended = async () => {
+          // Bail if recording already stopped
+          if (!audioContext) return;
+
+          console.warn('[audioCaptureService] Mic track ended unexpectedly — attempting recovery...');
+
+          // Disconnect old mic nodes before re-wiring
+          if (micSourceNode) {
+            micSourceNode.disconnect();
+            micSourceNode = null;
+          }
+          if (micGainNode) {
+            micGainNode.disconnect();
+            micGainNode = null;
+          }
+          if (micStream) {
+            micStream.getTracks().forEach((t) => t.stop());
+            micStream = null;
+          }
+
+          const recoveredStream = await acquireMicStream(currentMicDeviceId);
+          if (recoveredStream && audioContext && micGainNode === null) {
+            micStream = recoveredStream;
+            micSourceNode = audioContext.createMediaStreamSource(micStream);
+            micGainNode = audioContext.createGain();
+            micGainNode.gain.value = 1.0;
+            micSourceNode.connect(micGainNode);
+            micGainNode.connect(processorNode!);
+            console.info('[audioCaptureService] Mic recovered successfully.');
+            if (audioInterruptedCallback) audioInterruptedCallback('mic', true);
+          } else {
+            console.warn('[audioCaptureService] Mic recovery failed — continuing with system audio only.');
+            if (audioInterruptedCallback) audioInterruptedCallback('mic', false);
+          }
+        };
+      }
     }
   }
 
@@ -245,11 +301,24 @@ export function onAudioLevel(callback: ((level: number) => void) | null): void {
 }
 
 /**
+ * Set a callback to receive track interruption notifications during capture.
+ * Fired when a mic or system audio track ends unexpectedly.
+ * - type: 'mic' | 'system' — which track was lost
+ * - recovered: true if mic was successfully re-acquired; always false for system audio
+ * Pass null to remove.
+ */
+export function onAudioInterrupted(callback: ((type: 'mic' | 'system', recovered: boolean) => void) | null): void {
+  audioInterruptedCallback = callback;
+}
+
+/**
  * Internal cleanup -- disconnect nodes, stop tracks, close context.
  */
 function cleanup(): void {
   currentAudioLevel = 0;
   audioLevelCallback = null;
+  audioInterruptedCallback = null;
+  currentMicDeviceId = undefined;
 
   if (processorNode) {
     processorNode.disconnect();
@@ -266,7 +335,10 @@ function cleanup(): void {
     micSourceNode = null;
   }
   if (micStream) {
-    micStream.getTracks().forEach((track) => track.stop());
+    micStream.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
     micStream = null;
   }
   // Clean up system audio resources
@@ -279,7 +351,10 @@ function cleanup(): void {
     sourceNode = null;
   }
   if (mediaStream) {
-    mediaStream.getTracks().forEach((track) => track.stop());
+    mediaStream.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
     mediaStream = null;
   }
   if (audioContext) {

@@ -92,6 +92,17 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       // Step 4: Start audio capture in renderer (with optional mic mixing)
       await audioCaptureService.startCapture(get().includeMic, micDeviceId);
 
+      // Step 5: Register interruption callback to surface audio issues via toast
+      audioCaptureService.onAudioInterrupted((type, recovered) => {
+        if (type === 'mic' && recovered === true) {
+          toast('Microphone reconnected', 'success', undefined, 3000);
+        } else if (type === 'mic' && recovered === false) {
+          toast('Microphone disconnected — recording continues with system audio only', 'error', undefined, 5000);
+        } else if (type === 'system' && recovered === false) {
+          toast('System audio lost — restart recording to resume capture', 'error', undefined, 8000);
+        }
+      });
+
       // Notify main process that recording is active (close guard)
       window.electronAPI.recordingSetState(true);
 
@@ -134,13 +145,16 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     window.electronAPI.recordingSetState(false);
 
     try {
-      // Step 1: Stop audio capture in renderer
+      // Step 1: Clear interruption callback before stopping (prevent callbacks during cleanup)
+      audioCaptureService.onAudioInterrupted(null);
+
+      // Step 2: Stop audio capture in renderer
       await audioCaptureService.stopCapture();
 
-      // Step 2: Tell main process to stop recording (saves WAV)
+      // Step 3: Tell main process to stop recording (saves WAV)
       const audioPath = await window.electronAPI.stopRecording();
 
-      // Step 3: Update meeting with audioPath and completion
+      // Step 4: Update meeting with audioPath and completion
       if (meetingId) {
         await window.electronAPI.updateMeeting(meetingId, {
           endedAt: new Date().toISOString(),
@@ -185,6 +199,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     set({ isRecording: false, isProcessing: false, processingProgress: null });
     window.electronAPI.recordingSetState(false);
     try {
+      audioCaptureService.onAudioInterrupted(null);
       await audioCaptureService.stopCapture();
       await window.electronAPI.stopRecording();
       if (meetingId) {
