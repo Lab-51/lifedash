@@ -30,7 +30,7 @@ const log = createLogger('MeetingIntelligence');
 // Prompt Templates
 // ---------------------------------------------------------------------------
 
-const BASE_SUMMARIZATION_PROMPT = `You are a meeting summarization assistant. Summarize the transcript into three sections. Be extremely concise — every bullet must be one short sentence (max 20 words).
+const BASE_SUMMARIZATION_PROMPT = `You are a meeting summarization assistant. Summarize the transcript into three sections. Cover every distinct topic, decision, and follow-up mentioned — do not omit topics for the sake of brevity. Each bullet must be one short sentence (max 25 words).
 
 Format:
 
@@ -49,17 +49,22 @@ Example output for a 30-minute product meeting:
 - Team agreed to launch the beta in Q2 instead of Q1
 - Mobile app has 3 critical bugs blocking release
 - Design team presented new onboarding flow, well received
+- Customer support requests doubled — need dedicated triage process
+- API rate limits causing issues for enterprise clients
 
 ## Decisions Made
 - Push beta launch to April 15 to fix critical bugs
 - Hire one more QA engineer for the mobile team
+- Adopt weekly bug triage meetings starting next sprint
 
 ## Follow-ups
 - Sarah: share updated timeline with stakeholders by Friday
 - Dev team: fix the 3 critical bugs before next sprint
+- PM: draft proposal for enterprise rate limit increase
 
 Rules:
-- Maximum 6 bullets per section
+- Aim for 4-10 bullets in Key Points — one bullet per distinct topic discussed
+- Maximum 10 bullets per section
 - No filler phrases ("The team discussed...", "It was mentioned that...")
 - Start Key Points with the topic, not "Discussion about..."
 - Start Follow-ups with the person responsible if known
