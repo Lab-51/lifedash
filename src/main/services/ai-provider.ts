@@ -265,13 +265,30 @@ export async function generate(options: {
 }) {
   const factory = getProvider(options.providerId, options.providerName, options.apiKeyEncrypted, options.baseUrl);
 
-  const result = await generateText({
-    model: factory(options.model) as LanguageModel,
-    prompt: options.prompt,
-    system: options.system,
-    temperature: sanitizeTemperature(options.providerName, options.temperature),
-    maxOutputTokens: sanitizeMaxTokens(options.providerName, options.maxTokens),
-  });
+  let result;
+  try {
+    result = await generateText({
+      model: factory(options.model) as LanguageModel,
+      prompt: options.prompt,
+      system: options.system,
+      temperature: sanitizeTemperature(options.providerName, options.temperature),
+      maxOutputTokens: sanitizeMaxTokens(options.providerName, options.maxTokens),
+    });
+  } catch (err: unknown) {
+    // Re-throw with user-friendly message for local model context overflow
+    if (options.providerName === 'lmstudio' || options.providerName === 'ollama') {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('400') || msg.toLowerCase().includes('bad request')) {
+        throw new Error(
+          `Request too large for the local model. ` +
+            `Try increasing the context length in ${options.providerName === 'lmstudio' ? 'LM Studio' : 'Ollama'} ` +
+            `(model settings → Context Length / n_ctx), or use fewer input items.`,
+          { cause: err },
+        );
+      }
+    }
+    throw err;
+  }
 
   // Reasoning model fallback: some models (e.g. Kimi k2.5) put content in
   // reasoning instead of text. Use reasoning as fallback when text is empty.
