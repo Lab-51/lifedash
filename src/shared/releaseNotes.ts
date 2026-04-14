@@ -28,6 +28,26 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.37',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Auto-recover microphone — if your mic disconnects during recording, LifeDash automatically reconnects when it comes back and notifies you via toast',
+        ],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Meeting briefs now work better with local models — improved prompt for fuller coverage',
+          "Friendly error message when your local model's context window is too small for a request",
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.36',
     sections: [
       {
@@ -76,19 +96,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         label: 'Fixes',
         items: [
           'Fixed cloud sync failing for projects — sort order column was missing from the sync mapping, causing upsert errors',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.32',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'UI sound effects — subtle click and hover sounds on buttons and navigation for a more tactile experience',
-          'Sound toggle in the title bar — quickly mute or unmute UI sounds with one click',
         ],
       },
     ],
