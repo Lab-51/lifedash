@@ -3,8 +3,8 @@
 // Displays the meeting list with recording controls, using the new enterprise design system.
 
 import { useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Mic, Info, Search, X, ArrowDownWideNarrow } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Mic, Info, Search, X, ArrowDownWideNarrow, Sparkles } from 'lucide-react';
 import EmptyFeatureState from './EmptyFeatureState';
 import HudSelect from './HudSelect';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -47,6 +47,8 @@ export default function MeetingsModern() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [showControls, setShowControls] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [showTurboBanner, setShowTurboBanner] = useState(false);
 
   // Open meeting from URL search param (e.g. ?openMeeting=<id> from dashboard deep-link)
   useEffect(() => {
@@ -87,6 +89,32 @@ export default function MeetingsModern() {
   // Check if whisper model is available
   useEffect(() => {
     window.electronAPI.hasWhisperModel().then(setHasModel);
+  }, []);
+
+  // Check whether to show the large-v3-turbo recommendation banner
+  useEffect(() => {
+    const TURBO_FILE = 'ggml-large-v3-turbo-q5_0.bin';
+    const TURBO_LANGUAGES = new Set(['cs', 'sk', 'cs-mix', 'sk-mix', 'en-mix']);
+    async function checkTurboBanner() {
+      const [config, language, models, dismissed] = await Promise.all([
+        window.electronAPI.transcriptionGetConfig(),
+        window.electronAPI.getSetting('transcription:language'),
+        window.electronAPI.getWhisperModels(),
+        window.electronAPI.getSetting('ui:banner:turbo-recommendation:dismissed'),
+      ]);
+      if (
+        config.type === 'local' &&
+        language !== null &&
+        TURBO_LANGUAGES.has(language) &&
+        !models.some((m) => m.fileName === TURBO_FILE && m.available) &&
+        dismissed !== 'true'
+      ) {
+        setShowTurboBanner(true);
+      }
+    }
+    checkTurboBanner().catch(() => {
+      // Non-critical: silently skip banner on error
+    });
   }, []);
 
   // Refresh meetings list when recording stops
@@ -137,6 +165,12 @@ export default function MeetingsModern() {
       setDownloading(false);
       cleanup();
     }
+  };
+
+  // Dismiss the turbo model recommendation banner
+  const handleDismissTurboBanner = async () => {
+    setShowTurboBanner(false);
+    await window.electronAPI.setSetting('ui:banner:turbo-recommendation:dismissed', 'true');
   };
 
   // Build project name and color lookup maps
@@ -310,6 +344,37 @@ export default function MeetingsModern() {
                   Download Model (74 MB)
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTurboBanner && (
+        <div className="px-8 mb-4">
+          <div className="p-4 rounded-xl bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] flex items-start gap-3">
+            <Sparkles size={18} className="text-[var(--color-accent)] mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                Better Czech/Slovak transcription available
+              </p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+                Download the large-v3-turbo model (~874 MB) in Settings → General → Transcription for much higher
+                accuracy on Czech, Slovak, and mixed-language meetings.
+              </p>
+              <div className="flex items-center gap-4 mt-2">
+                <button
+                  onClick={() => navigate('/settings?tab=general')}
+                  className="text-xs font-semibold text-[var(--color-accent)] hover:text-[var(--color-accent-dim)] flex items-center gap-1"
+                >
+                  Open Settings
+                </button>
+                <button
+                  onClick={handleDismissTurboBanner}
+                  className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+                >
+                  Dismiss
+                </button>
+              </div>
             </div>
           </div>
         </div>

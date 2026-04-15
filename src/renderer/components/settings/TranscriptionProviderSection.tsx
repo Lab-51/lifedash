@@ -9,7 +9,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Mic, Loader2, Check, Eye, EyeOff, Globe, Download, HardDrive } from 'lucide-react';
 import type { TranscriptionProviderStatus, TranscriptionProviderType, WhisperModel } from '../../../shared/types';
-import { TRANSCRIPTION_LANGUAGES } from '../../../shared/types';
+import { TRANSCRIPTION_LANGUAGES, DEFAULT_MIXED_PROMPTS } from '../../../shared/types';
 import HudSelect from '../HudSelect';
 
 /** Provider option metadata for rendering */
@@ -56,8 +56,10 @@ export default function TranscriptionProviderSection() {
   const [downloadPercent, setDownloadPercent] = useState<number>(0);
   const [whisperBackend, setWhisperBackend] = useState<string>('unknown');
   const [speedPreset, setSpeedPreset] = useState<string>('balanced');
+  const [mixedPrompt, setMixedPrompt] = useState<string>('');
 
   const testResultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const promptDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -143,12 +145,65 @@ export default function TranscriptionProviderSection() {
     })();
   }, [selectedLanguage]);
 
+  // Load persisted mixed prompt when a mix variant is selected
+  useEffect(() => {
+    const isMix = selectedLanguage === 'cs-mix' || selectedLanguage === 'sk-mix' || selectedLanguage === 'en-mix';
+    if (!isMix) return;
+    (async () => {
+      try {
+        const stored = await window.electronAPI.getSetting(`transcription:initial-prompt:${selectedLanguage}`);
+        const code = selectedLanguage as 'cs-mix' | 'sk-mix' | 'en-mix';
+        setMixedPrompt(stored || DEFAULT_MIXED_PROMPTS[code]);
+      } catch {
+        const code = selectedLanguage as 'cs-mix' | 'sk-mix' | 'en-mix';
+        setMixedPrompt(DEFAULT_MIXED_PROMPTS[code]);
+      }
+    })();
+  }, [selectedLanguage]);
+
   const handleLanguageChange = async (value: string) => {
     setSelectedLanguage(value);
     try {
       await window.electronAPI.setSetting('transcription:language', value);
     } catch {
       // Settings save failed — non-critical
+    }
+  };
+
+  const handleMixedPromptChange = (value: string) => {
+    setMixedPrompt(value);
+    // Debounced save — 600ms after user stops typing
+    if (promptDebounceTimer.current) clearTimeout(promptDebounceTimer.current);
+    promptDebounceTimer.current = setTimeout(async () => {
+      try {
+        await window.electronAPI.setSetting(`transcription:initial-prompt:${selectedLanguage}`, value);
+      } catch {
+        // Non-critical
+      }
+    }, 600);
+  };
+
+  const handleMixedPromptBlur = async () => {
+    // Ensure save on blur even if debounce hasn't fired yet
+    if (promptDebounceTimer.current) {
+      clearTimeout(promptDebounceTimer.current);
+      promptDebounceTimer.current = null;
+    }
+    try {
+      await window.electronAPI.setSetting(`transcription:initial-prompt:${selectedLanguage}`, mixedPrompt);
+    } catch {
+      // Non-critical
+    }
+  };
+
+  const handleResetMixedPrompt = async () => {
+    const code = selectedLanguage as 'cs-mix' | 'sk-mix' | 'en-mix';
+    const defaultPrompt = DEFAULT_MIXED_PROMPTS[code];
+    setMixedPrompt(defaultPrompt);
+    try {
+      await window.electronAPI.setSetting(`transcription:initial-prompt:${selectedLanguage}`, defaultPrompt);
+    } catch {
+      // Non-critical
     }
   };
 
@@ -188,10 +243,11 @@ export default function TranscriptionProviderSection() {
   const isEnglishOnlyModel = activeModelName?.includes('.en') ?? false;
   const showModelWarning = config?.type === 'local' && isEnglishOnlyModel && selectedLanguage !== 'en';
 
-  // Clean up timer on unmount
+  // Clean up timers on unmount
   useEffect(() => {
     return () => {
       if (testResultTimer.current) clearTimeout(testResultTimer.current);
+      if (promptDebounceTimer.current) clearTimeout(promptDebounceTimer.current);
     };
   }, []);
 
@@ -426,6 +482,21 @@ export default function TranscriptionProviderSection() {
                   return needsMultilingual ? !isEnOnly : isEnOnly;
                 });
 
+                // Pick the "best" model to badge as Recommended in the current language context.
+                // Multilingual: large-v3-turbo-q5 is the strongest choice (best Czech/Slovak).
+                // English-only: small.en is the strongest available.
+                const recommendedName = needsMultilingual ? 'large-v3-turbo-q5' : 'small.en';
+
+                // Tier label per model name. Keeps each row distinguishable instead of three "Standard"s.
+                const tierLabel = (name: string): string => {
+                  if (name.startsWith('tiny')) return 'Basic';
+                  if (name.startsWith('base')) return 'Standard';
+                  if (name.startsWith('small')) return 'High Quality';
+                  if (name.startsWith('medium')) return 'Enhanced';
+                  if (name.startsWith('large')) return 'Best';
+                  return 'Standard';
+                };
+
                 return (
                   <div className="mt-2 ml-6 space-y-1.5">
                     <p className="text-xs text-surface-400 mb-1">
@@ -434,7 +505,7 @@ export default function TranscriptionProviderSection() {
                     {visibleModels.map((model) => {
                       const isActive = activeModelName === model.fileName;
                       const isDownloading = downloadingModel === model.fileName;
-                      const isSmall = model.name.startsWith('small');
+                      const isRecommended = model.name === recommendedName;
 
                       return (
                         <div
@@ -448,9 +519,9 @@ export default function TranscriptionProviderSection() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               <span className="text-xs font-medium text-[var(--color-text-primary)]">
-                                {isSmall ? 'High Quality' : 'Standard'}
+                                {tierLabel(model.name)}
                               </span>
-                              {isSmall && (
+                              {isRecommended && (
                                 <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-[var(--color-accent-muted)] text-[var(--color-accent)] font-medium">
                                   Recommended
                                 </span>
@@ -463,15 +534,7 @@ export default function TranscriptionProviderSection() {
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[0.6875rem] text-surface-500">
-                                {isSmall
-                                  ? needsMultilingual
-                                    ? 'Best accuracy · 99 languages'
-                                    : 'Best transcription accuracy'
-                                  : needsMultilingual
-                                    ? 'Faster, lower accuracy · 99 languages'
-                                    : 'Faster, lower accuracy'}
-                              </span>
+                              <span className="text-[0.6875rem] text-surface-500">{model.description}</span>
                               <span className="inline-flex items-center gap-0.5 text-[0.6875rem] text-surface-500">
                                 <HardDrive size={10} />
                                 {model.size}
@@ -618,6 +681,34 @@ export default function TranscriptionProviderSection() {
             For non-English or mixed-language meetings, select &ldquo;Multilingual&rdquo; and use a multilingual Whisper
             model.
           </p>
+
+          {/* Mixed-language initial prompt editor */}
+          {(selectedLanguage === 'cs-mix' || selectedLanguage === 'sk-mix' || selectedLanguage === 'en-mix') && (
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-[var(--color-text-primary)]">
+                  Initial prompt (helps Whisper recognize mixed terms)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleResetMixedPrompt}
+                  className="text-[0.6875rem] text-[var(--color-accent-dim)] hover:text-[var(--color-accent)] transition-colors"
+                >
+                  Reset to default
+                </button>
+              </div>
+              <textarea
+                value={mixedPrompt}
+                onChange={(e) => handleMixedPromptChange(e.target.value)}
+                onBlur={handleMixedPromptBlur}
+                rows={3}
+                className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] resize-y"
+              />
+              <p className="text-[0.6875rem] text-surface-500">
+                Mention project names, people, and technical terms in all three languages to improve accuracy.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Test connection button */}

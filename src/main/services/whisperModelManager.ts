@@ -1,5 +1,7 @@
 // === FILE PURPOSE ===
 // Whisper model management — download, locate, and check availability of GGML models.
+// Catalog includes English-only models (tiny.en, base.en, small.en), multilingual models
+// (tiny, base, small, medium-q5), and large-v3-turbo-q5 for best CS/SK/mixed accuracy.
 //
 // === DEPENDENCIES ===
 // electron (app), node:fs, node:path, node:https
@@ -69,6 +71,20 @@ export const AVAILABLE_MODELS: WhisperModelInfo[] = [
     fileName: 'ggml-small.bin',
     size: '244 MB',
     description: 'Best accuracy, multilingual (99 languages)',
+    recommended: true,
+  },
+  {
+    name: 'medium-q5',
+    fileName: 'ggml-medium-q5_0.bin',
+    size: '~539 MB',
+    description: 'Large, multilingual (99 languages), strong CS/SK accuracy',
+    recommended: true,
+  },
+  {
+    name: 'large-v3-turbo-q5',
+    fileName: 'ggml-large-v3-turbo-q5_0.bin',
+    size: '~874 MB',
+    description: 'Best multilingual accuracy, near real-time on GPU — recommended for Czech/Slovak/mixed',
     recommended: true,
   },
 ];

@@ -29,6 +29,7 @@ import { aiUsage, settings } from '../db/schema';
 import { createLogger } from './logger';
 import { trackTiming } from './performanceTracker';
 import type { TranscriptionProviderType, TranscriptionProgress } from '../../shared/types';
+import { resolveLanguagePreset, DEFAULT_MIXED_PROMPTS } from '../../shared/types/transcription';
 
 const log = createLogger('Transcription');
 
@@ -68,6 +69,7 @@ let activeProvider: TranscriptionProviderType = 'local';
 let activeLanguage: string = 'en';
 let activePreset: WhisperPreset = 'balanced';
 let lastSegmentPrompt: string = ''; // Previous segment text for context carryover
+let activeInitialPrompt: string = ''; // Trilingual glossary seed for mixed-language presets
 
 // Progress tracking for the renderer
 let totalSegmentsQueued = 0;
@@ -126,6 +128,20 @@ export async function start(meetingId: string, language?: string): Promise<void>
     const presetRows = await db.select().from(settings).where(eq(settings.key, 'transcription:speed-preset'));
     const preset = presetRows.length > 0 ? presetRows[0].value : 'balanced';
     activePreset = (preset in WHISPER_PRESETS ? preset : 'balanced') as WhisperPreset;
+  }
+
+  // Resolve mixed-language preset: extract base language and seed the initial prompt
+  {
+    const preset = resolveLanguagePreset(activeLanguage);
+    activeLanguage = preset.baseLanguage;
+    activeInitialPrompt = '';
+    if (preset.mixedCode) {
+      const db = getDb();
+      const promptKey = `transcription:initial-prompt:${preset.mixedCode}`;
+      const promptRows = await db.select().from(settings).where(eq(settings.key, promptKey));
+      activeInitialPrompt =
+        promptRows.length > 0 && promptRows[0].value ? promptRows[0].value : DEFAULT_MIXED_PROMPTS[preset.mixedCode];
+    }
   }
 
   // Common state reset
@@ -253,6 +269,7 @@ export async function stop(): Promise<void> {
 
   currentMeetingId = null;
   activeProvider = 'local';
+  activeInitialPrompt = '';
   log.info('Stopped');
 }
 
@@ -325,9 +342,18 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
     if (activeLanguage !== 'auto') {
       whisperOpts.language = activeLanguage;
     }
-    // Feed previous transcript as prompt so Whisper maintains context across segments
-    if (lastSegmentPrompt) {
-      whisperOpts.prompt = lastSegmentPrompt;
+    // Build prompt: glossary (initial prompt) takes priority; recent context fills remaining budget
+    {
+      let finalPrompt = '';
+      if (activeInitialPrompt && lastSegmentPrompt) {
+        const budget = 250;
+        const glossary = activeInitialPrompt.slice(0, budget);
+        const remaining = Math.max(0, budget - glossary.length - 1);
+        finalPrompt = remaining > 0 ? `${glossary} ${lastSegmentPrompt.slice(-remaining)}` : glossary;
+      } else {
+        finalPrompt = activeInitialPrompt || lastSegmentPrompt;
+      }
+      if (finalPrompt) whisperOpts.prompt = finalPrompt;
     }
     // When activeLanguage is 'auto', omit language so Whisper auto-detects per segment
     const { promise } = whisperContext!.transcribeData(arrayBuffer, whisperOpts);

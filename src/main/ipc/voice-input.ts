@@ -14,6 +14,7 @@ import { settings } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { voiceAudioBufferSchema } from '../../shared/validation/schemas';
+import { resolveLanguagePreset } from '../../shared/types/transcription';
 
 const log = createLogger('VoiceInput');
 
@@ -24,10 +25,11 @@ export function registerVoiceInputHandlers(): void {
     const config = await transcriptionProviderService.getConfig();
     const provider = config.type;
 
-    // Resolve language from settings
+    // Resolve language from settings, unwrapping any mixed-language preset
     const db = getDb();
     const langRows = await db.select().from(settings).where(eq(settings.key, 'transcription:language'));
-    const language = langRows.length > 0 ? langRows[0].value : 'en';
+    const rawLanguage = langRows.length > 0 ? langRows[0].value : 'en';
+    const language = resolveLanguagePreset(rawLanguage).baseLanguage;
 
     // Audio arrives as raw 16kHz mono Int16 PCM (decoded in the renderer)
     const pcmBuffer = Buffer.from(validBuffer);

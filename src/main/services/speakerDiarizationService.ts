@@ -22,6 +22,7 @@ import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { createLogger } from './logger';
 import type { DiarizationWord, TranscriptSegment } from '../../shared/types';
+import { resolveLanguagePreset } from '../../shared/types/transcription';
 
 const log = createLogger('Diarization');
 
@@ -131,10 +132,11 @@ export async function diarizeMeeting(
     // 4. Read WAV file
     const wavBuffer = fs.readFileSync(meeting.audioPath);
 
-    // 5. Read language setting from DB (default: 'en')
+    // 5. Read language setting from DB (default: 'en'), resolve any mixed-language preset
     const db = getDb();
     const langRows = await db.select().from(settings).where(eq(settings.key, 'transcription:language'));
-    const language = langRows.length > 0 ? langRows[0].value : 'en';
+    const rawLanguage = langRows.length > 0 ? langRows[0].value : 'en';
+    const language = resolveLanguagePreset(rawLanguage).baseLanguage;
 
     // 6. Call provider with diarization
     log.info(`Starting ${provider} diarization for meeting ${meetingId}`);
