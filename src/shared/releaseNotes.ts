@@ -28,6 +28,29 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.38',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Slovak transcription language support — select Slovak explicitly in the language picker',
+          'Two new Whisper models for much better Czech/Slovak accuracy: Enhanced (~539 MB) and Best / large-v3-turbo (~874 MB, recommended)',
+          'Mixed-language presets for meetings that switch between Czech, Slovak, and English',
+          "The 'Recommended' model badge now reflects the best choice for your selected language",
+        ],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Settings model picker now shows a distinct tier label per Whisper model (Basic / Standard / High Quality / Enhanced / Best) instead of calling three different models "Standard"',
+          'Corrected the "Better Czech/Slovak transcription available" banner path to "Settings → General → Transcription"',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.37',
     sections: [
       {
