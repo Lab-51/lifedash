@@ -28,6 +28,7 @@ interface MeetingStore {
   // Intelligence generation state
   generatingBrief: boolean;
   generatingActions: boolean;
+  briefErrors: Record<string, string>;
 
   // Diarization state
   diarizing: boolean;
@@ -49,6 +50,8 @@ interface MeetingStore {
   // Intelligence actions
   generateBrief: (meetingId: string) => Promise<void>;
   generateActionItems: (meetingId: string) => Promise<void>;
+  setBriefError: (meetingId: string, message: string) => void;
+  clearBriefError: (meetingId: string) => void;
   updateActionItemStatus: (id: string, status: ActionItemStatus) => Promise<void>;
   convertActionToCard: (actionItemId: string, columnId: string) => Promise<string>;
 
@@ -67,6 +70,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   pendingActionCount: 0,
   generatingBrief: false,
   generatingActions: false,
+  briefErrors: {},
   diarizing: false,
   diarizationError: null,
   analytics: null,
@@ -149,8 +153,21 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
     }
   },
 
+  setBriefError: (meetingId, message) => {
+    set((s) => ({ briefErrors: { ...s.briefErrors, [meetingId]: message } }));
+  },
+
+  clearBriefError: (meetingId) => {
+    set((s) => {
+      const next = { ...s.briefErrors };
+      delete next[meetingId];
+      return { briefErrors: next };
+    });
+  },
+
   // Generate AI brief for a meeting
   generateBrief: async (meetingId) => {
+    get().clearBriefError(meetingId);
     set({ generatingBrief: true, error: null });
     try {
       const brief = await window.electronAPI.generateBrief(meetingId);
@@ -159,8 +176,10 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
         set({ selectedMeeting: { ...selected, brief } });
       }
       useGamificationStore.getState().awardXP('meeting_brief', meetingId);
+      get().clearBriefError(meetingId);
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to generate brief' });
+      get().setBriefError(meetingId, error instanceof Error ? error.message : 'Failed to generate brief');
     } finally {
       set({ generatingBrief: false });
     }

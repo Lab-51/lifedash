@@ -284,6 +284,7 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
   const meetings = useMeetingStore((s) => s.meetings);
   const lastCompletedMeeting = meetings.find((m) => m.status === 'completed' && m.endedAt);
   const projects = useProjectStore((s) => s.projects);
+  const createProject = useProjectStore((s) => s.createProject);
   const activeProjects = projects.filter((p) => !p.archived);
   const [title, setTitle] = useState(suggestMeetingTitle);
   const [selectedTemplate, setSelectedTemplate] = useState<MeetingTemplateType>('none');
@@ -399,6 +400,14 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
                 { value: '', label: 'No project (link later)' },
                 ...activeProjects.map((p) => ({ value: p.id, label: p.name })),
               ]}
+              onCreateNew={{
+                label: '+ New project',
+                placeholder: 'Project name',
+                onSubmit: async (name) => {
+                  const project = await createProject({ name });
+                  return project.id;
+                },
+              }}
             />
             <HudSelect
               value={selectedTemplate}

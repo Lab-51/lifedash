@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, Plus, Loader2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface HudSelectOption {
@@ -13,6 +13,12 @@ interface HudSelectOption {
   label: string;
   icon?: LucideIcon;
   description?: string;
+}
+
+interface CreateNewConfig {
+  label: string;
+  placeholder?: string;
+  onSubmit: (name: string) => Promise<string>;
 }
 
 interface HudSelectProps {
@@ -23,6 +29,7 @@ interface HudSelectProps {
   placeholder?: string;
   compact?: boolean; // Transparent background for inline/toolbar use
   disabled?: boolean;
+  onCreateNew?: CreateNewConfig;
 }
 
 function HudSelect({
@@ -33,11 +40,16 @@ function HudSelect({
   placeholder = 'Select...',
   compact = false,
   disabled = false,
+  onCreateNew,
 }: HudSelectProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const [createMode, setCreateMode] = useState<'idle' | 'input'>('idle');
+  const [createName, setCreateName] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
+  const createInputRef = useRef<HTMLInputElement>(null);
 
   const selectedOption = options.find((o) => o.value === value);
 
@@ -47,6 +59,14 @@ function HudSelect({
     const rect = triggerRef.current.getBoundingClientRect();
     setPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
   }, []);
+
+  // Reset create state when dropdown closes
+  useEffect(() => {
+    if (!open) {
+      setCreateMode('idle');
+      setCreateName('');
+    }
+  }, [open]);
 
   // Close on outside click
   useEffect(() => {
@@ -87,6 +107,42 @@ function HudSelect({
   const handleSelect = (optValue: string) => {
     onChange(optValue);
     setOpen(false);
+  };
+
+  const handleCreateEnter = async () => {
+    if (!onCreateNew) return;
+    const trimmed = createName.trim();
+    if (!trimmed) return;
+    setCreateLoading(true);
+    try {
+      const newValue = await onCreateNew.onSubmit(trimmed);
+      onChange(newValue);
+      setOpen(false);
+      setCreateMode('idle');
+      setCreateName('');
+    } catch {
+      // caller handles error surfacing
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const handleCreateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleCreateEnter();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      setCreateMode('idle');
+      setCreateName('');
+    }
+  };
+
+  const handleOpenCreateInput = () => {
+    setCreateMode('input');
+    setCreateName('');
+    setTimeout(() => createInputRef.current?.focus(), 0);
   };
 
   return (
@@ -150,6 +206,36 @@ function HudSelect({
                 </button>
               );
             })}
+            {onCreateNew && (
+              <div className="border-t border-[var(--color-border)] mt-1 pt-1">
+                {createMode === 'idle' ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateInput}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-accent-subtle)]/50 hover:text-[var(--color-text-primary)] transition-colors"
+                  >
+                    <Plus size={14} className="shrink-0" />
+                    <span>{onCreateNew.label}</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <input
+                      ref={createInputRef}
+                      type="text"
+                      value={createName}
+                      onChange={(e) => setCreateName(e.target.value)}
+                      onKeyDown={handleCreateKeyDown}
+                      placeholder={onCreateNew.placeholder ?? 'New name'}
+                      disabled={createLoading}
+                      className="flex-1 text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded px-2 py-1 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] disabled:opacity-50"
+                    />
+                    {createLoading && (
+                      <Loader2 size={14} className="animate-spin text-[var(--color-text-muted)] shrink-0" />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>,
           document.body,
         )}

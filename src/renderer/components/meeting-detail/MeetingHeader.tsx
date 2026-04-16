@@ -9,6 +9,7 @@ import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../../shared/type
 import type { MeetingWithTranscript } from '../../../shared/types';
 import type { Project } from '../../../shared/types';
 import { STATUS_STYLES, formatDuration, formatDate, formatTime } from './utils';
+import { useProjectStore } from '../../stores/projectStore';
 
 interface MeetingHeaderProps {
   meeting: MeetingWithTranscript;
@@ -22,6 +23,7 @@ export default function MeetingHeader({ meeting, projects, onUpdateMeeting, onEx
   const navigate = useNavigate();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
+  const createProject = useProjectStore((s) => s.createProject);
 
   const status = STATUS_STYLES[meeting.status] || STATUS_STYLES.completed;
 
@@ -145,6 +147,14 @@ export default function MeetingHeader({ meeting, projects, onUpdateMeeting, onEx
             icon={FolderOpen}
             placeholder="No project"
             options={[{ value: '', label: 'No project' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+            onCreateNew={{
+              label: '+ New project',
+              placeholder: 'Project name',
+              onSubmit: async (name) => {
+                const project = await createProject({ name });
+                return project.id;
+              },
+            }}
           />
         </div>
         {meeting.projectId && (
