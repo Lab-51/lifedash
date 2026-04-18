@@ -24,6 +24,8 @@ import type {
   IntelDateFilter,
 } from '../../shared/types';
 import { createLogger } from './logger';
+import { decodeHtmlEntities } from './intelShared';
+import { scoreArticles } from './intelBriefService';
 
 const log = createLogger('IntelFeedService');
 
@@ -41,48 +43,11 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#039;');
 }
 
-/**
- * Decode HTML entities (numeric decimal, numeric hex, and common named entities)
- * that RSS feeds often include in titles and descriptions.
- */
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-  nbsp: '\u00A0',
-  ndash: '\u2013',
-  mdash: '\u2014',
-  lsquo: '\u2018',
-  rsquo: '\u2019',
-  ldquo: '\u201C',
-  rdquo: '\u201D',
-  bull: '\u2022',
-  hellip: '\u2026',
-  copy: '\u00A9',
-  reg: '\u00AE',
-  trade: '\u2122',
-  euro: '\u20AC',
-  pound: '\u00A3',
-  yen: '\u00A5',
-  laquo: '\u00AB',
-  raquo: '\u00BB',
-};
-
-export function decodeHtmlEntities(text: string): string {
-  return text.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity: string) => {
-    if (entity.startsWith('#x') || entity.startsWith('#X')) {
-      const code = parseInt(entity.slice(2), 16);
-      return code ? String.fromCodePoint(code) : match;
-    }
-    if (entity.startsWith('#')) {
-      const code = parseInt(entity.slice(1), 10);
-      return code ? String.fromCodePoint(code) : match;
-    }
-    return NAMED_ENTITIES[entity] ?? NAMED_ENTITIES[entity.toLowerCase()] ?? match;
-  });
-}
+// decodeHtmlEntities is shared with intelBriefService and lives in intelShared.ts
+// (extracted to break the circular dependency between the two services).
+// Re-export so existing tests (and any external callers) can keep importing it
+// from this module.
+export { decodeHtmlEntities };
 
 // ---------------------------------------------------------------------------
 // RSS Parser instance (reused across fetches)
@@ -321,8 +286,7 @@ function safeString(val: unknown, maxLen = 500): string | null {
 
 /** Safely extract author string from RSS item (can be string or object at runtime). */
 function extractAuthor(item: RSSParser.Item): string | null {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = (item as any).creator ?? (item as any).author;
+  const raw = item.creator ?? (item as RSSParser.Item & { author?: unknown }).author;
   return safeString(raw, 200);
 }
 
@@ -829,14 +793,13 @@ export async function fetchAllSources(): Promise<{ newItems: number }> {
   }
 
   // Fire-and-forget: score newly inserted articles in the background.
-  // Dynamic import avoids circular dependency (intelBriefService imports from this file).
+  // Static import is now safe — the circular dependency was broken by moving
+  // decodeHtmlEntities into intelShared.ts (CODE-Q.1 Task 1).
   if (newlyInserted.length > 0) {
     log.info(`Queued ${newlyInserted.length} articles for background scoring`);
-    import('./intelBriefService')
-      .then(({ scoreArticles }) => scoreArticles(newlyInserted))
-      .catch((err) => {
-        log.error('Background article scoring failed', err);
-      });
+    scoreArticles(newlyInserted).catch((err) => {
+      log.error('Background article scoring failed', err);
+    });
   }
 
   return { newItems: totalNew };

@@ -43,7 +43,7 @@ import { trackTiming } from '../services/performanceTracker';
 function installIpcTimingWrapper(): void {
   const originalHandle = ipcMain.handle.bind(ipcMain);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- monkey-patching Electron's IpcMain.handle; Electron's type does not expose handle as a reassignable property
   (ipcMain as any).handle = (channel: string, listener: (...args: unknown[]) => unknown) => {
     return originalHandle(channel, async (...args: unknown[]) => {
       return trackTiming(`IPC: ${channel}`, () => Promise.resolve(listener(...args)));

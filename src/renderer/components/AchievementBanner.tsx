@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { create } from 'zustand';
 import { Award, X } from 'lucide-react';
-import { ICON_MAP } from './AchievementsModal';
+import { ICON_MAP } from './achievementIconMap';
 import type { Achievement } from '../../shared/types/gamification';
 
 // --- Category color config ---

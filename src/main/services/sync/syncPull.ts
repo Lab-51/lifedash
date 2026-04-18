@@ -214,8 +214,7 @@ async function pullJunctionTable(supabase: SupabaseClient, config: SyncTableConf
 /**
  * Look up a local row by its primary key (id).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getLocalRowById(config: SyncTableConfig, id: string): Promise<Record<string, any> | null> {
+async function getLocalRowById(config: SyncTableConfig, id: string): Promise<Record<string, unknown> | null> {
   const db = getDb();
   const rows = await db.select().from(config.drizzleTable).where(eq(config.drizzleTable.id, id));
   return rows.length > 0 ? rows[0] : null;
@@ -225,27 +224,24 @@ async function getLocalRowById(config: SyncTableConfig, id: string): Promise<Rec
  * Get the effective timestamp from a remote Supabase row for comparison.
  * Prefers updated_at, falls back to created_at.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getRowTimestamp(row: Record<string, any>): number {
-  const ts = row.updated_at || row.created_at;
-  return ts ? new Date(ts).getTime() : 0;
+function getRowTimestamp(row: Record<string, unknown>): number {
+  const ts = row.updated_at ?? row.created_at;
+  return ts ? new Date(ts as string).getTime() : 0;
 }
 
 /**
  * Get the effective timestamp from a local Drizzle row for comparison.
  * Prefers updatedAt, falls back to createdAt.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getLocalRowTimestamp(row: Record<string, any>): number {
-  const ts = row.updatedAt || row.createdAt;
-  return ts ? new Date(ts).getTime() : 0;
+function getLocalRowTimestamp(row: Record<string, unknown>): number {
+  const ts = row.updatedAt ?? row.createdAt;
+  return ts ? new Date(ts as string).getTime() : 0;
 }
 
 /**
  * Update an existing local row with data pulled from Supabase.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateLocalRow(config: SyncTableConfig, row: Record<string, any>): Promise<void> {
+async function updateLocalRow(config: SyncTableConfig, row: Record<string, unknown>): Promise<void> {
   const db = getDb();
   const { id, ...rest } = row;
   await db.update(config.drizzleTable).set(rest).where(eq(config.drizzleTable.id, id));
@@ -254,8 +250,7 @@ async function updateLocalRow(config: SyncTableConfig, row: Record<string, any>)
 /**
  * Insert a new local row with data pulled from Supabase.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function insertLocalRow(config: SyncTableConfig, row: Record<string, any>): Promise<void> {
+async function insertLocalRow(config: SyncTableConfig, row: Record<string, unknown>): Promise<void> {
   const db = getDb();
   await db.insert(config.drizzleTable).values(row);
 }

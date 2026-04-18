@@ -8,7 +8,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { eq } from 'drizzle-orm';
 import { openAuthWindow, signOut, getAuthState, deleteAccount } from '../services/authService';
-import { getSyncService } from '../services/syncService';
+import { getSyncService, stopSyncService } from '../services/syncService';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { validateInput } from '../../shared/validation/ipc-validator';
@@ -107,6 +107,10 @@ export function registerSyncHandlers(mainWindow: BrowserWindow): void {
 
     try {
       await deleteAccount();
+      // Stop the sync service after account deletion. This used to live inside
+      // deleteAccount() via a dynamic import; it was moved here to break the
+      // circular dependency between authService and syncService (CODE-Q.1 Task 1).
+      stopSyncService();
       mainWindow.webContents.send('sync:status-changed', {
         status: 'disconnected' as SyncStatus,
         lastSyncedAt: null,

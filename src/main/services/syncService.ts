@@ -224,8 +224,7 @@ export class SyncService {
    * Handle an incoming realtime sync signal.
    * Debounced: max one pull-sync per PULL_DEBOUNCE_MS.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private handleRealtimeSyncSignal(payload: any): void {
+  private handleRealtimeSyncSignal(payload: { type: string; event: string; payload?: { user_id?: unknown } }): void {
     // Only react if the signal is for our user
     const signalUserId = payload?.payload?.user_id;
     if (!signalUserId) {

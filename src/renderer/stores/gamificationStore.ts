@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 import { toast } from '../hooks/useToast';
 import { showAchievementBanner } from '../components/AchievementBanner';
+import { getFocusModeSnapshot, onFocusSessionSaved } from './scoreEventBus';
 import type { GamificationStats, Achievement, XpEventType, XpDailyData } from '../../shared/types/gamification';
 
 interface GamificationState {
@@ -54,9 +55,10 @@ export const useGamificationStore = create<GamificationState>((set) => ({
       const result = await window.electronAPI.gamificationAwardXp(eventType, entityId);
       set({ stats: result.stats });
 
-      // Import focusStore lazily to avoid circular deps
-      const { useFocusStore } = await import('./focusStore');
-      const isFocusing = useFocusStore.getState().mode !== 'idle';
+      // Read focus mode via the score event bus snapshot (kept in sync by
+      // focusStore) so we don't have to import focusStore directly — avoids
+      // the circular dependency between these two stores (CODE-Q.1 Task 1).
+      const isFocusing = getFocusModeSnapshot() !== 'idle';
 
       // Show +XP toast unless focus mode is active
       if (!isFocusing && result.xpAwarded > 0) {
@@ -96,3 +98,10 @@ export const useGamificationStore = create<GamificationState>((set) => ({
     }
   },
 }));
+
+// When focusStore saves a session it publishes the resulting stats/achievements
+// via scoreEventBus. Route them through refreshStats so our UI updates without
+// focusStore needing to import us directly (CODE-Q.1 Task 1).
+onFocusSessionSaved((stats, newAchievements) => {
+  useGamificationStore.getState().refreshStats(stats, newAchievements);
+});

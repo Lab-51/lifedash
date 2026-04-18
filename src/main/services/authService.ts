@@ -25,6 +25,7 @@ import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { createLogger } from './logger';
+import { SYNC_TABLES } from './sync/syncConfig';
 import type { AuthState } from '../../shared/types/sync';
 
 const log = createLogger('AuthService');
@@ -262,6 +263,11 @@ export async function tryRestoreSession(): Promise<boolean> {
 /**
  * Permanently delete the user's cloud account and all remote data.
  * Does NOT delete local PGlite data — only Supabase rows and the auth user.
+ *
+ * IMPORTANT: This function does NOT stop the sync service. The caller (the
+ * IPC handler in `ipc/sync.ts`) is responsible for invoking `stopSyncService()`
+ * after this resolves. This inversion was introduced to break the circular
+ * dependency between authService and syncService (CODE-Q.1 Task 1).
  */
 export async function deleteAccount(): Promise<void> {
   // 1. Get current session for access token and user ID
@@ -278,9 +284,6 @@ export async function deleteAccount(): Promise<void> {
   const accessToken = session.access_token;
 
   // 2. Delete all user rows from every synced Supabase table
-  // Import inline to avoid circular dependency at module level
-  const { SYNC_TABLES } = await import('./sync/syncConfig');
-
   for (const table of SYNC_TABLES) {
     try {
       const { error } = await supabase.from(table.supabaseTable).delete().eq('user_id', userId);
@@ -316,11 +319,7 @@ export async function deleteAccount(): Promise<void> {
   // 4. Sign out locally (clears tokens, resets client)
   await signOut();
 
-  // 5. Stop the sync service
-  const { stopSyncService } = await import('./syncService');
-  stopSyncService();
-
-  log.info('Account deletion complete — all remote data removed');
+  log.info('Account deletion complete — all remote data removed (caller must stop sync service)');
 }
 
 // --- Internal helpers ---

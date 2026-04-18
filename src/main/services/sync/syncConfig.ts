@@ -45,7 +45,7 @@ export interface SyncTableConfig {
   /** PGlite table name (matches Drizzle schema) */
   name: string;
   /** Drizzle table reference */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Drizzle table type is a deeply-nested generic; no expressible concrete type without per-table overloads
   drizzleTable: any;
   /** Supabase table name (same as PGlite since both are Postgres) */
   supabaseTable: string;
@@ -306,6 +306,7 @@ const CAMEL_TO_SNAKE: Record<string, string> = {
   transcriptionLanguage: 'transcription_language',
   labelNames: 'label_names',
   sourceId: 'source_id',
+  feedId: 'feed_id',
   iconUrl: 'icon_url',
   lastFetchedAt: 'last_fetched_at',
   imageUrl: 'image_url',
@@ -365,13 +366,10 @@ const TEXT_COLUMNS = new Set([
  * stripping user_id and excluded columns, and converting ISO date strings to Date objects.
  */
 export function transformRowFromRemote(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  row: Record<string, any>,
+  row: Record<string, unknown>,
   excludeColumns: string[],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Record<string, any> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const transformed: Record<string, any> = {};
+): Record<string, unknown> {
+  const transformed: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(row)) {
     if (key === 'user_id') continue; // user_id only exists in Supabase, not in local PGlite
@@ -394,14 +392,11 @@ export function transformRowFromRemote(
  * adding user_id and removing excluded columns.
  */
 export function transformRow(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  row: Record<string, any>,
+  row: Record<string, unknown>,
   userId: string,
   excludeColumns: string[],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Record<string, any> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const transformed: Record<string, any> = {};
+): Record<string, unknown> {
+  const transformed: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(row)) {
     if (excludeColumns.includes(key)) continue;

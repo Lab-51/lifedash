@@ -14,7 +14,7 @@ import { eq, desc, gte, and, not, isNull, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { intelBriefs, intelItems, intelSources, intelFeeds, intelFeedSources, projects, settings } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
-import { decodeHtmlEntities } from './intelFeedService';
+import { decodeHtmlEntities } from './intelShared';
 import { createLogger } from './logger';
 import type { IntelBrief, IntelBriefType, IntelItem } from '../../shared/types';
 

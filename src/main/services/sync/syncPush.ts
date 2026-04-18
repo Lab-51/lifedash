@@ -64,8 +64,7 @@ async function pushTable(
   const lastSyncedAt = watermarkRows.length > 0 ? watermarkRows[0].lastSyncedAt : null;
 
   // Query rows changed since last sync
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let rows: any[];
+  let rows: Record<string, unknown>[];
   if (lastSyncedAt && config.watermarkDbColumn) {
     // Incremental: only rows updated/created since last sync
     rows = await db
@@ -153,8 +152,7 @@ async function pushJunctionTable(
 async function batchUpsert(
   supabase: SupabaseClient,
   table: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  rows: Record<string, any>[],
+  rows: Record<string, unknown>[],
   conflictTarget: string,
   ignoreDuplicates = false,
 ): Promise<void> {

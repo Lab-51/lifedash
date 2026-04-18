@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import type { Achievement } from '../../shared/types/gamification';
+import { setFocusModeSnapshot, emitFocusSessionSaved } from './scoreEventBus';
 
 interface FocusState {
   // State
@@ -207,9 +208,10 @@ export const useFocusStore = create<FocusState>((set, get) => ({
 
   saveSession: async (input) => {
     const result = await window.electronAPI.focusSaveSession(input);
-    // Delegate stats/achievements to gamificationStore
-    const { useGamificationStore } = await import('./gamificationStore');
-    useGamificationStore.getState().refreshStats(result.stats, result.newAchievements);
+    // Notify gamificationStore via the score event bus instead of importing it
+    // directly — breaks the circular dependency between the two stores
+    // (CODE-Q.1 Task 1). gamificationStore subscribes to this event at module load.
+    emitFocusSessionSaved(result.stats, result.newAchievements);
     // Bump timestamp so FocusPage re-fetches after save completes
     set({ lastSavedAt: Date.now() });
     return { newAchievements: result.newAchievements };
@@ -225,3 +227,16 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     set({ lastSavedAt: Date.now() });
   },
 }));
+
+// Mirror `mode` into the score event bus snapshot so gamificationStore can
+// suppress its "+XP" toast during focus without importing this store directly
+// (CODE-Q.1 Task 1).
+useFocusStore.subscribe((state, prevState) => {
+  if (state.mode !== prevState.mode) {
+    setFocusModeSnapshot(state.mode);
+  }
+});
+
+// Initialise snapshot with the starting mode in case anyone reads it before the
+// first state change.
+setFocusModeSnapshot(useFocusStore.getState().mode);
