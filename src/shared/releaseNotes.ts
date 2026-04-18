@@ -28,6 +28,18 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    version: '2.2.40',
+    sections: [
+      {
+        category: 'internal',
+        label: 'Internal',
+        items: [
+          'Code-quality hardening: broke 4 circular dependencies, promoted no-explicit-any to error, added no-floating-promises + complexity guardrails. No user-visible changes in this release.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.39',
     sections: [
       {
@@ -93,20 +105,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Meeting briefs are now concise — short one-sentence bullets instead of verbose paragraphs',
           'Action items now work reliably with local AI models (LM Studio, Ollama) — improved prompt and parser',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.35',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'LM Studio support — run local AI models through LM Studio with auto-detection, no API key needed',
-          'Multi-tab intelligence feeds — create themed tabs (AI, Business, etc.) with per-tab source selection and scoped AI briefs',
-          'Topic consolidation — daily briefs now merge same-event articles into single bullets with sub-links instead of repeating them',
         ],
       },
     ],
