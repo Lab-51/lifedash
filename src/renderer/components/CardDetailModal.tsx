@@ -9,6 +9,7 @@
 // cardDetailStore, section components
 
 import { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import FocusTrap from './FocusTrap';
 import {
   X,
@@ -95,6 +96,7 @@ function formatNextDate(date: Date): string {
 const CardAgentPanel = lazy(() => import('./CardAgentPanel'));
 
 function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
+  const navigate = useNavigate();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(card.title);
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
@@ -355,6 +357,23 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                   <span className="text-[var(--color-accent-dim)]">{project?.name || 'Project'}</span>
                   <span className="text-[var(--color-text-muted)]">/</span>
                   <span className="text-[var(--color-text-secondary)]">Card Details</span>
+                  {card.source === 'auto-from-meeting' && card.sourceMeetingId && (
+                    <>
+                      <span className="text-[var(--color-text-muted)]">·</span>
+                      <button
+                        data-testid="card-detail-source-link"
+                        onClick={() => {
+                          navigate(`/meetings?openMeeting=${card.sourceMeetingId}`);
+                          onClose();
+                        }}
+                        className="inline-flex items-center gap-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors normal-case tracking-normal"
+                        title="Open source meeting"
+                      >
+                        <Mic size={11} />
+                        Source meeting
+                      </button>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button

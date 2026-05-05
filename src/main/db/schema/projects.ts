@@ -11,6 +11,8 @@ export const projects = pgTable('projects', {
   color: varchar('color', { length: 7 }), // Hex color e.g. #3b82f6
   archived: boolean('archived').default(false).notNull(),
   pinned: boolean('pinned').default(false).notNull(),
+  system: boolean('system').default(false).notNull(), // true = internal sentinel (e.g. Unassigned) — hidden from user project lists
+  autoPushEnabled: boolean('auto_push_enabled'), // null = use global setting; true/false = per-project override
   hourlyRate: real('hourly_rate'),
   sortOrder: integer('sort_order').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

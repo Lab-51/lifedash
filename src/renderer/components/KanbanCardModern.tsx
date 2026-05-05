@@ -2,7 +2,8 @@
 // KanbanCard Modern — renders a single card in a Kanban column with modern styling.
 
 import { memo, useState, useRef, useEffect } from 'react';
-import { Pencil, Trash2, Clock, Link2, AlertCircle, Check, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Pencil, Trash2, Clock, Link2, AlertCircle, Check, RefreshCw, Mic, X, MoreHorizontal } from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -10,6 +11,7 @@ import type { Card, UpdateCardInput } from '../../shared/types';
 import { getDueDateBadge } from '../utils/date-utils';
 import { toast } from '../hooks/useToast';
 import { useBoardStore } from '../stores/boardStore';
+import { useMeetingStore } from '../stores/meetingStore';
 
 interface KanbanCardProps {
   card: Card;
@@ -58,14 +60,22 @@ const KanbanCardModern = memo(function KanbanCardModern({
   dependencyCount,
 }: KanbanCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const [isDragging, setIsDragging] = useState(false);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(card.title);
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
   const removeCardFromUI = useBoardStore((s) => s.removeCardFromUI);
   const restoreCardToUI = useBoardStore((s) => s.restoreCardToUI);
+  const rejectCardAction = useBoardStore((s) => s.rejectCard);
+  const restoreRejected = useBoardStore((s) => s.restoreRejectedCard);
+  const markReviewed = useBoardStore((s) => s.markCardReviewed);
+  const refreshUnreviewedCount = useMeetingStore((s) => s.refreshUnreviewedCount);
 
+  const isAutoFromMeeting = card.source === 'auto-from-meeting';
   const priorityStyle = PRIORITY_STYLES[card.priority] ?? PRIORITY_STYLES.medium;
 
   // Auto-focus input when entering edit mode
@@ -180,6 +190,63 @@ const KanbanCardModern = memo(function KanbanCardModern({
     );
   };
 
+  // Close overflow menu on outside click
+  useEffect(() => {
+    if (!showOverflowMenu) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowOverflowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showOverflowMenu]);
+
+  const handleReject = async () => {
+    setShowOverflowMenu(false);
+    try {
+      const result = await rejectCardAction(card.id);
+      toast(
+        'Rejected. Undo?',
+        'info',
+        {
+          label: 'Undo',
+          onClick: () => {
+            void (async () => {
+              try {
+                await restoreRejected(result);
+                await refreshUnreviewedCount();
+              } catch {
+                toast('Failed to restore card', 'error');
+              }
+            })();
+          },
+        },
+        5000,
+      );
+      await refreshUnreviewedCount();
+    } catch {
+      toast('Failed to reject card', 'error');
+    }
+  };
+
+  const handleKeepInInbox = async () => {
+    setShowOverflowMenu(false);
+    try {
+      await markReviewed(card.id);
+      await refreshUnreviewedCount();
+    } catch {
+      toast('Failed to mark reviewed', 'error');
+    }
+  };
+
+  const handleViewSource = () => {
+    setShowOverflowMenu(false);
+    if (card.sourceMeetingId) {
+      navigate(`/meetings?openMeeting=${card.sourceMeetingId}`);
+    }
+  };
+
   return (
     <div
       ref={cardRef}
@@ -285,6 +352,35 @@ const KanbanCardModern = memo(function KanbanCardModern({
             </span>
           )}
 
+          {/* Auto-from-meeting source badge — low-emphasis, monochrome */}
+          {isAutoFromMeeting && (
+            <span
+              data-testid="card-source-badge"
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewSource();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleViewSource();
+                }
+              }}
+              title={
+                card.sourceMeetingId
+                  ? `From meeting on ${new Date(card.createdAt).toLocaleDateString()}`
+                  : 'From meeting'
+              }
+              className="cursor-pointer flex items-center gap-1 text-[0.625rem] text-[var(--color-text-muted)] bg-surface-100 dark:bg-surface-800 border border-[var(--color-border)] px-1.5 py-0.5 rounded-md hover:text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)]"
+            >
+              <Mic size={10} />
+              From meeting
+            </span>
+          )}
+
           {/* Labels */}
           {card.labels?.map((label) => (
             <span
@@ -299,7 +395,12 @@ const KanbanCardModern = memo(function KanbanCardModern({
         </div>
 
         {/* Hover Actions */}
-        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--color-chrome)]/90 rounded-lg p-1 shadow-sm border border-[var(--color-border)] backdrop-blur-sm">
+        <div
+          ref={menuRef}
+          className={`absolute top-2 right-2 flex items-center gap-1 transition-opacity bg-[var(--color-chrome)]/90 rounded-lg p-1 shadow-sm border border-[var(--color-border)] backdrop-blur-sm ${
+            showOverflowMenu ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}
+        >
           {!isEditing && (
             <button
               onClick={(e) => {
@@ -307,19 +408,85 @@ const KanbanCardModern = memo(function KanbanCardModern({
                 startEditing();
               }}
               className="p-1 text-surface-400 hover:text-primary-600 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+              title="Edit"
             >
               <Pencil size={12} />
             </button>
           )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteClick();
-            }}
-            className="p-1 text-surface-400 hover:text-red-500 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
-          >
-            <Trash2 size={12} />
-          </button>
+          {isAutoFromMeeting ? (
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowOverflowMenu((prev) => !prev);
+                }}
+                className="p-1 text-surface-400 hover:text-[var(--color-accent)] rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                title="More"
+                aria-label="Card actions"
+              >
+                <MoreHorizontal size={12} />
+              </button>
+              {showOverflowMenu && (
+                <div
+                  className="absolute right-0 top-full mt-1 z-40 min-w-[180px] bg-white dark:bg-surface-900 border border-[var(--color-border)] rounded-lg shadow-lg py-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {card.sourceMeetingId && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewSource();
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors text-left"
+                    >
+                      <Mic size={12} /> View source meeting
+                    </button>
+                  )}
+                  {card.reviewedAt == null && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleKeepInInbox();
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors text-left"
+                    >
+                      <Check size={12} /> Keep in Inbox
+                    </button>
+                  )}
+                  <button
+                    data-testid="card-reject-menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleReject();
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
+                  >
+                    <X size={12} /> Reject
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick();
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors text-left"
+                  >
+                    <Trash2 size={12} /> Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteClick();
+              }}
+              className="p-1 text-surface-400 hover:text-red-500 rounded hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
         </div>
       </div>
     </div>

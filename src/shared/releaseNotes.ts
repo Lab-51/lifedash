@@ -31,10 +31,20 @@ export const releaseHistory: ReleaseNotesData[] = [
     version: '2.2.40',
     sections: [
       {
+        category: 'new',
+        label: "What's New",
+        items: [
+          "Action items now land automatically in your project's Inbox column when a recording ends — no approval click required. Reject any card you don't want.",
+          "Auto-detect routes meetings to the right project based on what's said in the transcript. Unrecognized meetings go to an Unassigned inbox with a one-click reassign prompt.",
+          'Per-project auto-push override in the board view header — set a project to Always, Never, or follow the global setting.',
+          'Global auto-push toggle in Settings → General → Meetings for when you prefer to approve items manually.',
+        ],
+      },
+      {
         category: 'internal',
         label: 'Internal',
         items: [
-          'Code-quality hardening: broke 4 circular dependencies, promoted no-explicit-any to error, added no-floating-promises + complexity guardrails. No user-visible changes in this release.',
+          'Code-quality hardening: broke 4 circular dependencies, promoted no-explicit-any to error, added no-floating-promises + complexity guardrails.',
         ],
       },
     ],

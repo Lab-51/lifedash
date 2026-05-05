@@ -232,6 +232,27 @@
       "when": 1775306931426,
       "tag": "0032_true_karen_page",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1778002766306,
+      "tag": "0033_flat_thunderbolts",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1778010469932,
+      "tag": "0034_faithful_magneto",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1778013287549,
+      "tag": "0035_chemical_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }

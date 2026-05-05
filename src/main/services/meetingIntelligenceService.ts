@@ -14,12 +14,15 @@
 // - DB schema: verified from meetings.ts and cards.ts
 // - Shared types: verified from types.ts
 
-import { eq, desc, asc, count } from 'drizzle-orm';
+import { eq, desc, asc, count, and, ne, isNotNull } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { meetingBriefs, actionItems, cards } from '../db/schema';
+import { meetingBriefs, actionItems, cards, meetings, projects } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
-import { getMeeting } from './meetingService';
+import { getMeeting, updateMeeting } from './meetingService';
 import { createLogger } from './logger';
+import { autoPushActionItems, readAutoPushSetting } from './autoPushService';
+import { ensureUnassignedProject } from './unassignedProjectService';
+import { detectProjectFromTranscript } from './projectDetectionService';
 import type { MeetingBrief, ActionItem, ActionItemStatus, MeetingTemplateType } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import { parseActionItems } from '../../shared/utils/action-item-parser';
@@ -117,6 +120,23 @@ function getLanguageName(code: string | null | undefined): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Project auto-detect + brief threading constants
+// ---------------------------------------------------------------------------
+
+/** Confidence threshold for auto-assigning a meeting to a detected project. */
+const DETECTION_CONFIDENCE_THRESHOLD = 0.8;
+
+/** Max prior briefs to thread into a new brief prompt as continuity context. */
+const THREADING_BRIEF_LIMIT = 3;
+
+/**
+ * Soft cap for the combined brief prompt size when threading is added.
+ * 1 token ≈ 4 chars (English) — 12k tokens ≈ 48000 chars. Drop oldest brief
+ * first when exceeded. Char-count approximation avoids a tokenizer dep.
+ */
+const THREADING_TOTAL_CHAR_BUDGET = 48000;
+
+// ---------------------------------------------------------------------------
 // Row Mappers
 // ---------------------------------------------------------------------------
 
@@ -141,12 +161,153 @@ function toActionItem(row: typeof actionItems.$inferSelect): ActionItem {
 }
 
 // ---------------------------------------------------------------------------
+// Project auto-detect + brief threading helpers
+// ---------------------------------------------------------------------------
+
+/** Format meeting segments into a timestamped transcript string. */
+function formatTranscript(segments: { startTime: number; content: string }[]): string {
+  return segments
+    .slice()
+    .sort((a, b) => a.startTime - b.startTime)
+    .map((segment) => {
+      const minutes = Math.floor(segment.startTime / 60000);
+      const seconds = Math.floor((segment.startTime % 60000) / 1000);
+      const timestamp = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      return `[${timestamp}] ${segment.content}`;
+    })
+    .join('\n');
+}
+
+/**
+ * Run project auto-detect for a meeting that does not yet have a projectId,
+ * then assign the resolved project (or the system Unassigned project for
+ * low-confidence cases) via updateMeeting. Returns the resolved projectId.
+ *
+ * Returns null only if no projects are available AND the Unassigned project
+ * cannot be created — that's never expected in practice but handled gracefully.
+ */
+async function runProjectDetection(meetingId: string, transcript: string): Promise<string | null> {
+  const db = getDb();
+
+  // Load classifier candidates: non-archived, non-system projects
+  const candidateRows = await db
+    .select({ id: projects.id, name: projects.name, description: projects.description })
+    .from(projects)
+    .where(and(eq(projects.archived, false), eq(projects.system, false)));
+
+  const candidates = candidateRows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description ?? null,
+  }));
+
+  const detection = await detectProjectFromTranscript({
+    transcript,
+    projects: candidates,
+  });
+
+  // High confidence + valid projectId → auto-assign
+  if (detection.projectId && detection.confidence > DETECTION_CONFIDENCE_THRESHOLD) {
+    log.info(
+      `Auto-assigning meeting ${meetingId} to project ${detection.projectId} (confidence ${detection.confidence.toFixed(2)})`,
+    );
+    await updateMeeting(meetingId, { projectId: detection.projectId });
+    return detection.projectId;
+  }
+
+  // Otherwise → route to Unassigned + flag pending
+  log.info(
+    `Routing meeting ${meetingId} to Unassigned (confidence ${detection.confidence.toFixed(2)}, reason: ${detection.reason})`,
+  );
+  const unassigned = await ensureUnassignedProject(db);
+  await updateMeeting(meetingId, {
+    projectId: unassigned.id,
+    unassignedPending: true,
+  });
+  return unassigned.id;
+}
+
+/**
+ * Fetch the most recent N briefs for a project, excluding the current meeting.
+ * Returns summaries newest-first. Skips threading entirely when projectId is
+ * the Unassigned (system) project.
+ */
+async function fetchPriorBriefs(projectId: string, currentMeetingId: string, limit: number): Promise<string[]> {
+  const db = getDb();
+
+  // Skip threading for the system Unassigned project
+  const [proj] = await db.select({ system: projects.system }).from(projects).where(eq(projects.id, projectId));
+  if (!proj || proj.system) return [];
+
+  const rows = await db
+    .select({ summary: meetingBriefs.summary, createdAt: meetingBriefs.createdAt })
+    .from(meetingBriefs)
+    .innerJoin(meetings, eq(meetings.id, meetingBriefs.meetingId))
+    .where(and(eq(meetings.projectId, projectId), ne(meetings.id, currentMeetingId), isNotNull(meetingBriefs.summary)))
+    .orderBy(desc(meetingBriefs.createdAt))
+    .limit(limit);
+
+  return rows.map((r) => r.summary).filter((s): s is string => typeof s === 'string' && s.length > 0);
+}
+
+/**
+ * Build a continuity preamble from prior brief summaries. Returns an empty
+ * string when no priors are provided. Caller is responsible for budget
+ * trimming (see {@link trimBriefsToBudget}).
+ */
+function buildThreadingPreamble(priorBriefs: string[]): string {
+  if (priorBriefs.length === 0) return '';
+  const lines = priorBriefs.map((summary, i) => `${i + 1}. ${summary}`);
+  return [
+    'Recent context from this project (last meetings, most recent first):',
+    '',
+    ...lines,
+    '',
+    'Use these to maintain continuity in your brief. Do NOT repeat their content unless this meeting explicitly refers back to them. Treat them as background context only.',
+    '',
+  ].join('\n');
+}
+
+/**
+ * Trim the prior-briefs list so the combined prompt size stays under the
+ * char-count budget. Drops the OLDEST brief first (priors are passed in
+ * newest-first order, so we drop from the tail).
+ *
+ * Returns the kept-priors list (still newest-first).
+ */
+export function trimBriefsToBudget(
+  priors: string[],
+  baseSize: number,
+  totalBudget: number = THREADING_TOTAL_CHAR_BUDGET,
+): string[] {
+  // Try with all priors, drop oldest until under budget or empty
+  const kept = priors.slice();
+  while (kept.length > 0) {
+    const preamble = buildThreadingPreamble(kept);
+    if (baseSize + preamble.length <= totalBudget) {
+      return kept;
+    }
+    // Drop the oldest (last in list — list is newest-first)
+    kept.pop();
+  }
+  return kept;
+}
+
+// ---------------------------------------------------------------------------
 // Exported Functions
 // ---------------------------------------------------------------------------
 
 /**
  * Generate an AI-powered meeting brief (structured summary) from the transcript.
  * Stores the result in `meeting_briefs` and returns the mapped object.
+ *
+ * Flow (added in MEET-INTEL.1-3):
+ *   1. If meeting has no projectId, run project auto-detect classifier.
+ *      High confidence → assign via updateMeeting (triggers link-time auto-push hook).
+ *      Low confidence → route to system Unassigned + set unassignedPending=true.
+ *   2. Fetch up to 3 prior briefs from the same project (skipped for Unassigned)
+ *      and inject as a continuity preamble in the brief prompt.
+ *   3. Generate the brief and persist it.
  */
 export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
   const meeting = await getMeeting(meetingId);
@@ -156,15 +317,25 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
   }
 
   // Format transcript with timestamps
-  const transcript = meeting.segments
-    .sort((a, b) => a.startTime - b.startTime)
-    .map((segment) => {
-      const minutes = Math.floor(segment.startTime / 60000);
-      const seconds = Math.floor((segment.startTime % 60000) / 1000);
-      const timestamp = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-      return `[${timestamp}] ${segment.content}`;
-    })
-    .join('\n');
+  const transcript = formatTranscript(meeting.segments);
+
+  // 1. Project auto-detect — only when projectId is not already set.
+  //    detection happens BEFORE brief generation so threading uses the resolved id.
+  let resolvedProjectId = meeting.projectId;
+  if (!resolvedProjectId) {
+    try {
+      // Use the raw transcript text (no timestamps) for classification
+      const classifierTranscript = meeting.segments
+        .slice()
+        .sort((a, b) => a.startTime - b.startTime)
+        .map((s) => s.content)
+        .join(' ');
+      resolvedProjectId = await runProjectDetection(meetingId, classifierTranscript);
+    } catch (err) {
+      // Detection should never block brief generation
+      log.error('Project detection failed for meeting', meetingId, ':', err);
+    }
+  }
 
   // Resolve AI provider
   const provider = await resolveTaskModel('summarization');
@@ -176,6 +347,26 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
   const prepBriefing = meeting.prepBriefing;
   if (prepBriefing && prepBriefing.trim()) {
     userPrompt += `\n\n## Pre-Meeting Prep Reference\nThe following prep briefing was generated before this meeting:\n---\n${prepBriefing}\n---\n\nIMPORTANT: After generating the summary, add a section:\n## Items Not Discussed\nList any topics from the prep briefing that were NOT covered in this meeting.\nIf all prep items were addressed, write "All prep items were discussed."`;
+  }
+
+  // 2. Brief threading — fetch prior briefs from this project (skipped for Unassigned)
+  if (resolvedProjectId) {
+    try {
+      const priors = await fetchPriorBriefs(resolvedProjectId, meetingId, THREADING_BRIEF_LIMIT);
+      if (priors.length > 0) {
+        const trimmed = trimBriefsToBudget(priors, userPrompt.length);
+        if (trimmed.length > 0) {
+          const preamble = buildThreadingPreamble(trimmed);
+          userPrompt = `${preamble}\n${userPrompt}`;
+          log.info(
+            `Threaded ${trimmed.length} prior brief(s) into prompt for meeting ${meetingId} (${priors.length - trimmed.length} dropped for budget)`,
+          );
+        }
+      }
+    } catch (err) {
+      // Threading is bonus context — never block brief generation on its failure
+      log.error('Brief threading failed for meeting', meetingId, ':', err);
+    }
   }
 
   // Generate summary (template-aware + language-aware prompt)
@@ -286,6 +477,33 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
       })
       .returning();
     items.push(toActionItem(row));
+  }
+
+  // Auto-push to Inbox column when the meeting is linked to a project
+  if (meeting.projectId && items.length > 0) {
+    try {
+      const autoPushEnabled = await readAutoPushSetting(db);
+      await autoPushActionItems({
+        db,
+        meetingId,
+        projectId: meeting.projectId,
+        actionItems: items,
+        userSettings: { autoPushEnabled },
+      });
+      // Re-query so returned items reflect the converted status set by auto-push
+      const refreshed = await db.select().from(actionItems).where(eq(actionItems.meetingId, meetingId));
+      return refreshed.map((row) => ({
+        id: row.id,
+        meetingId: row.meetingId,
+        cardId: row.cardId,
+        description: row.description,
+        status: row.status,
+        createdAt: row.createdAt.toISOString(),
+      }));
+    } catch (err) {
+      // Auto-push failure must not prevent action items from being returned
+      log.error('Auto-push failed for meeting', meetingId, ':', err);
+    }
   }
 
   return items;

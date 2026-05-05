@@ -10,9 +10,9 @@
 // - Column reorder does sequential updates (not batched).
 
 import { ipcMain } from 'electron';
-import { eq, asc, desc, sql } from 'drizzle-orm';
+import { eq, asc, desc, sql, ne } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { projects, boards, columns, cards } from '../db/schema';
+import { projects, boards, columns, cards, meetings } from '../db/schema';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import {
   createProjectInputSchema,
@@ -31,7 +31,50 @@ export function registerProjectHandlers(): void {
 
   ipcMain.handle('projects:list', async () => {
     const db = getDb();
-    return db.select().from(projects).orderBy(desc(projects.pinned), asc(projects.sortOrder), asc(projects.createdAt));
+    // Exclude system projects (e.g. Unassigned) from user-visible lists
+    return db
+      .select()
+      .from(projects)
+      .where(ne(projects.system, true))
+      .orderBy(desc(projects.pinned), asc(projects.sortOrder), asc(projects.createdAt));
+  });
+
+  /**
+   * List non-archived, non-system projects with their last-recorded meeting timestamp.
+   * Drives the smart project dropdown in RecordingControls.
+   */
+  ipcMain.handle('projects:listWithRecency', async () => {
+    const db = getDb();
+    const rows = await db
+      .select({
+        id: projects.id,
+        name: projects.name,
+        description: projects.description,
+        color: projects.color,
+        archived: projects.archived,
+        pinned: projects.pinned,
+        system: projects.system,
+        autoPushEnabled: projects.autoPushEnabled,
+        hourlyRate: projects.hourlyRate,
+        sortOrder: projects.sortOrder,
+        createdAt: projects.createdAt,
+        updatedAt: projects.updatedAt,
+        lastRecordedAt: sql<Date | null>`MAX(${meetings.createdAt})`.as('last_recorded_at'),
+      })
+      .from(projects)
+      .leftJoin(meetings, eq(meetings.projectId, projects.id))
+      .where(ne(projects.system, true))
+      .groupBy(projects.id);
+
+    // Filter archived in JS so we still get a clean groupBy. Order: most recent first, then alphabetical.
+    return rows
+      .filter((r) => !r.archived)
+      .sort((a, b) => {
+        const aTime = a.lastRecordedAt ? new Date(a.lastRecordedAt).getTime() : 0;
+        const bTime = b.lastRecordedAt ? new Date(b.lastRecordedAt).getTime() : 0;
+        if (aTime !== bTime) return bTime - aTime;
+        return a.name.localeCompare(b.name);
+      });
   });
 
   ipcMain.handle('projects:create', async (_event, data: unknown) => {

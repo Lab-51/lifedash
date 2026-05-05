@@ -10,7 +10,7 @@
 // - resolveTaskModel() API: verified from ai-provider.ts source
 // - DB schema: verified from intel-feed.ts
 
-import { eq, desc, gte, and, not, isNull, inArray } from 'drizzle-orm';
+import { eq, desc, gte, and, not, isNull, inArray, ne } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { intelBriefs, intelItems, intelSources, intelFeeds, intelFeedSources, projects, settings } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
@@ -769,7 +769,8 @@ export async function getPinnedBriefs(): Promise<IntelBrief[]> {
  */
 export async function getProjectNames(): Promise<string[]> {
   const db = getDb();
-  const rows = await db.select({ name: projects.name }).from(projects);
+  // Exclude system projects (e.g. Unassigned) from AI prompts
+  const rows = await db.select({ name: projects.name }).from(projects).where(ne(projects.system, true));
   return rows.map((r) => r.name);
 }
 

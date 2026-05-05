@@ -135,6 +135,12 @@ export default function BoardPageModern() {
     setEditingRate(false);
   };
 
+  // Per-project auto-push override
+  const handleAutoPushChange = async (value: boolean | null) => {
+    if (!projectId) return;
+    await updateProject(projectId, { autoPushEnabled: value });
+  };
+
   // Collapsed columns state
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
   const toggleColumnCollapse = (id: string) => {
@@ -332,6 +338,44 @@ export default function BoardPageModern() {
               <Download size={16} />
               Export
             </button>
+
+            {/* Per-project auto-push override — tri-state control */}
+            {liveProject && !liveProject.system && (
+              <div
+                className="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 rounded-xl px-1 py-1"
+                title="Auto-push action items override for this project"
+              >
+                {(
+                  [
+                    { value: null, label: 'Global' },
+                    { value: true, label: 'Always' },
+                    { value: false, label: 'Never' },
+                  ] as Array<{ value: boolean | null; label: string }>
+                ).map(({ value, label }) => {
+                  const isActive = liveProject.autoPushEnabled === value;
+                  return (
+                    <button
+                      key={label}
+                      onClick={() => handleAutoPushChange(value)}
+                      title={
+                        value === null
+                          ? 'Use global auto-push setting'
+                          : value
+                            ? 'Always auto-push for this project'
+                            : 'Never auto-push for this project'
+                      }
+                      className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-white dark:bg-surface-700 text-[var(--color-text-primary)] shadow-sm'
+                          : 'text-surface-500 hover:text-[var(--color-text-secondary)]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 

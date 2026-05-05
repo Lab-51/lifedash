@@ -5,7 +5,7 @@
 // Meeting briefs store AI-generated summaries.
 // Action items can be converted to cards on a board.
 
-import { pgTable, uuid, varchar, text, integer, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, timestamp, pgEnum, index, boolean } from 'drizzle-orm/pg-core';
 import { projects } from './projects';
 import { cards } from './cards';
 
@@ -31,6 +31,9 @@ export const meetings = pgTable('meetings', {
   status: meetingStatusEnum('status').default('recording').notNull(),
   prepBriefing: text('prep_briefing'),
   transcriptionLanguage: varchar('transcription_language', { length: 10 }),
+  // Set to true when auto-detect routes the meeting to the system Unassigned project.
+  // Used by the UI to surface a "set project?" pill on the meeting card.
+  unassignedPending: boolean('unassigned_pending').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

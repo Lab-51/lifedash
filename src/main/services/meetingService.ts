@@ -12,6 +12,8 @@
 import { eq, desc, asc, count, inArray, ilike, and, ne } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { meetings, transcripts, meetingBriefs, actionItems } from '../db/schema';
+import { autoPushActionItems, readAutoPushSetting } from './autoPushService';
+import { createLogger } from './logger';
 import type {
   Meeting,
   MeetingBrief,
@@ -22,6 +24,8 @@ import type {
   CreateMeetingInput,
   UpdateMeetingInput,
 } from '../../shared/types';
+
+const log = createLogger('MeetingService');
 
 /** Map a DB meeting row to the shared Meeting type (timestamps -> ISO strings) */
 function toMeeting(row: typeof meetings.$inferSelect): Meeting {
@@ -36,6 +40,7 @@ function toMeeting(row: typeof meetings.$inferSelect): Meeting {
     status: row.status,
     prepBriefing: row.prepBriefing ?? null,
     transcriptionLanguage: row.transcriptionLanguage ?? null,
+    unassignedPending: row.unassignedPending,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -160,14 +165,57 @@ export async function createMeeting(data: CreateMeetingInput): Promise<Meeting> 
 
 export async function updateMeeting(id: string, data: UpdateMeetingInput): Promise<Meeting> {
   const db = getDb();
+
+  // Detect null→non-null projectId transition BEFORE applying the update
+  let newlyLinked = false;
+  if (data.projectId != null) {
+    const [current] = await db.select({ projectId: meetings.projectId }).from(meetings).where(eq(meetings.id, id));
+    if (current?.projectId == null) {
+      newlyLinked = true;
+    }
+  }
+
   const updateData: Record<string, unknown> = {};
   if (data.title !== undefined) updateData.title = data.title;
   if (data.projectId !== undefined) updateData.projectId = data.projectId;
   if (data.endedAt !== undefined) updateData.endedAt = new Date(data.endedAt);
   if (data.audioPath !== undefined) updateData.audioPath = data.audioPath;
   if (data.status !== undefined) updateData.status = data.status;
+  if (data.unassignedPending !== undefined) updateData.unassignedPending = data.unassignedPending;
 
   const [row] = await db.update(meetings).set(updateData).where(eq(meetings.id, id)).returning();
+
+  // Trigger auto-push for pending items when the meeting is newly linked to a project
+  if (newlyLinked && data.projectId != null) {
+    const pendingItems = await db
+      .select()
+      .from(actionItems)
+      .where(and(eq(actionItems.meetingId, id), eq(actionItems.status, 'pending')));
+
+    if (pendingItems.length > 0) {
+      const autoPushEnabled = await readAutoPushSetting(db);
+      try {
+        await autoPushActionItems({
+          db,
+          meetingId: id,
+          projectId: data.projectId,
+          actionItems: pendingItems.map((r) => ({
+            id: r.id,
+            meetingId: r.meetingId,
+            cardId: r.cardId,
+            description: r.description,
+            status: r.status,
+            createdAt: r.createdAt.toISOString(),
+          })),
+          userSettings: { autoPushEnabled },
+        });
+      } catch (err) {
+        // Auto-push failure must NOT roll back the project linkage
+        log.error('Link-time auto-push failed for meeting', id, ':', err);
+      }
+    }
+  }
+
   return toMeeting(row);
 }
 

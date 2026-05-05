@@ -29,6 +29,7 @@ import {
   Cloud,
   Newspaper,
   Linkedin,
+  Video,
 } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -47,6 +48,7 @@ import { useSoundEffect } from '../hooks/useSoundEffect';
 import UsageSummary from '../components/UsageSummary';
 import BackupSection from '../components/settings/BackupSection';
 import ExportSection from '../components/settings/ExportSection';
+import MeetingsSection from '../components/settings/MeetingsSection';
 import NotificationSection from '../components/settings/NotificationSection';
 import TranscriptionProviderSection from '../components/settings/TranscriptionProviderSection';
 import AudioDeviceSection from '../components/settings/AudioDeviceSection';
@@ -276,6 +278,23 @@ export default function SettingsPageModern() {
                   </div>
                 </div>
                 <NotificationSection />
+              </div>
+
+              {/* Meetings */}
+              <div className="hud-panel-accent clip-corner-cut-sm p-6">
+                <div className="mb-4">
+                  <div className="flex items-center gap-3">
+                    <Video size={16} className="text-[var(--color-accent)]" />
+                    <span className="font-hud text-xs tracking-widest uppercase text-[var(--color-accent-dim)]">
+                      Meetings
+                    </span>
+                    <div className="h-px flex-1 bg-gradient-to-r from-[var(--color-accent)] to-transparent opacity-30" />
+                  </div>
+                  <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+                    Control how meeting recordings are processed.
+                  </p>
+                </div>
+                <MeetingsSection />
               </div>
 
               {/* Diagnostics */}

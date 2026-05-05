@@ -121,6 +121,7 @@ export interface ElectronAPI {
 
   // Projects
   getProjects: () => Promise<Project[]>;
+  getProjectsWithRecency: () => Promise<Array<Project & { lastRecordedAt: string | null }>>;
   createProject: (data: CreateProjectInput) => Promise<Project>;
   updateProject: (id: string, data: UpdateProjectInput) => Promise<Project>;
   deleteProject: (id: string) => Promise<void>;
@@ -159,6 +160,17 @@ export interface ElectronAPI {
   updateCard: (id: string, data: UpdateCardInput) => Promise<{ card: Card; spawnedCard: Card | null }>;
   deleteCard: (id: string) => Promise<void>;
   moveCard: (id: string, columnId: string, position: number) => Promise<Card>;
+  // Meeting auto-flow card actions
+  markCardReviewed: (id: string) => Promise<Card>;
+  rejectCard: (id: string) => Promise<{
+    card: Card;
+    actionItem: { id: string; previousStatus: ActionItemStatus } | null;
+  }>;
+  restoreRejectedCard: (payload: {
+    card: Card;
+    actionItem: { id: string; previousStatus: ActionItemStatus } | null;
+  }) => Promise<void>;
+  countUnreviewedCards: () => Promise<number>;
 
   // Card comments
   getCardComments: (cardId: string) => Promise<CardComment[]>;
@@ -250,6 +262,10 @@ export interface ElectronAPI {
   meetingsGetPendingActionCount: () => Promise<number>;
   searchTranscripts: (query: string, limit?: number) => Promise<TranscriptSearchResult[]>;
   meetingsGeneratePrep: (projectId: string) => Promise<MeetingPrepData>;
+  reassignFromUnassigned: (
+    meetingId: string,
+    newProjectId: string,
+  ) => Promise<{ movedCardCount: number; meetingId: string; newProjectId: string }>;
 
   // Recording
   startRecording: (meetingId: string) => Promise<void>;

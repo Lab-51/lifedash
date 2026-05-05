@@ -2,10 +2,13 @@
 // Meeting card — displays a meeting summary in the meetings grid.
 // Uses HUD design system tokens and patterns consistent with KanbanCard and Ideas cards.
 
-import { memo } from 'react';
-import { Mic, Clock, CheckCircle2, Loader2, ListChecks, Trash2, Calendar, FileText } from 'lucide-react';
-import type { Meeting } from '../../shared/types';
+import { memo, useState, useEffect, useRef } from 'react';
+import { Mic, Clock, CheckCircle2, Loader2, ListChecks, Trash2, Calendar, FileText, AlertCircle } from 'lucide-react';
+import type { Meeting, Project } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
+import { useProjectStore } from '../stores/projectStore';
+import { useMeetingStore } from '../stores/meetingStore';
+import { toast } from '../hooks/useToast';
 
 interface MeetingCardModernProps {
   meeting: Meeting;
@@ -61,6 +64,40 @@ const MeetingCardModern = memo(function MeetingCardModern({
   const status = STATUS_STYLES[meeting.status] || STATUS_STYLES.completed;
   const StatusIcon = status.icon;
   const hasActions = actionItemCount != null && actionItemCount > 0;
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [reassigning, setReassigning] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const allProjects = useProjectStore((s) => s.projects);
+  const reassignFromUnassigned = useMeetingStore((s) => s.reassignFromUnassigned);
+  const refreshUnreviewedCount = useMeetingStore((s) => s.refreshUnreviewedCount);
+  // projects:list excludes system projects already, so this is safe to use directly
+  const eligibleProjects: Project[] = allProjects.filter((p) => !p.archived);
+
+  useEffect(() => {
+    if (!showProjectPicker) return;
+    const handleClick = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowProjectPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showProjectPicker]);
+
+  const handlePickProject = async (projectId: string) => {
+    if (reassigning) return;
+    setReassigning(true);
+    try {
+      await reassignFromUnassigned(meeting.id, projectId);
+      await refreshUnreviewedCount();
+      setShowProjectPicker(false);
+      toast('Cards moved to chosen project', 'success');
+    } catch {
+      toast('Failed to reassign cards', 'error');
+    } finally {
+      setReassigning(false);
+    }
+  };
 
   return (
     <div
@@ -113,7 +150,50 @@ const MeetingCardModern = memo(function MeetingCardModern({
       {/* Footer Tags */}
       <div className="mt-auto pt-3 border-t border-[var(--color-border)] flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-          {projectName ? (
+          {meeting.unassignedPending ? (
+            <div className="relative" ref={pickerRef}>
+              <button
+                data-testid="meeting-unassigned-pill"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowProjectPicker((prev) => !prev);
+                }}
+                disabled={reassigning}
+                className="flex items-center gap-1 text-[0.625rem] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-md hover:bg-amber-500/20 transition-colors disabled:opacity-60"
+              >
+                <AlertCircle size={10} />
+                Unassigned — set project?
+              </button>
+              {showProjectPicker && (
+                <div
+                  className="absolute bottom-full left-0 mb-1 z-30 min-w-[200px] max-h-64 overflow-y-auto bg-white dark:bg-surface-900 border border-[var(--color-border)] rounded-lg shadow-lg py-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {eligibleProjects.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-[var(--color-text-muted)]">No projects available</div>
+                  ) : (
+                    eligibleProjects.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handlePickProject(p.id);
+                        }}
+                        disabled={reassigning}
+                        className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-[var(--color-text-primary)] transition-colors text-left disabled:opacity-50"
+                      >
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ backgroundColor: p.color || '#6366f1' }}
+                        />
+                        <span className="truncate">{p.name}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          ) : projectName ? (
             <span className="flex items-center gap-1.5 text-[0.625rem] font-semibold text-[var(--color-text-secondary)] bg-[var(--color-accent-subtle)]/40 border border-[var(--color-border)] px-2 py-0.5 rounded-md truncate max-w-[140px]">
               <span
                 className="w-1.5 h-1.5 rounded-full shrink-0"

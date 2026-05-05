@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" ADD COLUMN "unassigned_pending" boolean DEFAULT false NOT NULL;

@@ -62,6 +62,15 @@ interface BoardStore {
   removeCardFromUI: (cardId: string) => void;
   restoreCardToUI: (card: Card) => void;
   moveCard: (id: string, columnId: string, position: number) => Promise<void>;
+  markCardReviewed: (id: string) => Promise<void>;
+  rejectCard: (id: string) => Promise<{
+    card: Card;
+    actionItem: { id: string; previousStatus: import('../../shared/types').ActionItemStatus } | null;
+  }>;
+  restoreRejectedCard: (payload: {
+    card: Card;
+    actionItem: { id: string; previousStatus: import('../../shared/types').ActionItemStatus } | null;
+  }) => Promise<void>;
   loadLabels: () => Promise<void>;
   createLabel: (name: string, color: string) => Promise<Label>;
   updateLabel: (id: string, data: { name?: string; color?: string }) => Promise<void>;
@@ -245,6 +254,28 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     // Reconcile the moved card with the server response
     set({
       cards: get().cards.map((c) => (c.id === id ? { ...c, ...updated } : c)),
+    });
+  },
+
+  markCardReviewed: async (id: string) => {
+    const updated = await window.electronAPI.markCardReviewed(id);
+    set({
+      cards: get().cards.map((c) => (c.id === id ? { ...c, ...updated } : c)),
+    });
+  },
+
+  rejectCard: async (id: string) => {
+    const result = await window.electronAPI.rejectCard(id);
+    set({
+      cards: get().cards.filter((c) => c.id !== id),
+    });
+    return result;
+  },
+
+  restoreRejectedCard: async (payload) => {
+    await window.electronAPI.restoreRejectedCard(payload);
+    set({
+      cards: [...get().cards, payload.card],
     });
   },
 

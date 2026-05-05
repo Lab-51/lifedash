@@ -14,7 +14,7 @@
 import { BrowserWindow } from 'electron';
 import { getDb } from '../db/connection';
 import { projects } from '../db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, ne } from 'drizzle-orm';
 import { createLogger } from './logger';
 
 import {
@@ -115,17 +115,19 @@ export async function checkAndRunInsights(): Promise<void> {
     let projectsToAnalyze: { id: string; name: string }[];
 
     if (prefs.analyzedProjectIds.length > 0) {
-      // Only analyze selected projects
+      // Only analyze selected projects (exclude system projects)
       projectsToAnalyze = await db
         .select({ id: projects.id, name: projects.name })
         .from(projects)
-        .where(and(inArray(projects.id, prefs.analyzedProjectIds), eq(projects.archived, false)));
+        .where(
+          and(inArray(projects.id, prefs.analyzedProjectIds), eq(projects.archived, false), ne(projects.system, true)),
+        );
     } else {
-      // Analyze all non-archived projects
+      // Analyze all non-archived, non-system projects
       projectsToAnalyze = await db
         .select({ id: projects.id, name: projects.name })
         .from(projects)
-        .where(eq(projects.archived, false));
+        .where(and(eq(projects.archived, false), ne(projects.system, true)));
     }
 
     if (projectsToAnalyze.length === 0) {

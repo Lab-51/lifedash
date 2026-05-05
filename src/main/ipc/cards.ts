@@ -31,6 +31,7 @@ import {
   cardAttachments,
   cardChecklistItems,
   cardTemplates,
+  actionItems,
 } from '../db/schema';
 import { resolveTaskModel, generate } from '../services/ai-provider';
 import * as attachmentService from '../services/attachmentService';
@@ -774,5 +775,110 @@ Format as a single HTML paragraph (<p> tag).`;
       ...template,
       labelNames: template.labelNames ? JSON.parse(template.labelNames) : null,
     };
+  });
+
+  // --- Meeting auto-flow: markReviewed, reject, countUnreviewed ---
+
+  /**
+   * Mark an auto-pushed card as reviewed by the user.
+   * Called when the user drags an Inbox card into another column or
+   * explicitly clicks "Keep in Inbox" from the card menu.
+   * No-op (still returns the card) if reviewedAt is already set.
+   */
+  ipcMain.handle('cards:markReviewed', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const db = getDb();
+    const [updated] = await db
+      .update(cards)
+      .set({ reviewedAt: new Date(), updatedAt: new Date() })
+      .where(eq(cards.id, validId))
+      .returning();
+    return updated;
+  });
+
+  /**
+   * Reject an auto-pushed card. Hard-deletes the card AND flips the linked
+   * action_item back to status='dismissed' (preserving audit trail).
+   * Returns enough info for the renderer to support undo (5s window).
+   */
+  ipcMain.handle('cards:reject', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    const db = getDb();
+
+    // Capture the card BEFORE deletion so the renderer can restore it on Undo.
+    const [card] = await db.select().from(cards).where(eq(cards.id, validId));
+    if (!card) throw new Error('Card not found');
+
+    // Capture the linked action_item (by cardId) so undo can restore both.
+    const [linkedAction] = await db.select().from(actionItems).where(eq(actionItems.cardId, validId));
+
+    // Hard-delete the card (cascade removes labels/comments/etc).
+    await db.delete(cards).where(eq(cards.id, validId));
+
+    // Flip the action item back to dismissed and unlink the card.
+    if (linkedAction) {
+      await db
+        .update(actionItems)
+        .set({ status: 'dismissed', cardId: null })
+        .where(eq(actionItems.id, linkedAction.id));
+    }
+
+    return {
+      card,
+      actionItem: linkedAction ? { id: linkedAction.id, previousStatus: linkedAction.status } : null,
+    };
+  });
+
+  /**
+   * Restore a rejected card and its linked action_item. Used by the toast Undo.
+   * - Re-inserts the card row using the prior id, columnId, and metadata.
+   * - Restores the action_item status to whatever it was before reject (typically 'converted').
+   */
+  ipcMain.handle('cards:restoreRejected', async (_event, payload: unknown) => {
+    const data = payload as {
+      card: typeof cards.$inferSelect;
+      actionItem: { id: string; previousStatus: string } | null;
+    };
+    if (!data?.card?.id) throw new Error('Invalid restore payload');
+    const db = getDb();
+
+    // Re-insert the card with all its prior fields. Drizzle accepts plain values; convert
+    // ISO strings back into Dates for timestamp columns when present.
+    const c = data.card;
+    await db.insert(cards).values({
+      id: c.id,
+      columnId: c.columnId,
+      title: c.title,
+      description: c.description,
+      position: c.position,
+      priority: c.priority,
+      dueDate: c.dueDate ? new Date(c.dueDate) : null,
+      completed: c.completed,
+      archived: c.archived,
+      recurrenceType: c.recurrenceType,
+      recurrenceEndDate: c.recurrenceEndDate ? new Date(c.recurrenceEndDate) : null,
+      sourceRecurringId: c.sourceRecurringId,
+      source: c.source,
+      sourceMeetingId: c.sourceMeetingId,
+      reviewedAt: c.reviewedAt ? new Date(c.reviewedAt) : null,
+    });
+
+    if (data.actionItem) {
+      const status = data.actionItem.previousStatus as 'pending' | 'approved' | 'dismissed' | 'converted';
+      await db.update(actionItems).set({ status, cardId: c.id }).where(eq(actionItems.id, data.actionItem.id));
+    }
+  });
+
+  /**
+   * Count auto-pushed cards that have not yet been reviewed by the user.
+   * Drives the Projects nav-item badge in the sidebar.
+   */
+  ipcMain.handle('cards:countUnreviewed', async () => {
+    const db = getDb();
+    const [{ value }] = await db
+      .select({ value: count() })
+      .from(cards)
+      .where(and(eq(cards.source, 'auto-from-meeting'), isNull(cards.reviewedAt), eq(cards.archived, false)));
+    return Number(value);
   });
 }

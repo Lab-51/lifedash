@@ -103,4 +103,8 @@ export const meetingsBridge = {
 
   // Meeting Prep
   meetingsGeneratePrep: (projectId: string) => ipcRenderer.invoke('meetings:generate-prep', projectId),
+
+  // Meeting auto-flow: reassign Unassigned-routed cards to a real project
+  reassignFromUnassigned: (meetingId: string, newProjectId: string) =>
+    ipcRenderer.invoke('meetings:reassignFromUnassigned', { meetingId, newProjectId }),
 };

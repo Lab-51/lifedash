@@ -9,6 +9,9 @@ export interface Project {
   color: string | null;
   archived: boolean;
   pinned: boolean;
+  system: boolean; // true = internal sentinel (e.g. Unassigned) — hidden from user-facing lists
+  /** Per-project auto-push override. null = use global setting; true/false = explicit override. */
+  autoPushEnabled: boolean | null;
   hourlyRate: number | null;
   sortOrder: number;
   createdAt: string;
@@ -32,6 +35,8 @@ export interface Column {
   createdAt: string;
 }
 
+export type CardSource = 'manual' | 'auto-from-meeting';
+
 export interface Card {
   id: string;
   columnId: string;
@@ -45,6 +50,10 @@ export interface Card {
   recurrenceType?: string | null;
   recurrenceEndDate?: string | null;
   sourceRecurringId?: string | null;
+  // Meeting auto-flow fields
+  source: CardSource;
+  sourceMeetingId: string | null;
+  reviewedAt: string | null;
   createdAt: string;
   updatedAt: string;
   labels?: Label[];
@@ -75,6 +84,8 @@ export interface UpdateProjectInput {
   color?: string | null;
   archived?: boolean;
   pinned?: boolean;
+  /** null = use global auto-push setting; true/false = per-project override */
+  autoPushEnabled?: boolean | null;
   hourlyRate?: number | null;
   sortOrder?: number;
 }

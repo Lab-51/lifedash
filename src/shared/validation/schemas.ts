@@ -72,6 +72,7 @@ export const updateProjectInputSchema = z.object({
   color: z.string().max(50).nullable().optional(),
   archived: z.boolean().optional(),
   pinned: z.boolean().optional(),
+  autoPushEnabled: z.boolean().nullable().optional(),
   hourlyRate: z.number().nullable().optional(),
   sortOrder: z.number().int().optional(),
 });
@@ -259,6 +260,11 @@ export const updateMeetingInputSchema = z.object({
   endedAt: z.string().optional(),
   audioPath: z.string().optional(),
   status: meetingStatusSchema.optional(),
+});
+
+export const reassignFromUnassignedSchema = z.object({
+  meetingId: uuid,
+  newProjectId: uuid,
 });
 
 // ============================================================================

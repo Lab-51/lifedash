@@ -24,6 +24,8 @@ interface MeetingStore {
   error: string | null;
   actionItemCounts: Record<string, number>;
   pendingActionCount: number;
+  /** Count of auto-pushed cards with no reviewedAt — drives Projects nav badge. */
+  unreviewedAutoPushedCount: number;
 
   // Intelligence generation state
   generatingBrief: boolean;
@@ -42,6 +44,8 @@ interface MeetingStore {
   loadMeeting: (id: string) => Promise<void>;
   loadActionItemCounts: () => Promise<void>;
   loadPendingActionCount: () => Promise<void>;
+  refreshUnreviewedCount: () => Promise<void>;
+  reassignFromUnassigned: (meetingId: string, newProjectId: string) => Promise<void>;
   updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<void>;
   deleteMeeting: (id: string) => Promise<void>;
   clearSelectedMeeting: () => void;
@@ -68,6 +72,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   error: null,
   actionItemCounts: {},
   pendingActionCount: 0,
+  unreviewedAutoPushedCount: 0,
   generatingBrief: false,
   generatingActions: false,
   briefErrors: {},
@@ -120,13 +125,49 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
     }
   },
 
+  refreshUnreviewedCount: async () => {
+    try {
+      const count = await window.electronAPI.countUnreviewedCards();
+      set({ unreviewedAutoPushedCount: count });
+    } catch {
+      // Non-critical — sidebar badge can stay stale until next refresh
+    }
+  },
+
+  reassignFromUnassigned: async (meetingId: string, newProjectId: string) => {
+    const result = await window.electronAPI.reassignFromUnassigned(meetingId, newProjectId);
+    // Optimistically reflect the change in local state
+    set({
+      meetings: get().meetings.map((m) =>
+        m.id === meetingId ? { ...m, projectId: newProjectId, unassignedPending: false } : m,
+      ),
+      selectedMeeting:
+        get().selectedMeeting?.id === meetingId
+          ? { ...get().selectedMeeting!, projectId: newProjectId, unassignedPending: false }
+          : get().selectedMeeting,
+    });
+    return void result;
+  },
+
   updateMeeting: async (id, data) => {
+    const prevSelected = get().selectedMeeting;
+    const wasUnlinked = prevSelected?.id === id && prevSelected.projectId == null;
+    const newlyLinked = wasUnlinked && data.projectId != null;
+
     const updated = await window.electronAPI.updateMeeting(id, data);
     set({
       meetings: get().meetings.map((m) => (m.id === id ? updated : m)),
       selectedMeeting:
         get().selectedMeeting?.id === id ? { ...get().selectedMeeting!, ...updated } : get().selectedMeeting,
     });
+
+    // Refetch full meeting (including action items) after link-time auto-push
+    if (newlyLinked) {
+      const refreshed = await window.electronAPI.getMeeting(id);
+      if (get().selectedMeeting?.id === id) {
+        set({ selectedMeeting: refreshed });
+      }
+    }
   },
 
   deleteMeeting: async (id) => {
@@ -177,6 +218,9 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       }
       useGamificationStore.getState().awardXP('meeting_brief', meetingId);
       get().clearBriefError(meetingId);
+      // Brief generation may have auto-pushed action items to Inbox cards.
+      // Refresh the unreviewed count so the Projects nav badge updates.
+      get().refreshUnreviewedCount();
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to generate brief' });
       get().setBriefError(meetingId, error instanceof Error ? error.message : 'Failed to generate brief');

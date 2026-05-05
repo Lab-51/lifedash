@@ -15,6 +15,7 @@ import type { CreateLabelInput, UpdateLabelInput } from '../../shared/types';
 export const projectsBridge = {
   // Projects
   getProjects: () => ipcRenderer.invoke('projects:list'),
+  getProjectsWithRecency: () => ipcRenderer.invoke('projects:listWithRecency'),
   createProject: (data: CreateProjectInput) => ipcRenderer.invoke('projects:create', data),
   updateProject: (id: string, data: UpdateProjectInput) => ipcRenderer.invoke('projects:update', id, data),
   deleteProject: (id: string) => ipcRenderer.invoke('projects:delete', id),
@@ -42,6 +43,11 @@ export const projectsBridge = {
   deleteCard: (id: string) => ipcRenderer.invoke('cards:delete', id),
   moveCard: (id: string, columnId: string, position: number) =>
     ipcRenderer.invoke('cards:move', id, columnId, position),
+  // Meeting auto-flow
+  markCardReviewed: (id: string) => ipcRenderer.invoke('cards:markReviewed', id),
+  rejectCard: (id: string) => ipcRenderer.invoke('cards:reject', id),
+  restoreRejectedCard: (payload: unknown) => ipcRenderer.invoke('cards:restoreRejected', payload),
+  countUnreviewedCards: () => ipcRenderer.invoke('cards:countUnreviewed'),
 
   // Labels
   getLabels: (projectId: string) => ipcRenderer.invoke('labels:list', projectId),

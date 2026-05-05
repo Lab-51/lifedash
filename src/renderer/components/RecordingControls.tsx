@@ -34,6 +34,22 @@ function formatLastDuration(startedAt: string, endedAt: string): string {
   return `${min}m ${sec}s`;
 }
 
+/** Short "X ago" relative timestamp for the project recency hint. */
+function shortRelativeTime(iso: string | null): string | null {
+  if (!iso) return null;
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}
+
 // --- Retro equalizer constants ---
 const EQ_BARS = 16;
 const EQ_SEGMENTS = 10;
@@ -283,9 +299,19 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
   const deleteMeeting = useMeetingStore((s) => s.deleteMeeting);
   const meetings = useMeetingStore((s) => s.meetings);
   const lastCompletedMeeting = meetings.find((m) => m.status === 'completed' && m.endedAt);
-  const projects = useProjectStore((s) => s.projects);
   const createProject = useProjectStore((s) => s.createProject);
-  const activeProjects = projects.filter((p) => !p.archived);
+  const [projectsWithRecency, setProjectsWithRecency] = useState<
+    Array<{ id: string; name: string; archived: boolean; lastRecordedAt: string | null }>
+  >([]);
+  const sortedProjects = projectsWithRecency
+    .filter((p) => !p.archived)
+    .slice()
+    .sort((a, b) => {
+      const aTime = a.lastRecordedAt ? new Date(a.lastRecordedAt).getTime() : 0;
+      const bTime = b.lastRecordedAt ? new Date(b.lastRecordedAt).getTime() : 0;
+      if (aTime !== bTime) return bTime - aTime;
+      return a.name.localeCompare(b.name);
+    });
   const [title, setTitle] = useState(suggestMeetingTitle);
   const [selectedTemplate, setSelectedTemplate] = useState<MeetingTemplateType>('none');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
@@ -311,6 +337,35 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
         // Settings or model unavailable — keep defaults
       }
     })();
+  }, []);
+
+  // Load projects with last-recorded recency for the smart dropdown.
+  // Default to the most-recent project if any. Falls back to "(no project)".
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await window.electronAPI.getProjectsWithRecency();
+        if (cancelled) return;
+        setProjectsWithRecency(rows);
+        const top = rows
+          .filter((p) => !p.archived)
+          .slice()
+          .sort((a, b) => {
+            const aT = a.lastRecordedAt ? new Date(a.lastRecordedAt).getTime() : 0;
+            const bT = b.lastRecordedAt ? new Date(b.lastRecordedAt).getTime() : 0;
+            return bT - aT;
+          })[0];
+        if (top && top.lastRecordedAt) {
+          setSelectedProjectId(top.id);
+        }
+      } catch {
+        // Non-critical — dropdown will fall back to empty + "(no project)"
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Re-check model when language changes
@@ -393,18 +448,32 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
             <HudSelect
               value={selectedProjectId}
               onChange={(v) => setSelectedProjectId(v)}
-              placeholder="No project (link later)"
+              placeholder="(no project)"
               icon={FolderOpen}
               disabled={starting}
               options={[
-                { value: '', label: 'No project (link later)' },
-                ...activeProjects.map((p) => ({ value: p.id, label: p.name })),
+                { value: '', label: '(no project)', description: 'Auto-detect when stopped' },
+                ...sortedProjects.map((p) => {
+                  const recency = shortRelativeTime(p.lastRecordedAt);
+                  return {
+                    value: p.id,
+                    label: p.name,
+                    description: recency ?? 'No recordings yet',
+                  };
+                }),
               ]}
               onCreateNew={{
                 label: '+ New project',
                 placeholder: 'Project name',
                 onSubmit: async (name) => {
                   const project = await createProject({ name });
+                  // Refresh the recency list so the new project appears
+                  try {
+                    const rows = await window.electronAPI.getProjectsWithRecency();
+                    setProjectsWithRecency(rows);
+                  } catch {
+                    // Non-critical
+                  }
                   return project.id;
                 },
               }}

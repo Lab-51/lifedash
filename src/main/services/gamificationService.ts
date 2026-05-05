@@ -2,7 +2,7 @@
 // Service layer for unified gamification system.
 // Handles XP awards, stats calculation, streak tracking, and achievements across all features.
 
-import { gte, sql, desc, eq } from 'drizzle-orm';
+import { gte, sql, desc, eq, ne } from 'drizzle-orm';
 import { formatDateStr } from '../../shared/utils/date-utils';
 import { getDb } from '../db/connection';
 import {
@@ -190,8 +190,11 @@ export async function getAchievementCounts(stats: GamificationStats): Promise<Ac
     .from(cardChecklistItems)
     .where(eq(cardChecklistItems.completed, true));
 
-  // Projects created
-  const [projectsRow] = await db.select({ count: sql<number>`count(*)::int` }).from(projects);
+  // Projects created (exclude system projects like Unassigned)
+  const [projectsRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(projects)
+    .where(ne(projects.system, true));
 
   // Consolidated xp_events counts by event_type (replaces individual queries)
   const eventTypeCounts = await db

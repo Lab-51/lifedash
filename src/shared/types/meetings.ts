@@ -91,6 +91,13 @@ export interface Meeting {
   status: MeetingStatus;
   prepBriefing: string | null;
   transcriptionLanguage: string | null;
+  /**
+   * True when auto-detect routed this meeting to the system Unassigned project
+   * (i.e. classifier confidence was below threshold). UI uses this to surface
+   * a "set project?" prompt. Manually picking a project should set this back
+   * to false (handled in Task 4).
+   */
+  unassignedPending: boolean;
   createdAt: string;
 }
 
@@ -125,6 +132,7 @@ export interface UpdateMeetingInput {
   endedAt?: string;
   audioPath?: string;
   status?: MeetingStatus;
+  unassignedPending?: boolean;
 }
 
 export interface TranscriptSearchResult {

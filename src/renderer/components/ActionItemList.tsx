@@ -86,8 +86,9 @@ const ActionItemRow = memo(function ActionItemRow({
         >
           {item.description}
         </p>
+        {/* Converted items: show confirmation text, hide all action buttons (including "Push to Column") */}
         {item.status === 'converted' && item.cardId && (
-          <p className="text-xs text-primary-400 mt-0.5">Converted to card</p>
+          <p className="text-xs text-primary-400 mt-0.5">Pushed to board as a card</p>
         )}
       </div>
 

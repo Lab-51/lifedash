@@ -9,8 +9,14 @@ import { ipcMain } from 'electron';
 import { z } from 'zod';
 import * as meetingService from '../services/meetingService';
 import { generateMeetingPrep } from '../services/meetingPrepService';
+import { reassignMeetingFromUnassigned } from '../services/meetingReassignService';
 import { validateInput } from '../../shared/validation/ipc-validator';
-import { idParamSchema, createMeetingInputSchema, updateMeetingInputSchema } from '../../shared/validation/schemas';
+import {
+  idParamSchema,
+  createMeetingInputSchema,
+  updateMeetingInputSchema,
+  reassignFromUnassignedSchema,
+} from '../../shared/validation/schemas';
 
 const meetingIdsSchema = z.array(z.string().uuid());
 
@@ -58,5 +64,15 @@ export function registerMeetingHandlers(): void {
   ipcMain.handle('meetings:generate-prep', async (_event, projectId: unknown) => {
     const validId = validateInput(idParamSchema, projectId);
     return generateMeetingPrep(validId);
+  });
+
+  /**
+   * Reassign all auto-pushed cards for a meeting from the system Unassigned
+   * project's Inbox to a real project's Inbox, in a single transaction.
+   * Also clears the meeting's unassignedPending flag and sets projectId.
+   */
+  ipcMain.handle('meetings:reassignFromUnassigned', async (_event, payload: unknown) => {
+    const valid = validateInput(reassignFromUnassignedSchema, payload);
+    return reassignMeetingFromUnassigned(valid.meetingId, valid.newProjectId);
   });
 }

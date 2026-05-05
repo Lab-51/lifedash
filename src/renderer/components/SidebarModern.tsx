@@ -22,6 +22,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useSoundEffect } from '../hooks/useSoundEffect';
 import { useFocusStore } from '../stores/focusStore';
 import { useBackgroundAgentStore } from '../stores/backgroundAgentStore';
+import { useMeetingStore } from '../stores/meetingStore';
 
 import type { ThemeMode } from '../hooks/useTheme';
 import RecordingIndicator from './RecordingIndicator';
@@ -74,10 +75,16 @@ export default function SidebarModern() {
   const focusMode = useFocusStore((s) => s.mode);
   const newInsightsCount = useBackgroundAgentStore((s) => s.newInsightsCount);
   const refreshNewCount = useBackgroundAgentStore((s) => s.refreshNewCount);
+  const unreviewedAutoPushedCount = useMeetingStore((s) => s.unreviewedAutoPushedCount);
+  const refreshUnreviewedCount = useMeetingStore((s) => s.refreshUnreviewedCount);
 
   useEffect(() => {
     refreshNewCount();
   }, [refreshNewCount]);
+
+  useEffect(() => {
+    refreshUnreviewedCount();
+  }, [refreshUnreviewedCount]);
 
   const cycleTheme = () => {
     const idx = THEME_CYCLE.indexOf(themeMode);
@@ -97,7 +104,10 @@ export default function SidebarModern() {
       <div className="flex flex-col gap-3 px-3 flex-1">
         {navItems.map(({ path, label, icon: Icon, tourId }) => {
           const isHome = path === '/';
+          const isProjects = path === '/projects';
           const isActive = isHome ? location.pathname === '/' : location.pathname.startsWith(path);
+          const showProjectsBadge = isProjects && unreviewedAutoPushedCount > 0;
+          const projectsBadgeText = unreviewedAutoPushedCount > 9 ? '9+' : String(unreviewedAutoPushedCount);
 
           return (
             <NavLink
@@ -117,6 +127,17 @@ export default function SidebarModern() {
               {/* New insights badge dot — only on Home */}
               {isHome && newInsightsCount > 0 && (
                 <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[var(--color-accent)]" />
+              )}
+
+              {/* Unreviewed auto-pushed cards badge — Projects nav only */}
+              {showProjectsBadge && (
+                <span
+                  data-testid="projects-unreviewed-badge"
+                  title={`${unreviewedAutoPushedCount} unreviewed meeting card${unreviewedAutoPushedCount === 1 ? '' : 's'}`}
+                  className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-chrome)] font-data text-[0.6rem] font-bold leading-none border border-[var(--color-chrome)]"
+                >
+                  {projectsBadgeText}
+                </span>
               )}
 
               {/* Tooltip on hover */}

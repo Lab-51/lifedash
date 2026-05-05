@@ -19,6 +19,7 @@ import {
 import { columns } from './boards';
 import { labels } from './labels';
 import { projects } from './projects';
+// meetings.ts imports cards, so we use a lazy column reference to avoid a circular import
 
 export const cardPriorityEnum = pgEnum('card_priority', ['low', 'medium', 'high', 'urgent']);
 
@@ -39,6 +40,10 @@ export const cards = pgTable(
     recurrenceType: varchar('recurrence_type', { length: 20 }),
     recurrenceEndDate: timestamp('recurrence_end_date', { withTimezone: true }),
     sourceRecurringId: uuid('source_recurring_id').references((): AnyPgColumn => cards.id, { onDelete: 'set null' }),
+    // Meeting auto-flow columns
+    source: text('source').notNull().default('manual'), // 'manual' | 'auto-from-meeting'
+    sourceMeetingId: uuid('source_meeting_id'), // FK to meetings.id — lazy ref to avoid circular import
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }), // set when user accepts auto-pushed card
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -47,6 +52,7 @@ export const cards = pgTable(
     index('cards_archived_idx').on(table.archived),
     index('cards_updated_at_idx').on(table.updatedAt),
     index('cards_created_at_idx').on(table.createdAt),
+    index('cards_source_meeting_id_idx').on(table.sourceMeetingId),
   ],
 );
 

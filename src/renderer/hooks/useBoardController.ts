@@ -8,6 +8,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { monitorForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import { useBoardStore, getCardsByColumn } from '../stores/boardStore';
+import { useMeetingStore } from '../stores/meetingStore';
 import type { CardPriority, Column, Card, Label } from '../../shared/types';
 
 // Helper for CSV export
@@ -62,6 +63,7 @@ export function useBoardController() {
   const updateCard = useBoardStore((s) => s.updateCard);
   const deleteCard = useBoardStore((s) => s.deleteCard);
   const moveCard = useBoardStore((s) => s.moveCard);
+  const markCardReviewed = useBoardStore((s) => s.markCardReviewed);
   const updateColumn = useBoardStore((s) => s.updateColumn);
   const reorderColumns = useBoardStore((s) => s.reorderColumns);
   const createLabel = useBoardStore((s) => s.createLabel);
@@ -202,6 +204,30 @@ export function useBoardController() {
 
   // Card DnD
   useEffect(() => {
+    function maybeMarkReviewedOnDragOutOfInbox(cardId: string, sourceColumnId: string, targetColumnId: string): void {
+      if (targetColumnId === sourceColumnId) return;
+      const sourceColumn = columns.find((c) => c.id === sourceColumnId);
+      if (sourceColumn?.name !== 'Inbox') return;
+      const movedCard = cards.find((c) => c.id === cardId);
+      if (movedCard?.source !== 'auto-from-meeting') return;
+      if (movedCard.reviewedAt != null) return;
+      void (async () => {
+        await markCardReviewed(cardId);
+        await useMeetingStore.getState().refreshUnreviewedCount();
+      })();
+    }
+
+    function computeNewPositionWithinSameColumn(
+      sourcePosition: number,
+      targetPosition: number,
+      edge: ReturnType<typeof extractClosestEdge>,
+    ): number {
+      if (edge === 'top') {
+        return sourcePosition < targetPosition ? targetPosition - 1 : targetPosition;
+      }
+      return sourcePosition < targetPosition ? targetPosition : targetPosition + 1;
+    }
+
     return monitorForElements({
       canMonitor: ({ source }) => source.data.type === 'card',
       onDrop: ({ source, location }) => {
@@ -217,36 +243,36 @@ export function useBoardController() {
         const cardTarget = dropTargets.find((t) => t.data.type === 'card');
         const columnTarget = dropTargets.find((t) => t.data.columnId && t.data.type !== 'card');
 
+        let targetColumnId: string | null = null;
         if (cardTarget) {
-          const targetColumnId = cardTarget.data.columnId as string;
+          targetColumnId = cardTarget.data.columnId as string;
           const targetPosition = cardTarget.data.position as number;
           const edge = extractClosestEdge(cardTarget.data);
 
           let newPosition: number;
           if (sourceColumnId === targetColumnId) {
-            if (edge === 'top') {
-              newPosition = sourcePosition < targetPosition ? targetPosition - 1 : targetPosition;
-            } else {
-              newPosition = sourcePosition < targetPosition ? targetPosition : targetPosition + 1;
-            }
+            newPosition = computeNewPositionWithinSameColumn(sourcePosition, targetPosition, edge);
             if (newPosition === sourcePosition) return;
           } else {
             newPosition = edge === 'top' ? targetPosition : targetPosition + 1;
           }
-
-          moveCard(cardId, targetColumnId, newPosition);
+          void moveCard(cardId, targetColumnId, newPosition);
         } else if (columnTarget) {
-          const targetColumnId = columnTarget.data.columnId as string;
+          targetColumnId = columnTarget.data.columnId as string;
           if (sourceColumnId === targetColumnId) return;
           const targetCards = getCardsByColumn(cards, targetColumnId);
-          moveCard(cardId, targetColumnId, targetCards.length);
+          void moveCard(cardId, targetColumnId, targetCards.length);
         }
 
         setDragOverColumnId(null);
-        if (cardId) setJustDroppedCardId(cardId);
+        setJustDroppedCardId(cardId);
+
+        if (targetColumnId) {
+          maybeMarkReviewedOnDragOutOfInbox(cardId, sourceColumnId, targetColumnId);
+        }
       },
     });
-  }, [cards, moveCard]);
+  }, [cards, columns, moveCard, markCardReviewed]);
 
   // Column Reorder DnD
   useEffect(() => {
