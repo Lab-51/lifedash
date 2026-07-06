@@ -75,6 +75,7 @@ import type { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodSta
 import type { GamificationStats, Achievement, XpEventType, XpDailyData } from './gamification';
 import type { CardAgentMessage, CardAgentThread, AgentAction } from './card-agent';
 import type { ProjectAgentMessage, ProjectAgentThread, ProjectAgentAction } from './project-agent';
+import type { MeetingAgentMessage } from './meeting-agent';
 
 import type { AgentInsight, BackgroundAgentPreferences, InsightType, InsightStatus } from './background-agent';
 import type { AuthState, SyncStatus } from './sync';
@@ -448,6 +449,27 @@ export interface ElectronAPI {
       result?: unknown;
     }) => void,
   ) => () => void;
+
+  // Meeting Agent (Live Assistant, LIVE.1 Phase A)
+  meetingAgentSend: (
+    meetingId: string,
+    content: string,
+  ) => Promise<{ assistantMessage: MeetingAgentMessage; threadId: string } | null>;
+  meetingAgentLoad: (meetingId: string) => Promise<MeetingAgentMessage[]>;
+  meetingAgentStop: (meetingId: string) => Promise<void>;
+  onMeetingAgentTextDelta: (
+    callback: (data: { meetingId: string; threadId: string; chunk: string }) => void,
+  ) => () => void;
+  onMeetingAgentToolCall: (
+    callback: (data: { meetingId: string; threadId: string; toolName: string; args: unknown }) => void,
+  ) => () => void;
+  onMeetingAgentToolResult: (
+    callback: (data: { meetingId: string; threadId: string; toolName: string; result: unknown }) => void,
+  ) => () => void;
+  onMeetingAgentDone: (
+    callback: (data: { assistantMessage: MeetingAgentMessage; threadId: string }) => void,
+  ) => () => void;
+  onMeetingAgentError: (callback: (data: { meetingId: string; threadId: string; error: string }) => void) => () => void;
 
   // Background Agent
   backgroundAgentGetPreferences: () => Promise<BackgroundAgentPreferences>;

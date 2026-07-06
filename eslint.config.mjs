@@ -15,6 +15,7 @@ const COMPLEXITY_BASELINE = [
   'src/renderer/components/settings/TranscriptionProviderSection.tsx',
   'src/main/ipc/card-agent.ts',
   'src/main/ipc/project-agent.ts',
+  'src/main/ipc/meeting-agent.ts', // LIVE.1 Task 2 — mirrors card-agent.ts's streaming tool-loop handler verbatim (same shape, same complexity source)
   'src/main/services/authService.ts',
   'src/main/services/backgroundAgentScheduler.ts',
   'src/main/services/backgroundAgentService.ts',

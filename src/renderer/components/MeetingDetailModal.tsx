@@ -22,6 +22,7 @@ import {
   MeetingHeader,
   MeetingPrepSection,
   TranscriptSection,
+  LiveAssistantSection,
   DeleteMeetingButton,
   formatMeetingAsMarkdown,
   slugify,
@@ -312,6 +313,8 @@ export default function MeetingDetailModal({
               copiedField={copiedField}
               onCopy={handleCopy}
             />
+
+            {meeting.status === 'completed' && <LiveAssistantSection meetingId={meeting.id} />}
 
             <DeleteMeetingButton onDelete={handleDelete} />
           </div>

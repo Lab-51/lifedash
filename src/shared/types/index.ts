@@ -18,6 +18,7 @@ export * from './focus';
 export * from './gamification';
 export * from './card-agent';
 export * from './project-agent';
+export * from './meeting-agent';
 export * from './sync';
 export * from './intel-feed';
 export * from './electron-api';

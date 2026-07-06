@@ -8,7 +8,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Square, Loader2 } from 'lucide-react';
+import { Square, Loader2, Sparkles } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
 
 function formatElapsed(seconds: number): string {
@@ -25,6 +25,8 @@ export default function RecordingIndicator() {
   const elapsed = useRecordingStore((s) => s.elapsed);
   const processingProgress = useRecordingStore((s) => s.processingProgress);
   const stopRecording = useRecordingStore((s) => s.stopRecording);
+  const liveDrawerOpen = useRecordingStore((s) => s.liveDrawerOpen);
+  const toggleLiveDrawer = useRecordingStore((s) => s.toggleLiveDrawer);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -92,7 +94,23 @@ export default function RecordingIndicator() {
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white dark:bg-surface-900 rounded-xl shadow-xl border border-[var(--color-border)] p-1.5 z-50">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white dark:bg-surface-900 rounded-xl shadow-xl border border-[var(--color-border)] p-1.5 z-50 flex items-center gap-1">
+          <button
+            onClick={() => {
+              toggleLiveDrawer();
+              setOpen(false);
+            }}
+            title="Live Assistant"
+            aria-label="Toggle Live Assistant drawer"
+            aria-pressed={liveDrawerOpen}
+            className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
+              liveDrawerOpen
+                ? 'text-[var(--color-accent)] bg-[var(--color-accent-subtle)]'
+                : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)] hover:text-[var(--color-accent)]'
+            }`}
+          >
+            <Sparkles size={16} />
+          </button>
           <button
             onClick={() => {
               pendingNavigateRef.current = true;

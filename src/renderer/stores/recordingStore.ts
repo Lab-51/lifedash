@@ -12,8 +12,9 @@
 import { create } from 'zustand';
 import * as audioCaptureService from '../services/audioCaptureService';
 import { useGamificationStore } from './gamificationStore';
+import { useMeetingStore } from './meetingStore';
 import { toast } from '../hooks/useToast';
-import type { RecordingState, MeetingTemplateType, TranscriptionProgress } from '../../shared/types';
+import type { RecordingState, MeetingTemplateType, TranscriptionProgress, TranscriptSegment } from '../../shared/types';
 
 interface RecordingStore {
   // State
@@ -28,10 +29,16 @@ interface RecordingStore {
   includeMic: boolean;
   prepBriefing: string | null;
   processingProgress: TranscriptionProgress | null;
+  /** Live transcript segments accumulated for the active recording (app-wide, not tied to any single view). */
+  liveSegments: TranscriptSegment[];
+  /** Whether the global LiveMeetingDrawer is open. */
+  liveDrawerOpen: boolean;
 
   // Actions
   setIncludeMic: (value: boolean) => void;
   setPrepBriefing: (text: string | null) => void;
+  toggleLiveDrawer: () => void;
+  closeLiveDrawer: () => void;
   startRecording: (
     title: string,
     projectId?: string,
@@ -56,9 +63,13 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   includeMic: true,
   prepBriefing: null,
   processingProgress: null,
+  liveSegments: [],
+  liveDrawerOpen: false,
 
   setIncludeMic: (value: boolean) => set({ includeMic: value }),
   setPrepBriefing: (text: string | null) => set({ prepBriefing: text }),
+  toggleLiveDrawer: () => set((state) => ({ liveDrawerOpen: !state.liveDrawerOpen })),
+  closeLiveDrawer: () => set({ liveDrawerOpen: false }),
 
   startRecording: async (
     title: string,
@@ -170,6 +181,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         completedMeetingId: meetingId,
         elapsed: 0,
         lastTranscript: '',
+        liveSegments: [],
       });
       if (meetingId) {
         useGamificationStore.getState().awardXP('meeting_complete', meetingId);
@@ -208,7 +220,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     } catch {
       /* best-effort cleanup */
     }
-    set({ meetingId: null, elapsed: 0, lastTranscript: '' });
+    set({ meetingId: null, elapsed: 0, lastTranscript: '', liveSegments: [] });
   },
 
   clearCompletedMeetingId: () => set({ completedMeetingId: null }),
@@ -244,11 +256,22 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       }
     });
 
+    // Listen for live transcript segments (app-wide — single subscription for the
+    // whole app, regardless of which view is active). Accumulates into liveSegments
+    // for the global LiveMeetingDrawer, and forwards to meetingStore so a currently
+    // open MeetingDetailModal keeps showing segments live (preserves prior behavior
+    // that used to live in MeetingsModern).
+    const cleanupTranscriptSegment = window.electronAPI.onTranscriptSegment((segment) => {
+      set((state) => ({ liveSegments: [...state.liveSegments, segment] }));
+      useMeetingStore.getState().addTranscriptSegment(segment);
+    });
+
     return () => {
       cleanupState();
       cleanupForceStop();
       cleanupProgress();
       cleanupTranscription();
+      cleanupTranscriptSegment();
     };
   },
 }));

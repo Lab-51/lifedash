@@ -7,6 +7,7 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import ErrorBoundary from './ErrorBoundary';
 import PageSkeleton from './PageSkeleton';
+import LiveMeetingDrawer from './LiveMeetingDrawer';
 import { useFocusStore } from '../stores/focusStore';
 import { useSoundEffect } from '../hooks/useSoundEffect';
 
@@ -75,6 +76,7 @@ function AppLayout() {
           </Suspense>
         </ErrorBoundary>
       </main>
+      <LiveMeetingDrawer />
     </div>
   );
 }

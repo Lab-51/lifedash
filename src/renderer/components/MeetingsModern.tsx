@@ -27,7 +27,6 @@ export default function MeetingsModern() {
   const loadMeetings = useMeetingStore((s) => s.loadMeetings);
   const loadMeeting = useMeetingStore((s) => s.loadMeeting);
   const deleteMeeting = useMeetingStore((s) => s.deleteMeeting);
-  const addTranscriptSegment = useMeetingStore((s) => s.addTranscriptSegment);
   const actionItemCounts = useMeetingStore((s) => s.actionItemCounts);
   const loadActionItemCounts = useMeetingStore((s) => s.loadActionItemCounts);
   const isRecording = useRecordingStore((s) => s.isRecording);
@@ -141,14 +140,6 @@ export default function MeetingsModern() {
       loadMeeting(selectedMeetingId);
     }
   }, [selectedMeetingId, loadMeeting]);
-
-  // Listen for real-time transcript segments
-  useEffect(() => {
-    const cleanup = window.electronAPI.onTranscriptSegment((segment) => {
-      addTranscriptSegment(segment);
-    });
-    return cleanup;
-  }, [addTranscriptSegment]);
 
   // Download whisper model
   const handleDownloadModel = async () => {

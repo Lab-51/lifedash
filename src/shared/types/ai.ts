@@ -12,7 +12,8 @@ export type AITaskType =
   | 'standup'
   | 'card-description'
   | 'background_agent'
-  | 'project_agent';
+  | 'project_agent'
+  | 'live_assistant';
 
 /** AI provider as seen by renderer (no decrypted keys — only hasApiKey boolean) */
 export interface AIProvider {

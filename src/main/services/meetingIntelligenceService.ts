@@ -231,8 +231,11 @@ async function runProjectDetection(meetingId: string, transcript: string): Promi
  * Fetch the most recent N briefs for a project, excluding the current meeting.
  * Returns summaries newest-first. Skips threading entirely when projectId is
  * the Unassigned (system) project.
+ *
+ * Exported for reuse by the Live Assistant (meetingAgentService.getMeetingContext) —
+ * both features want the same project-continuity context, so the logic lives here.
  */
-async function fetchPriorBriefs(projectId: string, currentMeetingId: string, limit: number): Promise<string[]> {
+export async function fetchPriorBriefs(projectId: string, currentMeetingId: string, limit: number): Promise<string[]> {
   const db = getDb();
 
   // Skip threading for the system Unassigned project

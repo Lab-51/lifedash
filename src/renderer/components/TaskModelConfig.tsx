@@ -4,7 +4,7 @@
 // Persists selections as JSON to the settings table (key: 'ai.taskModels').
 
 import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { Save, RotateCcw } from 'lucide-react';
+import { Save, RotateCcw, Info } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 import type {
   AIProvider,
@@ -30,7 +30,15 @@ const TASK_TYPE_INFO: { type: AITaskType; label: string; description: string }[]
     description: 'Autonomous stale card detection and project insights',
   },
   { type: 'project_agent', label: 'Project Agent', description: 'AI agent for cross-board project analysis' },
+  {
+    type: 'live_assistant',
+    label: 'Live Assistant',
+    description: 'In-meeting AI partner — answers questions and creates cards during recording',
+  },
 ];
+
+/** Provider families that run entirely on the user's machine — no transcript leaves the device. */
+const LOCAL_PROVIDERS: Set<AIProviderName> = new Set(['ollama', 'lmstudio']);
 
 // Known models per provider (v1 — hardcoded, expandable later)
 const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
@@ -218,6 +226,7 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
         const models = getModelsForProvider(entry.providerId);
         const providerName = getProviderName(entry.providerId);
         const isOllama = providerName === 'ollama';
+        const isLocalProvider = !!providerName && LOCAL_PROVIDERS.has(providerName);
 
         return (
           <div key={type} className="p-3 hud-panel clip-corner-cut-sm">
@@ -266,6 +275,17 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
                   ))}
               </div>
             </div>
+
+            {/* Privacy hint: only for Live Assistant, only while no local provider is configured for it */}
+            {type === 'live_assistant' && !isLocalProvider && (
+              <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-400">
+                <Info size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <span>
+                  Transcripts go to whichever provider you pick. For fully-private meetings use LM Studio or Ollama —
+                  recommended: Qwen3 14B (or 8B for faster replies).
+                </span>
+              </p>
+            )}
           </div>
         );
       })}

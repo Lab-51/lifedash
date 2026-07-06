@@ -363,6 +363,9 @@ export const cardAgentMessageContentSchema = z.string().min(1).max(10000);
 /** For project-agent:send-message — validates the content parameter */
 export const projectAgentMessageContentSchema = z.string().min(1).max(10000);
 
+/** For meeting-agent:send — validates the content parameter */
+export const meetingAgentMessageContentSchema = z.string().min(1).max(10000);
+
 // ============================================================================
 // Card Checklist Items
 // ============================================================================

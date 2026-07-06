@@ -38,6 +38,10 @@ export const releaseHistory: ReleaseNotesData[] = [
           "Auto-detect routes meetings to the right project based on what's said in the transcript. Unrecognized meetings go to an Unassigned inbox with a one-click reassign prompt.",
           'Per-project auto-push override in the board view header — set a project to Always, Never, or follow the global setting.',
           'Global auto-push toggle in Settings → General → Meetings for when you prefer to approve items manually.',
+          'Live Assistant drawer — a collapsible panel with the live transcript and an AI chat that is present for the whole recording, not just after it ends.',
+          'Ask questions mid-meeting ("What\'s still open?", "Summarize so far") and get answers grounded in what was actually said — no waiting for the meeting to end.',
+          "Cards created live — ask the Live Assistant to capture an action item and it lands straight in the project's Inbox column while the meeting is still running.",
+          'Fully local by default — the Live Assistant routes to your configured LM Studio or Ollama model just like the rest of LifeDash, so transcripts stay on your machine unless you choose a cloud provider yourself.',
         ],
       },
       {

@@ -26,6 +26,7 @@ import { registerFocusHandlers } from './focus';
 import { registerGamificationHandlers } from './gamification';
 import { registerCardAgentHandlers } from './card-agent';
 import { registerProjectAgentHandlers } from './project-agent';
+import { registerMeetingAgentHandlers } from './meeting-agent';
 
 import { registerBackgroundAgentHandlers } from './background-agent';
 import { registerVoiceInputHandlers } from './voice-input';
@@ -80,6 +81,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerGamificationHandlers();
   registerCardAgentHandlers();
   registerProjectAgentHandlers();
+  registerMeetingAgentHandlers();
   registerBackgroundAgentHandlers();
   registerVoiceInputHandlers();
   registerRecoveryHandlers();

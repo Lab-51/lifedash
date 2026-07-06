@@ -145,8 +145,11 @@ export async function readAutoPushSetting(db: DB, projectId?: string): Promise<b
 /**
  * Find the project's primary board (lowest position).
  * Creates a default board if the project has none.
+ *
+ * Exported so the Live Assistant (meetingAgentService.createCardInInbox) can reuse
+ * the same "resolve or create the project's board" rail instead of duplicating it.
  */
-async function resolvePrimaryBoardId(db: DB, projectId: string): Promise<string> {
+export async function resolvePrimaryBoardId(db: DB, projectId: string): Promise<string> {
   const existing = await db
     .select()
     .from(boards)
