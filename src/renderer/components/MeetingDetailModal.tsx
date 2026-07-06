@@ -23,6 +23,7 @@ import {
   MeetingPrepSection,
   TranscriptSection,
   LiveAssistantSection,
+  LiveProposalsSection,
   DeleteMeetingButton,
   formatMeetingAsMarkdown,
   slugify,
@@ -313,6 +314,10 @@ export default function MeetingDetailModal({
               copiedField={copiedField}
               onCopy={handleCopy}
             />
+
+            {meeting.status === 'completed' && (
+              <LiveProposalsSection meetingId={meeting.id} projectName={linkedProjectName ?? 'Unassigned'} />
+            )}
 
             {meeting.status === 'completed' && <LiveAssistantSection meetingId={meeting.id} />}
 

@@ -76,6 +76,7 @@ import type { GamificationStats, Achievement, XpEventType, XpDailyData } from '.
 import type { CardAgentMessage, CardAgentThread, AgentAction } from './card-agent';
 import type { ProjectAgentMessage, ProjectAgentThread, ProjectAgentAction } from './project-agent';
 import type { MeetingAgentMessage } from './meeting-agent';
+import type { LiveSuggestion } from './live-suggestions';
 
 import type { AgentInsight, BackgroundAgentPreferences, InsightType, InsightStatus } from './background-agent';
 import type { AuthState, SyncStatus } from './sync';
@@ -470,6 +471,13 @@ export interface ElectronAPI {
     callback: (data: { assistantMessage: MeetingAgentMessage; threadId: string }) => void,
   ) => () => void;
   onMeetingAgentError: (callback: (data: { meetingId: string; threadId: string; error: string }) => void) => () => void;
+
+  // Live Suggestions (proactive triage lifecycle, LIVE.2 Task 2)
+  acceptLiveSuggestion: (id: string) => Promise<LiveSuggestion | null>;
+  dismissLiveSuggestion: (id: string) => Promise<LiveSuggestion>;
+  listLiveSuggestions: (meetingId: string) => Promise<LiveSuggestion[]>;
+  // Live Suggestions — proactive triage event subscription (LIVE.2 Task 5)
+  onLiveTriageSuggestion: (callback: (suggestion: LiveSuggestion) => void) => () => void;
 
   // Background Agent
   backgroundAgentGetPreferences: () => Promise<BackgroundAgentPreferences>;

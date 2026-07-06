@@ -8,8 +8,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Square, Loader2, Sparkles } from 'lucide-react';
+import { Square, Loader2, Maximize2 } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
+import { useLiveSuggestionsStore, selectPendingCount } from '../stores/liveSuggestionsStore';
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -25,11 +26,17 @@ export default function RecordingIndicator() {
   const elapsed = useRecordingStore((s) => s.elapsed);
   const processingProgress = useRecordingStore((s) => s.processingProgress);
   const stopRecording = useRecordingStore((s) => s.stopRecording);
-  const liveDrawerOpen = useRecordingStore((s) => s.liveDrawerOpen);
-  const toggleLiveDrawer = useRecordingStore((s) => s.toggleLiveDrawer);
+  const liveModeMinimized = useRecordingStore((s) => s.liveModeMinimized);
+  const restoreLiveMode = useRecordingStore((s) => s.restoreLiveMode);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Pending live-triage proposals awaiting review (LIVE.2 Task 5). liveSuggestionsStore
+  // stays live via its own initListener (registered once in App.tsx) regardless of
+  // whether LiveProposalsFeed/LiveModeOverlay are mounted, so this count is accurate
+  // even while Live Mode is minimized.
+  const pendingProposals = useLiveSuggestionsStore(selectPendingCount);
 
   // Close popover on outside click
   useEffect(() => {
@@ -81,36 +88,46 @@ export default function RecordingIndicator() {
     );
   }
 
-  // Recording state — red indicator with stop popover
+  // Recording state — red indicator with a popover (Return to Live + Stop)
   return (
     <div ref={popoverRef} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-500/20
+        aria-label="Recording controls"
+        className="relative flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-500/20
                    border border-red-500/30 hover:bg-red-500/30 transition-colors cursor-pointer"
       >
         <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
         <span className="text-xs font-mono text-red-400">{formatElapsed(elapsed)}</span>
+        {/* Pending-proposals badge — count wired in LIVE.2 Task 5; hidden while 0. */}
+        {pendingProposals > 0 && (
+          <span
+            data-testid="pending-proposals-badge"
+            aria-label={`${pendingProposals} pending suggestions`}
+            className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center
+                       rounded-full bg-[var(--color-accent)] text-[0.625rem] font-semibold text-white"
+          >
+            {pendingProposals > 9 ? '9+' : pendingProposals}
+          </span>
+        )}
       </button>
 
       {open && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white dark:bg-surface-900 rounded-xl shadow-xl border border-[var(--color-border)] p-1.5 z-50 flex items-center gap-1">
-          <button
-            onClick={() => {
-              toggleLiveDrawer();
-              setOpen(false);
-            }}
-            title="Live Assistant"
-            aria-label="Toggle Live Assistant drawer"
-            aria-pressed={liveDrawerOpen}
-            className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
-              liveDrawerOpen
-                ? 'text-[var(--color-accent)] bg-[var(--color-accent-subtle)]'
-                : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)] hover:text-[var(--color-accent)]'
-            }`}
-          >
-            <Sparkles size={16} />
-          </button>
+          {liveModeMinimized && (
+            <button
+              onClick={() => {
+                restoreLiveMode();
+                setOpen(false);
+              }}
+              title="Return to Live"
+              aria-label="Return to Live Mode"
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-[var(--color-text-secondary)]
+                         hover:bg-[var(--color-accent-subtle)] hover:text-[var(--color-accent)] transition-colors"
+            >
+              <Maximize2 size={16} />
+            </button>
+          )}
           <button
             onClick={() => {
               pendingNavigateRef.current = true;
@@ -118,6 +135,7 @@ export default function RecordingIndicator() {
               setOpen(false);
             }}
             title="Stop Recording"
+            aria-label="Stop Recording"
             className="w-9 h-9 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
             <Square size={16} fill="currentColor" />

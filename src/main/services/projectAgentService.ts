@@ -1,6 +1,10 @@
 // === FILE PURPOSE ===
 // Project agent service — per-project AI agent with tool calling.
 // Builds project context, defines 8 tools, manages conversation messages.
+// Five of those tools (createListBoardsTool, createListColumnCardsTool,
+// createMoveCardTool, createGetProjectStatsTool, createSearchProjectCardsTool)
+// are also exported standalone so the Live Assistant's meetingAgentService can
+// reuse them scoped to a meeting's linked project (LIVE.2 Task 3).
 //
 // === DEPENDENCIES ===
 // ai (tool, z from zod via ai), drizzle-orm, DB schema
@@ -212,122 +216,253 @@ Priority breakdown: Low ${byPriority.low} / Medium ${byPriority.medium} / High $
 // ---------------------------------------------------------------------------
 // Tool Definitions
 // ---------------------------------------------------------------------------
+// The five factories below are exported standalone (not just inlined in
+// createProjectAgentTools) so the Live Assistant can reuse them for its own
+// board tools (see meetingAgentService.createMeetingAgentTools) without
+// duplicating the query logic. createProjectAgentTools composes them below
+// alongside the project-agent-only tools (createBoard, getActionItems,
+// getRecentActivity), which stay inline since nothing else reuses them.
+
+export function createListBoardsTool(projectId: string) {
+  const db = getDb();
+  return tool({
+    description: 'List all boards in this project with their columns',
+    inputSchema: z.object({}),
+    execute: async () => {
+      const projectBoards = await db
+        .select()
+        .from(boards)
+        .where(eq(boards.projectId, projectId))
+        .orderBy(asc(boards.position));
+
+      if (projectBoards.length === 0) return { boards: [] };
+
+      const boardIds = projectBoards.map((b) => b.id);
+      const boardColumns = await db
+        .select()
+        .from(columns)
+        .where(inArray(columns.boardId, boardIds))
+        .orderBy(asc(columns.position));
+
+      const result = projectBoards.map((board) => ({
+        id: board.id,
+        name: board.name,
+        columns: boardColumns.filter((c) => c.boardId === board.id).map((c) => ({ id: c.id, name: c.name })),
+      }));
+
+      return { boards: result };
+    },
+  });
+}
+
+export function createListColumnCardsTool() {
+  const db = getDb();
+  return tool({
+    description: 'List cards in a specific column (up to 20)',
+    inputSchema: z.object({
+      columnId: z.string().uuid().describe('The ID of the column to list cards for'),
+    }),
+    execute: async ({ columnId }) => {
+      const colCards = await db
+        .select({
+          id: cards.id,
+          title: cards.title,
+          priority: cards.priority,
+          completed: cards.completed,
+          updatedAt: cards.updatedAt,
+        })
+        .from(cards)
+        .where(and(eq(cards.columnId, columnId), eq(cards.archived, false)))
+        .orderBy(asc(cards.position))
+        .limit(20);
+
+      return {
+        cards: colCards.map((c) => ({
+          id: c.id,
+          title: c.title,
+          priority: c.priority,
+          completed: c.completed,
+          updatedAt: c.updatedAt.toISOString(),
+        })),
+      };
+    },
+  });
+}
+
+export function createMoveCardTool() {
+  const db = getDb();
+  return tool({
+    description: 'Move a card from its current column to a target column',
+    inputSchema: z.object({
+      cardId: z.string().uuid().describe('The ID of the card to move'),
+      targetColumnId: z.string().uuid().describe('The ID of the destination column'),
+    }),
+    execute: async ({ cardId, targetColumnId }) => {
+      // Get current card
+      const [card] = await db
+        .select({
+          id: cards.id,
+          title: cards.title,
+          columnId: cards.columnId,
+        })
+        .from(cards)
+        .where(eq(cards.id, cardId));
+      if (!card) return { success: false, error: 'Card not found' };
+
+      // Get source and target column names sequentially (no same-table double join)
+      const [sourceColumn] = await db.select({ name: columns.name }).from(columns).where(eq(columns.id, card.columnId));
+      const [targetColumn] = await db
+        .select({ name: columns.name })
+        .from(columns)
+        .where(eq(columns.id, targetColumnId));
+
+      if (!targetColumn) return { success: false, error: 'Target column not found' };
+
+      // Move the card
+      await db.update(cards).set({ columnId: targetColumnId, updatedAt: new Date() }).where(eq(cards.id, cardId));
+
+      // Log the activity
+      await db.insert(cardActivities).values({
+        cardId,
+        action: 'moved',
+        details: JSON.stringify({
+          fromColumn: sourceColumn?.name ?? 'Unknown',
+          toColumn: targetColumn.name,
+        }),
+      });
+
+      return {
+        success: true,
+        cardTitle: card.title,
+        fromColumn: sourceColumn?.name ?? 'Unknown',
+        toColumn: targetColumn.name,
+      };
+    },
+  });
+}
+
+export function createGetProjectStatsTool(projectId: string) {
+  const db = getDb();
+  return tool({
+    description:
+      'Get aggregate statistics for this project: card counts by column/priority, completion rate, and overdue cards',
+    inputSchema: z.object({}),
+    execute: async () => {
+      // Chain: project -> boards -> columns -> cards (no duplicate table joins)
+      const projectBoards = await db
+        .select({ id: boards.id, name: boards.name })
+        .from(boards)
+        .where(eq(boards.projectId, projectId));
+
+      if (projectBoards.length === 0) {
+        return {
+          totalCards: 0,
+          byColumn: [],
+          byPriority: { low: 0, medium: 0, high: 0, urgent: 0 },
+          completionPercent: 0,
+          overdueCount: 0,
+        };
+      }
+
+      const boardIds = projectBoards.map((b) => b.id);
+      const projectColumns = await db
+        .select({ id: columns.id, name: columns.name, boardId: columns.boardId })
+        .from(columns)
+        .where(inArray(columns.boardId, boardIds));
+
+      if (projectColumns.length === 0) {
+        return {
+          totalCards: 0,
+          byColumn: [],
+          byPriority: { low: 0, medium: 0, high: 0, urgent: 0 },
+          completionPercent: 0,
+          overdueCount: 0,
+        };
+      }
+
+      const columnIds = projectColumns.map((c) => c.id);
+      const allCards = await db
+        .select({
+          id: cards.id,
+          columnId: cards.columnId,
+          priority: cards.priority,
+          completed: cards.completed,
+          dueDate: cards.dueDate,
+        })
+        .from(cards)
+        .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false)));
+
+      const totalCards = allCards.length;
+      const completedCards = allCards.filter((c) => c.completed).length;
+      const completionPercent = totalCards > 0 ? Math.round((completedCards / totalCards) * 100) : 0;
+      const now = new Date();
+      const overdueCount = allCards.filter((c) => !c.completed && c.dueDate && new Date(c.dueDate) < now).length;
+
+      const byPriority = { low: 0, medium: 0, high: 0, urgent: 0 };
+      for (const card of allCards) {
+        byPriority[card.priority] = (byPriority[card.priority] ?? 0) + 1;
+      }
+
+      const byColumn = projectColumns.map((col) => ({
+        columnId: col.id,
+        columnName: col.name,
+        cardCount: allCards.filter((c) => c.columnId === col.id).length,
+      }));
+
+      return { totalCards, byColumn, byPriority, completionPercent, overdueCount };
+    },
+  });
+}
+
+export function createSearchProjectCardsTool(projectId: string) {
+  const db = getDb();
+  return tool({
+    description: 'Search for cards in this project by title keyword',
+    inputSchema: z.object({
+      query: z.string().describe('Search keyword to match against card titles'),
+      limit: z.number().optional().default(10).describe('Max results to return'),
+    }),
+    execute: async ({ query, limit }) => {
+      // Get all boards -> columns -> search cards
+      const projectBoards = await db.select({ id: boards.id }).from(boards).where(eq(boards.projectId, projectId));
+
+      if (projectBoards.length === 0) return { cards: [] };
+
+      const boardIds = projectBoards.map((b) => b.id);
+      const projectColumns = await db
+        .select({ id: columns.id })
+        .from(columns)
+        .where(inArray(columns.boardId, boardIds));
+
+      if (projectColumns.length === 0) return { cards: [] };
+
+      const columnIds = projectColumns.map((c) => c.id);
+
+      const results = await db
+        .select({
+          id: cards.id,
+          title: cards.title,
+          priority: cards.priority,
+          columnId: cards.columnId,
+        })
+        .from(cards)
+        .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false), ilike(cards.title, `%${query}%`)))
+        .limit(limit);
+
+      return { cards: results };
+    },
+  });
+}
 
 export function createProjectAgentTools(projectId: string) {
   const db = getDb();
 
   return {
-    listBoards: tool({
-      description: 'List all boards in this project with their columns',
-      inputSchema: z.object({}),
-      execute: async () => {
-        const projectBoards = await db
-          .select()
-          .from(boards)
-          .where(eq(boards.projectId, projectId))
-          .orderBy(asc(boards.position));
+    listBoards: createListBoardsTool(projectId),
 
-        if (projectBoards.length === 0) return { boards: [] };
+    listColumnCards: createListColumnCardsTool(),
 
-        const boardIds = projectBoards.map((b) => b.id);
-        const boardColumns = await db
-          .select()
-          .from(columns)
-          .where(inArray(columns.boardId, boardIds))
-          .orderBy(asc(columns.position));
-
-        const result = projectBoards.map((board) => ({
-          id: board.id,
-          name: board.name,
-          columns: boardColumns.filter((c) => c.boardId === board.id).map((c) => ({ id: c.id, name: c.name })),
-        }));
-
-        return { boards: result };
-      },
-    }),
-
-    listColumnCards: tool({
-      description: 'List cards in a specific column (up to 20)',
-      inputSchema: z.object({
-        columnId: z.string().uuid().describe('The ID of the column to list cards for'),
-      }),
-      execute: async ({ columnId }) => {
-        const colCards = await db
-          .select({
-            id: cards.id,
-            title: cards.title,
-            priority: cards.priority,
-            completed: cards.completed,
-            updatedAt: cards.updatedAt,
-          })
-          .from(cards)
-          .where(and(eq(cards.columnId, columnId), eq(cards.archived, false)))
-          .orderBy(asc(cards.position))
-          .limit(20);
-
-        return {
-          cards: colCards.map((c) => ({
-            id: c.id,
-            title: c.title,
-            priority: c.priority,
-            completed: c.completed,
-            updatedAt: c.updatedAt.toISOString(),
-          })),
-        };
-      },
-    }),
-
-    moveCard: tool({
-      description: 'Move a card from its current column to a target column',
-      inputSchema: z.object({
-        cardId: z.string().uuid().describe('The ID of the card to move'),
-        targetColumnId: z.string().uuid().describe('The ID of the destination column'),
-      }),
-      execute: async ({ cardId, targetColumnId }) => {
-        // Get current card
-        const [card] = await db
-          .select({
-            id: cards.id,
-            title: cards.title,
-            columnId: cards.columnId,
-          })
-          .from(cards)
-          .where(eq(cards.id, cardId));
-        if (!card) return { success: false, error: 'Card not found' };
-
-        // Get source and target column names sequentially (no same-table double join)
-        const [sourceColumn] = await db
-          .select({ name: columns.name })
-          .from(columns)
-          .where(eq(columns.id, card.columnId));
-        const [targetColumn] = await db
-          .select({ name: columns.name })
-          .from(columns)
-          .where(eq(columns.id, targetColumnId));
-
-        if (!targetColumn) return { success: false, error: 'Target column not found' };
-
-        // Move the card
-        await db.update(cards).set({ columnId: targetColumnId, updatedAt: new Date() }).where(eq(cards.id, cardId));
-
-        // Log the activity
-        await db.insert(cardActivities).values({
-          cardId,
-          action: 'moved',
-          details: JSON.stringify({
-            fromColumn: sourceColumn?.name ?? 'Unknown',
-            toColumn: targetColumn.name,
-          }),
-        });
-
-        return {
-          success: true,
-          cardTitle: card.title,
-          fromColumn: sourceColumn?.name ?? 'Unknown',
-          toColumn: targetColumn.name,
-        };
-      },
-    }),
+    moveCard: createMoveCardTool(),
 
     createBoard: tool({
       description: 'Create a new board in this project with optional custom columns',
@@ -376,75 +511,7 @@ export function createProjectAgentTools(projectId: string) {
       },
     }),
 
-    getProjectStats: tool({
-      description:
-        'Get aggregate statistics for this project: card counts by column/priority, completion rate, and overdue cards',
-      inputSchema: z.object({}),
-      execute: async () => {
-        // Chain: project -> boards -> columns -> cards (no duplicate table joins)
-        const projectBoards = await db
-          .select({ id: boards.id, name: boards.name })
-          .from(boards)
-          .where(eq(boards.projectId, projectId));
-
-        if (projectBoards.length === 0) {
-          return {
-            totalCards: 0,
-            byColumn: [],
-            byPriority: { low: 0, medium: 0, high: 0, urgent: 0 },
-            completionPercent: 0,
-            overdueCount: 0,
-          };
-        }
-
-        const boardIds = projectBoards.map((b) => b.id);
-        const projectColumns = await db
-          .select({ id: columns.id, name: columns.name, boardId: columns.boardId })
-          .from(columns)
-          .where(inArray(columns.boardId, boardIds));
-
-        if (projectColumns.length === 0) {
-          return {
-            totalCards: 0,
-            byColumn: [],
-            byPriority: { low: 0, medium: 0, high: 0, urgent: 0 },
-            completionPercent: 0,
-            overdueCount: 0,
-          };
-        }
-
-        const columnIds = projectColumns.map((c) => c.id);
-        const allCards = await db
-          .select({
-            id: cards.id,
-            columnId: cards.columnId,
-            priority: cards.priority,
-            completed: cards.completed,
-            dueDate: cards.dueDate,
-          })
-          .from(cards)
-          .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false)));
-
-        const totalCards = allCards.length;
-        const completedCards = allCards.filter((c) => c.completed).length;
-        const completionPercent = totalCards > 0 ? Math.round((completedCards / totalCards) * 100) : 0;
-        const now = new Date();
-        const overdueCount = allCards.filter((c) => !c.completed && c.dueDate && new Date(c.dueDate) < now).length;
-
-        const byPriority = { low: 0, medium: 0, high: 0, urgent: 0 };
-        for (const card of allCards) {
-          byPriority[card.priority] = (byPriority[card.priority] ?? 0) + 1;
-        }
-
-        const byColumn = projectColumns.map((col) => ({
-          columnId: col.id,
-          columnName: col.name,
-          cardCount: allCards.filter((c) => c.columnId === col.id).length,
-        }));
-
-        return { totalCards, byColumn, byPriority, completionPercent, overdueCount };
-      },
-    }),
+    getProjectStats: createGetProjectStatsTool(projectId),
 
     getActionItems: tool({
       description: 'Get pending action items from meetings linked to this project',
@@ -538,42 +605,7 @@ export function createProjectAgentTools(projectId: string) {
       },
     }),
 
-    searchProjectCards: tool({
-      description: 'Search for cards in this project by title keyword',
-      inputSchema: z.object({
-        query: z.string().describe('Search keyword to match against card titles'),
-        limit: z.number().optional().default(10).describe('Max results to return'),
-      }),
-      execute: async ({ query, limit }) => {
-        // Get all boards -> columns -> search cards
-        const projectBoards = await db.select({ id: boards.id }).from(boards).where(eq(boards.projectId, projectId));
-
-        if (projectBoards.length === 0) return { cards: [] };
-
-        const boardIds = projectBoards.map((b) => b.id);
-        const projectColumns = await db
-          .select({ id: columns.id })
-          .from(columns)
-          .where(inArray(columns.boardId, boardIds));
-
-        if (projectColumns.length === 0) return { cards: [] };
-
-        const columnIds = projectColumns.map((c) => c.id);
-
-        const results = await db
-          .select({
-            id: cards.id,
-            title: cards.title,
-            priority: cards.priority,
-            columnId: cards.columnId,
-          })
-          .from(cards)
-          .where(and(inArray(cards.columnId, columnIds), eq(cards.archived, false), ilike(cards.title, `%${query}%`)))
-          .limit(limit);
-
-        return { cards: results };
-      },
-    }),
+    searchProjectCards: createSearchProjectCardsTool(projectId),
   };
 }
 

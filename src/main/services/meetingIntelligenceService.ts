@@ -14,9 +14,9 @@
 // - DB schema: verified from meetings.ts and cards.ts
 // - Shared types: verified from types.ts
 
-import { eq, desc, asc, count, and, ne, isNotNull } from 'drizzle-orm';
+import { eq, desc, asc, count, and, ne, isNotNull, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { meetingBriefs, actionItems, cards, meetings, projects } from '../db/schema';
+import { meetingBriefs, actionItems, cards, meetings, projects, liveSuggestions } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
 import { getMeeting, updateMeeting } from './meetingService';
 import { createLogger } from './logger';
@@ -135,6 +135,13 @@ const THREADING_BRIEF_LIMIT = 3;
  * first when exceeded. Char-count approximation avoids a tokenizer dep.
  */
 const THREADING_TOTAL_CHAR_BUDGET = 48000;
+
+/**
+ * Char budget for the live-suggestion suppression list injected into the
+ * action-extraction prompt (LIVE.2 anti-duplication). Titles are dropped from
+ * the tail once exceeded so the prompt can never blow the context window.
+ */
+const SUPPRESSION_CHAR_BUDGET = 4000;
 
 // ---------------------------------------------------------------------------
 // Row Mappers
@@ -297,6 +304,117 @@ export function trimBriefsToBudget(
 }
 
 // ---------------------------------------------------------------------------
+// LIVE.2 anti-duplication: live-accepted suggestions feed the post-meeting flow
+// ---------------------------------------------------------------------------
+// The proactive triage loop (liveTriageService) lets the user one-tap accept
+// action items / decisions / questions DURING the meeting (see
+// liveSuggestionService.acceptSuggestion). Without the wiring below, every
+// accepted item would reappear here after the meeting and — for action items —
+// get auto-pushed as a duplicate card (see autoPushActionItems above). Queried
+// directly against the live_suggestions table (not via liveSuggestionService)
+// to avoid a circular import: meetingAgentService already depends on this file
+// for fetchPriorBriefs, and liveSuggestionService depends on meetingAgentService
+// for its card-creation rail.
+
+/** Titles of accepted live-triage action items for a meeting (extraction suppression). */
+async function getAcceptedLiveActionItemTitles(meetingId: string): Promise<string[]> {
+  const db = getDb();
+  const rows = await db
+    .select({ title: liveSuggestions.title })
+    .from(liveSuggestions)
+    .where(
+      and(
+        eq(liveSuggestions.meetingId, meetingId),
+        eq(liveSuggestions.status, 'accepted'),
+        eq(liveSuggestions.type, 'action_item'),
+      ),
+    );
+  return rows.map((r) => r.title);
+}
+
+interface ConfirmedLiveItem {
+  type: 'decision' | 'question';
+  title: string;
+  description: string | null;
+}
+
+/** Accepted live decisions/questions for a meeting (brief "confirmed during the meeting" context). */
+async function getAcceptedLiveDecisionsAndQuestions(meetingId: string): Promise<ConfirmedLiveItem[]> {
+  const db = getDb();
+  const rows = await db
+    .select({ type: liveSuggestions.type, title: liveSuggestions.title, description: liveSuggestions.description })
+    .from(liveSuggestions)
+    .where(
+      and(
+        eq(liveSuggestions.meetingId, meetingId),
+        eq(liveSuggestions.status, 'accepted'),
+        inArray(liveSuggestions.type, ['decision', 'question']),
+      ),
+    );
+  return rows.map((r) => ({ type: r.type as 'decision' | 'question', title: r.title, description: r.description }));
+}
+
+/**
+ * Build a "do NOT re-extract" instruction block from already-accepted live
+ * action item titles, capped to a char budget so it can never blow the context
+ * window. Returns '' when there is nothing to suppress.
+ */
+export function buildSuppressionInstruction(titles: string[], budget: number = SUPPRESSION_CHAR_BUDGET): string {
+  const kept: string[] = [];
+  let total = 0;
+  for (const title of titles) {
+    const line = `- ${title}`;
+    const sep = kept.length > 0 ? 1 : 0;
+    if (total + sep + line.length > budget) break;
+    kept.push(line);
+    total += sep + line.length;
+  }
+  if (kept.length === 0) return '';
+  return `\n\nAlready captured live during the meeting — do NOT re-extract these as new action items:\n${kept.join('\n')}`;
+}
+
+/**
+ * Build a "confirmed during the meeting" preamble from accepted live
+ * decisions/questions, capped to a char budget. Returns '' when empty.
+ */
+export function buildConfirmedPreamble(
+  items: ConfirmedLiveItem[],
+  budget: number = THREADING_TOTAL_CHAR_BUDGET,
+): string {
+  if (items.length === 0) return '';
+  const header =
+    'Confirmed during the meeting (accepted live via the Live Assistant) — treat as established, do not contradict:';
+  const kept: string[] = [];
+  let total = header.length;
+  for (const item of items) {
+    const label = item.type === 'decision' ? 'Decision' : 'Question';
+    const line = item.description ? `- [${label}] ${item.title}: ${item.description}` : `- [${label}] ${item.title}`;
+    if (total + 1 + line.length > budget) break;
+    kept.push(line);
+    total += 1 + line.length;
+  }
+  if (kept.length === 0) return '';
+  return [header, '', ...kept, ''].join('\n');
+}
+
+/**
+ * Fetch + prepend the LIVE.2 "confirmed during the meeting" preamble to a brief
+ * user prompt. Extracted from generateBrief to keep its complexity bounded.
+ * Never throws — a lookup failure just skips the preamble (bonus context, not
+ * core brief generation).
+ */
+async function injectConfirmedLiveContext(meetingId: string, userPrompt: string): Promise<string> {
+  try {
+    const confirmed = await getAcceptedLiveDecisionsAndQuestions(meetingId);
+    const preamble = buildConfirmedPreamble(confirmed);
+    return preamble ? `${preamble}\n${userPrompt}` : userPrompt;
+  } catch (err) {
+    log.error('Live-suggestion context lookup failed for meeting', meetingId, ':', err);
+    return userPrompt;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Exported Functions
 // ---------------------------------------------------------------------------
 
@@ -304,13 +422,15 @@ export function trimBriefsToBudget(
  * Generate an AI-powered meeting brief (structured summary) from the transcript.
  * Stores the result in `meeting_briefs` and returns the mapped object.
  *
- * Flow (added in MEET-INTEL.1-3):
+ * Flow (added in MEET-INTEL.1-3, extended in LIVE.2 Task 2):
  *   1. If meeting has no projectId, run project auto-detect classifier.
  *      High confidence → assign via updateMeeting (triggers link-time auto-push hook).
  *      Low confidence → route to system Unassigned + set unassignedPending=true.
  *   2. Fetch up to 3 prior briefs from the same project (skipped for Unassigned)
  *      and inject as a continuity preamble in the brief prompt.
- *   3. Generate the brief and persist it.
+ *   3. Inject accepted live decisions/questions (LIVE.2) as a "confirmed during
+ *      the meeting" preamble.
+ *   4. Generate the brief and persist it.
  */
 export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
   const meeting = await getMeeting(meetingId);
@@ -371,6 +491,11 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
       log.error('Brief threading failed for meeting', meetingId, ':', err);
     }
   }
+
+  // 3. Live-accepted context (LIVE.2) — decisions/questions the user confirmed
+  //    during the meeting via the Live Assistant's proactive triage. Injected as
+  //    established facts so the brief does not contradict them.
+  userPrompt = await injectConfirmedLiveContext(meetingId, userPrompt);
 
   // Generate summary (template-aware + language-aware prompt)
   let systemPrompt = getSummarizationPrompt(meeting.template);
@@ -444,6 +569,16 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
   const actionLangName = getLanguageName(meeting.transcriptionLanguage);
   if (actionLangName) {
     actionSystemPrompt += `\n\nIMPORTANT: The meeting transcript is in ${actionLangName}. Write action item descriptions in ${actionLangName}.`;
+  }
+
+  // LIVE.2 anti-duplication: suppress action items already accepted live during
+  // the meeting so MEET-INTEL.1's auto-push never creates a duplicate card.
+  try {
+    const acceptedTitles = await getAcceptedLiveActionItemTitles(meetingId);
+    actionSystemPrompt += buildSuppressionInstruction(acceptedTitles);
+  } catch (err) {
+    // Suppression is a safety net, not core extraction — never block on its failure
+    log.error('Live-suggestion suppression lookup failed for meeting', meetingId, ':', err);
   }
 
   let descriptions: string[];

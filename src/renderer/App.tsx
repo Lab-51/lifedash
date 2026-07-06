@@ -22,6 +22,7 @@ import { useFontScale } from './hooks/useFontScale';
 import { suggestMeetingTitle } from '../shared/utils/meetingTitle';
 
 import { useRecordingStore } from './stores/recordingStore';
+import { useLiveSuggestionsStore } from './stores/liveSuggestionsStore';
 import { useProjectStore } from './stores/projectStore';
 import { useMeetingStore } from './stores/meetingStore';
 import { useIdeaStore } from './stores/ideaStore';
@@ -126,6 +127,14 @@ function AppShell({ children }: { children: ReactNode }) {
   // Initialize recording state listener (always active regardless of page)
   useEffect(() => {
     const cleanup = useRecordingStore.getState().initListener();
+    return cleanup;
+  }, []);
+
+  // Initialize live-triage proposals listener (LIVE.2 Task 5) — always active
+  // regardless of page so RecordingIndicator's pending badge stays accurate even
+  // while Live Mode is minimized (LiveProposalsFeed itself may be unmounted).
+  useEffect(() => {
+    const cleanup = useLiveSuggestionsStore.getState().initListener();
     return cleanup;
   }, []);
 

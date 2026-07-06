@@ -1,5 +1,5 @@
 // === FILE PURPOSE ===
-// The in-meeting "Live Assistant" chat — fills the bottom half of LiveMeetingDrawer.
+// The in-meeting "Live Assistant" chat — fills the right column of the Live Mode overlay.
 // Mirrors CardAgentPanel's structure (loading skeleton, no-provider empty state,
 // starter prompts, streaming bubble, tool-call badges, input + stop) but scoped to
 // meetingAgentStore's single-thread-per-meeting model. Reuses ChatMessageModern for

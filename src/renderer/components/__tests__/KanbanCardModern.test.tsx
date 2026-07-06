@@ -83,6 +83,23 @@ describe('KanbanCardModern — auto-pushed source badge', () => {
   });
 });
 
+describe('KanbanCardModern — live-assistant source badge', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders the "Live Assistant" source badge when source=live-assistant', () => {
+    renderCard(makeCard({ source: 'live-assistant', sourceMeetingId: 'm-1' }));
+    expect(screen.getByTestId('card-source-badge')).toBeInTheDocument();
+    expect(screen.getByTestId('card-source-badge')).toHaveTextContent(/live assistant/i);
+  });
+
+  it('does NOT render the source badge when source=manual (live-assistant variant)', () => {
+    renderCard(makeCard({ source: 'manual' }));
+    expect(screen.queryByTestId('card-source-badge')).toBeNull();
+  });
+});
+
 describe('KanbanCardModern — Reject menu visibility', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -13,7 +13,8 @@ export type AITaskType =
   | 'card-description'
   | 'background_agent'
   | 'project_agent'
-  | 'live_assistant';
+  | 'live_assistant'
+  | 'live_triage';
 
 /** AI provider as seen by renderer (no decrypted keys — only hasApiKey boolean) */
 export interface AIProvider {

@@ -35,7 +35,7 @@ export interface Column {
   createdAt: string;
 }
 
-export type CardSource = 'manual' | 'auto-from-meeting';
+export type CardSource = 'manual' | 'auto-from-meeting' | 'live-assistant';
 
 export interface Card {
   id: string;

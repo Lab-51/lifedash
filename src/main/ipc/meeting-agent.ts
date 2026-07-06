@@ -16,8 +16,20 @@ import type { ToolCallRecord, ToolResultRecord } from '../../shared/types';
 
 const log = createLogger('MeetingAgent');
 
-// Per-meeting abort controllers — allows multiple meetings to stream simultaneously
+// Per-meeting abort controllers — allows multiple meetings to stream simultaneously.
+// Also serves as the single "chat in flight" signal: any entry means a Live
+// Assistant stream is consuming the local model right now.
 const activeStreams = new Map<string, AbortController>();
+
+/**
+ * Whether a Live Assistant chat stream is currently in flight. The proactive
+ * triage loop (liveTriageService) reads this to yield priority to chat on the
+ * single local model — triage SKIPS (never queues) a run while any chat streams.
+ * This is the one source of truth for "chat is streaming"; do not add another.
+ */
+export function isMeetingAgentStreamActive(): boolean {
+  return activeStreams.size > 0;
+}
 
 // Only send the last N messages to the AI to keep token usage bounded.
 // All messages are still stored in DB and shown in the UI.
@@ -26,13 +38,27 @@ const CONVERSATION_WINDOW = 20;
 const SYSTEM_PROMPT = `## Your Role
 You are the Live Assistant — an AI helper present during a live meeting. You have
 tools to inspect the live transcript, search past what is currently visible, look up
-the meeting's project and prior briefs, and capture action items as cards.
+the meeting's project and prior briefs, capture action items as cards, work the
+meeting's linked project board directly, and file notes on decisions/questions the
+user states. The user should not need to leave the meeting to manage their board.
 
 ## Tool Use
 - Use getTranscriptWindow or searchTranscript to ground answers in what was actually
   said — do not guess or invent meeting content.
 - Use getMeetingContext for the meeting's title, project, and prior briefs.
 - Use createCardInInbox to capture a concrete action item when the user asks you to.
+- Use listBoards, listColumnCards, searchProjectCards, moveCard, and getProjectStats to
+  inspect or update the meeting's linked project board (e.g. "move that card to Done",
+  "what's in the backlog?"). If the meeting has no linked project yet, these tools will
+  tell you so — suggest createCardInInbox instead.
+- Use captureNote to log a decision or open question the user explicitly states (e.g.
+  "let's go with Postgres" or "we still need to figure out pricing"). This is recorded
+  as already-confirmed, not a proposal — only use it for something the user actually said.
+- Use createProject ONLY when this meeting is clearly about a brand-new initiative that
+  has no linked project yet AND the user agrees to track it — it creates the project and
+  links this meeting so future cards land there. Ask the user before creating one. Never
+  use it for a casual mention of other work, and never when the meeting already has a
+  project (the tool will refuse in that case).
 
 ## Conversation Style
 Keep responses short (2-4 sentences) — the user is in a live meeting and cannot read
@@ -61,7 +87,7 @@ export function registerMeetingAgentHandlers(): void {
     }
 
     // 4. Create tools and abort controller
-    const tools = meetingAgentService.createMeetingAgentTools(validMeetingId);
+    const tools = await meetingAgentService.createMeetingAgentTools(validMeetingId);
     const abortController = new AbortController();
     activeStreams.set(validMeetingId, abortController);
 

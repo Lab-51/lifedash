@@ -3,7 +3,19 @@
 
 import { memo, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Trash2, Clock, Link2, AlertCircle, Check, RefreshCw, Mic, X, MoreHorizontal } from 'lucide-react';
+import {
+  Pencil,
+  Trash2,
+  Clock,
+  Link2,
+  AlertCircle,
+  Check,
+  RefreshCw,
+  Mic,
+  Sparkles,
+  X,
+  MoreHorizontal,
+} from 'lucide-react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
@@ -76,6 +88,7 @@ const KanbanCardModern = memo(function KanbanCardModern({
   const refreshUnreviewedCount = useMeetingStore((s) => s.refreshUnreviewedCount);
 
   const isAutoFromMeeting = card.source === 'auto-from-meeting';
+  const isLiveAssistant = card.source === 'live-assistant';
   const priorityStyle = PRIORITY_STYLES[card.priority] ?? PRIORITY_STYLES.medium;
 
   // Auto-focus input when entering edit mode
@@ -378,6 +391,35 @@ const KanbanCardModern = memo(function KanbanCardModern({
             >
               <Mic size={10} />
               From meeting
+            </span>
+          )}
+
+          {/* Live Assistant provenance badge — mirrors the auto-from-meeting badge above */}
+          {isLiveAssistant && (
+            <span
+              data-testid="card-source-badge"
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewSource();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleViewSource();
+                }
+              }}
+              title={
+                card.sourceMeetingId
+                  ? `Added live during the meeting on ${new Date(card.createdAt).toLocaleDateString()}`
+                  : 'Added by Live Assistant'
+              }
+              className="cursor-pointer flex items-center gap-1 text-[0.625rem] text-[var(--color-text-muted)] bg-surface-100 dark:bg-surface-800 border border-[var(--color-border)] px-1.5 py-0.5 rounded-md hover:text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)]"
+            >
+              <Sparkles size={10} />
+              Live Assistant
             </span>
           )}
 

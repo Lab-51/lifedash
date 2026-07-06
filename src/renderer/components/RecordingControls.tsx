@@ -6,16 +6,16 @@
 // === DEPENDENCIES ===
 // react, lucide-react (Mic, Square, Loader2), recordingStore, audioCaptureService
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Mic, MicOff, Square, X, Loader2, Trash2, FolderOpen, FileText, Globe } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
-import { onAudioLevel } from '../services/audioCaptureService';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
 import HudSelect from './HudSelect';
+import AudioLevelMeter from './AudioLevelMeter';
 import { suggestMeetingTitle } from '../../shared/utils/meetingTitle';
 
 function formatElapsed(seconds: number): string {
@@ -48,139 +48,6 @@ function shortRelativeTime(iso: string | null): string | null {
   const months = Math.floor(days / 30);
   if (months < 12) return `${months}mo ago`;
   return `${Math.floor(days / 365)}y ago`;
-}
-
-// --- Retro equalizer constants ---
-const EQ_BARS = 16;
-const EQ_SEGMENTS = 10;
-const EQ_BAR_GAP = 2; // px between bars
-const EQ_SEG_GAP = 1; // px between segments
-
-/** Green→Yellow→Red gradient based on segment position (0=bottom, 1=top). */
-function eqSegmentColor(t: number): [number, number, number] {
-  if (t <= 0.5) {
-    const p = t / 0.5;
-    return [
-      Math.round(16 + (234 - 16) * p), // #10b981 → #eab308
-      Math.round(185 + (179 - 185) * p),
-      Math.round(129 + (8 - 129) * p),
-    ];
-  }
-  const p = (t - 0.5) / 0.5;
-  return [
-    Math.round(234 + (239 - 234) * p), // #eab308 → #ef4444
-    Math.round(179 + (68 - 179) * p),
-    Math.round(8 + (68 - 8) * p),
-  ];
-}
-
-/** Retro 90s equalizer-style audio level visualisation (canvas) */
-function AudioLevelMeter() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rafRef = useRef<number | null>(null);
-  const latestLevel = useRef(0);
-  const smoothLevel = useRef(0);
-  const barLevels = useRef(new Float64Array(EQ_BARS));
-  const peakLevels = useRef(new Float64Array(EQ_BARS));
-  const peakHold = useRef(new Float64Array(EQ_BARS));
-  const [isSilent, setIsSilent] = useState(true);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d')!;
-    let tick = 0;
-
-    const render = () => {
-      // Smooth interpolation toward target level
-      smoothLevel.current += (latestLevel.current - smoothLevel.current) * 0.25;
-
-      // Resize canvas to match CSS layout (DPR-aware)
-      const dpr = window.devicePixelRatio || 1;
-      const cssW = canvas.clientWidth;
-      const cssH = canvas.clientHeight;
-      if (canvas.width !== cssW * dpr || canvas.height !== cssH * dpr) {
-        canvas.width = cssW * dpr;
-        canvas.height = cssH * dpr;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      }
-
-      ctx.clearRect(0, 0, cssW, cssH);
-
-      const barW = (cssW - (EQ_BARS - 1) * EQ_BAR_GAP) / EQ_BARS;
-      const segH = (cssH - (EQ_SEGMENTS - 1) * EQ_SEG_GAP) / EQ_SEGMENTS;
-
-      for (let i = 0; i < EQ_BARS; i++) {
-        // Per-bar variation: slight center bias + randomness
-        const centerBias = 1 - (Math.abs(i - EQ_BARS / 2) / (EQ_BARS / 2)) * 0.12;
-        const rand = (Math.random() - 0.5) * 0.18;
-        const target = Math.max(0, Math.min(1, smoothLevel.current * centerBias + rand));
-
-        // Fast rise, slow fall per bar
-        const diff = target - barLevels.current[i];
-        barLevels.current[i] += diff * (diff > 0 ? 0.4 : 0.1);
-
-        // Peak hold: freeze for ~30 frames then decay
-        if (barLevels.current[i] > peakLevels.current[i]) {
-          peakLevels.current[i] = barLevels.current[i];
-          peakHold.current[i] = 30;
-        } else if (peakHold.current[i] > 0) {
-          peakHold.current[i]--;
-        } else {
-          peakLevels.current[i] = Math.max(0, peakLevels.current[i] - 0.015);
-        }
-
-        const activeSegs = Math.floor(barLevels.current[i] * EQ_SEGMENTS);
-        const peakSeg = Math.floor(peakLevels.current[i] * EQ_SEGMENTS) - 1;
-        const x = i * (barW + EQ_BAR_GAP);
-
-        for (let j = 0; j < EQ_SEGMENTS; j++) {
-          const y = cssH - (j + 1) * segH - j * EQ_SEG_GAP;
-          const active = j < activeSegs;
-          const isPeak = j === peakSeg && peakSeg >= activeSegs && peakLevels.current[i] > 0.02;
-          const [r, g, b] = eqSegmentColor(j / (EQ_SEGMENTS - 1));
-
-          if (active) {
-            ctx.fillStyle = `rgb(${r},${g},${b})`;
-          } else if (isPeak) {
-            ctx.fillStyle = `rgba(${r},${g},${b},0.75)`;
-          } else {
-            ctx.fillStyle = `rgba(${r},${g},${b},0.1)`;
-          }
-
-          ctx.fillRect(x, y, barW, segH);
-        }
-      }
-
-      // Throttle silent-state React update (~2 Hz)
-      if (++tick % 30 === 0) {
-        const nowSilent = smoothLevel.current < 0.01;
-        setIsSilent((prev) => (prev === nowSilent ? prev : nowSilent));
-      }
-
-      rafRef.current = requestAnimationFrame(render);
-    };
-
-    rafRef.current = requestAnimationFrame(render);
-    onAudioLevel((l) => {
-      latestLevel.current = l;
-    });
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      onAudioLevel(null);
-    };
-  }, []);
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-surface-400">Audio Level</span>
-        {isSilent && <span className="text-xs text-amber-400">No audio detected</span>}
-      </div>
-      <canvas ref={canvasRef} className="w-full rounded" style={{ height: '48px' }} />
-    </div>
-  );
 }
 
 /** Returns a short label for the transcription backend. */
@@ -286,6 +153,7 @@ interface RecordingControlsProps {
 export default function RecordingControls({ hasModel }: RecordingControlsProps) {
   const isRecording = useRecordingStore((s) => s.isRecording);
   const isProcessing = useRecordingStore((s) => s.isProcessing);
+  const liveModeMinimized = useRecordingStore((s) => s.liveModeMinimized);
   const elapsed = useRecordingStore((s) => s.elapsed);
   const error = useRecordingStore((s) => s.error);
   const starting = useRecordingStore((s) => s.starting);
@@ -570,7 +438,12 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
               </div>
               <span className="text-lg font-data text-[var(--color-accent)] text-glow">{formatElapsed(elapsed)}</span>
             </div>
-            <AudioLevelMeter />
+            {/* Render exactly one visible meter: the full-screen LiveModeOverlay owns
+                it while active, so this sidebar instance only mounts when Live Mode is
+                minimized. Conditional mounting also re-registers audioCaptureService's
+                single onAudioLevel callback on minimize, so this meter shows live levels
+                instead of freezing on the overlay meter's last value. */}
+            {(!isRecording || liveModeMinimized) && <AudioLevelMeter />}
             <div className="flex gap-2">
               <button
                 onClick={handleStop}

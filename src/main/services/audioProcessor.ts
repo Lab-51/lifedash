@@ -17,6 +17,7 @@ import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import type { RecordingState, TranscriptionProgress } from '../../shared/types';
 import * as transcriptionService from './transcriptionService';
+import * as liveTriageService from './liveTriageService';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { createLogger } from './logger';
@@ -52,6 +53,7 @@ async function getRecordingsDir(): Promise<string> {
 export function setMainWindow(win: BrowserWindow): void {
   mainWindow = win;
   transcriptionService.setMainWindow(win);
+  liveTriageService.setMainWindow(win);
 }
 
 export function isRecording(): boolean {
@@ -104,6 +106,10 @@ export async function startRecording(meetingId: string, language?: string): Prom
   transcriptionService.start(meetingId, language).catch((err) => {
     log.error('Transcription start failed:', err);
   });
+
+  // Start the proactive triage loop for this recording session. Symmetric with
+  // stopTriage in stopRecording so its watermark/state is always cleared.
+  liveTriageService.startTriage(meetingId);
 }
 
 export function addChunk(chunk: Buffer): void {
@@ -125,6 +131,9 @@ export async function stopRecording(): Promise<string> {
     throw new Error('Not currently recording.');
   }
 
+  // Capture before clearing so we can tear down the triage loop symmetrically.
+  const stoppedMeetingId = currentMeetingId;
+
   // Stop timer
   if (stateTimer) {
     clearInterval(stateTimer);
@@ -132,6 +141,9 @@ export async function stopRecording(): Promise<string> {
   }
 
   currentMeetingId = null;
+
+  // Stop the proactive triage loop for this session (clears its watermark/state).
+  liveTriageService.stopTriage(stoppedMeetingId);
 
   // Emit saving-audio phase before flushing
   if (mainWindow && !mainWindow.isDestroyed()) {

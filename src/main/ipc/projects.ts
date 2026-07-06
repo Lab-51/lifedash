@@ -13,6 +13,7 @@ import { ipcMain } from 'electron';
 import { eq, asc, desc, sql, ne } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { projects, boards, columns, cards, meetings } from '../db/schema';
+import { createProjectRecord } from '../services/projectService';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import {
   createProjectInputSchema,
@@ -79,22 +80,9 @@ export function registerProjectHandlers(): void {
 
   ipcMain.handle('projects:create', async (_event, data: unknown) => {
     const input = validateInput(createProjectInputSchema, data);
-    const db = getDb();
-    // Place new projects at the end of the list
-    const [{ maxOrder }] = await db
-      .select({ maxOrder: sql<number>`coalesce(max(${projects.sortOrder}), -1)` })
-      .from(projects);
-    const [project] = await db
-      .insert(projects)
-      .values({
-        name: input.name,
-        description: input.description ?? null,
-        color: input.color ?? null,
-        hourlyRate: input.hourlyRate ?? null,
-        sortOrder: maxOrder + 1,
-      })
-      .returning();
-    return project;
+    // Delegate to the single project-creation path (shared with the Live Assistant
+    // createProject tool + 'project' live-suggestion accept — see projectService).
+    return createProjectRecord(getDb(), input);
   });
 
   ipcMain.handle('projects:update', async (_event, id: unknown, data: unknown) => {

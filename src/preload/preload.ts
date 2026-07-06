@@ -25,6 +25,7 @@ import { gamificationBridge } from './domains/gamification';
 import { cardAgentBridge } from './domains/card-agent';
 import { projectAgentBridge } from './domains/project-agent';
 import { meetingAgentBridge } from './domains/meeting-agent';
+import { liveSuggestionsBridge } from './domains/live-suggestions';
 
 import { backgroundAgentBridge } from './domains/background-agent';
 import { voiceInputBridge } from './domains/voice-input';
@@ -56,6 +57,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...cardAgentBridge,
   ...projectAgentBridge,
   ...meetingAgentBridge,
+  ...liveSuggestionsBridge,
   ...backgroundAgentBridge,
   ...voiceInputBridge,
   ...recoveryBridge,

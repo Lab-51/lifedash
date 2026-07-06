@@ -3,7 +3,7 @@
 // meeting completes. Phase A is live-only (LIVE.1) — there is no post-meeting
 // Q&A here, just a transcript of what was asked/answered during the recording.
 // Uses its own local state (not meetingAgentStore) so it never shares state with
-// a concurrently-open LiveMeetingDrawer for a different, still-recording meeting.
+// a concurrently-open LiveModeOverlay chat for a different, still-recording meeting.
 
 import { useEffect, useState } from 'react';
 import ChatMessageModern from '../ChatMessageModern';

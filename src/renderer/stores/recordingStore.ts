@@ -31,14 +31,16 @@ interface RecordingStore {
   processingProgress: TranscriptionProgress | null;
   /** Live transcript segments accumulated for the active recording (app-wide, not tied to any single view). */
   liveSegments: TranscriptSegment[];
-  /** Whether the global LiveMeetingDrawer is open. */
-  liveDrawerOpen: boolean;
+  /** When true, the full-screen LiveModeOverlay is collapsed to the recording pill. Reset to false on each new recording. */
+  liveModeMinimized: boolean;
 
   // Actions
   setIncludeMic: (value: boolean) => void;
   setPrepBriefing: (text: string | null) => void;
-  toggleLiveDrawer: () => void;
-  closeLiveDrawer: () => void;
+  /** Collapse Live Mode to the recording pill (deliberate escape hatch — never stops recording). */
+  minimizeLiveMode: () => void;
+  /** Return to the full-screen Live Mode overlay from the recording pill. */
+  restoreLiveMode: () => void;
   startRecording: (
     title: string,
     projectId?: string,
@@ -64,12 +66,12 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   prepBriefing: null,
   processingProgress: null,
   liveSegments: [],
-  liveDrawerOpen: false,
+  liveModeMinimized: false,
 
   setIncludeMic: (value: boolean) => set({ includeMic: value }),
   setPrepBriefing: (text: string | null) => set({ prepBriefing: text }),
-  toggleLiveDrawer: () => set((state) => ({ liveDrawerOpen: !state.liveDrawerOpen })),
-  closeLiveDrawer: () => set({ liveDrawerOpen: false }),
+  minimizeLiveMode: () => set({ liveModeMinimized: true }),
+  restoreLiveMode: () => set({ liveModeMinimized: false }),
 
   startRecording: async (
     title: string,
@@ -123,6 +125,8 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         elapsed: 0,
         starting: false,
         prepBriefing: null,
+        // Auto-enter Live Mode: a new recording always starts as the full-screen takeover.
+        liveModeMinimized: false,
       });
     } catch (error) {
       // Clean up if anything failed
@@ -258,9 +262,9 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
 
     // Listen for live transcript segments (app-wide — single subscription for the
     // whole app, regardless of which view is active). Accumulates into liveSegments
-    // for the global LiveMeetingDrawer, and forwards to meetingStore so a currently
-    // open MeetingDetailModal keeps showing segments live (preserves prior behavior
-    // that used to live in MeetingsModern).
+    // for the global Live Mode overlay (LiveTranscriptFeed), and forwards to
+    // meetingStore so a currently open MeetingDetailModal keeps showing segments live
+    // (preserves prior behavior that used to live in MeetingsModern).
     const cleanupTranscriptSegment = window.electronAPI.onTranscriptSegment((segment) => {
       set((state) => ({ liveSegments: [...state.liveSegments, segment] }));
       useMeetingStore.getState().addTranscriptSegment(segment);

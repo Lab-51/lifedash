@@ -356,8 +356,19 @@ const DEFAULT_MODELS: Record<AIProviderName, string> = {
 };
 
 /**
+ * Task types that inherit another task's config when unset. `live_triage`
+ * (the proactive in-meeting proposal loop) shares the single local model with
+ * `live_assistant` chat by default, so it falls back to the assistant's config
+ * until the user splits them in Settings. See resolveTaskModel step 1.
+ */
+const TASK_MODEL_FALLBACKS: Record<string, string> = {
+  live_triage: 'live_assistant',
+};
+
+/**
  * Resolve which AI provider + model to use for a given task type.
- * 1. Check the `ai.taskModels` setting (JSON map of taskType -> TaskModelConfig).
+ * 1. Check the `ai.taskModels` setting (JSON map of taskType -> TaskModelConfig),
+ *    falling back to an inherited task's config (see TASK_MODEL_FALLBACKS).
  * 2. If config exists, look up the provider row.
  * 3. If no config (or provider is gone/disabled), fall back to first enabled provider.
  * 4. Returns null if no provider is available.
@@ -371,7 +382,8 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
   if (settingRow) {
     try {
       const taskModels: Record<string, TaskModelConfig> = JSON.parse(settingRow.value);
-      const config = taskModels[taskType];
+      const fallbackType = TASK_MODEL_FALLBACKS[taskType];
+      const config = taskModels[taskType] ?? (fallbackType ? taskModels[fallbackType] : undefined);
       if (config) {
         const [provider] = await db.select().from(aiProviders).where(eq(aiProviders.id, config.providerId));
         if (provider && provider.enabled) {

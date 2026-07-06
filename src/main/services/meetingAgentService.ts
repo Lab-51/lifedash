@@ -1,29 +1,50 @@
 // === FILE PURPOSE ===
-// Meeting agent service — the in-meeting "Live Assistant" (LIVE.1, Phase A).
-// Exposes createMeetingAgentTools(meetingId): four Vercel AI SDK tools that let a
-// local model read the live transcript, search it, fetch meeting context, and
-// capture cards — modeled on cardAgentService.createCardAgentTools.
+// Meeting agent service — the in-meeting "Live Assistant" (LIVE.1 Phase A;
+// board tools + captureNote added LIVE.2 Task 3; createProject added LIVE.3
+// Task 5). Exposes createMeetingAgentTools(meetingId): tools that let a local
+// model read the live transcript, search it, fetch meeting context, capture
+// cards, work the meeting's linked project board directly, file ratified notes,
+// and create+link a new project for an unlinked meeting — modeled on
+// cardAgentService.createCardAgentTools.
 //
 // === DEPENDENCIES ===
-// ai (tool), zod, drizzle-orm, meetingService (getMeeting/getTranscripts),
-// meetingIntelligenceService (fetchPriorBriefs), inbox/unassigned/autoPush rails.
+// ai (tool), zod, drizzle-orm, meetingService (getMeeting/getTranscripts/updateMeeting),
+// projectService (createProjectRecord — shared project-creation path),
+// meetingIntelligenceService (fetchPriorBriefs), inbox/unassigned/autoPush rails,
+// projectAgentService (reused board-tool factories — see CIRCULAR IMPORT note
+// below for why liveSuggestionService is NOT imported here).
 //
 // === LIMITATIONS ===
 // - Rolling transcript window (not the whole meeting): a 2-hour local transcript
 //   cannot fit a 14B model's usable context, so we cap by minutes + a hard char
 //   budget and let searchTranscript reach older content on demand.
 // - No embeddings / semantic search (that is Phase C).
+// - Board tools degrade to a clear string (not a throw) when the meeting has no
+//   linked project yet — see NO_PROJECT_MESSAGE below.
+// - captureNote writes to live_suggestions directly via getDb()/drizzle instead
+//   of going through liveSuggestionService: liveSuggestionService imports
+//   createLiveAssistantCard FROM this file, so this file must never import
+//   liveSuggestionService back (would create a cycle — see meetingIntelligenceService.ts's
+//   own live_suggestions helpers for the same pattern).
 
 import { tool } from 'ai';
 import { z } from 'zod';
 import { eq, asc, count } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { cards, projects, meetingAgentThreads, meetingAgentMessages } from '../db/schema';
-import { getMeeting, getTranscripts } from './meetingService';
+import { cards, projects, meetingAgentThreads, meetingAgentMessages, liveSuggestions } from '../db/schema';
+import { getMeeting, getTranscripts, updateMeeting } from './meetingService';
+import { createProjectRecord } from './projectService';
 import { fetchPriorBriefs } from './meetingIntelligenceService';
 import { ensureInboxColumn } from './inboxColumnService';
 import { ensureUnassignedProject } from './unassignedProjectService';
 import { resolvePrimaryBoardId } from './autoPushService';
+import {
+  createListBoardsTool,
+  createListColumnCardsTool,
+  createMoveCardTool,
+  createGetProjectStatsTool,
+  createSearchProjectCardsTool,
+} from './projectAgentService';
 import type { MeetingAgentMessage, MeetingAgentThread, ToolCallRecord, ToolResultRecord } from '../../shared/types';
 
 // ---------------------------------------------------------------------------
@@ -42,6 +63,13 @@ export const TRANSCRIPT_WINDOW_CHAR_BUDGET = 24000;
 
 /** Prior briefs from the same project to surface for continuity. */
 const CONTEXT_BRIEF_LIMIT = 3;
+
+/**
+ * Returned by board tools instead of throwing when the meeting has no linked
+ * project yet — the takeover UX means the assistant must degrade gracefully,
+ * not crash the tool loop. Exported for tests.
+ */
+export const NO_PROJECT_MESSAGE = 'no project linked to this meeting yet — ask the user or use createCardInInbox';
 
 // ---------------------------------------------------------------------------
 // Pure transcript helpers (exported for unit testing)
@@ -215,7 +243,43 @@ export async function createLiveAssistantCard(
 // Tool Definitions
 // ---------------------------------------------------------------------------
 
-export function createMeetingAgentTools(meetingId: string) {
+/**
+ * A no-op stand-in for a project-scoped board tool when the meeting has no
+ * linked project yet. Returns NO_PROJECT_MESSAGE instead of throwing so the
+ * tool loop never crashes on a missing project — the model can still suggest
+ * createCardInInbox (which itself falls back to the Unassigned project).
+ */
+function noProjectTool(description: string) {
+  return tool({
+    description,
+    inputSchema: z.object({}),
+    execute: async () => NO_PROJECT_MESSAGE,
+  });
+}
+
+export async function createMeetingAgentTools(meetingId: string) {
+  const meeting = await getMeeting(meetingId);
+  const projectId = meeting?.projectId ?? null;
+
+  // Board tools are borrowed from projectAgentService (not duplicated) and
+  // scoped to the meeting's linked project; degrade to a clear message when
+  // there is none yet (Unassigned/no-project meetings).
+  const boardTools = projectId
+    ? {
+        listBoards: createListBoardsTool(projectId),
+        listColumnCards: createListColumnCardsTool(),
+        moveCard: createMoveCardTool(),
+        getProjectStats: createGetProjectStatsTool(projectId),
+        searchProjectCards: createSearchProjectCardsTool(projectId),
+      }
+    : {
+        listBoards: noProjectTool("List boards in this meeting's linked project."),
+        listColumnCards: noProjectTool("List cards in a column of this meeting's linked project."),
+        moveCard: noProjectTool("Move a card between columns in this meeting's linked project."),
+        getProjectStats: noProjectTool("Get aggregate statistics for this meeting's linked project."),
+        searchProjectCards: noProjectTool("Search for cards in this meeting's linked project by title keyword."),
+      };
+
   return {
     getTranscriptWindow: tool({
       description:
@@ -289,6 +353,61 @@ export function createMeetingAgentTools(meetingId: string) {
       }),
       execute: async ({ title, description }) => createLiveAssistantCard(meetingId, { title, description }),
     }),
+
+    captureNote: tool({
+      description:
+        'Capture a decision or open question the user explicitly states during the meeting (e.g. "let\'s go with X" or "we still need to figure out Y"). Recorded as already-confirmed (not a proposal) — only use this for something the user actually said, not a guess.',
+      inputSchema: z.object({
+        type: z.enum(['decision', 'question']).describe('Whether this is a decision that was made or an open question'),
+        title: z.string().describe('Short, clear title for the note'),
+        description: z.string().optional().describe('Optional 1-2 sentence detail'),
+      }),
+      execute: async ({ type, title, description }) => {
+        // Writes live_suggestions directly (not via liveSuggestionService) to avoid
+        // a circular import — see the CIRCULAR IMPORT note in the file header.
+        const db = getDb();
+        const [row] = await db
+          .insert(liveSuggestions)
+          .values({
+            meetingId,
+            type,
+            title,
+            description: description ?? null,
+            status: 'accepted',
+          })
+          .returning();
+        return { success: true, id: row.id, type: row.type, title: row.title };
+      },
+    }),
+
+    createProject: tool({
+      description:
+        'Create a NEW project for this meeting and link the meeting to it. Use ONLY when the conversation is clearly about a distinct new initiative that is not yet tracked, the meeting has no linked project, and the user has agreed. Refuses (returns a message, never throws) if the meeting already has a linked project.',
+      inputSchema: z.object({
+        name: z.string().describe('Short project name (max ~5 words)'),
+        description: z.string().optional().describe('Optional one-sentence scope for the project'),
+      }),
+      execute: async ({ name, description }) => {
+        const db = getDb();
+        const current = await getMeeting(meetingId);
+        if (!current) return { success: false, error: 'Meeting not found' };
+        // Guard against double-create within a multi-step response: re-check the
+        // meeting's current link (the closure's projectId may be stale) and refuse
+        // if it already has a project — createProject is only for unlinked meetings.
+        if (current.projectId) {
+          const [proj] = await db
+            .select({ name: projects.name })
+            .from(projects)
+            .where(eq(projects.id, current.projectId));
+          return `This meeting is already linked to the project "${proj?.name ?? 'unknown'}" — createProject is only for meetings with no linked project yet.`;
+        }
+        const project = await createProjectRecord(db, { name, description });
+        await updateMeeting(meetingId, { projectId: project.id });
+        return { success: true, projectId: project.id, name: project.name };
+      },
+    }),
+
+    ...boardTools,
   };
 }
 

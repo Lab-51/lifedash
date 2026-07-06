@@ -19,6 +19,7 @@
 
 import { BrowserWindow } from 'electron';
 import * as meetingService from './meetingService';
+import * as liveTriageService from './liveTriageService';
 import * as whisperModelManager from './whisperModelManager';
 import * as transcriptionProviderService from './transcriptionProviderService';
 import * as deepgramTranscriber from './deepgramTranscriber';
@@ -75,6 +76,16 @@ let activeInitialPrompt: string = ''; // Trilingual glossary seed for mixed-lang
 let totalSegmentsQueued = 0;
 let segmentsCompleted = 0;
 let whisperBackend = 'cpu';
+
+// Yield the shared GPU to transcription: register a busy-probe the proactive
+// triage loop reads to SKIP runs while whisper/cloud transcription is in flight.
+// Injected one-way — this module already imports liveTriageService (onSegment);
+// liveTriageService must NOT import back (CODE-Q.1 cycle), so it reads this
+// closure instead. `activeTranscriptions` brackets the whisper/API await
+// (incremented in dispatchNext before dispatch, decremented after the await);
+// `pendingSegments` holds not-yet-dispatched segments. Registered once at module
+// init; the closure reads live state, correct across recordings.
+liveTriageService.setTranscriptionBusyProbe(() => activeTranscriptions > 0 || pendingSegments.length > 0);
 
 export function setMainWindow(win: BrowserWindow): void {
   mainWindow = win;
@@ -390,6 +401,9 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('recording:transcript-segment', saved);
           }
+
+          // Feed the proactive triage loop (non-throwing; fires on its own cadence).
+          liveTriageService.onSegment(currentMeetingId);
         } catch (err) {
           log.error('Failed to save segment:', err);
         }
@@ -436,6 +450,9 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('recording:transcript-segment', saved);
           }
+
+          // Feed the proactive triage loop (non-throwing; fires on its own cadence).
+          liveTriageService.onSegment(currentMeetingId);
         } catch (err) {
           log.error('Failed to save segment:', err);
         }

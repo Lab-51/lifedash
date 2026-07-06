@@ -19,6 +19,7 @@ export * from './gamification';
 export * from './card-agent';
 export * from './project-agent';
 export * from './meeting-agent';
+export * from './live-suggestions';
 export * from './sync';
 export * from './intel-feed';
 export * from './electron-api';

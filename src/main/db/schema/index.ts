@@ -15,6 +15,7 @@ export * from './focus';
 export * from './gamification';
 export * from './card-agent';
 export * from './meeting-agent';
+export * from './live-suggestions';
 export * from './project-agent';
 export * from './agent-insights';
 export * from './sync';

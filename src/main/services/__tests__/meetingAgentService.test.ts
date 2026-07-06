@@ -1,8 +1,10 @@
 // === FILE PURPOSE ===
-// Unit tests for meetingAgentService (Live Assistant, LIVE.1 Phase A):
-// transcript window budgeting (drops oldest, keeps most recent), transcript
-// search hit/miss with neighbour context, and createCardInInbox provenance +
-// no-project routing to the Unassigned project.
+// Unit tests for meetingAgentService (Live Assistant, LIVE.1 Phase A; expanded
+// toolset LIVE.2 Task 3): transcript window budgeting (drops oldest, keeps
+// most recent), transcript search hit/miss with neighbour context,
+// createCardInInbox provenance + no-project routing to the Unassigned project,
+// the full tool registry, no-project degradation for the reused board tools,
+// captureNote's direct live_suggestions write, and a moveCard round trip.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -22,13 +24,33 @@ vi.mock('../../db/schema', () => ({
     position: 'position',
     source: 'source',
     sourceMeetingId: 'source_meeting_id',
+    completed: 'completed',
+    archived: 'archived',
+    updatedAt: 'updated_at',
+    dueDate: 'due_date',
   },
   projects: { id: 'id', name: 'name' },
+  boards: { id: 'id', projectId: 'project_id', name: 'name', position: 'position' },
+  columns: { id: 'id', boardId: 'board_id', name: 'name', position: 'position' },
+  cardActivities: { id: 'id', cardId: 'card_id', action: 'action', details: 'details' },
+  liveSuggestions: {
+    id: 'id',
+    meetingId: 'meeting_id',
+    type: 'type',
+    title: 'title',
+    description: 'description',
+    status: 'status',
+  },
 }));
 
 vi.mock('../meetingService', () => ({
   getMeeting: vi.fn(),
   getTranscripts: vi.fn(),
+  updateMeeting: vi.fn(),
+}));
+
+vi.mock('../projectService', () => ({
+  createProjectRecord: vi.fn(),
 }));
 
 vi.mock('../meetingIntelligenceService', () => ({
@@ -55,10 +77,13 @@ import {
   buildTranscriptWindow,
   searchSegments,
   createLiveAssistantCard,
+  createMeetingAgentTools,
+  NO_PROJECT_MESSAGE,
   TRANSCRIPT_WINDOW_CHAR_BUDGET,
 } from '../meetingAgentService';
 import { getDb } from '../../db/connection';
-import { getMeeting } from '../meetingService';
+import { getMeeting, updateMeeting } from '../meetingService';
+import { createProjectRecord } from '../projectService';
 import { ensureInboxColumn } from '../inboxColumnService';
 import { ensureUnassignedProject } from '../unassignedProjectService';
 import { resolvePrimaryBoardId } from '../autoPushService';
@@ -240,5 +265,183 @@ describe('createLiveAssistantCard', () => {
 
     expect(res.success).toBe(false);
     expect(res.error).toBe('Meeting not found');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createMeetingAgentTools — expanded toolset (LIVE.2 Task 3)
+// ---------------------------------------------------------------------------
+
+/** Loose shape for calling `.execute()` directly on a tool built via `tool()` (an identity fn). */
+type AnyTool = { execute: (input: Record<string, unknown>) => Promise<unknown> };
+
+async function getTools(meetingId: string): Promise<Record<string, AnyTool>> {
+  return (await createMeetingAgentTools(meetingId)) as unknown as Record<string, AnyTool>;
+}
+
+function makeMeeting(projectId: string | null) {
+  return {
+    id: 'm1',
+    projectId,
+    title: 'Roadmap sync',
+    startedAt: new Date().toISOString(),
+    endedAt: null,
+  };
+}
+
+const BOARD_TOOL_NAMES = ['listBoards', 'listColumnCards', 'moveCard', 'getProjectStats', 'searchProjectCards'];
+
+describe('createMeetingAgentTools — tool registry', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('includes the transcript/context/card tools plus captureNote and the reused board tools', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting('proj-1') as never);
+    vi.mocked(getDb).mockReturnValue({} as never); // board-tool factories call getDb() at construction only
+
+    const tools = await getTools('m1');
+
+    expect(Object.keys(tools).sort()).toEqual(
+      [
+        'getTranscriptWindow',
+        'searchTranscript',
+        'getMeetingContext',
+        'createCardInInbox',
+        'captureNote',
+        'createProject',
+        ...BOARD_TOOL_NAMES,
+      ].sort(),
+    );
+  });
+});
+
+describe('createMeetingAgentTools — no-project degradation', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('board tools return the clear message instead of throwing when the meeting has no project', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting(null) as never);
+
+    const tools = await getTools('m1');
+
+    for (const name of BOARD_TOOL_NAMES) {
+      const result = await tools[name].execute({});
+      expect(result).toBe(NO_PROJECT_MESSAGE);
+    }
+  });
+});
+
+describe('captureNote', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("persists a 'decision' as an already-accepted live_suggestions row (no proposal step)", async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting('proj-1') as never);
+
+    const returningSpy = vi
+      .fn()
+      .mockResolvedValue([
+        { id: 'note-1', meetingId: 'm1', type: 'decision', title: 'Go with Postgres', description: null },
+      ]);
+    const valuesSpy = vi.fn().mockReturnValue({ returning: returningSpy });
+    vi.mocked(getDb).mockReturnValue({ insert: vi.fn(() => ({ values: valuesSpy })) } as never);
+
+    const tools = await getTools('m1');
+    const result = await tools.captureNote.execute({ type: 'decision', title: 'Go with Postgres' });
+
+    expect(valuesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meetingId: 'm1',
+        type: 'decision',
+        title: 'Go with Postgres',
+        description: null,
+        status: 'accepted',
+      }),
+    );
+    expect(result).toEqual({ success: true, id: 'note-1', type: 'decision', title: 'Go with Postgres' });
+  });
+});
+
+describe('createProject tool', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('creates a project via the shared path and links the meeting when unlinked', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting(null) as never);
+    vi.mocked(getDb).mockReturnValue({} as never);
+    vi.mocked(createProjectRecord).mockResolvedValue({ id: 'proj-new', name: 'Mobile Revamp' } as never);
+    vi.mocked(updateMeeting).mockResolvedValue({} as never);
+
+    const tools = await getTools('m1');
+    const result = await tools.createProject.execute({ name: 'Mobile Revamp', description: 'Ship the new app' });
+
+    expect(createProjectRecord).toHaveBeenCalledWith({}, { name: 'Mobile Revamp', description: 'Ship the new app' });
+    expect(updateMeeting).toHaveBeenCalledWith('m1', { projectId: 'proj-new' });
+    expect(result).toEqual({ success: true, projectId: 'proj-new', name: 'Mobile Revamp' });
+  });
+
+  it('refuses (returns a message, never throws) and creates nothing when already linked', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting('proj-1') as never);
+    const db = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({ where: vi.fn().mockResolvedValue([{ name: 'Existing Project' }]) })),
+      })),
+    };
+    vi.mocked(getDb).mockReturnValue(db as never);
+
+    const tools = await getTools('m1');
+    const result = await tools.createProject.execute({ name: 'Another Initiative' });
+
+    expect(typeof result).toBe('string');
+    expect(result).toContain('Existing Project');
+    expect(createProjectRecord).not.toHaveBeenCalled();
+    expect(updateMeeting).not.toHaveBeenCalled();
+  });
+});
+
+describe('board tools — moveCard round trip', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** Sequential select().from().where() responses: card lookup, then source column, then target column. */
+  function buildMoveCardDb(selectResults: unknown[][]) {
+    let call = 0;
+    const updateWhereSpy = vi.fn().mockResolvedValue(undefined);
+    const updateSetSpy = vi.fn(() => ({ where: updateWhereSpy }));
+    const insertValuesSpy = vi.fn().mockResolvedValue(undefined);
+    return {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => Promise.resolve(selectResults[call++] ?? [])),
+        })),
+      })),
+      update: vi.fn(() => ({ set: updateSetSpy })),
+      insert: vi.fn(() => ({ values: insertValuesSpy })),
+      _insertValuesSpy: insertValuesSpy,
+    };
+  }
+
+  it('moves a card to the target column and logs the activity', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting('proj-1') as never);
+
+    const db = buildMoveCardDb([
+      [{ id: 'card-1', title: 'Fix bug', columnId: 'col-source' }],
+      [{ name: 'To Do' }],
+      [{ name: 'Done' }],
+    ]);
+    vi.mocked(getDb).mockReturnValue(db as never);
+
+    const tools = await getTools('m1');
+    const result = await tools.moveCard.execute({ cardId: 'card-1', targetColumnId: 'col-target' });
+
+    expect(result).toEqual({ success: true, cardTitle: 'Fix bug', fromColumn: 'To Do', toColumn: 'Done' });
+    expect(db._insertValuesSpy).toHaveBeenCalledWith(expect.objectContaining({ cardId: 'card-1', action: 'moved' }));
+  });
+
+  it("returns an error (not a throw) when the target column doesn't exist", async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting('proj-1') as never);
+
+    const db = buildMoveCardDb([[{ id: 'card-1', title: 'Fix bug', columnId: 'col-source' }], [{ name: 'To Do' }], []]);
+    vi.mocked(getDb).mockReturnValue(db as never);
+
+    const tools = await getTools('m1');
+    const result = await tools.moveCard.execute({ cardId: 'card-1', targetColumnId: 'missing-column' });
+
+    expect(result).toEqual({ success: false, error: 'Target column not found' });
   });
 });
