@@ -4,7 +4,10 @@
 // auto-create-thread + message persistence, the text-delta/tool-call/tool-result/done
 // event sequence, `load` returning history, and `stop` aborting an in-flight stream
 // (both the "partial results kept" and "no output at all" abort paths) plus a hard
-// stream error emitting `meeting-agent:error` and rejecting.
+// stream error emitting `meeting-agent:error` and rejecting. Also proves the V3.3
+// Task 2 orchestration wiring: `send` runs SYSTEM_PROMPT through
+// meetingAgentService.buildLiveAssistantSystemPrompt and forwards the result
+// (unchanged, by default mock, or profile-augmented) to streamText's `system`.
 
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 
@@ -36,6 +39,10 @@ vi.mock('../../services/meetingAgentService', () => ({
   getThreadMessages: vi.fn(),
   getMessagesForMeeting: vi.fn(),
   createMeetingAgentTools: vi.fn(() => ({})),
+  // Default: identity passthrough (no profile) — matches production behavior when
+  // no digital-twin profile exists, so existing tests stay byte-identical without
+  // each one needing to configure this mock.
+  buildLiveAssistantSystemPrompt: vi.fn((base: string) => Promise.resolve(base)),
 }));
 
 vi.mock('../../services/ai-provider', () => ({
@@ -48,7 +55,7 @@ vi.mock('../../services/ai-provider', () => ({
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { registerMeetingAgentHandlers } from '../meeting-agent';
+import { registerMeetingAgentHandlers, SYSTEM_PROMPT } from '../meeting-agent';
 import { streamText } from 'ai';
 import * as meetingAgentService from '../../services/meetingAgentService';
 import { resolveTaskModel, getProvider, logUsage } from '../../services/ai-provider';
@@ -229,6 +236,39 @@ describe('meeting-agent:send', () => {
     expect(errorCall).toBeTruthy();
     expect(errorCall![1]).toMatchObject({ meetingId: VALID_MEETING_ID, error: 'model unreachable' });
     expect(event.sender.send.mock.calls.some((c) => c[0] === 'meeting-agent:done')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// meeting-agent:send — digital-twin profile injection wiring (V3.3 Task 2)
+// ---------------------------------------------------------------------------
+
+describe('meeting-agent:send — twin profile injection wiring', () => {
+  it('runs SYSTEM_PROMPT through buildLiveAssistantSystemPrompt and forwards it to streamText unchanged when no profile exists (regression guard)', async () => {
+    setupHappyMocks(VALID_MEETING_ID);
+    vi.mocked(streamText).mockReturnValue(makeStreamResult([{ type: 'text-delta', text: 'hi' }]) as never);
+
+    const handler = registeredHandlers.get('meeting-agent:send')!;
+    await handler(makeFakeEvent(), VALID_MEETING_ID, 'hello');
+
+    expect(meetingAgentService.buildLiveAssistantSystemPrompt).toHaveBeenCalledWith(SYSTEM_PROMPT);
+    const streamArg = vi.mocked(streamText).mock.calls[0][0] as { system: string };
+    // Default mock is an identity passthrough — proves streamText's `system` is
+    // byte-identical to the base SYSTEM_PROMPT when no profile is injected.
+    expect(streamArg.system).toBe(SYSTEM_PROMPT);
+  });
+
+  it('forwards the profile-augmented prompt to streamText when a profile block is injected', async () => {
+    setupHappyMocks(VALID_MEETING_ID);
+    const augmented = `User profile (the professional you assist):\n\nIdentity: Dana, PM\n\n${SYSTEM_PROMPT}`;
+    vi.mocked(meetingAgentService.buildLiveAssistantSystemPrompt).mockResolvedValueOnce(augmented);
+    vi.mocked(streamText).mockReturnValue(makeStreamResult([{ type: 'text-delta', text: 'hi' }]) as never);
+
+    const handler = registeredHandlers.get('meeting-agent:send')!;
+    await handler(makeFakeEvent(), VALID_MEETING_ID, 'hello');
+
+    const streamArg = vi.mocked(streamText).mock.calls[0][0] as { system: string };
+    expect(streamArg.system).toBe(augmented);
   });
 });
 

@@ -14,7 +14,8 @@ export type AITaskType =
   | 'background_agent'
   | 'project_agent'
   | 'live_assistant'
-  | 'live_triage';
+  | 'live_triage'
+  | 'twin_interview';
 
 /** AI provider as seen by renderer (no decrypted keys — only hasApiKey boolean) */
 export interface AIProvider {

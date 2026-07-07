@@ -28,7 +28,9 @@
 //
 // === DEPENDENCIES ===
 // electron (BrowserWindow), meetingService (getMeeting), ai-provider
-// (resolveTaskModel/generate), ipc/meeting-agent (chat in-flight signal), zod.
+// (resolveTaskModel/generate), ipc/meeting-agent (chat in-flight signal), zod,
+// twinProfileService (buildProfileContext — V3.3 Task 2 profile injection into
+// the triage system prompt, see buildTriageSystemPrompt below).
 // The transcription busy-signal is INJECTED (setTranscriptionBusyProbe), not
 // imported: transcriptionService imports this module (onSegment), so importing it
 // back would recreate a cycle CODE-Q.1 removed.
@@ -41,6 +43,7 @@ import { liveSuggestions } from '../db/schema';
 import { getMeeting } from './meetingService';
 import { resolveTaskModel, generate } from './ai-provider';
 import { isMeetingAgentStreamActive } from '../ipc/meeting-agent';
+import { buildProfileContext } from './twinProfileService';
 import { createLogger } from './logger';
 import type { LiveSuggestion } from '../../shared/types';
 
@@ -74,7 +77,7 @@ const PROJECT_KIND =
  * (or one it has already proposed to) — filtering happens again at persist time,
  * but omitting the kind up front avoids wasted proposals.
  */
-function buildSystemPrompt(projectEligible: boolean): string {
+export function buildSystemPrompt(projectEligible: boolean): string {
   const kinds = [
     '- "action_item": a task, assignment, or follow-up someone committed to.',
     '- "decision": a concrete decision the group agreed on.',
@@ -97,6 +100,26 @@ Rules:
 
 Respond with ONLY a JSON array (no prose, no markdown fences) matching:
 [{ "type": ${typeUnion}, "title": string, "description"?: string }]`;
+}
+
+/**
+ * Build the triage system prompt: base task instructions (buildSystemPrompt)
+ * with the digital-twin profile context (V3.3 Task 2, live_triage priority/
+ * ~800 char budget) prepended when a profile exists. Read fresh from the DB
+ * on every run — no caching — so profile edits apply on the very next triage
+ * pass. This loop must never throw into the recording pipeline (see file
+ * header): if buildProfileContext throws for any reason, the base
+ * instructions are returned unchanged — byte-identical to today.
+ */
+export async function buildTriageSystemPrompt(projectEligible: boolean): Promise<string> {
+  const instructions = buildSystemPrompt(projectEligible);
+  let profileBlock = '';
+  try {
+    profileBlock = await buildProfileContext('live_triage');
+  } catch (err) {
+    log.debug('Twin profile context lookup failed for triage (skipped):', err instanceof Error ? err.message : err);
+  }
+  return profileBlock ? `${profileBlock}\n\n${instructions}` : instructions;
 }
 
 // ---------------------------------------------------------------------------
@@ -265,7 +288,8 @@ async function runTriage(meetingId: string): Promise<void> {
     const deltaText = buildDeltaText(delta);
     const basePrompt = buildPrompt(meeting.title, existingTitles, deltaText);
 
-    const drafts = await generateDrafts(provider, basePrompt, buildSystemPrompt(projectEligible));
+    const systemPrompt = await buildTriageSystemPrompt(projectEligible);
+    const drafts = await generateDrafts(provider, basePrompt, systemPrompt);
     // Consume this delta whether or not it yielded proposals (degrade to fewer,
     // never re-process the same content forever).
     state.processed = total;

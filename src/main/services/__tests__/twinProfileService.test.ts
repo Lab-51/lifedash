@@ -1,0 +1,287 @@
+// === FILE PURPOSE ===
+// Unit tests for the Digital Twin profile service (V3.3 Task 1):
+//   - updateProfileSection patch semantics (writes ONE section + updatedAt only,
+//     upserts the singleton row, returns the full profile)
+//   - serializeProfileContext determinism (same input -> byte-identical output)
+//   - budget trimming order (drops WHOLE lowest-priority sections first, never
+//     mid-block) and task-aware section priority
+//   - buildProfileContext is a no-op ('') when no profile exists
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// ---------------------------------------------------------------------------
+// Mocks — declared before imports
+// ---------------------------------------------------------------------------
+
+vi.mock('../../db/connection', () => ({ getDb: vi.fn() }));
+
+vi.mock('../../db/schema', () => ({
+  twinProfile: {
+    id: 'id',
+    identity: 'identity',
+    domain: 'domain',
+    projects: 'projects',
+    people: 'people',
+    vocabulary: 'vocabulary',
+    goals: 'goals',
+    preferences: 'preferences',
+    updatedAt: 'updatedAt',
+  },
+  TWIN_PROFILE_ID: 'singleton',
+}));
+
+// ---------------------------------------------------------------------------
+// Imports (after mocks)
+// ---------------------------------------------------------------------------
+
+import { getProfile, updateProfileSection, serializeProfileContext, buildProfileContext } from '../twinProfileService';
+import { getDb } from '../../db/connection';
+import type { TwinProfileSections } from '../../../shared/types/twin';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const UPDATED = new Date('2026-07-08T12:00:00Z');
+
+/** A full DB row (all sections populated) for read-path tests. */
+function makeRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'singleton',
+    identity: { name: 'Jane Doe', role: 'Staff Engineer', seniority: 'senior' },
+    domain: { industry: 'SaaS', company: 'Acme', focus: 'billing' },
+    projects: [{ name: 'Replatform', description: 'move to Stripe' }],
+    people: [{ name: 'Sarah', role: 'PM', org: 'Acme' }],
+    vocabulary: [{ term: 'MRR', meaning: 'monthly recurring revenue' }],
+    goals: ['Ship v3'],
+    preferences: { tone: 'concise', language: 'en', cardTitleStyle: 'imperative' },
+    updatedAt: UPDATED,
+    ...overrides,
+  };
+}
+
+/** A rich in-memory profile for the pure serializer tests. */
+function sampleProfile(): TwinProfileSections {
+  return {
+    identity: { name: 'Jane Doe', role: 'Staff Engineer', seniority: 'senior' },
+    domain: { industry: 'SaaS', company: 'Acme', focus: 'billing platform' },
+    projects: [{ name: 'Replatform', description: 'migrate billing to Stripe' }, { name: 'Mobile app' }],
+    people: [
+      { name: 'Sarah', role: 'PM', org: 'Acme' },
+      { name: 'Tom', role: 'eng' },
+    ],
+    vocabulary: [
+      { term: 'MRR', meaning: 'monthly recurring revenue' },
+      { term: 'churn', meaning: 'customers who cancel' },
+    ],
+    goals: ['Ship v3 by Q3', 'Cut onboarding time in half'],
+    preferences: { tone: 'concise', language: 'en', cardTitleStyle: 'imperative' },
+  };
+}
+
+const EMPTY_PROFILE: TwinProfileSections = {
+  identity: {},
+  domain: {},
+  projects: [],
+  people: [],
+  vocabulary: [],
+  goals: [],
+  preferences: {},
+};
+
+/** Mock the DB. `selectRows` feeds the read path; the upsert echoes `returnRow`. */
+function buildDb(opts: { selectRows?: unknown[]; returnRow?: unknown } = {}) {
+  const returning = vi.fn().mockResolvedValue(opts.returnRow ? [opts.returnRow] : []);
+  const onConflictDoUpdate = vi.fn().mockReturnValue({ returning });
+  const values = vi.fn().mockReturnValue({ onConflictDoUpdate });
+  const insert = vi.fn().mockReturnValue({ values });
+
+  const where = vi.fn().mockResolvedValue(opts.selectRows ?? []);
+  const from = vi.fn().mockReturnValue({ where });
+  const select = vi.fn().mockReturnValue({ from });
+
+  const db = { insert, select };
+  vi.mocked(getDb).mockReturnValue(db as never);
+  return { db, insert, values, onConflictDoUpdate, returning, select };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+// ---------------------------------------------------------------------------
+// getProfile
+// ---------------------------------------------------------------------------
+
+describe('getProfile', () => {
+  it('returns null when no row exists', async () => {
+    buildDb({ selectRows: [] });
+    expect(await getProfile()).toBeNull();
+  });
+
+  it('normalizes a row into a profile with an ISO updatedAt', async () => {
+    buildDb({ selectRows: [makeRow()] });
+    const profile = await getProfile();
+    expect(profile?.identity.name).toBe('Jane Doe');
+    expect(profile?.updatedAt).toBe(UPDATED.toISOString());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateProfileSection — patch semantics
+// ---------------------------------------------------------------------------
+
+describe('updateProfileSection', () => {
+  it('writes ONLY the patched section plus updatedAt (section-level patch)', async () => {
+    const { values, onConflictDoUpdate } = buildDb({ returnRow: makeRow() });
+
+    await updateProfileSection('identity', { name: 'Jane Doe', role: 'Staff Engineer' });
+
+    // insert branch: singleton id + the one section + updatedAt
+    const insertArg = values.mock.calls[0][0] as Record<string, unknown>;
+    expect(insertArg.id).toBe('singleton');
+    expect(insertArg.identity).toEqual({ name: 'Jane Doe', role: 'Staff Engineer' });
+    expect(insertArg.updatedAt).toBeInstanceOf(Date);
+
+    // conflict branch: only that section + updatedAt in the SET — no other section keys
+    const setArg = onConflictDoUpdate.mock.calls[0][0].set as Record<string, unknown>;
+    expect(Object.keys(setArg).sort()).toEqual(['identity', 'updatedAt']);
+    expect(setArg.identity).toEqual({ name: 'Jane Doe', role: 'Staff Engineer' });
+  });
+
+  it('targets the singleton primary key on conflict', async () => {
+    const { onConflictDoUpdate } = buildDb({ returnRow: makeRow() });
+    await updateProfileSection('goals', ['Ship v3']);
+    expect(onConflictDoUpdate.mock.calls[0][0].target).toBe('id'); // twinProfile.id (mocked)
+  });
+
+  it('returns the full updated profile from the echoed row', async () => {
+    buildDb({ returnRow: makeRow() });
+    const profile = await updateProfileSection('goals', ['Ship v3']);
+    expect(profile.goals).toEqual(['Ship v3']);
+    expect(profile.identity.name).toBe('Jane Doe');
+    expect(profile.updatedAt).toBe(UPDATED.toISOString());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// serializeProfileContext — determinism
+// ---------------------------------------------------------------------------
+
+describe('serializeProfileContext determinism', () => {
+  it('produces byte-identical output for identical input', () => {
+    const a = serializeProfileContext(sampleProfile(), 'live_assistant');
+    const b = serializeProfileContext(sampleProfile(), 'live_assistant');
+    expect(a).toBe(b);
+  });
+
+  it('emits object fields in a fixed order (not key-iteration order)', () => {
+    const profile = { ...EMPTY_PROFILE, domain: { focus: 'billing', company: 'Acme', industry: 'SaaS' } };
+    // Even though the source object lists focus first, output is industry/company/focus.
+    const out = serializeProfileContext(profile, 'summarization');
+    expect(out).toContain('Domain: industry: SaaS; company: Acme; focus: billing');
+  });
+
+  it('skips empty sections entirely (no stray labels)', () => {
+    const profile = { ...EMPTY_PROFILE, identity: { name: 'Jane' } };
+    const out = serializeProfileContext(profile, 'live_assistant');
+    expect(out).toContain('Identity: Jane');
+    expect(out).not.toContain('Domain');
+    expect(out).not.toContain('Projects');
+    expect(out).not.toContain('Preferences');
+  });
+
+  it('returns empty string for a wholly empty profile', () => {
+    expect(serializeProfileContext(EMPTY_PROFILE, 'live_triage')).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// serializeProfileContext — task-aware priority + budget trimming
+// ---------------------------------------------------------------------------
+
+describe('serializeProfileContext priority & trimming', () => {
+  it('orders sections by task: assistant leads with Identity', () => {
+    const out = serializeProfileContext(sampleProfile(), 'live_assistant');
+    const firstBlock = out.split('\n\n')[1]; // [0] is the header
+    expect(firstBlock.startsWith('Identity:')).toBe(true);
+  });
+
+  it('orders sections by task: triage leads with Vocabulary', () => {
+    const out = serializeProfileContext(sampleProfile(), 'live_triage');
+    const firstBlock = out.split('\n\n')[1];
+    expect(firstBlock.startsWith('Vocabulary:')).toBe(true);
+  });
+
+  it('a generous budget keeps every non-empty section', () => {
+    const out = serializeProfileContext(sampleProfile(), 'live_assistant', 100000);
+    for (const label of ['Identity:', 'Domain:', 'Projects:', 'People:', 'Vocabulary:', 'Goals:', 'Preferences:']) {
+      expect(out).toContain(label);
+    }
+  });
+
+  it('drops whole lowest-priority sections first under a tight budget', () => {
+    // triage priority: vocabulary, projects, people, identity, domain, goals, preferences
+    const profile = sampleProfile();
+    const vocabBlock = 'Vocabulary:\n- MRR: monthly recurring revenue\n- churn: customers who cancel';
+    // Budget large enough for header + vocabulary, but not the next (projects) block.
+    const budget = 'User profile (the professional you assist):'.length + 2 + vocabBlock.length + 5;
+
+    const out = serializeProfileContext(profile, 'live_triage', budget);
+
+    // Highest-priority block survives intact (no mid-block truncation)...
+    expect(out).toContain(vocabBlock);
+    // ...and every lower-priority section is dropped whole.
+    expect(out).not.toContain('Projects:');
+    expect(out).not.toContain('People:');
+    expect(out).not.toContain('Identity:');
+    expect(out.length).toBeLessThanOrEqual(budget);
+  });
+
+  it('never emits a partial block (trims strictly at section boundaries)', () => {
+    // A budget between the first and second block must yield the header + first block only.
+    const profile = sampleProfile();
+    const out = serializeProfileContext(profile, 'live_triage', 120);
+    // Whatever survived, the output is a clean join of complete blocks: the last
+    // block is fully present (its label line is intact) and length is within budget.
+    expect(out.length).toBeLessThanOrEqual(120);
+    expect(out.startsWith('User profile (the professional you assist):')).toBe(true);
+    // No dangling partial "- " line without content.
+    expect(out.endsWith('- ')).toBe(false);
+  });
+
+  it('returns empty string when even the top-priority block cannot fit', () => {
+    expect(serializeProfileContext(sampleProfile(), 'live_triage', 10)).toBe('');
+  });
+
+  it('uses per-category default budgets when none is given', () => {
+    // assistant default is the largest (1500) — with the sample profile everything fits.
+    const out = serializeProfileContext(sampleProfile(), 'live_assistant');
+    expect(out).toContain('Preferences:'); // lowest-priority assistant section still present
+    expect(out.length).toBeLessThanOrEqual(1500);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildProfileContext — DB integration + no-op contract
+// ---------------------------------------------------------------------------
+
+describe('buildProfileContext', () => {
+  it('returns empty string when no profile exists (injection is a no-op)', async () => {
+    buildDb({ selectRows: [] });
+    expect(await buildProfileContext('live_assistant')).toBe('');
+  });
+
+  it('serializes the stored profile for the given task', async () => {
+    buildDb({ selectRows: [makeRow()] });
+    const out = await buildProfileContext('live_assistant');
+    expect(out).toContain('Identity: Jane Doe');
+    expect(out).toContain('User profile (the professional you assist):');
+  });
+
+  it('honors an explicit char budget override', async () => {
+    buildDb({ selectRows: [makeRow()] });
+    const out = await buildProfileContext('live_triage', 20);
+    expect(out).toBe(''); // 20 chars fits nothing -> no-op
+  });
+});

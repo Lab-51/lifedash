@@ -12,7 +12,9 @@
 // projectService (createProjectRecord — shared project-creation path),
 // meetingIntelligenceService (fetchPriorBriefs), inbox/unassigned/autoPush rails,
 // projectAgentService (reused board-tool factories — see CIRCULAR IMPORT note
-// below for why liveSuggestionService is NOT imported here).
+// below for why liveSuggestionService is NOT imported here),
+// twinProfileService (buildProfileContext — V3.3 Task 2 profile injection into
+// the Live Assistant's system prompt, see buildLiveAssistantSystemPrompt below).
 //
 // === LIMITATIONS ===
 // - Rolling transcript window (not the whole meeting): a 2-hour local transcript
@@ -39,6 +41,7 @@ import { ensureInboxColumn } from './inboxColumnService';
 import { ensureUnassignedProject } from './unassignedProjectService';
 import { resolvePrimaryBoardId } from './autoPushService';
 import { notifyDataChanged } from './dataChangeNotifier';
+import { buildProfileContext } from './twinProfileService';
 import {
   createListBoardsTool,
   createListColumnCardsTool,
@@ -71,6 +74,29 @@ const CONTEXT_BRIEF_LIMIT = 3;
  * not crash the tool loop. Exported for tests.
  */
 export const NO_PROJECT_MESSAGE = 'no project linked to this meeting yet — ask the user or use createCardInInbox';
+
+// ---------------------------------------------------------------------------
+// Digital Twin profile injection (V3.3 Task 2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Prepend the digital-twin profile context block (see twinProfileService) to
+ * the Live Assistant's system prompt. Read fresh from the DB on every call —
+ * no caching — so profile edits apply on the very next message without a
+ * restart. Profile injection is an enhancement, never a failure source: if
+ * buildProfileContext throws for any reason, `basePrompt` is returned
+ * unchanged — byte-identical to today, exactly as when no profile has been
+ * authored yet.
+ */
+export async function buildLiveAssistantSystemPrompt(basePrompt: string): Promise<string> {
+  let profileBlock = '';
+  try {
+    profileBlock = await buildProfileContext('live_assistant');
+  } catch {
+    // profile injection is an enhancement, never a failure source — fall through with ''
+  }
+  return profileBlock ? `${profileBlock}\n\n${basePrompt}` : basePrompt;
+}
 
 // ---------------------------------------------------------------------------
 // Pure transcript helpers (exported for unit testing)

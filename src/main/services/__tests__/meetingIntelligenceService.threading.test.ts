@@ -68,6 +68,8 @@ vi.mock('../../../shared/types', () => ({
   MEETING_TEMPLATES: [],
 }));
 
+vi.mock('../twinProfileService', () => ({ buildProfileContext: vi.fn().mockResolvedValue('') }));
+
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
 // ---------------------------------------------------------------------------

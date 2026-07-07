@@ -35,7 +35,10 @@ export function isMeetingAgentStreamActive(): boolean {
 // All messages are still stored in DB and shown in the UI.
 const CONVERSATION_WINDOW = 20;
 
-const SYSTEM_PROMPT = `## Your Role
+// Exported so tests can assert the base prompt passed into
+// meetingAgentService.buildLiveAssistantSystemPrompt (V3.3 Task 2 profile
+// injection) is byte-identical to this literal.
+export const SYSTEM_PROMPT = `## Your Role
 You are the Live Assistant — an AI helper present during a live meeting. You have
 tools to inspect the live transcript, search past what is currently visible, look up
 the meeting's project and prior briefs, capture action items as cards, work the
@@ -100,12 +103,17 @@ export function registerMeetingAgentHandlers(): void {
 
     const factory = getProvider(provider.providerId, provider.providerName, provider.apiKeyEncrypted, provider.baseUrl);
 
+    // 5b. Inject the digital-twin profile context (V3.3 Task 2) — read fresh from
+    // the DB every send so profile edits apply on the very next message. Falls
+    // back to SYSTEM_PROMPT unchanged when no profile exists or the lookup fails.
+    const system = await meetingAgentService.buildLiveAssistantSystemPrompt(SYSTEM_PROMPT);
+
     // 6. Stream with tools
     const streamStart = performance.now();
     const result = streamText({
       model: factory(provider.model) as LanguageModel,
       messages: aiMessages,
-      system: SYSTEM_PROMPT,
+      system,
       tools,
       stopWhen: stepCountIs(5), // multi-step: model may chain tool calls before answering
       temperature: provider.temperature,

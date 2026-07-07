@@ -3,7 +3,9 @@
 // and action item lifecycle management (approve/dismiss/convert to card).
 //
 // === DEPENDENCIES ===
-// drizzle-orm, ai-provider.ts (generate), meetingService.ts (getMeeting), DB schema
+// drizzle-orm, ai-provider.ts (generate), meetingService.ts (getMeeting), DB schema,
+// twinProfileService (buildProfileContext — V3.3 Task 2 profile injection, see
+// injectTwinProfileContext below)
 //
 // === LIMITATIONS ===
 // - Prompt templates are hardcoded (no user customization yet)
@@ -23,6 +25,7 @@ import { createLogger } from './logger';
 import { autoPushActionItems, readAutoPushSetting } from './autoPushService';
 import { ensureUnassignedProject } from './unassignedProjectService';
 import { detectProjectFromTranscript } from './projectDetectionService';
+import { buildProfileContext } from './twinProfileService';
 import type { MeetingBrief, ActionItem, ActionItemStatus, MeetingTemplateType } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import { parseActionItems } from '../../shared/utils/action-item-parser';
@@ -415,6 +418,29 @@ async function injectConfirmedLiveContext(meetingId: string, userPrompt: string)
 }
 
 // ---------------------------------------------------------------------------
+// V3.3 Task 2: Digital Twin profile injection
+// ---------------------------------------------------------------------------
+
+/**
+ * Prepend the digital-twin profile context block (see twinProfileService) to a
+ * brief/action-item system prompt (`summarization` task type, ~1200 char brief
+ * budget). Read fresh from the DB on every call — no caching — so profile edits
+ * apply on the very next generation without a restart. Never blocks generation
+ * on failure — mirrors injectConfirmedLiveContext above: a lookup failure just
+ * skips the block (bonus context, not core generation), returning
+ * `systemPrompt` unchanged — byte-identical to today.
+ */
+export async function injectTwinProfileContext(systemPrompt: string): Promise<string> {
+  try {
+    const profileBlock = await buildProfileContext('summarization');
+    return profileBlock ? `${profileBlock}\n\n${systemPrompt}` : systemPrompt;
+  } catch (err) {
+    log.error('Twin profile context lookup failed:', err);
+    return systemPrompt;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Exported Functions
 // ---------------------------------------------------------------------------
 
@@ -422,7 +448,7 @@ async function injectConfirmedLiveContext(meetingId: string, userPrompt: string)
  * Generate an AI-powered meeting brief (structured summary) from the transcript.
  * Stores the result in `meeting_briefs` and returns the mapped object.
  *
- * Flow (added in MEET-INTEL.1-3, extended in LIVE.2 Task 2):
+ * Flow (added in MEET-INTEL.1-3, extended in LIVE.2 Task 2 and V3.3 Task 2):
  *   1. If meeting has no projectId, run project auto-detect classifier.
  *      High confidence → assign via updateMeeting (triggers link-time auto-push hook).
  *      Low confidence → route to system Unassigned + set unassignedPending=true.
@@ -430,7 +456,8 @@ async function injectConfirmedLiveContext(meetingId: string, userPrompt: string)
  *      and inject as a continuity preamble in the brief prompt.
  *   3. Inject accepted live decisions/questions (LIVE.2) as a "confirmed during
  *      the meeting" preamble.
- *   4. Generate the brief and persist it.
+ *   4. Inject the digital-twin profile context (V3.3) into the system prompt.
+ *   5. Generate the brief and persist it.
  */
 export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
   const meeting = await getMeeting(meetingId);
@@ -503,6 +530,10 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
   if (briefLangName) {
     systemPrompt += `\n\nIMPORTANT: The meeting transcript is in ${briefLangName}. Write the entire summary in ${briefLangName}.`;
   }
+
+  // 4. Digital-twin profile context (V3.3 Task 2) — who the user is, prepended
+  //    to the system prompt so the brief reads like it knows the professional.
+  systemPrompt = await injectTwinProfileContext(systemPrompt);
 
   let summaryText: string;
   try {
@@ -580,6 +611,10 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
     // Suppression is a safety net, not core extraction — never block on its failure
     log.error('Live-suggestion suppression lookup failed for meeting', meetingId, ':', err);
   }
+
+  // Digital-twin profile context (V3.3 Task 2) — who the user is, prepended to
+  // the system prompt so extracted action items read like they know the professional.
+  actionSystemPrompt = await injectTwinProfileContext(actionSystemPrompt);
 
   let descriptions: string[];
   try {

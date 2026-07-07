@@ -4,7 +4,10 @@
 // most recent), transcript search hit/miss with neighbour context,
 // createCardInInbox provenance + no-project routing to the Unassigned project,
 // the full tool registry, no-project degradation for the reused board tools,
-// captureNote's direct live_suggestions write, and a moveCard round trip.
+// captureNote's direct live_suggestions write, a moveCard round trip, and
+// (V3.3 Task 2) buildLiveAssistantSystemPrompt's digital-twin profile
+// injection contract: profile present -> block prepended; absent/error ->
+// base prompt returned byte-identical.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -71,6 +74,8 @@ vi.mock('../autoPushService', () => ({
 
 vi.mock('../dataChangeNotifier', () => ({ notifyDataChanged: vi.fn() }));
 
+vi.mock('../twinProfileService', () => ({ buildProfileContext: vi.fn() }));
+
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
@@ -80,6 +85,7 @@ import {
   searchSegments,
   createLiveAssistantCard,
   createMeetingAgentTools,
+  buildLiveAssistantSystemPrompt,
   NO_PROJECT_MESSAGE,
   TRANSCRIPT_WINDOW_CHAR_BUDGET,
 } from '../meetingAgentService';
@@ -90,6 +96,7 @@ import { ensureInboxColumn } from '../inboxColumnService';
 import { ensureUnassignedProject } from '../unassignedProjectService';
 import { resolvePrimaryBoardId } from '../autoPushService';
 import { notifyDataChanged } from '../dataChangeNotifier';
+import { buildProfileContext } from '../twinProfileService';
 
 // ---------------------------------------------------------------------------
 // buildTranscriptWindow
@@ -457,5 +464,41 @@ describe('board tools — moveCard round trip', () => {
     const result = await tools.moveCard.execute({ cardId: 'card-1', targetColumnId: 'missing-column' });
 
     expect(result).toEqual({ success: false, error: 'Target column not found' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildLiveAssistantSystemPrompt — digital-twin profile injection (V3.3 Task 2)
+// ---------------------------------------------------------------------------
+
+describe('buildLiveAssistantSystemPrompt', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const BASE_PROMPT = '## Your Role\nYou are the Live Assistant.';
+
+  it('returns the base prompt byte-identical when no profile exists (regression guard)', async () => {
+    vi.mocked(buildProfileContext).mockResolvedValue('');
+
+    const result = await buildLiveAssistantSystemPrompt(BASE_PROMPT);
+
+    expect(result).toBe(BASE_PROMPT);
+    expect(buildProfileContext).toHaveBeenCalledWith('live_assistant');
+  });
+
+  it('prepends the profile block, separated by a blank line, when a profile exists', async () => {
+    const block = 'User profile (the professional you assist):\n\nIdentity: Dana, Staff Engineer';
+    vi.mocked(buildProfileContext).mockResolvedValue(block);
+
+    const result = await buildLiveAssistantSystemPrompt(BASE_PROMPT);
+
+    expect(result).toBe(`${block}\n\n${BASE_PROMPT}`);
+  });
+
+  it('falls back to the base prompt byte-identical when buildProfileContext throws (never a failure source)', async () => {
+    vi.mocked(buildProfileContext).mockRejectedValue(new Error('db exploded'));
+
+    const result = await buildLiveAssistantSystemPrompt(BASE_PROMPT);
+
+    expect(result).toBe(BASE_PROMPT);
   });
 });

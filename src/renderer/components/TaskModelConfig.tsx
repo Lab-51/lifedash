@@ -35,6 +35,12 @@ const TASK_TYPE_INFO: { type: AITaskType; label: string; description: string }[]
     label: 'Live Assistant',
     description: 'In-meeting AI partner — answers questions and creates cards during recording',
   },
+  {
+    type: 'twin_interview',
+    label: 'Twin Interview Assist',
+    description:
+      'Optional AI-drafted answers for the Digital Twin wizard\'s "Interview me" steps — defaults to the Live Assistant model',
+  },
 ];
 
 /** Provider families that run entirely on the user's machine — no transcript leaves the device. */

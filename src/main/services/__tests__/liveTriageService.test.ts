@@ -4,7 +4,9 @@
 // cadence gating (no run under CADENCE_SEGMENTS new segments), the in-flight guard,
 // chat-priority skip (skip not queue), dedupe titles injected into the prompt,
 // malformed-JSON retry-then-skip (never throws), the MAX_PROPOSALS cap, and that
-// lifecycle stop clears the watermark/state.
+// lifecycle stop clears the watermark/state. Also covers buildTriageSystemPrompt's
+// digital-twin profile injection (V3.3 Task 2): profile present -> block
+// prepended to the system prompt; absent/error -> byte-identical to buildSystemPrompt.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -32,6 +34,8 @@ vi.mock('../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
 
+vi.mock('../twinProfileService', () => ({ buildProfileContext: vi.fn() }));
+
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
@@ -43,6 +47,8 @@ import {
   setMainWindow,
   setTranscriptionBusyProbe,
   parseSuggestions,
+  buildSystemPrompt,
+  buildTriageSystemPrompt,
   CADENCE_SEGMENTS,
   MAX_PROPOSALS,
 } from '../liveTriageService';
@@ -50,6 +56,7 @@ import { getDb } from '../../db/connection';
 import { getMeeting } from '../meetingService';
 import { resolveTaskModel, generate } from '../ai-provider';
 import { isMeetingAgentStreamActive } from '../../ipc/meeting-agent';
+import { buildProfileContext } from '../twinProfileService';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -145,6 +152,9 @@ beforeEach(() => {
   vi.mocked(resolveTaskModel).mockResolvedValue(PROVIDER as never);
   vi.mocked(getMeeting).mockResolvedValue({ title: 'Weekly Sync', segments: makeSegments(4) } as never);
   vi.mocked(generate).mockResolvedValue(jsonText([{ type: 'action_item', title: 'Ship the beta' }]) as never);
+  // No digital-twin profile by default — every existing test's system prompt
+  // must stay byte-identical to pre-V3.3 behaviour unless it opts in.
+  vi.mocked(buildProfileContext).mockResolvedValue('');
   buildDb();
   makeWindow();
 });
@@ -487,6 +497,64 @@ describe('project proposals (LIVE.3)', () => {
 
     expect(insertedValues.filter((v) => v.type === 'project')).toHaveLength(1);
     expect(insertedValues[0].title).toBe('Initiative A');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildTriageSystemPrompt — digital-twin profile injection (V3.3 Task 2)
+// ---------------------------------------------------------------------------
+
+describe('buildTriageSystemPrompt', () => {
+  it('is byte-identical to buildSystemPrompt when no profile exists (regression guard)', async () => {
+    vi.mocked(buildProfileContext).mockResolvedValue('');
+
+    expect(await buildTriageSystemPrompt(false)).toBe(buildSystemPrompt(false));
+    expect(await buildTriageSystemPrompt(true)).toBe(buildSystemPrompt(true));
+    expect(buildProfileContext).toHaveBeenCalledWith('live_triage');
+  });
+
+  it('prepends the profile block, separated by a blank line, when a profile exists', async () => {
+    const block = 'User profile (the professional you assist):\n\nVocabulary:\n- ARR: annual recurring revenue';
+    vi.mocked(buildProfileContext).mockResolvedValue(block);
+
+    const result = await buildTriageSystemPrompt(false);
+
+    expect(result).toBe(`${block}\n\n${buildSystemPrompt(false)}`);
+  });
+
+  it('falls back to buildSystemPrompt byte-identical when buildProfileContext throws (never a failure source)', async () => {
+    vi.mocked(buildProfileContext).mockRejectedValue(new Error('db exploded'));
+
+    const result = await buildTriageSystemPrompt(false);
+
+    expect(result).toBe(buildSystemPrompt(false));
+  });
+});
+
+describe('twin profile injection — full triage pipeline (V3.3 Task 2)', () => {
+  it('reaches the model system prompt with the profile block prepended when a profile exists', async () => {
+    const block = 'User profile (the professional you assist):\n\nIdentity: Dana, PM';
+    vi.mocked(buildProfileContext).mockResolvedValue(block);
+
+    startTriage(MEETING_ID);
+    emitSegments(CADENCE_SEGMENTS);
+    await flush();
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    const systemArg = vi.mocked(generate).mock.calls[0][0].system as string;
+    expect(systemArg.startsWith(block)).toBe(true);
+    expect(systemArg).toContain('You extract concrete'); // base instructions still present
+  });
+
+  it('does not disturb the malformed-JSON retry-then-skip failure tolerance when profile injection throws', async () => {
+    vi.mocked(buildProfileContext).mockRejectedValue(new Error('db exploded'));
+    vi.mocked(generate).mockResolvedValue(jsonText([{ type: 'action_item', title: 'Ship the beta' }]) as never);
+
+    startTriage(MEETING_ID);
+    expect(() => emitSegments(CADENCE_SEGMENTS)).not.toThrow();
+    await flush();
+
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 });
 

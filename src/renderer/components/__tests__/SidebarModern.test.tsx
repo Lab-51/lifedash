@@ -73,11 +73,11 @@ describe('SidebarModern — V3.1 IA collapse (3-entry nav)', () => {
     expect(settings).toHaveAttribute('href', '/settings');
   });
 
-  it('renders the Twin entry as disabled with an "arrives in V3.3" tooltip', () => {
+  it('renders the Twin entry as an enabled link to /twin (V3.3 Task 3)', () => {
     renderSidebar();
-    const twin = screen.getByRole('button', { name: /twin/i });
-    expect(twin).toHaveAttribute('aria-disabled', 'true');
-    expect(twin).toHaveAttribute('title', 'Twin — arrives in V3.3');
+    const twin = screen.getByRole('link', { name: /twin/i });
+    expect(twin).toHaveAttribute('href', '/twin');
+    expect(twin).not.toHaveAttribute('aria-disabled');
   });
 });
 

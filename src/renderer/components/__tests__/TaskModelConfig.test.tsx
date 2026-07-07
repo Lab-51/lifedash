@@ -86,3 +86,28 @@ describe('TaskModelConfig — Live Assistant row', () => {
     expect(screen.getByText(PRIVACY_HINT_TEXT)).toBeInTheDocument();
   });
 });
+
+describe('TaskModelConfig — Twin Interview row (V3.3 Task 5)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useSettingsStore.setState({
+      settings: {},
+      getTaskModels: vi.fn().mockReturnValue(null),
+      setTaskModels: vi.fn().mockResolvedValue(undefined),
+    } as never);
+  });
+
+  it('lists Twin Interview Assist among the configurable task types, so it can be split from Live Assistant', () => {
+    render(<TaskModelConfig providers={[makeProvider({ id: 'openai-1', name: 'openai' })]} />);
+
+    expect(screen.getByText('Twin Interview Assist')).toBeInTheDocument();
+    expect(screen.getByText(/Interview me.*steps/)).toBeInTheDocument();
+  });
+
+  it('does not show the Live Assistant privacy hint on the Twin Interview row', () => {
+    render(<TaskModelConfig providers={[makeProvider({ id: 'openai-1', name: 'openai' })]} />);
+
+    // Only one privacy hint on the page (Live Assistant's) — Twin Interview has none.
+    expect(screen.getAllByText(PRIVACY_HINT_TEXT)).toHaveLength(1);
+  });
+});

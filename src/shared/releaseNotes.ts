@@ -28,8 +28,9 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
-    // V3.1 session-centric pivot (Tasks 1-6). Version number is a draft — confirm
-    // against package.json at release time (/nexus-release owns the actual bump).
+    // V3.1 session-centric pivot (Tasks 1-6) + V3.2 Living Brain (Tasks 1-5) +
+    // V3.3 Digital Twin (Tasks 1-5). Version number is a draft — confirm against
+    // package.json at release time (/nexus-release owns the actual bump).
     version: '2.3.0',
     sections: [
       {
@@ -45,6 +46,10 @@ export const releaseHistory: ReleaseNotesData[] = [
           'The Brain map grows live during a session — new cards and updates fade in as they happen, with a small badge on collapsed branches so nothing gets missed while they stay collapsed.',
           'Hover any card, decision, or question in the Brain map to see its dashed provenance link back to the session it came from.',
           'The Brain map is built entirely from your own local data, matches light and dark themes, and asks before expanding an unusually large branch instead of freezing.',
+          'A new Digital Twin profile — the professional you work for — authored through a guided 8-step wizard: fully manual, or with an optional local-AI "Interview me" draft per step that you always review and edit before saving.',
+          'The Twin page lets you view and edit every profile section — identity, domain, projects, people, vocabulary, goals, and preferences — any time, not just during the wizard.',
+          'Once authored, your Twin profile is automatically woven into the Live Assistant, live triage proposals, and meeting briefs — so the assistant speaks your vocabulary, tracks your projects and people, and matches your tone, within a strict per-task budget that never crowds out the meeting itself.',
+          "A new Twin Interview Assist row in AI settings lets you route the wizard's optional AI drafting to a different model than Live Assistant, if you'd rather split them.",
         ],
       },
       {
@@ -53,6 +58,7 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Search runs as query-time Postgres full-text search (websearch_to_tsquery) with the query always parameterized — no new indexes or migrations needed at this scale.',
           'The Brain map renders as pure event-driven SVG (d3-hierarchy tidy tree + d3-zoom pan/zoom) — no continuous animation loop, so it costs nothing while idle.',
+          'Twin profile context is deterministically serialized and budgeted per task (triage ~800 chars, assistant ~1500, brief ~1200), trimmed at section boundaries only — never mid-sentence — and is a byte-identical no-op when no profile has been authored.',
         ],
       },
     ],

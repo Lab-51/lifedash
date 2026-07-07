@@ -1,6 +1,7 @@
 // === FILE PURPOSE ===
 // Sidebar Modern — Primary navigation with HUD-styled unified teal glow.
-// V3.1: collapsed to exactly 3 entries (Sessions / Twin[disabled] / Settings).
+// V3.1: collapsed to exactly 3 entries (Sessions / Twin / Settings).
+// V3.3 Task 3: Twin is now a real routable destination.
 // Legacy surfaces (Projects, Brainstorm, Ideas, Focus, Intel) keep their routes
 // mounted for deep links and search results — only their nav entries are gone.
 
@@ -29,7 +30,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: '/', label: 'Sessions', icon: Mic, tourId: 'nav-sessions' },
-  { path: '/twin', label: 'Twin', icon: Brain, disabled: true, disabledHint: 'Twin — arrives in V3.3' },
+  { path: '/twin', label: 'Twin', icon: Brain },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 

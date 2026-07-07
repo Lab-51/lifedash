@@ -50,6 +50,7 @@ import type { RecoveryState } from '../shared/types/electron-api';
 import { toast } from './hooks/useToast';
 
 const SessionsHomePage = lazy(() => import('./pages/SessionsHomePage'));
+const TwinPage = lazy(() => import('./components/TwinPage'));
 const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
 const IdeasPage = lazy(() => import('./pages/IdeasPage'));
 const IntelPage = lazy(() => import('./pages/IntelPage'));
@@ -420,6 +421,7 @@ function App() {
           <Routes>
             <Route element={<AppLayout />}>
               <Route index element={<SessionsHomePage />} />
+              <Route path="/twin" element={<TwinPage />} />
               <Route path="/projects" element={<Navigate to="/" replace />} />
               <Route path="/meetings" element={<MeetingsPage />} />
               <Route path="/intel" element={<IntelPage />} />

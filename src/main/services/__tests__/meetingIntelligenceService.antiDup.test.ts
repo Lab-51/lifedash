@@ -99,6 +99,8 @@ vi.mock('../../../shared/types', () => ({
   MEETING_TEMPLATES: [],
 }));
 
+vi.mock('../twinProfileService', () => ({ buildProfileContext: vi.fn().mockResolvedValue('') }));
+
 // Note: ../autoPushService is intentionally NOT mocked — this test runs the real
 // generateActionItems -> autoPushActionItems -> cards-insert pipeline.
 

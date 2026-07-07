@@ -359,10 +359,13 @@ const DEFAULT_MODELS: Record<AIProviderName, string> = {
  * Task types that inherit another task's config when unset. `live_triage`
  * (the proactive in-meeting proposal loop) shares the single local model with
  * `live_assistant` chat by default, so it falls back to the assistant's config
- * until the user splits them in Settings. See resolveTaskModel step 1.
+ * until the user splits them in Settings. `twin_interview` (the V3.3 Digital
+ * Twin profile interview's AI-assist) follows the same pattern — it inherits the
+ * assistant's local model until split in Settings. See resolveTaskModel step 1.
  */
 const TASK_MODEL_FALLBACKS: Record<string, string> = {
   live_triage: 'live_assistant',
+  twin_interview: 'live_assistant',
 };
 
 /**

@@ -96,6 +96,7 @@ import type {
 } from './intel-feed';
 import type { SearchResults } from './search';
 import type { BrainScope, BrainTree } from './brain';
+import type { TwinProfile, TwinProfileSections, TwinProfileSectionKey, TwinInterviewDraft } from './twin';
 
 export interface RecoveryState {
   timestamp: string;
@@ -576,6 +577,15 @@ export interface ElectronAPI {
 
   // Brain (hierarchical mind-map data for the workspace or a session, V3.2 Task 1)
   buildBrainTree: (scope: BrainScope) => Promise<BrainTree>;
+
+  // Digital Twin profile (V3.3 Tasks 3-4) — singleton profile read, section-level
+  // patch, and the creation wizard's optional AI-assist draft (never blocks).
+  twinGetProfile: () => Promise<TwinProfile | null>;
+  twinUpdateProfileSection: <K extends TwinProfileSectionKey>(
+    section: K,
+    value: TwinProfileSections[K],
+  ) => Promise<TwinProfile>;
+  twinDraftSection: <K extends TwinProfileSectionKey>(section: K, answer: string) => Promise<TwinInterviewDraft<K>>;
 }
 
 declare global {
