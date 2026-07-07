@@ -17,6 +17,8 @@ import { useNavigate } from 'react-router-dom';
 import { Search, X, Mic, LayoutGrid, Folder } from 'lucide-react';
 import { SNIPPET_HIGHLIGHT_START, SNIPPET_HIGHLIGHT_END } from '../../shared/types';
 import type { SearchResultItem, SearchResults } from '../../shared/types';
+import { useMeetingStore } from '../stores/meetingStore';
+import { projectSessionLink } from '../lib/sessionResolver';
 
 const EMPTY_RESULTS: SearchResults = { sessions: [], cards: [], projects: [] };
 
@@ -50,6 +52,7 @@ function Snippet({ text }: { text: string }) {
 
 export default function SessionSearch() {
   const navigate = useNavigate();
+  const meetings = useMeetingStore((s) => s.meetings);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResults>(EMPTY_RESULTS);
   const [open, setOpen] = useState(false);
@@ -109,12 +112,16 @@ export default function SessionSearch() {
 
   const goToResult = useCallback(
     (item: SearchResultItem) => {
+      // Cards/projects have no standalone destination anymore — open them inside the
+      // relevant session's Board tab (card => +openCard), or land on home when the
+      // project has no session (projectSessionLink). Sessions navigate directly.
       if (item.type === 'session') void navigate(`/session/${item.id}`);
-      else if (item.type === 'card') void navigate(`/projects/${item.projectId}?openCard=${item.id}`);
-      else void navigate(`/projects/${item.id}`);
+      else if (item.type === 'card')
+        void navigate(item.projectId ? projectSessionLink(item.projectId, meetings, item.id) : '/');
+      else void navigate(projectSessionLink(item.id, meetings));
       clearSearch();
     },
-    [navigate, clearSearch],
+    [navigate, clearSearch, meetings],
   );
 
   const handleKeyDown = useCallback(

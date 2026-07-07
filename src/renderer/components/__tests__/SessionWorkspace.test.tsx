@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
+import { forwardRef, useImperativeHandle } from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import '@testing-library/jest-dom';
 
 // ---------------------------------------------------------------------------
@@ -16,7 +17,45 @@ vi.stubGlobal('electronAPI', {
   meetingAgentLoad: vi.fn().mockResolvedValue([]),
   getBoards: vi.fn().mockResolvedValue([]),
   getColumns: vi.fn().mockResolvedValue([]),
+  buildBrainTree: vi.fn().mockResolvedValue({
+    root: {
+      id: 'session:meet-1',
+      type: 'session',
+      label: 'Weekly Standup',
+      entityId: 'meet-1',
+      childCount: 1,
+      children: [
+        {
+          id: 'group:cards:meet-1',
+          type: 'group',
+          label: 'Cards created',
+          entityId: null,
+          childCount: 0,
+          children: [],
+        },
+      ],
+    },
+    crossLinks: [],
+  }),
 });
+
+// BrainMindMap's own d3/layout behavior is covered by BrainMindMap.test.tsx —
+// here it's mocked to a minimal forwardRef stub so tests can trigger
+// onOpenEntity directly and assert SessionWorkspace's routing (Task 3).
+vi.mock('../BrainMindMap', () => ({
+  default: forwardRef(function MockBrainMindMap(
+    props: { scopeKey: string; onOpenEntity: (arg: { type: string; entityId: string }) => void },
+    ref: React.Ref<{ fit: () => void }>,
+  ) {
+    useImperativeHandle(ref, () => ({ fit: () => {} }));
+    return (
+      <div data-testid="mock-mindmap" data-scope-key={props.scopeKey}>
+        <button onClick={() => props.onOpenEntity({ type: 'session', entityId: 'other-meet' })}>open-session</button>
+        <button onClick={() => props.onOpenEntity({ type: 'card', entityId: 'card-1' })}>open-card</button>
+      </div>
+    );
+  }),
+}));
 
 // ---------------------------------------------------------------------------
 // Import stores and component AFTER mocking
@@ -79,6 +118,13 @@ function NavigateButton({ to }: { to: string }) {
   return <button onClick={() => navigate(to)}>{`go-to-${to}`}</button>;
 }
 
+/** Surfaces the router location so tests can assert the in-session viewProject/openCard
+ *  override was applied (instead of a real navigation away to a retired /projects page). */
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="test-location">{`${location.pathname}${location.search}`}</div>;
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -125,11 +171,112 @@ describe('SessionWorkspace — routed session page', () => {
     expect(screen.getByText('The board arrives with this project')).toBeInTheDocument();
   });
 
-  it('switches to the Brain tab and shows the V3.2 placeholder', async () => {
+  it('switches to the Brain tab and loads the session-scoped mind map via IPC', async () => {
     const user = userEvent.setup();
     renderWorkspace();
     await user.click(screen.getByRole('tab', { name: 'Brain' }));
-    expect(screen.getByText('The living graph arrives in V3.2.')).toBeInTheDocument();
+    expect(await screen.findByTestId('mock-mindmap')).toHaveAttribute('data-scope-key', 'session:meet-1');
+    expect(window.electronAPI.buildBrainTree).toHaveBeenCalledWith({ meetingId: 'meet-1' });
+  });
+
+  it('routes a Brain session-node click to /session/:id (real navigation)', async () => {
+    const user = userEvent.setup();
+    renderWorkspace(); // starts at /session/meet-1
+    await user.click(screen.getByRole('tab', { name: 'Brain' }));
+    await screen.findByTestId('mock-mindmap');
+
+    await user.click(screen.getByText('open-session'));
+
+    // A real route change to /session/other-meet: SessionWorkspace re-renders for
+    // the new id, which doesn't match the mocked selectedMeeting (still meet-1),
+    // landing on the not-found gate — confirming navigation actually happened.
+    expect(await screen.findByText('Meeting not found')).toBeInTheDocument();
+  });
+
+  it("shows a Brain FOREIGN-project card IN this session's Board tab via the viewProject override (no /projects navigation)", async () => {
+    const user = userEvent.setup();
+    // Session has no own project; the clicked card belongs to proj-9 (a foreign project).
+    // The board store is NOT yet settled on proj-9 (project null, loading) — this is the
+    // real post-click / pre-load instant, when ?openCard= must survive until the foreign
+    // board loads. (A settled proj-9 board that still lacked the card would be a genuinely
+    // stale openCard, which fix C now clears — covered by its own test below.)
+    useBoardStore.setState({
+      allCards: [{ id: 'card-1', columnId: 'col-1', projectId: 'proj-9' } as any],
+      project: null,
+      columns: [],
+      cards: [],
+      labels: [],
+      relationships: [],
+      loading: true,
+      error: null,
+      loadBoard: vi.fn().mockResolvedValue(undefined),
+    } as any);
+    useProjectStore.setState({
+      projects: [{ id: 'proj-9', name: 'Proj Nine' }] as any,
+      loadProjects: vi.fn().mockResolvedValue(undefined),
+    } as any);
+    render(
+      <MemoryRouter initialEntries={['/session/meet-1']}>
+        <Routes>
+          <Route path="/session/:id" element={<SessionWorkspace />} />
+        </Routes>
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole('tab', { name: 'Brain' }));
+    await screen.findByTestId('mock-mindmap');
+
+    await user.click(screen.getByText('open-card'));
+
+    // In-canvas: Board tab active, the foreign board embedded, the back-banner shown,
+    // and the URL carries the override (viewProject + openCard) — NOT a /projects nav.
+    expect(screen.getByRole('tab', { name: 'Board' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('embedded-board')).toBeInTheDocument();
+    expect(screen.getByText('Proj Nine')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /back to this session's board/i })).toBeInTheDocument();
+    expect(screen.getByTestId('test-location')).toHaveTextContent('/session/meet-1?viewProject=proj-9&openCard=card-1');
+  });
+
+  it("the viewProject back-banner returns the Board tab to the session's own project", async () => {
+    const user = userEvent.setup();
+    useMeetingStore.setState({ selectedMeeting: makeMeeting({ projectId: 'proj-own' }) as any });
+    useBoardStore.setState({
+      allCards: [{ id: 'card-1', columnId: 'col-1', projectId: 'proj-9' } as any],
+      project: { id: 'proj-own', name: 'Own Project' },
+      columns: [],
+      cards: [],
+      labels: [],
+      relationships: [],
+      loading: false,
+      error: null,
+      loadBoard: vi.fn().mockResolvedValue(undefined),
+    } as any);
+    useProjectStore.setState({
+      projects: [
+        { id: 'proj-own', name: 'Own Project' },
+        { id: 'proj-9', name: 'Proj Nine' },
+      ] as any,
+      loadProjects: vi.fn().mockResolvedValue(undefined),
+    } as any);
+    render(
+      <MemoryRouter initialEntries={['/session/meet-1']}>
+        <Routes>
+          <Route path="/session/:id" element={<SessionWorkspace />} />
+        </Routes>
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole('tab', { name: 'Brain' }));
+    await screen.findByTestId('mock-mindmap');
+    await user.click(screen.getByText('open-card'));
+    expect(screen.getByText('Proj Nine')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /back to this session's board/i }));
+
+    // Banner gone, override cleared — the board is back on the session's own project.
+    expect(screen.queryByText('Proj Nine')).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Board' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('test-location')).toHaveTextContent('/session/meet-1');
   });
 
   it('mounts the interactive EmbeddedBoard (not the empty state) when the session has a project', async () => {

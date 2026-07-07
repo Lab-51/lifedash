@@ -71,3 +71,35 @@ describe('meetingStore — briefErrors', () => {
     expect(useMeetingStore.getState().briefErrors['meeting-B']).toBeUndefined();
   });
 });
+
+describe('meetingStore — diarizeMeeting selectedMeeting guard', () => {
+  beforeEach(() => {
+    resetState();
+    vi.clearAllMocks();
+    (window.electronAPI as any).diarizeMeeting = vi.fn().mockResolvedValue({ success: true });
+    (window.electronAPI as any).getMeetingAnalytics = vi.fn().mockResolvedValue(null);
+  });
+
+  it('does NOT overwrite selectedMeeting when diarizing a DIFFERENT meeting', async () => {
+    // The in-brain inspector can diarize a meeting the host page does NOT own;
+    // stomping selectedMeeting would collapse the host page to a spinner.
+    const host = { id: 'meeting-HOST', segments: [], actionItems: [], brief: null } as any;
+    useMeetingStore.setState({ selectedMeeting: host });
+    vi.mocked(window.electronAPI.getMeeting).mockResolvedValueOnce({ id: 'meeting-OTHER', segments: [] } as any);
+
+    await useMeetingStore.getState().diarizeMeeting('meeting-OTHER');
+
+    expect(useMeetingStore.getState().selectedMeeting).toBe(host); // untouched
+    expect(useMeetingStore.getState().diarizing).toBe(false);
+  });
+
+  it('DOES update selectedMeeting when diarizing the meeting the page owns', async () => {
+    useMeetingStore.setState({ selectedMeeting: { id: 'meeting-OWN', segments: [] } as any });
+    const updated = { id: 'meeting-OWN', segments: [{ speaker: 'A' }] } as any;
+    vi.mocked(window.electronAPI.getMeeting).mockResolvedValueOnce(updated);
+
+    await useMeetingStore.getState().diarizeMeeting('meeting-OWN');
+
+    expect(useMeetingStore.getState().selectedMeeting).toBe(updated);
+  });
+});

@@ -36,6 +36,7 @@ import { registerDiagnosticsHandlers } from './diagnostics';
 import { registerSyncHandlers } from './sync';
 import { registerIntelFeedHandlers } from './intel-feed';
 import { registerSearchHandlers } from './search';
+import { registerBrainHandlers } from './brain';
 import { trackTiming } from '../services/performanceTracker';
 
 /**
@@ -92,6 +93,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerSyncHandlers(mainWindow);
   registerIntelFeedHandlers();
   registerSearchHandlers();
+  registerBrainHandlers();
 
   // App-level: open URL in system browser (not Electron)
   ipcMain.handle('app:open-external', async (_event, url: string) => {

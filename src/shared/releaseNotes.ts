@@ -41,6 +41,10 @@ export const releaseHistory: ReleaseNotesData[] = [
           'The project board now lives right inside a session — switch to the Board tab during or after a meeting to see cards update live as they are created, without leaving the conversation.',
           'A new Session Activity feed shows what happened during a live meeting (or after it) — accepted proposals, assistant tool calls, and new cards — with a click to jump straight to the relevant tab.',
           'Full-text search on the Sessions home — search meeting titles, transcripts, briefs, card titles/descriptions, and project names all from one box, with grouped, ranked results you can jump to instantly.',
+          'A new Brain tab renders your workspace — or a single session — as a living, collapsible mind map: expand and collapse branches to browse projects, columns, cards, decisions, and questions.',
+          'The Brain map grows live during a session — new cards and updates fade in as they happen, with a small badge on collapsed branches so nothing gets missed while they stay collapsed.',
+          'Hover any card, decision, or question in the Brain map to see its dashed provenance link back to the session it came from.',
+          'The Brain map is built entirely from your own local data, matches light and dark themes, and asks before expanding an unusually large branch instead of freezing.',
         ],
       },
       {
@@ -48,6 +52,7 @@ export const releaseHistory: ReleaseNotesData[] = [
         label: 'Internal',
         items: [
           'Search runs as query-time Postgres full-text search (websearch_to_tsquery) with the query always parameterized — no new indexes or migrations needed at this scale.',
+          'The Brain map renders as pure event-driven SVG (d3-hierarchy tidy tree + d3-zoom pan/zoom) — no continuous animation loop, so it costs nothing while idle.',
         ],
       },
     ],

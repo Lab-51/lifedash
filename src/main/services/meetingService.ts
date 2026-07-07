@@ -13,6 +13,7 @@ import { eq, desc, asc, count, inArray, ilike, and, ne } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { meetings, transcripts, meetingBriefs, actionItems } from '../db/schema';
 import { autoPushActionItems, readAutoPushSetting } from './autoPushService';
+import { notifyDataChanged } from './dataChangeNotifier';
 import { createLogger } from './logger';
 import type {
   Meeting,
@@ -163,18 +164,8 @@ export async function createMeeting(data: CreateMeetingInput): Promise<Meeting> 
   return toMeeting(row);
 }
 
-export async function updateMeeting(id: string, data: UpdateMeetingInput): Promise<Meeting> {
-  const db = getDb();
-
-  // Detect null→non-null projectId transition BEFORE applying the update
-  let newlyLinked = false;
-  if (data.projectId != null) {
-    const [current] = await db.select({ projectId: meetings.projectId }).from(meetings).where(eq(meetings.id, id));
-    if (current?.projectId == null) {
-      newlyLinked = true;
-    }
-  }
-
+/** Map the partial update input to the DB column set (only provided fields). */
+function buildMeetingUpdateData(data: UpdateMeetingInput): Record<string, unknown> {
   const updateData: Record<string, unknown> = {};
   if (data.title !== undefined) updateData.title = data.title;
   if (data.projectId !== undefined) updateData.projectId = data.projectId;
@@ -182,7 +173,24 @@ export async function updateMeeting(id: string, data: UpdateMeetingInput): Promi
   if (data.audioPath !== undefined) updateData.audioPath = data.audioPath;
   if (data.status !== undefined) updateData.status = data.status;
   if (data.unassignedPending !== undefined) updateData.unassignedPending = data.unassignedPending;
+  return updateData;
+}
 
+export async function updateMeeting(id: string, data: UpdateMeetingInput): Promise<Meeting> {
+  const db = getDb();
+
+  // Capture the current projectId BEFORE the update so we can detect a REAL
+  // project change (link / switch / unlink) and both drive link-time auto-push
+  // and broadcast a refresh (the Brain + project-keyed boards only update on a
+  // data:changed event — a relink is otherwise invisible to them).
+  let oldProjectId: string | null | undefined;
+  if (data.projectId !== undefined) {
+    const [current] = await db.select({ projectId: meetings.projectId }).from(meetings).where(eq(meetings.id, id));
+    oldProjectId = current?.projectId ?? null;
+  }
+  const newlyLinked = data.projectId != null && oldProjectId === null;
+
+  const updateData = buildMeetingUpdateData(data);
   const [row] = await db.update(meetings).set(updateData).where(eq(meetings.id, id)).returning();
 
   // Trigger auto-push for pending items when the meeting is newly linked to a project
@@ -214,6 +222,17 @@ export async function updateMeeting(id: string, data: UpdateMeetingInput): Promi
         log.error('Link-time auto-push failed for meeting', id, ':', err);
       }
     }
+  }
+
+  // A project link CHANGE (link / switch / unlink) isn't otherwise a data:changed
+  // event, so the Brain's session-scope tree and any project-keyed board would go
+  // stale. Emit ONLY when projectId actually changed (never on plain title/status/
+  // endedAt edits, to avoid a broadcast storm). scope 'projects' wakes
+  // useBrainLiveSync (refreshes the active Brain scope regardless of projectId) and
+  // useBoardLiveSync for the affected project. Covers the dropdown, auto-detect,
+  // accept-chip, agent tool, and Unassigned reassignment — they all funnel here.
+  if (data.projectId !== undefined && data.projectId !== oldProjectId) {
+    notifyDataChanged({ scope: 'projects', projectId: data.projectId ?? oldProjectId ?? undefined });
   }
 
   return toMeeting(row);

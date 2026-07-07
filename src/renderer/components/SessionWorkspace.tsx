@@ -24,10 +24,12 @@ import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useRecordingStore } from '../stores/recordingStore';
+import { useBoardStore } from '../stores/boardStore';
 import { toast } from '../hooks/useToast';
 import EmbeddedBoard from './EmbeddedBoard';
+import ViewingProjectBanner from './ViewingProjectBanner';
 import LiveCanvasTabs, { type CanvasTabId, type CanvasTabDef } from './LiveCanvasTabs';
-import BrainTabPanel from './BrainTabPanel';
+import BrainTabPanel, { resolveBrainOpenTarget } from './BrainTabPanel';
 import BriefSection from './BriefSection';
 import ActionItemList from './ActionItemList';
 import ConvertActionModal from './ConvertActionModal';
@@ -44,10 +46,12 @@ import {
 } from '../stores/activityFeedStore';
 import type {
   ActionItem,
+  BrainNodeType,
   Column,
   LiveSuggestion,
   MeetingAgentMessage,
   MeetingWithTranscript,
+  Project,
 } from '../../shared/types';
 import {
   MeetingHeader,
@@ -66,14 +70,34 @@ import {
 // state prompting the user to link one. The board tab is now the review surface
 // for auto-pushed cards: KanbanCardModern's Reject/Keep menu renders here via
 // EmbeddedBoard's unchanged columns.
+//
+// Viewed-project override (STORY-PROJECTS-IN-SESSION): a `viewProject` search param
+// temporarily points this board at a FOREIGN project (e.g. a Brain "Everything"
+// card, or a caught /projects deep link) WITHOUT navigating away — a back-banner
+// lets the user return to the session's own project. `boardProjectId` is the only
+// thing that changes; the `active` guard (two coexisting boards under the overlay)
+// is untouched.
 // ---------------------------------------------------------------------------
-function BoardTabPanel({ meeting }: { meeting: MeetingWithTranscript }) {
+function BoardTabPanel({
+  meeting,
+  viewProjectId,
+  projects,
+  onClearViewProject,
+}: {
+  meeting: MeetingWithTranscript;
+  viewProjectId: string | null;
+  projects: Project[];
+  onClearViewProject: () => void;
+}) {
   // While the full-screen LiveModeOverlay covers this route, its own EmbeddedBoard
   // is the foreground; this covered instance goes inert (no load/stomp, no second
   // drag monitor) and self-heals when the overlay is dismissed.
   const overlayFullScreen = useRecordingStore((s) => s.isRecording && !s.liveModeMinimized);
 
-  if (!meeting.projectId) {
+  const boardProjectId = viewProjectId ?? meeting.projectId;
+  const isForeign = viewProjectId !== null && viewProjectId !== meeting.projectId;
+
+  if (!boardProjectId) {
     return (
       <div
         role="tabpanel"
@@ -94,9 +118,14 @@ function BoardTabPanel({ meeting }: { meeting: MeetingWithTranscript }) {
     );
   }
 
+  const viewedName = projects.find((p) => p.id === viewProjectId)?.name ?? 'another project';
+
   return (
-    <div role="tabpanel" id="panel-board" aria-labelledby="tab-board" className="flex-1 flex min-h-0">
-      <EmbeddedBoard projectId={meeting.projectId} active={!overlayFullScreen} />
+    <div role="tabpanel" id="panel-board" aria-labelledby="tab-board" className="flex-1 flex flex-col min-h-0">
+      {isForeign && <ViewingProjectBanner projectName={viewedName} onBack={onClearViewProject} />}
+      <div className="flex-1 flex min-h-0">
+        <EmbeddedBoard projectId={boardProjectId} active={!overlayFullScreen} />
+      </div>
     </div>
   );
 }
@@ -430,15 +459,19 @@ function SessionLoadGate({ loadState }: { loadState: SessionLoadState }) {
 // not inside the load effect, so switching ids can't leave stale state visible
 // for even one frame.
 // ---------------------------------------------------------------------------
-function useSessionLoad(id: string | undefined) {
+function useSessionLoad(id: string | undefined, initialTab: CanvasTabId) {
   const loadMeeting = useMeetingStore((s) => s.loadMeeting);
-  const [activeTab, setActiveTab] = useState<CanvasTabId>('transcript');
+  const [activeTab, setActiveTab] = useState<CanvasTabId>(initialTab);
   const [loadState, setLoadState] = useState<SessionLoadState>('loading');
   const [prevId, setPrevId] = useState(id);
 
+  // A freshly-routed session lands on its transcript UNLESS the URL asks for the
+  // board (a viewProject/openCard deep link — e.g. a caught /projects redirect or a
+  // CommandPalette/SessionSearch jump-to-board). `initialTab` is captured at the
+  // moment the id changes so param edits made later never re-reset the tab.
   if (id !== prevId) {
     setPrevId(id);
-    setActiveTab('transcript');
+    setActiveTab(initialTab);
     setLoadState('loading');
   }
 
@@ -459,14 +492,49 @@ function useSessionLoad(id: string | undefined) {
 }
 
 // ---------------------------------------------------------------------------
+// Search-param helpers for the viewed-project override (module-level so their
+// branching stays out of SessionWorkspace's own complexity budget).
+// ---------------------------------------------------------------------------
+/** A viewProject/openCard deep link lands straight on the Board tab. */
+function initialBoardTab(params: URLSearchParams): CanvasTabId {
+  return params.get('viewProject') || params.get('openCard') ? 'board' : 'transcript';
+}
+
+/** Next params pointing the Board tab at a project — own project drops viewProject
+ *  (banner hidden); a foreign one sets it. openCard opens a specific card on load. */
+function boardSearchParams(
+  current: URLSearchParams,
+  projectId: string,
+  ownProjectId: string | null,
+  cardId?: string,
+): URLSearchParams {
+  const next = new URLSearchParams(current);
+  if (projectId === ownProjectId) next.delete('viewProject');
+  else next.set('viewProject', projectId);
+  if (cardId) next.set('openCard', cardId);
+  else next.delete('openCard');
+  return next;
+}
+
+/** Next params with the viewed-project override removed (back to the own board). */
+function clearedBoardParams(current: URLSearchParams): URLSearchParams {
+  const next = new URLSearchParams(current);
+  next.delete('viewProject');
+  next.delete('openCard');
+  return next;
+}
+
+// ---------------------------------------------------------------------------
 // SessionWorkspace page shell
 // ---------------------------------------------------------------------------
 export default function SessionWorkspace() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const autoGenerate = searchParams.get('autoGenerate') === '1';
   const initialTranscriptSearch = searchParams.get('transcriptSearch') ?? undefined;
+  const viewProjectParam = searchParams.get('viewProject');
+  const initialTab = initialBoardTab(searchParams);
 
   const selectedMeeting = useMeetingStore((s) => s.selectedMeeting);
   const clearSelectedMeeting = useMeetingStore((s) => s.clearSelectedMeeting);
@@ -476,8 +544,9 @@ export default function SessionWorkspace() {
   const convertActionToCard = useMeetingStore((s) => s.convertActionToCard);
   const projects = useProjectStore((s) => s.projects);
   const loadProjects = useProjectStore((s) => s.loadProjects);
+  const allCards = useBoardStore((s) => s.allCards);
 
-  const { activeTab, setActiveTab, loadState } = useSessionLoad(id);
+  const { activeTab, setActiveTab, loadState } = useSessionLoad(id, initialTab);
   const [convertingAction, setConvertingAction] = useState<ActionItem | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -558,9 +627,50 @@ export default function SessionWorkspace() {
     handleCopy('actions', text);
   };
 
+  // Point the in-session Board tab at a project (STORY-PROJECTS-IN-SESSION). The
+  // session's OWN project needs no viewProject (the banner stays hidden); a FOREIGN
+  // project rides the `viewProject` override so it shows here with the back-banner,
+  // never navigating to a retired /projects destination. Reuses the existing
+  // ?openCard= board-load mechanism to open a specific card once its board loads.
+  const openProjectInBoard = (projectId: string, cardId?: string) => {
+    setActiveTab('board');
+    setSearchParams(boardSearchParams(searchParams, projectId, meeting.projectId, cardId), { replace: true });
+  };
+
+  // Clear the viewed-project override → the board returns to the session's own
+  // project. Also the header "Open Board" action (with a Board-tab switch).
+  const returnToOwnBoard = (switchTab: boolean) => {
+    if (switchTab) setActiveTab('board');
+    setSearchParams(clearedBoardParams(searchParams), { replace: true });
+  };
+
+  // Brain node click routing — the inspector's explicit "Open full page →" action
+  // (a node CLICK opens the in-canvas inspector via BrainTabPanel). A session node
+  // is a real place → navigate. A card/column resolves to a project (via
+  // boardStore.allCards): shown IN this session's Board tab — own project inline,
+  // foreign project via the viewProject override — never /projects. decision/question
+  // nodes resolve to { kind: 'none' } (no standalone destination) → no-op.
+  const handleBrainOpenEntity = (arg: { type: BrainNodeType; entityId: string }) => {
+    const target = resolveBrainOpenTarget(arg, allCards);
+    if (target.kind === 'session') void navigate(`/session/${target.meetingId}`);
+    else if (target.kind === 'board') openProjectInBoard(target.projectId, target.cardId);
+  };
+
   const renderPanel = () => {
-    if (activeTab === 'board') return <BoardTabPanel meeting={meeting} />;
-    if (activeTab === 'brain') return <BrainTabPanel />;
+    if (activeTab === 'board')
+      return (
+        <BoardTabPanel
+          meeting={meeting}
+          viewProjectId={viewProjectParam}
+          projects={projects}
+          onClearViewProject={() => returnToOwnBoard(false)}
+        />
+      );
+    if (activeTab === 'brain') {
+      return (
+        <BrainTabPanel meetingId={meeting.id} projectId={meeting.projectId} onOpenEntity={handleBrainOpenEntity} />
+      );
+    }
     return (
       <div role="tabpanel" id="panel-transcript" aria-labelledby="tab-transcript" className="p-6">
         {meeting.prepBriefing && <MeetingPrepSection prepBriefing={meeting.prepBriefing} />}
@@ -587,6 +697,7 @@ export default function SessionWorkspace() {
           onUpdateMeeting={updateMeeting}
           onExport={handleExport}
           onClose={handleBack}
+          onOpenBoard={() => returnToOwnBoard(true)}
         />
         {meeting.unassignedPending && (
           <div className="-mt-4 mb-2">

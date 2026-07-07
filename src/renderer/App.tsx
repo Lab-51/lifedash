@@ -12,12 +12,14 @@
 
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { projectSessionLink } from './lib/sessionResolver';
 import TitleBar from './components/TitleBar';
 import AppLayout from './components/AppLayout';
 import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { useBoardLiveSync } from './hooks/useBoardLiveSync';
+import { useBrainLiveSync } from './hooks/useBrainLiveSync';
 import { useTheme } from './hooks/useTheme';
 import { useFontScale } from './hooks/useFontScale';
 import { suggestMeetingTitle } from '../shared/utils/meetingTitle';
@@ -48,14 +50,12 @@ import type { RecoveryState } from '../shared/types/electron-api';
 import { toast } from './hooks/useToast';
 
 const SessionsHomePage = lazy(() => import('./pages/SessionsHomePage'));
-const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
 const IdeasPage = lazy(() => import('./pages/IdeasPage'));
 const IntelPage = lazy(() => import('./pages/IntelPage'));
 const BrainstormPage = lazy(() => import('./pages/BrainstormPage'));
 const FocusPage = lazy(() => import('./pages/FocusPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const BoardPage = lazy(() => import('./pages/BoardPage'));
 const SessionWorkspace = lazy(() => import('./components/SessionWorkspace'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const FocusStartModal = lazy(() => import('./components/FocusStartModal'));
@@ -333,6 +333,11 @@ function AppShell({ children }: { children: ReactNode }) {
   // Live board sync: debounce-refetch the visible board on any data:changed
   // broadcast so mutations from any source appear without a manual refresh.
   useBoardLiveSync();
+  // Live Brain growth (V3.2 Task 4): debounce-refresh the active Brain scope on
+  // any data:changed broadcast — registered here (not per-panel) so it also
+  // fires while the Brain tab isn't the one currently viewed (needed for the
+  // off-canvas 'brain' badge) and never double-registers across hosts.
+  useBrainLiveSync();
 
   // Show toast when break timer ends (break -> idle transition)
   const prevModeRef = useRef(focusMode);
@@ -387,6 +392,25 @@ function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Retired-route safety net (STORY-PROJECTS-IN-SESSION): projects/boards have no
+ * standalone destination anymore, but stray deep links (bookmarks, legacy in-page
+ * links) still target /projects/:projectId. Resolve that project to its latest
+ * session and land on that session's Board tab via the viewProject override,
+ * preserving any ?openCard=. A project with no session lands on Sessions home (via
+ * projectSessionLink) — never a blank or a retired /projects page. `meetings` is
+ * already loaded before any route renders (AppShell gates children on appReady,
+ * which awaits loadMeetings), so this resolves synchronously on mount.
+ */
+function ProjectBoardRedirect() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const [searchParams] = useSearchParams();
+  const meetings = useMeetingStore((s) => s.meetings);
+  if (!projectId) return <Navigate to="/" replace />;
+  const target = projectSessionLink(projectId, meetings, searchParams.get('openCard') ?? undefined);
+  return <Navigate to={target} replace />;
+}
+
 function App() {
   return (
     <HashRouter>
@@ -396,14 +420,14 @@ function App() {
           <Routes>
             <Route element={<AppLayout />}>
               <Route index element={<SessionsHomePage />} />
-              <Route path="/projects" element={<ProjectsPage />} />
+              <Route path="/projects" element={<Navigate to="/" replace />} />
               <Route path="/meetings" element={<MeetingsPage />} />
               <Route path="/intel" element={<IntelPage />} />
               <Route path="/ideas" element={<IdeasPage />} />
               <Route path="/brainstorm" element={<BrainstormPage />} />
               <Route path="/focus" element={<FocusPage />} />
               <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/projects/:projectId" element={<BoardPage />} />
+              <Route path="/projects/:projectId" element={<ProjectBoardRedirect />} />
               <Route path="/session/:id" element={<SessionWorkspace />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>

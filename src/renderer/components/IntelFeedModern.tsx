@@ -291,12 +291,15 @@ export default function IntelFeedModern() {
         .filter(Boolean)
         .join('\n');
 
-      const project = await useProjectStore.getState().createProject({
+      await useProjectStore.getState().createProject({
         name: item.title.slice(0, 100),
         description,
       });
+      // No post-create navigate: under the session-centric IA a session-less project
+      // has no board home, so `/projects/:id` redirected to `/` (a false "success then
+      // dumped home"). The project persists and becomes reachable once a meeting links
+      // it (its board then lives inside that session's Board tab).
       toast('Project created', 'success');
-      navigate(`/projects/${project.id}`);
     } catch (err) {
       toast(`Failed to create project: ${err}`, 'error');
     }

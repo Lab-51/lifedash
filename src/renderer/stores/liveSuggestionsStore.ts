@@ -17,13 +17,21 @@
 // create+link) so it shows up in the Live Mode activity feed the moment it
 // happens.
 //
+// A successful accept() ALSO schedules a Brain live-growth refresh (V3.2 Task 4)
+// — hooked here UNIFORMLY for every suggestion type, since decision/question
+// accepts flip live_suggestions without emitting data:changed (no card mutation),
+// so this is the only signal the renderer gets. The shared 300ms debounce
+// (services/brainLiveSync) dedupes any overlap with a data:changed-driven
+// refresh (e.g. an action_item/project accept that ALSO creates/links a card).
+//
 // === DEPENDENCIES ===
 // zustand, recordingStore (read-only, meetingId transitions), activityFeedStore,
-// window.electronAPI (preload bridge), shared LiveSuggestion type
+// services/brainLiveSync, window.electronAPI (preload bridge), shared LiveSuggestion type
 
 import { create } from 'zustand';
 import { useRecordingStore } from './recordingStore';
 import { useActivityFeedStore } from './activityFeedStore';
+import { scheduleBrainRefresh } from '../services/brainLiveSync';
 import type { LiveSuggestion } from '../../shared/types';
 
 interface LiveSuggestionsStore {
@@ -80,6 +88,7 @@ export const useLiveSuggestionsStore = create<LiveSuggestionsStore>((set, get) =
         if (updated) {
           set({ suggestions: get().suggestions.map((s) => (s.id === id ? updated : s)) });
           useActivityFeedStore.getState().addSuggestionEvent(updated, 'accepted');
+          scheduleBrainRefresh();
         }
         return updated;
       } catch (error) {

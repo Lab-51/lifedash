@@ -9,12 +9,14 @@
 import { useEffect } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 
-/** Map of digit keys to route paths */
+/** Map of digit keys to route paths.
+ *  Ctrl+4 ("Projects") removed in the session-centric IA collapse: `/projects` now
+ *  redirects to `/`, so the shortcut just went to Sessions home. Projects live only
+ *  inside sessions — there is no standalone Projects page to jump to. */
 const SHORTCUT_MAP: Record<string, string> = {
   '1': '/',
   '2': '/meetings',
   '3': '/intel',
-  '4': '/projects',
   '5': '/brainstorm',
   '6': '/ideas',
   '7': '/focus',

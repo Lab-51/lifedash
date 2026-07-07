@@ -3,9 +3,10 @@
 // Unit tests for SessionSearch (V3.1 Task 6): debounced full-text search box.
 // Verifies the 300ms debounce (search does not fire immediately), grouped
 // rendering (Sessions/Cards/Projects), the open target per result type
-// (session -> /session/:id, card -> /projects/:id?openCard=, project ->
-// /projects/:id), keyboard navigation, the clear button, and that snippet
-// highlight markers render as <mark> spans (never via dangerouslySetInnerHTML).
+// (session -> /session/:id, card/project -> the relevant session's Board tab via
+// the viewProject override, or home when the project has no session), keyboard
+// navigation, the clear button, and that snippet highlight markers render as
+// <mark> spans (never via dangerouslySetInnerHTML).
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -25,7 +26,15 @@ const searchMock = vi.fn<(query: string) => Promise<SearchResults>>();
 
 vi.stubGlobal('electronAPI', { search: searchMock });
 
+const { useMeetingStore } = await import('../../stores/meetingStore');
 const { default: SessionSearch } = await import('../SessionSearch');
+
+/** Seed one session linked to project p1 so project/card results resolve to it. */
+function seedSessionForP1() {
+  useMeetingStore.setState({
+    meetings: [{ id: 'sess-1', projectId: 'p1', startedAt: '2026-02-01T09:00:00Z' }] as any,
+  } as any);
+}
 
 function renderComponent() {
   return render(
@@ -42,6 +51,7 @@ describe('SessionSearch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     searchMock.mockResolvedValue(EMPTY);
+    useMeetingStore.setState({ meetings: [] } as any);
   });
 
   it('renders the search input', () => {
@@ -130,7 +140,8 @@ describe('SessionSearch', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/session/m1');
   });
 
-  it('navigates to the board route with ?openCard= when a card result is clicked', async () => {
+  it("opens a card result in its project's latest session (Board tab + viewProject + openCard)", async () => {
+    seedSessionForP1();
     searchMock.mockResolvedValue({
       sessions: [],
       cards: [{ type: 'card', id: 'c1', title: 'Build search feature', snippet: null, projectId: 'p1', rank: 0.5 }],
@@ -142,10 +153,11 @@ describe('SessionSearch', () => {
     await user.type(screen.getByPlaceholderText('Search sessions, cards, projects...'), 'search');
     await user.click(await screen.findByText('Build search feature', {}, { timeout: 2000 }));
 
-    expect(screen.getByTestId('location')).toHaveTextContent('/projects/p1?openCard=c1');
+    expect(screen.getByTestId('location')).toHaveTextContent('/session/sess-1?viewProject=p1&openCard=c1');
   });
 
-  it('navigates to the board route when a project result is clicked', async () => {
+  it("opens a project result in its latest session's Board tab (viewProject override)", async () => {
+    seedSessionForP1();
     searchMock.mockResolvedValue({
       sessions: [],
       cards: [],
@@ -157,7 +169,25 @@ describe('SessionSearch', () => {
     await user.type(screen.getByPlaceholderText('Search sessions, cards, projects...'), 'acme');
     await user.click(await screen.findByText('Acme Launch', {}, { timeout: 2000 }));
 
-    expect(screen.getByTestId('location')).toHaveTextContent('/projects/p1');
+    expect(screen.getByTestId('location')).toHaveTextContent('/session/sess-1?viewProject=p1');
+  });
+
+  it('falls back to home (never /projects) when the result project has no session', async () => {
+    // No meetings seeded — p1 has no session.
+    searchMock.mockResolvedValue({
+      sessions: [],
+      cards: [],
+      projects: [{ type: 'project', id: 'p1', title: 'Acme Launch', snippet: null, rank: 0.4 }],
+    });
+    const user = userEvent.setup();
+    renderComponent();
+
+    await user.type(screen.getByPlaceholderText('Search sessions, cards, projects...'), 'acme');
+    await user.click(await screen.findByText('Acme Launch', {}, { timeout: 2000 }));
+
+    const location = screen.getByTestId('location').textContent ?? '';
+    expect(location).toBe('/');
+    expect(location).not.toContain('/projects');
   });
 
   it('supports ArrowDown + Enter keyboard navigation to select a result', async () => {

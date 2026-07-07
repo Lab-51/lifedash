@@ -24,28 +24,39 @@
 // (recordingStore.initListener) — not by LiveTranscriptFeed itself — so flipping
 // tabs can never drop segments or duplicate the subscription.
 //
+// Brain tab (V3.2 Task 3): BrainTabPanel is shared with SessionWorkspace, but node
+// clicks here prefer IN-CANVAS moves (switch to the Board tab, same project only)
+// over navigating the underlying route out from under this full-screen overlay —
+// see handleBrainOpenEntity, which mirrors ActivityFeed's own click-through pattern.
+//
 // === DEPENDENCIES ===
-// react-dom (createPortal), lucide-react, recordingStore, meetingStore, projectStore,
-// canvasBadgeStore, LiveCanvasTabs, LiveTranscriptFeed, EmbeddedBoard, BrainTabPanel,
-// LiveAssistantChat, AudioLevelMeter, ConfirmDialog
+// react-dom (createPortal), react-router-dom (useNavigate), lucide-react,
+// recordingStore, meetingStore, projectStore, boardStore, canvasBadgeStore, LiveCanvasTabs,
+// LiveTranscriptFeed, EmbeddedBoard, BrainTabPanel, LiveAssistantChat, AudioLevelMeter,
+// ConfirmDialog
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { Sparkles, Square, X, Minus, LayoutGrid } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
+import { useBoardStore } from '../stores/boardStore';
 import { useCanvasBadgeStore } from '../stores/canvasBadgeStore';
 import { useActivityFeedStore } from '../stores/activityFeedStore';
+import { useBrainStore } from '../stores/brainStore';
 import LiveCanvasTabs, { type CanvasTabId, type CanvasTabDef } from './LiveCanvasTabs';
 import LiveTranscriptFeed from './LiveTranscriptFeed';
 import EmbeddedBoard from './EmbeddedBoard';
-import BrainTabPanel from './BrainTabPanel';
+import ViewingProjectBanner from './ViewingProjectBanner';
+import BrainTabPanel, { resolveBrainOpenTarget } from './BrainTabPanel';
 import LiveProposalsFeed from './LiveProposalsFeed';
 import ActivityFeed from './ActivityFeed';
 import LiveAssistantChat from './LiveAssistantChat';
 import AudioLevelMeter from './AudioLevelMeter';
 import { ConfirmDialog } from './ConfirmDialog';
+import type { BrainNodeType, Project } from '../../shared/types';
 
 function formatElapsed(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60)
@@ -60,9 +71,33 @@ function formatElapsed(totalSeconds: number): string {
 // With no project yet, points the user at the existing propose→accept project
 // chip in the right-column proposals feed instead of building a second
 // create-project path.
+//
+// Viewed-project override (STORY-PROJECTS-IN-SESSION): a `viewProjectId` points this
+// board at a FOREIGN project in-canvas — a back-banner returns to the session's own
+// project. Only `boardProjectId` changes; this is always the foreground board (no
+// active-guard needed inside the full-screen overlay). Both `viewProjectId` and
+// `openCardId` are the overlay's LOCAL state (never the shared URL), and the card is
+// opened via EmbeddedBoard's `cardOpen` override — see the overlay's header note.
 // ---------------------------------------------------------------------------
-function LiveBoardTabPanel({ projectId }: { projectId?: string }) {
-  if (!projectId) {
+function LiveBoardTabPanel({
+  projectId,
+  viewProjectId,
+  openCardId,
+  onOpenCardConsumed,
+  projects,
+  onClearViewProject,
+}: {
+  projectId?: string;
+  viewProjectId: string | null;
+  openCardId: string | null;
+  onOpenCardConsumed: () => void;
+  projects: Project[];
+  onClearViewProject: () => void;
+}) {
+  const boardProjectId = viewProjectId ?? projectId;
+  const isForeign = viewProjectId !== null && viewProjectId !== (projectId ?? null);
+
+  if (!boardProjectId) {
     return (
       <div
         role="tabpanel"
@@ -83,9 +118,14 @@ function LiveBoardTabPanel({ projectId }: { projectId?: string }) {
     );
   }
 
+  const viewedName = projects.find((p) => p.id === viewProjectId)?.name ?? 'another project';
+
   return (
-    <div role="tabpanel" id="panel-board" aria-labelledby="tab-board" className="flex-1 flex min-h-0">
-      <EmbeddedBoard projectId={projectId} />
+    <div role="tabpanel" id="panel-board" aria-labelledby="tab-board" className="flex-1 flex flex-col min-h-0">
+      {isForeign && <ViewingProjectBanner projectName={viewedName} onBack={onClearViewProject} />}
+      <div className="flex-1 flex min-h-0">
+        <EmbeddedBoard projectId={boardProjectId} cardOpen={{ openCardId, onConsumed: onOpenCardConsumed }} />
+      </div>
     </div>
   );
 }
@@ -94,7 +134,27 @@ function LiveBoardTabPanel({ projectId }: { projectId?: string }) {
 // Canvas body — picks the active panel. Pulled out of the main component so its
 // branching doesn't add to LiveModeOverlay's own complexity budget.
 // ---------------------------------------------------------------------------
-function LiveCanvasBody({ activeTab, projectId }: { activeTab: CanvasTabId; projectId?: string }) {
+function LiveCanvasBody({
+  activeTab,
+  projectId,
+  viewProjectId,
+  openCardId,
+  onOpenCardConsumed,
+  projects,
+  onClearViewProject,
+  meetingId,
+  onOpenEntity,
+}: {
+  activeTab: CanvasTabId;
+  projectId?: string;
+  viewProjectId: string | null;
+  openCardId: string | null;
+  onOpenCardConsumed: () => void;
+  projects: Project[];
+  onClearViewProject: () => void;
+  meetingId?: string;
+  onOpenEntity: (arg: { type: BrainNodeType; entityId: string }) => void;
+}) {
   if (activeTab === 'transcript') {
     return (
       <div
@@ -107,8 +167,18 @@ function LiveCanvasBody({ activeTab, projectId }: { activeTab: CanvasTabId; proj
       </div>
     );
   }
-  if (activeTab === 'board') return <LiveBoardTabPanel projectId={projectId} />;
-  return <BrainTabPanel />;
+  if (activeTab === 'board')
+    return (
+      <LiveBoardTabPanel
+        projectId={projectId}
+        viewProjectId={viewProjectId}
+        openCardId={openCardId}
+        onOpenCardConsumed={onOpenCardConsumed}
+        projects={projects}
+        onClearViewProject={onClearViewProject}
+      />
+    );
+  return <BrainTabPanel meetingId={meetingId} projectId={projectId} onOpenEntity={onOpenEntity} />;
 }
 
 export default function LiveModeOverlay() {
@@ -117,17 +187,26 @@ export default function LiveModeOverlay() {
   const meetingId = useRecordingStore((s) => s.meetingId);
   const elapsed = useRecordingStore((s) => s.elapsed);
   const minimizeLiveMode = useRecordingStore((s) => s.minimizeLiveMode);
+  const brainInspectorOpen = useBrainStore((s) => s.inspectorOpen);
   const stopRecording = useRecordingStore((s) => s.stopRecording);
   const cancelRecording = useRecordingStore((s) => s.cancelRecording);
   const meetings = useMeetingStore((s) => s.meetings);
   const projects = useProjectStore((s) => s.projects);
+  const allCards = useBoardStore((s) => s.allCards);
   const badgeCounts = useCanvasBadgeStore((s) => s.counts);
   const clearBadge = useCanvasBadgeStore((s) => s.clear);
   const activityEntries = useActivityFeedStore((s) => s.entries);
+  const navigate = useNavigate();
 
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [visible, setVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<CanvasTabId>('transcript');
+  // Board-tab view state is LOCAL to this overlay (like activeTab), NOT the shared
+  // router URL: the URL belongs to whatever route sits UNDER this full-screen portal,
+  // usually a DIFFERENT session than the one recording. Writing viewProject/openCard
+  // there would surface a foreign project on that unrelated session when minimized.
+  const [viewProjectId, setViewProjectId] = useState<string | null>(null);
+  const [openCardId, setOpenCardId] = useState<string | null>(null);
   const prevMeetingIdRef = useRef<string | null>(null);
 
   // AUTO-ENTER: render whenever recording is live and Live Mode is not minimized.
@@ -152,6 +231,10 @@ export default function LiveModeOverlay() {
     if (!isNewRecording) return;
     const id = requestAnimationFrame(() => {
       setActiveTab('transcript');
+      // Drop any foreign-project view from the previous recording too (local state,
+      // like the tab) so it can't leak into the next session's Board tab.
+      setViewProjectId(null);
+      setOpenCardId(null);
       useCanvasBadgeStore.getState().reset();
     });
     return () => cancelAnimationFrame(id);
@@ -164,9 +247,11 @@ export default function LiveModeOverlay() {
   };
 
   // Esc minimizes (NEVER stops — destructive actions stay behind explicit buttons only).
-  // Skip while the cancel-confirm dialog is open so Esc only dismisses that dialog.
+  // Skip while the cancel-confirm dialog OR the in-canvas Brain inspector is open, so
+  // Esc dismisses the topmost transient layer first (the dialog / the inspector drawer)
+  // instead of minimizing the whole live session out from under it.
   useEffect(() => {
-    if (!active || cancelConfirmOpen) return;
+    if (!active || cancelConfirmOpen || brainInspectorOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -175,13 +260,42 @@ export default function LiveModeOverlay() {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [active, cancelConfirmOpen, minimizeLiveMode]);
+  }, [active, cancelConfirmOpen, brainInspectorOpen, minimizeLiveMode]);
 
   if (!active) return null;
 
   const meeting = meetingId ? meetings.find((m) => m.id === meetingId) : undefined;
   const title = meeting?.title ?? 'Live Meeting';
   const project = meeting?.projectId ? projects.find((p) => p.id === meeting.projectId) : undefined;
+
+  // Clear the viewed-project override → the Board tab returns to the session's own
+  // project (the back-banner action). Local state only — never the shared URL.
+  const returnToOwnBoard = () => {
+    setViewProjectId(null);
+    setOpenCardId(null);
+  };
+
+  // Brain node click routing (Task 3) — prefers IN-CANVAS moves over navigating
+  // underneath the full-screen overlay (mirrors ActivityFeed's handleSelectTab
+  // click-through). A session node is a real place → minimize + navigate (else it
+  // loads invisibly under the still-covering z-[110] overlay). A card/column
+  // resolves to a project and is shown IN this overlay's Board tab — the session's
+  // OWN project inline, a FOREIGN project via the viewProject override (with the
+  // back-banner) — never a retired /projects navigation. The view is held in LOCAL
+  // state (not the shared URL — see the state declarations above); the specific card
+  // opens via EmbeddedBoard's `cardOpen` override once its board finishes loading.
+  const handleBrainOpenEntity = (arg: { type: BrainNodeType; entityId: string }) => {
+    const target = resolveBrainOpenTarget(arg, allCards);
+    if (target.kind === 'none') return;
+    if (target.kind === 'session') {
+      minimizeLiveMode();
+      void navigate(`/session/${target.meetingId}`);
+      return;
+    }
+    handleSelectTab('board');
+    setViewProjectId(target.projectId === meeting?.projectId ? null : target.projectId);
+    setOpenCardId(target.cardId ?? null);
+  };
 
   const canvasTabs: CanvasTabDef[] = [
     { id: 'transcript', label: 'Transcript', badge: badgeCounts.transcript },
@@ -274,7 +388,17 @@ export default function LiveModeOverlay() {
           <div className="px-4 pt-3 shrink-0">
             <LiveCanvasTabs tabs={canvasTabs} active={activeTab} onSelect={handleSelectTab} />
           </div>
-          <LiveCanvasBody activeTab={activeTab} projectId={meeting?.projectId ?? undefined} />
+          <LiveCanvasBody
+            activeTab={activeTab}
+            projectId={meeting?.projectId ?? undefined}
+            viewProjectId={viewProjectId}
+            openCardId={openCardId}
+            onOpenCardConsumed={() => setOpenCardId(null)}
+            projects={projects}
+            onClearViewProject={returnToOwnBoard}
+            meetingId={meetingId ?? undefined}
+            onOpenEntity={handleBrainOpenEntity}
+          />
         </div>
 
         {/* Right column */}

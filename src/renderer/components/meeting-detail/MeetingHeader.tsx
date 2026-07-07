@@ -2,7 +2,6 @@
 // template info, and project linking dropdown.
 
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { X, Clock, Download, ArrowRight, FolderOpen } from 'lucide-react';
 import HudSelect from '../HudSelect';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../../shared/types';
@@ -17,10 +16,20 @@ interface MeetingHeaderProps {
   onUpdateMeeting: (id: string, updates: { title?: string; projectId?: string | null }) => Promise<void>;
   onExport: () => void;
   onClose: () => void;
+  /** Switch the session's canvas to its own Board tab. Supplied by the host
+   *  (SessionWorkspace / LiveModeOverlay) — the board now lives IN the session, so
+   *  "Open Board" is an in-canvas tab switch, never a /projects navigation. */
+  onOpenBoard?: () => void;
 }
 
-export default function MeetingHeader({ meeting, projects, onUpdateMeeting, onExport, onClose }: MeetingHeaderProps) {
-  const navigate = useNavigate();
+export default function MeetingHeader({
+  meeting,
+  projects,
+  onUpdateMeeting,
+  onExport,
+  onClose,
+  onOpenBoard,
+}: MeetingHeaderProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const createProject = useProjectStore((s) => s.createProject);
@@ -157,11 +166,11 @@ export default function MeetingHeader({ meeting, projects, onUpdateMeeting, onEx
             }}
           />
         </div>
-        {meeting.projectId && (
+        {meeting.projectId && onOpenBoard && (
           <button
-            onClick={() => navigate(`/projects/${meeting.projectId}`)}
+            onClick={onOpenBoard}
             className="flex items-center gap-1.5 text-[0.625rem] font-hud tracking-wider border border-[var(--color-border)] hover:border-[var(--color-accent-dim)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] px-2.5 py-1.5 rounded-md transition-colors shrink-0"
-            title="Go to project board"
+            title="Open this session's board"
           >
             Open Board
             <ArrowRight size={12} />

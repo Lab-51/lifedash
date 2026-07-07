@@ -58,8 +58,18 @@ export function exportBoardAsCsv(columns: Column[], cards: Card[], labels: Label
  * single shared store) and registers NO document-scoped drag monitors (so a single
  * drop is handled exactly once, never doubled by a coexisting board). Flipping back
  * to true self-heals: the load effect re-fires and reloads this board's project.
+ * @param cardOpen Optional card-open override. When provided (the LiveModeOverlay),
+ * the board opens `openCardId` once it's present in the loaded board and calls
+ * `onConsumed()` — WITHOUT reading or deleting the shared `?openCard=` URL param. The
+ * overlay is a portal over a DIFFERENT underlying session, so its card-open state must
+ * live in local overlay state, not the URL it shares with that unrelated route. When
+ * ABSENT (SessionWorkspace — the real route), the URL param is used exactly as before.
  */
-export function useBoardController(projectIdOverride?: string, active = true) {
+export function useBoardController(
+  projectIdOverride?: string,
+  active = true,
+  cardOpen?: { openCardId: string | null; onConsumed: () => void },
+) {
   const params = useParams<{ projectId: string }>();
   const projectId = projectIdOverride ?? params.projectId;
   const project = useBoardStore((s) => s.project);
@@ -166,14 +176,49 @@ export function useBoardController(projectIdOverride?: string, active = true) {
     loadBoard(projectId);
   }, [projectId, loadBoard, active]);
 
+  // Open (and consume) a target card once it's present in the loaded board. The id
+  // comes from one of two sources, one per mount:
+  //   • cardOpen provided (LiveModeOverlay) — the target id + its consumption live in
+  //     LOCAL overlay state, never the shared URL. The overlay is a portal over a
+  //     DIFFERENT underlying session, so writing the URL would surface a foreign
+  //     project on that unrelated route the moment the overlay is minimized.
+  //   • cardOpen absent (SessionWorkspace — the real route) — reads/deletes ?openCard=.
+  // Gated on `active` (mirrors the load effect + drag monitors): only the FOREGROUND
+  // board consumes the card, so an inert board covered by the overlay never opens an
+  // invisible modal or rewrites the shared params.
   useEffect(() => {
-    const openCardId = searchParams.get('openCard');
-    if (openCardId && !loading && cards.length > 0) {
-      setSelectedCardId(openCardId); // eslint-disable-line react-hooks/set-state-in-effect
-      searchParams.delete('openCard');
-      setSearchParams(searchParams, { replace: true });
+    if (!active) return;
+    const targetId = cardOpen ? cardOpen.openCardId : searchParams.get('openCard');
+    if (!targetId || loading) return;
+
+    const consume = () => {
+      if (cardOpen) {
+        cardOpen.onConsumed();
+      } else {
+        searchParams.delete('openCard');
+        setSearchParams(searchParams, { replace: true });
+      }
+    };
+
+    // Gating on card PRESENCE (not merely "some cards loaded") is what makes the
+    // viewed-project override work: right after switching to a FOREIGN project this
+    // effect can fire before loadBoard swaps in that project's cards.
+    if (cards.some((c) => c.id === targetId)) {
+      setSelectedCardId(targetId); // eslint-disable-line react-hooks/set-state-in-effect
+      consume();
+      return;
     }
-  }, [searchParams, setSearchParams, loading, cards.length]);
+
+    // Card absent. Keep the presence gate for OPENING, but once this board has SETTLED
+    // ON ITS OWN PROJECT (project.id === projectId — not merely !loading) with the
+    // target still missing, consume the stale/deleted/wrong-project id anyway so it
+    // can't linger in the URL and mis-fire on a later refetch. Guarding on the loaded
+    // project (rather than !loading alone) preserves the foreign-board grace window:
+    // right after a project switch the store still holds the PREVIOUS board for a frame
+    // (loading not yet flipped true in this closure), and clearing then would drop a
+    // valid deep link before its card arrives.
+    if (project?.id === projectId) consume();
+  }, [searchParams, setSearchParams, loading, cards, active, cardOpen, project, projectId]);
 
   useEffect(() => {
     if (addingColumn && columnInputRef.current) {

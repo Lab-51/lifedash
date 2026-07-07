@@ -45,9 +45,17 @@ interface EmbeddedBoardProps {
    * document-scoped drag monitor. Re-activating reloads its own project.
    */
   active?: boolean;
+  /**
+   * Optional card-open override used by the LiveModeOverlay to open a card WITHOUT
+   * touching the shared router URL (which belongs to the route beneath the overlay
+   * portal). When provided, the controller opens `openCardId` once it's present in
+   * the loaded board and calls `onConsumed()` instead of the ?openCard= param.
+   * Omitted on the real routes (SessionWorkspace), which keep the URL param.
+   */
+  cardOpen?: { openCardId: string | null; onConsumed: () => void };
 }
 
-export default function EmbeddedBoard({ projectId, active = true }: EmbeddedBoardProps) {
+export default function EmbeddedBoard({ projectId, active = true, cardOpen }: EmbeddedBoardProps) {
   const {
     columns,
     cards: filteredCards,
@@ -94,7 +102,7 @@ export default function EmbeddedBoard({ projectId, active = true }: EmbeddedBoar
     blockedCardIds,
     dependencyCountMap,
     getCardsByColumn,
-  } = useBoardController(projectId, active);
+  } = useBoardController(projectId, active, cardOpen);
 
   // Collapsed columns state
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());

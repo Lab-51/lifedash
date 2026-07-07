@@ -23,4 +23,5 @@ export * from './live-suggestions';
 export * from './sync';
 export * from './intel-feed';
 export * from './search';
+export * from './brain';
 export * from './electron-api';

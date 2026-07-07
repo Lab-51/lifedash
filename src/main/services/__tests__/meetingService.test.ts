@@ -50,12 +50,15 @@ vi.mock('../logger', () => ({
   }),
 }));
 
+vi.mock('../dataChangeNotifier', () => ({ notifyDataChanged: vi.fn() }));
+
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
 import { updateMeeting } from '../meetingService';
 import { autoPushActionItems, readAutoPushSetting } from '../autoPushService';
+import { notifyDataChanged } from '../dataChangeNotifier';
 import { getDb } from '../../db/connection';
 
 // ---------------------------------------------------------------------------
@@ -258,5 +261,51 @@ describe('updateMeeting — link-time auto-push hook', () => {
 
     expect(result.title).toBe('New Title');
     expect(autoPushActionItems).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateMeeting — data:changed broadcast on a project link change
+// (the Brain / project-keyed boards refresh only on this event)
+// ---------------------------------------------------------------------------
+
+describe('updateMeeting — data:changed on project link change', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(autoPushActionItems).mockResolvedValue({ pushedCount: 0, skippedCount: 0, cards: [] });
+    vi.mocked(readAutoPushSetting).mockResolvedValue(true);
+  });
+
+  it('broadcasts data:changed{projects} when the linked project SWITCHES', async () => {
+    buildDb({
+      selectResponses: [[makeMeetingRow({ projectId: 'proj-1' })]], // pre-read: old project
+      updateReturning: [makeMeetingRow({ projectId: 'proj-2' })],
+    });
+
+    await updateMeeting('meeting-1', { projectId: 'proj-2' });
+
+    expect(notifyDataChanged).toHaveBeenCalledWith({ scope: 'projects', projectId: 'proj-2' });
+  });
+
+  it('broadcasts on UNLINK (project → null), carrying the old project id', async () => {
+    buildDb({
+      selectResponses: [[makeMeetingRow({ projectId: 'proj-1' })]],
+      updateReturning: [makeMeetingRow({ projectId: null })],
+    });
+
+    await updateMeeting('meeting-1', { projectId: null });
+
+    expect(notifyDataChanged).toHaveBeenCalledWith({ scope: 'projects', projectId: 'proj-1' });
+  });
+
+  it('does NOT broadcast for a non-project edit (title only) — no refresh storm', async () => {
+    buildDb({
+      selectResponses: [],
+      updateReturning: [makeMeetingRow({ title: 'Renamed' })],
+    });
+
+    await updateMeeting('meeting-1', { title: 'Renamed' });
+
+    expect(notifyDataChanged).not.toHaveBeenCalled();
   });
 });

@@ -296,9 +296,14 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
     try {
       const result = await window.electronAPI.diarizeMeeting(meetingId);
       if (result.success) {
-        // Reload the meeting to get updated segments with speaker labels
+        // Reload the meeting to get updated segments with speaker labels.
         const meeting = await window.electronAPI.getMeeting(meetingId);
-        set({ selectedMeeting: meeting, diarizing: false });
+        // Only overwrite selectedMeeting when the page actually owns THIS meeting
+        // (matches the id-guards in generateBrief/generateActionItems). A caller
+        // acting on a different meeting than the one the page owns must not stomp
+        // the host's selectedMeeting.
+        const ownsSelected = get().selectedMeeting?.id === meetingId;
+        set({ selectedMeeting: ownsSelected ? meeting : get().selectedMeeting, diarizing: false });
         // Also refresh analytics
         get().loadAnalytics(meetingId);
       } else {

@@ -25,6 +25,7 @@ import { useMeetingStore } from '../stores/meetingStore';
 import { useIdeaStore } from '../stores/ideaStore';
 import { useBrainstormStore } from '../stores/brainstormStore';
 import { useBoardStore } from '../stores/boardStore';
+import { projectSessionLink } from '../lib/sessionResolver';
 import { toast } from '../hooks/useToast';
 
 interface CommandItem {
@@ -168,13 +169,11 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
   const actionItems: CommandItem[] = useMemo(
     () => [
       { id: 'a-idea', label: 'New Idea...', icon: Plus, category: 'Actions', action: () => go('/ideas?action=create') },
-      {
-        id: 'a-proj',
-        label: 'New Project...',
-        icon: Plus,
-        category: 'Actions',
-        action: () => go('/projects?action=create'),
-      },
+      // "New Project..." removed in the session-centric IA collapse: projects have no
+      // standalone create surface, so `/projects?action=create` now redirects to `/`
+      // (dropping the query) and did nothing. Projects are created from a session
+      // (the meeting header's "+ New project", the propose-project chip, or the agent).
+      // A future global "create project + start a session" command could replace this.
       {
         id: 'a-rec',
         label: 'Start Recording',
@@ -207,7 +206,9 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
         sublabel: p.description ? stripHtml(p.description) : undefined,
         icon: Folder,
         category: 'Projects',
-        action: () => go(`/projects/${p.id}`),
+        // Projects live only inside sessions now — open the project's board in its
+        // latest session (home if it has none), never a retired /projects route.
+        action: () => go(projectSessionLink(p.id, meetings)),
         timestamp: p.updatedAt,
       });
     for (const m of meetings)
@@ -247,7 +248,9 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
         sublabel: c.description ? stripHtml(c.description) : undefined,
         icon: LayoutGrid,
         category: 'Cards',
-        action: () => go(`/projects/${c.projectId}?openCard=${c.id}`),
+        // Open the card inside its project's latest session (Board tab + ?openCard=),
+        // falling back to home if that project has no session.
+        action: () => go(projectSessionLink(c.projectId, meetings, c.id)),
         timestamp: c.updatedAt,
       });
     return items;

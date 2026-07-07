@@ -95,6 +95,7 @@ import type {
   IntelDateFilter,
 } from './intel-feed';
 import type { SearchResults } from './search';
+import type { BrainScope, BrainTree } from './brain';
 
 export interface RecoveryState {
   timestamp: string;
@@ -572,6 +573,9 @@ export interface ElectronAPI {
 
   // Search (full-text search across sessions/cards/projects, V3.1 Task 6)
   search: (query: string) => Promise<SearchResults>;
+
+  // Brain (hierarchical mind-map data for the workspace or a session, V3.2 Task 1)
+  buildBrainTree: (scope: BrainScope) => Promise<BrainTree>;
 }
 
 declare global {

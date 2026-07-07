@@ -9,8 +9,13 @@ vi.stubGlobal('electronAPI', {
 });
 vi.stubGlobal('window', globalThis);
 
+// scheduleBrainRefresh (Task 4) — spied so the accept() seam can be asserted
+// without pulling in brainStore's own IPC/debounce machinery.
+vi.mock('../../services/brainLiveSync', () => ({ scheduleBrainRefresh: vi.fn() }));
+
 const { useRecordingStore } = await import('../recordingStore');
 const { useLiveSuggestionsStore, selectPendingProposals, selectPendingCount } = await import('../liveSuggestionsStore');
+const { scheduleBrainRefresh } = await import('../../services/brainLiveSync');
 
 /** Flush the microtask queue so fire-and-forget async reactions (e.g. the
  * recordingStore subscribe callback's `void loadForMeeting(...)`) resolve. */
@@ -120,6 +125,41 @@ describe('liveSuggestionsStore', () => {
 
     expect(result).toEqual(serverResult);
     expect(useLiveSuggestionsStore.getState().suggestions[0].acceptedCardId).toBe('card-1');
+  });
+
+  // Task 4 live growth: a successful accept() schedules a Brain refresh, hooked
+  // uniformly for every suggestion type (decision/question included — they never
+  // emit data:changed, so this is their only live-growth signal).
+  it.each(['action_item', 'decision', 'question', 'project'] as const)(
+    'accept (%s): schedules a Brain live-growth refresh on success',
+    async (type) => {
+      useLiveSuggestionsStore.setState({ meetingId: 'meeting-1', suggestions: [makeSuggestion({ id: 's1', type })] });
+      vi.mocked(window.electronAPI.acceptLiveSuggestion).mockResolvedValueOnce(
+        makeSuggestion({ id: 's1', type, status: 'accepted' }),
+      );
+
+      await useLiveSuggestionsStore.getState().accept('s1');
+
+      expect(scheduleBrainRefresh).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('accept: does NOT schedule a Brain refresh when the IPC call fails', async () => {
+    useLiveSuggestionsStore.setState({ meetingId: 'meeting-1', suggestions: [makeSuggestion({ id: 's1' })] });
+    vi.mocked(window.electronAPI.acceptLiveSuggestion).mockRejectedValueOnce(new Error('Failed to create card'));
+
+    await useLiveSuggestionsStore.getState().accept('s1');
+
+    expect(scheduleBrainRefresh).not.toHaveBeenCalled();
+  });
+
+  it('accept: does NOT schedule a Brain refresh when the suggestion was already claimed elsewhere (null result)', async () => {
+    useLiveSuggestionsStore.setState({ meetingId: 'meeting-1', suggestions: [makeSuggestion({ id: 's1' })] });
+    vi.mocked(window.electronAPI.acceptLiveSuggestion).mockResolvedValueOnce(null as unknown as LiveSuggestion);
+
+    await useLiveSuggestionsStore.getState().accept('s1');
+
+    expect(scheduleBrainRefresh).not.toHaveBeenCalled();
   });
 
   it('accept: rolls back on IPC failure and surfaces an error', async () => {
