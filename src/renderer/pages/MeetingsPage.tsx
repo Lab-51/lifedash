@@ -1,8 +1,9 @@
 // === FILE PURPOSE ===
-// Meetings page — displays meetings list and recording controls.
+// Meetings page — deep-link alias into Sessions Home (/meetings?openMeeting=...
+// and ?action=record links throughout the app still resolve here).
 
-import MeetingsModern from '../components/MeetingsModern';
+import SessionsHome from '../components/SessionsHome';
 
 export default function MeetingsPage() {
-  return <MeetingsModern />;
+  return <SessionsHome />;
 }

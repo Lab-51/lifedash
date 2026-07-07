@@ -28,6 +28,31 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    // V3.1 session-centric pivot (Tasks 1-6). Version number is a draft — confirm
+    // against package.json at release time (/nexus-release owns the actual bump).
+    version: '2.3.0',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Sessions is now the home screen — meetings, transcripts, and everything about a recording live in one place, with the nav simplified down to Sessions, Twin, and Settings.',
+          'Each session now opens as its own full page instead of a popup — Transcript, Board, and Brain tabs side by side with a rail for the brief, action items, live proposals, and session activity.',
+          'The project board now lives right inside a session — switch to the Board tab during or after a meeting to see cards update live as they are created, without leaving the conversation.',
+          'A new Session Activity feed shows what happened during a live meeting (or after it) — accepted proposals, assistant tool calls, and new cards — with a click to jump straight to the relevant tab.',
+          'Full-text search on the Sessions home — search meeting titles, transcripts, briefs, card titles/descriptions, and project names all from one box, with grouped, ranked results you can jump to instantly.',
+        ],
+      },
+      {
+        category: 'internal',
+        label: 'Internal',
+        items: [
+          'Search runs as query-time Postgres full-text search (websearch_to_tsquery) with the query always parameterized — no new indexes or migrations needed at this scale.',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.40',
     sections: [
       {
@@ -108,19 +133,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Meeting briefs now work better with local models — improved prompt for fuller coverage',
           "Friendly error message when your local model's context window is too small for a request",
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.36',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Meeting briefs are now concise — short one-sentence bullets instead of verbose paragraphs',
-          'Action items now work reliably with local AI models (LM Studio, Ollama) — improved prompt and parser',
         ],
       },
     ],

@@ -13,6 +13,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { projects } from '../db/schema';
+import { notifyDataChanged } from './dataChangeNotifier';
 
 type DB = ReturnType<typeof getDb>;
 
@@ -49,6 +50,11 @@ export async function createProjectRecord(
       sortOrder: maxOrder + 1,
     })
     .returning();
+
+  // Broadcast so the sidebar/board surfaces know a new project exists (covers the
+  // projects:create IPC handler, the 'project' live-suggestion accept, and the
+  // Live Assistant createProject tool — all route through this single path).
+  notifyDataChanged({ scope: 'projects', projectId: project.id });
 
   return project;
 }

@@ -201,6 +201,44 @@ describe('LiveAssistantChat', () => {
     expect(screen.getByText('Searching transcript…')).toBeInTheDocument();
   });
 
+  it('collapses a call+result pair into one done row with the past-tense label (not a lingering "…" row)', () => {
+    useMeetingAgentStore.setState({
+      streaming: true,
+      streamingText: '',
+      toolEvents: [
+        { toolName: 'getMeetingContext', type: 'call', args: {} },
+        { toolName: 'getMeetingContext', type: 'result', result: { ok: true } },
+      ],
+    } as never);
+
+    renderChat();
+
+    // Resolved step reads past-tense "Loaded meeting context" — NOT the perpetual
+    // in-progress "Loading meeting context…" that made completed tools look stuck.
+    expect(screen.getByText('Loaded meeting context')).toBeInTheDocument();
+    expect(screen.queryByText('Loading meeting context…')).not.toBeInTheDocument();
+    // And exactly one row for the tool (call + result do not both render).
+    expect(screen.getAllByText('Loaded meeting context')).toHaveLength(1);
+  });
+
+  it('shows a pending call as in-progress and a completed one as done when the same tool is used twice', () => {
+    useMeetingAgentStore.setState({
+      streaming: true,
+      streamingText: '',
+      toolEvents: [
+        { toolName: 'getTranscriptWindow', type: 'call', args: {} },
+        { toolName: 'getTranscriptWindow', type: 'result', result: { ok: true } },
+        { toolName: 'getTranscriptWindow', type: 'call', args: {} },
+      ],
+    } as never);
+
+    renderChat();
+
+    // First call resolved -> done label; second call still pending -> in-progress label.
+    expect(screen.getByText('Read transcript window')).toBeInTheDocument();
+    expect(screen.getByText('Reading transcript window…')).toBeInTheDocument();
+  });
+
   it('shows the stop button while streaming and stops the active meeting on click', () => {
     const stop = vi.fn().mockResolvedValue(undefined);
     useMeetingAgentStore.setState({ streaming: true, stop } as never);

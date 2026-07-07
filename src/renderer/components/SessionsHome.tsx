@@ -1,10 +1,15 @@
 // === FILE PURPOSE ===
-// Meetings page — Modern Design
-// Displays the meeting list with recording controls, using the new enterprise design system.
+// Sessions Home — the app's default route (V3.1 session-centric pivot).
+// Adapted from the former MeetingsModern: same list internals (sort, recording
+// controls, meeting cards, detail modal), plus a pinned live-session card while
+// recording. This is the only browse surface — no separate Library. The former
+// local title-only filter box is now SessionSearch (Task 6) -- a debounced,
+// full-text search across sessions/cards/projects that navigates to a result
+// rather than filtering this page's grid in place.
 
-import { useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Mic, Info, Search, X, ArrowDownWideNarrow, Sparkles } from 'lucide-react';
+import { Mic, Info, X, ArrowDownWideNarrow, Sparkles } from 'lucide-react';
 import EmptyFeatureState from './EmptyFeatureState';
 import HudSelect from './HudSelect';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -12,34 +17,33 @@ import { useRecordingStore } from '../stores/recordingStore';
 import { useProjectStore } from '../stores/projectStore';
 import RecordingControls from '../components/RecordingControls';
 import MeetingCardModern from '../components/MeetingCardModern';
-const MeetingDetailModal = lazy(() => import('../components/MeetingDetailModal'));
 import LoadingSpinner from '../components/LoadingSpinner';
 import HudBackground from './HudBackground';
 import { ConfirmDialog } from './ConfirmDialog';
 import FeatureTip from './FeatureTip';
+import LiveSessionPin from './LiveSessionPin';
+import SessionSearch from './SessionSearch';
 
 type SortOption = 'newest' | 'oldest' | 'title';
 
-export default function MeetingsModern() {
+export default function SessionsHome() {
   const meetings = useMeetingStore((s) => s.meetings);
   const loading = useMeetingStore((s) => s.loading);
   const error = useMeetingStore((s) => s.error);
   const loadMeetings = useMeetingStore((s) => s.loadMeetings);
-  const loadMeeting = useMeetingStore((s) => s.loadMeeting);
   const deleteMeeting = useMeetingStore((s) => s.deleteMeeting);
   const actionItemCounts = useMeetingStore((s) => s.actionItemCounts);
   const loadActionItemCounts = useMeetingStore((s) => s.loadActionItemCounts);
   const isRecording = useRecordingStore((s) => s.isRecording);
+  const liveMeetingId = useRecordingStore((s) => s.meetingId);
+  const liveElapsed = useRecordingStore((s) => s.elapsed);
+  const restoreLiveMode = useRecordingStore((s) => s.restoreLiveMode);
   const completedMeetingId = useRecordingStore((s) => s.completedMeetingId);
   const clearCompletedMeetingId = useRecordingStore((s) => s.clearCompletedMeetingId);
   const projects = useProjectStore((s) => s.projects);
   const loadProjects = useProjectStore((s) => s.loadProjects);
-  const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
-  const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
   const [deleteMeetingConfirm, setDeleteMeetingConfirm] = useState<{ id: string; title: string } | null>(null);
-  const [autoOpenedMeetingId, setAutoOpenedMeetingId] = useState<string | null>(null);
-  const [initialTranscriptSearch, setInitialTranscriptSearch] = useState<string | undefined>(undefined);
   const prevIsRecording = useRef(isRecording);
   const [hasModel, setHasModel] = useState<boolean | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -49,18 +53,16 @@ export default function MeetingsModern() {
   const navigate = useNavigate();
   const [showTurboBanner, setShowTurboBanner] = useState(false);
 
-  // Open meeting from URL search param (e.g. ?openMeeting=<id> from dashboard deep-link)
+  // Legacy deep link: ?openMeeting=<id> (routed through /meetings) now redirects to
+  // the routed session page. Preserves external bookmarks that predate /session/:id.
   useEffect(() => {
     const openMeetingId = searchParams.get('openMeeting');
-    if (openMeetingId && !loading && meetings.length > 0) {
-      const tsSearch = searchParams.get('transcriptSearch') ?? undefined;
-      setInitialTranscriptSearch(tsSearch);
-      setSelectedMeetingId(openMeetingId);
-      searchParams.delete('openMeeting');
-      searchParams.delete('transcriptSearch');
-      setSearchParams(searchParams, { replace: true });
+    if (openMeetingId) {
+      const tsSearch = searchParams.get('transcriptSearch');
+      const query = tsSearch ? `?transcriptSearch=${encodeURIComponent(tsSearch)}` : '';
+      navigate(`/session/${openMeetingId}${query}`, { replace: true });
     }
-  }, [searchParams, setSearchParams, loading, meetings.length]);
+  }, [searchParams, navigate]);
 
   // Handle ?action=record — just clear the param (recording controls are always visible)
   // Handle ?action=record
@@ -124,22 +126,15 @@ export default function MeetingsModern() {
     prevIsRecording.current = isRecording;
   }, [isRecording, loadMeetings]);
 
-  // Auto-open meeting detail when a recording finishes processing
+  // Auto-open the session page when a recording finishes processing. The
+  // ?autoGenerate=1 flag tells SessionWorkspace to auto-generate brief + actions.
   useEffect(() => {
     if (completedMeetingId) {
-      loadMeetings();
-      setSelectedMeetingId(completedMeetingId);
-      setAutoOpenedMeetingId(completedMeetingId);
+      const meetingId = completedMeetingId;
       clearCompletedMeetingId();
+      navigate(`/session/${meetingId}?autoGenerate=1`);
     }
-  }, [completedMeetingId, loadMeetings, clearCompletedMeetingId]);
-
-  // Load selected meeting detail
-  useEffect(() => {
-    if (selectedMeetingId) {
-      loadMeeting(selectedMeetingId);
-    }
-  }, [selectedMeetingId, loadMeeting]);
+  }, [completedMeetingId, clearCompletedMeetingId, navigate]);
 
   // Download whisper model
   const handleDownloadModel = async () => {
@@ -172,25 +167,28 @@ export default function MeetingsModern() {
     return map;
   }, [projects]);
 
-  // Filter meetings by search query
-  const filteredMeetings = useMemo(() => {
-    return meetings.filter((m) => {
-      if (searchQuery.trim()) {
-        const query = searchQuery.trim().toLowerCase();
-        if (!m.title.toLowerCase().includes(query)) return false;
-      }
-      return true;
-    });
-  }, [meetings, searchQuery]);
+  // Pinned live-session lookup (mirrors LiveModeOverlay's title/project resolution)
+  const liveMeeting = liveMeetingId ? meetings.find((m) => m.id === liveMeetingId) : undefined;
+  const liveProject = liveMeeting?.projectId ? projects.find((p) => p.id === liveMeeting.projectId) : undefined;
 
-  // Sort filtered meetings
+  // Session rows navigate to the routed session page (/session/:id). The modal
+  // is retired — the whole detail view is a full page now.
+  const handleSessionRowClick = useCallback(
+    (meetingId: string) => {
+      navigate(`/session/${meetingId}`);
+    },
+    [navigate],
+  );
+
+  // Sort meetings (filtering is now SessionSearch's job — it navigates to a
+  // result rather than filtering this grid in place; see Task 6).
   const sortedMeetings = useMemo(() => {
-    return [...filteredMeetings].sort((a, b) => {
+    return [...meetings].sort((a, b) => {
       if (sortBy === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       if (sortBy === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       return a.title.localeCompare(b.title);
     });
-  }, [filteredMeetings, sortBy]);
+  }, [meetings, sortBy]);
 
   if (loading && meetings.length === 0) {
     return (
@@ -212,11 +210,11 @@ export default function MeetingsModern() {
                 className="font-data text-[0.6875rem] tracking-[0.3em] text-[var(--color-accent)] text-glow"
                 aria-hidden="true"
               >
-                SYS.MEETINGS
+                SYS.SESSIONS
               </span>
               <div className="h-px w-16 bg-gradient-to-l from-transparent to-[var(--color-accent)] opacity-40" />
             </div>
-            <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Meetings</h1>
+            <h1 className="font-hud text-2xl text-[var(--color-accent)] text-glow">Sessions</h1>
             <p className="text-[var(--color-text-secondary)] text-sm mt-1">Capture and analyze conversations.</p>
           </div>
 
@@ -269,24 +267,7 @@ export default function MeetingsModern() {
 
         {/* Filters & Search Toolbar */}
         <div className="flex hud-panel p-1.5 rounded-xl items-center gap-2 mb-2">
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
-            <input
-              type="text"
-              placeholder="Search transcripts..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-8 py-1.5 text-sm bg-transparent border-none focus:ring-0 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
+          <SessionSearch />
 
           <div className="h-6 w-px bg-[var(--color-border)] mx-1" />
 
@@ -381,33 +362,31 @@ export default function MeetingsModern() {
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto px-8 pb-8">
+        {/* Pinned live-session card — shown while recording, above the sessions list */}
+        {isRecording && (
+          <LiveSessionPin
+            title={liveMeeting?.title ?? 'Live Session'}
+            projectName={liveProject?.name}
+            elapsed={liveElapsed}
+            onReturnToLive={restoreLiveMode}
+          />
+        )}
+
         {sortedMeetings.length === 0 ? (
-          searchQuery ? (
-            <div className="mt-20 flex flex-col items-center justify-center text-center">
-              <div className="w-24 h-24 bg-[var(--color-accent-subtle)] rounded-full flex items-center justify-center mb-6 border border-[var(--color-border-accent)]">
-                <Mic size={40} className="text-[var(--color-accent-dim)]" />
-              </div>
-              <h2 className="text-xl font-medium text-[var(--color-text-primary)] mb-2">No matching meetings</h2>
-              <p className="text-[var(--color-text-secondary)] max-w-md mx-auto">
-                Try adjusting your filters or search query.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-20">
-              <EmptyFeatureState
-                icon={Mic}
-                title="Capture every meeting, privately"
-                description="Record any meeting, get automatic transcripts and AI summaries, and push action items straight to your project board. Your recordings never leave your machine."
-                benefits={[
-                  'Private — all audio stays on your device',
-                  'AI briefs and action items in seconds',
-                  'One-click push to project boards',
-                ]}
-                ctaLabel="Record Your First Meeting"
-                ctaAction={() => setShowControls(true)}
-              />
-            </div>
-          )
+          <div className="mt-20">
+            <EmptyFeatureState
+              icon={Mic}
+              title="Capture every meeting, privately"
+              description="Record any meeting, get automatic transcripts and AI summaries, and push action items straight to your project board. Your recordings never leave your machine."
+              benefits={[
+                'Private — all audio stays on your device',
+                'AI briefs and action items in seconds',
+                'One-click push to project boards',
+              ]}
+              ctaLabel="Record Your First Meeting"
+              ctaAction={() => setShowControls(true)}
+            />
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {sortedMeetings.map((meeting) => (
@@ -417,29 +396,13 @@ export default function MeetingsModern() {
                 projectName={meeting.projectId ? projectNameMap.get(meeting.projectId) : undefined}
                 projectColor={meeting.projectId ? projectColorMap.get(meeting.projectId) : undefined}
                 actionItemCount={actionItemCounts[meeting.id] || 0}
-                onClick={() => setSelectedMeetingId(meeting.id)}
+                onClick={() => handleSessionRowClick(meeting.id)}
                 onDelete={() => setDeleteMeetingConfirm({ id: meeting.id, title: meeting.title })}
               />
             ))}
           </div>
         )}
       </div>
-
-      {/* Meeting detail modal */}
-      <Suspense fallback={null}>
-        {selectedMeetingId && (
-          <MeetingDetailModal
-            autoGenerate={selectedMeetingId === autoOpenedMeetingId}
-            initialTranscriptSearch={initialTranscriptSearch}
-            onClose={() => {
-              setSelectedMeetingId(null);
-              setAutoOpenedMeetingId(null);
-              setInitialTranscriptSearch(undefined);
-              loadMeetings(); // Refresh list after viewing/editing
-            }}
-          />
-        )}
-      </Suspense>
 
       <ConfirmDialog
         open={!!deleteMeetingConfirm}

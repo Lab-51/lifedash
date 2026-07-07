@@ -263,7 +263,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     // Listen for live transcript segments (app-wide — single subscription for the
     // whole app, regardless of which view is active). Accumulates into liveSegments
     // for the global Live Mode overlay (LiveTranscriptFeed), and forwards to
-    // meetingStore so a currently open MeetingDetailModal keeps showing segments live
+    // meetingStore so an open session page keeps showing segments live
     // (preserves prior behavior that used to live in MeetingsModern).
     const cleanupTranscriptSegment = window.electronAPI.onTranscriptSegment((segment) => {
       set((state) => ({ liveSegments: [...state.liveSegments, segment] }));

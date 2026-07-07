@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
 // ---------------------------------------------------------------------------
@@ -40,6 +40,8 @@ vi.stubGlobal('electronAPI', {
 // Import store and component AFTER mocks
 // ---------------------------------------------------------------------------
 const { useRecordingStore } = await import('../../stores/recordingStore');
+const { useCanvasBadgeStore } = await import('../../stores/canvasBadgeStore');
+const { useActivityFeedStore } = await import('../../stores/activityFeedStore');
 const { default: LiveModeOverlay } = await import('../LiveModeOverlay');
 
 // Preserve the real actions so per-test spy overrides don't leak across tests.
@@ -75,6 +77,10 @@ describe('LiveModeOverlay', () => {
       elapsed: 0,
       ...realActions,
     });
+    // canvasBadgeStore/activityFeedStore are module-level singletons — reset so
+    // state set in one test can't leak into the next.
+    useCanvasBadgeStore.setState({ counts: { transcript: 0, board: 0, brain: 0 } });
+    useActivityFeedStore.setState({ entries: [], viewedTab: 'transcript', pendingToolCalls: [] });
   });
 
   it('renders nothing when not recording', () => {
@@ -214,5 +220,106 @@ describe('LiveModeOverlay', () => {
 
     expect(useRecordingStore.getState().isRecording).toBe(true);
     expect(useRecordingStore.getState().liveModeMinimized).toBe(false);
+  });
+
+  // -------------------------------------------------------------------------
+  // Task 4: switchable canvas (Transcript | Board | Brain)
+  // -------------------------------------------------------------------------
+  describe('canvas (Task 4)', () => {
+    it('shows the three canvas tabs with Transcript active by default', () => {
+      useRecordingStore.setState({ isRecording: true });
+      render(<LiveModeOverlay />);
+
+      expect(screen.getByRole('tab', { name: 'Transcript' })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('tab', { name: 'Board' })).toHaveAttribute('aria-selected', 'false');
+      expect(screen.getByRole('tab', { name: 'Brain' })).toHaveAttribute('aria-selected', 'false');
+    });
+
+    it('switches to the Board tab and shows the no-project empty state pointing at the proposal chip', () => {
+      useRecordingStore.setState({ isRecording: true, meetingId: 'meeting-1' });
+      render(<LiveModeOverlay />);
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Board' }));
+
+      expect(screen.getByText('The board arrives with this project')).toBeInTheDocument();
+      // Points at the existing propose->accept project chip (LIVE.3) in the feed
+      // on the right — never a new create-project mechanism.
+      expect(screen.getByText(/feed on the right/i)).toBeInTheDocument();
+      expect(screen.queryByTestId('embedded-board')).toBeNull();
+    });
+
+    it('switches to the Brain tab and shows the V3.2 placeholder', () => {
+      useRecordingStore.setState({ isRecording: true });
+      render(<LiveModeOverlay />);
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Brain' }));
+
+      expect(screen.getByText('The living graph arrives in V3.2.')).toBeInTheDocument();
+    });
+
+    it('renders a per-tab badge and clears it when that tab is viewed (no auto-flip)', () => {
+      useRecordingStore.setState({ isRecording: true });
+      useCanvasBadgeStore.setState({ counts: { transcript: 0, board: 2, brain: 0 } });
+      render(<LiveModeOverlay />);
+
+      const tablist = screen.getByRole('tablist');
+      expect(within(tablist).getByText('2')).toBeInTheDocument();
+      // Badge never auto-switches the active tab.
+      expect(screen.getByRole('tab', { name: 'Transcript' })).toHaveAttribute('aria-selected', 'true');
+
+      fireEvent.click(screen.getByRole('tab', { name: /board/i }));
+
+      expect(useCanvasBadgeStore.getState().counts.board).toBe(0);
+      expect(within(tablist).queryByText('2')).toBeNull();
+    });
+
+    it('keeps accumulating transcript segments while the Board tab is active', () => {
+      useRecordingStore.setState({
+        isRecording: true,
+        liveSegments: [makeSegment({ id: 'seg-1', content: 'First segment' })],
+      });
+      render(<LiveModeOverlay />);
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Board' }));
+      expect(screen.queryByTestId('live-transcript-feed')).toBeNull();
+
+      // Simulate a segment arriving (recordingStore's app-wide IPC listener) while
+      // the Board tab is on-canvas and LiveTranscriptFeed is unmounted.
+      act(() => {
+        useRecordingStore.setState((s) => ({
+          liveSegments: [...s.liveSegments, makeSegment({ id: 'seg-2', content: 'Second segment' })],
+        }));
+      });
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Transcript' }));
+
+      const feed = screen.getByTestId('live-transcript-feed');
+      expect(feed).toHaveTextContent('First segment');
+      expect(feed).toHaveTextContent('Second segment');
+    });
+
+    it('resets the active tab to Transcript when a new recording starts', async () => {
+      useRecordingStore.setState({ isRecording: true, meetingId: 'meeting-1' });
+      render(<LiveModeOverlay />);
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Board' }));
+      expect(screen.getByRole('tab', { name: 'Board' })).toHaveAttribute('aria-selected', 'true');
+
+      // Simulate the current recording stopping and a NEW one starting while the
+      // overlay stays mounted (it never unmounts — see LiveModeOverlay.tsx header).
+      act(() => {
+        useRecordingStore.setState({ isRecording: false, meetingId: null });
+      });
+      act(() => {
+        useRecordingStore.setState({ isRecording: true, meetingId: 'meeting-2' });
+      });
+      // The reset is deferred into rAF (mirrors the overlay's fade-in effect) —
+      // flush one frame so it lands before asserting.
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      });
+
+      expect(screen.getByRole('tab', { name: 'Transcript' })).toHaveAttribute('aria-selected', 'true');
+    });
   });
 });

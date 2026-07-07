@@ -38,8 +38,22 @@ import type {
   ProjectAgentAction,
 } from '../../shared/types';
 import { createLogger } from './logger';
+import { notifyDataChanged } from './dataChangeNotifier';
 
 const log = createLogger('ProjectAgent');
+
+/**
+ * Resolve the owning project of a column (column -> board -> project) for broadcast
+ * targeting. Two simple selects (no same-table join — PGlite constraint, see header).
+ * Returns undefined when the column/board cannot be traced (broadcast then falls
+ * back to refetching the visible board).
+ */
+async function projectIdForColumn(db: ReturnType<typeof getDb>, columnId: string): Promise<string | undefined> {
+  const [col] = await db.select({ boardId: columns.boardId }).from(columns).where(eq(columns.id, columnId));
+  if (!col) return undefined;
+  const [board] = await db.select({ projectId: boards.projectId }).from(boards).where(eq(boards.id, col.boardId));
+  return board?.projectId;
+}
 
 // ---------------------------------------------------------------------------
 // Row Mapper
@@ -330,6 +344,12 @@ export function createMoveCardTool() {
           toColumn: targetColumn.name,
         }),
       });
+
+      // Broadcast so a visible board live-updates when the assistant moves a card
+      // mid-meeting. This tool writes the DB directly and does NOT route through the
+      // cards:move IPC handler, so this is the single emit for this path (no double
+      // emit with the cards:move site).
+      notifyDataChanged({ scope: 'cards', projectId: await projectIdForColumn(db, targetColumnId) });
 
       return {
         success: true,

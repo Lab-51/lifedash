@@ -10,21 +10,39 @@
 // dashboard's known stacking-context trap (drawer/standup-picker precedent).
 //
 // Layout: header (title/project, elapsed timer, audio level, Stop + Cancel + Minimize),
-// center LiveTranscriptFeed, right column reserving the Task 5 proposals mount point
-// above the reused LiveAssistantChat.
+// center switchable canvas (Task 4 — Transcript | Board | Brain, via the shared
+// LiveCanvasTabs also used by SessionWorkspace), right column with the proposals
+// feed, the Task 5 ActivityFeed (collapsible, so it never crowds the chat below
+// it), then the reused LiveAssistantChat.
+//
+// Canvas tab position is local component state, reset to Transcript whenever a NEW
+// recording starts (meetingId changes) but preserved across minimize/restore — this
+// component is mounted once at the app root (AppLayout) and just returns null while
+// inactive, so its state survives that round trip. Panels mount only while active;
+// this is safe for Transcript too because its data (recordingStore.liveSegments) is
+// populated by the ONE app-wide IPC subscription registered once in App.tsx
+// (recordingStore.initListener) — not by LiveTranscriptFeed itself — so flipping
+// tabs can never drop segments or duplicate the subscription.
 //
 // === DEPENDENCIES ===
 // react-dom (createPortal), lucide-react, recordingStore, meetingStore, projectStore,
-// LiveTranscriptFeed, LiveAssistantChat, AudioLevelMeter, ConfirmDialog
+// canvasBadgeStore, LiveCanvasTabs, LiveTranscriptFeed, EmbeddedBoard, BrainTabPanel,
+// LiveAssistantChat, AudioLevelMeter, ConfirmDialog
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Sparkles, Square, X, Minus } from 'lucide-react';
+import { Sparkles, Square, X, Minus, LayoutGrid } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
+import { useCanvasBadgeStore } from '../stores/canvasBadgeStore';
+import { useActivityFeedStore } from '../stores/activityFeedStore';
+import LiveCanvasTabs, { type CanvasTabId, type CanvasTabDef } from './LiveCanvasTabs';
 import LiveTranscriptFeed from './LiveTranscriptFeed';
+import EmbeddedBoard from './EmbeddedBoard';
+import BrainTabPanel from './BrainTabPanel';
 import LiveProposalsFeed from './LiveProposalsFeed';
+import ActivityFeed from './ActivityFeed';
 import LiveAssistantChat from './LiveAssistantChat';
 import AudioLevelMeter from './AudioLevelMeter';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -37,6 +55,62 @@ function formatElapsed(totalSeconds: number): string {
   return `${m}:${s}`;
 }
 
+// ---------------------------------------------------------------------------
+// Board tab — mounts EmbeddedBoard (Task 3) for the session's linked project.
+// With no project yet, points the user at the existing propose→accept project
+// chip in the right-column proposals feed instead of building a second
+// create-project path.
+// ---------------------------------------------------------------------------
+function LiveBoardTabPanel({ projectId }: { projectId?: string }) {
+  if (!projectId) {
+    return (
+      <div
+        role="tabpanel"
+        id="panel-board"
+        aria-labelledby="tab-board"
+        className="flex-1 flex flex-col items-center justify-center text-center py-16 px-6"
+      >
+        <div className="w-16 h-16 rounded-2xl bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] flex items-center justify-center mb-5">
+          <LayoutGrid size={28} className="text-[var(--color-accent-dim)]" />
+        </div>
+        <h3 className="text-lg font-medium text-[var(--color-text-primary)] mb-1.5">
+          The board arrives with this project
+        </h3>
+        <p className="text-sm text-[var(--color-text-secondary)] max-w-sm">
+          Accept a project suggestion in the feed on the right to link one — its board will live right here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div role="tabpanel" id="panel-board" aria-labelledby="tab-board" className="flex-1 flex min-h-0">
+      <EmbeddedBoard projectId={projectId} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Canvas body — picks the active panel. Pulled out of the main component so its
+// branching doesn't add to LiveModeOverlay's own complexity budget.
+// ---------------------------------------------------------------------------
+function LiveCanvasBody({ activeTab, projectId }: { activeTab: CanvasTabId; projectId?: string }) {
+  if (activeTab === 'transcript') {
+    return (
+      <div
+        role="tabpanel"
+        id="panel-transcript"
+        aria-labelledby="tab-transcript"
+        className="flex-1 min-h-0 flex flex-col"
+      >
+        <LiveTranscriptFeed />
+      </div>
+    );
+  }
+  if (activeTab === 'board') return <LiveBoardTabPanel projectId={projectId} />;
+  return <BrainTabPanel />;
+}
+
 export default function LiveModeOverlay() {
   const isRecording = useRecordingStore((s) => s.isRecording);
   const minimized = useRecordingStore((s) => s.liveModeMinimized);
@@ -47,9 +121,14 @@ export default function LiveModeOverlay() {
   const cancelRecording = useRecordingStore((s) => s.cancelRecording);
   const meetings = useMeetingStore((s) => s.meetings);
   const projects = useProjectStore((s) => s.projects);
+  const badgeCounts = useCanvasBadgeStore((s) => s.counts);
+  const clearBadge = useCanvasBadgeStore((s) => s.clear);
+  const activityEntries = useActivityFeedStore((s) => s.entries);
 
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<CanvasTabId>('transcript');
+  const prevMeetingIdRef = useRef<string | null>(null);
 
   // AUTO-ENTER: render whenever recording is live and Live Mode is not minimized.
   const active = isRecording && !minimized;
@@ -61,6 +140,28 @@ export default function LiveModeOverlay() {
     const id = requestAnimationFrame(() => setVisible(active));
     return () => cancelAnimationFrame(id);
   }, [active]);
+
+  // Tab state is per-recording: a NEW meetingId (a fresh recording) resets the
+  // canvas to Transcript and zeroes stale badges from the previous session. This
+  // component never unmounts on minimize/restore, so without this the tab picked
+  // during a prior recording would otherwise leak into the next one. Deferred into
+  // rAF (never a synchronous setState in the effect body) — mirrors the fade effect.
+  useEffect(() => {
+    const isNewRecording = meetingId && meetingId !== prevMeetingIdRef.current;
+    prevMeetingIdRef.current = meetingId;
+    if (!isNewRecording) return;
+    const id = requestAnimationFrame(() => {
+      setActiveTab('transcript');
+      useCanvasBadgeStore.getState().reset();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [meetingId]);
+
+  const handleSelectTab = (tab: CanvasTabId) => {
+    setActiveTab(tab);
+    clearBadge(tab);
+    useActivityFeedStore.getState().setViewedTab(tab);
+  };
 
   // Esc minimizes (NEVER stops — destructive actions stay behind explicit buttons only).
   // Skip while the cancel-confirm dialog is open so Esc only dismisses that dialog.
@@ -81,6 +182,12 @@ export default function LiveModeOverlay() {
   const meeting = meetingId ? meetings.find((m) => m.id === meetingId) : undefined;
   const title = meeting?.title ?? 'Live Meeting';
   const project = meeting?.projectId ? projects.find((p) => p.id === meeting.projectId) : undefined;
+
+  const canvasTabs: CanvasTabDef[] = [
+    { id: 'transcript', label: 'Transcript', badge: badgeCounts.transcript },
+    { id: 'board', label: 'Board', badge: badgeCounts.board },
+    { id: 'brain', label: 'Brain', badge: badgeCounts.brain },
+  ];
 
   return createPortal(
     <div
@@ -160,11 +267,14 @@ export default function LiveModeOverlay() {
         </div>
       </header>
 
-      {/* BODY: transcript spine (center) + proposals/chat (right) */}
+      {/* BODY: switchable canvas (center) + proposals/chat (right) */}
       <div className="flex-1 min-h-0 flex">
-        {/* Center: live transcript */}
+        {/* Center: Transcript | Board | Brain canvas (Task 4) */}
         <div className="flex-1 min-w-0 flex flex-col">
-          <LiveTranscriptFeed />
+          <div className="px-4 pt-3 shrink-0">
+            <LiveCanvasTabs tabs={canvasTabs} active={activeTab} onSelect={handleSelectTab} />
+          </div>
+          <LiveCanvasBody activeTab={activeTab} projectId={meeting?.projectId ?? undefined} />
         </div>
 
         {/* Right column */}
@@ -174,6 +284,13 @@ export default function LiveModeOverlay() {
               both read liveSuggestionsStore, which stays live even while minimized. */}
           <div data-testid="live-proposals-mount" className="shrink-0">
             <LiveProposalsFeed />
+          </div>
+
+          {/* Activity feed (Task 5) — labeled log of what the assistant/triage has
+              done this recording; off-canvas entries pulse the tab badge above.
+              Collapsible so a long log never crowds the chat below it. */}
+          <div data-testid="activity-feed-mount" className="shrink-0 border-t border-[var(--color-border)]">
+            <ActivityFeed entries={activityEntries} onSelectTab={handleSelectTab} collapsible />
           </div>
 
           {/* Reused Live Assistant chat (LIVE.1) */}

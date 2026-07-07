@@ -47,8 +47,21 @@ export function exportBoardAsCsv(columns: Column[], cards: Card[], labels: Label
   URL.revokeObjectURL(url);
 }
 
-export function useBoardController() {
-  const { projectId } = useParams<{ projectId: string }>();
+/**
+ * @param projectIdOverride When provided (e.g. EmbeddedBoard mounted outside the
+ * /projects/:projectId route, such as SessionWorkspace's Board tab), this project
+ * is used instead of the route param. Falls back to the route param otherwise, so
+ * the BoardPage route keeps working unchanged.
+ * @param active Whether this controller instance is the foreground board (default
+ * true). When false — e.g. a route board fully covered by the full-screen
+ * LiveModeOverlay — this instance skips the load effect (so it never stomps the
+ * single shared store) and registers NO document-scoped drag monitors (so a single
+ * drop is handled exactly once, never doubled by a coexisting board). Flipping back
+ * to true self-heals: the load effect re-fires and reloads this board's project.
+ */
+export function useBoardController(projectIdOverride?: string, active = true) {
+  const params = useParams<{ projectId: string }>();
+  const projectId = projectIdOverride ?? params.projectId;
   const project = useBoardStore((s) => s.project);
   const columns = useBoardStore((s) => s.columns);
   const cards = useBoardStore((s) => s.cards);
@@ -144,11 +157,14 @@ export function useBoardController() {
   });
 
   // Effects
+  // Load effect — gated on `active`. An inert board (covered by the full-screen
+  // overlay) must NOT load, or it would stomp the single shared store out from
+  // under the foreground board. Re-runs when `active` flips false→true, so the
+  // board self-heals (reloads its own project) the moment it regains focus.
   useEffect(() => {
-    if (projectId) {
-      loadBoard(projectId);
-    }
-  }, [projectId, loadBoard]);
+    if (!active || !projectId) return;
+    loadBoard(projectId);
+  }, [projectId, loadBoard, active]);
 
   useEffect(() => {
     const openCardId = searchParams.get('openCard');
@@ -203,7 +219,11 @@ export function useBoardController() {
   }, []);
 
   // Card DnD
+  // Only the active board registers a document-scoped card monitor. Without this
+  // guard, two coexisting boards would BOTH receive a single drop, double-firing
+  // moveCard (double IPC + duplicate 'moved' history rows).
   useEffect(() => {
+    if (!active) return;
     function maybeMarkReviewedOnDragOutOfInbox(cardId: string, sourceColumnId: string, targetColumnId: string): void {
       if (targetColumnId === sourceColumnId) return;
       const sourceColumn = columns.find((c) => c.id === sourceColumnId);
@@ -272,10 +292,11 @@ export function useBoardController() {
         }
       },
     });
-  }, [cards, columns, moveCard, markCardReviewed]);
+  }, [cards, columns, moveCard, markCardReviewed, active]);
 
-  // Column Reorder DnD
+  // Column Reorder DnD — same active guard as the card monitor above.
   useEffect(() => {
+    if (!active) return;
     return monitorForElements({
       canMonitor: ({ source }) => source.data.type === 'column',
       onDrop: ({ source, location }) => {
@@ -302,7 +323,7 @@ export function useBoardController() {
         reorderColumns(currentOrder);
       },
     });
-  }, [columns, reorderColumns]);
+  }, [columns, reorderColumns, active]);
 
   const handleDragOverChange = useCallback((columnId: string, isOver: boolean) => {
     setDragOverColumnId(isOver ? columnId : null);

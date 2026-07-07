@@ -256,7 +256,7 @@ const KanbanCardModern = memo(function KanbanCardModern({
   const handleViewSource = () => {
     setShowOverflowMenu(false);
     if (card.sourceMeetingId) {
-      navigate(`/meetings?openMeeting=${card.sourceMeetingId}`);
+      navigate(`/session/${card.sourceMeetingId}`);
     }
   };
 

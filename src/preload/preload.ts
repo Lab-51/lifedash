@@ -33,6 +33,7 @@ import { recoveryBridge } from './domains/recovery';
 import { diagnosticsBridge } from './domains/diagnostics';
 import { syncBridge } from './domains/sync';
 import { intelFeedBridge } from './domains/intel-feed';
+import { searchBridge } from './domains/search';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -64,4 +65,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...diagnosticsBridge,
   ...syncBridge,
   ...intelFeedBridge,
+  ...searchBridge,
 });

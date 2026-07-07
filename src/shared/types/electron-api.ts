@@ -94,6 +94,7 @@ import type {
   UpdateIntelFeedInput,
   IntelDateFilter,
 } from './intel-feed';
+import type { SearchResults } from './search';
 
 export interface RecoveryState {
   timestamp: string;
@@ -505,6 +506,9 @@ export interface ElectronAPI {
   // App-level
   openExternal: (url: string) => Promise<void>;
   onShowCommandPalette: (callback: () => void) => () => void;
+  onDataChanged: (
+    callback: (data: { scope: 'cards' | 'columns' | 'projects'; projectId?: string }) => void,
+  ) => () => void;
   onUpdateStatus: (callback: (data: { status: string; releaseName?: string }) => void) => () => void;
   installUpdate: () => Promise<void>;
   checkForUpdates: () => Promise<void>;
@@ -565,6 +569,9 @@ export interface ElectronAPI {
   onSyncStatusChanged: (callback: (data: { status: string; lastSyncedAt: string | null }) => void) => () => void;
   onSyncError: (callback: (data: { table: string; error: string }) => void) => () => void;
   onSyncPullComplete: (callback: () => void) => () => void;
+
+  // Search (full-text search across sessions/cards/projects, V3.1 Task 6)
+  search: (query: string) => Promise<SearchResults>;
 }
 
 declare global {

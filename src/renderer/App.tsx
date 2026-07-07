@@ -17,12 +17,14 @@ import TitleBar from './components/TitleBar';
 import AppLayout from './components/AppLayout';
 import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
+import { useBoardLiveSync } from './hooks/useBoardLiveSync';
 import { useTheme } from './hooks/useTheme';
 import { useFontScale } from './hooks/useFontScale';
 import { suggestMeetingTitle } from '../shared/utils/meetingTitle';
 
 import { useRecordingStore } from './stores/recordingStore';
 import { useLiveSuggestionsStore } from './stores/liveSuggestionsStore';
+import { useActivityFeedStore } from './stores/activityFeedStore';
 import { useProjectStore } from './stores/projectStore';
 import { useMeetingStore } from './stores/meetingStore';
 import { useIdeaStore } from './stores/ideaStore';
@@ -45,7 +47,7 @@ import type { ReleaseType, ReleaseNoteSection, ReleaseNotesData } from '../share
 import type { RecoveryState } from '../shared/types/electron-api';
 import { toast } from './hooks/useToast';
 
-const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const SessionsHomePage = lazy(() => import('./pages/SessionsHomePage'));
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
 const IdeasPage = lazy(() => import('./pages/IdeasPage'));
@@ -54,6 +56,7 @@ const BrainstormPage = lazy(() => import('./pages/BrainstormPage'));
 const FocusPage = lazy(() => import('./pages/FocusPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const BoardPage = lazy(() => import('./pages/BoardPage'));
+const SessionWorkspace = lazy(() => import('./components/SessionWorkspace'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const FocusStartModal = lazy(() => import('./components/FocusStartModal'));
 const FocusCompleteModal = lazy(() => import('./components/FocusCompleteModal'));
@@ -135,6 +138,14 @@ function AppShell({ children }: { children: ReactNode }) {
   // while Live Mode is minimized (LiveProposalsFeed itself may be unmounted).
   useEffect(() => {
     const cleanup = useLiveSuggestionsStore.getState().initListener();
+    return cleanup;
+  }, []);
+
+  // Initialize the activity feed's clear-on-stop listener (V3.1 Task 5) — always
+  // active so the feed is already empty the instant a new recording starts,
+  // regardless of whether LiveModeOverlay happened to be mounted at the time.
+  useEffect(() => {
+    const cleanup = useActivityFeedStore.getState().initListener();
     return cleanup;
   }, []);
 
@@ -319,6 +330,10 @@ function AppShell({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Live board sync: debounce-refetch the visible board on any data:changed
+  // broadcast so mutations from any source appear without a manual refresh.
+  useBoardLiveSync();
+
   // Show toast when break timer ends (break -> idle transition)
   const prevModeRef = useRef(focusMode);
   useEffect(() => {
@@ -380,7 +395,7 @@ function App() {
           <TitleBar />
           <Routes>
             <Route element={<AppLayout />}>
-              <Route index element={<DashboardPage />} />
+              <Route index element={<SessionsHomePage />} />
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/meetings" element={<MeetingsPage />} />
               <Route path="/intel" element={<IntelPage />} />
@@ -389,6 +404,7 @@ function App() {
               <Route path="/focus" element={<FocusPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/projects/:projectId" element={<BoardPage />} />
+              <Route path="/session/:id" element={<SessionWorkspace />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>

@@ -18,7 +18,6 @@ import {
   PlusCircle,
   Zap,
   FileSearch,
-  Clock,
 } from 'lucide-react';
 import type { TranscriptSearchResult } from '../../shared/types';
 import { useProjectStore } from '../stores/projectStore';
@@ -154,14 +153,13 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
     [navigate, onClose],
   );
 
+  // V3.1: Projects / Brainstorm / Ideas / Focus quick-nav entries removed to match
+  // the collapsed sidebar IA. Their routes stay mounted — dataItems below still
+  // surfaces individual projects/ideas/cards as searchable deep links.
   const pageItems: CommandItem[] = useMemo(
     () => [
-      { id: 'p-home', label: 'Home', icon: LayoutDashboard, category: 'Pages', action: () => go('/') },
-      { id: 'p-proj', label: 'Projects', icon: Folder, category: 'Pages', action: () => go('/projects') },
+      { id: 'p-home', label: 'Sessions', icon: LayoutDashboard, category: 'Pages', action: () => go('/') },
       { id: 'p-meet', label: 'Meetings', icon: Mic, category: 'Pages', action: () => go('/meetings') },
-      { id: 'p-idea', label: 'Ideas', icon: Lightbulb, category: 'Pages', action: () => go('/ideas') },
-      { id: 'p-brain', label: 'Brainstorm', icon: MessageSquare, category: 'Pages', action: () => go('/brainstorm') },
-      { id: 'p-focus', label: 'Focus', icon: Clock, category: 'Pages', action: () => go('/focus') },
       { id: 'p-set', label: 'Settings', icon: Settings, category: 'Pages', action: () => go('/settings') },
     ],
     [go],
@@ -326,7 +324,7 @@ function CommandPalette({ isOpen, onClose, navigate, onShowShortcuts }: CommandP
       sublabel: r.meetingTitle,
       icon: FileSearch,
       category: 'Transcripts',
-      action: () => go(`/meetings?openMeeting=${r.meetingId}&transcriptSearch=${encodeURIComponent(trimmed)}`),
+      action: () => go(`/session/${r.meetingId}?transcriptSearch=${encodeURIComponent(trimmed)}`),
     }));
 
     return [...matchedPages, ...matchedActions, ...matchedData, ...transcriptItems, ...captureItems];

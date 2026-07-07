@@ -57,12 +57,15 @@ vi.mock('../logger', () => ({
   }),
 }));
 
+vi.mock('../dataChangeNotifier', () => ({ notifyDataChanged: vi.fn() }));
+
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
 import { autoPushActionItems, readAutoPushSetting, SETTINGS_KEY_AUTO_PUSH } from '../autoPushService';
 import { ensureInboxColumn } from '../inboxColumnService';
+import { notifyDataChanged } from '../dataChangeNotifier';
 import type { ActionItem } from '../../../shared/types/intelligence';
 
 // ---------------------------------------------------------------------------
@@ -253,6 +256,9 @@ describe('autoPushActionItems', () => {
     expect(result.cards).toHaveLength(2);
     expect(db.transaction).toHaveBeenCalledTimes(1);
     expect(ensureInboxColumn).toHaveBeenCalledWith(db, 'board-1');
+    // Broadcasts once so a visible board for this project live-updates.
+    expect(notifyDataChanged).toHaveBeenCalledWith({ scope: 'cards', projectId: 'proj-1' });
+    expect(notifyDataChanged).toHaveBeenCalledTimes(1);
   });
 
   // ---------------------------------------------------------------------------
@@ -355,6 +361,8 @@ describe('autoPushActionItems', () => {
     expect(result.cards).toHaveLength(0);
     expect(db.transaction).not.toHaveBeenCalled();
     expect(ensureInboxColumn).not.toHaveBeenCalled();
+    // No cards pushed → no broadcast.
+    expect(notifyDataChanged).not.toHaveBeenCalled();
   });
 
   // ---------------------------------------------------------------------------

@@ -69,6 +69,8 @@ vi.mock('../autoPushService', () => ({
   resolvePrimaryBoardId: vi.fn(),
 }));
 
+vi.mock('../dataChangeNotifier', () => ({ notifyDataChanged: vi.fn() }));
+
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
@@ -87,6 +89,7 @@ import { createProjectRecord } from '../projectService';
 import { ensureInboxColumn } from '../inboxColumnService';
 import { ensureUnassignedProject } from '../unassignedProjectService';
 import { resolvePrimaryBoardId } from '../autoPushService';
+import { notifyDataChanged } from '../dataChangeNotifier';
 
 // ---------------------------------------------------------------------------
 // buildTranscriptWindow
@@ -228,6 +231,8 @@ describe('createLiveAssistantCard', () => {
     expect(insertArg.sourceMeetingId).toBe('m1');
     expect(insertArg.columnId).toBe('inbox-1');
     expect(insertArg.position).toBe(2);
+    // Single card-creation path broadcasts once so the visible board live-updates.
+    expect(notifyDataChanged).toHaveBeenCalledWith({ scope: 'cards', projectId: 'proj-1' });
   });
 
   it('routes to the Unassigned project when the meeting has no project (never fails)', async () => {
@@ -255,6 +260,8 @@ describe('createLiveAssistantCard', () => {
     expect(insertArg.source).toBe('live-assistant');
     expect(insertArg.sourceMeetingId).toBe('m2');
     expect(insertArg.columnId).toBe('uinbox-1');
+    // Routed to Unassigned → broadcast carries the Unassigned project id.
+    expect(notifyDataChanged).toHaveBeenCalledWith({ scope: 'cards', projectId: 'unassigned-1' });
   });
 
   it('returns a graceful error object instead of throwing when the meeting is missing', async () => {
@@ -265,6 +272,8 @@ describe('createLiveAssistantCard', () => {
 
     expect(res.success).toBe(false);
     expect(res.error).toBe('Meeting not found');
+    // No card created → no broadcast.
+    expect(notifyDataChanged).not.toHaveBeenCalled();
   });
 });
 
@@ -423,6 +432,8 @@ describe('board tools — moveCard round trip', () => {
       [{ id: 'card-1', title: 'Fix bug', columnId: 'col-source' }],
       [{ name: 'To Do' }],
       [{ name: 'Done' }],
+      [{ boardId: 'board-1' }], // projectIdForColumn: column -> boardId
+      [{ projectId: 'proj-1' }], // projectIdForColumn: board -> projectId
     ]);
     vi.mocked(getDb).mockReturnValue(db as never);
 
@@ -431,6 +442,9 @@ describe('board tools — moveCard round trip', () => {
 
     expect(result).toEqual({ success: true, cardTitle: 'Fix bug', fromColumn: 'To Do', toColumn: 'Done' });
     expect(db._insertValuesSpy).toHaveBeenCalledWith(expect.objectContaining({ cardId: 'card-1', action: 'moved' }));
+    // The live-assistant moveCard writes the DB directly — it must still broadcast once
+    // so the embedded board live-updates mid-meeting.
+    expect(notifyDataChanged).toHaveBeenCalledWith({ scope: 'cards', projectId: 'proj-1' });
   });
 
   it("returns an error (not a throw) when the target column doesn't exist", async () => {

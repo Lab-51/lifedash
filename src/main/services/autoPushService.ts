@@ -7,6 +7,7 @@ import { eq, count, asc } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { actionItems, boards, cards, projects, settings } from '../db/schema';
 import { ensureInboxColumn } from './inboxColumnService';
+import { notifyDataChanged } from './dataChangeNotifier';
 import { createLogger } from './logger';
 import type { ActionItem } from '../../shared/types/intelligence';
 import type { Card } from '../../shared/types/projects';
@@ -106,6 +107,11 @@ export async function autoPushActionItems(args: {
 
   const skippedCount = items.length - pushedCards.length;
   log.info(`Auto-pushed ${pushedCards.length} cards for meeting ${meetingId} (${skippedCount} skipped)`);
+
+  // Broadcast so a visible board for this project live-updates with the new cards.
+  if (pushedCards.length > 0) {
+    notifyDataChanged({ scope: 'cards', projectId });
+  }
 
   return { pushedCount: pushedCards.length, skippedCount, cards: pushedCards };
 }

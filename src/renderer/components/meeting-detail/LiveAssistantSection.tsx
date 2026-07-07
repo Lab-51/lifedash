@@ -1,5 +1,5 @@
 // === FILE PURPOSE ===
-// Read-only Live Assistant conversation, shown in MeetingDetailModal after a
+// Read-only Live Assistant conversation, shown in the session page after a
 // meeting completes. Phase A is live-only (LIVE.1) — there is no post-meeting
 // Q&A here, just a transcript of what was asked/answered during the recording.
 // Uses its own local state (not meetingAgentStore) so it never shares state with
@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import ChatMessageModern from '../ChatMessageModern';
-import { describeToolCall } from '../LiveAssistantChat';
+import { describeToolCall } from '../../utils/toolCallLabels';
 import type { MeetingAgentMessage, BrainstormMessage } from '../../../shared/types';
 
 function toBrainstormMessage(message: MeetingAgentMessage, content: string): BrainstormMessage {

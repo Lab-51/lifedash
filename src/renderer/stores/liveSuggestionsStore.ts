@@ -12,12 +12,18 @@
 // to a value -> load existing suggestions for that meeting; transitions to null
 // (stop/cancel) -> clear all state.
 //
+// A successful accept()/dismiss() also pushes an entry into activityFeedStore
+// (V3.1 Task 5, chip accept/dismiss source — including the 'project' chip's
+// create+link) so it shows up in the Live Mode activity feed the moment it
+// happens.
+//
 // === DEPENDENCIES ===
-// zustand, recordingStore (read-only, meetingId transitions), window.electronAPI
-// (preload bridge), shared LiveSuggestion type
+// zustand, recordingStore (read-only, meetingId transitions), activityFeedStore,
+// window.electronAPI (preload bridge), shared LiveSuggestion type
 
 import { create } from 'zustand';
 import { useRecordingStore } from './recordingStore';
+import { useActivityFeedStore } from './activityFeedStore';
 import type { LiveSuggestion } from '../../shared/types';
 
 interface LiveSuggestionsStore {
@@ -69,8 +75,12 @@ export const useLiveSuggestionsStore = create<LiveSuggestionsStore>((set, get) =
       try {
         const updated = await window.electronAPI.acceptLiveSuggestion(id);
         // A null result means the row was already processed/claimed elsewhere — the
-        // optimistic 'accepted' flip above already matches reality, so leave it.
-        if (updated) set({ suggestions: get().suggestions.map((s) => (s.id === id ? updated : s)) });
+        // optimistic 'accepted' flip above already matches reality, so leave it
+        // (and skip the activity entry — this session didn't do the accepting).
+        if (updated) {
+          set({ suggestions: get().suggestions.map((s) => (s.id === id ? updated : s)) });
+          useActivityFeedStore.getState().addSuggestionEvent(updated, 'accepted');
+        }
         return updated;
       } catch (error) {
         // Rollback — restore the chip so the user can retry.
@@ -95,6 +105,7 @@ export const useLiveSuggestionsStore = create<LiveSuggestionsStore>((set, get) =
       try {
         const updated = await window.electronAPI.dismissLiveSuggestion(id);
         set({ suggestions: get().suggestions.map((s) => (s.id === id ? updated : s)) });
+        useActivityFeedStore.getState().addSuggestionEvent(updated, 'dismissed');
       } catch (error) {
         set({
           suggestions: prevSuggestions,

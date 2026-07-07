@@ -4,7 +4,7 @@
 // to spotlight sidebar nav items during relevant steps.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Rocket, FolderKanban, Mic, Brain, Lightbulb, Newspaper, Timer, PartyPopper } from 'lucide-react';
+import { Rocket, Mic, LayoutGrid, Search, PartyPopper } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,53 +33,29 @@ const TOUR_STEPS: TourStep[] = [
     id: 'welcome',
     title: 'Welcome to LifeDash',
     description:
-      'Your private AI-powered dashboard for meetings, news intelligence, project management, and deep work. Everything stays on your machine.',
+      'Your private, local-first meeting intelligence tool. Record, transcribe, and turn conversations into briefs, action items, and project cards — nothing ever leaves your machine.',
     icon: Rocket,
   },
   {
-    id: 'meetings',
-    title: 'Capture every meeting',
+    id: 'sessions',
+    title: 'Sessions — your meetings, captured',
     description:
-      'Record from any app — Zoom, Teams, Google Meet. Get transcripts, AI briefs, and action items automatically.',
+      'Record from any app — Zoom, Teams, Google Meet. Every session gets a transcript, an AI brief, and action items automatically.',
     icon: Mic,
-    spotlightTarget: 'nav-meetings',
+    spotlightTarget: 'nav-sessions',
   },
   {
-    id: 'intel',
-    title: 'Stay informed',
+    id: 'workspace',
+    title: 'One workspace per session',
     description:
-      'Your AI-curated news feed. Aggregate RSS sources, get daily intelligence briefs, read articles in-app, and turn insights into projects or ideas.',
-    icon: Newspaper,
-    spotlightTarget: 'nav-intel',
+      'Open any session for its full workspace: the transcript, a live project board, and Brain — everything about that meeting in one place.',
+    icon: LayoutGrid,
   },
   {
-    id: 'projects',
-    title: 'From insight to execution',
-    description:
-      'Manage projects with boards, columns, and checklists. Action items from meetings and news flow directly into cards.',
-    icon: FolderKanban,
-    spotlightTarget: 'nav-projects',
-  },
-  {
-    id: 'brainstorm',
-    title: 'Think with AI',
-    description: 'Use AI to explore ideas, discuss articles, solve problems, or plan your next steps.',
-    icon: Brain,
-    spotlightTarget: 'nav-brainstorm',
-  },
-  {
-    id: 'ideas',
-    title: 'Capture ideas on the fly',
-    description: "Quick-capture thoughts anytime. Turn the best ones into projects when you're ready.",
-    icon: Lightbulb,
-    spotlightTarget: 'nav-ideas',
-  },
-  {
-    id: 'focus',
-    title: 'Track deep work',
-    description: 'Start focus sessions, log time against projects, and build streaks. See where your hours go.',
-    icon: Timer,
-    spotlightTarget: 'nav-focus',
+    id: 'search',
+    title: 'Find anything fast',
+    description: 'Press Ctrl+K (Cmd+K on Mac) anytime to search across sessions, cards, and projects.',
+    icon: Search,
   },
   {
     id: 'ready',
@@ -105,7 +81,10 @@ export default function FeatureTour({ onComplete }: FeatureTourProps) {
   const step = TOUR_STEPS[currentStep];
   const isFirst = currentStep === 0;
   const isLast = currentStep === TOUR_STEPS.length - 1;
-  const isCentered = !step.spotlightTarget;
+  // Centered whenever there's no target to spotlight, OR the target has one but
+  // it isn't in the DOM (e.g. a future nav change) — degrades gracefully instead
+  // of collapsing to an unstyled top-left tooltip with no spotlight.
+  const isCentered = !step.spotlightTarget || !spotlightRect;
 
   // Fade in on mount
   useEffect(() => {

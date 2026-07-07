@@ -363,7 +363,7 @@ function CardDetailModal({ card, onUpdate, onClose }: CardDetailModalProps) {
                       <button
                         data-testid="card-detail-source-link"
                         onClick={() => {
-                          navigate(`/meetings?openMeeting=${card.sourceMeetingId}`);
+                          navigate(`/session/${card.sourceMeetingId}`);
                           onClose();
                         }}
                         className="inline-flex items-center gap-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors normal-case tracking-normal"

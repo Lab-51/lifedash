@@ -493,7 +493,7 @@ export default function DashboardModern() {
                   recentMeetings.map((meeting) => (
                     <div
                       key={meeting.id}
-                      onClick={() => navigate(`/meetings?openMeeting=${meeting.id}`)}
+                      onClick={() => navigate(`/session/${meeting.id}`)}
                       className="group relative hud-panel clip-corner-cut-sm p-4 cursor-pointer hover:border-[var(--color-magenta-dim)] transition-all"
                     >
                       <div className="flex justify-between items-start mb-3">
@@ -628,7 +628,7 @@ export default function DashboardModern() {
                       <div
                         key={item.id}
                         className="flex items-start gap-3 p-3 rounded-lg hover:bg-[var(--color-warm-subtle)] transition-colors group cursor-pointer"
-                        onClick={() => navigate(`/meetings?openMeeting=${item.meetingId}`)}
+                        onClick={() => navigate(`/session/${item.meetingId}`)}
                       >
                         <div className="mt-0.5 shrink-0">
                           <CircleDot

@@ -5,45 +5,21 @@
 // meetingAgentStore's single-thread-per-meeting model. Reuses ChatMessageModern for
 // all markdown/streaming text rendering — this file only adds tool-call badges.
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { SendHorizonal, Square, Loader2, Bot, Settings, CheckCircle2, XCircle, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ChatMessageModern from './ChatMessageModern';
 import { useMeetingAgentStore } from '../stores/meetingAgentStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useBoardStore } from '../stores/boardStore';
-import type { MeetingAgentMessage, BrainstormMessage, ToolCallRecord } from '../../shared/types';
+import { describeToolEvent, describeToolCall } from '../utils/toolCallLabels';
+import type { MeetingAgentMessage, BrainstormMessage } from '../../shared/types';
 
 const STARTER_PROMPTS = [
   'Summarize the meeting so far',
   'What questions are still open?',
   'Create a card for that last point',
 ];
-
-/** Human-readable labels for the four meeting-agent tools, keyed by tool name. */
-const TOOL_LABELS: Record<string, { inProgress: string; done: string }> = {
-  getTranscriptWindow: { inProgress: 'Reading transcript window…', done: 'Read transcript window' },
-  searchTranscript: { inProgress: 'Searching transcript…', done: 'Searched transcript' },
-  getMeetingContext: { inProgress: 'Loading meeting context…', done: 'Loaded meeting context' },
-};
-
-/** Generate a human-readable description for a live (in-flight) tool event. */
-function describeToolEvent(toolName: string, args?: unknown): string {
-  if (toolName === 'createCardInInbox') {
-    const title = (args as Record<string, unknown> | undefined)?.title;
-    return title ? `Creating card: "${title}"` : 'Creating card…';
-  }
-  return TOOL_LABELS[toolName]?.inProgress ?? `Running ${toolName}…`;
-}
-
-/** Generate a human-readable description for a persisted tool call (past tense). Exported for reuse in the read-only meeting-detail section. */
-export function describeToolCall(call: ToolCallRecord): string {
-  if (call.name === 'createCardInInbox') {
-    const title = (call.args as Record<string, unknown> | undefined)?.title;
-    return title ? `Created card: "${title}"` : 'Created card';
-  }
-  return TOOL_LABELS[call.name]?.done ?? `Ran ${call.name}`;
-}
 
 function toBrainstormMessage(message: MeetingAgentMessage, content: string): BrainstormMessage {
   return {
@@ -97,6 +73,27 @@ export default function LiveAssistantChat({ meetingId }: { meetingId: string }) 
   const providers = useSettingsStore((s) => s.providers);
   const hasAnyEnabledProvider = useSettingsStore((s) => s.hasAnyEnabledProvider);
   const navigate = useNavigate();
+
+  // Collapse the flat call/result event stream into ONE row per tool invocation that
+  // transitions loading -> done, instead of rendering a separate (perpetually
+  // "…-ing") row for the call AND the result. A 'result' resolves the most recent
+  // still-pending call of the same tool (handles the same tool being used twice).
+  const toolSteps = useMemo(() => {
+    const steps: { toolName: string; args?: unknown; done: boolean }[] = [];
+    for (const te of toolEvents) {
+      if (te.type === 'call') {
+        steps.push({ toolName: te.toolName, args: te.args, done: false });
+      } else {
+        for (let i = steps.length - 1; i >= 0; i--) {
+          if (steps[i].toolName === te.toolName && !steps[i].done) {
+            steps[i] = { ...steps[i], done: true };
+            break;
+          }
+        }
+      }
+    }
+    return steps;
+  }, [toolEvents]);
 
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -254,19 +251,23 @@ export default function LiveAssistantChat({ meetingId }: { meetingId: string }) 
               </div>
             )}
 
-            {toolEvents.length > 0 && (
+            {toolSteps.length > 0 && (
               <div className="border-l-2 border-[var(--color-border)] pl-3 ml-2 mt-1 space-y-1">
-                {toolEvents.map((te, i) => (
+                {toolSteps.map((te, i) => (
                   <div key={i} className="flex items-center gap-1.5">
-                    {te.type === 'call' ? (
-                      <Loader2 size={11} className="animate-spin text-amber-500 shrink-0" />
-                    ) : (
+                    {te.done ? (
                       <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
+                    ) : (
+                      <Loader2 size={11} className="animate-spin text-amber-500 shrink-0" />
                     )}
-                    <span
-                      className={`text-[0.6875rem] font-data ${te.type === 'call' ? 'text-amber-500' : 'text-emerald-500'}`}
-                    >
-                      {describeToolEvent(te.toolName, te.args)}
+                    <span className={`text-[0.6875rem] font-data ${te.done ? 'text-emerald-500' : 'text-amber-500'}`}>
+                      {te.done
+                        ? describeToolCall({
+                            id: '',
+                            name: te.toolName,
+                            args: (te.args as Record<string, unknown>) ?? {},
+                          })
+                        : describeToolEvent(te.toolName, te.args)}
                     </span>
                   </div>
                 ))}

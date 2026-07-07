@@ -22,4 +22,5 @@ export * from './meeting-agent';
 export * from './live-suggestions';
 export * from './sync';
 export * from './intel-feed';
+export * from './search';
 export * from './electron-api';

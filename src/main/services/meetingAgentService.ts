@@ -38,6 +38,7 @@ import { fetchPriorBriefs } from './meetingIntelligenceService';
 import { ensureInboxColumn } from './inboxColumnService';
 import { ensureUnassignedProject } from './unassignedProjectService';
 import { resolvePrimaryBoardId } from './autoPushService';
+import { notifyDataChanged } from './dataChangeNotifier';
 import {
   createListBoardsTool,
   createListColumnCardsTool,
@@ -228,6 +229,10 @@ export async function createLiveAssistantCard(
         sourceMeetingId: meetingId,
       })
       .returning();
+
+    // Single card-creation path for BOTH the live-suggestion accept rail and the
+    // createCardInInbox tool — notify here once so neither double-emits.
+    notifyDataChanged({ scope: 'cards', projectId });
 
     return {
       success: true,

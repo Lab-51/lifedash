@@ -34,6 +34,7 @@ import {
   actionItems,
 } from '../db/schema';
 import { resolveTaskModel, generate } from '../services/ai-provider';
+import { notifyDataChanged } from '../services/dataChangeNotifier';
 import * as attachmentService from '../services/attachmentService';
 import type { Card, Label } from '../../shared/types';
 import { buildCardLabelMap } from '../../shared/utils/card-utils';
@@ -123,6 +124,21 @@ async function spawnRecurringCard(completedCard: CardRow, db: ReturnType<typeof 
     .returning();
 
   return newCard;
+}
+
+/**
+ * Resolve the owning project of a column (column -> board -> project) so a card
+ * mutation can be broadcast to the right board. Returns undefined if the column
+ * cannot be traced (the broadcast then falls back to refetching the visible board).
+ */
+async function projectIdForColumn(db: ReturnType<typeof getDb>, columnId: string): Promise<string | undefined> {
+  const [row] = await db
+    .select({ projectId: boards.projectId })
+    .from(columns)
+    .innerJoin(boards, eq(columns.boardId, boards.id))
+    .where(eq(columns.id, columnId))
+    .limit(1);
+  return row?.projectId ?? undefined;
 }
 
 export function registerCardHandlers(): void {
@@ -222,6 +238,7 @@ export function registerCardHandlers(): void {
       })
       .returning();
     logCardActivity(card.id, 'created', { title: input.title });
+    notifyDataChanged({ scope: 'cards', projectId: await projectIdForColumn(db, input.columnId) });
     return card;
   });
 
@@ -262,13 +279,20 @@ export function registerCardHandlers(): void {
         fields: Object.keys(input).filter((k) => k !== 'updatedAt'),
       });
     }
+    notifyDataChanged({ scope: 'cards', projectId: await projectIdForColumn(db, card.columnId) });
     return { card, spawnedCard };
   });
 
   ipcMain.handle('cards:delete', async (_event, id: unknown) => {
     const validId = validateInput(idParamSchema, id);
     const db = getDb();
+    // Resolve the owning project BEFORE deleting so the broadcast can target the board.
+    const [existing] = await db.select({ columnId: cards.columnId }).from(cards).where(eq(cards.id, validId));
     await db.delete(cards).where(eq(cards.id, validId));
+    notifyDataChanged({
+      scope: 'cards',
+      projectId: existing ? await projectIdForColumn(db, existing.columnId) : undefined,
+    });
   });
 
   ipcMain.handle('cards:move', async (_event, id: unknown, columnId: unknown, position: unknown) => {
@@ -305,6 +329,7 @@ export function registerCardHandlers(): void {
     const [updated] = await db.select().from(cards).where(eq(cards.id, validId));
 
     logCardActivity(validId, 'moved', { columnId: moveData.columnId, position: clampedPosition });
+    notifyDataChanged({ scope: 'cards', projectId: await projectIdForColumn(db, moveData.columnId) });
     return updated;
   });
 

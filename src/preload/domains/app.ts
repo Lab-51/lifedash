@@ -12,6 +12,20 @@ export const appBridge = {
     };
   },
 
+  // Live data-change broadcast: main emits after any card/column/project mutation
+  // so the visible board can debounce-refetch. Payload carries the affected scope
+  // and (optionally) the project the change belongs to.
+  onDataChanged: (callback: (data: { scope: 'cards' | 'columns' | 'projects'; projectId?: string }) => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { scope: 'cards' | 'columns' | 'projects'; projectId?: string },
+    ) => callback(data);
+    ipcRenderer.on('data:changed', handler);
+    return () => {
+      ipcRenderer.removeListener('data:changed', handler);
+    };
+  },
+
   // Auto-update: status lifecycle events (checking → up-to-date | ready)
   onUpdateStatus: (callback: (data: { status: string; releaseName?: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { status: string; releaseName?: string }) =>

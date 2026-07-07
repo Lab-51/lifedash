@@ -159,10 +159,7 @@ export default function MeetingHeader({ meeting, projects, onUpdateMeeting, onEx
         </div>
         {meeting.projectId && (
           <button
-            onClick={() => {
-              navigate(`/projects/${meeting.projectId}`);
-              onClose();
-            }}
+            onClick={() => navigate(`/projects/${meeting.projectId}`)}
             className="flex items-center gap-1.5 text-[0.625rem] font-hud tracking-wider border border-[var(--color-border)] hover:border-[var(--color-accent-dim)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] px-2.5 py-1.5 rounded-md transition-colors shrink-0"
             title="Go to project board"
           >

@@ -4,9 +4,13 @@
 // cardAgentStore's send/stream/tool-event pattern: listeners are registered per
 // `send()` call and cleaned up in a `finally` block once that request settles,
 // independent of whether the calling component is still mounted (so a stream
-// keeps updating the store even if the drawer is closed mid-answer).
+// keeps updating the store even if the drawer is closed mid-answer). That same
+// independence is why tool-call/tool-result events are also pushed into
+// activityFeedStore (V3.1 Task 5) right here rather than from the component.
 
 import { create } from 'zustand';
+import { useActivityFeedStore } from './activityFeedStore';
+import { describeToolCall } from '../utils/toolCallLabels';
 import type { MeetingAgentMessage } from '../../shared/types';
 
 interface ToolEvent {
@@ -85,11 +89,21 @@ export const useMeetingAgentStore = create<MeetingAgentStore>((set, get) => ({
     const cleanupToolCall = window.electronAPI.onMeetingAgentToolCall((data) => {
       if (data.meetingId === meetingId) {
         set({ toolEvents: [...get().toolEvents, { toolName: data.toolName, type: 'call', args: data.args }] });
+        // Activity feed (V3.1 Task 5) — pushed here (not from LiveAssistantChat)
+        // so it stays accurate even if the chat unmounts mid-answer (Live Mode
+        // minimized). Label reuses the ONE shared meeting-agent map.
+        const label = describeToolCall({
+          id: '',
+          name: data.toolName,
+          args: (data.args as Record<string, unknown>) ?? {},
+        });
+        useActivityFeedStore.getState().addToolCall(data.toolName, label);
       }
     });
     const cleanupToolResult = window.electronAPI.onMeetingAgentToolResult((data) => {
       if (data.meetingId === meetingId) {
         set({ toolEvents: [...get().toolEvents, { toolName: data.toolName, type: 'result', result: data.result }] });
+        useActivityFeedStore.getState().resolveToolResult(data.toolName, data.result);
       }
     });
     // 'done' finalizes the assistant message — it fires (synchronously, before the

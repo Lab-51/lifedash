@@ -24,7 +24,7 @@ interface MeetingStore {
   error: string | null;
   actionItemCounts: Record<string, number>;
   pendingActionCount: number;
-  /** Count of auto-pushed cards with no reviewedAt — drives Projects nav badge. */
+  /** Count of auto-pushed cards with no reviewedAt — drives the Sessions nav badge. */
   unreviewedAutoPushedCount: number;
 
   // Intelligence generation state
@@ -219,7 +219,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       useGamificationStore.getState().awardXP('meeting_brief', meetingId);
       get().clearBriefError(meetingId);
       // Brief generation may have auto-pushed action items to Inbox cards.
-      // Refresh the unreviewed count so the Projects nav badge updates.
+      // Refresh the unreviewed count so the Sessions nav badge updates.
       get().refreshUnreviewedCount();
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to generate brief' });
