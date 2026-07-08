@@ -50,6 +50,8 @@ export const releaseHistory: ReleaseNotesData[] = [
           'The Twin page lets you view and edit every profile section — identity, domain, projects, people, vocabulary, goals, and preferences — any time, not just during the wizard.',
           'Once authored, your Twin profile is automatically woven into the Live Assistant, live triage proposals, and meeting briefs — so the assistant speaks your vocabulary, tracks your projects and people, and matches your tone, within a strict per-task budget that never crowds out the meeting itself.',
           "A new Twin Interview Assist row in AI settings lets you route the wizard's optional AI drafting to a different model than Live Assistant, if you'd rather split them.",
+          'Deep Creation for your Twin — beyond the manual form, build your profile from a short brief-seeded interview, or from your own meeting history (excerpts, briefs, projects, and cards) with an explicit per-run consent prompt before anything is ever sent to a cloud model. On a frontier provider you can also enrich it with cited public web research. Every path lands an editable draft in review — nothing is saved until you confirm.',
+          'Google Gemini is now a first-class AI provider — add a Gemini API key in Settings and route any task (including Twin creation and web research) to it, right alongside OpenAI, Anthropic, and your local models.',
         ],
       },
       {

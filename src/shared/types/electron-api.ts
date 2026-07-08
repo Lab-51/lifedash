@@ -96,7 +96,22 @@ import type {
 } from './intel-feed';
 import type { SearchResults } from './search';
 import type { BrainScope, BrainTree } from './brain';
-import type { TwinProfile, TwinProfileSections, TwinProfileSectionKey, TwinInterviewDraft } from './twin';
+import type {
+  TwinProfile,
+  TwinProfileSections,
+  TwinProfileKey,
+  TwinProfileSectionKey,
+  TwinInterviewDraft,
+  TwinInterviewNextPayload,
+  TwinInterviewNextResult,
+  TwinInterviewSynthesizePayload,
+  TwinInterviewSynthesizeResult,
+  TwinResearchHistoryInfo,
+  TwinResearchResult,
+  TwinWebResearchPayload,
+  TwinWebResearchResult,
+  TwinCreationModel,
+} from './twin';
 
 export interface RecoveryState {
   timestamp: string;
@@ -579,13 +594,22 @@ export interface ElectronAPI {
   buildBrainTree: (scope: BrainScope) => Promise<BrainTree>;
 
   // Digital Twin profile (V3.3 Tasks 3-4) — singleton profile read, section-level
-  // patch, and the creation wizard's optional AI-assist draft (never blocks).
+  // patch (incl. the `brief` section), and the Quick-form "Interview me" draft.
   twinGetProfile: () => Promise<TwinProfile | null>;
-  twinUpdateProfileSection: <K extends TwinProfileSectionKey>(
+  twinUpdateProfileSection: <K extends TwinProfileKey>(
     section: K,
     value: TwinProfileSections[K],
   ) => Promise<TwinProfile>;
   twinDraftSection: <K extends TwinProfileSectionKey>(section: K, answer: string) => Promise<TwinInterviewDraft<K>>;
+
+  // Digital Twin deep creation (V3.3.5) — multi-turn interview, history mining,
+  // web research, and the creation-model gate descriptor.
+  twinInterviewNext: (payload: TwinInterviewNextPayload) => Promise<TwinInterviewNextResult>;
+  twinInterviewSynthesize: (payload: TwinInterviewSynthesizePayload) => Promise<TwinInterviewSynthesizeResult>;
+  twinResearchHistoryInfo: () => Promise<TwinResearchHistoryInfo>;
+  twinResearchHistory: () => Promise<TwinResearchResult>;
+  twinResearchWeb: (payload: TwinWebResearchPayload) => Promise<TwinWebResearchResult>;
+  twinGetCreationModel: () => Promise<TwinCreationModel>;
 }
 
 declare global {

@@ -1,22 +1,42 @@
 // === FILE PURPOSE ===
-// IPC handler for the Digital Twin profile (V3.3 Tasks 3-4). Exposes the profile
-// CRUD from twinProfileService to the renderer — a read of the whole profile
-// and a section-level patch (the interview/edit UI saves one section at a
-// time; see twinProfileService.updateProfileSection) — plus the creation
-// wizard's optional AI-assist extraction (twin:draft-section, delegating to
-// twinInterviewService — the only AI here). The extraction handler NEVER
-// rejects for AI reasons: twinInterviewService returns a `skipped` result the
-// wizard renders as "fill manually", so an unconfigured/failing model can never
-// block the flow. IPC stays thin — modeled on brain.ts.
+// IPC handler for the Digital Twin profile (V3.3 + V3.3.5 "Deep Creation").
+// Exposes:
+//   - Profile CRUD from twinProfileService — read the whole profile and a
+//     section-level patch (now including the `brief` section).
+//   - The Quick-form "Interview me" per-section extraction (twin:draft-section →
+//     twinInterviewService — the 7 structured sections only; brief is authored
+//     directly).
+//   - The DEEP-creation channels (V3.3.5), thin handlers that zod-validate and
+//     delegate to their services: multi-turn interview, history mining, web
+//     research, and the creation-model gate descriptor.
+//
+// Every AI-touching handler delegates to a service that returns a discriminated
+// result ({ ok … } | { skipped, reason } | …) and NEVER throws for AI reasons, so
+// the wizard degrades gracefully. IPC stays thin — modeled on brain.ts.
 
 import { ipcMain } from 'electron';
 import { z } from 'zod';
 import * as twinProfileService from '../services/twinProfileService';
 import { draftSection } from '../services/twinInterviewService';
+import * as twinDeepInterviewService from '../services/twinDeepInterviewService';
+import * as twinResearchService from '../services/twinResearchService';
+import * as twinWebResearchService from '../services/twinWebResearchService';
+import { resolveTaskModel } from '../services/ai-provider';
+import { isFrontierProvider } from '../../shared/types/ai';
 import { validateInput } from '../../shared/validation/ipc-validator';
-import type { TwinProfileSectionKey } from '../../shared/types/twin';
+import type {
+  TwinProfileKey,
+  TwinProfileSectionKey,
+  TwinInterviewNextPayload,
+  TwinInterviewSynthesizePayload,
+  TwinWebResearchPayload,
+} from '../../shared/types/twin';
 
 // --- per-section value schemas (mirror shared/types/twin.ts shapes) ---
+
+const briefSchema = z.object({
+  statement: z.string().optional(),
+});
 
 const identitySchema = z.object({
   name: z.string().optional(),
@@ -53,11 +73,58 @@ const preferencesSchema = z.object({
   cardTitleStyle: z.string().optional(),
 });
 
-const sectionKeySchema = z.enum(['identity', 'domain', 'projects', 'people', 'vocabulary', 'goals', 'preferences']);
+// The full patch surface accepts `brief`; the per-section draft ("Interview me")
+// covers only the 7 structured sections (brief is the user's own free text).
+const patchSectionKeySchema = z.enum([
+  'brief',
+  'identity',
+  'domain',
+  'projects',
+  'people',
+  'vocabulary',
+  'goals',
+  'preferences',
+]);
+const draftSectionKeySchema = z.enum([
+  'identity',
+  'domain',
+  'projects',
+  'people',
+  'vocabulary',
+  'goals',
+  'preferences',
+]);
 
 // The free-form interview answer — bounded so a runaway paste can't blow the
 // local model's context. min(1) because an empty answer has nothing to extract.
 const interviewAnswerSchema = z.string().trim().min(1).max(4000);
+
+// --- deep-creation payload schemas ---
+
+// The brief seed is optional/empty-allowed (unlike a per-section answer) but
+// bounded. Q&A turns are bounded in count so a runaway history can't blow context.
+const briefSeedSchema = z.string().max(4000);
+const qaTurnSchema = z.object({ question: z.string(), answer: z.string() });
+const qaListSchema = z.array(qaTurnSchema).max(100);
+
+const interviewNextSchema = z.object({
+  brief: briefSeedSchema,
+  // profileSoFar is a partial profile; validated loosely (bounded object) and
+  // re-typed for the service — its concrete shape is enforced by the section
+  // schemas above when a draft is actually saved.
+  profileSoFar: z.record(z.string(), z.unknown()),
+  qa: qaListSchema,
+});
+
+const interviewSynthesizeSchema = z.object({
+  brief: briefSeedSchema,
+  qa: qaListSchema,
+});
+
+const webResearchSchema = z.object({
+  company: z.string().max(200),
+  industry: z.string().max(200),
+});
 
 export function registerTwinHandlers(): void {
   ipcMain.handle('twin:get-profile', async () => {
@@ -65,11 +132,13 @@ export function registerTwinHandlers(): void {
   });
 
   ipcMain.handle('twin:update-profile-section', async (_event, section: unknown, value: unknown) => {
-    const key = validateInput(sectionKeySchema, section) as TwinProfileSectionKey;
+    const key = validateInput(patchSectionKeySchema, section) as TwinProfileKey;
 
     // Switch (not a schema lookup table) so each branch stays correlated to its
     // own value type for updateProfileSection's generic signature — no `any`.
     switch (key) {
+      case 'brief':
+        return twinProfileService.updateProfileSection('brief', validateInput(briefSchema, value));
       case 'identity':
         return twinProfileService.updateProfileSection('identity', validateInput(identitySchema, value));
       case 'domain':
@@ -90,12 +159,58 @@ export function registerTwinHandlers(): void {
     }
   });
 
-  // Creation-wizard AI assist (V3.3 Task 4) — draft one section's fields from a
-  // free-form answer. Returns a discriminated result ({ ok, draft } | { skipped,
+  // Quick-form "Interview me" (V3.3) — draft one structured section's fields from
+  // a free-form answer. Returns a discriminated result ({ ok, draft } | { skipped,
   // reason }); it never throws for AI reasons, so the wizard degrades to manual.
   ipcMain.handle('twin:draft-section', async (_event, section: unknown, answer: unknown) => {
-    const key = validateInput(sectionKeySchema, section) as TwinProfileSectionKey;
+    const key = validateInput(draftSectionKeySchema, section) as TwinProfileSectionKey;
     const text = validateInput(interviewAnswerSchema, answer);
     return draftSection(key, text);
+  });
+
+  // --- Deep creation (V3.3.5) — thin handlers delegating to their services ---
+
+  // Multi-turn deep interview: next question / synthesize the Q&A into a draft.
+  ipcMain.handle('twin:interview-next', async (_event, payload: unknown) => {
+    const p = validateInput(interviewNextSchema, payload);
+    return twinDeepInterviewService.interviewNext(p as unknown as TwinInterviewNextPayload);
+  });
+
+  ipcMain.handle('twin:interview-synthesize', async (_event, payload: unknown) => {
+    const p = validateInput(interviewSynthesizeSchema, payload);
+    return twinDeepInterviewService.interviewSynthesize(p as unknown as TwinInterviewSynthesizePayload);
+  });
+
+  // History mining: a no-model consent descriptor, then the mining pass. The
+  // renderer shows the consent dialog first when the model is not local; the
+  // handler trusts that gate but re-checks provider info inside the service.
+  ipcMain.handle('twin:research-history-info', async () => {
+    return twinResearchService.getResearchHistoryInfo();
+  });
+
+  ipcMain.handle('twin:research-history', async () => {
+    return twinResearchService.researchHistory();
+  });
+
+  // Web research from a company/industry into a cited draft.
+  ipcMain.handle('twin:research-web', async (_event, payload: unknown) => {
+    const p = validateInput(webResearchSchema, payload) as TwinWebResearchPayload;
+    return twinWebResearchService.researchWeb(p);
+  });
+
+  // Creation-model gate descriptor — drives the wizard's mode-fork SOTA notice.
+  // Derived from resolveTaskModel('twin_interview') + the frontier-provider set.
+  ipcMain.handle('twin:get-creation-model', async () => {
+    const resolved = await resolveTaskModel('twin_interview');
+    if (!resolved) {
+      return { providerLabel: 'No model configured', modelLabel: '', isLocal: false, isFrontier: false };
+    }
+    const isLocal = resolved.providerName === 'ollama' || resolved.providerName === 'lmstudio';
+    return {
+      providerLabel: resolved.providerName,
+      modelLabel: resolved.model,
+      isLocal,
+      isFrontier: isFrontierProvider(resolved.providerName),
+    };
   });
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "twin_profile" ADD COLUMN "brief" jsonb DEFAULT '{}'::jsonb NOT NULL;

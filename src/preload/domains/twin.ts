@@ -1,15 +1,43 @@
-// === Preload bridge: Digital Twin profile (V3.3 Tasks 3-4) — read the singleton
-// profile, patch it one section at a time, and draft one section from a
-// free-form interview answer (optional AI assist; never blocks the wizard). ===
+// === Preload bridge: Digital Twin profile (V3.3 + V3.3.5 "Deep Creation") ===
+// Read the singleton profile, patch it one section at a time (incl. the new
+// `brief` section), draft one structured section from a free-form answer
+// (Quick-form "Interview me"), and the deep-creation channels: multi-turn
+// interview, history mining, web research, and the creation-model gate.
 import { ipcRenderer } from 'electron';
-import type { TwinProfile, TwinProfileSections, TwinProfileSectionKey, TwinInterviewDraft } from '../../shared/types';
+import type {
+  TwinProfile,
+  TwinProfileSections,
+  TwinProfileKey,
+  TwinProfileSectionKey,
+  TwinInterviewDraft,
+  TwinInterviewNextPayload,
+  TwinInterviewNextResult,
+  TwinInterviewSynthesizePayload,
+  TwinInterviewSynthesizeResult,
+  TwinResearchHistoryInfo,
+  TwinResearchResult,
+  TwinWebResearchPayload,
+  TwinWebResearchResult,
+  TwinCreationModel,
+} from '../../shared/types';
 
 export const twinBridge = {
   twinGetProfile: (): Promise<TwinProfile | null> => ipcRenderer.invoke('twin:get-profile'),
-  twinUpdateProfileSection: <K extends TwinProfileSectionKey>(
+  twinUpdateProfileSection: <K extends TwinProfileKey>(
     section: K,
     value: TwinProfileSections[K],
   ): Promise<TwinProfile> => ipcRenderer.invoke('twin:update-profile-section', section, value),
   twinDraftSection: <K extends TwinProfileSectionKey>(section: K, answer: string): Promise<TwinInterviewDraft<K>> =>
     ipcRenderer.invoke('twin:draft-section', section, answer),
+
+  // Deep creation (V3.3.5)
+  twinInterviewNext: (payload: TwinInterviewNextPayload): Promise<TwinInterviewNextResult> =>
+    ipcRenderer.invoke('twin:interview-next', payload),
+  twinInterviewSynthesize: (payload: TwinInterviewSynthesizePayload): Promise<TwinInterviewSynthesizeResult> =>
+    ipcRenderer.invoke('twin:interview-synthesize', payload),
+  twinResearchHistoryInfo: (): Promise<TwinResearchHistoryInfo> => ipcRenderer.invoke('twin:research-history-info'),
+  twinResearchHistory: (): Promise<TwinResearchResult> => ipcRenderer.invoke('twin:research-history'),
+  twinResearchWeb: (payload: TwinWebResearchPayload): Promise<TwinWebResearchResult> =>
+    ipcRenderer.invoke('twin:research-web', payload),
+  twinGetCreationModel: (): Promise<TwinCreationModel> => ipcRenderer.invoke('twin:get-creation-model'),
 };

@@ -10,6 +10,9 @@
 
 import type { FieldDef } from './TwinFieldEditors';
 
+/** The brief is a single free-form statement (the user's own specification). */
+export const BRIEF_FIELDS: FieldDef[] = [{ key: 'statement', label: 'Statement' }];
+
 export const IDENTITY_FIELDS: FieldDef[] = [
   { key: 'name', label: 'Name' },
   { key: 'role', label: 'Role' },

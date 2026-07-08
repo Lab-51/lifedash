@@ -71,6 +71,7 @@ const PROFILE_HEADER = 'User profile (the professional you assist):';
 // ---------------------------------------------------------------------------
 
 const EMPTY_SECTIONS: Omit<TwinProfileSections, 'vocabulary'> = {
+  brief: {},
   identity: {},
   domain: {},
   projects: [],

@@ -10,6 +10,7 @@ import type { AIProviderName } from '../../shared/types';
 const PROVIDER_OPTIONS: { value: AIProviderName; label: string; description: string }[] = [
   { value: 'openai', label: 'OpenAI', description: 'GPT-5.2, GPT-5 Mini, o4-mini' },
   { value: 'anthropic', label: 'Anthropic', description: 'Claude Sonnet, Claude Haiku' },
+  { value: 'google', label: 'Google', description: 'Gemini 2.5 Pro, Flash, Flash-Lite' },
   { value: 'ollama', label: 'Ollama', description: 'Local models (Llama, Mistral, etc.)' },
   { value: 'lmstudio', label: 'LM Studio', description: 'Local models via LM Studio' },
   { value: 'kimi', label: 'Kimi', description: 'Kimi K2.5 by Moonshot AI' },

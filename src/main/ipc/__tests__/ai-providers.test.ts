@@ -14,11 +14,12 @@ const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 // ============================================================================
 
 describe('aiProviderNameSchema', () => {
-  it.each(['openai', 'anthropic', 'ollama', 'kimi'])('accepts valid provider "%s"', (name) => {
+  it.each(['openai', 'anthropic', 'google', 'ollama', 'kimi', 'lmstudio'])('accepts valid provider "%s"', (name) => {
     expect(aiProviderNameSchema.safeParse(name).success).toBe(true);
   });
 
   it('rejects unknown provider name', () => {
+    // Gemini is configured under the provider name "google", not "gemini".
     expect(aiProviderNameSchema.safeParse('gemini').success).toBe(false);
   });
 

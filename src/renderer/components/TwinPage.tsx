@@ -7,14 +7,12 @@
 // over IPC as twinGetProfile / twinUpdateProfileSection (see src/main/ipc/twin.ts,
 // src/preload/domains/twin.ts — modeled on brain.ts).
 //
-// === TASK 4 SEAM ===
-// `showWizard` + `setShowWizard` is the mount point for the Task 4 creation
-// wizard (TwinWizard): both the empty-state CTA and the "Refine profile"
-// affordance flip it to true. The block below marked
-// `{/* Task 4: TwinWizard mounts here */}` is an honest stub (not a fake
-// wizard) — Task 4 replaces it with the real <TwinWizard /> component, wired
-// to update `profile` via setProfile (same onSaved contract every section
-// card already uses) and to close via the same setShowWizard(false).
+// === CREATION WIZARD ===
+// `showWizard` mounts the real creation/refinement wizard (TwinWizard). Both the
+// empty-state CTA and the header "Refine profile" open it on the mode-choice
+// screen; the "Build from my history" shortcuts open it directly in history mode
+// (openWizard('history') → initialMode). It updates `profile` via setProfile (the
+// same onSaved contract every section card uses) and closes via setShowWizard(false).
 //
 // === DEPENDENCIES ===
 // react, react-router (none directly), lucide-react, EmptyFeatureState,
@@ -23,6 +21,7 @@
 import { useEffect, useState } from 'react';
 import {
   Brain,
+  FileText,
   UserRound,
   Building2,
   FolderKanban,
@@ -31,12 +30,14 @@ import {
   Target,
   SlidersHorizontal,
   Wand2,
+  History,
 } from 'lucide-react';
 import EmptyFeatureState from './EmptyFeatureState';
 import HudBackground from './HudBackground';
 import LoadingSpinner from './LoadingSpinner';
 import TwinSectionCard from './twin/TwinSectionCard';
 import TwinWizard from './TwinWizard';
+import type { TwinCreationMode } from './twin/TwinModeChoice';
 import {
   fieldsToDraft,
   pruneObject,
@@ -47,6 +48,7 @@ import {
   ListFieldsEditor,
 } from './twin/TwinFieldEditors';
 import {
+  BRIEF_FIELDS,
   IDENTITY_FIELDS,
   DOMAIN_FIELDS,
   PREFERENCES_FIELDS,
@@ -57,6 +59,7 @@ import {
 } from './twin/twinFields';
 import type {
   TwinProfile,
+  TwinBrief,
   TwinIdentity,
   TwinDomain,
   TwinPreferences,
@@ -114,6 +117,7 @@ function TwinTabs({ active, onSelect }: { active: TwinTab; onSelect: (tab: TwinT
  * TwinProject[]` casts below), matching TwinFieldEditors.tsx's design.
  */
 function TwinProfileGrid({ profile, onSaved }: { profile: TwinProfile; onSaved: (p: TwinProfile) => void }) {
+  const briefValue = profile.brief as unknown as Record<string, string | undefined>;
   const identityValue = profile.identity as unknown as Record<string, string | undefined>;
   const domainValue = profile.domain as unknown as Record<string, string | undefined>;
   const preferencesValue = profile.preferences as unknown as Record<string, string | undefined>;
@@ -124,6 +128,20 @@ function TwinProfileGrid({ profile, onSaved }: { profile: TwinProfile; onSaved: 
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <TwinSectionCard<Record<string, string>>
+        title="Brief"
+        icon={FileText}
+        initialDraft={() => fieldsToDraft(BRIEF_FIELDS, briefValue)}
+        renderView={() => <ObjectFieldsView fields={BRIEF_FIELDS} value={briefValue} />}
+        renderEditor={(draft, setDraft) => (
+          <ObjectFieldsEditor fields={BRIEF_FIELDS} value={draft} onChange={setDraft} />
+        )}
+        onSave={(draft) =>
+          window.electronAPI.twinUpdateProfileSection('brief', pruneObject(BRIEF_FIELDS, draft) as TwinBrief)
+        }
+        onSaved={onSaved}
+      />
+
       <TwinSectionCard<Record<string, string>>
         title="Identity"
         icon={UserRound}
@@ -250,6 +268,14 @@ export default function TwinPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TwinTab>('profile');
   const [showWizard, setShowWizard] = useState(false);
+  // Which creation mode the wizard opens in — 'history' for the "Build from my
+  // history" shortcuts, undefined (mode-choice) for Create/Refine.
+  const [wizardInitialMode, setWizardInitialMode] = useState<TwinCreationMode | undefined>(undefined);
+
+  const openWizard = (mode?: TwinCreationMode) => {
+    setWizardInitialMode(mode);
+    setShowWizard(true);
+  };
 
   useEffect(() => {
     window.electronAPI
@@ -283,14 +309,26 @@ export default function TwinPage() {
           </div>
 
           {profile && !showWizard && (
-            <button
-              type="button"
-              onClick={() => setShowWizard(true)}
-              className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] transition-all"
-            >
-              <Wand2 size={16} />
-              Refine profile
-            </button>
+            <div className="shrink-0 flex items-center gap-2">
+              {/* Opens the wizard directly in history mode (the SOTA gate + consent
+                  still apply inside the history panel). */}
+              <button
+                type="button"
+                onClick={() => openWizard('history')}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] transition-all"
+              >
+                <History size={16} />
+                Build from my history
+              </button>
+              <button
+                type="button"
+                onClick={() => openWizard()}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] transition-all"
+              >
+                <Wand2 size={16} />
+                Refine profile
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -320,11 +358,12 @@ export default function TwinPage() {
             hidden={activeTab !== 'profile'}
             className="pt-6"
           >
-            {/* Task 4: the creation/refinement wizard. It loads the profile
-                itself to pre-fill on re-run, and writes via the same section-
-                patch API the cards use, returning the updated profile. */}
+            {/* The creation/refinement wizard. It loads the profile itself to
+                pre-fill on re-run, and writes via the same section-patch API the
+                cards use, returning the updated profile. */}
             {showWizard ? (
               <TwinWizard
+                initialMode={wizardInitialMode}
                 onClose={() => setShowWizard(false)}
                 onComplete={(p) => {
                   setProfile(p);
@@ -342,7 +381,8 @@ export default function TwinPage() {
                   'Edit any section any time, no all-or-nothing setup',
                 ]}
                 ctaLabel="Create your twin"
-                ctaAction={() => setShowWizard(true)}
+                ctaAction={() => openWizard()}
+                secondaryCta={{ label: 'Build from my history', action: () => openWizard('history') }}
               />
             ) : (
               <TwinProfileGrid profile={profile} onSaved={setProfile} />

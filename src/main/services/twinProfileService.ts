@@ -25,7 +25,8 @@ import { twinProfile, TWIN_PROFILE_ID } from '../db/schema';
 import type {
   TwinProfile,
   TwinProfileSections,
-  TwinProfileSectionKey,
+  TwinProfileKey,
+  TwinBrief,
   TwinIdentity,
   TwinDomain,
   TwinProject,
@@ -42,6 +43,7 @@ import type { AITaskType } from '../../shared/types/ai';
 /** Normalize a raw DB row into the public profile shape (Date -> ISO string). */
 function rowToProfile(row: typeof twinProfile.$inferSelect): TwinProfile {
   return {
+    brief: row.brief ?? {},
     identity: row.identity ?? {},
     domain: row.domain ?? {},
     projects: row.projects ?? [],
@@ -65,7 +67,7 @@ export async function getProfile(): Promise<TwinProfile | null> {
  * section (plus updatedAt) is written; other sections keep their stored value
  * (or their column default on first write). Returns the full updated profile.
  */
-export async function updateProfileSection<K extends TwinProfileSectionKey>(
+export async function updateProfileSection<K extends TwinProfileKey>(
   section: K,
   value: TwinProfileSections[K],
 ): Promise<TwinProfile> {
@@ -94,13 +96,14 @@ type ProfileTaskCategory = 'triage' | 'assistant' | 'brief';
  * whole sections from the tail of this list, so the most task-relevant sections
  * survive a tight budget.
  */
-const SECTION_PRIORITY: Record<ProfileTaskCategory, TwinProfileSectionKey[]> = {
-  // Triage cares most about the user's terms, active projects, and people.
-  triage: ['vocabulary', 'projects', 'people', 'identity', 'domain', 'goals', 'preferences'],
+const SECTION_PRIORITY: Record<ProfileTaskCategory, TwinProfileKey[]> = {
+  // The user's own brief leads EVERY category — it is short and steers everything.
+  // Triage then cares most about the user's terms, active projects, and people.
+  triage: ['brief', 'vocabulary', 'projects', 'people', 'identity', 'domain', 'goals', 'preferences'],
   // The chat assistant leads with who the user is and what they're trying to do.
-  assistant: ['identity', 'goals', 'domain', 'projects', 'people', 'vocabulary', 'preferences'],
+  assistant: ['brief', 'identity', 'goals', 'domain', 'projects', 'people', 'vocabulary', 'preferences'],
   // Briefs lead with the professional context and the people involved.
-  brief: ['domain', 'people', 'identity', 'projects', 'vocabulary', 'goals', 'preferences'],
+  brief: ['brief', 'domain', 'people', 'identity', 'projects', 'vocabulary', 'goals', 'preferences'],
 };
 
 /** Default char budget per category (tunable). */
@@ -134,6 +137,11 @@ function fmtFields(label: string, fields: [string, string | undefined][]): strin
   const present = fields.filter(([, v]) => v?.trim());
   if (present.length === 0) return null;
   return `${label}: ${present.map(([k, v]) => `${k}: ${v!.trim()}`).join('; ')}`;
+}
+
+function fmtBrief(b: TwinBrief): string | null {
+  const statement = b.statement?.trim();
+  return statement ? `Brief: ${statement}` : null;
 }
 
 function fmtIdentity(i: TwinIdentity): string | null {
@@ -186,7 +194,8 @@ function fmtPreferences(p: TwinPreferences): string | null {
   ]);
 }
 
-const SECTION_FORMATTERS: Record<TwinProfileSectionKey, (p: TwinProfileSections) => string | null> = {
+const SECTION_FORMATTERS: Record<TwinProfileKey, (p: TwinProfileSections) => string | null> = {
+  brief: (p) => fmtBrief(p.brief),
   identity: (p) => fmtIdentity(p.identity),
   domain: (p) => fmtDomain(p.domain),
   projects: (p) => fmtProjects(p.projects),

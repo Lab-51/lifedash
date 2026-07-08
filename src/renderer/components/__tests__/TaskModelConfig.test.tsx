@@ -111,3 +111,43 @@ describe('TaskModelConfig — Twin Interview row (V3.3 Task 5)', () => {
     expect(screen.getAllByText(PRIVACY_HINT_TEXT)).toHaveLength(1);
   });
 });
+
+describe('TaskModelConfig — Google Gemini provider (V3.3.5 Task 5)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useSettingsStore.setState({
+      settings: {},
+      getTaskModels: vi.fn().mockReturnValue(null),
+      setTaskModels: vi.fn().mockResolvedValue(undefined),
+    } as never);
+  });
+
+  it('offers a Gemini model from the catalog when a Google provider is selected for a task', () => {
+    const google = makeProvider({ id: 'google-1', name: 'google' });
+    const saved = { summarization: { providerId: 'google-1', model: 'gemini-2.5-flash' } };
+    useSettingsStore.setState({
+      settings: { 'ai.taskModels': JSON.stringify(saved) },
+      getTaskModels: vi.fn().mockReturnValue(saved),
+    } as never);
+
+    render(<TaskModelConfig providers={[google]} />);
+
+    // The selected Gemini model's catalog label is surfaced (HudSelect trigger label
+    // is looked up from KNOWN_MODELS.google), proving Gemini is a routable catalog entry.
+    expect(screen.getByText('Gemini 2.5 Flash')).toBeInTheDocument();
+  });
+
+  it('can route the Twin Interview Assist row to a Gemini model', () => {
+    const google = makeProvider({ id: 'google-1', name: 'google' });
+    const saved = { twin_interview: { providerId: 'google-1', model: 'gemini-2.5-pro' } };
+    useSettingsStore.setState({
+      settings: { 'ai.taskModels': JSON.stringify(saved) },
+      getTaskModels: vi.fn().mockReturnValue(saved),
+    } as never);
+
+    render(<TaskModelConfig providers={[google]} />);
+
+    expect(screen.getByText('Twin Interview Assist')).toBeInTheDocument();
+    expect(screen.getByText('Gemini 2.5 Pro (Flagship)')).toBeInTheDocument();
+  });
+});

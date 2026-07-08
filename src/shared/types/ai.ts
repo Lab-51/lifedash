@@ -1,6 +1,26 @@
 // === AI provider, usage, and configuration types ===
 
-export type AIProviderName = 'openai' | 'anthropic' | 'ollama' | 'kimi' | 'lmstudio';
+export type AIProviderName = 'openai' | 'anthropic' | 'google' | 'ollama' | 'kimi' | 'lmstudio';
+
+/**
+ * The SINGLE definition of "frontier / state-of-the-art" cloud providers (V3.3.5).
+ * Every surface that needs to know whether a model is SOTA imports this — nobody
+ * redefines it. Used by the Digital Twin deep-creation gate to decide whether to
+ * warn that a deep path wants a frontier model.
+ *
+ * `'google'` (Gemini) is a fully wired frontier provider: its adapter lives in
+ * ai-provider.ts and `'google'` is a member of `AIProviderName`, so a configured
+ * Gemini model resolves as frontier through `twin:get-creation-model`.
+ */
+export const FRONTIER_PROVIDERS = ['openai', 'anthropic', 'google'] as const;
+
+/** A frontier (state-of-the-art) cloud provider. See {@link FRONTIER_PROVIDERS}. */
+export type FrontierProvider = (typeof FRONTIER_PROVIDERS)[number];
+
+/** True when the given provider name is a frontier (SOTA) cloud provider. */
+export function isFrontierProvider(name: string): boolean {
+  return (FRONTIER_PROVIDERS as readonly string[]).includes(name);
+}
 export type AITaskType =
   | 'summarization'
   | 'brainstorming'

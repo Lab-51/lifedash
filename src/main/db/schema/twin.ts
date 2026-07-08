@@ -11,6 +11,7 @@
 
 import { pgTable, varchar, jsonb, timestamp } from 'drizzle-orm/pg-core';
 import type {
+  TwinBrief,
   TwinIdentity,
   TwinDomain,
   TwinProject,
@@ -25,6 +26,9 @@ export const TWIN_PROFILE_ID = 'singleton';
 export const twinProfile = pgTable('twin_profile', {
   // Fixed singleton id; the service always upserts on this value.
   id: varchar('id', { length: 32 }).primaryKey().default(TWIN_PROFILE_ID),
+  // The user's own free-form specification (V3.3.5) — seeds deep creation and
+  // injects at high priority for every task category.
+  brief: jsonb('brief').$type<TwinBrief>().notNull().default({}),
   identity: jsonb('identity').$type<TwinIdentity>().notNull().default({}),
   domain: jsonb('domain').$type<TwinDomain>().notNull().default({}),
   projects: jsonb('projects').$type<TwinProject[]>().notNull().default([]),

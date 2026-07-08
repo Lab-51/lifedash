@@ -27,7 +27,7 @@ export const cardRelationshipTypeSchema = z.enum(['blocks', 'depends_on', 'relat
 
 export const actionItemStatusSchema = z.enum(['pending', 'approved', 'dismissed', 'converted']);
 
-export const aiProviderNameSchema = z.enum(['openai', 'anthropic', 'ollama', 'kimi', 'lmstudio']);
+export const aiProviderNameSchema = z.enum(['openai', 'anthropic', 'google', 'ollama', 'kimi', 'lmstudio']);
 
 export const ideaStatusSchema = z.enum(['new', 'exploring', 'active', 'archived']);
 

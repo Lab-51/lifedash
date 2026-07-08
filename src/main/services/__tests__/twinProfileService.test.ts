@@ -18,6 +18,7 @@ vi.mock('../../db/connection', () => ({ getDb: vi.fn() }));
 vi.mock('../../db/schema', () => ({
   twinProfile: {
     id: 'id',
+    brief: 'brief',
     identity: 'identity',
     domain: 'domain',
     projects: 'projects',
@@ -48,6 +49,7 @@ const UPDATED = new Date('2026-07-08T12:00:00Z');
 function makeRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'singleton',
+    brief: {},
     identity: { name: 'Jane Doe', role: 'Staff Engineer', seniority: 'senior' },
     domain: { industry: 'SaaS', company: 'Acme', focus: 'billing' },
     projects: [{ name: 'Replatform', description: 'move to Stripe' }],
@@ -60,9 +62,12 @@ function makeRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** A rich in-memory profile for the pure serializer tests. */
+/** A rich in-memory profile for the pure serializer tests. Brief is empty so the
+ *  existing determinism/priority/trimming expectations (which predate the brief)
+ *  stay byte-identical; the brief's own behavior is covered separately below. */
 function sampleProfile(): TwinProfileSections {
   return {
+    brief: {},
     identity: { name: 'Jane Doe', role: 'Staff Engineer', seniority: 'senior' },
     domain: { industry: 'SaaS', company: 'Acme', focus: 'billing platform' },
     projects: [{ name: 'Replatform', description: 'migrate billing to Stripe' }, { name: 'Mobile app' }],
@@ -80,6 +85,7 @@ function sampleProfile(): TwinProfileSections {
 }
 
 const EMPTY_PROFILE: TwinProfileSections = {
+  brief: {},
   identity: {},
   domain: {},
   projects: [],
@@ -283,5 +289,51 @@ describe('buildProfileContext', () => {
     buildDb({ selectRows: [makeRow()] });
     const out = await buildProfileContext('live_triage', 20);
     expect(out).toBe(''); // 20 chars fits nothing -> no-op
+  });
+});
+
+// ---------------------------------------------------------------------------
+// brief section (V3.3.5) — patch round-trip + high-priority serialization
+// ---------------------------------------------------------------------------
+
+describe('brief section', () => {
+  it('patches ONLY the brief section (plus updatedAt) via updateProfileSection', async () => {
+    const { values, onConflictDoUpdate } = buildDb({ returnRow: makeRow({ brief: { statement: 'A senior PM' } }) });
+
+    const profile = await updateProfileSection('brief', { statement: 'A senior PM' });
+
+    const insertArg = values.mock.calls[0][0] as Record<string, unknown>;
+    expect(insertArg.brief).toEqual({ statement: 'A senior PM' });
+    const setArg = onConflictDoUpdate.mock.calls[0][0].set as Record<string, unknown>;
+    expect(Object.keys(setArg).sort()).toEqual(['brief', 'updatedAt']);
+    expect(profile.brief).toEqual({ statement: 'A senior PM' });
+  });
+
+  it('read path normalizes a missing brief column to {}', async () => {
+    buildDb({ selectRows: [makeRow({ brief: null })] });
+    const profile = await getProfile();
+    expect(profile?.brief).toEqual({});
+  });
+
+  it('is emitted as a "Brief:" block and LEADS every task category', () => {
+    const profile: TwinProfileSections = { ...sampleProfile(), brief: { statement: 'A senior PM at Acme' } };
+    for (const task of ['live_assistant', 'live_triage', 'summarization'] as const) {
+      const out = serializeProfileContext(profile, task, 100000);
+      expect(out).toContain('Brief: A senior PM at Acme');
+      // Highest-priority block (header is [0]).
+      expect(out.split('\n\n')[1]).toBe('Brief: A senior PM at Acme');
+    }
+  });
+
+  it('an EMPTY brief adds nothing — output is byte-identical to a profile without it', () => {
+    const withEmptyBrief = serializeProfileContext(sampleProfile(), 'live_assistant');
+    // sampleProfile() already carries brief: {} — assert the brief never leaks a label.
+    expect(withEmptyBrief).not.toContain('Brief:');
+    // And an explicitly-empty statement is treated identically to no brief.
+    const blankStatement = serializeProfileContext(
+      { ...sampleProfile(), brief: { statement: '   ' } },
+      'live_assistant',
+    );
+    expect(blankStatement).toBe(withEmptyBrief);
   });
 });

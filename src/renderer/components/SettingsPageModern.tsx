@@ -431,7 +431,7 @@ export default function SettingsPageModern() {
                             Select provider
                           </p>
                           {enabledProviders
-                            .filter((p) => ['openai', 'anthropic', 'kimi', 'ollama'].includes(p.name))
+                            .filter((p) => ['openai', 'anthropic', 'google', 'kimi', 'ollama'].includes(p.name))
                             .map((p) => (
                               <button
                                 key={p.id}

@@ -10,23 +10,41 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
 import type { TwinProfile } from '../../../shared/types/twin';
 
 const twinGetProfile = vi.fn();
 const twinUpdateProfileSection = vi.fn();
 const twinDraftSection = vi.fn();
+// The mode-choice fork resolves the creation model + reads providers/settings.
+const twinGetCreationModel = vi
+  .fn()
+  .mockResolvedValue({ providerLabel: 'openai', modelLabel: 'gpt-5-mini', isLocal: false, isFrontier: true });
 
 vi.stubGlobal('electronAPI', {
   twinGetProfile,
   twinUpdateProfileSection,
   twinDraftSection,
+  twinGetCreationModel,
+  getAIProviders: vi.fn().mockResolvedValue([]),
+  getAllSettings: vi.fn().mockResolvedValue({}),
 });
 
 const { default: TwinPage } = await import('../TwinPage');
 
+// The creation wizard's mode-choice screen uses useNavigate (Settings pointer), so
+// TwinPage is rendered inside a router (repo test pattern).
+const renderPage = () =>
+  render(
+    <MemoryRouter>
+      <TwinPage />
+    </MemoryRouter>,
+  );
+
 function fullProfile(overrides: Partial<TwinProfile> = {}): TwinProfile {
   return {
+    brief: {},
     identity: { name: 'Jane Doe', role: 'Staff Engineer', seniority: 'senior' },
     domain: { industry: 'SaaS', company: 'Acme', focus: 'billing' },
     projects: [{ name: 'Replatform', description: 'move to Stripe' }],
@@ -46,7 +64,7 @@ beforeEach(() => {
 describe('TwinPage — empty state + creation wizard', () => {
   it('shows the "Create your twin" empty state when no profile has ever been authored', async () => {
     twinGetProfile.mockResolvedValue(null);
-    render(<TwinPage />);
+    renderPage();
 
     expect(await screen.findByRole('button', { name: /create your twin/i })).toBeInTheDocument();
     expect(screen.getByText(/personalizes meeting briefs/i)).toBeInTheDocument();
@@ -54,12 +72,15 @@ describe('TwinPage — empty state + creation wizard', () => {
 
   it('the CTA opens the real creation wizard, and closing it returns to the empty state', async () => {
     twinGetProfile.mockResolvedValue(null);
-    render(<TwinPage />);
+    renderPage();
 
     const cta = await screen.findByRole('button', { name: /create your twin/i });
     fireEvent.click(cta);
 
+    // The wizard now opens on the creation-mode fork; Quick form leads into the
+    // unchanged 8-step flow.
     expect(await screen.findByRole('heading', { name: /set up your twin/i })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /start quick form/i }));
     expect(screen.getByText(/step 1 of 8/i)).toBeInTheDocument();
     // Not the section-card grid behind it — those cards each carry an Edit button.
     expect(screen.queryByRole('button', { name: /^edit$/i })).toBeNull();
@@ -72,7 +93,7 @@ describe('TwinPage — empty state + creation wizard', () => {
 describe('TwinPage — section render, edit, save round-trip', () => {
   it('renders every section with the loaded profile data', async () => {
     twinGetProfile.mockResolvedValue(fullProfile());
-    render(<TwinPage />);
+    renderPage();
 
     expect(await screen.findByText('Jane Doe')).toBeInTheDocument();
     expect(screen.getByText('Acme')).toBeInTheDocument();
@@ -91,7 +112,7 @@ describe('TwinPage — section render, edit, save round-trip', () => {
     const updated = fullProfile({ identity: { name: 'Jane Smith', role: 'Staff Engineer', seniority: 'senior' } });
     twinUpdateProfileSection.mockResolvedValue(updated);
 
-    render(<TwinPage />);
+    renderPage();
     await screen.findByText('Jane Doe');
 
     const identityHeading = screen.getByRole('heading', { name: 'Identity' });
@@ -117,7 +138,7 @@ describe('TwinPage — section render, edit, save round-trip', () => {
     twinGetProfile.mockResolvedValue(fullProfile());
     twinUpdateProfileSection.mockRejectedValue(new Error('DB unavailable'));
 
-    render(<TwinPage />);
+    renderPage();
     await screen.findByText('Jane Doe');
 
     const identityHeading = screen.getByRole('heading', { name: 'Identity' });
@@ -132,12 +153,13 @@ describe('TwinPage — section render, edit, save round-trip', () => {
 
   it('"Refine profile" opens the wizard pre-filled from the existing profile', async () => {
     twinGetProfile.mockResolvedValue(fullProfile());
-    render(<TwinPage />);
+    renderPage();
     await screen.findByText('Jane Doe');
 
     fireEvent.click(screen.getByRole('button', { name: /refine profile/i }));
     expect(await screen.findByRole('heading', { name: /refine your twin/i })).toBeInTheDocument();
-    // Pre-filled: the identity step's Name field carries the stored value.
+    // Pre-filled: enter Quick form and the identity step's Name field carries the stored value.
+    fireEvent.click(await screen.findByRole('button', { name: /start quick form/i }));
     expect(screen.getByDisplayValue('Jane Doe')).toBeInTheDocument();
   });
 });
@@ -145,7 +167,7 @@ describe('TwinPage — section render, edit, save round-trip', () => {
 describe('TwinPage — Memory tab placeholder', () => {
   it('shows the V3.4 placeholder and no learning infrastructure', async () => {
     twinGetProfile.mockResolvedValue(fullProfile());
-    render(<TwinPage />);
+    renderPage();
     await screen.findByText('Jane Doe');
 
     fireEvent.click(screen.getByRole('tab', { name: 'Memory' }));

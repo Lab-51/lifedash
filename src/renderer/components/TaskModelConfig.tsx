@@ -59,6 +59,12 @@ const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
     { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
   ],
+  google: [
+    { id: 'gemini-3-pro-preview', label: 'Gemini 3 Pro (Preview)' },
+    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Flagship)' },
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite (Budget)' },
+  ],
   ollama: [
     { id: 'llama3.2', label: 'Llama 3.2' },
     { id: 'mistral', label: 'Mistral' },
@@ -83,6 +89,9 @@ const FLAGSHIP_TASKS: Set<AITaskType> = new Set(['brainstorming', 'idea_analysis
 const RECOMMENDED_MODELS: Record<AIProviderName, { flagship: string; efficient: string }> = {
   openai: { flagship: 'gpt-5.2', efficient: 'gpt-5-mini' },
   anthropic: { flagship: 'claude-opus-4-6', efficient: 'claude-sonnet-4-6' },
+  // Auto-assign uses GA (non-preview) Gemini so it never routes to a preview
+  // endpoint the user may not have access to.
+  google: { flagship: 'gemini-2.5-pro', efficient: 'gemini-2.5-flash' },
   kimi: { flagship: 'kimi-k2.5', efficient: 'kimi-k2.5' },
   ollama: { flagship: 'llama3.2', efficient: 'llama3.2' },
   lmstudio: { flagship: 'default', efficient: 'default' },

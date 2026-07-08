@@ -3,7 +3,7 @@
 // and wraps generateText with automatic usage logging to ai_usage table.
 //
 // === DEPENDENCIES ===
-// ai (generateText), @ai-sdk/openai, @ai-sdk/anthropic, ollama-ai-provider
+// ai (generateText), @ai-sdk/openai, @ai-sdk/anthropic, @ai-sdk/google, ollama-ai-provider
 //
 // === LIMITATIONS ===
 // - Provider cache must be manually cleared on config change
@@ -18,6 +18,7 @@
 import { generateText, streamText, type LanguageModel } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOllama } from 'ollama-ai-provider';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
@@ -32,6 +33,8 @@ const log = createLogger('AI');
 const TEST_MODELS: Record<AIProviderName, string> = {
   openai: 'gpt-4o-mini',
   anthropic: 'claude-haiku-4-5-20251001',
+  // Cheapest current Gemini tier — verified id from @ai-sdk/google@3.0.90 GoogleGenerativeAIModelId.
+  google: 'gemini-2.5-flash-lite',
   ollama: 'llama3.2',
   kimi: 'kimi-k2.5',
   lmstudio: 'default',
@@ -57,6 +60,11 @@ const MODEL_PRICING: Record<string, TokenPricing> = {
   // Anthropic
   'claude-sonnet-4-5-20250929': { input: 3.0 / 1e6, output: 15.0 / 1e6 },
   'claude-haiku-4-5-20251001': { input: 0.8 / 1e6, output: 4.0 / 1e6 },
+  // Google Gemini — published Google AI list prices (Feb 2026 tier). Preview
+  // models omitted (pricing not final) — they fall back to 0 like other unknowns.
+  'gemini-2.5-pro': { input: 1.25 / 1e6, output: 10.0 / 1e6 },
+  'gemini-2.5-flash': { input: 0.3 / 1e6, output: 2.5 / 1e6 },
+  'gemini-2.5-flash-lite': { input: 0.1 / 1e6, output: 0.4 / 1e6 },
   // Kimi (Moonshot)
   'kimi-k2.5': { input: 1.0 / 1e6, output: 4.0 / 1e6 },
   'kimi-k2.5-preview': { input: 1.0 / 1e6, output: 4.0 / 1e6 },
@@ -104,6 +112,18 @@ function sanitizeMaxTokens(providerName: AIProviderName, maxTokens?: number): nu
 // Cache provider factories by DB id (invalidated on config change)
 const providerCache = new Map<string, ProviderFactory>();
 
+/**
+ * Google Gemini factory via @ai-sdk/google. The provider is a callable that returns
+ * a LanguageModelV3 (same shape as OpenAI/Anthropic). baseURL is optional (proxy
+ * support); omitted, the SDK uses its default Gemini endpoint. Extracted so
+ * createFactory stays under the complexity budget.
+ */
+function createGoogleFactory(apiKey?: string, baseUrl?: string): ProviderFactory {
+  const key = apiKey || '';
+  const options = baseUrl ? { apiKey: key, baseURL: baseUrl } : { apiKey: key };
+  return createGoogleGenerativeAI(options) as unknown as ProviderFactory;
+}
+
 function createFactory(name: AIProviderName, apiKey?: string, baseUrl?: string): ProviderFactory {
   // Each SDK provider is a callable object that returns its own LanguageModel version.
   // OpenAI/Anthropic return LanguageModelV3, Ollama returns LanguageModelV1.
@@ -113,6 +133,8 @@ function createFactory(name: AIProviderName, apiKey?: string, baseUrl?: string):
       return createOpenAI({ apiKey: apiKey || '' }) as unknown as ProviderFactory;
     case 'anthropic':
       return createAnthropic({ apiKey: apiKey || '' }) as unknown as ProviderFactory;
+    case 'google':
+      return createGoogleFactory(apiKey, baseUrl);
     case 'ollama':
       return createOllama({ baseURL: baseUrl || 'http://localhost:11434/api' }) as unknown as ProviderFactory;
     case 'kimi': {
@@ -350,6 +372,7 @@ export interface ResolvedProvider {
 const DEFAULT_MODELS: Record<AIProviderName, string> = {
   openai: 'gpt-5-mini',
   anthropic: 'claude-haiku-4-5-20251001',
+  google: 'gemini-2.5-flash',
   ollama: 'llama3.2',
   kimi: 'kimi-k2.5',
   lmstudio: 'default',
