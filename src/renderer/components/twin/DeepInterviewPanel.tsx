@@ -1,50 +1,96 @@
 // === FILE PURPOSE ===
-// Digital Twin "Deep interview" mode panel (V3.3.5 — Task 2). Mounted by
-// TwinWizard's mode fork when the user picks the deep, multi-turn interview
-// (distinct from the Quick-form per-step "Interview me"). Seeded by the user's
-// free-form `brief`.
+// Digital Twin "Deep interview" mode panel (V3.3.5 — orchestrated deep creation).
+// Mounted by TwinWizard's mode fork. Instead of only asking questions, it now runs a
+// guided, phased flow: RESEARCH the role first, INTERVIEW about the gaps research
+// can't know, optionally fold in MEETING HISTORY, then MERGE everything into one draft
+// handed UP via onDraft — the wizard seeds its EXISTING editable review from it (the
+// user edits + saves there; NOTHING auto-saves and this panel builds no review of its
+// own). Seeded by the user's free-form `brief`.
 //
-// === FLOW ===
-// On mount it asks the model for the first question (twinInterviewNext). The user
-// answers in a textarea and each turn is accumulated into `qa`; "Next question"
-// fetches the following one. "Skip question" and "Finish now" are ALWAYS available
-// (finish-anytime). When the model reports it has enough (or the 8-question cap is
-// hit) the panel synthesizes the Q&A into a Partial<TwinProfileSections> draft
-// (twinInterviewSynthesize) and hands it UP via onDraft — the wizard seeds its
-// EXISTING editable review from it and the user saves there. NOTHING auto-saves
-// and this panel builds NO review UI of its own.
+// === PHASES ===
+// prefill → role (input + cloud-confirm) → researching → research-review
+//        → interview (loading/answering/synthesizing) → history-offer
+//        → history-checking/running → onDraft(merged).
+// Research is optional and gated: a non-frontier model skips it honestly; unsupported/
+// skipped research falls straight through to the interview. History is optional and,
+// for a cloud model, gated behind the reused per-run consent dialog.
 //
 // === FAILURE TOLERANCE ===
-// AI is never required. Any skipped/failed turn (no model configured, or generation
-// failed after one retry) shows a NON-BLOCKING notice offering the manual Quick
-// form (via onBack). An AI failure must NEVER block the user.
+// AI is never required. Any skipped/failed interview turn shows a NON-BLOCKING notice
+// offering the manual Quick form (onUseForm ?? onBack). A slow research/interview/
+// history call that resolves AFTER the user navigated away is dropped (activeRef).
 //
 // === DEPENDENCIES ===
-// react, lucide-react, shared/types/twin.
+// react, lucide-react, shared/types/twin, the Deep* step sub-components, the reused
+// TwinResearchConsentDialog, and the deepInterviewMerge helper.
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { MessagesSquare, ChevronLeft, ChevronRight, Loader2, Check, AlertTriangle } from 'lucide-react';
-import type { TwinProfileSections, TwinQATurn } from '../../../shared/types/twin';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { MessagesSquare, ChevronLeft } from 'lucide-react';
+import type {
+  TwinProfile,
+  TwinProfileSections,
+  TwinQATurn,
+  TwinCreationModel,
+  TwinRoleResearchDraft,
+  TwinResearchHistoryInfo,
+  TwinInterviewNextPayload,
+  TwinInterviewSynthesizePayload,
+} from '../../../shared/types/twin';
+import DeepRoleStep from './DeepRoleStep';
+import DeepResearchReview from './DeepResearchReview';
+import DeepInterviewStep from './DeepInterviewStep';
+import DeepHistoryStep from './DeepHistoryStep';
+import TwinResearchConsentDialog from './TwinResearchConsentDialog';
+import { LoadingRow, InfoNote, FormFallbackNotice } from './DeepInterviewParts';
+import { mergeDrafts } from './deepInterviewMerge';
 
 /** Upper bound on questions — mirrors the service cap; drives the progress copy. */
 const MAX_QUESTIONS = 8;
 
+/** twin:research-history-info's provider label when nothing is configured (matches the
+ *  service): with no model there is no cloud destination, so mining just can't run. */
+const NO_MODEL_LABEL = 'No model configured';
+
 export interface DeepInterviewPanelProps {
-  /** The user's free-form brief, seeding the interview. May be empty. */
+  /** The user's free-form brief, seeding the whole flow. May be empty. */
   brief: string;
   /** Return to the wizard's mode-choice screen. */
   onBack: () => void;
   /**
-   * Hand the synthesized profile draft UP to the wizard, which seeds its shared
-   * editable review from it (the user edits + saves there — nothing auto-saves).
+   * Switch to the manual Quick form (the "fill the form instead" fallback when an AI
+   * turn can't continue). Falls back to onBack (the mode-choice screen) when omitted.
+   */
+  onUseForm?: () => void;
+  /**
+   * Hand the MERGED profile draft (research + interview + optional history) UP to the
+   * wizard, which seeds its shared editable review from it (nothing auto-saves).
    */
   onDraft: (draft: Partial<TwinProfileSections>) => void;
 }
 
-/** 'loading' = fetching the next question; 'answering' = a question is on screen. */
-type Phase = 'loading' | 'answering' | 'synthesizing' | 'notice';
+type DeepPhase =
+  | 'prefill'
+  | 'role'
+  | 'researching'
+  | 'research-review'
+  | 'interview-loading'
+  | 'interview-answering'
+  | 'interview-synthesizing'
+  | 'history-offer'
+  | 'history-checking'
+  | 'history-running'
+  | 'notice';
 
-/** Why the AI path stopped — drives the non-blocking notice copy. */
+/** Transient "working…" phases share one spinner row keyed by phase. */
+const LOADING_LABEL: Partial<Record<DeepPhase, string>> = {
+  prefill: 'Loading your details…',
+  researching: 'Researching your role…',
+  'interview-loading': 'Thinking of the next question…',
+  'interview-synthesizing': 'Building your profile draft…',
+  'history-checking': 'Checking your history…',
+  'history-running': 'Reading your history…',
+};
+
 type NoticeReason = 'no-model' | 'failed';
 
 const NOTICE_MESSAGE: Record<NoticeReason, string> = {
@@ -52,17 +98,55 @@ const NOTICE_MESSAGE: Record<NoticeReason, string> = {
   failed: "The interview couldn't continue right now. You can fill the form instead — nothing is lost.",
 };
 
-export default function DeepInterviewPanel({ brief, onBack, onDraft }: DeepInterviewPanelProps) {
-  const [phase, setPhase] = useState<Phase>('loading');
+/** Read an optional electronAPI method, tolerating an absent method or a rejection. */
+async function safeCall<T>(fn: () => Promise<T>): Promise<T | null> {
+  try {
+    return await fn();
+  } catch {
+    return null;
+  }
+}
+
+/** The stored profile's STRUCTURED sections, used as the least-specific MERGE BASE on a
+ *  REFINE so the merged draft AUGMENTS the user's data instead of replacing it (the
+ *  wizard's seed replaces every section the draft supplies). `brief` and `updatedAt` are
+ *  excluded — the brief is owned by the wizard's own field, not re-seeded from here. */
+function profileToBase(profile: TwinProfile): Partial<TwinProfileSections> {
+  return {
+    identity: profile.identity ?? {},
+    domain: profile.domain ?? {},
+    projects: profile.projects ?? [],
+    people: profile.people ?? [],
+    vocabulary: profile.vocabulary ?? [],
+    goals: profile.goals ?? [],
+    preferences: profile.preferences ?? {},
+  };
+}
+
+export default function DeepInterviewPanel({ brief, onBack, onUseForm, onDraft }: DeepInterviewPanelProps) {
+  const [phase, setPhase] = useState<DeepPhase>('prefill');
+  const [role, setRole] = useState('');
+  const [company, setCompany] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [model, setModel] = useState<TwinCreationModel | null>(null);
+  const [research, setResearch] = useState<TwinRoleResearchDraft | null>(null);
+  const [infoNote, setInfoNote] = useState<string | null>(null);
   const [qa, setQa] = useState<TwinQATurn[]>([]);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const [interviewDraft, setInterviewDraft] = useState<Partial<TwinProfileSections> | null>(null);
+  const [historyInfo, setHistoryInfo] = useState<TwinResearchHistoryInfo | null>(null);
   const [notice, setNotice] = useState<NoticeReason | null>(null);
+  // The stored profile's sections (REFINE) — the merge base so nothing stored is dropped.
+  const [existingSections, setExistingSections] = useState<Partial<TwinProfileSections> | null>(null);
 
-  // Tracks whether the panel is still mounted, so a slow synthesize/next call that
-  // resolves AFTER the user navigated away (Back / wizard close) can't snap them into
-  // an abandoned review or update unmounted state (finding #6.4). Set true on (re)mount
-  // so React.StrictMode's mount→cleanup→mount cycle leaves it true.
+  // Restores focus to "Use my history" when the cloud-consent dialog closes.
+  const historyTriggerRef = useRef<HTMLButtonElement>(null);
+
+  // True while mounted, so a slow research/interview/history call that resolves AFTER
+  // the user navigated away (Back / wizard close) can't update state or forward a draft
+  // into an abandoned review (finding #6.4). Set true on (re)mount so StrictMode's
+  // mount→cleanup→mount cycle leaves it true.
   const activeRef = useRef(true);
   useEffect(() => {
     activeRef.current = true;
@@ -71,25 +155,48 @@ export default function DeepInterviewPanel({ brief, onBack, onDraft }: DeepInter
     };
   }, []);
 
-  // a11y (finding #6.6): each new question replaces the answering block, dropping
-  // keyboard focus to <body>. Move focus to the answer box when a question loads and
-  // tie the question text to it (aria-describedby) so screen-reader users hear the
-  // question when focus lands — keeping the core loop usable without a mouse.
-  const answerRef = useRef<HTMLTextAreaElement>(null);
-  const questionId = useId();
-  useEffect(() => {
-    if (phase === 'answering') answerRef.current?.focus();
-  }, [phase, question]);
+  // The researched role background threaded into the interview so it targets the gaps.
+  // Held in a ref (not state) so the interview callbacks read the latest without churn.
+  const roleContextRef = useRef<string | undefined>(undefined);
 
-  // Synthesize the Q&A into a draft and hand it UP; the wizard takes over on success.
+  // One-shot prefill: seed role/company/industry from any existing profile and resolve
+  // the creation model (to decide whether research is even offered). No cloud call here.
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    void (async () => {
+      const [profile, creationModel] = await Promise.all([
+        safeCall(() => window.electronAPI.twinGetProfile()),
+        safeCall(() => window.electronAPI.twinGetCreationModel()),
+      ]);
+      if (!activeRef.current) return;
+      if (profile) {
+        setRole(profile.identity?.role ?? '');
+        setCompany(profile.domain?.company ?? '');
+        setIndustry(profile.domain?.industry ?? '');
+        setExistingSections(profileToBase(profile));
+      }
+      setModel(creationModel);
+      setPhase('role');
+    })();
+  }, []);
+
+  // --- interview loop (mirrors the original panel, now with roleContext + a history hop) ---
+
+  // Synthesize the Q&A into a draft, then OFFER history (we don't forward yet). A
+  // skipped/failed synthesis degrades to the non-blocking form notice.
   const finish = useCallback(
     async (finalQa: TwinQATurn[]) => {
-      setPhase('synthesizing');
+      setPhase('interview-synthesizing');
       try {
-        const res = await window.electronAPI.twinInterviewSynthesize({ brief, qa: finalQa });
-        if (!activeRef.current) return; // navigated away mid-synthesis — do not forward
+        const payload: TwinInterviewSynthesizePayload = { brief, qa: finalQa };
+        if (roleContextRef.current) payload.roleContext = roleContextRef.current;
+        const res = await window.electronAPI.twinInterviewSynthesize(payload);
+        if (!activeRef.current) return;
         if (res.status === 'ok') {
-          onDraft(res.draft); // wizard unmounts this panel and opens its editable review
+          setInterviewDraft(res.draft);
+          setPhase('history-offer');
           return;
         }
         setNotice(res.reason === 'no-model' ? 'no-model' : 'failed');
@@ -100,23 +207,21 @@ export default function DeepInterviewPanel({ brief, onBack, onDraft }: DeepInter
         setPhase('notice');
       }
     },
-    [brief, onDraft],
+    [brief],
   );
 
-  // Ask the model for the next question given the Q&A so far; auto-synthesize on done.
-  // Intentionally does NOT set the transient 'loading' phase itself: on mount that
-  // phase is the initial state, and for user-driven turns the calling handler sets
-  // it — so this never triggers a synchronous setState when invoked from the mount
-  // effect (react-hooks/set-state-in-effect). All state changes here follow an await.
+  // Ask the model for the next question; auto-synthesize on `done`.
   const loadNext = useCallback(
     async (currentQa: TwinQATurn[]) => {
       try {
-        const res = await window.electronAPI.twinInterviewNext({ brief, profileSoFar: {}, qa: currentQa });
-        if (!activeRef.current) return; // navigated away while fetching the next question
+        const payload: TwinInterviewNextPayload = { brief, profileSoFar: {}, qa: currentQa };
+        if (roleContextRef.current) payload.roleContext = roleContextRef.current;
+        const res = await window.electronAPI.twinInterviewNext(payload);
+        if (!activeRef.current) return;
         if (res.status === 'ok') {
           setQuestion(res.question);
           setAnswer('');
-          setPhase('answering');
+          setPhase('interview-answering');
           return;
         }
         if (res.status === 'done') {
@@ -134,32 +239,110 @@ export default function DeepInterviewPanel({ brief, onBack, onDraft }: DeepInter
     [brief, finish],
   );
 
-  // Ask the first question once on mount. The ref guard makes the effect idempotent
-  // under React.StrictMode's double-invoke (the app mounts under StrictMode). The
-  // fetch is deferred a microtask so no state update runs synchronously in the effect
-  // body (react-hooks/set-state-in-effect); the spinner shows via the initial 'loading'
-  // phase until loadNext resolves.
-  const startedRef = useRef(false);
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    queueMicrotask(() => void loadNext([]));
-  }, [loadNext]);
+  // Begin the interview from an empty Q&A, threading any researched role context.
+  const startInterview = useCallback(
+    (ctx?: string) => {
+      roleContextRef.current = ctx;
+      setQa([]);
+      setPhase('interview-loading');
+      void loadNext([]);
+    },
+    [loadNext],
+  );
+
+  // --- research (step 2, cloud) ---
+
+  const runResearch = useCallback(async () => {
+    setInfoNote(null);
+    setPhase('researching');
+    try {
+      const res = await window.electronAPI.twinResearchRole({
+        role: role.trim(),
+        company: company.trim(),
+        industry: industry.trim(),
+        brief,
+      });
+      if (!activeRef.current) return;
+      if (res.status === 'ok') {
+        setResearch(res.result);
+        setPhase('research-review');
+        return;
+      }
+      // unsupported / skipped: proceed straight to the interview (never blocks).
+      setInfoNote(
+        res.status === 'unsupported'
+          ? "Web research isn't available with your current model, so we'll go straight to the interview."
+          : "Role research was skipped, so we'll go straight to the interview.",
+      );
+      startInterview(undefined);
+    } catch {
+      if (!activeRef.current) return;
+      setInfoNote("Role research couldn't run, so we'll go straight to the interview.");
+      startInterview(undefined);
+    }
+  }, [role, company, industry, brief, startInterview]);
+
+  // --- merge + forward (step 5) ---
+
+  const forwardMerged = useCallback(
+    (history: Partial<TwinProfileSections> | null) => {
+      // existing → research → interview → history: later wins, arrays concat + dedupe.
+      onDraft(mergeDrafts(existingSections, research?.draft ?? null, interviewDraft, history));
+    },
+    [onDraft, existingSections, research, interviewDraft],
+  );
+
+  // --- history (step 4, optional) ---
+
+  const runHistory = useCallback(async () => {
+    setHistoryInfo(null);
+    setPhase('history-running');
+    try {
+      const res = await window.electronAPI.twinResearchHistory();
+      if (!activeRef.current) return;
+      forwardMerged(res.status === 'ok' ? res.draft : null);
+    } catch {
+      if (!activeRef.current) return;
+      forwardMerged(null); // history is optional — forward what we have
+    }
+  }, [forwardMerged]);
+
+  const beginHistory = useCallback(async () => {
+    setPhase('history-checking');
+    try {
+      const info = await window.electronAPI.twinResearchHistoryInfo();
+      if (!activeRef.current) return;
+      if (info.providerLabel === NO_MODEL_LABEL) {
+        forwardMerged(null); // no cloud destination — mining unavailable, forward as-is
+        return;
+      }
+      if (info.isLocal) {
+        await runHistory();
+        return;
+      }
+      setHistoryInfo(info); // cloud → require explicit per-run consent
+      setPhase('history-offer');
+    } catch {
+      if (!activeRef.current) return;
+      forwardMerged(null); // couldn't check — forward what we have, non-blocking
+    }
+  }, [forwardMerged, runHistory]);
+
+  // --- interview turn handlers (event handlers — synchronous setState is fine here) ---
 
   const submitAnswer = () => {
     const text = answer.trim();
     if (!text) return;
     const next = [...qa, { question, answer: text }];
     setQa(next);
-    setPhase('loading'); // event handler — synchronous setState here is fine
+    setPhase('interview-loading');
     void loadNext(next);
   };
 
   const skipQuestion = () => {
-    // Record the skip (empty answer) so the model won't re-ask and the cap still advances.
     const next = [...qa, { question, answer: '' }];
     setQa(next);
-    setPhase('loading');
+    setPhase('interview-loading');
     void loadNext(next);
   };
 
@@ -170,14 +353,81 @@ export default function DeepInterviewPanel({ brief, onBack, onDraft }: DeepInter
     void finish(finalQa);
   };
 
+  const canResearch = model?.isFrontier === true;
+  const providerLabel = model?.providerLabel || 'your cloud provider';
+  const loadingLabel = LOADING_LABEL[phase];
   const questionNumber = Math.min(qa.length + 1, MAX_QUESTIONS);
+
+  // Route the current phase to its body. Kept as a small switch so the component's
+  // render stays under the complexity budget.
+  const body = (): ReactNode => {
+    if (loadingLabel) return <LoadingRow label={loadingLabel} />;
+    switch (phase) {
+      case 'role':
+        return (
+          <DeepRoleStep
+            brief={brief}
+            role={role}
+            company={company}
+            industry={industry}
+            onRoleChange={setRole}
+            onCompanyChange={setCompany}
+            onIndustryChange={setIndustry}
+            canResearch={canResearch}
+            providerLabel={providerLabel}
+            onResearch={() => void runResearch()}
+            onSkip={() => startInterview(undefined)}
+          />
+        );
+      case 'research-review':
+        return research ? (
+          <DeepResearchReview result={research} onContinue={() => startInterview(research.roleContext)} />
+        ) : null;
+      case 'interview-answering':
+        return (
+          <DeepInterviewStep
+            question={question}
+            answer={answer}
+            questionNumber={questionNumber}
+            maxQuestions={MAX_QUESTIONS}
+            onAnswerChange={setAnswer}
+            onSubmit={submitAnswer}
+            onSkip={skipQuestion}
+            onFinish={finishNow}
+          />
+        );
+      case 'history-offer':
+        return (
+          <DeepHistoryStep
+            onUseHistory={() => void beginHistory()}
+            onSkip={() => forwardMerged(null)}
+            useHistoryButtonRef={historyTriggerRef}
+          />
+        );
+      case 'notice':
+        if (!notice) return null;
+        // When consented research already succeeded, don't waste it: offer continuing
+        // with the research draft (existing + research) as the primary action (#3).
+        return research ? (
+          <FormFallbackNotice
+            message="The interview couldn't continue, but the role research we found is ready for review. Continue with that, or fill the form instead."
+            onUseForm={onUseForm ?? onBack}
+            onKeepPartial={() => forwardMerged(null)}
+          />
+        ) : (
+          <FormFallbackNotice message={NOTICE_MESSAGE[notice]} onUseForm={onUseForm ?? onBack} />
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="space-y-4">
       <button
         type="button"
         onClick={onBack}
-        disabled={phase === 'synthesizing'}
+        disabled={phase === 'interview-synthesizing'}
         className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-40"
       >
         <ChevronLeft size={16} />
@@ -196,94 +446,17 @@ export default function DeepInterviewPanel({ brief, onBack, onDraft }: DeepInter
         </div>
       )}
 
-      {phase === 'loading' && (
-        <div className="flex items-center gap-2 py-8 text-sm text-[var(--color-text-secondary)]" role="status">
-          <Loader2 size={16} className="animate-spin text-[var(--color-accent)]" />
-          Thinking of the next question…
-        </div>
-      )}
+      {infoNote && <InfoNote text={infoNote} />}
 
-      {phase === 'synthesizing' && (
-        <div className="flex items-center gap-2 py-8 text-sm text-[var(--color-text-secondary)]" role="status">
-          <Loader2 size={16} className="animate-spin text-[var(--color-accent)]" />
-          Building your profile draft…
-        </div>
-      )}
+      {body()}
 
-      {phase === 'answering' && (
-        <div className="space-y-3">
-          <p className="text-xs font-data tracking-wide text-[var(--color-text-secondary)]" aria-live="polite">
-            Question {questionNumber} of up to {MAX_QUESTIONS}
-          </p>
-
-          <p
-            id={questionId}
-            aria-live="polite"
-            className="text-sm font-medium text-[var(--color-text-primary)] break-words"
-          >
-            {question}
-          </p>
-
-          <label className="block">
-            <span className="sr-only">Your answer</span>
-            <textarea
-              ref={answerRef}
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              rows={4}
-              aria-label="Your answer"
-              aria-describedby={questionId}
-              placeholder="Answer in your own words…"
-              className="w-full text-sm bg-white dark:bg-surface-900 border border-[var(--color-border)] rounded px-2.5 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] resize-y"
-            />
-          </label>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <button
-              type="button"
-              onClick={skipQuestion}
-              className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-            >
-              Skip question
-            </button>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={finishNow}
-                className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-              >
-                <Check size={16} />
-                Finish now
-              </button>
-              <button
-                type="button"
-                onClick={submitAnswer}
-                disabled={!answer.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium text-sm bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] transition-all disabled:opacity-50"
-              >
-                Next question
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {phase === 'notice' && notice && (
-        <div className="space-y-3 py-4">
-          <div className="flex items-start gap-2 text-sm text-[var(--color-text-secondary)]" role="status">
-            <AlertTriangle size={16} className="shrink-0 mt-0.5 text-[var(--color-accent)]" />
-            <p className="break-words min-w-0">{NOTICE_MESSAGE[notice]}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium text-sm bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] transition-all"
-          >
-            Fill the form instead
-          </button>
-        </div>
+      {historyInfo && (
+        <TwinResearchConsentDialog
+          info={historyInfo}
+          onConfirm={() => void runHistory()}
+          onCancel={() => setHistoryInfo(null)}
+          returnFocusRef={historyTriggerRef}
+        />
       )}
     </div>
   );

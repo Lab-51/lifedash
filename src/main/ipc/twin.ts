@@ -30,6 +30,7 @@ import type {
   TwinInterviewNextPayload,
   TwinInterviewSynthesizePayload,
   TwinWebResearchPayload,
+  TwinRoleResearchPayload,
 } from '../../shared/types/twin';
 
 // --- per-section value schemas (mirror shared/types/twin.ts shapes) ---
@@ -107,6 +108,11 @@ const briefSeedSchema = z.string().max(4000);
 const qaTurnSchema = z.object({ question: z.string(), answer: z.string() });
 const qaListSchema = z.array(qaTurnSchema).max(100);
 
+// Researched role/industry background from the orchestrated deep flow — bounded so a
+// runaway summary can't blow the interview/synthesis context. Optional (interview-only
+// flows omit it).
+const roleContextSchema = z.string().max(6000).optional();
+
 const interviewNextSchema = z.object({
   brief: briefSeedSchema,
   // profileSoFar is a partial profile; validated loosely (bounded object) and
@@ -114,16 +120,27 @@ const interviewNextSchema = z.object({
   // schemas above when a draft is actually saved.
   profileSoFar: z.record(z.string(), z.unknown()),
   qa: qaListSchema,
+  roleContext: roleContextSchema,
 });
 
 const interviewSynthesizeSchema = z.object({
   brief: briefSeedSchema,
   qa: qaListSchema,
+  roleContext: roleContextSchema,
 });
 
 const webResearchSchema = z.object({
   company: z.string().max(200),
   industry: z.string().max(200),
+});
+
+// Role-dossier research payload (orchestrated deep creation). Role/company/industry are
+// user-entered (bounded); the brief seed is empty-allowed.
+const roleResearchSchema = z.object({
+  role: z.string().max(200),
+  company: z.string().max(200),
+  industry: z.string().max(200),
+  brief: briefSeedSchema,
 });
 
 export function registerTwinHandlers(): void {
@@ -196,6 +213,13 @@ export function registerTwinHandlers(): void {
   ipcMain.handle('twin:research-web', async (_event, payload: unknown) => {
     const p = validateInput(webResearchSchema, payload) as TwinWebResearchPayload;
     return twinWebResearchService.researchWeb(p);
+  });
+
+  // Role-dossier research (orchestrated deep creation): role/company/industry → a cited
+  // structured draft + a prose role-context summary that seeds the gap-focused interview.
+  ipcMain.handle('twin:research-role', async (_event, payload: unknown) => {
+    const p = validateInput(roleResearchSchema, payload) as TwinRoleResearchPayload;
+    return twinWebResearchService.researchRole(p);
   });
 
   // Creation-model gate descriptor — drives the wizard's mode-fork SOTA notice.

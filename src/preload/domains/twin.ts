@@ -18,6 +18,8 @@ import type {
   TwinResearchResult,
   TwinWebResearchPayload,
   TwinWebResearchResult,
+  TwinRoleResearchPayload,
+  TwinRoleResearchResult,
   TwinCreationModel,
 } from '../../shared/types';
 
@@ -39,5 +41,7 @@ export const twinBridge = {
   twinResearchHistory: (): Promise<TwinResearchResult> => ipcRenderer.invoke('twin:research-history'),
   twinResearchWeb: (payload: TwinWebResearchPayload): Promise<TwinWebResearchResult> =>
     ipcRenderer.invoke('twin:research-web', payload),
+  twinResearchRole: (payload: TwinRoleResearchPayload): Promise<TwinRoleResearchResult> =>
+    ipcRenderer.invoke('twin:research-role', payload),
   twinGetCreationModel: (): Promise<TwinCreationModel> => ipcRenderer.invoke('twin:get-creation-model'),
 };

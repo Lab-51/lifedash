@@ -42,7 +42,7 @@ vi.mock('@ai-sdk/google', () => ({
   ),
 }));
 
-import { checkSupport, researchWeb } from '../twinWebResearchService';
+import { checkSupport, researchWeb, researchRole } from '../twinWebResearchService';
 import { resolveTaskModel } from '../ai-provider';
 import { decryptString } from '../secure-storage';
 import { generateText } from 'ai';
@@ -265,6 +265,136 @@ describe('researchWeb — validate/retry/skip discipline', () => {
   it('skips with reason "failed" (no retry) when generation throws — does not propagate', async () => {
     vi.mocked(generateText).mockRejectedValue(new Error('network down'));
     const res = await researchWeb(PAYLOAD);
+    expect(generateText).toHaveBeenCalledTimes(1);
+    expect(res).toEqual({ status: 'skipped', reason: 'failed' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// researchRole — the orchestrated deep-creation role dossier
+// ---------------------------------------------------------------------------
+
+const ROLE_PAYLOAD = {
+  role: 'Product Manager',
+  company: 'Acme Corp',
+  industry: 'B2B SaaS',
+  brief: 'Senior PM building the billing product',
+};
+
+const ROLE_OK_TEXT = JSON.stringify({
+  domain: { industry: 'B2B SaaS', company: 'Acme Corp', focus: 'billing' },
+  vocabulary: [{ term: 'ARR', meaning: 'Annual Recurring Revenue' }],
+  goals: ['Reduce churn', 'Ship billing features'],
+  identity: { role: 'Product Manager', seniority: 'Senior' },
+  roleContext:
+    'A B2B SaaS product manager owns the roadmap and works across engineering, design, and sales. They prioritize features, define requirements, and are measured on adoption and revenue.',
+});
+
+describe('researchRole — supported path (fuller cited role dossier)', () => {
+  it('extracts domain + vocabulary + goals + identity + roleContext with citations', async () => {
+    vi.mocked(generateText).mockResolvedValue(
+      genResult(ROLE_OK_TEXT, [[{ sourceType: 'url', url: 'https://a.com', title: 'A' }]]) as never,
+    );
+    const res = await researchRole(ROLE_PAYLOAD);
+    expect(res).toEqual({
+      status: 'ok',
+      result: {
+        draft: {
+          domain: { industry: 'B2B SaaS', company: 'Acme Corp', focus: 'billing' },
+          vocabulary: [{ term: 'ARR', meaning: 'Annual Recurring Revenue' }],
+          goals: ['Reduce churn', 'Ship billing features'],
+          identity: { role: 'Product Manager', seniority: 'Senior' },
+        },
+        roleContext:
+          'A B2B SaaS product manager owns the roadmap and works across engineering, design, and sales. They prioritize features, define requirements, and are measured on adoption and revenue.',
+        citations: [{ title: 'A', url: 'https://a.com' }],
+      },
+    });
+  });
+
+  it('seeds the prompt from role/company/industry/brief and runs a bounded web search', async () => {
+    vi.mocked(generateText).mockResolvedValue(genResult(ROLE_OK_TEXT) as never);
+    await researchRole(ROLE_PAYLOAD);
+    expect(h.openaiWebSearch).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(generateText).mock.calls[0][0];
+    expect(call.tools).toHaveProperty('web_search');
+    expect(call.stopWhen).toBe('STOP');
+    expect(call.prompt).toContain('Product Manager');
+    expect(call.prompt).toContain('Acme Corp');
+    expect(call.prompt).toContain('B2B SaaS');
+    expect(call.prompt).toContain('Senior PM building the billing product');
+  });
+
+  it('NEVER produces generic people/projects — even if the model emits them, they are dropped', async () => {
+    vi.mocked(generateText).mockResolvedValue(
+      genResult(
+        JSON.stringify({
+          domain: { industry: 'B2B SaaS' },
+          people: [{ name: 'Typical Manager' }],
+          projects: [{ name: 'A Generic Roadmap' }],
+          roleContext: 'Generic role context.',
+        }),
+      ) as never,
+    );
+    const res = await researchRole(ROLE_PAYLOAD);
+    expect(res.status).toBe('ok');
+    if (res.status !== 'ok') throw new Error('expected ok');
+    expect(res.result.draft).toEqual({ domain: { industry: 'B2B SaaS' } });
+    expect(res.result.draft.people).toBeUndefined();
+    expect(res.result.draft.projects).toBeUndefined();
+    expect(res.result.roleContext).toBe('Generic role context.');
+  });
+
+  it('prunes empty sections and tolerates a missing roleContext (empty string)', async () => {
+    vi.mocked(generateText).mockResolvedValue(
+      genResult('{"domain":{"industry":"  "},"goals":[],"identity":{"role":""}}') as never,
+    );
+    const res = await researchRole(ROLE_PAYLOAD);
+    expect(res).toEqual({ status: 'ok', result: { draft: {}, roleContext: '', citations: [] } });
+  });
+});
+
+describe('researchRole — degradation (no fabricated cloud call)', () => {
+  it('skips with reason "no-model" when nothing is configured — no cloud call', async () => {
+    vi.mocked(resolveTaskModel).mockResolvedValue(null);
+    const res = await researchRole(ROLE_PAYLOAD);
+    expect(res).toEqual({ status: 'skipped', reason: 'no-model' });
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it.each(['ollama', 'lmstudio', 'kimi'])(
+    'returns "unsupported" for the non-web provider %s WITHOUT any cloud call',
+    async (name) => {
+      vi.mocked(resolveTaskModel).mockResolvedValue(providerOf(name) as never);
+      const res = await researchRole(ROLE_PAYLOAD);
+      expect(res).toEqual({ status: 'unsupported' });
+      expect(generateText).not.toHaveBeenCalled();
+      expect(createOpenAI).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('researchRole — validate/retry/skip discipline', () => {
+  it('retries once with the rejection appended, then succeeds', async () => {
+    vi.mocked(generateText)
+      .mockResolvedValueOnce(genResult('not json at all') as never)
+      .mockResolvedValueOnce(genResult('{"roleContext":"Recovered background."}') as never);
+    const res = await researchRole(ROLE_PAYLOAD);
+    expect(generateText).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(generateText).mock.calls[1][0].prompt).toContain('previous reply was rejected');
+    expect(res).toEqual({ status: 'ok', result: { draft: {}, roleContext: 'Recovered background.', citations: [] } });
+  });
+
+  it('skips with reason "failed" after two malformed replies — never throws', async () => {
+    vi.mocked(generateText).mockResolvedValue(genResult('still not json') as never);
+    const res = await researchRole(ROLE_PAYLOAD);
+    expect(generateText).toHaveBeenCalledTimes(2);
+    expect(res).toEqual({ status: 'skipped', reason: 'failed' });
+  });
+
+  it('skips with reason "failed" (no retry) when generation throws', async () => {
+    vi.mocked(generateText).mockRejectedValue(new Error('network down'));
+    const res = await researchRole(ROLE_PAYLOAD);
     expect(generateText).toHaveBeenCalledTimes(1);
     expect(res).toEqual({ status: 'skipped', reason: 'failed' });
   });

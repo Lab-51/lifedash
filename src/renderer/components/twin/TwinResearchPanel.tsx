@@ -43,6 +43,11 @@ export interface TwinResearchPanelProps {
   /** Return to the wizard's mode-choice screen. */
   onBack: () => void;
   /**
+   * Switch to the manual Quick form (the "fill the form instead" fallback when
+   * mining can't run). Falls back to onBack (the mode-choice screen) when omitted.
+   */
+  onUseForm?: () => void;
+  /**
    * Hand the synthesized profile draft UP to the wizard, which seeds its shared
    * editable review from it (the user edits + saves there — nothing auto-saves).
    */
@@ -123,7 +128,7 @@ function Citations({ citations }: { citations: TwinCitation[] }) {
   );
 }
 
-export default function TwinResearchPanel({ brief, onBack, onDraft }: TwinResearchPanelProps) {
+export default function TwinResearchPanel({ brief, onBack, onUseForm, onDraft }: TwinResearchPanelProps) {
   const [phase, setPhase] = useState<'idle' | 'checking' | 'running'>('idle');
   const [consentInfo, setConsentInfo] = useState<TwinResearchHistoryInfo | null>(null);
   const [historyDraft, setHistoryDraft] = useState<Partial<TwinProfileSections> | null>(null);
@@ -250,6 +255,15 @@ export default function TwinResearchPanel({ brief, onBack, onDraft }: TwinResear
           <p role="alert" className="text-sm text-red-500 break-words">
             {error}
           </p>
+        )}
+        {notice && (
+          <button
+            type="button"
+            onClick={onUseForm ?? onBack}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium text-sm bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] transition-all"
+          >
+            Fill the form instead
+          </button>
         )}
       </div>
 

@@ -194,3 +194,48 @@ describe('interviewSynthesize — the Q&A -> editable draft', () => {
     expect(result).toEqual({ status: 'skipped', reason: 'failed' });
   });
 });
+
+describe('roleContext-aware prompts (orchestrated deep flow) — gap-focused', () => {
+  const ROLE_CONTEXT = 'A B2B SaaS product manager owns the roadmap and works across engineering, design, and sales.';
+
+  it('interviewNext includes the research background and steers to the GAPS the user knows', async () => {
+    vi.mocked(generate).mockResolvedValue({
+      text: '{"done":false,"question":"Which projects are you leading?"}',
+    } as never);
+    await interviewNext({ brief: 'A senior PM', profileSoFar: {}, qa: [], roleContext: ROLE_CONTEXT });
+    const prompt = vi.mocked(generate).mock.calls[0][0].prompt;
+    expect(prompt).toContain(ROLE_CONTEXT);
+    expect(prompt).toContain('Researched role/industry BACKGROUND');
+    expect(prompt).toContain('GAPS');
+    expect(prompt).toContain('REAL projects');
+    // Steering does not clobber the existing brief/transcript wiring.
+    expect(prompt).toContain('A senior PM');
+  });
+
+  it('interviewNext prompt is byte-identical with no roleContext vs an empty roleContext', async () => {
+    vi.mocked(generate).mockResolvedValue({ text: '{"done":true}' } as never);
+    const base = { brief: 'A senior PM', profileSoFar: {}, qa: [{ question: 'Q1', answer: 'A1' }] };
+    await interviewNext(base);
+    await interviewNext({ ...base, roleContext: '   ' });
+    const promptA = vi.mocked(generate).mock.calls[0][0].prompt;
+    const promptB = vi.mocked(generate).mock.calls[1][0].prompt;
+    expect(promptB).toBe(promptA);
+    expect(promptA).not.toContain('Researched role/industry BACKGROUND');
+  });
+
+  it('interviewSynthesize includes the research background as interpret-only context', async () => {
+    vi.mocked(generate).mockResolvedValue({ text: '{"identity":{"role":"PM"}}' } as never);
+    await interviewSynthesize({ brief: 'A senior PM', qa: turns(2), roleContext: ROLE_CONTEXT });
+    const prompt = vi.mocked(generate).mock.calls[0][0].prompt;
+    expect(prompt).toContain(ROLE_CONTEXT);
+    expect(prompt).toContain('Researched role/industry BACKGROUND');
+    expect(prompt).toContain('never fabricate people or projects');
+  });
+
+  it('interviewSynthesize prompt is unchanged when no roleContext is provided', async () => {
+    vi.mocked(generate).mockResolvedValue({ text: '{}' } as never);
+    await interviewSynthesize({ brief: 'A senior PM', qa: turns(1) });
+    const prompt = vi.mocked(generate).mock.calls[0][0].prompt;
+    expect(prompt).not.toContain('Researched role/industry BACKGROUND');
+  });
+});

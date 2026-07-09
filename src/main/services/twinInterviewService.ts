@@ -21,8 +21,12 @@ import type { TwinProfileSectionKey, TwinProfileSections, TwinInterviewDraft } f
 
 const log = createLogger('TwinInterview');
 
-/** Char budget for the model's output — a section draft is tiny. */
-const MAX_OUTPUT_TOKENS = 512;
+// Output-token budget. A section draft is tiny, but the `twin_interview` task is
+// meant for state-of-the-art models, and every current frontier model is a REASONING
+// model whose reasoning tokens count against this budget — a low cap (e.g. 512) can be
+// fully consumed by reasoning, leaving 0 tokens for the JSON (finishReason 'length',
+// empty text) and forcing a skip. Keep it generous so reasoning + the draft both fit.
+const MAX_OUTPUT_TOKENS = 4096;
 
 const BASE_SYSTEM = `You help a professional fill in ONE section of their profile from a short free-form answer.
 Rules:

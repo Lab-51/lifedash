@@ -256,6 +256,7 @@ function QuickForm({
   brief,
   isRefine,
   onComplete,
+  onBack,
   initialStepIndex = 0,
 }: {
   drafts: WizardDrafts;
@@ -263,6 +264,8 @@ function QuickForm({
   brief: string;
   isRefine: boolean;
   onComplete: (profile: TwinProfile) => void;
+  /** Leave the form on step 1 — returns to the wizard's mode-choice screen. */
+  onBack: () => void;
   /** Where to open the flow — 0 for a fresh start, the review index when seeded
    *  from a deep/history draft (the user reviews + edits, then saves). */
   initialStepIndex?: number;
@@ -330,12 +333,12 @@ function QuickForm({
       <div className="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-[var(--color-border)]">
         <button
           type="button"
-          onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
-          disabled={stepIndex === 0 || saving}
+          onClick={() => (stepIndex === 0 ? onBack() : setStepIndex((i) => Math.max(0, i - 1)))}
+          disabled={saving}
           className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-40"
         >
           <ChevronLeft size={16} />
-          Back
+          {stepIndex === 0 ? 'Back to options' : 'Back'}
         </button>
 
         {isReview ? (
@@ -453,14 +456,25 @@ export default function TwinWizard({
           brief={brief}
           isRefine={isRefine}
           onComplete={onComplete}
+          onBack={() => setMode('choose')}
           initialStepIndex={quickStart}
         />
       )}
       {mode === 'deep' && (
-        <DeepInterviewPanel brief={brief} onBack={() => setMode('choose')} onDraft={seedFromPanelDraft} />
+        <DeepInterviewPanel
+          brief={brief}
+          onBack={() => setMode('choose')}
+          onUseForm={() => chooseMode('quick')}
+          onDraft={seedFromPanelDraft}
+        />
       )}
       {mode === 'history' && (
-        <TwinResearchPanel brief={brief} onBack={() => setMode('choose')} onDraft={seedFromPanelDraft} />
+        <TwinResearchPanel
+          brief={brief}
+          onBack={() => setMode('choose')}
+          onUseForm={() => chooseMode('quick')}
+          onDraft={seedFromPanelDraft}
+        />
       )}
     </section>
   );

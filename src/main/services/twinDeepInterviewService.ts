@@ -45,9 +45,15 @@ const log = createLogger('TwinDeepInterview');
 /** Hard cap on interview questions — finish (synthesize) once this many are asked. */
 const MAX_QUESTIONS = 8;
 
-/** A single next-question turn is tiny; a synthesized full-profile draft is larger. */
-const MAX_QUESTION_TOKENS = 256;
-const MAX_SYNTHESIS_TOKENS = 2048;
+// Output-token budgets. These MUST be generous because the deep interview is meant
+// for state-of-the-art models — and every current frontier model (GPT-5/o-series,
+// Gemini 2.5/3, Claude thinking) is a REASONING model whose internal reasoning tokens
+// count against this same budget. A tiny cap (e.g. 256) is entirely consumed by
+// reasoning, leaving 0 tokens for the visible JSON answer (finishReason 'length',
+// empty text) — the interview then skips to the manual fallback. 4096/8192 give the
+// model room to reason AND emit the answer. (Mirrors ai-provider REASONING_MIN_TOKENS.)
+const MAX_QUESTION_TOKENS = 4096; // small JSON answer + reasoning headroom
+const MAX_SYNTHESIS_TOKENS = 8192; // full 7-section profile JSON + reasoning headroom
 
 // ---------------------------------------------------------------------------
 // Shared validate-retry-skip generate loop (mirrors liveTriageService.generateDrafts)
@@ -168,7 +174,7 @@ function buildNextPrompt(payload: TwinInterviewNextPayload): string {
     : '(no questions asked yet)';
   const asked = payload.qa.length;
   const remaining = Math.max(0, MAX_QUESTIONS - asked);
-  return [
+  const lines = [
     `The user's brief (their own words): ${brief}`,
     '',
     `What we already know (JSON): ${known}`,
@@ -177,7 +183,18 @@ function buildNextPrompt(payload: TwinInterviewNextPayload): string {
     transcript,
     '',
     `Questions asked: ${asked}. You may ask at most ${remaining} more.`,
-  ].join('\n');
+  ];
+  const roleContext = payload.roleContext?.trim();
+  if (roleContext) {
+    // Web research already covered the generic role basics. Steer the model to the GAPS.
+    lines.unshift(
+      'Researched role/industry BACKGROUND (already known from web research — do NOT re-ask these generic role basics). ' +
+        'Ask about the GAPS only the user knows: their REAL projects, the ACTUAL people they work with, their SPECIFIC goals, and how they want the assistant to communicate:',
+      roleContext,
+      '',
+    );
+  }
+  return lines.join('\n');
 }
 
 /**
@@ -266,7 +283,18 @@ function buildSynthesizePrompt(payload: TwinInterviewSynthesizePayload): string 
   const transcript = answered.length
     ? answered.map((t, i) => `Q${i + 1}: ${t.question}\nA${i + 1}: ${t.answer.trim()}`).join('\n\n')
     : '(no answers were given)';
-  return [`The user's brief (their own words): ${brief}`, '', 'Interview:', transcript].join('\n');
+  const lines = [`The user's brief (their own words): ${brief}`, '', 'Interview:', transcript];
+  const roleContext = payload.roleContext?.trim();
+  if (roleContext) {
+    // Background only — synthesis still draws its facts from the brief + answers, and the
+    // gap-focused interview is what captured the user's REAL projects/people/goals.
+    lines.unshift(
+      'Researched role/industry BACKGROUND (from web research — use ONLY to interpret the answers below; base the draft on the brief and answers, and never fabricate people or projects from this background):',
+      roleContext,
+      '',
+    );
+  }
+  return lines.join('\n');
 }
 
 /**

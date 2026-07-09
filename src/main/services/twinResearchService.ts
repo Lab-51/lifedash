@@ -56,7 +56,11 @@ const MAX_PROJECTS = 25;
 const MAX_CARDS = 30;
 const MAX_SPEAKERS = 10;
 const MAX_CONTEXT_CHARS = 4000; // per-section extraction context budget
-const MAX_OUTPUT_TOKENS = 700;
+// Per-section outputs are small JSON, but this task is meant for SOTA models — every
+// current frontier model is a REASONING model whose reasoning tokens count against this
+// budget, so a low cap (e.g. 700) gets consumed by reasoning and leaves 0 tokens for the
+// JSON (finishReason 'length', empty text). Keep it generous so reasoning + JSON both fit.
+const MAX_OUTPUT_TOKENS = 4096;
 
 // ---------------------------------------------------------------------------
 // Corpus assembly (pure DB reads — NO model call)

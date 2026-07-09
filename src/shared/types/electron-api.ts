@@ -110,6 +110,8 @@ import type {
   TwinResearchResult,
   TwinWebResearchPayload,
   TwinWebResearchResult,
+  TwinRoleResearchPayload,
+  TwinRoleResearchResult,
   TwinCreationModel,
 } from './twin';
 
@@ -609,6 +611,7 @@ export interface ElectronAPI {
   twinResearchHistoryInfo: () => Promise<TwinResearchHistoryInfo>;
   twinResearchHistory: () => Promise<TwinResearchResult>;
   twinResearchWeb: (payload: TwinWebResearchPayload) => Promise<TwinWebResearchResult>;
+  twinResearchRole: (payload: TwinRoleResearchPayload) => Promise<TwinRoleResearchResult>;
   twinGetCreationModel: () => Promise<TwinCreationModel>;
 }
 

@@ -151,6 +151,13 @@ export interface TwinInterviewNextPayload {
   profileSoFar: Partial<TwinProfileSections>;
   /** The interview so far. */
   qa: TwinQATurn[];
+  /**
+   * Researched role/industry background (from `twin:research-role`) when the orchestrated
+   * deep flow ran research FIRST. Optional — when present the interview targets the GAPS
+   * research can't know (the user's real projects/people/goals/preferences) instead of
+   * re-asking generic role basics; absent, the interview behaves exactly as before.
+   */
+  roleContext?: string;
 }
 
 /** Result of `twin:interview-next`. `done` when the interview has enough. */
@@ -163,6 +170,9 @@ export type TwinInterviewNextResult =
 export interface TwinInterviewSynthesizePayload {
   brief: string;
   qa: TwinQATurn[];
+  /** Researched role background (see TwinInterviewNextPayload.roleContext) so synthesis
+   *  focuses on what the interview revealed rather than re-deriving generic role facts. */
+  roleContext?: string;
 }
 
 /** Result of `twin:interview-synthesize` — a draft the user edits before saving. */
@@ -207,6 +217,42 @@ export interface TwinWebResearchPayload {
  */
 export type TwinWebResearchResult =
   | { status: 'ok'; draft: Partial<TwinProfileSections>; citations: TwinCitation[] }
+  | { status: 'unsupported' }
+  | { status: 'skipped'; reason: TwinCreationSkipReason };
+
+// --- role-research channel payload + result (orchestrated deep creation) ---
+
+/** Payload for `twin:research-role` — the orchestrated deep flow's role-dossier research.
+ *  The user's role/company/industry (seeded from the brief/profile) drive a cited web
+ *  search; empty strings are allowed (the service uses whatever is provided + the brief). */
+export interface TwinRoleResearchPayload {
+  role: string;
+  company: string;
+  industry: string;
+  brief: string;
+}
+
+/**
+ * A full role-dossier research result: cited, editable STRUCTURED findings the user confirms
+ * (domain industry/company/focus, domain vocabulary, typical role goals/priorities, and a
+ * refined identity role/seniority) PLUS a prose `roleContext` summary of the role/industry
+ * background. The structured `draft` merges into the profile; `roleContext` seeds the
+ * gap-focused interview and is shown to the user. Generic "typical people/projects" are
+ * deliberately NOT force-fit into the real `people`/`projects` sections — those come from
+ * the interview/history so the twin is never populated with fabricated colleagues.
+ */
+export interface TwinRoleResearchDraft {
+  draft: Partial<TwinProfileSections>;
+  roleContext: string;
+  citations: TwinCitation[];
+}
+
+/**
+ * Result of `twin:research-role`. `unsupported` when the resolved model has no web-search
+ * capability (mirrors web research); `skipped` is a runtime failure/absence.
+ */
+export type TwinRoleResearchResult =
+  | { status: 'ok'; result: TwinRoleResearchDraft }
   | { status: 'unsupported' }
   | { status: 'skipped'; reason: TwinCreationSkipReason };
 

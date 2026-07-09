@@ -264,6 +264,20 @@ describe('TwinWizard — Quick form step flow', () => {
     expect(screen.getByText(/step 1 of 8/i)).toBeInTheDocument();
   });
 
+  it('Back on step 1 returns to the mode-choice screen (not a dead disabled button)', async () => {
+    twinGetProfile.mockResolvedValue(null);
+    renderWizard(<TwinWizard onClose={vi.fn()} onComplete={vi.fn()} />);
+    await enterQuickForm();
+    expect(screen.getByText(/step 1 of 8/i)).toBeInTheDocument();
+
+    // On the first step, "Back" is ENABLED and returns to the mode-choice screen —
+    // the only way out of the form used to be the ✕ (the Back button was disabled).
+    fireEvent.click(screen.getByRole('button', { name: /back to options/i }));
+
+    expect(await screen.findByRole('button', { name: /start quick form/i })).toBeInTheDocument();
+    expect(screen.queryByText(/step 1 of 8/i)).toBeNull();
+  });
+
   it('Close invokes onClose', async () => {
     twinGetProfile.mockResolvedValue(null);
     const onClose = vi.fn();
