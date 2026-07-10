@@ -113,6 +113,48 @@ const RECOMMENDED_MODELS: Record<AIProviderName, { flagship: string; efficient: 
   lmstudio: { flagship: 'default', efficient: 'default' },
 };
 
+/** Heuristic for spotting an embedding model id among a runtime's loaded models. */
+const EMBEDDING_MODEL_PATTERN = /text-embedding|embed|bge|nomic/i;
+
+/** Fallback embedding model id per local provider when none can be detected live. */
+const DEFAULT_EMBEDDING_MODEL: Record<'lmstudio' | 'ollama', string> = {
+  lmstudio: 'text-embedding-embeddinggemma-300m',
+  ollama: 'nomic-embed-text',
+};
+
+/**
+ * Narrow a provider's live-loaded model ids to embedding candidates. Falls back to
+ * ALL loaded ids when the heuristic matches none, so the dropdown is never empty
+ * (the user may have loaded an unconventionally-named embedding model).
+ */
+function getEmbeddingModelIds(loaded: string[]): string[] {
+  const matches = loaded.filter((id) => EMBEDDING_MODEL_PATTERN.test(id));
+  return matches.length > 0 ? matches : loaded;
+}
+
+type LiveModels = { lmstudio?: string[]; ollama?: string[] };
+
+/**
+ * Derive the Embedding row's selector state: the dropdown options (live-loaded
+ * ids, or [] for cloud / unreachable runtimes) and whether to show the dropdown vs
+ * the free-text input. Custom mode wins — either an explicit "Custom…" pick or a
+ * saved id that isn't currently loaded — so no id is ever lost. Kept out of the
+ * render map to hold that callback under the complexity budget.
+ */
+function deriveEmbeddingRow(
+  isEmbedding: boolean,
+  providerName: AIProviderName | null,
+  model: string,
+  liveModels: LiveModels,
+  customOverride: boolean | undefined,
+): { options: string[]; showDropdown: boolean } {
+  if (!isEmbedding) return { options: [], showDropdown: false };
+  const loaded = providerName === 'lmstudio' || providerName === 'ollama' ? (liveModels[providerName] ?? []) : [];
+  const options = getEmbeddingModelIds(loaded);
+  const custom = customOverride ?? (!!model && !options.includes(model));
+  return { options, showDropdown: options.length > 0 && !custom };
+}
+
 /**
  * Provider-aware privacy hint for the Embedding row. A LOCAL provider embeds
  * on-device; a CLOUD provider ships bulk content (briefs, transcripts, cards) to
@@ -171,11 +213,23 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
   const taskModelsJson = useSettingsStore((s) => s.settings['ai.taskModels']);
   const [draft, setDraft] = useState<DraftConfig>({} as DraftConfig);
   const [customModel, setCustomModel] = useState<Record<AITaskType, string>>({} as Record<AITaskType, string>);
+  // Live loaded model ids per local runtime (populated best-effort from the bridge).
+  const [liveModels, setLiveModels] = useState<LiveModels>({});
+  // Per-task override forcing the free-text input (the Embedding "Custom…" mode).
+  const [customMode, setCustomMode] = useState<Record<AITaskType, boolean>>({} as Record<AITaskType, boolean>);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
 
   const enabledProviders = providers.filter((p) => p.enabled);
+
+  // Stable key of the enabled LOCAL provider families, so the fetch effect below
+  // only re-runs when that set actually changes (not on every parent re-render).
+  const enabledLocalKey = Array.from(
+    new Set(enabledProviders.filter((p) => LOCAL_PROVIDERS.has(p.name)).map((p) => p.name)),
+  )
+    .sort()
+    .join(',');
 
   // Load saved config when settings become available (after async loadSettings)
   useEffect(() => {
@@ -195,6 +249,36 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
     setDirty(false);
   }, [taskModelsJson, getTaskModels]);
 
+  // Fetch the live loaded model ids from any enabled local runtime (LM Studio /
+  // Ollama) so the Embedding row can offer a real dropdown instead of free text.
+  // Fully defensive: the bridge may be absent (tests) or the runtime unreachable —
+  // any failure just leaves liveModels empty and the row falls back to free text.
+  useEffect(() => {
+    let cancelled = false;
+    const names = enabledLocalKey ? enabledLocalKey.split(',') : [];
+    async function loadLiveModels() {
+      const next: { lmstudio?: string[]; ollama?: string[] } = {};
+      for (const name of names) {
+        try {
+          if (name === 'lmstudio') {
+            const res = await window.electronAPI?.checkLmStudio?.();
+            if (res?.models) next.lmstudio = res.models;
+          } else if (name === 'ollama') {
+            const res = await window.electronAPI?.checkOllama?.();
+            if (res?.models) next.ollama = res.models;
+          }
+        } catch {
+          // Runtime unreachable — leave this provider's live models empty.
+        }
+      }
+      if (!cancelled) setLiveModels(next);
+    }
+    void loadLiveModels();
+    return () => {
+      cancelled = true;
+    };
+  }, [enabledLocalKey]);
+
   const updateDraft = (type: AITaskType, field: 'providerId' | 'model', value: string) => {
     setDraft((prev) => ({
       ...prev,
@@ -205,6 +289,15 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
         ...(field === 'providerId' ? { model: '' } : {}),
       },
     }));
+    // Changing provider re-derives the Embedding custom/dropdown mode from scratch,
+    // so a stale "Custom…" override can't trap the new provider in a free-text box.
+    if (field === 'providerId') {
+      setCustomMode((prev) => {
+        const next = { ...prev };
+        delete next[type];
+        return next;
+      });
+    }
     setDirty(true);
     setSaved(false);
   };
@@ -266,10 +359,18 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
     if (!presets) return;
     const auto: DraftConfig = {} as DraftConfig;
     for (const { type } of TASK_TYPE_INFO) {
-      // Embedding has no cross-provider preset (it needs a specific embedding model
-      // id, not a chat model) — keep whatever the user configured manually.
       if (type === 'embedding') {
-        auto[type] = draft[type] ?? { providerId: '', model: '' };
+        // Only auto-assign embedding to a LOCAL runtime — pick a loaded embedding
+        // model (or a sane default). For a CLOUD provider we deliberately leave the
+        // user's existing choice untouched so bulk content is never silently routed
+        // off-device (mirrors EmbeddingPrivacyHint's no-silent-cloud guarantee).
+        if (provider.name === 'lmstudio' || provider.name === 'ollama') {
+          const loaded = liveModels[provider.name] ?? [];
+          const model = loaded.find((id) => EMBEDDING_MODEL_PATTERN.test(id)) ?? DEFAULT_EMBEDDING_MODEL[provider.name];
+          auto[type] = { providerId: provider.id, model };
+        } else {
+          auto[type] = draft[type] ?? { providerId: '', model: '' };
+        }
         continue;
       }
       auto[type] = {
@@ -301,10 +402,19 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
         const models = getModelsForProvider(entry.providerId);
         const providerName = getProviderName(entry.providerId);
         const isOllama = providerName === 'ollama';
-        // Embedding model ids (e.g. text-embedding-embeddinggemma-300m) aren't in
-        // KNOWN_MODELS — always free-text so the exact id can be entered.
         const isEmbedding = type === 'embedding';
         const isLocalProvider = !!providerName && LOCAL_PROVIDERS.has(providerName);
+
+        // Embedding row only: offer a dropdown of the runtime's live-loaded models
+        // when the provider is local and any are reachable; otherwise (or in Custom…
+        // mode / for a saved-but-unloaded id) fall back to the free-text input.
+        const { options: embeddingOptions, showDropdown: showEmbeddingDropdown } = deriveEmbeddingRow(
+          isEmbedding,
+          providerName,
+          entry.model,
+          liveModels,
+          customMode[type],
+        );
 
         return (
           <div key={type} className="p-3 hud-panel clip-corner-cut-sm">
@@ -326,9 +436,31 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
                   ]}
                 />
 
-                {/* Model selector (dropdown for known models, text input for Ollama/custom) */}
+                {/* Model selector. Embedding + local + live models → dropdown of loaded
+                    ids (with a Custom… escape); Ollama/custom/embedding-fallback →
+                    free text; everything else → the KNOWN_MODELS dropdown. */}
                 {entry.providerId &&
-                  (isOllama || isEmbedding || models.length === 0 ? (
+                  (showEmbeddingDropdown ? (
+                    <HudSelect
+                      value={entry.model}
+                      onChange={(v) => {
+                        if (v === '__custom__') {
+                          // Enter free-text mode; keep the current id as an editable seed.
+                          setCustomMode((prev) => ({ ...prev, [type]: true }));
+                          return;
+                        }
+                        setCustomMode((prev) => ({ ...prev, [type]: false }));
+                        updateDraft(type, 'model', v);
+                      }}
+                      placeholder="Select model"
+                      compact
+                      options={[
+                        { value: '', label: 'Select model' },
+                        ...embeddingOptions.map((id) => ({ value: id, label: id })),
+                        { value: '__custom__', label: 'Custom…' },
+                      ]}
+                    />
+                  ) : isOllama || isEmbedding || models.length === 0 ? (
                     <input
                       type="text"
                       value={entry.model || customModel[type] || ''}

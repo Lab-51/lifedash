@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import { createRef } from 'react';
 import '@testing-library/jest-dom';
 import type { AIProvider } from '../../../shared/types';
+import type { TaskModelConfigHandle } from '../TaskModelConfig';
 
 // ---------------------------------------------------------------------------
 // Mock window.electronAPI — settingsStore reads from it, but our tests drive
@@ -193,5 +195,97 @@ describe('TaskModelConfig — Google Gemini provider (V3.3.5 Task 5)', () => {
 
     expect(screen.getByText('Twin Interview Assist')).toBeInTheDocument();
     expect(screen.getByText('Gemini 2.5 Pro (Flagship)')).toBeInTheDocument();
+  });
+});
+
+describe('TaskModelConfig — Embedding live model dropdown + auto-assign (V3.4)', () => {
+  // A loaded chat model (should be filtered out) plus a loaded embedding model whose
+  // id deliberately differs from the lmstudio default, so auto-assign picking it
+  // proves the live list was consulted rather than the hard-coded fallback.
+  const LOADED = ['google/gemma-4-12b-qat', 'text-embedding-bge-m3'];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Re-stub the bridge with the live-model probes for this block only. This
+    // describe runs last, so the added probes never leak into earlier blocks (which
+    // exercise the free-text fallback with no live models mocked).
+    vi.stubGlobal('electronAPI', {
+      getAIProviders: vi.fn().mockResolvedValue([]),
+      setSetting: vi.fn().mockResolvedValue(undefined),
+      checkLmStudio: vi.fn().mockResolvedValue({ running: true, models: LOADED }),
+      checkOllama: vi.fn().mockResolvedValue({ running: false, models: [] }),
+    });
+    useSettingsStore.setState({
+      settings: {},
+      getTaskModels: vi.fn().mockReturnValue(null),
+      setTaskModels: vi.fn().mockResolvedValue(undefined),
+    } as never);
+  });
+
+  it('offers the loaded embedding model as a selectable option and filters out the chat-only id', async () => {
+    const provider = makeProvider({ id: 'lmstudio-1', name: 'lmstudio' });
+    const saved = { embedding: { providerId: 'lmstudio-1', model: '' } };
+    useSettingsStore.setState({
+      settings: { 'ai.taskModels': JSON.stringify(saved) },
+      getTaskModels: vi.fn().mockReturnValue(saved),
+    } as never);
+
+    render(<TaskModelConfig providers={[provider]} />);
+
+    // Before live models load the Embedding row is free text; once loaded it becomes
+    // a dropdown whose trigger shows the "Select model" placeholder. Open it.
+    const trigger = await screen.findByText('Select model');
+    fireEvent.click(trigger);
+
+    // The loaded embedding id is a selectable option…
+    expect(screen.getByText('text-embedding-bge-m3')).toBeInTheDocument();
+    // …the chat-only id is filtered out of the embedding options…
+    expect(screen.queryByText('google/gemma-4-12b-qat')).not.toBeInTheDocument();
+    // …and a Custom… escape hatch keeps any id typeable.
+    expect(screen.getByText(/^Custom/)).toBeInTheDocument();
+  });
+
+  it('auto-assign to a LOCAL provider fills Embedding with the loaded embedding id', async () => {
+    const provider = makeProvider({ id: 'lmstudio-1', name: 'lmstudio' });
+    const saved = { embedding: { providerId: 'lmstudio-1', model: '' } };
+    useSettingsStore.setState({
+      settings: { 'ai.taskModels': JSON.stringify(saved) },
+      getTaskModels: vi.fn().mockReturnValue(saved),
+    } as never);
+
+    const ref = createRef<TaskModelConfigHandle>();
+    render(<TaskModelConfig ref={ref} providers={[provider]} />);
+
+    // Wait for live models to load (Embedding row becomes a dropdown).
+    await screen.findByText('Select model');
+
+    act(() => ref.current!.autoAssign(provider));
+
+    // The loaded embedding id (not the default) is chosen → liveModels was consulted.
+    expect(screen.getByText('text-embedding-bge-m3')).toBeInTheDocument();
+  });
+
+  it('auto-assign to a CLOUD provider leaves the Embedding assignment untouched (no silent cloud)', async () => {
+    const openai = makeProvider({ id: 'openai-1', name: 'openai' });
+    const lmstudio = makeProvider({ id: 'lmstudio-1', name: 'lmstudio' });
+    const saved = { embedding: { providerId: 'lmstudio-1', model: 'text-embedding-bge-m3' } };
+    useSettingsStore.setState({
+      settings: { 'ai.taskModels': JSON.stringify(saved) },
+      getTaskModels: vi.fn().mockReturnValue(saved),
+    } as never);
+
+    const ref = createRef<TaskModelConfigHandle>();
+    render(<TaskModelConfig ref={ref} providers={[openai, lmstudio]} />);
+
+    // Wait for the Embedding dropdown (local + loaded model in options) to render.
+    await screen.findByText('text-embedding-bge-m3');
+
+    act(() => ref.current!.autoAssign(openai));
+
+    // Embedding still points at the local model — the cloud sweep left it alone…
+    expect(screen.getByText('text-embedding-bge-m3')).toBeInTheDocument();
+    // …so the on-device reassurance stays and no cloud warning appears.
+    expect(screen.getByText(/Embeddings stay on your device/)).toBeInTheDocument();
+    expect(screen.queryByText(/will be sent to it to be embedded/)).not.toBeInTheDocument();
   });
 });
