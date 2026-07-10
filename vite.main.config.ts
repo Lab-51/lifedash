@@ -20,7 +20,14 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      external: ['@fugood/whisper.node', '@electric-sql/pglite', 'canvas'],
+      // Externalize @electric-sql/pglite AND its subpath exports (e.g.
+      // '@electric-sql/pglite/vector'). The vector extension resolves its
+      // bundle via `new URL('../vector.tar.gz', import.meta.url|__filename)`;
+      // if Vite bundles the subpath it rewrites that into a broken `data:` URL,
+      // so `CREATE EXTENSION vector` fails at runtime ("Extension bundle not
+      // found" → migration 0041 aborts). Keeping the whole package external
+      // makes it resolve from node_modules where vector.tar.gz sits next to it.
+      external: [/^@electric-sql\/pglite(\/.*)?$/, '@fugood/whisper.node', 'canvas'],
     },
   },
 });
