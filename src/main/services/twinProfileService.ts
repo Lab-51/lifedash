@@ -17,11 +17,14 @@
 // profile exists (or nothing fits) it returns '' so injection is a pure no-op.
 //
 // === DEPENDENCIES ===
-// db/connection (getDb), db/schema (twinProfile, TWIN_PROFILE_ID).
+// db/connection (getDb), db/schema (twinProfile, TWIN_PROFILE_ID), twinMemoryService
+// (isLearningPaused + listFacts — the V3.4 "Learned from sessions" injection).
 
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { twinProfile, TWIN_PROFILE_ID } from '../db/schema';
+import { createLogger } from './logger';
+import { isLearningPaused, listFacts } from './twinMemoryService';
 import type {
   TwinProfile,
   TwinProfileSections,
@@ -35,6 +38,8 @@ import type {
   TwinPreferences,
 } from '../../shared/types/twin';
 import type { AITaskType } from '../../shared/types/ai';
+
+const log = createLogger('TwinProfile');
 
 // ---------------------------------------------------------------------------
 // CRUD
@@ -126,6 +131,9 @@ const TASK_CATEGORY: Partial<Record<AITaskType, ProfileTaskCategory>> = {
 
 const CONTEXT_HEADER = 'User profile (the professional you assist):';
 
+/** Header for the V3.4 "Learned from sessions" block (lowest-priority injection). */
+const LEARNED_HEADER = 'Learned from sessions:';
+
 // --- per-section serializers (deterministic; return null when the section is empty) ---
 
 function joinPresent(values: (string | undefined)[]): string[] {
@@ -206,16 +214,47 @@ const SECTION_FORMATTERS: Record<TwinProfileKey, (p: TwinProfileSections) => str
 };
 
 /**
- * Deterministically serialize a profile into a budgeted, task-prioritized
- * context string. Pure (no DB) so it is trivially testable. Blocks are emitted
- * in the task's priority order; the first block that would overflow the budget —
- * and every lower-priority block after it — is dropped (hard trim at section
- * boundaries, never mid-block). Returns '' when nothing to say / nothing fits.
+ * Fit as many learned facts (already recency-ordered, most-recent first) as the
+ * remaining budget allows, as ONE lowest-priority block appended after the
+ * profile sections. Whole-ITEM trim: it drops least-recent facts from the tail
+ * and returns null if not even the header + first fact fits (so the section
+ * vanishes cleanly rather than truncating mid-fact).
+ */
+function fitLearnedFactsBlock(facts: string[], keptBlocks: string[], budget: number): string | null {
+  const clean = facts.map((f) => f.trim()).filter((f) => f.length > 0);
+  if (clean.length === 0) return null;
+
+  const keptLines: string[] = [];
+  for (const fact of clean) {
+    const line = `- ${fact}`;
+    const block = [LEARNED_HEADER, ...keptLines, line].join('\n');
+    const candidate = [CONTEXT_HEADER, ...keptBlocks, block].join('\n\n');
+    if (candidate.length <= budget) keptLines.push(line);
+    else break; // whole-item trim: drop this (and every later, older) fact
+  }
+  if (keptLines.length === 0) return null;
+  return [LEARNED_HEADER, ...keptLines].join('\n');
+}
+
+/**
+ * Deterministically serialize a profile (and optional learned facts) into a
+ * budgeted, task-prioritized context string. Pure (no DB) so it is trivially
+ * testable. Profile blocks are emitted in the task's priority order; the first
+ * block that would overflow the budget — and every lower-priority block after
+ * it — is dropped (hard trim at section boundaries, never mid-block).
+ *
+ * Learned facts (V3.4) are the LOWEST priority: they are appended only when EVERY
+ * profile section already fit (profile strictly OUTRANKS facts on trim — a dropped
+ * profile section is never replaced by a lower-priority fact), then fill the
+ * remaining budget item-by-item (whole-fact trim). Returns '' when nothing to say
+ * / nothing fits — so with no profile AND no facts the output is byte-identical to
+ * the pre-twin no-op.
  */
 export function serializeProfileContext(
   profile: TwinProfileSections,
   taskType: AITaskType,
   charBudget?: number,
+  facts?: string[],
 ): string {
   const category = TASK_CATEGORY[taskType] ?? 'assistant';
   const budget = charBudget ?? DEFAULT_BUDGET[category];
@@ -225,27 +264,68 @@ export function serializeProfileContext(
     const block = SECTION_FORMATTERS[key](profile);
     if (block) blocks.push(block);
   }
-  if (blocks.length === 0) return '';
 
   const kept: string[] = [];
+  let profileComplete = true;
   for (const block of blocks) {
     const candidate = [CONTEXT_HEADER, ...kept, block].join('\n\n');
     if (candidate.length <= budget) kept.push(block);
-    else break; // drop this and all lower-priority blocks
+    else {
+      profileComplete = false;
+      break; // drop this and all lower-priority profile blocks
+    }
   }
-  if (kept.length === 0) return '';
 
+  // Facts only ride along once every profile section fit — keeping profile strictly
+  // above facts. Whole-item trim within the facts block, most-recent first.
+  if (profileComplete) {
+    const factsBlock = fitLearnedFactsBlock(facts ?? [], kept, budget);
+    if (factsBlock) kept.push(factsBlock);
+  }
+
+  if (kept.length === 0) return '';
   return [CONTEXT_HEADER, ...kept].join('\n\n');
+}
+
+/** A wholly-empty section set — used when facts exist but no profile was authored,
+ *  so the learned-facts block can still inject with no profile blocks. */
+const EMPTY_SECTIONS: TwinProfileSections = {
+  brief: {},
+  identity: {},
+  domain: {},
+  projects: [],
+  people: [],
+  vocabulary: [],
+  goals: [],
+  preferences: {},
+};
+
+/**
+ * Load the ACTIVE learned facts to inject, most-recent first. Gated by the
+ * learning-pause kill-switch (paused ⇒ inject nothing, mirroring extraction).
+ * Defensive: any lookup failure yields [] so injection degrades to profile-only
+ * and never breaks a prompt build.
+ */
+async function loadInjectableFacts(): Promise<string[]> {
+  try {
+    if (await isLearningPaused()) return [];
+    const facts = await listFacts({ status: 'active' }); // active only, newest first
+    return facts.map((f) => f.fact);
+  } catch (err) {
+    log.error('Learned-fact injection lookup failed — injecting profile only:', err);
+    return [];
+  }
 }
 
 /**
  * Build the twin profile context string for a given task, ready to append to a
- * system prompt. Returns '' when no profile exists, so callers can inject
- * unconditionally without a null check. `charBudget` overrides the per-task
- * default (triage ~800, assistant ~1500, brief ~1200).
+ * system prompt. Returns '' when there is NO profile AND no active facts (or
+ * learning is paused) — byte-identical to the pre-twin no-op, so callers can
+ * inject unconditionally without a null check. `charBudget` overrides the
+ * per-task default (triage ~800, assistant ~1500, brief ~1200).
  */
 export async function buildProfileContext(taskType: AITaskType, charBudget?: number): Promise<string> {
-  const profile = await getProfile();
-  if (!profile) return '';
-  return serializeProfileContext(profile, taskType, charBudget);
+  const [profile, facts] = await Promise.all([getProfile(), loadInjectableFacts()]);
+  if (!profile && facts.length === 0) return ''; // no twin data / paused ⇒ pure no-op
+  return serializeProfileContext(profile ?? EMPTY_SECTIONS, taskType, charBudget, facts);
 }

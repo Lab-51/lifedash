@@ -7,6 +7,10 @@ import { ipcMain } from 'electron';
 import { z } from 'zod';
 import * as brainTreeService from '../services/brainTreeService';
 import { validateInput } from '../../shared/validation/ipc-validator';
+// Side-effect import: wires entityService's post-session ENTITY-extraction hook
+// onto the dispatcher at boot. entityService imports twinMemoryService, so the
+// FACTS hook self-registers first — entities always run AFTER facts.
+import '../services/entityService';
 
 const scopeSchema = z.union([z.literal('workspace'), z.object({ meetingId: z.string().uuid() })]);
 

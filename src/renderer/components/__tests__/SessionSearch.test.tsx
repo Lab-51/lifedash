@@ -59,7 +59,7 @@ describe('SessionSearch', () => {
     expect(screen.getByPlaceholderText('Search sessions, cards, projects...')).toBeInTheDocument();
   });
 
-  it('debounces the search call by 300ms', async () => {
+  it('debounces the search call (not fired immediately on keystroke)', async () => {
     const user = userEvent.setup();
     renderComponent();
 

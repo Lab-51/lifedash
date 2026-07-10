@@ -22,10 +22,28 @@ export interface SearchResultItem {
   /** Present for 'card' results only -- needed to build the board route (/projects/:projectId). */
   projectId?: string;
   rank: number;
+  /**
+   * V3.4 (Task 5): true when this result came from the semantic (vector) layer
+   * rather than FTS — lets the UI badge/blend it. Optional + additive: today's
+   * FTS results simply omit it (undefined ⇒ keyword match).
+   */
+  semantic?: boolean;
+}
+
+/**
+ * V3.4 (Task 5): an optional synthesized answer over the search results
+ * (knowledge Q&A). Additive — absent for a plain keyword search. Citations point
+ * back at the sessions the answer drew from so the UI can link them.
+ */
+export interface SearchAnswer {
+  text: string;
+  citations: Array<{ meetingId: string; title: string; snippet?: string }>;
 }
 
 export interface SearchResults {
   sessions: SearchResultItem[];
   cards: SearchResultItem[];
   projects: SearchResultItem[];
+  /** Optional synthesized answer (V3.4). Absent for a plain keyword search. */
+  answer?: SearchAnswer;
 }

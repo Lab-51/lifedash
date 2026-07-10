@@ -94,7 +94,8 @@ import type {
   UpdateIntelFeedInput,
   IntelDateFilter,
 } from './intel-feed';
-import type { SearchResults } from './search';
+import type { SearchResults, SearchAnswer } from './search';
+import type { EmbeddingStatus } from './embedding';
 import type { BrainScope, BrainTree } from './brain';
 import type {
   TwinProfile,
@@ -113,6 +114,8 @@ import type {
   TwinRoleResearchPayload,
   TwinRoleResearchResult,
   TwinCreationModel,
+  TwinFact,
+  TwinMemoryListFilter,
 } from './twin';
 
 export interface RecoveryState {
@@ -591,6 +594,14 @@ export interface ElectronAPI {
 
   // Search (full-text search across sessions/cards/projects, V3.1 Task 6)
   search: (query: string) => Promise<SearchResults>;
+  // Knowledge Q&A "Ask" (V3.4 Task 5) — explicit action; returns null until answered.
+  askKnowledge: (query: string) => Promise<SearchAnswer | null>;
+
+  // Semantic index / embedding controls (V3.4 Task 4) — Settings "Semantic index" section.
+  getEmbeddingStatus: () => Promise<EmbeddingStatus>;
+  startEmbeddingBackfill: () => Promise<void>;
+  rebuildEmbeddingIndex: () => Promise<void>;
+  dismissEmbeddingBackfill: () => Promise<void>;
 
   // Brain (hierarchical mind-map data for the workspace or a session, V3.2 Task 1)
   buildBrainTree: (scope: BrainScope) => Promise<BrainTree>;
@@ -613,6 +624,11 @@ export interface ElectronAPI {
   twinResearchWeb: (payload: TwinWebResearchPayload) => Promise<TwinWebResearchResult>;
   twinResearchRole: (payload: TwinRoleResearchPayload) => Promise<TwinRoleResearchResult>;
   twinGetCreationModel: () => Promise<TwinCreationModel>;
+
+  // Digital Twin living memory (V3.4) — list/forget/restore learned facts.
+  twinMemoryList: (filter?: TwinMemoryListFilter) => Promise<TwinFact[]>;
+  twinMemoryForget: (factId: string) => Promise<TwinFact | null>;
+  twinMemoryRestore: (factId: string) => Promise<TwinFact | null>;
 }
 
 declare global {

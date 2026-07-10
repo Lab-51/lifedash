@@ -35,7 +35,15 @@ export type AITaskType =
   | 'project_agent'
   | 'live_assistant'
   | 'live_triage'
-  | 'twin_interview';
+  | 'twin_interview'
+  // V3.4 — Living memory / semantic layer:
+  //  - 'embedding'      local vector generation (defaults to LM Studio; never a
+  //                     silent cloud fallback — see resolveTaskModel).
+  //  - 'twin_learning'  per-session fact extraction (inherits live_assistant).
+  //  - 'knowledge_qa'   answer synthesis over semantic search (inherits live_assistant).
+  | 'embedding'
+  | 'twin_learning'
+  | 'knowledge_qa';
 
 /** AI provider as seen by renderer (no decrypted keys — only hasApiKey boolean) */
 export interface AIProvider {

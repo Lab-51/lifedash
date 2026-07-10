@@ -23,7 +23,12 @@ import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import SessionInspector from './brain-inspector/SessionInspector';
 import CardInspector from './brain-inspector/CardInspector';
-import { ProjectInspector, ColumnInspector, SuggestionInspector } from './brain-inspector/EntityInspectors';
+import {
+  ProjectInspector,
+  ColumnInspector,
+  SuggestionInspector,
+  EntityInspector,
+} from './brain-inspector/EntityInspectors';
 import type { BrainNode, BrainNodeType } from '../../shared/types';
 
 const TYPE_LABEL: Record<BrainNodeType, string> = {
@@ -35,6 +40,8 @@ const TYPE_LABEL: Record<BrainNodeType, string> = {
   card: 'Card',
   decision: 'Decision',
   question: 'Question',
+  person: 'Person',
+  topic: 'Topic',
 };
 
 export interface BrainInspectorProps {
@@ -88,6 +95,9 @@ function InspectorBody({ node, meetingId, onOpenEntity, onInspectNode }: Omit<Br
     case 'decision':
     case 'question':
       return <SuggestionInspector node={node} meetingId={meetingId} onOpenEntity={onOpenEntity} />;
+    case 'person':
+    case 'topic':
+      return <EntityInspector node={node} onOpenEntity={onOpenEntity} />;
     default:
       return <p className="text-sm text-[var(--color-text-secondary)]">{node.label}</p>;
   }

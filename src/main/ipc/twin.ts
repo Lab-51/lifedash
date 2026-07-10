@@ -17,6 +17,7 @@
 import { ipcMain } from 'electron';
 import { z } from 'zod';
 import * as twinProfileService from '../services/twinProfileService';
+import * as twinMemoryService from '../services/twinMemoryService';
 import { draftSection } from '../services/twinInterviewService';
 import * as twinDeepInterviewService from '../services/twinDeepInterviewService';
 import * as twinResearchService from '../services/twinResearchService';
@@ -31,6 +32,7 @@ import type {
   TwinInterviewSynthesizePayload,
   TwinWebResearchPayload,
   TwinRoleResearchPayload,
+  TwinMemoryListFilter,
 } from '../../shared/types/twin';
 
 // --- per-section value schemas (mirror shared/types/twin.ts shapes) ---
@@ -143,6 +145,18 @@ const roleResearchSchema = z.object({
   brief: briefSeedSchema,
 });
 
+// --- living-memory (V3.4) schemas ---
+
+const factCategorySchema = z.enum(['person', 'project', 'preference', 'domain', 'commitment']);
+const factStatusSchema = z.enum(['active', 'forgotten']);
+// Optional list filter; unknown keys stripped. Empty object ⇒ all facts.
+const memoryListFilterSchema = z.object({
+  status: factStatusSchema.optional(),
+  category: factCategorySchema.optional(),
+});
+// Facts use a uuid primary key (twin_facts.id).
+const factIdSchema = z.string().uuid();
+
 export function registerTwinHandlers(): void {
   ipcMain.handle('twin:get-profile', async () => {
     return twinProfileService.getProfile();
@@ -220,6 +234,24 @@ export function registerTwinHandlers(): void {
   ipcMain.handle('twin:research-role', async (_event, payload: unknown) => {
     const p = validateInput(roleResearchSchema, payload) as TwinRoleResearchPayload;
     return twinWebResearchService.researchRole(p);
+  });
+
+  // --- Living memory (V3.4) — list / forget / restore learned facts. Thin
+  //     handlers delegating to twinMemoryService (the real learning store). ---
+
+  ipcMain.handle('twin:memory-list', async (_event, filter: unknown) => {
+    const f = validateInput(memoryListFilterSchema, filter ?? {}) as TwinMemoryListFilter;
+    return twinMemoryService.listFacts(f);
+  });
+
+  ipcMain.handle('twin:memory-forget', async (_event, factId: unknown) => {
+    const id = validateInput(factIdSchema, factId);
+    return twinMemoryService.forgetFact(id);
+  });
+
+  ipcMain.handle('twin:memory-restore', async (_event, factId: unknown) => {
+    const id = validateInput(factIdSchema, factId);
+    return twinMemoryService.restoreFact(id);
   });
 
   // Creation-model gate descriptor — drives the wizard's mode-fork SOTA notice.

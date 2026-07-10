@@ -112,6 +112,50 @@ describe('TaskModelConfig — Twin Interview row (V3.3 Task 5)', () => {
   });
 });
 
+describe('TaskModelConfig — Embedding row privacy hint (V3.4 adversarial fix)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useSettingsStore.setState({
+      settings: {},
+      getTaskModels: vi.fn().mockReturnValue(null),
+      setTaskModels: vi.fn().mockResolvedValue(undefined),
+    } as never);
+  });
+
+  const CLOUD_WARNING = /will be sent to it to be embedded/;
+  const ON_DEVICE = /Embeddings stay on your device/;
+
+  it('shows the on-device reassurance (and no cloud warning) when a LOCAL provider is chosen for embedding', () => {
+    const provider = makeProvider({ id: 'lmstudio-1', name: 'lmstudio' });
+    const saved = { embedding: { providerId: 'lmstudio-1', model: 'text-embedding-embeddinggemma-300m' } };
+    useSettingsStore.setState({
+      settings: { 'ai.taskModels': JSON.stringify(saved) },
+      getTaskModels: vi.fn().mockReturnValue(saved),
+    } as never);
+
+    render(<TaskModelConfig providers={[provider]} />);
+
+    expect(screen.getByText(ON_DEVICE)).toBeInTheDocument();
+    expect(screen.queryByText(CLOUD_WARNING)).not.toBeInTheDocument();
+  });
+
+  it('replaces the on-device reassurance with a cloud warning when a CLOUD provider is chosen for embedding', () => {
+    const provider = makeProvider({ id: 'openai-1', name: 'openai' });
+    const saved = { embedding: { providerId: 'openai-1', model: 'text-embedding-3-small' } };
+    useSettingsStore.setState({
+      settings: { 'ai.taskModels': JSON.stringify(saved) },
+      getTaskModels: vi.fn().mockReturnValue(saved),
+    } as never);
+
+    render(<TaskModelConfig providers={[provider]} />);
+
+    // No false on-device assurance for a cloud embedding provider…
+    expect(screen.queryByText(ON_DEVICE)).not.toBeInTheDocument();
+    // …and an explicit warning that bulk content leaves the device.
+    expect(screen.getByText(CLOUD_WARNING)).toBeInTheDocument();
+  });
+});
+
 describe('TaskModelConfig — Google Gemini provider (V3.3.5 Task 5)', () => {
   beforeEach(() => {
     vi.clearAllMocks();

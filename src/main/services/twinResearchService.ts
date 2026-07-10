@@ -44,6 +44,7 @@ import type {
   TwinResearchResult,
   TwinSourceHint,
 } from '../../shared/types/twin';
+import type { AITaskType } from '../../shared/types/ai';
 
 const log = createLogger('TwinResearch');
 
@@ -366,15 +367,36 @@ function parseJson(raw: string): unknown {
   return JSON.parse(cleaned);
 }
 
+/** Inputs for {@link generateValidated} — the twin domain's ONE extraction pass. */
+export interface GenerateValidatedOptions {
+  provider: ResolvedProvider;
+  /** Which task routes/floors the call (e.g. 'twin_interview', 'twin_learning'). */
+  taskType: AITaskType;
+  /** Full system prompt (must already include the "Return <spec>" instruction). */
+  system: string;
+  /** The bounded extraction context — becomes the user prompt. */
+  context: string;
+  /** Zod schema the parsed JSON must satisfy; the parsed value is returned. */
+  schema: z.ZodTypeAny;
+  /** Short label for the log lines (e.g. `History mining "projects"`). */
+  label: string;
+  /** Override sampling temperature (defaults to the provider's, then 0). */
+  temperature?: number;
+  /** Override max output tokens (defaults to the provider's, then MAX_OUTPUT_TOKENS). */
+  maxTokens?: number;
+}
+
 /**
- * Mine ONE section with validate-retry-skip discipline: generate → parse+validate
- * against the section schema, retry ONCE with the rejection reason appended, then
- * skip (return null). A generation/network throw skips immediately (it is not a
- * JSON problem, so it does not burn the retry). Never throws.
+ * The twin domain's shared validate-retry-skip pass: generate → parse+validate
+ * against `schema`, retry ONCE with the rejection reason appended, then skip
+ * (return null). A generation/network throw skips immediately (it is not a JSON
+ * problem, so it does not burn the retry). NEVER throws for AI reasons.
+ *
+ * Extracted from the history miner so V3.4 fact extraction reuses the exact same
+ * discipline instead of standing up a second pipeline (see twinMemoryService).
  */
-async function mineSection(provider: ResolvedProvider, key: MineKey, context: string): Promise<unknown | null> {
-  const miner = MINERS[key];
-  const system = `${MINE_SYSTEM}\n\nReturn ${miner.outputSpec}`;
+export async function generateValidated(opts: GenerateValidatedOptions): Promise<unknown | null> {
+  const { provider, taskType, system, context, schema, label } = opts;
   let prompt = context;
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -386,32 +408,48 @@ async function mineSection(provider: ResolvedProvider, key: MineKey, context: st
         apiKeyEncrypted: provider.apiKeyEncrypted,
         baseUrl: provider.baseUrl,
         model: provider.model,
-        taskType: 'twin_interview',
+        taskType,
         prompt,
         system,
-        temperature: provider.temperature ?? 0,
-        maxTokens: provider.maxTokens ?? MAX_OUTPUT_TOKENS,
+        temperature: opts.temperature ?? provider.temperature ?? 0,
+        maxTokens: opts.maxTokens ?? provider.maxTokens ?? MAX_OUTPUT_TOKENS,
       });
       text = result.text ?? '';
     } catch (err) {
-      log.debug(`History mining generation failed for "${key}":`, err instanceof Error ? err.message : err);
+      log.debug(`${label} generation failed:`, err instanceof Error ? err.message : err);
       return null;
     }
 
     try {
-      return miner.schema.parse(parseJson(text));
+      return schema.parse(parseJson(text));
     } catch (parseErr) {
       const reason = parseErr instanceof Error ? parseErr.message : 'invalid output';
       if (attempt === 0) {
-        log.debug(`History mining output for "${key}" invalid (${reason}) — retrying once`);
+        log.debug(`${label} output invalid (${reason}) — retrying once`);
         prompt = `${context}\n\nYour previous reply was rejected: ${reason}. Reply with ONLY the JSON.`;
         continue;
       }
-      log.info(`History mining output for "${key}" invalid after retry — skipping section`);
+      log.info(`${label} output invalid after retry — skipping`);
       return null;
     }
   }
   return null;
+}
+
+/**
+ * Mine ONE section with the shared validate-retry-skip discipline (see
+ * {@link generateValidated}): retry once on malformed output, then skip.
+ */
+async function mineSection(provider: ResolvedProvider, key: MineKey, context: string): Promise<unknown | null> {
+  const miner = MINERS[key];
+  return generateValidated({
+    provider,
+    taskType: 'twin_interview',
+    system: `${MINE_SYSTEM}\n\nReturn ${miner.outputSpec}`,
+    context,
+    schema: miner.schema,
+    label: `History mining "${key}"`,
+  });
 }
 
 /** The corpus items that fed the mining, for review-time attribution. */

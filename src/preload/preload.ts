@@ -36,6 +36,7 @@ import { intelFeedBridge } from './domains/intel-feed';
 import { searchBridge } from './domains/search';
 import { brainBridge } from './domains/brain';
 import { twinBridge } from './domains/twin';
+import { embeddingBridge } from './domains/embedding';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -70,4 +71,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...searchBridge,
   ...brainBridge,
   ...twinBridge,
+  ...embeddingBridge,
 });

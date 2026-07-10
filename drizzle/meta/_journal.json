@@ -288,6 +288,20 @@
       "when": 1783503275144,
       "tag": "0040_good_human_robot",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1783630784150,
+      "tag": "0041_fast_colleen_wing",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1783710105750,
+      "tag": "0042_woozy_talisman",
+      "breakpoints": true
     }
   ]
 }

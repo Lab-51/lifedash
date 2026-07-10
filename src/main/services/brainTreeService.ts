@@ -53,6 +53,13 @@ const projectGroupId = (meetingId: string) => `group:project:${meetingId}`;
 const cardsGroupId = (meetingId: string) => `group:cards:${meetingId}`;
 const decisionsGroupId = (meetingId: string) => `group:decisions:${meetingId}`;
 const questionsGroupId = (meetingId: string) => `group:questions:${meetingId}`;
+// V3.4 entity nodes (the Brain's first semantic layer). The entity node id is
+// kind-independent + stable (`entity:${entityId}`); each entity branches to the
+// sessions it links to via a synthetic-but-stable per-link session node id.
+const entitiesGroupId = (suffix: string) => `group:entities:${suffix}`;
+const WORKSPACE_ENTITIES_GROUP_ID = entitiesGroupId('workspace');
+const entityNodeId = (id: string) => `entity:${id}`;
+const entityLinkSessionNodeId = (entityId: string, meetingId: string) => `entity-session:${entityId}:${meetingId}`;
 
 // --- Raw row shapes (snake_case, as PGlite returns them) --------------------
 // The index signature satisfies db.execute<T>'s Record<string, unknown> bound.
@@ -85,6 +92,17 @@ interface SuggestionRow extends RawRow {
   title: string;
   accepted_card_id: string | null;
   accepted_project_id: string | null;
+}
+
+interface EntityRow extends RawRow {
+  id: string;
+  name: string;
+  kind: 'person' | 'topic';
+}
+interface EntityLinkRow extends RawRow {
+  entity_id: string;
+  meeting_id: string;
+  title: string;
 }
 
 interface RelCandidate {
@@ -161,6 +179,57 @@ function buildCrossLinks(idSet: Set<string>, provenance: RelCandidate[], accepte
   return links;
 }
 
+// --- Entity nodes (V3.4 semantic layer) -------------------------------------
+
+/**
+ * Fetch every entity + every entity→session link (with the session title) in TWO
+ * bulk queries — no N+1, and no meetingId parameter (both scopes read the whole
+ * small entity set and filter in memory), so nothing about the session-scope
+ * meetingId can leak into these queries. Returns the raw rows for {@link makeEntityGroup}.
+ */
+async function loadEntities(db: DB): Promise<{ entities: EntityRow[]; links: EntityLinkRow[] }> {
+  const [entitiesRes, linksRes] = await Promise.all([
+    db.execute<EntityRow>(sql`SELECT id, name, kind FROM entities ORDER BY name ASC, id ASC`),
+    db.execute<EntityLinkRow>(sql`
+      SELECT el.entity_id AS entity_id, el.meeting_id AS meeting_id, m.title AS title
+      FROM entity_links el
+      JOIN meetings m ON m.id = el.meeting_id
+      ORDER BY m.started_at DESC, m.id ASC
+    `),
+  ]);
+  return { entities: entitiesRes.rows, links: linksRes.rows };
+}
+
+/**
+ * Assemble the "People & topics" group of entity nodes. Each entity node's TYPE is
+ * its kind (person/topic — so it styles distinctly) and it branches to the sessions
+ * it is linked to (the entity—session edges, straight from entity_links), so the
+ * inspector and the map both show a person/topic threaded across sessions. Entities
+ * with no links are skipped (pruned like every other empty branch); `restrictToMeetingId`
+ * (session scope) keeps only entities that touch that session — but each surviving
+ * entity still shows ALL its sessions. Returns null when the group would be empty.
+ */
+function makeEntityGroup(
+  entities: EntityRow[],
+  links: EntityLinkRow[],
+  groupId: string,
+  restrictToMeetingId: string | null,
+): BrainNode | null {
+  const linksByEntity = groupBy(links, (l) => l.entity_id);
+  const entityNodes: BrainNode[] = [];
+  for (const e of entities) {
+    const entityLinkRows = linksByEntity.get(e.id) ?? [];
+    if (entityLinkRows.length === 0) continue; // an unlinked entity is not shown
+    if (restrictToMeetingId && !entityLinkRows.some((l) => l.meeting_id === restrictToMeetingId)) continue;
+    const sessionChildren = entityLinkRows.map((l) =>
+      node(entityLinkSessionNodeId(e.id, l.meeting_id), 'session', l.title, l.meeting_id, []),
+    );
+    entityNodes.push(node(entityNodeId(e.id), e.kind, e.name, e.id, sessionChildren));
+  }
+  if (entityNodes.length === 0) return null;
+  return node(groupId, 'group', 'People & topics', null, entityNodes);
+}
+
 // --- Workspace scope --------------------------------------------------------
 async function buildWorkspaceTree(db: DB): Promise<BrainTree> {
   const [projectsRes, columnsRes, cardsRes, meetingsRes] = await Promise.all([
@@ -187,6 +256,7 @@ async function buildWorkspaceTree(db: DB): Promise<BrainTree> {
       ORDER BY started_at DESC, created_at DESC, id ASC
     `),
   ]);
+  const { entities: entityRows, links: entityLinkRows } = await loadEntities(db);
 
   const cardsByColumn = groupBy(cardsRes.rows, (c) => c.column_id);
   const columnsByProject = groupBy(columnsRes.rows, (c) => c.project_id);
@@ -227,6 +297,10 @@ async function buildWorkspaceTree(db: DB): Promise<BrainTree> {
     const sessionNodes = unlinkedSessions.map((m) => node(sessionNodeId(m.id), 'session', m.title, m.id, []));
     rootChildren.push(node(UNLINKED_GROUP_ID, 'group', 'Unlinked sessions', null, sessionNodes));
   }
+
+  // "People & topics" — the V3.4 flat entities threaded across every session.
+  const entityGroup = makeEntityGroup(entityRows, entityLinkRows, WORKSPACE_ENTITIES_GROUP_ID, null);
+  if (entityGroup) rootChildren.push(entityGroup);
 
   const root = node(WORKSPACE_ROOT_ID, 'workspace', 'Workspace', null, rootChildren);
 
@@ -350,6 +424,13 @@ async function buildSessionTree(db: DB, meetingId: string): Promise<BrainTree> {
     ORDER BY created_at ASC, id ASC
   `);
   appendSuggestionBranches(suggestionsRes.rows, meetingId, rootChildren, accepted);
+
+  // Branch: "People & topics" — the entities linked to THIS session (each still
+  // shows every session it appears in, so the map threads a person/topic across
+  // sessions). Fetched last so the entity queries stay after the structural ones.
+  const { entities: entityRows, links: entityLinkRows } = await loadEntities(db);
+  const entityGroup = makeEntityGroup(entityRows, entityLinkRows, entitiesGroupId(meetingId), meetingId);
+  if (entityGroup) rootChildren.push(entityGroup);
 
   const root = node(sessionNodeId(meetingId), 'session', meeting?.title ?? 'Session', meetingId, rootChildren);
   return { root, crossLinks: buildCrossLinks(collectIds(root), provenance, accepted) };

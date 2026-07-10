@@ -1,11 +1,12 @@
 // === FILE PURPOSE ===
 // Twin page (V3.3 Task 3) — the Twin nav destination. Shows the Digital Twin
-// profile as editable, section-level cards (Profile tab) plus a placeholder
-// Memory tab ("the twin starts learning in V3.4"). When no profile has ever
-// been authored, shows a "Create your twin" empty state instead of the section
-// cards. Reads/writes via twinProfileService's section-level patch API, exposed
-// over IPC as twinGetProfile / twinUpdateProfileSection (see src/main/ipc/twin.ts,
-// src/preload/domains/twin.ts — modeled on brain.ts).
+// profile as editable, section-level cards (Profile tab) plus the V3.4 Memory
+// ledger (Memory tab — see twin/TwinMemoryPanel for the safety-triad UI:
+// provenance, one-tap forget + undo, and the learning-pause kill-switch). When no
+// profile has ever been authored, shows a "Create your twin" empty state instead
+// of the section cards. Reads/writes via twinProfileService's section-level patch
+// API, exposed over IPC as twinGetProfile / twinUpdateProfileSection (see
+// src/main/ipc/twin.ts, src/preload/domains/twin.ts — modeled on brain.ts).
 //
 // === CREATION WIZARD ===
 // `showWizard` mounts the real creation/refinement wizard (TwinWizard). Both the
@@ -36,6 +37,7 @@ import EmptyFeatureState from './EmptyFeatureState';
 import HudBackground from './HudBackground';
 import LoadingSpinner from './LoadingSpinner';
 import TwinSectionCard from './twin/TwinSectionCard';
+import TwinMemoryPanel from './twin/TwinMemoryPanel';
 import TwinWizard from './TwinWizard';
 import type { TwinCreationMode } from './twin/TwinModeChoice';
 import {
@@ -71,8 +73,18 @@ import type {
 type TwinTab = 'profile' | 'memory';
 
 /** Two-tab strip (Profile | Memory) — minimal local tablist, same aria pattern
- *  as LiveCanvasTabs/BrainTabPanel elsewhere in the app. */
-function TwinTabs({ active, onSelect }: { active: TwinTab; onSelect: (tab: TwinTab) => void }) {
+ *  as LiveCanvasTabs/BrainTabPanel elsewhere in the app. `memoryCount` (once
+ *  loaded, so it never flashes "0" before the ledger's first fetch resolves)
+ *  renders as a small badge on the Memory tab — the count of ACTIVE learned facts. */
+function TwinTabs({
+  active,
+  onSelect,
+  memoryCount,
+}: {
+  active: TwinTab;
+  onSelect: (tab: TwinTab) => void;
+  memoryCount: number | null;
+}) {
   const tabs: { id: TwinTab; label: string }[] = [
     { id: 'profile', label: 'Profile' },
     { id: 'memory', label: 'Memory' },
@@ -90,13 +102,24 @@ function TwinTabs({ active, onSelect }: { active: TwinTab; onSelect: (tab: TwinT
             aria-controls={`panel-${tab.id}`}
             tabIndex={isActive ? 0 : -1}
             onClick={() => onSelect(tab.id)}
-            className={`px-4 py-2.5 text-sm font-hud tracking-wide transition-colors -mb-px border-b-2 ${
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-hud tracking-wide transition-colors -mb-px border-b-2 ${
               isActive
                 ? 'text-[var(--color-accent)] border-[var(--color-accent)] text-glow'
                 : 'text-[var(--color-text-secondary)] border-transparent hover:text-[var(--color-text-primary)]'
             }`}
           >
             {tab.label}
+            {tab.id === 'memory' && memoryCount !== null && (
+              <>
+                <span
+                  className="min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-[var(--color-accent-subtle)] text-[var(--color-accent)] font-data text-[0.6875rem] font-semibold leading-none border border-[var(--color-border-accent)]"
+                  aria-hidden="true"
+                >
+                  {memoryCount}
+                </span>
+                <span className="sr-only">, {memoryCount} facts learned</span>
+              </>
+            )}
           </button>
         );
       })}
@@ -268,6 +291,9 @@ export default function TwinPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TwinTab>('profile');
   const [showWizard, setShowWizard] = useState(false);
+  // Live count of ACTIVE learned facts, reported up by TwinMemoryPanel — badges
+  // the Memory tab. null until the ledger's first fetch resolves (no "0" flash).
+  const [memoryCount, setMemoryCount] = useState<number | null>(null);
   // Which creation mode the wizard opens in — 'history' for the "Build from my
   // history" shortcuts, undefined (mode-choice) for Create/Refine.
   const [wizardInitialMode, setWizardInitialMode] = useState<TwinCreationMode | undefined>(undefined);
@@ -349,7 +375,7 @@ export default function TwinPage() {
         )
       ) : (
         <div className="px-8 pb-8 flex-1 flex flex-col min-h-0">
-          <TwinTabs active={activeTab} onSelect={setActiveTab} />
+          <TwinTabs active={activeTab} onSelect={setActiveTab} memoryCount={memoryCount} />
 
           <div
             role="tabpanel"
@@ -396,11 +422,9 @@ export default function TwinPage() {
             hidden={activeTab !== 'memory'}
             className="pt-6"
           >
-            <div className="flex flex-col items-center justify-center text-center py-16 px-6 hud-panel clip-corner-cut-sm">
-              <Brain size={28} className="text-[var(--color-accent-dim)] mb-3" />
-              <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-1.5">Memory</h3>
-              <p className="text-sm text-[var(--color-text-secondary)] max-w-sm">The twin starts learning in V3.4.</p>
-            </div>
+            {/* Always mounted (not just while active) so the tab badge above can
+                show the live fact count even while the Profile tab is showing. */}
+            <TwinMemoryPanel onCountChange={setMemoryCount} />
           </div>
         </div>
       )}

@@ -58,6 +58,7 @@ import BackgroundAgentSettings from '../components/settings/BackgroundAgentSetti
 import DiagnosticsSection from '../components/settings/DiagnosticsSection';
 import SyncSettings from '../components/settings/SyncSettings';
 import IntelFeedInterestsSection from './settings/IntelFeedInterestsSection';
+import SemanticIndexSection from './settings/SemanticIndexSection';
 import HudBackground from './HudBackground';
 import HelpTip from './HelpTip';
 import MacUpdateModal from './MacUpdateModal';
@@ -451,6 +452,9 @@ export default function SettingsPageModern() {
                 </div>
                 <TaskModelConfig ref={taskModelRef} providers={providers} />
               </section>
+
+              {/* Semantic Index (V3.4) — local vector backfill progress + rebuild-on-mismatch */}
+              <SemanticIndexSection />
 
               {/* Usage */}
               <section className="hud-panel-accent clip-corner-cut-sm p-6">

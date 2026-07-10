@@ -25,4 +25,5 @@ export * from './intel-feed';
 export * from './search';
 export * from './brain';
 export * from './twin';
+export * from './embedding';
 export * from './electron-api';

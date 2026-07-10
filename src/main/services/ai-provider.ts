@@ -15,7 +15,7 @@
 // - Token usage fields: verified (result.usage.inputTokens, outputTokens, totalTokens)
 // - ollama-ai-provider v1.2.0 returns LanguageModelV1 (not V3) — cast needed for generateText
 
-import { generateText, streamText, type LanguageModel } from 'ai';
+import { generateText, streamText, embedMany, type LanguageModel, type EmbeddingModel } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
@@ -25,7 +25,7 @@ import { getDb } from '../db/connection';
 import { aiUsage, aiProviders, settings } from '../db/schema';
 import { decryptString } from './secure-storage';
 import { createLogger } from './logger';
-import type { AIProviderName, TaskModelConfig } from '../../shared/types';
+import type { AIProviderName, AITaskType, TaskModelConfig } from '../../shared/types';
 
 const log = createLogger('AI');
 
@@ -389,7 +389,27 @@ const DEFAULT_MODELS: Record<AIProviderName, string> = {
 const TASK_MODEL_FALLBACKS: Record<string, string> = {
   live_triage: 'live_assistant',
   twin_interview: 'live_assistant',
+  // V3.4 living-memory tasks inherit the assistant's local model until split in
+  // Settings, exactly like twin_interview.
+  twin_learning: 'live_assistant',
+  knowledge_qa: 'live_assistant',
 };
+
+/**
+ * Per-task MINIMUM output-token budget (a floor, never a cap). The V3.3.5 lesson:
+ * reasoning models (OpenAI o-series, Gemini/Claude thinking) burn the budget on
+ * hidden reasoning tokens and return EMPTY text at low caps — and unlike `kimi`
+ * they are NOT in REASONING_PROVIDERS, so sanitizeMaxTokens can't rescue them.
+ * These one-shot JSON extraction/synthesis tasks therefore floor at 4096 so a
+ * user's low (or absent) maxTokens never starves them. Applied in resolveTaskModel.
+ */
+const TASK_MIN_OUTPUT_TOKENS: Partial<Record<AITaskType, number>> = {
+  twin_learning: 4096,
+  knowledge_qa: 4096,
+};
+
+/** Max texts per embedMany call (LM Studio / OpenAI-compatible batch ceiling). */
+const EMBED_BATCH_SIZE = 64;
 
 /**
  * Resolve which AI provider + model to use for a given task type.
@@ -401,6 +421,11 @@ const TASK_MODEL_FALLBACKS: Record<string, string> = {
  */
 export async function resolveTaskModel(taskType: string): Promise<ResolvedProvider | null> {
   const db = getDb();
+
+  // Per-task output-token floor (see TASK_MIN_OUTPUT_TOKENS). A floor, not a cap:
+  // an explicit larger budget is kept; a smaller/absent one is raised.
+  const minTokens = TASK_MIN_OUTPUT_TOKENS[taskType as AITaskType];
+  const withFloor = (t?: number) => (minTokens ? Math.max(t ?? minTokens, minTokens) : t);
 
   // 1. Try ai.taskModels setting (matches the key used by the renderer settingsStore)
   const [settingRow] = await db.select().from(settings).where(eq(settings.key, 'ai.taskModels'));
@@ -420,7 +445,7 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
             baseUrl: provider.baseUrl,
             model: config.model,
             temperature: config.temperature,
-            maxTokens: config.maxTokens,
+            maxTokens: withFloor(config.maxTokens),
           };
         }
       }
@@ -428,6 +453,13 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
       // Malformed JSON — fall through to default
     }
   }
+
+  // The embedding task has no sensible cross-provider default model and must NEVER
+  // silently fall back to a cloud chat model — that would push bulk, private content
+  // off-device. Unconfigured ⇒ unavailable (null); the user routes it to a local
+  // embedding model in Settings (see the embedding Settings hint). Task 4 layers the
+  // explicit no-silent-cloud guard for a user-chosen cloud embedding model.
+  if (taskType === 'embedding') return null;
 
   // 2. Fallback: first enabled provider
   const [fallbackProvider] = await db.select().from(aiProviders).where(eq(aiProviders.enabled, true)).limit(1);
@@ -440,6 +472,7 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
     apiKeyEncrypted: fallbackProvider.apiKeyEncrypted,
     baseUrl: fallbackProvider.baseUrl,
     model: DEFAULT_MODELS[fallbackProvider.name as AIProviderName] ?? 'gpt-5-mini',
+    maxTokens: withFloor(undefined),
   };
 }
 
@@ -502,4 +535,131 @@ export function streamGenerate(options: {
     maxOutputTokens: options.maxTokens,
     abortSignal: options.abortSignal,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Embeddings (V3.4) — local-first vector generation via AI SDK embedMany
+// ---------------------------------------------------------------------------
+
+/** Result of {@link embed}. `model` is the provider-ECHOED model id — real
+ *  provenance for the index-meta rebuild guard (LM Studio silently routes an
+ *  invalid embedding id to the loaded model and echoes the real one). */
+export interface EmbedResult {
+  embeddings: number[][];
+  /** The model the provider actually used (response.model), NOT necessarily the
+   *  requested id. Falls back to the requested id when the provider doesn't echo. */
+  model: string;
+  /** Total embedding token usage across all batches, or null when unreported. */
+  usage: { tokens: number } | null;
+}
+
+/** Build an embedding model from an OpenAI-compatible endpoint (openai / kimi /
+ *  lmstudio all share createOpenAI). Extracted so createEmbeddingModel stays
+ *  within the complexity budget. */
+function openAICompatEmbeddingModel(modelId: string, apiKey: string, baseURL?: string): EmbeddingModel {
+  const client = baseURL ? createOpenAI({ apiKey, baseURL }) : createOpenAI({ apiKey });
+  return client.textEmbeddingModel(modelId) as unknown as EmbeddingModel;
+}
+
+/** Normalize an LM Studio base URL to end with /v1 (mirrors createFactory). */
+function normalizeLmStudioUrl(baseUrl?: string): string {
+  let url = baseUrl || 'http://localhost:1234/v1';
+  if (!url.endsWith('/v1')) url = url.replace(/\/+$/, '') + '/v1';
+  return url;
+}
+
+/**
+ * Build an embedding model for a resolved provider. Mirrors createFactory but
+ * returns an EmbeddingModel via each SDK's textEmbeddingModel(). Anthropic has no
+ * embedding models (its textEmbeddingModel() is `never`), so reject early with a
+ * clear message rather than fail deep inside embedMany.
+ */
+function createEmbeddingModel(
+  name: AIProviderName,
+  modelId: string,
+  apiKey?: string,
+  baseUrl?: string,
+): EmbeddingModel {
+  const key = apiKey ?? '';
+  switch (name) {
+    case 'openai':
+      return openAICompatEmbeddingModel(modelId, key);
+    case 'google': {
+      const options = baseUrl ? { apiKey: key, baseURL: baseUrl } : { apiKey: key };
+      return createGoogleGenerativeAI(options).textEmbeddingModel(modelId) as unknown as EmbeddingModel;
+    }
+    case 'ollama':
+      return createOllama({ baseURL: baseUrl ?? 'http://localhost:11434/api' }).textEmbeddingModel(
+        modelId,
+      ) as unknown as EmbeddingModel;
+    case 'kimi':
+      return openAICompatEmbeddingModel(modelId, key, baseUrl ?? 'https://api.moonshot.ai/v1');
+    case 'lmstudio':
+      return openAICompatEmbeddingModel(modelId, 'lm-studio', normalizeLmStudioUrl(baseUrl));
+    case 'anthropic':
+      throw new Error(
+        'Anthropic does not provide embedding models. Route the Embedding task to LM Studio (local) or another embedding-capable provider.',
+      );
+    default:
+      throw new Error(`Unknown AI provider: ${name}`);
+  }
+}
+
+/**
+ * Read the provider-echoed model id from an embedMany raw response body. LM Studio
+ * (and other OpenAI-compatible endpoints) return `{ model, data, usage }`; the AI
+ * SDK surfaces the raw body in `responses[i].body`. Falls back to the requested id
+ * when the body carries no usable `model` (defensive — never throws).
+ */
+function echoedEmbeddingModel(
+  responses: ReadonlyArray<{ body?: unknown } | undefined> | undefined,
+  requested: string,
+): string {
+  for (const resp of responses ?? []) {
+    const body = resp?.body;
+    if (body && typeof body === 'object' && 'model' in body) {
+      const m = (body as { model?: unknown }).model;
+      if (typeof m === 'string' && m.length > 0) return m;
+    }
+  }
+  return requested;
+}
+
+/**
+ * Generate embeddings for a set of texts via AI SDK embedMany. Resolves the
+ * provider for `taskType` (`'embedding'` by default — local/LM Studio; never a
+ * silent cloud fallback, see resolveTaskModel), batches at EMBED_BATCH_SIZE, logs
+ * usage like generate(), and returns the vectors plus the provider-ECHOED model id
+ * for index provenance. Throws when no embedding provider is configured or the
+ * resolved provider cannot embed.
+ */
+export async function embed(texts: string[], taskType: string = 'embedding'): Promise<EmbedResult> {
+  if (texts.length === 0) return { embeddings: [], model: '', usage: { tokens: 0 } };
+
+  const provider = await resolveTaskModel(taskType);
+  if (!provider) {
+    throw new Error(
+      'No embedding provider configured. Assign a local embedding model to the Embedding task in Settings.',
+    );
+  }
+
+  const apiKey = provider.apiKeyEncrypted ? decryptString(provider.apiKeyEncrypted) : undefined;
+  const model = createEmbeddingModel(provider.providerName, provider.model, apiKey, provider.baseUrl ?? undefined);
+
+  const embeddings: number[][] = [];
+  let totalTokens = 0;
+  let echoedModel = provider.model;
+
+  for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
+    const batch = texts.slice(i, i + EMBED_BATCH_SIZE);
+    const result = await embedMany({ model, values: batch });
+    for (const vec of result.embeddings as number[][]) embeddings.push(vec);
+    totalTokens += result.usage?.tokens ?? 0;
+    echoedModel = echoedEmbeddingModel(result.responses, provider.model);
+  }
+
+  // Log usage under the ECHOED model (real provenance). logUsage never throws.
+  await logUsage(provider.providerId, echoedModel, taskType, { inputTokens: totalTokens, totalTokens });
+
+  return { embeddings, model: echoedModel, usage: { tokens: totalTokens } };
 }

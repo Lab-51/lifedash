@@ -234,6 +234,35 @@ describe('BrainInspector — per-type reuse', () => {
     expect(window.electronAPI.listLiveSuggestions).toHaveBeenCalledWith('m1');
   });
 
+  it('person entity node lists its linked sessions and navigates to one via onOpenEntity', () => {
+    const onOpenEntity = vi.fn();
+    const s1 = node({ id: 'entity-session:e1:m1', type: 'session', label: 'Kickoff', entityId: 'm1' });
+    const s2 = node({ id: 'entity-session:e1:m2', type: 'session', label: 'Retro', entityId: 'm2' });
+    renderInspector(node({ id: 'entity:e1', type: 'person', label: 'Dana Lee', entityId: 'e1', children: [s1, s2] }), {
+      onOpenEntity,
+    });
+
+    const panel = screen.getByTestId('brain-inspector-entity');
+    expect(within(panel).getByRole('heading', { name: 'Dana Lee' })).toBeInTheDocument();
+    expect(within(panel).getByText('Person')).toBeInTheDocument();
+    expect(within(panel).getByText(/Linked to 2 sessions/)).toBeInTheDocument();
+
+    // Clicking a linked session NAVIGATES (host onOpenEntity), threading the person
+    // across sessions — never a fabricated destination.
+    fireEvent.click(screen.getByRole('button', { name: /Kickoff/ }));
+    expect(onOpenEntity).toHaveBeenCalledWith({ type: 'session', entityId: 'm1' });
+  });
+
+  it('topic entity node shows the Topic kind and a zero-session count without fetching', () => {
+    renderInspector(node({ id: 'entity:e2', type: 'topic', label: 'Billing', entityId: 'e2', children: [] }));
+    const panel = screen.getByTestId('brain-inspector-entity');
+    expect(within(panel).getByRole('heading', { name: 'Billing' })).toBeInTheDocument();
+    expect(within(panel).getByText('Topic')).toBeInTheDocument();
+    expect(within(panel).getByText(/Linked to 0 sessions/)).toBeInTheDocument();
+    // An entity has no standalone page → no "Open full page" affordance.
+    expect(screen.queryByRole('button', { name: /Open .*→/ })).toBeNull();
+  });
+
   it('question node with no resolvable meeting still shows the real payload label (no fetch, no fake)', () => {
     // No meetingId -> zero-fetch fallback path; the payload label is still shown.
     render(

@@ -26,6 +26,7 @@ import { autoPushActionItems, readAutoPushSetting } from './autoPushService';
 import { ensureUnassignedProject } from './unassignedProjectService';
 import { detectProjectFromTranscript } from './projectDetectionService';
 import { buildProfileContext } from './twinProfileService';
+import { dispatchPostSession } from './postSessionDispatcher';
 import type { MeetingBrief, ActionItem, ActionItemStatus, MeetingTemplateType } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import { parseActionItems } from '../../shared/utils/action-item-parser';
@@ -565,7 +566,16 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
     })
     .returning();
 
-  return toBrief(row);
+  const brief = toBrief(row);
+
+  // 6. Post-session dispatcher seam (V3.4) — fire-and-forget, error-isolated. The
+  //    living-memory modules (fact extraction, embedding, entity extraction)
+  //    register hooks with the dispatcher; a failing/slow hook can never affect
+  //    this brief. This is the ONE call site for the phase — new post-session work
+  //    registers a hook, it does NOT edit generateBrief.
+  dispatchPostSession({ meetingId, brief });
+
+  return brief;
 }
 
 /**

@@ -12,6 +12,7 @@
 // - Single-connection (no pool), which is fine for a desktop app.
 
 import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
 import { drizzle } from 'drizzle-orm/pglite';
 import { app } from 'electron';
 import path from 'node:path';
@@ -35,7 +36,10 @@ export function getDataDirectory(): string {
 
 export async function connectDatabase(): Promise<void> {
   const dataDir = getDataDirectory();
-  pglite = new PGlite(dataDir);
+  // Register the pgvector extension binary so `CREATE EXTENSION vector` (run by
+  // migration 0041) and vector(768) columns work. Registering only loads the
+  // extension; the migration itself issues CREATE EXTENSION IF NOT EXISTS vector.
+  pglite = new PGlite(dataDir, { extensions: { vector } });
 
   // Wrap PGlite.query with performance tracking so all DB queries are timed.
   const originalQuery = pglite.query.bind(pglite);

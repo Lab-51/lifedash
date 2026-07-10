@@ -90,7 +90,10 @@ describe('isParameterized helper sanity check', () => {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-// Workspace query order (Promise.all): projects, columns, cards, meetings.
+// Workspace query order: projects, columns, cards, meetings (Promise.all), then
+// the two V3.4 entity queries (entities, entity_links) issued by loadEntities. The
+// base fixture has NO entities, so the "People & topics" group is pruned and every
+// pre-entity assertion holds unchanged; entity behavior gets its own fixture below.
 function workspaceFixture() {
   return [
     // projects — p1 has sessions+cards, p2 has cards but NO sessions, p3 empty
@@ -116,6 +119,8 @@ function workspaceFixture() {
       { id: 'm1', title: 'Kickoff', project_id: 'p1' },
       { id: 'm2', title: 'Solo', project_id: null },
     ],
+    [], // entities (none)
+    [], // entity_links (none)
   ];
 }
 
@@ -126,10 +131,10 @@ function workspaceFixture() {
 describe('buildBrainTree — workspace scope', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('issues exactly one query per entity type (4 total, no N+1)', async () => {
+  it('issues exactly one query per entity type (6 total: 4 structural + 2 entity, no N+1)', async () => {
     const execute = mockExecuteSequence(workspaceFixture());
     await buildBrainTree({ scope: 'workspace' });
-    expect(execute).toHaveBeenCalledTimes(4);
+    expect(execute).toHaveBeenCalledTimes(6);
   });
 
   it('builds workspace > projects > (Sessions group + columns) with an Unlinked sessions root group', async () => {
@@ -223,7 +228,8 @@ describe('buildBrainTree — session scope', () => {
   beforeEach(() => vi.clearAllMocks());
 
   // Linked-session query order: meeting, project, projectColumns, projectCards,
-  // cardsCreated, suggestions.
+  // cardsCreated, suggestions, then the two V3.4 entity queries (entities,
+  // entity_links). The base fixture has NO entities so the entity group is pruned.
   function linkedSessionFixture() {
     return [
       [{ id: 'm1', title: 'Kickoff', project_id: 'p1' }], // meeting
@@ -246,13 +252,15 @@ describe('buildBrainTree — session scope', () => {
         { id: 'd1', type: 'decision', title: 'Ship v1', accepted_card_id: 'cardA', accepted_project_id: null },
         { id: 'q1', type: 'question', title: 'Budget?', accepted_card_id: null, accepted_project_id: 'p1' },
       ],
+      [], // entities (none)
+      [], // entity_links (none)
     ];
   }
 
-  it('issues one query per entity for a linked session (6 total)', async () => {
+  it('issues one query per entity for a linked session (8 total: 6 structural + 2 entity)', async () => {
     const execute = mockExecuteSequence(linkedSessionFixture());
     await buildBrainTree({ scope: { meetingId: 'm1' } });
-    expect(execute).toHaveBeenCalledTimes(6);
+    expect(execute).toHaveBeenCalledTimes(8);
   });
 
   it('builds the session root with Project / Cards created / Decisions / Open questions branches', async () => {
@@ -315,29 +323,31 @@ describe('buildBrainTree — session scope', () => {
     expect(crossLinks).toHaveLength(4);
   });
 
-  it('handles an unlinked session (no Project branch, 3 queries) with empty branches pruned', async () => {
+  it('handles an unlinked session (no Project branch, 5 queries) with empty branches pruned', async () => {
     const execute = mockExecuteSequence([
       [{ id: 'm2', title: 'Solo', project_id: null }], // meeting (unlinked)
       [], // cardsCreated
       [], // suggestions
+      [], // entities
+      [], // entity_links
     ]);
     const { root, crossLinks } = await buildBrainTree({ scope: { meetingId: 'm2' } });
 
-    expect(execute).toHaveBeenCalledTimes(3);
+    expect(execute).toHaveBeenCalledTimes(5);
     expect(root).toMatchObject({ id: 'session:m2', type: 'session', label: 'Solo', childCount: 0 });
     expect(root.children).toEqual([]);
     expect(crossLinks).toEqual([]);
   });
 
   it('falls back to a bare Session root when the meeting is not found', async () => {
-    mockExecuteSequence([[], [], []]);
+    mockExecuteSequence([[], [], [], [], []]);
     const { root } = await buildBrainTree({ scope: { meetingId: 'ghost' } });
     expect(root).toMatchObject({ id: 'session:ghost', type: 'session', label: 'Session', childCount: 0 });
   });
 
   it('binds meetingId as a sql parameter — never concatenated into query text', async () => {
     const evil = "'; DROP TABLE meetings; --";
-    const execute = mockExecuteSequence([[], [], []]); // meeting not found -> 3 calls
+    const execute = mockExecuteSequence([[], [], [], [], []]); // meeting not found -> 5 calls
     await buildBrainTree({ scope: { meetingId: evil } });
 
     // The meeting lookup binds it as a real parameter...
@@ -362,5 +372,93 @@ describe('buildBrainTree — session scope', () => {
     mockExecuteSequence(linkedSessionFixture());
     const second = await buildBrainTree({ scope: { meetingId: 'm1' } });
     expect(collectIds(second.root)).toEqual(collectIds(first.root));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Entity nodes (V3.4 semantic layer)
+// ---------------------------------------------------------------------------
+
+describe('buildBrainTree — entity nodes (People & topics)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('adds a workspace "People & topics" group; each entity node is typed by kind and branches to its sessions', async () => {
+    mockExecuteSequence([
+      [{ id: 'p1', name: 'Alpha' }], // projects
+      [], // columns
+      [], // cards
+      [
+        { id: 'm1', title: 'Kickoff', project_id: 'p1' },
+        { id: 'm2', title: 'Retro', project_id: 'p1' },
+      ], // meetings
+      // entities — e3 has NO links and must be pruned
+      [
+        { id: 'e1', name: 'Dana Lee', kind: 'person' },
+        { id: 'e2', name: 'Billing', kind: 'topic' },
+        { id: 'e3', name: 'Orphan', kind: 'topic' },
+      ],
+      // entity_links (joined to meetings for the title)
+      [
+        { entity_id: 'e1', meeting_id: 'm1', title: 'Kickoff' },
+        { entity_id: 'e1', meeting_id: 'm2', title: 'Retro' },
+        { entity_id: 'e2', meeting_id: 'm1', title: 'Kickoff' },
+      ],
+    ]);
+    const { root } = await buildBrainTree({ scope: 'workspace' });
+
+    const group = child(root, 'group:entities:workspace');
+    expect(group).toMatchObject({ type: 'group', label: 'People & topics', entityId: null, childCount: 2 });
+
+    // Dana Lee (person) → both sessions she appeared in, as session children.
+    const dana = child(group as BrainNode, 'entity:e1');
+    expect(dana).toMatchObject({ type: 'person', label: 'Dana Lee', entityId: 'e1', childCount: 2 });
+    expect(dana?.children.map((c) => c.id)).toEqual(['entity-session:e1:m1', 'entity-session:e1:m2']);
+    expect(dana?.children[0]).toMatchObject({ type: 'session', label: 'Kickoff', entityId: 'm1' });
+
+    // Billing (topic) → the one session it appeared in.
+    const billing = child(group as BrainNode, 'entity:e2');
+    expect(billing).toMatchObject({ type: 'topic', label: 'Billing', entityId: 'e2', childCount: 1 });
+
+    // An entity with no links is pruned (never shown).
+    expect(child(group as BrainNode, 'entity:e3')).toBeUndefined();
+  });
+
+  it('omits the People & topics group entirely when there are no entities', async () => {
+    mockExecuteSequence(workspaceFixture()); // base fixture: no entities
+    const { root } = await buildBrainTree({ scope: 'workspace' });
+    expect(child(root, 'group:entities:workspace')).toBeUndefined();
+  });
+
+  it('in session scope, shows only entities linked to THIS session — but each still shows ALL its sessions', async () => {
+    mockExecuteSequence([
+      [{ id: 'm1', title: 'Kickoff', project_id: null }], // meeting (unlinked → no project branch)
+      [], // cardsCreated
+      [], // suggestions
+      // entities — e3 is linked only to m2, so it must NOT appear in m1's scope
+      [
+        { id: 'e1', name: 'Dana Lee', kind: 'person' },
+        { id: 'e2', name: 'Billing', kind: 'topic' },
+        { id: 'e3', name: 'Elsewhere', kind: 'topic' },
+      ],
+      // entity_links: e1 appears in m1 AND m2, e2 in m1, e3 only in m2
+      [
+        { entity_id: 'e1', meeting_id: 'm1', title: 'Kickoff' },
+        { entity_id: 'e1', meeting_id: 'm2', title: 'Retro' },
+        { entity_id: 'e2', meeting_id: 'm1', title: 'Kickoff' },
+        { entity_id: 'e3', meeting_id: 'm2', title: 'Retro' },
+      ],
+    ]);
+    const { root } = await buildBrainTree({ scope: { meetingId: 'm1' } });
+
+    const group = child(root, 'group:entities:m1');
+    expect(group).toMatchObject({ type: 'group', label: 'People & topics', childCount: 2 });
+
+    // e1 is in m1's scope AND still surfaces its OTHER session (m2) as a child.
+    const dana = child(group as BrainNode, 'entity:e1');
+    expect(dana).toMatchObject({ type: 'person', childCount: 2 });
+    expect(dana?.children.map((c) => c.entityId)).toEqual(['m1', 'm2']);
+
+    // e3 (linked only to m2) is excluded from m1's scope.
+    expect(child(group as BrainNode, 'entity:e3')).toBeUndefined();
   });
 });

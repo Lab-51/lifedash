@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 // === FILE PURPOSE ===
-// TwinPage (V3.3 Tasks 3-4): empty state (no profile) + the mounted creation
-// wizard (open/close from both the empty-state CTA and the "Refine profile"
-// header button), section render + inline edit/save round-trip via
-// twinUpdateProfileSection, and the Memory tab placeholder.
+// TwinPage (V3.3 Tasks 3-4, V3.4 Task 3): empty state (no profile) + the mounted
+// creation wizard (open/close from both the empty-state CTA and the "Refine
+// profile" header button), section render + inline edit/save round-trip via
+// twinUpdateProfileSection, and the Memory tab (ledger list + tab count badge —
+// TwinMemoryPanel's own test file covers the full safety-triad behavior:
+// provenance resolution, forget+undo focus management, and the pause toggle).
 // window.electronAPI.twinGetProfile / twinUpdateProfileSection / twinDraftSection
-// are mocked — the real IPC/service round trip is covered by twinProfileService's
-// own unit tests (Task 1) and TwinWizard's own tests (Task 4).
+// / twinMemoryList are mocked — the real IPC/service round trip is covered by
+// twinProfileService's / twinMemoryService's own unit tests and TwinWizard's own
+// tests (Task 4).
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
@@ -21,17 +24,29 @@ const twinDraftSection = vi.fn();
 const twinGetCreationModel = vi
   .fn()
   .mockResolvedValue({ providerLabel: 'openai', modelLabel: 'gpt-5-mini', isLocal: false, isFrontier: true });
+// Memory tab (V3.4) — the tab panel is always mounted (badge needs the count
+// even while Profile is active), so every test here indirectly mounts it.
+const twinMemoryList = vi.fn().mockResolvedValue([]);
+const twinMemoryForget = vi.fn();
+const twinMemoryRestore = vi.fn();
+const setSetting = vi.fn().mockResolvedValue(undefined);
 
 vi.stubGlobal('electronAPI', {
   twinGetProfile,
   twinUpdateProfileSection,
   twinDraftSection,
   twinGetCreationModel,
+  twinMemoryList,
+  twinMemoryForget,
+  twinMemoryRestore,
+  setSetting,
   getAIProviders: vi.fn().mockResolvedValue([]),
   getAllSettings: vi.fn().mockResolvedValue({}),
 });
 
 const { default: TwinPage } = await import('../TwinPage');
+const { useMeetingStore } = await import('../../stores/meetingStore');
+const { useSettingsStore } = await import('../../stores/settingsStore');
 
 // The creation wizard's mode-choice screen uses useNavigate (Settings pointer), so
 // TwinPage is rendered inside a router (repo test pattern).
@@ -59,6 +74,9 @@ function fullProfile(overrides: Partial<TwinProfile> = {}): TwinProfile {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  twinMemoryList.mockResolvedValue([]);
+  useMeetingStore.setState({ meetings: [] } as any);
+  useSettingsStore.setState({ settings: {} } as any);
 });
 
 describe('TwinPage — empty state + creation wizard', () => {
@@ -164,13 +182,41 @@ describe('TwinPage — section render, edit, save round-trip', () => {
   });
 });
 
-describe('TwinPage — Memory tab placeholder', () => {
-  it('shows the V3.4 placeholder and no learning infrastructure', async () => {
+describe('TwinPage — Memory tab (V3.4)', () => {
+  it('shows the empty-state explainer and a "0" count badge when no facts exist yet', async () => {
     twinGetProfile.mockResolvedValue(fullProfile());
+    twinMemoryList.mockResolvedValue([]);
     renderPage();
     await screen.findByText('Jane Doe');
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Memory' }));
-    expect(screen.getByText('The twin starts learning in V3.4.')).toBeVisible();
+    const memoryTab = screen.getByRole('tab', { name: /memory/i });
+    fireEvent.click(memoryTab);
+
+    expect(await screen.findByText('No facts learned yet')).toBeVisible();
+    expect(memoryTab).toHaveTextContent('0');
+  });
+
+  it('lists a learned fact with resolved session-title provenance and badges the tab with the active count', async () => {
+    twinGetProfile.mockResolvedValue(fullProfile());
+    useMeetingStore.setState({ meetings: [{ id: 'meeting-1', title: 'Weekly Sync' }] as any } as any);
+    twinMemoryList.mockResolvedValue([
+      {
+        id: 'fact-1',
+        fact: 'Prefers async updates over meetings',
+        category: 'preference',
+        sourceMeetingId: 'meeting-1',
+        status: 'active',
+        createdAt: '2026-07-01T00:00:00.000Z',
+      },
+    ]);
+    renderPage();
+    await screen.findByText('Jane Doe');
+
+    const memoryTab = screen.getByRole('tab', { name: /memory/i });
+    fireEvent.click(memoryTab);
+
+    expect(await screen.findByText('Prefers async updates over meetings')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /learned in weekly sync/i })).toBeInTheDocument();
+    expect(memoryTab).toHaveTextContent('1');
   });
 });

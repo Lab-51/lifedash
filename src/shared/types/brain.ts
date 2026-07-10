@@ -11,7 +11,19 @@
 // live-growth diff calls buildBrainTree twice and diffs node-id sets to find
 // entering nodes. Never derive an id from array index, timestamp, or random.
 
-export type BrainNodeType = 'workspace' | 'project' | 'group' | 'column' | 'session' | 'card' | 'decision' | 'question';
+// 'person'/'topic' are the V3.4 flat-entity nodes (the Brain's first semantic
+// layer) — an entity node's type IS its TwinEntityKind, so it styles distinctly.
+export type BrainNodeType =
+  | 'workspace'
+  | 'project'
+  | 'group'
+  | 'column'
+  | 'session'
+  | 'card'
+  | 'decision'
+  | 'question'
+  | 'person'
+  | 'topic';
 
 export interface BrainNode {
   /** STABLE across refetches — `${type}:${entityId}` for entity nodes, or a

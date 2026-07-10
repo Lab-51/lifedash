@@ -41,6 +41,22 @@ const TASK_TYPE_INFO: { type: AITaskType; label: string; description: string }[]
     description:
       'Optional AI-drafted answers for the Digital Twin wizard\'s "Interview me" steps — defaults to the Live Assistant model',
   },
+  {
+    type: 'twin_learning',
+    label: 'Twin Learning',
+    description:
+      'Background per-session fact extraction that grows the Digital Twin — defaults to the Live Assistant model',
+  },
+  {
+    type: 'knowledge_qa',
+    label: 'Knowledge Q&A',
+    description: 'Answer synthesis over semantic search across your sessions — defaults to the Live Assistant model',
+  },
+  {
+    type: 'embedding',
+    label: 'Embedding',
+    description: 'Local vector generation for semantic search and Twin memory — pick a local, multilingual model',
+  },
 ];
 
 /** Provider families that run entirely on the user's machine — no transcript leaves the device. */
@@ -96,6 +112,44 @@ const RECOMMENDED_MODELS: Record<AIProviderName, { flagship: string; efficient: 
   ollama: { flagship: 'llama3.2', efficient: 'llama3.2' },
   lmstudio: { flagship: 'default', efficient: 'default' },
 };
+
+/**
+ * Provider-aware privacy hint for the Embedding row. A LOCAL provider embeds
+ * on-device; a CLOUD provider ships bulk content (briefs, transcripts, cards) to
+ * that provider, so the reassuring "stays on your device" copy must NEVER render
+ * for it. The embedding schema dimension is measured, so it is not promised here.
+ */
+function EmbeddingPrivacyHint({
+  isLocalProvider,
+  providerName,
+}: {
+  isLocalProvider: boolean;
+  providerName: AIProviderName | null;
+}) {
+  const isCloud = !!providerName && !isLocalProvider;
+  if (isCloud) {
+    return (
+      <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-400">
+        <Info size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+        <span>
+          {providerName} is a cloud provider — your briefs, transcripts, and cards will be sent to it to be embedded for
+          semantic search. For fully-private semantic search, assign a local embedding model (LM Studio or Ollama).
+        </span>
+      </p>
+    );
+  }
+  return (
+    <p className="mt-2 flex items-start gap-1.5 text-xs text-[var(--color-text-secondary)]">
+      <Info size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+      <span>
+        {isLocalProvider ? 'Embeddings stay on your device.' : 'Pick a local model to keep embeddings on your device.'}{' '}
+        Recommended: a multilingual EmbeddingGemma-300M-class model (e.g. text-embedding-embeddinggemma-300m) for
+        German/mixed meetings. Alternatives: bge-m3 (larger, higher quality) or nomic-embed-text-v1.5 (English-only).
+        Enter the exact model id loaded in LM Studio.
+      </span>
+    </p>
+  );
+}
 
 export interface TaskModelConfigHandle {
   autoAssign: (provider: AIProvider) => void;
@@ -212,6 +266,12 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
     if (!presets) return;
     const auto: DraftConfig = {} as DraftConfig;
     for (const { type } of TASK_TYPE_INFO) {
+      // Embedding has no cross-provider preset (it needs a specific embedding model
+      // id, not a chat model) — keep whatever the user configured manually.
+      if (type === 'embedding') {
+        auto[type] = draft[type] ?? { providerId: '', model: '' };
+        continue;
+      }
       auto[type] = {
         providerId: provider.id,
         model: FLAGSHIP_TASKS.has(type) ? presets.flagship : presets.efficient,
@@ -241,6 +301,9 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
         const models = getModelsForProvider(entry.providerId);
         const providerName = getProviderName(entry.providerId);
         const isOllama = providerName === 'ollama';
+        // Embedding model ids (e.g. text-embedding-embeddinggemma-300m) aren't in
+        // KNOWN_MODELS — always free-text so the exact id can be entered.
+        const isEmbedding = type === 'embedding';
         const isLocalProvider = !!providerName && LOCAL_PROVIDERS.has(providerName);
 
         return (
@@ -265,7 +328,7 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
 
                 {/* Model selector (dropdown for known models, text input for Ollama/custom) */}
                 {entry.providerId &&
-                  (isOllama || models.length === 0 ? (
+                  (isOllama || isEmbedding || models.length === 0 ? (
                     <input
                       type="text"
                       value={entry.model || customModel[type] || ''}
@@ -301,6 +364,11 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
                 </span>
               </p>
             )}
+
+            {/* Embedding privacy hint — provider-aware (mirrors the live_assistant
+                gate). Extracted so the on-device reassurance never renders for a
+                cloud provider, which receives bulk content. */}
+            {isEmbedding && <EmbeddingPrivacyHint isLocalProvider={isLocalProvider} providerName={providerName} />}
           </div>
         );
       })}

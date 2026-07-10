@@ -21,3 +21,5 @@ export * from './agent-insights';
 export * from './sync';
 export * from './intel-feed';
 export * from './twin';
+export * from './embeddings';
+export * from './entities';

@@ -267,3 +267,60 @@ export interface TwinCreationModel {
   isLocal: boolean;
   isFrontier: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// V3.4 — Living memory (learned facts) + entities
+//
+// The shared contracts the V3.4 learning batch compiles against: the per-session
+// facts the twin learns (Task 2), the entities session extraction resolves
+// (Task 6), and the memory-management IPC surface (list/forget/restore). Frozen
+// here so Tasks 2/3/6 touch no shared type file.
+// ---------------------------------------------------------------------------
+
+/** What kind of thing a learned fact is about. Mirrors twin_facts.category. */
+export type TwinFactCategory = 'person' | 'project' | 'preference' | 'domain' | 'commitment';
+
+/** Lifecycle of a learned fact. `forgotten` facts are excluded from injection but
+ *  kept so the user can restore them. Mirrors twin_facts.status. */
+export type TwinFactStatus = 'active' | 'forgotten';
+
+/** A discrete fact the twin learned from a session (V3.4). Individually
+ *  forgettable/restorable; `active` facts feed profile injection. */
+export interface TwinFact {
+  id: string;
+  fact: string;
+  category: TwinFactCategory;
+  /** The session this was learned from, or null if that session was deleted. */
+  sourceMeetingId: string | null;
+  status: TwinFactStatus;
+  createdAt: string;
+}
+
+/** A named thing (person or topic) resolved from a session (Task 6 entity
+ *  extraction). `normalizedName` is the dedupe/lookup key (lowercased, trimmed);
+ *  `name` is the display form. */
+export type TwinEntityKind = 'person' | 'topic';
+export interface TwinEntity {
+  name: string;
+  normalizedName: string;
+  kind: TwinEntityKind;
+}
+
+// --- memory-management IPC payloads (twin:memory-list / -forget / -restore) ---
+
+/** Optional filter for `twin:memory-list`. Omitted ⇒ the service returns all
+ *  facts (both active and forgotten) so the memory UI can show/restore forgotten
+ *  ones; pass `status` to narrow. */
+export interface TwinMemoryListFilter {
+  status?: TwinFactStatus;
+  category?: TwinFactCategory;
+}
+
+/**
+ * The settings key the learning-pause gate rides (the generic key-value settings
+ * surface — no dedicated channel). Value is the string `'true'` when paused,
+ * anything else (incl. absent) means learning is active. The renderer toggles it
+ * via the existing settings:set IPC; main-side reads it via
+ * twinMemoryService.isLearningPaused(). Tasks 2/3 both depend on this key.
+ */
+export const TWIN_LEARNING_PAUSED_SETTING_KEY = 'twin.learningPaused';

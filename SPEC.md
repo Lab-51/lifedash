@@ -9,7 +9,7 @@
 
 ## Purpose
 
-LifeDash is a session-centric, local-first meeting-intelligence app. This register holds behavior contracts per domain; it currently covers the **Digital Twin** domain (V3.3 + V3.3.5 "Deep Creation"): the user profile that personalizes every AI surface, how it is authored — manually or via the deep-creation paths (deep interview, history mining, web enrichment) — and how the app behaves with and without it.
+LifeDash is a session-centric, local-first meeting-intelligence app. This register holds behavior contracts per domain. It covers the **Digital Twin** domain (V3.3 + V3.3.5 "Deep Creation"): the user profile that personalizes every AI surface, how it is authored — manually or via the deep-creation paths (deep interview, history mining, web enrichment) — and how the app behaves with and without it. It also covers the **V3.4 living layer**: the twin that keeps learning from finished sessions (auditable memory with a safety triad), semantic search with a grounded "Ask", the embedding index (local-by-default, no silent cloud), and the Brain's first flat person/topic entities.
 
 ## Requirements
 
@@ -205,6 +205,127 @@ When the resolved creation model is NOT a frontier cloud model, the mode-choice 
 - GIVEN any resolved model, frontier or not
 - WHEN the user views the mode choice
 - THEN the Quick form is always directly startable with zero AI
+
+---
+
+### Requirement: The twin learns from finished sessions with immediate apply and a safety triad
+
+After a session's brief is generated, the twin SHALL learn a small number of durable, discrete FACTS about the user's world (people, projects, preferences, domain, commitments). Learning MUST be extracted ONLY from already-distilled, session-scoped material — the session brief and the suggestions the user ACCEPTED live — and MUST NEVER read the raw transcript and MUST NEVER run live during a meeting. A learned fact SHALL be applied IMMEDIATELY (no approval queue), and MUST carry the full **safety triad**: (1) per-fact PROVENANCE to the source session, (2) a one-tap FORGET, and (3) a global learning PAUSE kill-switch. Learning MUST be error-isolated — a learning failure can NEVER fail or delay brief generation.
+
+#### Scenario: Facts are learned post-session and applied immediately
+
+- GIVEN learning is not paused and a session brief was just generated
+- WHEN the post-session learning runs
+- THEN a bounded set of durable facts is stored, each linked to its source session, and each becomes active immediately with no approval step
+
+#### Scenario: Learning never touches the raw transcript or runs live
+
+- GIVEN a session in progress
+- WHEN the meeting is being recorded/transcribed
+- THEN no fact extraction runs, and when it does run post-session it reads only the brief + accepted suggestions, never the raw transcript
+
+#### Scenario: Pause is a real kill-switch
+
+- GIVEN the user has paused learning
+- WHEN a session finishes
+- THEN no facts and no entities are extracted, and injection stops using learned facts — until the user resumes
+
+#### Scenario: A learning failure never harms the brief
+
+- GIVEN fact/entity extraction throws or the model is unavailable
+- WHEN the post-session hook runs
+- THEN the brief is unaffected and the failure is swallowed (the session still completes normally)
+
+---
+
+### Requirement: A forgotten fact is never silently re-learned
+
+When the user FORGETS a fact, it MUST be excluded from every consumer prompt AND MUST NOT be silently re-learned as a new active fact on a later session — even if the model re-emits the same statement. The forgotten content MUST be used only as a post-generation dedupe FILTER and MUST NEVER be disclosed back to the model (it MUST NOT appear in any prompt, including the "already known" exclusion list). A forgotten fact remains restorable by the user.
+
+#### Scenario: Re-emitting a forgotten fact does not resurrect it
+
+- GIVEN the user previously forgot a specific fact
+- WHEN a later session's extraction re-emits that same fact
+- THEN it is dropped (not re-inserted as active) and its text never appears in the extraction prompt
+
+---
+
+### Requirement: Byte-identical guarantee for an un-personalized install
+
+With NO twin profile AND no active learned facts (or with learning paused), every consumer prompt (assistant, triage, briefs) MUST be BYTE-IDENTICAL to the pre-twin baseline. Personalization is strictly additive: the profile block and the "learned from sessions" block are injected ONLY when there is something to inject and learning is active.
+
+#### Scenario: Empty twin changes nothing
+
+- GIVEN no profile is set and there are no active facts (or learning is paused)
+- WHEN any assistant/triage/brief prompt is built
+- THEN the prompt is exactly what it would have been before the twin existed
+
+---
+
+### Requirement: Semantic search is hybrid, degrades gracefully, and Ask is grounded-only
+
+Search SHALL fuse full-text and vector (semantic) retrieval so a paraphrase finds relevant sessions/cards that keyword search alone would miss. When the semantic layer is absent — no embedding model, an empty index, or an embedding-model mismatch — search MUST DEGRADE to exactly today's full-text results plus a non-blocking notice, and MUST NEVER surface an error. The "Ask" answer MUST be GROUNDED-ONLY: it answers strictly from the user's retrieved sessions with visible citations, returns an honest "I don't find that in your sessions" when the retrieved context does not answer, and MUST NEVER fabricate. No model / empty context / generation failure MUST degrade to plain results (no answer), never an error.
+
+#### Scenario: Paraphrase finds what keyword misses
+
+- GIVEN the index is populated and an embedding model is configured
+- WHEN the user searches with wording that does not lexically match the source
+- THEN semantically-related sessions/cards are returned (flagged as semantic hits) that a pure full-text search would not surface
+
+#### Scenario: Degrades to full-text when the semantic layer is unavailable
+
+- GIVEN no embedding model, an empty index, or an embedding-model mismatch
+- WHEN the user searches
+- THEN results are exactly today's full-text results plus a non-blocking notice — never an error
+
+#### Scenario: Ask is honest and cited
+
+- GIVEN a query whose answer is present in the user's sessions
+- WHEN the user asks
+- THEN a cited answer grounded in those sessions is returned
+- AND WHEN the retrieved context does not contain the answer, an honest "I don't find that in your sessions" is returned with no fabricated content
+
+---
+
+### Requirement: Embeddings are local by default and never silently sent to the cloud
+
+Bulk embedding of briefs/cards/transcripts MUST default to a LOCAL model so indexing keeps the app's local-first promise. A CLOUD embedding model MUST require an explicit, visible Settings choice, and at the point of that choice the UI MUST WARN — unmissably — that the user's briefs/transcripts/cards will be sent to that provider (a local choice states the data stays on the device). The index MUST record the embedding model it was built with and, on a model MISMATCH, MUST surface a rebuild affordance rather than mixing incompatible vector spaces.
+
+#### Scenario: Cloud embedding is a visible, warned choice
+
+- GIVEN the user is choosing an embedding model in Settings
+- WHEN they select a cloud provider
+- THEN an at-the-point-of-choice warning states that briefs/transcripts/cards will be sent to that provider (and a local choice states the data stays on-device)
+
+#### Scenario: Model mismatch surfaces a rebuild, never a mixed index
+
+- GIVEN the index was built with one embedding model and the configured model now differs
+- WHEN search runs or Settings is viewed
+- THEN a rebuild affordance is surfaced and vectors from different models are not mixed
+
+---
+
+### Requirement: The Brain grows flat person/topic entities — no entity-entity relationships
+
+Post-session extraction SHALL resolve the concrete PEOPLE and TOPICS a session was about into flat entities, each LINKED to the session(s) it appeared in (provenance), deduped so one real person/topic is a single entity across sessions. These entities SHALL appear in the Brain map (styled distinctly by kind) with entity→session edges, and selecting an entity SHALL show the sessions it is linked to. Entity extraction IS learning (it obeys the same pause kill-switch and post-session-only rule) and MUST be error-isolated. The v3 layer is deliberately FLAT: there MUST be NO typed entity-to-entity relationships (that exceeds a local model's reliable reach and is a later, possibly cloud-escalated phase).
+
+#### Scenario: A session's people/topics become linked entities
+
+- GIVEN learning is active and a session brief exists
+- WHEN entity extraction runs
+- THEN the session's concrete people/topics are stored as flat entities and linked to that session, deduped against existing entities
+
+#### Scenario: The Brain shows entities threaded across sessions
+
+- GIVEN entities linked to one or more sessions
+- WHEN the user opens the Brain and selects an entity node
+- THEN the entity is shown (styled by person/topic kind) with the sessions it is linked to across the workspace
+
+#### Scenario: No entity-to-entity relationships in v3
+
+- GIVEN the flat-entity layer
+- WHEN entities are extracted and rendered
+- THEN only entity↔session links exist — no typed relationships between entities are produced or stored
 
 ---
 

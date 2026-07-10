@@ -87,6 +87,9 @@ const TYPE_COLOR: Record<BrainNodeType, string> = {
   card: 'var(--color-primary-400)',
   decision: 'var(--color-success)',
   question: 'var(--color-warning)',
+  // V3.4 entity nodes — distinct hues per kind (person vs topic).
+  person: 'var(--color-error)',
+  topic: 'var(--color-primary-300)',
 };
 
 // Compact type glyphs (decorative; the accessible name lives on the buttons).
@@ -99,6 +102,8 @@ const TYPE_GLYPH: Record<BrainNodeType, string> = {
   card: '▤',
   decision: '✓',
   question: '?',
+  person: '◐',
+  topic: '◇',
 };
 
 export interface BrainMindMapProps {

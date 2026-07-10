@@ -8,6 +8,9 @@
 //   - SuggestionInspector: decision/question detail, loaded via listLiveSuggestions
 //     filtered to the node's entityId (the live_suggestions row id). Falls back to
 //     the payload label when the meeting/suggestion can't be resolved — never fakes.
+//   - EntityInspector (V3.4): a person/topic entity + the sessions it is linked to
+//     (from the payload node's session children). Each session NAVIGATES via the
+//     host's onOpenEntity ("this person/topic showed up across these sessions").
 //
 // === DEPENDENCIES ===
 // react, projectStore, listLiveSuggestions IPC, shared brain + live-suggestion types
@@ -89,6 +92,51 @@ export function ColumnInspector({ node, onInspectNode }: { node: BrainNode; onIn
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+// --- Entity (person / topic) — V3.4 semantic layer -------------------------
+export function EntityInspector({
+  node,
+  onOpenEntity,
+}: {
+  node: BrainNode;
+  onOpenEntity: (arg: { type: BrainNodeType; entityId: string }) => void;
+}) {
+  // The entity node branches to the sessions it is linked to (payload children).
+  const sessions = node.children.filter((c) => c.type === 'session');
+  const kindLabel = node.type === 'person' ? 'Person' : 'Topic';
+  return (
+    <div data-testid="brain-inspector-entity" className="flex flex-col gap-3">
+      <div>
+        <span className="text-[0.625rem] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--color-accent-subtle)] text-[var(--color-accent)]">
+          {kindLabel}
+        </span>
+        <h3 className="text-base font-semibold text-[var(--color-text-primary)] mt-1 break-words">{node.label}</h3>
+        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+          Linked to {sessions.length} session{sessions.length === 1 ? '' : 's'}
+        </p>
+      </div>
+      {sessions.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {sessions.map((s) => (
+            <li key={s.id}>
+              <button
+                type="button"
+                onClick={() => onOpenEntity({ type: 'session', entityId: s.entityId! })}
+                className="group w-full flex items-center justify-between gap-2 text-left text-sm text-[var(--color-text-secondary)] px-2.5 py-2 rounded-md border border-[var(--color-border)] hover:border-[var(--color-border-accent)] hover:text-[var(--color-text-primary)] transition-colors"
+              >
+                <span className="truncate">{s.label}</span>
+                <ChevronRight
+                  size={14}
+                  className="shrink-0 text-[var(--color-text-muted)] group-hover:text-[var(--color-accent)]"
+                />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

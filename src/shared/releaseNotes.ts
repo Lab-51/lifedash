@@ -52,6 +52,10 @@ export const releaseHistory: ReleaseNotesData[] = [
           "A new Twin Interview Assist row in AI settings lets you route the wizard's optional AI drafting to a different model than Live Assistant, if you'd rather split them.",
           'Deep Creation for your Twin — beyond the manual form, build your profile from a short brief-seeded interview, or from your own meeting history (excerpts, briefs, projects, and cards) with an explicit per-run consent prompt before anything is ever sent to a cloud model. On a frontier provider you can also enrich it with cited public web research. Every path lands an editable draft in review — nothing is saved until you confirm.',
           'Google Gemini is now a first-class AI provider — add a Gemini API key in Settings and route any task (including Twin creation and web research) to it, right alongside OpenAI, Anthropic, and your local models.',
+          'Your Twin now learns from every finished session — it pulls a few durable facts (the people you work with, your projects, preferences, and commitments) out of each brief into a memory you can audit: every fact shows the session it came from, one tap forgets any fact for good, and a single switch pauses all learning.',
+          'Search now understands meaning, not just keywords — a paraphrase finds the right session even when the exact words don\'t match — and a new "Ask" answers questions straight from your own sessions with citations, saying plainly when it doesn\'t find something instead of guessing.',
+          'Semantic search stays local-first: the index is built on-device by default, and choosing a cloud embedding model warns you, right at that moment, that your briefs, transcripts, and cards would be sent — it never happens silently.',
+          "The Brain now grows its first people and topics — each session's key names and subjects become flat entities linked across every session they appear in, so you can see who and what recurs across your work and jump to the sessions behind them.",
         ],
       },
       {
@@ -61,6 +65,7 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Search runs as query-time Postgres full-text search (websearch_to_tsquery) with the query always parameterized — no new indexes or migrations needed at this scale.',
           'The Brain map renders as pure event-driven SVG (d3-hierarchy tidy tree + d3-zoom pan/zoom) — no continuous animation loop, so it costs nothing while idle.',
           'Twin profile context is deterministically serialized and budgeted per task (triage ~800 chars, assistant ~1500, brief ~1200), trimmed at section boundaries only — never mid-sentence — and is a byte-identical no-op when no profile has been authored.',
+          "V3.4 adds a pgvector semantic index (HNSW) over briefs, cards, and transcript chunks with hybrid full-text + vector retrieval (RRF fusion); it degrades to exactly today's full-text results when no embedding model is configured, records the model it was built with (rebuild-on-mismatch), and runs all learning/embedding jobs on an error-isolated post-session seam so they never block a brief.",
         ],
       },
     ],

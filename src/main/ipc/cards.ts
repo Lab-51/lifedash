@@ -35,6 +35,7 @@ import {
 } from '../db/schema';
 import { resolveTaskModel, generate } from '../services/ai-provider';
 import { notifyDataChanged } from '../services/dataChangeNotifier';
+import { enqueueCardEmbed } from '../services/embeddingService';
 import * as attachmentService from '../services/attachmentService';
 import type { Card, Label } from '../../shared/types';
 import { buildCardLabelMap } from '../../shared/utils/card-utils';
@@ -238,7 +239,10 @@ export function registerCardHandlers(): void {
       })
       .returning();
     logCardActivity(card.id, 'created', { title: input.title });
-    notifyDataChanged({ scope: 'cards', projectId: await projectIdForColumn(db, input.columnId) });
+    const createProjectId = await projectIdForColumn(db, input.columnId);
+    notifyDataChanged({ scope: 'cards', projectId: createProjectId });
+    // Fire-and-forget semantic index (V3.4) — never blocks/fails the card write.
+    enqueueCardEmbed(card, createProjectId);
     return card;
   });
 
@@ -279,7 +283,10 @@ export function registerCardHandlers(): void {
         fields: Object.keys(input).filter((k) => k !== 'updatedAt'),
       });
     }
-    notifyDataChanged({ scope: 'cards', projectId: await projectIdForColumn(db, card.columnId) });
+    const updateProjectId = await projectIdForColumn(db, card.columnId);
+    notifyDataChanged({ scope: 'cards', projectId: updateProjectId });
+    // Fire-and-forget semantic index (V3.4) — re-embeds the changed title/description.
+    enqueueCardEmbed(card, updateProjectId);
     return { card, spawnedCard };
   });
 

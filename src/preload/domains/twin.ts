@@ -21,6 +21,8 @@ import type {
   TwinRoleResearchPayload,
   TwinRoleResearchResult,
   TwinCreationModel,
+  TwinFact,
+  TwinMemoryListFilter,
 } from '../../shared/types';
 
 export const twinBridge = {
@@ -44,4 +46,10 @@ export const twinBridge = {
   twinResearchRole: (payload: TwinRoleResearchPayload): Promise<TwinRoleResearchResult> =>
     ipcRenderer.invoke('twin:research-role', payload),
   twinGetCreationModel: (): Promise<TwinCreationModel> => ipcRenderer.invoke('twin:get-creation-model'),
+
+  // Living memory (V3.4) — list / forget / restore learned facts.
+  twinMemoryList: (filter?: TwinMemoryListFilter): Promise<TwinFact[]> =>
+    ipcRenderer.invoke('twin:memory-list', filter),
+  twinMemoryForget: (factId: string): Promise<TwinFact | null> => ipcRenderer.invoke('twin:memory-forget', factId),
+  twinMemoryRestore: (factId: string): Promise<TwinFact | null> => ipcRenderer.invoke('twin:memory-restore', factId),
 };
