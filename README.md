@@ -6,8 +6,8 @@
 
 **Your meetings. Your data. Your machine.**
 
-Free, open-source meeting intelligence that runs entirely on your desktop.
-Record, transcribe, and pull out action items. Nothing leaves your computer.
+Free, open-source meeting intelligence with a **learning digital twin** — running entirely on your desktop.
+Record a meeting and the app *becomes* that session: a profiled AI assistant works alongside you, everything said turns into a living, searchable knowledge graph, and nothing ever leaves your computer.
 
 [![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Lab-51/lifedash/releases/latest)
 [![Install on macOS (Beta)](https://img.shields.io/badge/Install-macOS%20(Beta)-000000?style=for-the-badge&logo=apple&logoColor=white)](#macos)
@@ -28,7 +28,11 @@ Record, transcribe, and pull out action items. Nothing leaves your computer.
 
 ## What is LifeDash?
 
-LifeDash records your meetings, transcribes them locally with Whisper, generates briefs, and pulls out action items. No cloud. No accounts. Push those action items straight to a built-in Kanban board, brainstorm with AI, stay on top of your industry with an Intelligence Feed, track your time. One app.
+LifeDash records your meetings, transcribes them locally with Whisper, and generates briefs and action items — all offline, no accounts. But it goes further than a transcriber: **the recording session is the center of the app.**
+
+A **Digital Twin** — built from a profile of your work and continuously learning from every session — works visibly alongside you during a meeting, answering questions and proposing and creating cards on a built-in Kanban board. Everything it hears builds a **living, queryable brain** (sessions → projects → cards → decisions → people) that you can watch grow as a mind map and search in plain language — *"what did we decide about pricing?"* — **answered, with citations, from your own past meetings.**
+
+All of it runs **100% locally by default** — audio, transcription, reasoning, embeddings, and memory never have to leave the machine. Cloud is a per-task, clearly-labeled opt-in.
 
 ### Platform Support
 
@@ -49,7 +53,8 @@ LifeDash records your meetings, transcribes them locally with Whisper, generates
 | AI briefs & summaries | Yes | Yes | Yes | Yes |
 | Action item extraction | Yes | Yes | Yes | Yes |
 | Project management | Yes | No | No | No |
-| Intelligence feed | Yes | No | No | No |
+| Learning digital-twin assistant | Yes | No | No | No |
+| Ask your own meetings (cited, local) | Yes | No | No | No |
 | Bring your own AI key | Yes | No | No | No |
 | Open source | Yes | No | No | No |
 | **Price** | **Free** | **$204/yr** | **$216/yr** | **$384/yr** |
@@ -63,7 +68,7 @@ LifeDash records your meetings, transcribes them locally with Whisper, generates
 1. Go to the [latest release](https://github.com/Lab-51/lifedash/releases/latest)
 2. Download `LifeDash-X.X.X-Setup.exe`
 3. Run the installer
-4. Open LifeDash, add your AI API key in the setup wizard, and start recording
+4. Open LifeDash, add your AI API key (or point it at a local model) in the setup wizard, and start recording
 
 ### macOS
 
@@ -89,48 +94,47 @@ brew tap lab-51/lifedash && brew install --cask lifedash
 
 ## Features
 
+### The Session Workspace
+- The recording session is home — **Transcript · Board · Brain** on one switchable canvas
+- A live rail for the brief, action items, twin proposals, and a session activity feed
+- The relevant Kanban board is embedded right in the session — cards appear and move live as they're created, without leaving the conversation
+- Post-meeting, each session is its own full page you can revisit, search, and continue working from
+
+### The Digital Twin
+- Author a profile of the professional you are — through a guided wizard (fully manual, or with an optional local-AI "Interview me" draft you always review), from a short brief, or mined from your own meeting history with explicit per-run consent
+- Once authored, the Twin is woven into the **live assistant, live triage, and briefs** — so they speak your vocabulary, track your projects and people, and match your tone, within a strict budget that never crowds out the meeting
+- **It learns from every finished session** — distilling a few durable facts (people, projects, preferences, commitments) into an **auditable memory**: every fact links to the session it came from, one tap forgets it for good, and a single switch pauses all learning
+- Optional cited web research and deep, orchestrated profile creation on a frontier provider — nothing is saved until you confirm
+
 ### Meeting Intelligence
 - Record system audio + microphone
 - Real-time transcription (local Whisper or cloud providers)
 - AI-generated meeting briefs and summaries
-- Automatic action item extraction
+- Automatic action item extraction, turned into board cards in one click
 - Speaker diarization and meeting analytics
-- Searchable transcript archive
-- Meeting templates (standup, retro, planning, etc.)
+- A proactive in-meeting assistant that proposes actions (propose → one-tap accept) and executes board work as you talk
 
-### From Action Items to Project Board
-- Turn action items into Kanban cards in one click
-- Link meetings to projects
+### The Living Brain
+- A collapsible **mind map** of your workspace — or a single session — rendered from your own local data
+- It **grows live** during a meeting: new cards fade in, with a badge on collapsed branches so nothing is missed
+- Hover any card, decision, or question to trace its provenance back to the session it came from
+- Its first **semantic layer**: the people and topics from each meeting become entities linked across every session they appear in
+
+### Search That Understands Meaning
+- Full-text search across sessions, transcripts, briefs, cards, and projects — grouped, ranked, one click to jump in
+- **Semantic search:** a paraphrase finds the right session even when the words don't match
+- **Ask:** get a short, cited answer drawn straight from your own sessions — and an honest "I don't find that in your sessions" instead of a guess
+- **Local-first:** the index is built on-device by default; choosing a cloud embedding model warns you, at that moment, that your content would be sent — it never happens silently
+
+### Project Board
+- Turn action items into Kanban cards, seen through the sessions that created them
 - Drag-and-drop cards with customizable columns
-- Card detail view with rich text, comments, checklists, due dates
-- Labels, tags, and search across all projects
-
-### Intelligence Feed
-- RSS aggregation from sources you choose
-- AI-generated daily briefs that summarize what matters across your feed
-- Trending topic analysis across all your sources
-- In-app article reader with magazine-style typography
-- Reddit comments integration for linked discussions
-- Bookmark articles for later reading
-- Search across all articles by keyword
-- Chat with your daily brief for deeper exploration
-
-### AI Agents
-- **Card Agent**: AI assistant per task (tool-calling, checklist management, research)
-- **Project Agent**: AI assistant per project (cross-board intelligence)
-- **Background Agents**: Autonomous project analysis and insights
-- **Brainstorm Sessions**: Conversational AI for ideation with project context
-- **Idea Repository**: Capture, tag, analyze, and convert ideas to projects
-
-### Focus & Time Tracking
-- Pomodoro-style focus sessions
-- Billable time tracking with hourly rates
-- Project-level time reports
-- CSV export for invoicing
+- Card detail view with rich text, comments, checklists, due dates, labels, and tags
+- **Card & Project Agents** (tool-calling AI per card/board) and **background agents** for autonomous stale-card detection and project insights
 
 ### Privacy by Design
-- All data stored locally in embedded PostgreSQL (PGlite)
-- Audio recordings stay on your machine
+- All data stored locally in embedded PostgreSQL (PGlite); audio recordings stay on your machine
+- Local reasoning (LM Studio / Ollama) and **local embeddings** by default — cloud is a per-task, visible opt-in that warns before sending bulk content
 - AI uses YOUR API keys. We never see your data
 - Optional cloud sync (Supabase) — off by default, fully opt-in
 - Encrypted API key storage via OS keychain
@@ -142,8 +146,8 @@ brew tap lab-51/lifedash && brew install --cask lifedash
 - **Database integrity checks** — Every startup verifies your data is intact across all tables, with automatic retry if the database is slow to connect
 - **Atomic backup/restore** — Restores run inside a database transaction. If anything goes wrong mid-restore, the whole thing rolls back and your original data stays untouched
 - **Structured logging** — Daily log files with automatic rotation make it easy to diagnose issues without digging through console output
-- **Graceful AI degradation** — If your AI provider is down or misconfigured, you get fallback summaries and clear error messages instead of crashes or silent failures
-- **Keyboard accessible** — Every modal in the app traps focus properly, cycles with Tab/Shift+Tab, and closes with Escape. Screen readers work out of the box
+- **Graceful AI degradation** — If your AI provider is down or misconfigured, you get fallback behavior and clear error messages instead of crashes or silent failures; learning and semantic-index jobs are error-isolated so they can never break a brief
+- **Keyboard accessible** — Every modal traps focus properly, cycles with Tab/Shift+Tab, and closes with Escape. Screen readers work out of the box
 - **Input validation everywhere** — Every IPC channel validates its inputs at runtime with Zod schemas, not just at compile time
 - **Optional crash reporting** — Opt-in Sentry integration strips all personal data (file paths, API keys) before sending. Off by default, always under your control
 - **"What's New" on update** — After each update, a release notes modal shows what changed so you always know what's new
@@ -175,6 +179,7 @@ No database setup. The app uses PGlite (embedded PostgreSQL) and runs migrations
 ### Configuration
 
 - **AI API keys:** Set them in the Settings page. Keys are stored using OS-level encryption via Electron safeStorage.
+- **Local models:** Point any task at LM Studio or Ollama for fully-private reasoning. Semantic search needs a local embedding model (e.g. a multilingual EmbeddingGemma-300M-class model in LM Studio) assigned to the Embedding task.
 - **Whisper model:** Download and manage local Whisper models from Settings.
 - **Transcription providers:** Deepgram and AssemblyAI can be configured as cloud alternatives to local Whisper.
 - **Cloud sync:** Optionally sign in with Supabase to sync data across devices. Off by default.
@@ -209,12 +214,15 @@ No database setup. The app uses PGlite (embedded PostgreSQL) and runs migrations
 | Runtime | Electron |
 | Frontend | React 19 + TypeScript |
 | Styling | Tailwind CSS 4 |
-| Database | PGlite (embedded WASM PostgreSQL) |
+| Database | PGlite (embedded WASM PostgreSQL) + pgvector |
 | ORM | Drizzle ORM |
 | AI SDK | Vercel AI SDK |
-| AI Providers | OpenAI, Anthropic, Ollama, Kimi |
+| AI Providers | OpenAI, Anthropic, Google (Gemini), LM Studio, Ollama, Kimi |
+| Embeddings | Local by default (LM Studio) — on-device semantic index |
+| Semantic search | pgvector (HNSW) + Postgres full-text, hybrid RRF fusion |
 | Transcription Providers | Deepgram, AssemblyAI |
 | Transcription | @fugood/whisper.node (local) |
+| Brain / mind map | d3-hierarchy + d3-zoom (event-driven SVG) |
 | Drag and Drop | @atlaskit/pragmatic-drag-and-drop |
 | State | Zustand |
 | Rich Text | TipTap |
@@ -230,15 +238,15 @@ No database setup. The app uses PGlite (embedded PostgreSQL) and runs migrations
 ```
 src/
   main/               # Electron main process
-    db/                # Schema, migrations, connection
-    ipc/               # IPC handlers (100+ channels across 17 modules)
-    services/          # Business logic (AI, transcription, backup, etc.)
+    db/                # Schema, migrations, connection (PGlite + pgvector)
+    ipc/               # IPC handlers (100+ channels)
+    services/          # Business logic (AI, transcription, twin, embeddings, brain, backup)
     workers/           # Background workers (transcription)
   preload/             # Electron preload bridge
   renderer/            # React frontend
-    components/        # Reusable UI components
+    components/        # Session workspace, Twin, Brain mind map, Board, Settings, UI
     hooks/             # Custom React hooks
-    pages/             # Route pages (Board, Meetings, Ideas, etc.)
+    pages/             # Route pages (Sessions, session detail, Twin, Board, Settings)
     services/          # Frontend service layer
     stores/            # Zustand state management
     styles/            # Global styles
