@@ -211,10 +211,15 @@ for (const artifact of files) {
   console.log(`  ${artifact.description}: ${artifact.path}`);
 }
 
-// Create a draft release (fails gracefully if tag already exists)
+// Create a draft release (fails gracefully if tag already exists).
+// --generate-notes makes this NON-INTERACTIVE (auto-fills notes from the
+// previous release). Without a notes source, gh prompts for release notes and
+// opens $EDITOR — which fails on Windows when the resolved editor path is bad
+// (e.g. a mangled "C:WINDOWSnotepad.exe"), aborting the whole publish. The draft
+// notes stay fully editable in the GitHub UI before you hit Publish.
 try {
   execSync(
-    `${gh} release create ${tag} --draft --repo ${repo} --title "${tag}"`,
+    `${gh} release create ${tag} --draft --repo ${repo} --title "${tag}" --generate-notes`,
     { stdio: 'inherit', cwd: ROOT }
   );
   console.log(`\nDraft release created: ${tag}`);
