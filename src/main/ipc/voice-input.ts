@@ -23,7 +23,16 @@ export function registerVoiceInputHandlers(): void {
     const validBuffer = validateInput(voiceAudioBufferSchema, audioBuffer);
 
     const config = await transcriptionProviderService.getConfig();
-    const provider = config.type;
+    let provider = config.type;
+
+    // LOCAL-ONLY ENFORCEMENT (second cloud-dispatch site — voice input reaches the
+    // Deepgram/AssemblyAI transcribers independently of transcriptionService): if
+    // the privacy control is on, never reach a cloud transcriber — force the local
+    // Whisper path for this request too. No unguarded second path.
+    if (provider !== 'local' && (await transcriptionProviderService.isLocalOnly())) {
+      log.warn(`Local-only mode is on — cloud provider '${provider}' blocked for voice input; using local Whisper`);
+      provider = 'local';
+    }
 
     // Resolve language from settings, unwrapping any mixed-language preset
     const db = getDb();

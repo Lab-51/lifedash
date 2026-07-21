@@ -4,6 +4,7 @@ export * from './projects';
 export * from './cards';
 export * from './ai';
 export * from './meetings';
+export * from './recording';
 export * from './intelligence';
 export * from './whisper';
 export * from './ideas';

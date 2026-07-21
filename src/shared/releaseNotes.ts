@@ -57,6 +57,10 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Search now understands meaning, not just keywords — a paraphrase finds the right session even when the exact words don\'t match — and a new "Ask" answers questions straight from your own sessions with citations, saying plainly when it doesn\'t find something instead of guessing.',
           'Semantic search stays local-first: the index is built on-device by default, and choosing a cloud embedding model warns you, right at that moment, that your briefs, transcripts, and cards would be sent — it never happens silently.',
           "The Brain now grows its first people and topics — each session's key names and subjects become flat entities linked across every session they appear in, so you can see who and what recurs across your work and jump to the sessions behind them.",
+          'A recording left running in silence now warns you before it does anything — after 10 minutes of no audio (configurable, or turn it off entirely in Settings), a banner and desktop notification start a 2-minute countdown with a one-tap "Keep recording", and if it\'s genuinely unattended the recording stops the normal, clean way and is saved just like any other meeting.',
+          'A new "Local-only transcription" switch in Settings guarantees meeting audio never leaves your machine — it overrides any cloud provider back to local Whisper for every recording, and blocks the one operation (speaker diarization) that has no local equivalent rather than letting it slip through.',
+          'Switching your transcription provider from local Whisper to a cloud service (Deepgram, AssemblyAI) now asks for explicit confirmation every time, naming exactly which provider your audio would be sent to — nothing is sent until you confirm, and declining keeps you on local.',
+          'Every AI provider and transcription option in Settings now carries a small "Local" or "Cloud" badge so you can see at a glance where your data goes before you choose.',
         ],
       },
       {
@@ -67,6 +71,7 @@ export const releaseHistory: ReleaseNotesData[] = [
           'The Brain map renders as pure event-driven SVG (d3-hierarchy tidy tree + d3-zoom pan/zoom) — no continuous animation loop, so it costs nothing while idle.',
           'Twin profile context is deterministically serialized and budgeted per task (triage ~800 chars, assistant ~1500, brief ~1200), trimmed at section boundaries only — never mid-sentence — and is a byte-identical no-op when no profile has been authored.',
           "V3.4 adds a pgvector semantic index (HNSW) over briefs, cards, and transcript chunks with hybrid full-text + vector retrieval (RRF fusion); it degrades to exactly today's full-text results when no embedding model is configured, records the model it was built with (rebuild-on-mismatch), and runs all learning/embedding jobs on an error-isolated post-session seam so they never block a brief.",
+          "Fixed macOS auto-update, which had been silently compiled out of every release since 2.2.34: the release build now sets OFFICIAL_BUILD at build time (both locally and in CI), and the publish preflight fails fast if it's missing instead of shipping another update-less build.",
         ],
       },
     ],

@@ -6,7 +6,7 @@
 // === DEPENDENCIES ===
 // react, lucide-react (Mic, Square, Loader2), recordingStore, audioCaptureService
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Square, X, Loader2, Trash2, FolderOpen, FileText, Globe } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useRecordingStore } from '../stores/recordingStore';
@@ -17,6 +17,13 @@ import type { MeetingTemplateType } from '../../shared/types';
 import HudSelect from './HudSelect';
 import AudioLevelMeter from './AudioLevelMeter';
 import { suggestMeetingTitle } from '../../shared/utils/meetingTitle';
+import { toast } from '../hooks/useToast';
+import {
+  SETTING_AUTO_STOP_MINUTES,
+  DEFAULT_AUTO_STOP_MINUTES,
+  INACTIVITY_COUNTDOWN_SECONDS,
+  clampAutoStopMinutes,
+} from '../../shared/types/recording';
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -154,6 +161,8 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
   const isRecording = useRecordingStore((s) => s.isRecording);
   const isProcessing = useRecordingStore((s) => s.isProcessing);
   const liveModeMinimized = useRecordingStore((s) => s.liveModeMinimized);
+  const inactivityState = useRecordingStore((s) => s.inactivityState);
+  const keepRecording = useRecordingStore((s) => s.keepRecording);
   const elapsed = useRecordingStore((s) => s.elapsed);
   const error = useRecordingStore((s) => s.error);
   const starting = useRecordingStore((s) => s.starting);
@@ -247,6 +256,59 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
       }
     })();
   }, [selectedLanguage]);
+
+  // GUARD.1 Task 2 — observer for the inactivity countdown starting (recordingStore's
+  // onWarn transition). This component is always mounted during recording, so it owns
+  // the IPC/toast side effects the store deliberately stays free of (Session Decisions).
+  // Depends only on inactivityState (not inactivitySecondsLeft) so it fires exactly
+  // once per countdown episode, never on the per-second tick.
+  useEffect(() => {
+    if (inactivityState !== 'countdown') return;
+
+    // Minimized path: the full-screen banner isn't visible, so surface a toast with
+    // the same "Keep recording" escape hatch. Kept up for the whole countdown window
+    // so it doesn't disappear before the auto-stop it's warning about.
+    if (liveModeMinimized) {
+      toast(
+        'No audio detected — still recording?',
+        'info',
+        { label: 'Keep recording', onClick: keepRecording },
+        INACTIVITY_COUNTDOWN_SECONDS * 1000,
+      );
+    }
+
+    // Desktop notification fires once per episode regardless of minimized state —
+    // an OS-level alert the user may see even when LifeDash isn't the focused window.
+    void (async () => {
+      let minutes = DEFAULT_AUTO_STOP_MINUTES;
+      try {
+        const raw = await window.electronAPI.getSetting(SETTING_AUTO_STOP_MINUTES);
+        minutes = clampAutoStopMinutes(parseInt(raw ?? '', 10));
+      } catch {
+        // Settings unavailable — fall back to the default in the notification copy.
+      }
+      await window.electronAPI.notificationShow(
+        'Still recording?',
+        `No audio for ${minutes} minutes — LifeDash will stop the recording in 2 minutes.`,
+      );
+    })();
+    // liveModeMinimized/keepRecording are read at the moment the countdown starts —
+    // deliberately excluded so a later minimize/restore mid-countdown can't re-fire this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inactivityState]);
+
+  // Detect an UNATTENDED auto-stop: the countdown was running and it AND the recording
+  // both ended together (vs. "Keep recording" / audio resuming, which clear the
+  // countdown while isRecording stays true). Explains the stop to a returning user —
+  // the normal stopRecording flow already covers the separate "Meeting processed" toast.
+  const prevGuardRef = useRef({ inactivityState, isRecording });
+  useEffect(() => {
+    const prev = prevGuardRef.current;
+    prevGuardRef.current = { inactivityState, isRecording };
+    if (prev.inactivityState === 'countdown' && inactivityState === 'idle' && prev.isRecording && !isRecording) {
+      toast('Recording auto-stopped after inactivity — session saved', 'info', undefined, 6000);
+    }
+  }, [inactivityState, isRecording]);
 
   const handleLanguageChange = async (value: string) => {
     setSelectedLanguage(value);

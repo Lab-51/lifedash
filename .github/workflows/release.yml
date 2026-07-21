@@ -46,6 +46,7 @@ jobs:
         run: npx electron-forge make
         env:
           SKIP_OBFUSCATION: 'true'
+          OFFICIAL_BUILD: 'true'
 
       # Extract version from tag
       - name: Extract version from tag

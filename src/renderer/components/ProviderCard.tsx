@@ -5,16 +5,33 @@
 import { memo, useState } from 'react';
 import { CheckCircle, XCircle, Loader2, Trash2, Eye, EyeOff, Power, Zap, Key, Globe } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
-import type { AIProvider } from '../../shared/types';
+import type { AIProvider, AIProviderName } from '../../shared/types';
 
-// Provider display metadata
-const PROVIDER_META: Record<string, { label: string; color: string }> = {
-  openai: { label: 'OpenAI', color: '#10a37f' },
-  anthropic: { label: 'Anthropic', color: '#d4a574' },
-  google: { label: 'Google', color: '#4285f4' },
-  ollama: { label: 'Ollama', color: '#ffffff' },
-  kimi: { label: 'Kimi', color: '#6366f1' },
+/** Local providers run entirely on-device; cloud providers send data off-device. */
+type Privacy = 'local' | 'cloud';
+
+// Provider display metadata. `Record<AIProviderName, ...>` makes omitting a
+// provider a compile error, so this stays exhaustive as providers are added.
+// Exported so tests can assert the privacy classification at runtime.
+export const PROVIDER_META: Record<AIProviderName, { label: string; color: string; privacy: Privacy }> = {
+  openai: { label: 'OpenAI', color: '#10a37f', privacy: 'cloud' },
+  anthropic: { label: 'Anthropic', color: '#d4a574', privacy: 'cloud' },
+  google: { label: 'Google', color: '#4285f4', privacy: 'cloud' },
+  ollama: { label: 'Ollama', color: '#ffffff', privacy: 'local' },
+  lmstudio: { label: 'LM Studio', color: '#a855f7', privacy: 'local' },
+  kimi: { label: 'Kimi', color: '#6366f1', privacy: 'cloud' },
 };
+
+/** Small badge signaling whether a provider processes data locally or in the cloud. */
+function PrivacyPill({ privacy }: { privacy: Privacy }) {
+  return privacy === 'local' ? (
+    <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-[var(--color-accent-muted)] text-[var(--color-accent)] font-medium">
+      Local
+    </span>
+  ) : (
+    <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-medium">Cloud</span>
+  );
+}
 
 interface ProviderCardProps {
   provider: AIProvider;
@@ -31,7 +48,9 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const testState = connectionTests[provider.id];
-  const meta = PROVIDER_META[provider.name] || { label: provider.name, color: '#888' };
+  // Defensive fallback for a provider.name not present in PROVIDER_META (e.g. a stale DB
+  // row from a removed provider) — defaults privacy to 'cloud' rather than assuming 'local'.
+  const meta = PROVIDER_META[provider.name] || { label: provider.name, color: '#888', privacy: 'cloud' as Privacy };
 
   const handleToggleEnabled = async () => {
     await updateProvider(provider.id, { enabled: !provider.enabled });
@@ -70,6 +89,7 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
           {provider.displayName && (
             <span className="text-xs text-[var(--color-text-muted)] font-data">({provider.displayName})</span>
           )}
+          <PrivacyPill privacy={meta.privacy} />
         </div>
         <button
           onClick={handleToggleEnabled}
@@ -101,6 +121,14 @@ const ProviderCard = memo(function ProviderCard({ provider }: ProviderCardProps)
           </span>
         )}
       </div>
+
+      {/* Kimi-specific privacy note — factual, not comparative to other cloud providers */}
+      {provider.name === 'kimi' && (
+        <p className="mb-3 text-xs text-amber-400 leading-snug">
+          Data is processed by Moonshot AI&apos;s cloud infrastructure; review their data policy before routing
+          sensitive meetings here.
+        </p>
+      )}
 
       {/* API Key edit section (inline, toggleable) */}
       {editingKey && (

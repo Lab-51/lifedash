@@ -95,6 +95,20 @@ export async function diarizeMeeting(
   meetingId: string,
 ): Promise<{ success: boolean; speakers: string[]; error?: string }> {
   try {
+    // 0. LOCAL-ONLY ENFORCEMENT (third cloud-dispatch site — GUARD.1 Task 4):
+    // diarization can ONLY run against a cloud provider (Whisper has no diarization),
+    // so under local-only mode it must be blocked outright — there is no local
+    // fallback. This closes the gap where a leftover cloud API key would ship the
+    // whole meeting WAV to Deepgram/AssemblyAI even while the active provider is
+    // 'local' (see resolveProvider). Checked FIRST, before any file/DB work.
+    if (await transcriptionProviderService.isLocalOnly()) {
+      return {
+        success: false,
+        speakers: [],
+        error: 'Local-only transcription is on — speaker diarization requires a cloud provider and is unavailable.',
+      };
+    }
+
     // 1. Load meeting with transcript
     const meeting = await meetingService.getMeeting(meetingId);
     if (!meeting) {

@@ -91,7 +91,24 @@ function checkNodeVersion() {
 }
 
 /**
- * 2. GITHUB_TOKEN env var is set.
+ * 2. OFFICIAL_BUILD env var is set.
+ *    This is a build-time flag (read by vite.main.config.ts) that gates
+ *    whether the Electron auto-updater is compiled into the app at all.
+ *    Fork/dev builds must stay ungated (never set this automatically), but
+ *    an official publish MUST set it explicitly or the shipped app silently
+ *    has no auto-updater -- this is why 2.2.34 users could not auto-update.
+ */
+function checkOfficialBuild() {
+  if (process.env.OFFICIAL_BUILD === 'true') {
+    pass('OFFICIAL_BUILD=true is set');
+  } else {
+    fail('OFFICIAL_BUILD is not set to \'true\' — the auto-updater is compiled out ' +
+      'otherwise; this is why 2.2.34 users could not auto-update. Set OFFICIAL_BUILD=true.');
+  }
+}
+
+/**
+ * 3. GITHUB_TOKEN env var is set.
  */
 function checkGithubToken() {
   if (process.env.GITHUB_TOKEN) {
@@ -102,7 +119,7 @@ function checkGithubToken() {
 }
 
 /**
- * 3. gh CLI is installed.
+ * 4. gh CLI is installed.
  *    Returns the resolved gh path (or null) for use by the auth check.
  */
 function checkGhInstalled() {
@@ -138,7 +155,7 @@ function checkGhInstalled() {
 }
 
 /**
- * 4. gh CLI is authenticated.
+ * 5. gh CLI is authenticated.
  */
 function checkGhAuth(ghPath) {
   if (!ghPath) {
@@ -155,7 +172,7 @@ function checkGhAuth(ghPath) {
 }
 
 /**
- * 5. Inno Setup installed (Windows only).
+ * 6. Inno Setup installed (Windows only).
  */
 function checkInnoSetup() {
   if (platform !== 'win32') {
@@ -187,7 +204,7 @@ function checkInnoSetup() {
 }
 
 /**
- * 6. Working tree is clean.
+ * 7. Working tree is clean.
  */
 function checkCleanTree() {
   const result = tryExec('git status --porcelain');
@@ -212,7 +229,7 @@ function checkCleanTree() {
 }
 
 /**
- * 7. Remote detection — identify owner/repo from origin URL.
+ * 8. Remote detection — identify owner/repo from origin URL.
  */
 function checkRemote() {
   const result = tryExec('git remote get-url origin');
@@ -264,6 +281,7 @@ console.log('='.repeat(50));
 console.log('');
 
 checkNodeVersion();
+checkOfficialBuild();
 checkGithubToken();
 const ghPath = checkGhInstalled();
 checkGhAuth(ghPath);

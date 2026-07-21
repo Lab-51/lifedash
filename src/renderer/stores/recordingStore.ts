@@ -11,10 +11,21 @@
 
 import { create } from 'zustand';
 import * as audioCaptureService from '../services/audioCaptureService';
+import {
+  startInactivityDetector,
+  stopInactivityDetector,
+  keepRecording as keepRecordingDetector,
+} from '../services/inactivityDetectorService';
 import { useGamificationStore } from './gamificationStore';
 import { useMeetingStore } from './meetingStore';
 import { toast } from '../hooks/useToast';
 import type { RecordingState, MeetingTemplateType, TranscriptionProgress, TranscriptSegment } from '../../shared/types';
+import {
+  SETTING_AUTO_STOP_ENABLED,
+  SETTING_AUTO_STOP_MINUTES,
+  INACTIVITY_COUNTDOWN_SECONDS,
+  clampAutoStopMinutes,
+} from '../../shared/types/recording';
 
 interface RecordingStore {
   // State
@@ -33,6 +44,14 @@ interface RecordingStore {
   liveSegments: TranscriptSegment[];
   /** When true, the full-screen LiveModeOverlay is collapsed to the recording pill. Reset to false on each new recording. */
   liveModeMinimized: boolean;
+  /**
+   * Inactivity auto-stop guard state (GUARD.1). 'countdown' means sustained
+   * silence hit the threshold and the auto-stop countdown is running; 'idle'
+   * otherwise. Task 2 renders the warning banner purely from this + inactivitySecondsLeft.
+   */
+  inactivityState: 'idle' | 'countdown';
+  /** Seconds remaining in the auto-stop countdown (0 when not counting down). */
+  inactivitySecondsLeft: number;
 
   // Actions
   setIncludeMic: (value: boolean) => void;
@@ -49,6 +68,8 @@ interface RecordingStore {
   ) => Promise<void>;
   stopRecording: () => Promise<void>;
   cancelRecording: () => Promise<void>;
+  /** User pressed "Keep recording": cancel the inactivity countdown and resume monitoring. */
+  keepRecording: () => void;
   clearCompletedMeetingId: () => void;
   initListener: () => () => void;
 }
@@ -67,6 +88,8 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   processingProgress: null,
   liveSegments: [],
   liveModeMinimized: false,
+  inactivityState: 'idle',
+  inactivitySecondsLeft: 0,
 
   setIncludeMic: (value: boolean) => set({ includeMic: value }),
   setPrepBriefing: (text: string | null) => set({ prepBriefing: text }),
@@ -119,6 +142,30 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       // Notify main process that recording is active (close guard)
       window.electronAPI.recordingSetState(true);
 
+      // Step 6: Start the inactivity auto-stop guard when enabled (default ON).
+      // Renderer-side because audio level is renderer-side; the store callbacks
+      // only mutate the inactivity slice + stop via the normal path — no UI here.
+      try {
+        const rawEnabled = await window.electronAPI.getSetting(SETTING_AUTO_STOP_ENABLED);
+        // Unset/null → default true, mirroring meetings:autoPushEnabled.
+        if (rawEnabled !== 'false') {
+          const rawMinutes = await window.electronAPI.getSetting(SETTING_AUTO_STOP_MINUTES);
+          const minutes = clampAutoStopMinutes(parseInt(rawMinutes ?? '', 10));
+          startInactivityDetector({
+            thresholdMinutes: minutes,
+            onWarn: () => set({ inactivityState: 'countdown', inactivitySecondsLeft: INACTIVITY_COUNTDOWN_SECONDS }),
+            onCountdownTick: (secondsLeft) => set({ inactivitySecondsLeft: secondsLeft }),
+            onAutoStop: () => {
+              set({ inactivityState: 'idle', inactivitySecondsLeft: 0 });
+              void get().stopRecording();
+            },
+            onActivityResume: () => set({ inactivityState: 'idle', inactivitySecondsLeft: 0 }),
+          });
+        }
+      } catch {
+        // Settings unavailable — skip the inactivity guard (non-fatal).
+      }
+
       set({
         isRecording: true,
         meetingId: meeting.id,
@@ -127,6 +174,8 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         prepBriefing: null,
         // Auto-enter Live Mode: a new recording always starts as the full-screen takeover.
         liveModeMinimized: false,
+        inactivityState: 'idle',
+        inactivitySecondsLeft: 0,
       });
     } catch (error) {
       // Clean up if anything failed
@@ -154,7 +203,10 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
 
   stopRecording: async () => {
     const meetingId = get().meetingId;
-    set({ isRecording: false, isProcessing: true });
+    // Tear down the inactivity guard first so no stray countdown/poll fires
+    // during processing.
+    stopInactivityDetector();
+    set({ isRecording: false, isProcessing: true, inactivityState: 'idle', inactivitySecondsLeft: 0 });
 
     // Notify main process that recording has stopped (close guard)
     window.electronAPI.recordingSetState(false);
@@ -212,7 +264,14 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
 
   cancelRecording: async () => {
     const meetingId = get().meetingId;
-    set({ isRecording: false, isProcessing: false, processingProgress: null });
+    stopInactivityDetector();
+    set({
+      isRecording: false,
+      isProcessing: false,
+      processingProgress: null,
+      inactivityState: 'idle',
+      inactivitySecondsLeft: 0,
+    });
     window.electronAPI.recordingSetState(false);
     try {
       audioCaptureService.onAudioInterrupted(null);
@@ -225,6 +284,11 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       /* best-effort cleanup */
     }
     set({ meetingId: null, elapsed: 0, lastTranscript: '', liveSegments: [] });
+  },
+
+  keepRecording: () => {
+    keepRecordingDetector();
+    set({ inactivityState: 'idle', inactivitySecondsLeft: 0 });
   },
 
   clearCompletedMeetingId: () => set({ completedMeetingId: null }),

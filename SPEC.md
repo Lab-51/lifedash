@@ -9,7 +9,7 @@
 
 ## Purpose
 
-LifeDash is a session-centric, local-first meeting-intelligence app. This register holds behavior contracts per domain. It covers the **Digital Twin** domain (V3.3 + V3.3.5 "Deep Creation"): the user profile that personalizes every AI surface, how it is authored — manually or via the deep-creation paths (deep interview, history mining, web enrichment) — and how the app behaves with and without it. It also covers the **V3.4 living layer**: the twin that keeps learning from finished sessions (auditable memory with a safety triad), semantic search with a grounded "Ask", the embedding index (local-by-default, no silent cloud), and the Brain's first flat person/topic entities.
+LifeDash is a session-centric, local-first meeting-intelligence app. This register holds behavior contracts per domain. It covers the **Digital Twin** domain (V3.3 + V3.3.5 "Deep Creation"): the user profile that personalizes every AI surface, how it is authored — manually or via the deep-creation paths (deep interview, history mining, web enrichment) — and how the app behaves with and without it. It also covers the **V3.4 living layer**: the twin that keeps learning from finished sessions (auditable memory with a safety triad), semantic search with a grounded "Ask", the embedding index (local-by-default, no silent cloud), and the Brain's first flat person/topic entities. It also covers the **Recording Guard** domain (GUARD.1): the inactivity auto-stop safeguard for forgotten recordings, and the transcription-provider privacy controls (local-only enforcement, cloud-switch consent).
 
 ## Requirements
 
@@ -326,6 +326,78 @@ Post-session extraction SHALL resolve the concrete PEOPLE and TOPICS a session w
 - GIVEN the flat-entity layer
 - WHEN entities are extracted and rendered
 - THEN only entity↔session links exist — no typed relationships between entities are produced or stored
+
+---
+
+### Requirement: Recording auto-stop warns first, is one-action cancellable, and stays on the clean stop path
+
+A recording session SHALL monitor for sustained audio silence and, after a configurable threshold (default 10 minutes, adjustable 2-120), MUST warn the user with a visible countdown before taking any stopping action — it MUST NEVER stop a recording silently. The warning MUST be cancellable in a single action ("Keep recording") that cancels the countdown and returns the session to normal monitoring with no interruption. If the countdown elapses unattended, auto-stop MUST invoke the SAME clean stop path used by a manual stop (audio saved, meeting finalized, normal processing) — never a distinct or partial teardown. The feature MUST be disableable via a settings toggle and defaults to enabled.
+
+#### Scenario: Warning precedes any stop action
+
+- GIVEN a recording is active and audio has been silent for the configured threshold
+- WHEN the threshold is reached
+- THEN a warning banner and notification start a fixed countdown and no stop action occurs yet
+
+#### Scenario: One-action cancel resumes monitoring
+
+- GIVEN the auto-stop countdown is running
+- WHEN the user chooses "Keep recording"
+- THEN the countdown is cancelled in that single action and monitoring resumes with no recording interruption
+
+#### Scenario: Unattended countdown uses the normal clean stop path
+
+- GIVEN the countdown expires with no user action
+- WHEN auto-stop fires
+- THEN the recording stops via the same path as a manual stop (audio saved, meeting finalized) and the user sees a distinct "auto-stopped" confirmation
+
+#### Scenario: Auto-stop is disableable
+
+- GIVEN the user turns off auto-stop in Settings
+- WHEN a recording runs silent for any duration
+- THEN no warning or stop occurs
+
+---
+
+### Requirement: Local-only transcription blocks all cloud audio transmission
+
+When the local-only transcription setting is enabled, the app MUST NOT transmit meeting audio to any network transcription service, regardless of which provider is otherwise configured or selected. This MUST be enforced at every site that can dispatch audio off-device (transcription start, live voice input, and speaker diarization) and MUST be enforced in the MAIN process, not only reflected in UI state — a privacy control that UI state alone enforces is not a real control. A previously configured cloud provider MUST be overridden to local Whisper for the recording; an operation with no local equivalent (e.g. diarization) MUST be blocked outright rather than silently allowed through.
+
+#### Scenario: Local-only overrides an active cloud provider
+
+- GIVEN local-only transcription is enabled and a cloud provider is selected
+- WHEN a recording starts
+- THEN transcription runs on local Whisper and no audio is sent to the cloud provider
+
+#### Scenario: An operation with no local fallback is blocked, not silently degraded
+
+- GIVEN local-only transcription is enabled
+- WHEN an operation with no local equivalent (e.g. speaker diarization) would otherwise dispatch audio to a cloud provider
+- THEN the operation is blocked rather than allowed to leak audio
+
+---
+
+### Requirement: Switching to a cloud transcription provider requires explicit consent
+
+Every switch of the active transcription provider from local Whisper to a cloud provider SHALL require the user's explicit, per-switch consent via a dialog that names the destination provider; the switch MUST NOT be persisted before the user confirms, and declining MUST leave the provider on local. This consent gate is per-SWITCH, not per-recording — it MUST appear on every local-to-cloud transition, with no "don't ask again" option.
+
+#### Scenario: Cloud switch requires confirmation
+
+- GIVEN the active provider is local Whisper
+- WHEN the user selects a cloud provider
+- THEN a consent dialog names the provider and nothing is persisted until the user confirms
+
+#### Scenario: Declining keeps the provider on local
+
+- GIVEN the consent dialog is shown for a cloud switch
+- WHEN the user cancels or dismisses it
+- THEN the active provider remains local and no data is sent
+
+#### Scenario: Local-only blocks the switch before consent is even reachable
+
+- GIVEN local-only transcription is enabled
+- WHEN the user attempts to select a cloud provider
+- THEN the cloud option is disabled and rejected, and the consent dialog never needs to be shown
 
 ---
 

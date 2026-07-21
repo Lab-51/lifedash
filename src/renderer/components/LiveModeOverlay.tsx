@@ -50,6 +50,7 @@ import LiveCanvasTabs, { type CanvasTabId, type CanvasTabDef } from './LiveCanva
 import LiveTranscriptFeed from './LiveTranscriptFeed';
 import EmbeddedBoard from './EmbeddedBoard';
 import ViewingProjectBanner from './ViewingProjectBanner';
+import InactivityBanner from './InactivityBanner';
 import BrainTabPanel, { resolveBrainOpenTarget } from './BrainTabPanel';
 import LiveProposalsFeed from './LiveProposalsFeed';
 import ActivityFeed from './ActivityFeed';
@@ -380,6 +381,11 @@ export default function LiveModeOverlay() {
           </div>
         </div>
       </header>
+
+      {/* GUARD.1 Task 2: inactivity auto-stop countdown warning — self-gates on
+          recordingStore.inactivityState, so mounting it unconditionally here is
+          equivalent to only rendering it during the countdown. */}
+      <InactivityBanner />
 
       {/* BODY: switchable canvas (center) + proposals/chat (right) */}
       <div className="flex-1 min-h-0 flex">

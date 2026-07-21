@@ -128,6 +128,23 @@ export async function start(meetingId: string, language?: string): Promise<void>
   const config = await transcriptionProviderService.getConfig();
   activeProvider = config.type;
 
+  // LOCAL-ONLY ENFORCEMENT (read ONCE at recording start, not per-chunk):
+  // if the privacy control is on and a cloud provider is configured, never issue
+  // a network request — force the local Whisper path for this whole session and
+  // surface one renderer toast. Lives in main because a control the UI alone
+  // enforces is not a control.
+  if (activeProvider !== 'local' && (await transcriptionProviderService.isLocalOnly())) {
+    log.warn(`Local-only mode is on — cloud provider '${activeProvider}' blocked; falling back to local Whisper`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      // Reuse the existing 'fallback' status → renderer shows an info toast.
+      mainWindow.webContents.send('transcription:status-changed', {
+        status: 'fallback',
+        reason: 'Local-only mode is on — cloud transcription blocked, using local Whisper',
+      });
+    }
+    activeProvider = 'local';
+  }
+
   // Use per-recording language if provided, otherwise fall back to DB setting
   if (language) {
     activeLanguage = language;

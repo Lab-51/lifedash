@@ -7,33 +7,57 @@
 // React, lucide-react icons, electronAPI (preload bridge)
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Mic, Loader2, Check, Eye, EyeOff, Globe, Download, HardDrive } from 'lucide-react';
+import { Mic, Loader2, Check, Eye, EyeOff, Globe, Download, HardDrive, ShieldCheck } from 'lucide-react';
 import type { TranscriptionProviderStatus, TranscriptionProviderType, WhisperModel } from '../../../shared/types';
 import { TRANSCRIPTION_LANGUAGES, DEFAULT_MIXED_PROMPTS } from '../../../shared/types';
 import HudSelect from '../HudSelect';
+import CloudTranscriptionConsentDialog from './CloudTranscriptionConsentDialog';
+
+// Settings key for the local-only transcription privacy control (GUARD.1 Task 4).
+// Matches the key read by the main-process enforcement in transcriptionProviderService.
+const SETTINGS_KEY_LOCAL_ONLY = 'transcription:localOnly';
 
 /** Provider option metadata for rendering */
 const PROVIDERS: Array<{
   type: TranscriptionProviderType;
   label: string;
   description: string;
+  privacy: 'local' | 'cloud';
 }> = [
   {
     type: 'local',
     label: 'Local (Whisper)',
     description: 'Uses locally downloaded Whisper model. Free, private, works offline.',
+    privacy: 'local',
   },
   {
     type: 'deepgram',
     label: 'Deepgram',
     description: 'Cloud-based transcription with high accuracy and speed.',
+    privacy: 'cloud',
   },
   {
     type: 'assemblyai',
     label: 'AssemblyAI',
     description: 'Cloud-based transcription with advanced features.',
+    privacy: 'cloud',
   },
 ];
+
+/**
+ * Small badge signaling whether a transcription provider processes audio locally
+ * or in the cloud. Uses low-alpha backgrounds so it stays legible if a parent row
+ * is later dimmed (e.g. a disabled cloud row under consent gating).
+ */
+function PrivacyPill({ privacy }: { privacy: 'local' | 'cloud' }) {
+  return privacy === 'local' ? (
+    <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-[var(--color-accent-muted)] text-[var(--color-accent)] font-medium">
+      Local
+    </span>
+  ) : (
+    <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-medium">Cloud</span>
+  );
+}
 
 export default function TranscriptionProviderSection() {
   const [config, setConfig] = useState<TranscriptionProviderStatus | null>(null);
@@ -57,6 +81,13 @@ export default function TranscriptionProviderSection() {
   const [whisperBackend, setWhisperBackend] = useState<string>('unknown');
   const [speedPreset, setSpeedPreset] = useState<string>('balanced');
   const [mixedPrompt, setMixedPrompt] = useState<string>('');
+  // Local-only privacy control (GUARD.1 Task 4). null while loading; the main
+  // process is the real enforcer — this is the UI mirror + consent gate.
+  const [localOnly, setLocalOnly] = useState<boolean | null>(null);
+  // Cloud provider awaiting explicit consent before a local -> cloud switch persists.
+  const [pendingCloudProvider, setPendingCloudProvider] = useState<'deepgram' | 'assemblyai' | null>(null);
+  // Message shown when the main process rejects a cloud switch (defensive backstop).
+  const [providerError, setProviderError] = useState<string | null>(null);
 
   const testResultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const promptDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,6 +106,19 @@ export default function TranscriptionProviderSection() {
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  // Load the local-only privacy setting on mount (default off when never written).
+  useEffect(() => {
+    void (async () => {
+      try {
+        const raw = await window.electronAPI.getSetting(SETTINGS_KEY_LOCAL_ONLY);
+        setLocalOnly(raw === 'true');
+      } catch (err) {
+        console.error('Failed to load local-only setting:', err);
+        setLocalOnly(false);
+      }
+    })();
+  }, []);
 
   const loadWhisperModels = useCallback(async () => {
     try {
@@ -251,15 +295,58 @@ export default function TranscriptionProviderSection() {
     };
   }, []);
 
-  const handleProviderChange = async (type: TranscriptionProviderType) => {
-    if (!config) return;
+  // Persist a provider selection (after any required consent). Resyncs from the
+  // main process on completion; on a main-side rejection (e.g. the local-only
+  // enforcement backstop) it resyncs to the actually-persisted provider and
+  // surfaces a message rather than leaving the radio in a lying state.
+  const applyProviderChange = async (type: TranscriptionProviderType) => {
     try {
       await window.electronAPI.transcriptionSetProvider(type);
       setTestResult(null);
+      setProviderError(null);
       await loadConfig();
     } catch (err) {
       console.error('Failed to set transcription provider:', err);
+      setProviderError('Local-only transcription is on. Turn it off to use a cloud provider.');
+      await loadConfig();
     }
+  };
+
+  const handleProviderChange = (type: TranscriptionProviderType) => {
+    if (!config) return;
+    // CONSENT GATE: switching FROM local TO a cloud provider requires explicit
+    // consent — meeting audio would start leaving the machine. (Under local-only
+    // mode the cloud rows are disabled, so this only fires when cloud is
+    // genuinely selectable.)
+    if (config.type === 'local' && (type === 'deepgram' || type === 'assemblyai')) {
+      setPendingCloudProvider(type);
+      return;
+    }
+    void applyProviderChange(type);
+  };
+
+  const handleToggleLocalOnly = async (checked: boolean) => {
+    // Optimistic write (mirrors MeetingsSection); the main process is the real
+    // enforcer, this just mirrors + persists the preference.
+    setLocalOnly(checked);
+    setProviderError(null);
+    try {
+      await window.electronAPI.setSetting(SETTINGS_KEY_LOCAL_ONLY, checked ? 'true' : 'false');
+    } catch (err) {
+      console.error('Failed to save local-only setting:', err);
+      setLocalOnly(!checked); // revert on failure
+    }
+  };
+
+  const confirmCloudSwitch = () => {
+    const target = pendingCloudProvider;
+    setPendingCloudProvider(null);
+    if (target) void applyProviderChange(target);
+  };
+
+  const cancelCloudSwitch = () => {
+    // Declined — selection stays local; nothing is persisted.
+    setPendingCloudProvider(null);
   };
 
   const handleSaveKey = async (provider: 'deepgram' | 'assemblyai') => {
@@ -447,25 +534,66 @@ export default function TranscriptionProviderSection() {
       </div>
 
       <div className="p-4 hud-panel clip-corner-cut-sm space-y-4">
+        {/* Local-only privacy toggle (GUARD.1 Task 4) */}
+        {localOnly !== null && (
+          <div className="pb-3 border-b border-[var(--color-border)]">
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={localOnly}
+                onChange={(e) => handleToggleLocalOnly(e.target.checked)}
+                aria-label="Local-only transcription"
+                className="mt-0.5 w-4 h-4 shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-text-primary)]">
+                  <ShieldCheck size={14} className="text-[var(--color-accent-dim)]" />
+                  Local-only transcription
+                </span>
+                <p className="text-xs text-surface-500 mt-0.5">
+                  Blocks cloud providers. Meeting audio is transcribed entirely on-device with Whisper and never leaves
+                  your machine — even if a cloud provider was previously selected.
+                </p>
+              </div>
+            </label>
+            {localOnly && config.type !== 'local' && (
+              <p className="text-xs text-amber-400/80 mt-2 ml-6">
+                A cloud provider is selected, but local-only is on — recordings will use local Whisper instead.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Provider radio options */}
         {PROVIDERS.map((provider) => (
           <div key={provider.type}>
-            <label className="flex items-start gap-2 cursor-pointer">
+            <label
+              className={`flex items-start gap-2 ${
+                provider.type !== 'local' && localOnly === true ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+              }`}
+            >
               <input
                 type="radio"
                 name="transcription-provider"
                 value={provider.type}
                 checked={config.type === provider.type}
                 onChange={() => handleProviderChange(provider.type)}
+                disabled={provider.type !== 'local' && localOnly === true}
                 aria-label={provider.label}
                 className="w-4 h-4 mt-0.5"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-[var(--color-text-primary)]">{provider.label}</span>
+                  <PrivacyPill privacy={provider.privacy} />
                   {renderStatus(provider.type)}
                 </div>
                 <p className="text-xs text-surface-500 mt-0.5">{provider.description}</p>
+                {provider.type !== 'local' && localOnly === true && (
+                  <p className="text-[0.6875rem] text-amber-400/80 mt-1">
+                    Disabled while local-only transcription is on.
+                  </p>
+                )}
               </div>
             </label>
 
@@ -660,6 +788,12 @@ export default function TranscriptionProviderSection() {
           </div>
         ))}
 
+        {providerError && (
+          <p className="text-xs text-red-400" role="alert">
+            {providerError}
+          </p>
+        )}
+
         {/* Transcription Language */}
         <div className="pt-3 border-t border-[var(--color-border)]">
           <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">
@@ -740,6 +874,14 @@ export default function TranscriptionProviderSection() {
           )}
         </div>
       </div>
+
+      {pendingCloudProvider && (
+        <CloudTranscriptionConsentDialog
+          provider={pendingCloudProvider}
+          onConfirm={confirmCloudSwitch}
+          onCancel={cancelCloudSwitch}
+        />
+      )}
     </section>
   );
 }

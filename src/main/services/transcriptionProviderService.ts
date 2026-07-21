@@ -27,6 +27,45 @@ const SETTINGS_KEY = 'transcription_provider';
 const DEFAULT_CONFIG: TranscriptionProviderConfig = { type: 'local' };
 
 /**
+ * Settings key for the local-only transcription privacy control (GUARD.1 Task 4).
+ * Stored in the generic key-value settings surface (no dedicated IPC channel — the
+ * renderer toggles it via settings:set / reads it via settings:get). The value is
+ * the string 'true' when enforcement is on; anything else (including absent) is off.
+ * Default OFF so existing cloud users are never broken by this control.
+ */
+export const TRANSCRIPTION_LOCAL_ONLY_KEY = 'transcription:localOnly';
+
+/**
+ * Thrown when a cloud provider is selected while local-only mode is on. Typed (with
+ * a stable `code`) so callers — and, via its message, the settings UI across the IPC
+ * boundary — can recognize and surface the privacy-enforcement rejection.
+ */
+export class LocalOnlyViolationError extends Error {
+  readonly code = 'TRANSCRIPTION_LOCAL_ONLY';
+  constructor(message = 'Local-only transcription is on. Turn it off before selecting a cloud provider.') {
+    super(message);
+    this.name = 'LocalOnlyViolationError';
+  }
+}
+
+/**
+ * Whether local-only transcription enforcement is enabled. Reads the generic
+ * settings surface directly. Defensive: any read error means "not enforced"
+ * (default false) so a transient DB hiccup never silently blocks a user, and
+ * users who never opted in keep their existing cloud behavior.
+ */
+export async function isLocalOnly(): Promise<boolean> {
+  try {
+    const db = getDb();
+    const [row] = await db.select().from(settings).where(eq(settings.key, TRANSCRIPTION_LOCAL_ONLY_KEY)).limit(1);
+    return row?.value === 'true';
+  } catch (err) {
+    log.error('Failed to read local-only setting — treating as not enforced:', err);
+    return false;
+  }
+}
+
+/**
  * Load transcription provider config from the settings table.
  * Returns defaults if no config has been saved yet.
  * Merges stored values with defaults for forward-compatibility.
@@ -65,6 +104,12 @@ export async function getStatus(): Promise<TranscriptionProviderStatus> {
  * Change the active transcription provider type.
  */
 export async function setProviderType(type: TranscriptionProviderType): Promise<void> {
+  // ENFORCEMENT: never let a cloud provider become active while local-only is on.
+  // This is the main-process backstop behind the UI's disabled cloud rows — a
+  // privacy control that only renderer state enforces is not a control.
+  if (type !== 'local' && (await isLocalOnly())) {
+    throw new LocalOnlyViolationError();
+  }
   const config = await getConfig();
   config.type = type;
   await saveConfig(config);
