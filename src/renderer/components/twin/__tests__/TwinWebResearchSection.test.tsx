@@ -44,8 +44,12 @@ beforeEach(() => {
 
 async function ready() {
   const utils = render(<TwinWebResearchSection brief="" />);
-  // Wait past the mount capability probe.
-  await screen.findByRole('heading', { name: /research from the web/i });
+  // Wait past the mount capability probe. The heading itself is NOT a safe wait
+  // target — Header() renders identically during the loading state, so
+  // findByRole('heading', ...) can resolve before twinGetCreationModel() settles.
+  // The Company input only exists once loading is done and the frontier branch
+  // has rendered, so it's the only reliable signal.
+  await screen.findByLabelText('Company');
   return utils;
 }
 
@@ -116,7 +120,10 @@ describe('result handling', () => {
   it('bubbles an ok draft via onDraft and shows its citations', async () => {
     const onDraft = vi.fn();
     render(<TwinWebResearchSection brief="" onDraft={onDraft} />);
-    await screen.findByRole('heading', { name: /research from the web/i });
+    // Wait target fix — see ready()'s comment: the heading is unsafe, it also
+    // renders during the loading state, so it can resolve before the mocked
+    // twinGetCreationModel() promise has actually settled.
+    await screen.findByLabelText('Company');
     fireEvent.change(screen.getByLabelText('Company'), { target: { value: 'Acme' } });
     fireEvent.click(screen.getByRole('button', { name: /research the web/i }));
     fireEvent.click(screen.getByRole('button', { name: /confirm & search/i }));
@@ -137,7 +144,10 @@ describe('result handling', () => {
     const onDraft = vi.fn();
     twinResearchWeb.mockResolvedValue({ status: 'skipped', reason: 'failed' } as TwinWebResearchResult);
     render(<TwinWebResearchSection brief="" onDraft={onDraft} />);
-    await screen.findByRole('heading', { name: /research from the web/i });
+    // Wait target fix — see ready()'s comment: the heading is unsafe, it also
+    // renders during the loading state, so it can resolve before the mocked
+    // twinGetCreationModel() promise has actually settled.
+    await screen.findByLabelText('Company');
     fireEvent.change(screen.getByLabelText('Company'), { target: { value: 'Acme' } });
     fireEvent.click(screen.getByRole('button', { name: /research the web/i }));
     fireEvent.click(screen.getByRole('button', { name: /confirm & search/i }));
@@ -151,7 +161,10 @@ describe('result handling', () => {
     let resolveWeb!: (v: TwinWebResearchResult) => void;
     twinResearchWeb.mockReturnValue(new Promise((r) => (resolveWeb = r)));
     const { unmount } = render(<TwinWebResearchSection brief="" onDraft={onDraft} />);
-    await screen.findByRole('heading', { name: /research from the web/i });
+    // Wait target fix — see ready()'s comment: the heading is unsafe, it also
+    // renders during the loading state, so it can resolve before the mocked
+    // twinGetCreationModel() promise has actually settled.
+    await screen.findByLabelText('Company');
     fireEvent.change(screen.getByLabelText('Company'), { target: { value: 'Acme' } });
     fireEvent.click(screen.getByRole('button', { name: /research the web/i }));
     fireEvent.click(screen.getByRole('button', { name: /confirm & search/i }));
