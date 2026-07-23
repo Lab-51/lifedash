@@ -29,9 +29,11 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 export const releaseHistory: ReleaseNotesData[] = [
   {
     // V3.1 session-centric pivot (Tasks 1-6) + V3.2 Living Brain (Tasks 1-5) +
-    // V3.3 Digital Twin (Tasks 1-5). Version number is a draft — confirm against
-    // package.json at release time (/nexus-release owns the actual bump).
-    version: '2.3.0',
+    // V3.3 Digital Twin (Tasks 1-5) + V3.3.5/V3.3.6 + V3.4 + GUARD.1.
+    // Shipped as 2.3.1, not 2.3.0: the v2.3.0 tag/release was already public
+    // (macOS assets from an earlier, older commit) by the time this was ready,
+    // so this content ships under the next clean version instead.
+    version: '2.3.1',
     sections: [
       {
         category: 'new',
