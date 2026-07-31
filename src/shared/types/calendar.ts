@@ -4,9 +4,10 @@
 // (Google = Task 2, Microsoft = Task 3) all build against.
 //
 // === PRIVACY POLICY (STRUCTURAL) ===
-// CalendarEvent intentionally has NO body / description / location field. The
-// "metadata only, never bodies" policy is enforced *structurally* — there is no
-// field to hold an event body, so a body can never be persisted. Do NOT add one.
+// CalendarEvent carries metadata PLUS the event `description` (CAL-UX.2b): plain-texted
+// and capped at fetch time, cached LOCALLY only, never synced anywhere. There is still
+// deliberately NO location / attachments / raw-HTML-body field — do NOT add one.
+// Attendee EMAILS remain display-only and never enter an AI prompt.
 
 /** The two calendar providers this phase supports. */
 export type CalendarProvider = 'google' | 'microsoft';
@@ -20,7 +21,7 @@ export interface CalendarEventAttendee {
 /**
  * A calendar event as cached and surfaced to the renderer.
  *
- * DELIBERATELY has no body/description/location — see the privacy note above.
+ * DELIBERATELY has no location / attachments / raw HTML body — see the note above.
  */
 export interface CalendarEvent {
   /** Prefixed cache id: `${provider}:${eventId}`. */
@@ -36,6 +37,13 @@ export interface CalendarEvent {
   attendees: CalendarEventAttendee[];
   /** Recurring-series id, when the event belongs to a series. */
   seriesId?: string;
+  /**
+   * The event's description/body as PLAIN TEXT — HTML stripped and capped at 4000
+   * chars by the provider adapter. Absent when the event has none, or when a legacy
+   * Microsoft grant (Calendars.ReadBasic) cannot return one. Local-only: it is
+   * displayed and may feed the opt-in prep note, and is never synced anywhere.
+   */
+  description?: string;
 }
 
 /**
@@ -48,8 +56,9 @@ export type AgendaViewMode = 'list' | 'week' | 'timeline';
  * Everything LifeDash already KNOWS about one calendar event — assembled by
  * deterministic DB queries only (`calendar:get-event-context`, zero model calls).
  *
- * This is LifeDash-derived context (sessions, briefs, action items, entity facts),
- * never calendar prose: the metadata-only policy above still holds.
+ * This is LifeDash-derived context (sessions, briefs, action items, entity facts) ONLY.
+ * It deliberately does NOT repeat the event's `description` — the caller already holds
+ * it on the CalendarEvent, so duplicating it here would just be a second stale copy.
  */
 export interface CalendarEventContext {
   /** THIS event already has a recorded session. */

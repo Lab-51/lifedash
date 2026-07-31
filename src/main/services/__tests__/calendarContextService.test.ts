@@ -49,7 +49,12 @@ const PROVIDER = {
 
 async function seedEvent(
   id: string,
-  opts: { seriesId?: string | null; attendees?: CalendarEventAttendee[]; title?: string } = {},
+  opts: {
+    seriesId?: string | null;
+    attendees?: CalendarEventAttendee[];
+    title?: string;
+    description?: string | null;
+  } = {},
 ): Promise<void> {
   const startsAt = new Date('2026-08-03T09:00:00Z');
   await holder.db.insert(calendarEvents).values({
@@ -61,6 +66,7 @@ async function seedEvent(
     endsAt: new Date(startsAt.getTime() + 30 * 60_000),
     attendees: opts.attendees ?? [],
     seriesId: opts.seriesId ?? null,
+    description: opts.description ?? null,
     syncedAt: new Date(),
   });
 }
@@ -411,6 +417,47 @@ describe('generatePrepNote', () => {
     expect(opts.context).toContain('Pricing was agreed.');
     expect(opts.context).toContain('Send the deck');
     expect(opts.context).toContain('Anna Kowalski: owns pricing');
+  });
+
+  it('includes the event description as its own labeled section (CAL-UX.2b)', async () => {
+    await seedEvent('google:evt-now', {
+      title: 'Weekly sync',
+      description: 'Agenda: pricing, then the roadmap.',
+    });
+    vi.mocked(resolveTaskModel).mockResolvedValue(PROVIDER);
+    vi.mocked(generateValidated).mockResolvedValue({ note: 'Note.' });
+
+    await generatePrepNote('google:evt-now');
+
+    const { context } = vi.mocked(generateValidated).mock.calls[0][0];
+    expect(context).toContain('Event description (written by the organizer):');
+    expect(context).toContain('Agenda: pricing, then the roadmap.');
+  });
+
+  it('omits the description section entirely when the event has none', async () => {
+    await seedEvent('google:evt-now', { description: null });
+    vi.mocked(resolveTaskModel).mockResolvedValue(PROVIDER);
+    vi.mocked(generateValidated).mockResolvedValue({ note: 'Note.' });
+
+    await generatePrepNote('google:evt-now');
+
+    expect(vi.mocked(generateValidated).mock.calls[0][0].context).not.toContain('Event description');
+  });
+
+  it('slices the description at 1000 chars and still caps the whole context at 4000', async () => {
+    await seedEvent('google:evt-now', { seriesId: 'series-A', description: 'D'.repeat(4000) });
+    const previous = await seedMeeting({ title: 'Previous', calendarSeriesId: 'series-A' });
+    await holder.db.insert(meetingBriefs).values({ meetingId: previous, summary: 'Pricing was agreed.' });
+    vi.mocked(resolveTaskModel).mockResolvedValue(PROVIDER);
+    vi.mocked(generateValidated).mockResolvedValue({ note: 'Note.' });
+
+    await generatePrepNote('google:evt-now');
+
+    const { context } = vi.mocked(generateValidated).mock.calls[0][0];
+    expect(context.match(/D+/)?.[0]).toHaveLength(1000);
+    expect(context.length).toBeLessThanOrEqual(4000);
+    // The 1000-char slice leaves room for the rest — the description never crowds it out.
+    expect(context).toContain('Pricing was agreed.');
   });
 
   it('rejects with the typed no-model message and never calls the pipeline', async () => {

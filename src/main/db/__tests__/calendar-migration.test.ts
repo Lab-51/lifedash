@@ -1,6 +1,7 @@
 // Phase G, Task 1 — prove migration 0043 applies cleanly on a FRESH DB (mirrors the
 // pgvector migration harness). Confirms the calendar_events cache table and the two
 // nullable meetings columns land, and that the varchar-PK + jsonb row round-trips.
+// CAL-UX.2b extends this with migration 0045's nullable `description` column.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
@@ -62,5 +63,33 @@ describe('migration 0043 — calendar_events + meetings calendar columns (real P
     expect(row.provider).toBe('google');
     expect(row.attendees).toEqual([{ name: 'Ada', email: 'ada@example.com' }]);
     expect(row.seriesId).toBe('google:series-9');
+    // Migration 0045 (CAL-UX.2b): nullable, so an event without one inserts as NULL.
+    expect(row.description).toBeNull();
+  });
+
+  it('adds the nullable description column (migration 0045) and round-trips long text', async () => {
+    const res = await pg.query<{ data_type: string; is_nullable: string }>(
+      `SELECT data_type, is_nullable FROM information_schema.columns
+        WHERE table_name = 'calendar_events' AND column_name = 'description'`,
+    );
+    expect(res.rows).toEqual([{ data_type: 'text', is_nullable: 'YES' }]);
+
+    // `text`, not varchar(n): the 4000-char provider cap is the only length limit.
+    const description = 'A'.repeat(4000);
+    const [row] = await db
+      .insert(calendarEvents)
+      .values({
+        id: 'google:evt-2',
+        provider: 'google',
+        eventId: 'evt-2',
+        title: 'Described',
+        startsAt: new Date('2026-08-01T11:00:00Z'),
+        endsAt: new Date('2026-08-01T11:30:00Z'),
+        attendees: [],
+        description,
+      })
+      .returning();
+
+    expect(row.description).toBe(description);
   });
 });

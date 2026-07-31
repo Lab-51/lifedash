@@ -1,9 +1,9 @@
 // Unit tests for the Google Calendar provider adapter (Phase G, Task 2). All OAuth is
 // delegated to calendarAuthService (mocked here) and all network (global fetch) is
 // mocked — no live calls. Covers: authorize delegation + endpoint/scope/extraAuthParams,
-// events normalization (title/attendees/seriesId + `google:` prefixing), all-day +
-// cancelled filtering, the request URL window params, refresh-then-retry on 401,
-// needsReauth on invalid_grant, and structural absence of any body/description/location.
+// events normalization (title/attendees/seriesId/description + `google:` prefixing),
+// all-day + cancelled filtering, the request URL window params, refresh-then-retry on
+// 401, needsReauth on invalid_grant, and structural absence of location/attachments.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -339,8 +339,8 @@ describe('fetchUpcoming — normalization', () => {
             end: { dateTime: '2026-08-01T09:30:00Z' },
             recurringEventId: 'series-9',
             attendees: [{ displayName: 'Ada', email: 'ada@example.com' }, { email: 'noname@example.com' }],
-            // These body fields must be ignored:
-            description: 'SECRET NOTES',
+            description: 'Agenda: pricing.',
+            // Location is still never carried:
             location: 'Room 5',
           },
         ],
@@ -359,9 +359,10 @@ describe('fetchUpcoming — normalization', () => {
     expect(e.startsAt).toBe('2026-08-01T09:00:00.000Z');
     expect(e.endsAt).toBe('2026-08-01T09:30:00.000Z');
     expect(e.attendees).toEqual([{ name: 'Ada', email: 'ada@example.com' }, { email: 'noname@example.com' }]);
+    expect(e.description).toBe('Agenda: pricing.');
   });
 
-  it('never carries body/description/location onto the normalized event', async () => {
+  it('carries the description but never location/attachments (CAL-UX.2b)', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
         items: [
@@ -371,19 +372,21 @@ describe('fetchUpcoming — normalization', () => {
             summary: 'Private 1:1',
             start: { dateTime: '2026-08-01T10:00:00Z' },
             end: { dateTime: '2026-08-01T10:30:00Z' },
-            description: 'do not leak',
-            location: 'do not leak either',
+            description: 'Kept locally.',
+            location: 'do not carry',
+            attachments: [{ fileUrl: 'do not carry either' }],
           },
         ],
       }),
     );
 
     const [e] = await googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 12);
-    expect(e).not.toHaveProperty('description');
+    expect(e.description).toBe('Kept locally.');
     expect(e).not.toHaveProperty('location');
+    expect(e).not.toHaveProperty('attachments');
     expect(e).not.toHaveProperty('body');
     expect(Object.keys(e).sort()).toEqual(
-      ['attendees', 'endsAt', 'eventId', 'id', 'provider', 'startsAt', 'title'].sort(),
+      ['attendees', 'description', 'endsAt', 'eventId', 'id', 'provider', 'startsAt', 'title'].sort(),
     );
   });
 
@@ -404,6 +407,51 @@ describe('fetchUpcoming — normalization', () => {
     expect(e.title).toBe('(untitled)');
     expect(e.attendees).toEqual([]);
     expect(e.seriesId).toBeUndefined();
+  });
+});
+
+// === description mapping (CAL-UX.2b) ===============================================
+
+describe('fetchUpcoming — description', () => {
+  /** One confirmed event carrying `description` (undefined ⇒ the field is absent). */
+  function withDescription(description?: string) {
+    return jsonResponse({
+      items: [
+        {
+          id: 'evt-d',
+          status: 'confirmed',
+          summary: 'Sync',
+          start: { dateTime: '2026-08-01T09:00:00Z' },
+          end: { dateTime: '2026-08-01T09:30:00Z' },
+          ...(description === undefined ? {} : { description }),
+        },
+      ],
+    });
+  }
+
+  async function describedEvent(description?: string) {
+    fetchMock.mockResolvedValue(withDescription(description));
+    const [e] = await googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 12);
+    return e;
+  }
+
+  it('strips markup, decodes basic entities and collapses blank-line runs', async () => {
+    const e = await describedEvent(
+      '<p>Agenda &amp; goals</p><br/><br/><br/><br/>Line&nbsp;two <b>bold</b> &lt;tag&gt;',
+    );
+    // Entities decode AFTER tag removal, so literal "&lt;tag&gt;" text survives as <tag>.
+    expect(e.description).toBe('Agenda & goals\n\nLine two bold <tag>');
+  });
+
+  it('caps the stored description at 4000 chars', async () => {
+    const e = await describedEvent('x'.repeat(5000));
+    expect(e.description).toHaveLength(4000);
+  });
+
+  it('is undefined when absent, empty, or markup-only whitespace', async () => {
+    expect((await describedEvent(undefined)).description).toBeUndefined();
+    expect((await describedEvent('')).description).toBeUndefined();
+    expect((await describedEvent('<div>&nbsp;</div>')).description).toBeUndefined();
   });
 });
 

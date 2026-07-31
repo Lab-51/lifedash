@@ -201,6 +201,7 @@ export async function replaceProviderEvents(provider: CalendarProvider, events: 
       endsAt: new Date(ev.endsAt),
       attendees: ev.attendees ?? [],
       seriesId: ev.seriesId ?? null,
+      description: ev.description ?? null,
       syncedAt: new Date(),
     };
     await db
@@ -214,6 +215,7 @@ export async function replaceProviderEvents(provider: CalendarProvider, events: 
           endsAt: values.endsAt,
           attendees: values.attendees,
           seriesId: values.seriesId,
+          description: values.description,
           syncedAt: values.syncedAt,
         },
       });

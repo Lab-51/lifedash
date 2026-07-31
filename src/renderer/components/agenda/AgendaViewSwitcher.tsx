@@ -6,12 +6,12 @@
 // an aria-label AND a title, and the active one is marked with aria-pressed.
 
 import type { LucideIcon } from 'lucide-react';
-import { Clock, Columns3, List } from 'lucide-react';
+import { CalendarDays, Clock, List } from 'lucide-react';
 import type { AgendaViewMode } from '../../../shared/types/calendar';
 
 const VIEW_OPTIONS: { mode: AgendaViewMode; label: string; Icon: LucideIcon }[] = [
   { mode: 'list', label: 'List view', Icon: List },
-  { mode: 'week', label: 'Week view', Icon: Columns3 },
+  { mode: 'week', label: 'Week view', Icon: CalendarDays },
   { mode: 'timeline', label: 'Timeline view', Icon: Clock },
 ];
 

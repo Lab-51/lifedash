@@ -9,8 +9,10 @@
 // global fetch (Node 20+/Electron 40), calendarAuthService (OAuth engine), logger.
 //
 // === PRIVACY (STRUCTURAL) ===
-// Normalization NEVER reads `description`/`location`/body from Google events. The
-// `CalendarEvent` shape has no field to hold them; a test asserts their absence.
+// Normalization reads `description` (CAL-UX.2b) — plain-texted + capped via
+// eventDescription.ts, cached locally, never synced. It still NEVER reads `location`
+// or attachments: `CalendarEvent` has no field to hold them, and a test asserts that.
+// The events.readonly scope already covers descriptions — no scope change was needed.
 
 import {
   runAuthorizationCodeFlow,
@@ -22,6 +24,7 @@ import {
   type OAuthProviderEndpoints,
 } from '../calendarAuthService';
 import { createLogger } from '../logger';
+import { normalizeDescription } from './eventDescription';
 import type {
   CalendarClientConfig,
   CalendarEvent,
@@ -108,7 +111,7 @@ async function loadRequest(): Promise<AuthorizationRequest | null> {
 
 // === Events normalization ==========================================================
 
-/** The subset of the Google events-list response we read. Body fields are omitted. */
+/** The subset of the Google events-list response we read. `location`/attachments omitted. */
 interface GoogleEventTime {
   dateTime?: string;
   date?: string;
@@ -121,6 +124,8 @@ interface GoogleEvent {
   id?: string;
   status?: string;
   summary?: string;
+  /** May contain limited HTML markup — stripped by normalizeDescription. */
+  description?: string;
   start?: GoogleEventTime;
   end?: GoogleEventTime;
   attendees?: GoogleAttendee[];
@@ -150,9 +155,9 @@ function mapAttendee(a: GoogleAttendee): CalendarEventAttendee {
 }
 
 /**
- * Normalize a single Google event to a metadata-only CalendarEvent, or null when it
- * must be skipped (cancelled, or all-day with no start instant to trigger on).
- * NEVER reads description/location/body.
+ * Normalize a single Google event to a CalendarEvent, or null when it must be skipped
+ * (cancelled, or all-day with no start instant to trigger on). Reads `description`
+ * (plain-texted + capped); NEVER reads location or attachments.
  */
 function normalizeEvent(item: GoogleEvent): CalendarEvent | null {
   if (item.status === 'cancelled') return null;
@@ -171,6 +176,9 @@ function normalizeEvent(item: GoogleEvent): CalendarEvent | null {
     attendees: (item.attendees ?? []).map(mapAttendee),
   };
   if (item.recurringEventId) event.seriesId = `google:${item.recurringEventId}`;
+  // Google descriptions may carry limited HTML — always run the strip pass.
+  const description = normalizeDescription(item.description, { html: true });
+  if (description) event.description = description;
   return event;
 }
 

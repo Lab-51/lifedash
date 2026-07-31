@@ -40,6 +40,7 @@ export const releaseHistory: ReleaseNotesData[] = [
           "Click any meeting to open its details — time, attendees, recurring badge, and the suggested project — with a one-tap jump to the recorded session if you've already captured it, or straight into recording if you haven't.",
           'Meetings now remember each other: for recurring meetings the details show what happened last time — a snippet of the previous brief, the action items still open from it, and what your Brain already knows about the attendees. Instant, on-device lookups — no AI involved.',
           "Want more than a lookup? A 'Generate prep note' button asks your local model to write a short prep briefing from that context — only when you press it, never in the background.",
+          'Meeting details now include the invite description (converted to plain text, stored only on your device, never synced) and the full attendee list with emails. Outlook needs a one-time reconnect to grant description access; Google works as-is.',
         ],
       },
     ],

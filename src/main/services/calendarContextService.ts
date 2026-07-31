@@ -8,9 +8,10 @@
 //      event, the previous COMPLETED session of the same series (brief snippet +
 //      open action items), and attendees matched to known person entities.
 //   2. generatePrepNote(eventId) — ONLY on an explicit user click. Feeds the SAME
-//      context bundle (no transcript, budget-capped) through the app's per-task
-//      model routing + the twin domain's validate-retry-skip pipeline, and caches
-//      the result per event for the session so re-opening never re-generates.
+//      context bundle PLUS the event's own description (CAL-UX.2b; no transcript,
+//      budget-capped) through the app's per-task model routing + the twin domain's
+//      validate-retry-skip pipeline, and caches the result per event for the session
+//      so re-opening never re-generates. Attendee EMAILS never enter the prompt.
 //
 // === HONESTY RULES ===
 // - An unknown/uncached eventId yields an EMPTY context — never an exception, and
@@ -52,7 +53,10 @@ const OPEN_ACTION_ITEM_CAP = 5;
 const ATTENDEE_MATCH_CAP = 6;
 /** Facts per matched person fed to the prep prompt (context stays compact). */
 const FACTS_PER_ATTENDEE = 3;
-/** Whole prep-prompt context budget (~1k tokens) — no transcript ever enters it. */
+/** Share of the prep prompt the event's own description may occupy (CAL-UX.2b). */
+const PREP_DESCRIPTION_CHARS = 1000;
+/** Whole prep-prompt context budget (~1k tokens) — no transcript ever enters it.
+ *  Applied LAST, so the description competes inside the same envelope. */
 const PREP_CONTEXT_CHAR_BUDGET = 4000;
 /** Hard cap on the returned note. */
 const PREP_NOTE_MAX_CHARS = 1200;
@@ -88,6 +92,9 @@ interface CachedEvent {
   endsAt: Date;
   attendees: CalendarEventAttendee[];
   seriesId: string | null;
+  /** Plain-texted event description (CAL-UX.2b) — prep-note input only; getEventContext
+   *  never returns it (the renderer already holds it on the CalendarEvent). */
+  description: string | null;
 }
 
 /** The cached calendar row (the only source of seriesId + attendees), or null. */
@@ -99,6 +106,7 @@ async function loadCachedEvent(db: Db, eventId: string): Promise<CachedEvent | n
       endsAt: calendarEvents.endsAt,
       attendees: calendarEvents.attendees,
       seriesId: calendarEvents.seriesId,
+      description: calendarEvents.description,
     })
     .from(calendarEvents)
     .where(eq(calendarEvents.id, eventId))
@@ -310,12 +318,20 @@ async function loadAttendeeFactLines(db: Db, matches: CalendarEventContext['atte
   return lines;
 }
 
-/** The compact prompt context. Brief snippet + open items + attendee facts only —
- *  NEVER transcript content, and hard-capped so a long history cannot blow the call. */
+/** The compact prompt context. Event description + brief snippet + open items +
+ *  attendee facts only — NEVER transcript content and NEVER attendee emails, and
+ *  hard-capped so a long description or history cannot blow the call. */
 function buildPrepContext(event: CachedEvent, context: CalendarEventContext, factLines: string[]): string {
   const blocks: string[] = [
     `Upcoming meeting: "${event.title}" on ${event.startsAt.toISOString()} (ends ${event.endsAt.toISOString()}).`,
   ];
+
+  // The organizer's own agenda text, clearly labeled so the model treats it as given
+  // material rather than something it inferred. Sliced before the overall budget.
+  const description = event.description?.trim();
+  if (description) {
+    blocks.push(`Event description (written by the organizer):\n${description.slice(0, PREP_DESCRIPTION_CHARS)}`);
+  }
 
   const last = context.lastSeriesSession;
   if (last) {

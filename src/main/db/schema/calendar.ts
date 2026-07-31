@@ -3,11 +3,14 @@
 // Populated by the poll loop (Tasks 2 & 3) and read by `calendar:get-upcoming`.
 //
 // === PRIVACY POLICY (STRUCTURAL) ===
-// This table stores ONLY metadata: title, times, attendee name/email, series id.
-// There is deliberately NO body/description/location column — event bodies are
-// NEVER persisted. Do not add such a column "for completeness."
+// This table stores metadata (title, times, attendee name/email, series id) PLUS the
+// event description (CAL-UX.2b) — plain-texted and capped at ~4000 chars at fetch time,
+// stored LOCALLY only. Calendar rows are never included in any sync payload, and
+// attendee EMAILS never enter an AI prompt.
+// Still deliberately absent, and NOT to be added "for completeness": location,
+// attachments, and raw HTML bodies (only the stripped plain text is persisted).
 
-import { pgTable, varchar, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, text, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
 import type { CalendarProvider, CalendarEventAttendee } from '../../../shared/types/calendar';
 
 export const calendarEvents = pgTable(
@@ -21,8 +24,11 @@ export const calendarEvents = pgTable(
     title: varchar('title', { length: 500 }).notNull(),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
     endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
-    // Attendee name/email only — no other PII, no event body.
+    // Attendee name/email only — no other PII.
     attendees: jsonb('attendees').$type<CalendarEventAttendee[]>().notNull(),
+    // Plain-texted, length-capped event description (CAL-UX.2b). Nullable: providers
+    // often omit it, and legacy Microsoft grants (ReadBasic) cannot return it at all.
+    description: text('description'),
     seriesId: varchar('series_id', { length: 512 }),
     syncedAt: timestamp('synced_at', { withTimezone: true }).defaultNow().notNull(),
   },

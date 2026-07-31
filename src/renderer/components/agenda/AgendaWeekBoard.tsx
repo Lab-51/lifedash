@@ -9,6 +9,7 @@
 // the modal, so the board never becomes a wall of competing actions — and, as
 // everywhere else, recording is never started implicitly.
 
+import { Repeat } from 'lucide-react';
 import type { CalendarEvent } from '../../../shared/types/calendar';
 import { agendaDays, bucketByDay, dayColumnLabel, formatClock, isImminent } from './agendaTime';
 
@@ -32,7 +33,7 @@ function WeekEventCard({ event, onOpenEvent }: { event: CalendarEvent; onOpenEve
         <span className="truncate">{formatClock(event.startsAt)}</span>
         {event.seriesId && (
           <span title="Recurring meeting" className="ml-auto shrink-0 text-[var(--color-text-muted)] leading-none">
-            ↻
+            <Repeat size={10} />
           </span>
         )}
       </span>

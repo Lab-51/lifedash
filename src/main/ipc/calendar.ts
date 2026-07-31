@@ -88,6 +88,7 @@ function toCalendarEvent(row: typeof calendarEvents.$inferSelect): CalendarEvent
     endsAt: row.endsAt.toISOString(),
     attendees: row.attendees,
     seriesId: row.seriesId ?? undefined,
+    description: row.description ?? undefined,
   };
 }
 
@@ -108,6 +109,7 @@ async function cacheEvents(provider: CalendarProvider, events: CalendarEvent[]):
       endsAt: new Date(ev.endsAt),
       attendees,
       seriesId: ev.seriesId ?? null,
+      description: ev.description ?? null,
       syncedAt: new Date(),
     };
     await db
@@ -121,6 +123,7 @@ async function cacheEvents(provider: CalendarProvider, events: CalendarEvent[]):
           endsAt: values.endsAt,
           attendees: values.attendees,
           seriesId: values.seriesId,
+          description: values.description,
           syncedAt: values.syncedAt,
         },
       });
@@ -222,7 +225,7 @@ export function registerCalendarHandlers(): void {
       return { calendars: [], selectedIds, needsReconnect: true } satisfies CalendarListResult;
     }
     // Google-only: `calendar.events.readonly` reads events but cannot LIST calendars.
-    // Microsoft's Calendars.ReadBasic covers both, so it never needs this pre-check.
+    // Microsoft's Calendars.Read covers both, so it never needs this pre-check.
     if (valid === 'google' && !hasCalendarListScope(tokens.scope)) {
       return { calendars: [], selectedIds, needsReconnect: true } satisfies CalendarListResult;
     }

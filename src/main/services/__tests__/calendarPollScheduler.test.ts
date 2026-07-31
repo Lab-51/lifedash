@@ -143,6 +143,50 @@ describe('replace-except-linked cache retention', () => {
   });
 });
 
+describe('description persistence (CAL-UX.2b)', () => {
+  it('stores the fetched description, and the conflict path updates AND clears it', async () => {
+    await setSetting('calendar:eventNotifications', 'false');
+    await persistCalendarConnection('google', connectedTokens, 'me@example.com');
+
+    const now = new Date();
+    const fetched = (description?: string) => ({
+      id: 'google:desc',
+      provider: 'google' as const,
+      eventId: 'desc',
+      title: 'Described',
+      startsAt: new Date(now.getTime() + 3 * 3_600_000).toISOString(),
+      endsAt: new Date(now.getTime() + 4 * 3_600_000).toISOString(),
+      attendees: [],
+      ...(description === undefined ? {} : { description }),
+    });
+    const readBack = async () => {
+      const [row] = await holder.db.select().from(calendarEvents).where(eq(calendarEvents.id, 'google:desc'));
+      return row.description;
+    };
+
+    const fetchUpcoming = vi.fn(async () => [fetched('Agenda: pricing.')]);
+    registerCalendarAdapter('google', makeAdapter({ fetchUpcoming }));
+
+    // 1) Fresh insert.
+    await runPollCycle(fakeWindow as never);
+    expect(await readBack()).toBe('Agenda: pricing.');
+
+    // Link the event so replace-except-linked KEEPS the row — later cycles now take the
+    // onConflictDoUpdate path instead of delete-then-insert.
+    await holder.db.insert(meetings).values({ title: 'Recorded', startedAt: now, calendarEventId: 'google:desc' });
+
+    // 2) Upstream edit → the conflict `set` must carry the new text.
+    fetchUpcoming.mockResolvedValue([fetched('Agenda: pricing and roadmap.')]);
+    await runPollCycle(fakeWindow as never);
+    expect(await readBack()).toBe('Agenda: pricing and roadmap.');
+
+    // 3) Organizer cleared it upstream → the cached copy must not linger.
+    fetchUpcoming.mockResolvedValue([fetched(undefined)]);
+    await runPollCycle(fakeWindow as never);
+    expect(await readBack()).toBeNull();
+  });
+});
+
 describe('rotated-token persistence', () => {
   it('persists rotated tokens returned by refreshIfNeeded via updateCalendarTokens', async () => {
     await setSetting('calendar:eventNotifications', 'false');

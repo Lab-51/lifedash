@@ -439,16 +439,22 @@ Every switch of the active transcription provider from local Whisper to a cloud 
 
 ---
 
-### Requirement: Calendar integration is read-only and metadata-only
+### Requirement: Calendar integration is read-only and local-only
 
-The calendar integration SHALL be strictly read-only: LifeDash MUST NOT create, edit, move, or delete any calendar event. For each cached event it MUST store ONLY the title, start/end times, attendees, and recurring-series id, all held locally. It MUST NOT persist event bodies, descriptions, or locations — this metadata-only policy is enforced structurally (the event shape has no field to hold a body) as well as contractually. No calendar data leaves the device except the requests made directly to the user's own calendar provider.
+The calendar integration SHALL be strictly read-only: LifeDash MUST NOT create, edit, move, or delete any calendar event. For each cached event it MUST store ONLY the title, start/end times, attendees, recurring-series id, and — amended 2026-07-31 by user decision (CAL-UX.2b) — the event description, converted to plain text and capped at 4000 characters. All of it is held locally and MUST NOT sync anywhere. Locations, attachments, and raw HTML bodies MUST NOT be persisted. No calendar data leaves the device except the requests made directly to the user's own calendar provider.
 
-#### Scenario: Only metadata is stored for a synced event
+#### Scenario: What is and is not stored for a synced event
 
-- GIVEN a connected calendar with an event that has a description and location
+- GIVEN a connected calendar with an event that has an HTML description and a location
 - WHEN the event is cached during a poll
-- THEN only its title, times, attendees, and series id are stored
-- AND its description, body, and location are never persisted
+- THEN its title, times, attendees, series id, and plain-texted capped description are stored locally
+- AND its location, attachments, and raw HTML body are never persisted
+
+#### Scenario: Legacy Microsoft grant degrades, never breaks
+
+- GIVEN a Microsoft connection whose granted scope predates Calendars.Read
+- WHEN a poll runs
+- THEN the request omits the body field entirely (byte-identical legacy query), events sync as before with no description, until the user reconnects
 
 #### Scenario: The integration never writes to the calendar
 
@@ -552,7 +558,7 @@ The Upcoming meetings panel MUST offer the list, week-board, and timeline views 
 
 ### Requirement: Event details context is deterministic by default; the model runs only on explicit request
 
-Opening an event's details MUST populate its cross-meeting context (previous same-series session's brief snippet, its still-open action items with an honest total, and attendee matches against known Brain persons) from local database lookups only — no model invocation. Generating a prep note MUST require an explicit user action per event, route through the per-task model resolution, and reject with a typed no-model message when no provider is configured. Calendar event bodies/descriptions MUST NOT appear anywhere in the details surface (none are ever stored).
+Opening an event's details MUST populate its cross-meeting context (previous same-series session's brief snippet, its still-open action items with an honest total, and attendee matches against known Brain persons) from local database lookups only — no model invocation. The details surface SHALL show the locally-stored event description when present and the full attendee list including locally-stored emails (amended 2026-07-31, CAL-UX.2b). Generating a prep note MUST require an explicit user action per event, route through the per-task model resolution, and reject with a typed no-model message when no provider is configured. The prep-note input MAY include the event description (user decision) but MUST NOT include attendee email addresses — that rule is unchanged.
 
 #### Scenario: Opening details never invokes the model
 

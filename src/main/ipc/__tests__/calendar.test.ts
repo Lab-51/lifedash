@@ -1,12 +1,21 @@
 // === FILE PURPOSE ===
-// IPC behavior tests for the CAL-UX.1 calendar-picker channels. Covers the
-// load-bearing guarantees: the Google stale-scope pre-check runs BEFORE any network
-// call (adapter untouched), Microsoft is never pre-checked, an empty selection is
-// rejected at the API edge, and saving a selection re-polls + pushes the refresh
-// notice. Services and the DB are mocked — no network, no PGlite.
+// IPC behavior tests for the CAL-UX.1 calendar-picker channels plus the CAL-UX.2/2b
+// event channels. Covers the load-bearing guarantees: the Google stale-scope pre-check
+// runs BEFORE any network call (adapter untouched), Microsoft is never pre-checked, an
+// empty selection is rejected at the API edge, saving a selection re-polls + pushes the
+// refresh notice, and the connect→cache→get-upcoming round trip preserves the event
+// description. Services are mocked; the DB is a REAL in-memory PGlite (same harness as
+// calendarPollScheduler.test.ts) because the round trip IS the guarantee. No network.
 
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import type { CalendarListResult, CalendarTokens } from '../../../shared/types/calendar';
+import path from 'node:path';
+import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
+import { drizzle } from 'drizzle-orm/pglite';
+import { migrate } from 'drizzle-orm/pglite/migrator';
+import * as schema from '../../db/schema';
+import { calendarEvents } from '../../db/schema';
+import type { CalendarEvent, CalendarListResult, CalendarTokens } from '../../../shared/types/calendar';
 
 // ---------------------------------------------------------------------------
 // Mocks — declared before any imports
@@ -22,7 +31,8 @@ vi.mock('electron', () => ({
   },
 }));
 
-vi.mock('../../db/connection', () => ({ getDb: () => ({}) }));
+const holder = vi.hoisted(() => ({ db: null as unknown as ReturnType<typeof drizzle> }));
+vi.mock('../../db/connection', () => ({ getDb: () => holder.db }));
 vi.mock('../../services/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -56,7 +66,12 @@ vi.mock('../../services/calendarAuthService', () => ({
 // ---------------------------------------------------------------------------
 
 import { registerCalendarHandlers } from '../calendar';
-import { loadCalendarClientConfig, loadCalendarTokens, getCalendarAdapter } from '../../services/calendarAuthService';
+import {
+  loadCalendarClientConfig,
+  loadCalendarTokens,
+  getCalendarAdapter,
+  getCalendarStatuses,
+} from '../../services/calendarAuthService';
 import { loadSelectedCalendarIds, saveSelectedCalendarIds } from '../../services/calendarSelectionService';
 import { replaceProviderEvents } from '../../services/calendarPollScheduler';
 import { getEventContext, generatePrepNote } from '../../services/calendarContextService';
@@ -85,13 +100,17 @@ function makeEvent() {
   return { sender: { send: vi.fn() } };
 }
 
-beforeAll(() => {
+beforeAll(async () => {
+  const pg = new PGlite({ extensions: { vector } });
+  holder.db = drizzle(pg, { schema });
+  await migrate(holder.db as never, { migrationsFolder: path.join(process.cwd(), 'drizzle') });
   registerCalendarHandlers();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
   vi.mocked(loadSelectedCalendarIds).mockResolvedValue(undefined);
+  await holder.db.delete(calendarEvents);
 });
 
 // === calendar:list-calendars =======================================================
@@ -224,6 +243,62 @@ describe('calendar:set-selected-calendars', () => {
       handler('calendar:set-selected-calendars')(makeEvent(), { provider: 'google', calendarIds: ['x'.repeat(513)] }),
     ).rejects.toThrow(/Validation failed/);
     expect(saveSelectedCalendarIds).not.toHaveBeenCalled();
+  });
+});
+
+// === cache round trip: connect → cacheEvents → get-upcoming (CAL-UX.2b) ============
+
+describe('event cache round trip', () => {
+  /** An event starting in an hour, so `calendar:get-upcoming` always sees it. */
+  function upcoming(description?: string): CalendarEvent {
+    const startsAt = new Date(Date.now() + 3_600_000);
+    return {
+      id: 'google:evt-desc',
+      provider: 'google',
+      eventId: 'evt-desc',
+      title: 'Described meeting',
+      startsAt: startsAt.toISOString(),
+      endsAt: new Date(startsAt.getTime() + 30 * 60_000).toISOString(),
+      attendees: [{ name: 'Ada', email: 'ada@example.com' }],
+      ...(description === undefined ? {} : { description }),
+    };
+  }
+
+  /** Drive the connect handler, whose post-connect poll goes through cacheEvents. */
+  async function connectWith(events: CalendarEvent[]): Promise<void> {
+    const adapter = {
+      ...makeAdapter(),
+      authorize: vi.fn(async () => ({ tokens: tokens(PICKER_SCOPE) })),
+      fetchUpcoming: vi.fn(async () => events),
+    };
+    vi.mocked(getCalendarAdapter).mockReturnValue(adapter);
+    vi.mocked(loadCalendarClientConfig).mockResolvedValue(GOOGLE_CONFIG);
+    vi.mocked(loadCalendarTokens).mockResolvedValue(tokens(PICKER_SCOPE));
+    vi.mocked(getCalendarStatuses).mockResolvedValue([]);
+    await handler('calendar:connect')(makeEvent(), 'google');
+  }
+
+  const readUpcoming = async () => (await handler('calendar:get-upcoming')({}, 24)) as CalendarEvent[];
+
+  it('persists the description and returns it on the cached event', async () => {
+    await connectWith([upcoming('Agenda: pricing, then the roadmap.')]);
+
+    const [event] = await readUpcoming();
+    expect(event.id).toBe('google:evt-desc');
+    expect(event.attendees).toEqual([{ name: 'Ada', email: 'ada@example.com' }]);
+    expect(event.description).toBe('Agenda: pricing, then the roadmap.');
+  });
+
+  it('maps a stored NULL description to undefined, and the upsert overwrites it', async () => {
+    await connectWith([upcoming()]);
+    expect((await readUpcoming())[0].description).toBeUndefined();
+
+    // Re-poll with the same id: cacheEvents is upsert-only, so this exercises the
+    // onConflictDoUpdate `set` — the newly published description must land.
+    await connectWith([upcoming('Now it has an agenda.')]);
+    const rows = await readUpcoming();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].description).toBe('Now it has an agenda.');
   });
 });
 

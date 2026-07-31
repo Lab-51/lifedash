@@ -91,19 +91,35 @@ describe('EventDetailsModal', () => {
     expect(when).toContain(end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
     expect(screen.getByText('Google')).toBeInTheDocument();
-    expect(screen.getByText('↻ Recurring')).toBeInTheDocument();
+    expect(screen.getByText('Recurring')).toBeInTheDocument();
 
-    // Names only — the email is a fallback for the nameless attendee, never shown whole.
+    // Full attendee list: name plus the invite's email (local-only data, displayed
+    // by user decision). The nameless attendee falls back to the email local-part,
+    // and its full address is NOT repeated beside the identical label.
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+    expect(screen.getByText('ada@example.com')).toBeInTheDocument();
     expect(screen.getByText('grace.hopper')).toBeInTheDocument();
-    expect(screen.queryByText(/ada@example\.com/)).toBeNull();
-    expect(screen.queryByText(/grace\.hopper@example\.com/)).toBeNull();
+    expect(screen.getByText('grace.hopper@example.com')).toBeInTheDocument();
   });
 
   it('omits the recurring badge for a one-off event', async () => {
     renderModal(makeEvent());
     expect(await screen.findByText('Google')).toBeInTheDocument();
-    expect(screen.queryByText('↻ Recurring')).toBeNull();
+    expect(screen.queryByText('Recurring')).toBeNull();
+  });
+
+  // --- Description ------------------------------------------------------------
+
+  it('renders the invite description when present', async () => {
+    renderModal(makeEvent({ description: 'Agenda:\n1. Q3 numbers\n2. Hiring' }));
+    expect(await screen.findByText('Description')).toBeInTheDocument();
+    expect(screen.getByText(/Q3 numbers/)).toBeInTheDocument();
+  });
+
+  it('omits the description section entirely when the invite has none', async () => {
+    renderModal(makeEvent());
+    expect(await screen.findByText('Google')).toBeInTheDocument();
+    expect(screen.queryByText('Description')).toBeNull();
   });
 
   // --- Project suggestion ---------------------------------------------------

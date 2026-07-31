@@ -28,7 +28,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Mic, X } from 'lucide-react';
+import { FileText, Loader2, Mic, Repeat, Users, X } from 'lucide-react';
 import type {
   CalendarEvent,
   CalendarEventAttendee,
@@ -59,9 +59,9 @@ function formatDay(iso: string): string {
   return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-/** Attendee NAMES only. Attendee emails are stored locally but never surfaced —
- *  the email's local-part is a fallback ONLY when there is no name at all, and an
- *  attendee with neither is dropped rather than rendered as an empty chip. */
+/** Primary attendee label: the name, with the email's local-part as a fallback
+ *  ONLY when there is no name at all; an attendee with neither is dropped. The full
+ *  email renders alongside in the list (local-only data) — but never in AI prompts. */
 function attendeeLabel(attendee: CalendarEventAttendee): string | null {
   const name = attendee.name?.trim();
   if (name) return name;
@@ -107,7 +107,11 @@ function EventHeader({ event, onClose }: { event: CalendarEvent; onClose: () => 
         </p>
         <div className="flex items-center gap-1.5 flex-wrap mt-2">
           <span className={BADGE_CLASS}>{PROVIDER_LABEL[event.provider]}</span>
-          {event.seriesId && <span className={BADGE_CLASS}>↻ Recurring</span>}
+          {event.seriesId && (
+            <span className={`${BADGE_CLASS} inline-flex items-center gap-1`}>
+              <Repeat size={10} /> Recurring
+            </span>
+          )}
         </div>
       </div>
       <button
@@ -122,23 +126,48 @@ function EventHeader({ event, onClose }: { event: CalendarEvent; onClose: () => 
   );
 }
 
-// --- Attendees --------------------------------------------------------------
-function AttendeeChips({ attendees }: { attendees: CalendarEventAttendee[] }) {
-  const names = attendees.map(attendeeLabel).filter((n): n is string => n !== null);
-  if (names.length === 0) return null;
+// --- Description -------------------------------------------------------------
+// Present only when the invite carried one (stored locally, plain-texted + capped
+// at fetch). Long descriptions scroll inside their own block, never the page.
+function DescriptionSection({ description }: { description?: string }) {
+  const text = description?.trim();
+  if (!text) return null;
   return (
     <div className="flex flex-col gap-1.5">
-      <span className={SECTION_LABEL_CLASS}>Attendees</span>
-      <div className="flex flex-wrap gap-1.5">
-        {names.map((name, index) => (
-          <span
-            key={`${name}-${index}`}
-            className="max-w-full break-words px-2 py-0.5 rounded-md border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)]"
+      <span className={`${SECTION_LABEL_CLASS} inline-flex items-center gap-1.5`}>
+        <FileText size={11} /> Description
+      </span>
+      <p className="text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap break-words max-h-40 overflow-y-auto overflow-x-hidden">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+// --- Attendees --------------------------------------------------------------
+// Full attendee list: name plus the invite's email (both stored locally). Emails
+// are DISPLAYED here by user decision, but still never enter any AI prompt.
+function AttendeeChips({ attendees }: { attendees: CalendarEventAttendee[] }) {
+  const rows = attendees
+    .map((attendee) => ({ label: attendeeLabel(attendee), email: attendee.email?.trim() || null }))
+    .filter((row): row is { label: string; email: string | null } => row.label !== null);
+  if (rows.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className={`${SECTION_LABEL_CLASS} inline-flex items-center gap-1.5`}>
+        <Users size={11} /> Attendees
+      </span>
+      <ul className="flex flex-col gap-1">
+        {rows.map((row, index) => (
+          <li
+            key={`${row.label}-${index}`}
+            className="min-w-0 flex items-baseline gap-2 px-2 py-1 rounded-md border border-[var(--color-border)] text-xs overflow-hidden"
           >
-            {name}
-          </span>
+            <span className="break-words text-[var(--color-text-secondary)]">{row.label}</span>
+            {row.email && <span className={`${QUIET_TEXT_CLASS} truncate font-data`}>{row.email}</span>}
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }
@@ -360,6 +389,7 @@ export default function EventDetailsModal({ event, onClose, onStartRecording }: 
         <EventHeader event={event} onClose={onClose} />
 
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4">
+          <DescriptionSection description={event.description} />
           <AttendeeChips attendees={event.attendees} />
 
           {suggestion && (

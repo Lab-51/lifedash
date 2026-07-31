@@ -6,8 +6,9 @@
 // metadata-only normalization.
 //
 // === PRIVACY (STRUCTURAL) ===
-// Metadata only. The `$select` deliberately NEVER requests body/bodyPreview/location,
-// and `CalendarEvent` has no field to hold them. A body can never be read or persisted.
+// The `$select` requests `body` (CAL-UX.2b) — plain-texted + capped via
+// eventDescription.ts, cached locally, never synced. It still NEVER requests
+// `location` or attachments, and `CalendarEvent` has no field to hold them.
 //
 // === SECURITY ===
 // Microsoft is a PUBLIC client: PKCE only, NEVER a client_secret. We build the
@@ -24,6 +25,7 @@ import {
   type OAuthProviderEndpoints,
 } from '../calendarAuthService';
 import { createLogger } from '../logger';
+import { normalizeDescription } from './eventDescription';
 import type {
   CalendarClientConfig,
   CalendarEvent,
@@ -40,13 +42,13 @@ const log = createLogger('MicrosoftCalendar');
  * Scope requested for Microsoft. `offline_access` is REQUIRED to receive a refresh
  * token; `openid email` yield the id_token we decode for the display account email.
  *
- * FALLBACK: `Calendars.ReadBasic` is the least-privilege read scope. Docs only
- * enumerate what it EXCLUDES (event body/attachments) — they do NOT confirm whether
- * attendees are returned. If a live smoke shows attendees missing under ReadBasic,
- * the sanctioned one-line fix is to switch this constant to `Calendars.Read` (which
- * still excludes nothing we select — we never request body/bodyPreview/location).
+ * WHY `Calendars.Read` AND NOT `Calendars.ReadBasic` (CAL-UX.2b): ReadBasic is the
+ * least-privilege read scope, but it EXCLUDES the event body/attachments outright —
+ * a ReadBasic token simply cannot return a description. Reading descriptions therefore
+ * requires the full `Calendars.Read`. It is still read-only and still excludes nothing
+ * we deliberately skip (we never request location or attachments).
  */
-const MICROSOFT_SCOPE = 'openid email offline_access Calendars.ReadBasic';
+const MICROSOFT_SCOPE = 'openid email offline_access Calendars.Read';
 
 const MICROSOFT_ENDPOINTS: OAuthProviderEndpoints = {
   authorizeUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
@@ -71,11 +73,33 @@ const GRAPH_TOP = '250';
 const GRAPH_CALENDAR_SELECT = 'id,name,isDefaultCalendar';
 
 /**
- * Fields requested from Graph. MUST NOT contain body / bodyPreview / location
- * (structural privacy — a test asserts this). `type` + `seriesMasterId` +
- * `isCancelled` + `isAllDay` are needed only to FILTER, not to surface.
+ * Fields requested from Graph under a legacy `Calendars.ReadBasic` grant — BYTE-IDENTICAL
+ * to the pre-CAL-UX.2b select (a test pins it). MUST NOT contain body/bodyPreview: a
+ * ReadBasic token cannot return them, and asking would break a request that works today.
  */
-const GRAPH_SELECT = 'subject,start,end,attendees,seriesMasterId,isCancelled,isAllDay,type';
+const GRAPH_SELECT_LEGACY = 'subject,start,end,attendees,seriesMasterId,isCancelled,isAllDay,type';
+
+/**
+ * Fields requested from Graph under a `Calendars.Read` grant — the legacy select plus
+ * `body` (CAL-UX.2b). MUST NOT contain bodyPreview or location (structural privacy —
+ * a test asserts this). `type` + `seriesMasterId` + `isCancelled` + `isAllDay` are
+ * needed only to FILTER, not to surface.
+ */
+const GRAPH_SELECT = `${GRAPH_SELECT_LEGACY},body`;
+
+/**
+ * Whether a stored grant may request event bodies. Word-boundary match so
+ * `Calendars.ReadBasic` (and `Calendars.ReadWrite`, which Graph writes differently)
+ * never satisfy it; `undefined` means we never recorded the granted scopes, which is
+ * indistinguishable from a pre-CAL-UX.2b grant ⇒ treat as lacking it.
+ *
+ * DEGRADATION (load-bearing): an existing connection holds a ReadBasic-only token until
+ * the user reconnects. Those requests keep the legacy select verbatim, so they behave
+ * EXACTLY as before and simply yield no description.
+ */
+function hasCalendarsReadScope(scope: string | undefined): boolean {
+  return scope !== undefined && /\bCalendars\.Read\b/.test(scope);
+}
 
 /** Refresh when within this margin of expiry (or already past it). */
 const REFRESH_MARGIN_MS = 60_000;
@@ -91,9 +115,17 @@ interface GraphAttendee {
   emailAddress?: { name?: string; address?: string };
 }
 
+interface GraphItemBody {
+  /** 'html' | 'text' — Graph returns HTML for most events. */
+  contentType?: string;
+  content?: string;
+}
+
 interface GraphEvent {
   id?: string;
   subject?: string;
+  /** Only present when the grant carries Calendars.Read (see GRAPH_SELECT_LEGACY). */
+  body?: GraphItemBody;
   start?: GraphDateTime;
   end?: GraphDateTime;
   attendees?: GraphAttendee[];
@@ -138,7 +170,17 @@ function toUtcIso(dateTime: string | undefined): string {
   return Number.isNaN(d.getTime()) ? dateTime : d.toISOString();
 }
 
-/** Map a raw Graph occurrence to a metadata-only CalendarEvent (id/eventId prefixed). */
+/**
+ * Plain-text description from a Graph body. Anything not explicitly `text` goes through
+ * the HTML strip pass — Graph's default is HTML, and mistakenly stripping plain text is
+ * far less harmful than leaking markup into the modal and the prep prompt.
+ */
+function toDescription(body: GraphItemBody | undefined): string | undefined {
+  const isHtml = (body?.contentType ?? 'html').toLowerCase() !== 'text';
+  return normalizeDescription(body?.content, { html: isHtml });
+}
+
+/** Map a raw Graph occurrence to a CalendarEvent (id/eventId prefixed). */
 function normalizeEvent(ev: GraphEvent): CalendarEvent | null {
   const eventId = ev.id;
   if (!eventId) return null;
@@ -155,6 +197,9 @@ function normalizeEvent(ev: GraphEvent): CalendarEvent | null {
     })),
   };
   if (ev.seriesMasterId) event.seriesId = `microsoft:${ev.seriesMasterId}`;
+  // Absent under a legacy ReadBasic grant (body was never requested) ⇒ stays undefined.
+  const description = toDescription(ev.body);
+  if (description) event.description = description;
   return event;
 }
 
@@ -166,8 +211,9 @@ function isMeetingOccurrence(ev: GraphEvent): boolean {
 /**
  * Build the Graph calendarView URL for the [now, now+windowHours] window. Without a
  * calendarId this is the account-default view — the EXACT pre-picker request shape.
+ * `includeBody` false reproduces the pre-CAL-UX.2b URL byte for byte (legacy grants).
  */
-function buildCalendarViewUrl(windowHours: number, calendarId?: string): string {
+function buildCalendarViewUrl(windowHours: number, calendarId: string | undefined, includeBody: boolean): string {
   const now = Date.now();
   const base = calendarId
     ? `${GRAPH_CALENDARS_URL}/${encodeURIComponent(calendarId)}/calendarView`
@@ -175,7 +221,7 @@ function buildCalendarViewUrl(windowHours: number, calendarId?: string): string 
   const url = new URL(base);
   url.searchParams.set('startDateTime', new Date(now).toISOString());
   url.searchParams.set('endDateTime', new Date(now + windowHours * 60 * 60 * 1000).toISOString());
-  url.searchParams.set('$select', GRAPH_SELECT);
+  url.searchParams.set('$select', includeBody ? GRAPH_SELECT : GRAPH_SELECT_LEGACY);
   url.searchParams.set('$top', GRAPH_TOP);
   url.searchParams.set('$orderby', 'start/dateTime');
   return url.toString();
@@ -265,11 +311,13 @@ export const microsoftCalendarAdapter: CalendarProviderAdapter = {
     // NOTE: this may THROW — the poll orchestrator (Task 4) catches and classifies:
     // CalendarReauthRequiredError (dead refresh token → invalid_grant) flips needsReauth;
     // ANY OTHER error is recorded as lastError WITHOUT flipping needsReauth. A 401/403 with
-    // a valid token is a permission problem (e.g. the Calendars.ReadBasic Graph permission
-    // not granted on the app registration) — NOT an expired authorization — so we surface
+    // a valid token is a permission problem (e.g. the Calendars.Read Graph permission not
+    // granted on the app registration) — NOT an expired authorization — so we surface
     // it plainly instead of forcing a pointless reconnect.
     // No selection ⇒ ONE request against the account-default /me/calendarView (unchanged).
     const targets: (string | undefined)[] = selectedCalendarIds?.length ? selectedCalendarIds : [undefined];
+    // Legacy ReadBasic grants (until the user reconnects) keep the OLD request verbatim.
+    const includeBody = hasCalendarsReadScope(tokens.scope);
     let active = tokens;
     // Dedupe across calendars: the same event on two calendars keeps ONE row (the cache
     // PK is `${provider}:${eventId}`, so duplicates would collide anyway).
@@ -279,7 +327,7 @@ export const microsoftCalendarAdapter: CalendarProviderAdapter = {
 
     for (const calendarId of targets) {
       try {
-        const attempt = await authorizedGet(buildCalendarViewUrl(windowHours, calendarId), active, config);
+        const attempt = await authorizedGet(buildCalendarViewUrl(windowHours, calendarId, includeBody), active, config);
         active = attempt.tokens;
         if (!attempt.res.ok) {
           throw new Error(

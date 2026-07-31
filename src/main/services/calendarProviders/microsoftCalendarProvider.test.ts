@@ -1,7 +1,9 @@
 // Unit tests for the Microsoft Graph calendar adapter (Phase G, Task 3). All OAuth
 // is delegated to (and here mocked from) calendarAuthService; all network is mocked.
 // MS-specific guarantees asserted: (a) NO client_secret on any token/authorize request
-// (public client, PKCE only); (b) the Graph `$select` NEVER requests body/bodyPreview.
+// (public client, PKCE only); (b) the Graph `$select` NEVER requests bodyPreview or
+// location, requests `body` ONLY under a Calendars.Read grant (CAL-UX.2b), and falls
+// back to the byte-identical legacy `$select` for a ReadBasic-only token.
 // Plus normalization + `microsoft:` prefixing, isCancelled/isAllDay/seriesMaster
 // filtering, window params on the URL, refresh-then-retry on 401, needsReauth on
 // refresh failure, and never-throw-out-of-fetch.
@@ -81,7 +83,8 @@ describe('microsoftCalendarAdapter.authorize', () => {
     // MS-specific (a): no secret anywhere, ever.
     expect(req).not.toHaveProperty('clientSecret');
     expect(req.endpoints.sendClientSecret).toBe(false);
-    expect(req.endpoints.scope).toBe('openid email offline_access Calendars.ReadBasic');
+    // CAL-UX.2b: descriptions require Calendars.Read — ReadBasic excludes event bodies.
+    expect(req.endpoints.scope).toBe('openid email offline_access Calendars.Read');
     expect(req.endpoints.scope).toContain('offline_access');
     expect(req.endpoints.authorizeUrl).toBe('https://login.microsoftonline.com/common/oauth2/v2.0/authorize');
     expect(req.endpoints.tokenUrl).toBe('https://login.microsoftonline.com/common/oauth2/v2.0/token');
@@ -132,7 +135,7 @@ describe('microsoftCalendarAdapter.refreshIfNeeded', () => {
 });
 
 describe('microsoftCalendarAdapter.fetchUpcoming — request shape', () => {
-  it('builds the calendarView URL with window params, $top/$orderby, and a body-free $select', async () => {
+  it('builds the calendarView URL with window params, $top/$orderby, and (legacy grant) a body-free $select', async () => {
     let capturedUrl = '';
     let capturedInit: RequestInit = {};
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
@@ -149,11 +152,11 @@ describe('microsoftCalendarAdapter.fetchUpcoming — request shape', () => {
     expect(url.searchParams.get('$top')).toBe('250');
     expect(url.searchParams.get('$orderby')).toBe('start/dateTime');
 
-    // MS-specific (b): $select MUST NOT contain body / bodyPreview / location.
+    // MS-specific (b): with no recorded scope the grant is treated as ReadBasic-only,
+    // so the select stays body-free — and never asks for bodyPreview or location.
     const select = url.searchParams.get('$select') ?? '';
     expect(select).toBe('subject,start,end,attendees,seriesMasterId,isCancelled,isAllDay,type');
     expect(select).not.toContain('body');
-    expect(select).not.toContain('bodyPreview');
     expect(select).not.toContain('location');
 
     // Window params: end - start === 24h.
@@ -165,6 +168,111 @@ describe('microsoftCalendarAdapter.fetchUpcoming — request shape', () => {
     const headers = capturedInit.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer the-access');
     expect(headers.Prefer).toBe('outlook.timezone="UTC"');
+  });
+});
+
+// === CAL-UX.2b: scope-gated body request + description mapping ======================
+
+describe('microsoftCalendarAdapter.fetchUpcoming — description (CAL-UX.2b)', () => {
+  const READ_SCOPE = 'openid email offline_access Calendars.Read';
+  const READBASIC_SCOPE = 'openid email offline_access Calendars.ReadBasic';
+  /** The pre-CAL-UX.2b URL, byte for byte — a legacy grant must still produce EXACTLY this. */
+  const LEGACY_URL =
+    'https://graph.microsoft.com/v1.0/me/calendarView' +
+    '?startDateTime=2026-07-31T10%3A00%3A00.000Z' +
+    '&endDateTime=2026-08-01T10%3A00%3A00.000Z' +
+    '&%24select=subject%2Cstart%2Cend%2Cattendees%2CseriesMasterId%2CisCancelled%2CisAllDay%2Ctype' +
+    '&%24top=250' +
+    '&%24orderby=start%2FdateTime';
+  /** Same URL with `body` appended to $select — the only difference under Calendars.Read. */
+  const READ_SCOPE_URL = LEGACY_URL.replace('%2Ctype&', '%2Ctype%2Cbody&');
+
+  function stubGraph(value: unknown[]) {
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
+    fetchMock.mockResolvedValue(jsonResponse(200, { value }));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  function graphEventWithBody(body?: { contentType?: string; content?: string }) {
+    return {
+      id: 'evt-d',
+      subject: 'Sync',
+      start: { dateTime: '2026-08-01T10:00:00.0000000' },
+      end: { dateTime: '2026-08-01T10:30:00.0000000' },
+      type: 'singleInstance',
+      ...(body === undefined ? {} : { body }),
+    };
+  }
+
+  it('requests body in $select and plain-texts an HTML body when the grant carries Calendars.Read', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-31T10:00:00.000Z'));
+    const fetchMock = stubGraph([
+      graphEventWithBody({
+        contentType: 'html',
+        content: '<html><body><p>Agenda &amp; goals</p><br/><br/><br/><br/>Line&nbsp;two <b>bold</b></body></html>',
+      }),
+    ]);
+
+    const events = await microsoftCalendarAdapter.fetchUpcoming(tokens({ scope: READ_SCOPE }), MS_CONFIG, 24);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(READ_SCOPE_URL);
+    expect(fetchMock.mock.calls[0][0]).toContain('%2Cbody');
+    expect(events[0].description).toBe('Agenda & goals\n\nLine two bold');
+  });
+
+  it('keeps a text body verbatim and caps any body at 4000 chars', async () => {
+    stubGraph([graphEventWithBody({ contentType: 'text', content: '  Bring the <deck>.  ' })]);
+    const [textEvent] = await microsoftCalendarAdapter.fetchUpcoming(tokens({ scope: READ_SCOPE }), MS_CONFIG, 24);
+    expect(textEvent.description).toBe('Bring the <deck>.');
+
+    stubGraph([graphEventWithBody({ contentType: 'text', content: 'x'.repeat(5000) })]);
+    const [longEvent] = await microsoftCalendarAdapter.fetchUpcoming(tokens({ scope: READ_SCOPE }), MS_CONFIG, 24);
+    expect(longEvent.description).toHaveLength(4000);
+  });
+
+  it('is undefined for an empty body even under Calendars.Read', async () => {
+    stubGraph([graphEventWithBody({ contentType: 'html', content: '<html><body>\n</body></html>' })]);
+    const [e] = await microsoftCalendarAdapter.fetchUpcoming(tokens({ scope: READ_SCOPE }), MS_CONFIG, 24);
+    expect(e.description).toBeUndefined();
+  });
+
+  it('DEGRADES for a legacy ReadBasic-only token: byte-identical old URL, no description', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-31T10:00:00.000Z'));
+    // Graph would never return a body for such a token; if it somehow did, we never asked.
+    const fetchMock = stubGraph([graphEventWithBody()]);
+
+    const events = await microsoftCalendarAdapter.fetchUpcoming(tokens({ scope: READBASIC_SCOPE }), MS_CONFIG, 24);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(LEGACY_URL);
+    expect(fetchMock.mock.calls[0][0]).not.toContain('body');
+    expect(events[0].description).toBeUndefined();
+  });
+
+  it('treats an unrecorded (undefined) scope as lacking Calendars.Read', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-31T10:00:00.000Z'));
+    const fetchMock = stubGraph([graphEventWithBody()]);
+
+    await microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(LEGACY_URL);
+  });
+
+  it('never mistakes Calendars.ReadWrite for the read grant (word-boundary match)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-31T10:00:00.000Z'));
+    const fetchMock = stubGraph([graphEventWithBody()]);
+
+    await microsoftCalendarAdapter.fetchUpcoming(
+      tokens({ scope: 'openid email offline_access Calendars.ReadWrite' }),
+      MS_CONFIG,
+      24,
+    );
+
+    expect(fetchMock.mock.calls[0][0]).toBe(LEGACY_URL);
   });
 });
 
