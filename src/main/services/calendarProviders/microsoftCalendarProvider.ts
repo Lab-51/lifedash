@@ -18,20 +18,16 @@ import {
   runAuthorizationCodeFlow,
   refreshAccessToken,
   loadCalendarClientConfig,
-  markCalendarNeedsReauth,
   registerCalendarAdapter,
   type AuthorizationRequest,
   type OAuthProviderEndpoints,
 } from '../calendarAuthService';
-import { createLogger } from '../logger';
 import type {
   CalendarClientConfig,
   CalendarEvent,
   CalendarProviderAdapter,
   CalendarTokens,
 } from '../../../shared/types/calendar';
-
-const log = createLogger('MicrosoftCalendar');
 
 // === Microsoft endpoints ===========================================================
 
@@ -186,44 +182,58 @@ export const microsoftCalendarAdapter: CalendarProviderAdapter = {
     config: CalendarClientConfig,
     windowHours: number,
   ): Promise<CalendarEvent[]> {
-    // NEVER throw out of fetch: any failure returns [] so the poll loop stays alive.
-    try {
-      let res = await requestCalendarView(tokens.accessToken, windowHours);
+    // NOTE: this may THROW — the poll orchestrator (Task 4) catches and classifies:
+    // CalendarReauthRequiredError (dead refresh token → invalid_grant) flips needsReauth;
+    // ANY OTHER error is recorded as lastError WITHOUT flipping needsReauth. A 401/403 with
+    // a valid token is a permission problem (e.g. the Calendars.ReadBasic Graph permission
+    // not granted on the app registration) — NOT an expired authorization — so we surface
+    // it plainly instead of forcing a pointless reconnect.
+    let res = await requestCalendarView(tokens.accessToken, windowHours);
 
-      if (res.status === 401) {
-        // One refresh + retry. Any refresh failure (incl. invalid_grant) → needsReauth, [].
-        let refreshed: CalendarTokens;
-        try {
-          refreshed = await refreshAccessToken(buildRequest(config.clientId), tokens.refreshToken);
-        } catch (err) {
-          await markCalendarNeedsReauth('microsoft', err instanceof Error ? err.message : String(err));
-          return [];
-        }
-        res = await requestCalendarView(refreshed.accessToken, windowHours);
-        if (!res.ok) {
-          await markCalendarNeedsReauth('microsoft', `Graph calendarView ${res.status} after refresh`);
-          return [];
-        }
-      } else if (!res.ok) {
-        log.warn(`Graph calendarView failed: ${res.status} ${res.statusText}`);
-        return [];
-      }
-
-      const json = (await res.json()) as GraphCalendarViewResponse;
-      const rows = json.value ?? [];
-      const events: CalendarEvent[] = [];
-      for (const ev of rows) {
-        if (!isMeetingOccurrence(ev)) continue;
-        const normalized = normalizeEvent(ev);
-        if (normalized) events.push(normalized);
-      }
-      return events;
-    } catch (err) {
-      log.warn(`fetchUpcoming failed: ${err instanceof Error ? err.message : String(err)}`);
-      return [];
+    if (res.status === 401) {
+      // Access token likely expired — refresh once (invalid_grant propagates as
+      // CalendarReauthRequiredError) and retry.
+      const refreshed = await refreshAccessToken(buildRequest(config.clientId), tokens.refreshToken);
+      res = await requestCalendarView(refreshed.accessToken, windowHours);
     }
+
+    if (!res.ok) {
+      throw new Error(`Microsoft Calendar fetch failed (HTTP ${res.status}): ${await readErrorDetail(res)}`);
+    }
+
+    const json = (await res.json()) as GraphCalendarViewResponse;
+    const rows = json.value ?? [];
+    const events: CalendarEvent[] = [];
+    for (const ev of rows) {
+      if (!isMeetingOccurrence(ev)) continue;
+      const normalized = normalizeEvent(ev);
+      if (normalized) events.push(normalized);
+    }
+    return events;
   },
 };
+
+/** Extract a concise human-readable detail from a failed Graph response. Graph 401s
+ *  usually carry an EMPTY body and put the real reason in WWW-Authenticate, so include it. */
+async function readErrorDetail(res: Response): Promise<string> {
+  const wwwAuth = res.headers?.get('www-authenticate');
+  const body = await readResponseBody(res);
+  return wwwAuth ? `${body || '(empty body)'} [WWW-Authenticate: ${wwwAuth.slice(0, 300)}]` : body;
+}
+
+async function readResponseBody(res: Response): Promise<string> {
+  try {
+    const text = await res.text();
+    try {
+      const parsed = JSON.parse(text) as { error?: { message?: string } };
+      return (parsed.error?.message ?? text).slice(0, 250);
+    } catch {
+      return text.slice(0, 250);
+    }
+  } catch {
+    return res.statusText;
+  }
+}
 
 /**
  * Registration seam. Task 4 calls this at boot from main.ts (NOT wired here).

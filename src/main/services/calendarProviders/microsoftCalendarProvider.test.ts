@@ -272,55 +272,50 @@ describe('microsoftCalendarAdapter.fetchUpcoming — 401 handling', () => {
     expect(retryHeaders.Authorization).toBe('Bearer fresh-access');
   });
 
-  it('flags needsReauth and returns [] when the refresh fails (invalid_grant)', async () => {
+  it('propagates the refresh failure so the poll orchestrator can flip needsReauth', async () => {
+    // The adapter no longer classifies errors — it lets the refresh failure propagate and
+    // must NOT flip needsReauth itself.
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse(401, { error: { code: 'InvalidAuthenticationToken' } })),
     );
     mocks.refreshAccessToken.mockRejectedValue(new Error('Calendar authorization expired'));
 
-    const events = await microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24);
-
-    expect(events).toEqual([]);
-    expect(mocks.markCalendarNeedsReauth).toHaveBeenCalledTimes(1);
-    expect(mocks.markCalendarNeedsReauth).toHaveBeenCalledWith(
-      'microsoft',
-      expect.stringMatching(/authorization expired/i),
+    await expect(microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24)).rejects.toThrow(
+      /authorization expired/i,
     );
+    expect(mocks.markCalendarNeedsReauth).not.toHaveBeenCalled();
   });
 
-  it('flags needsReauth and returns [] when the retry after refresh still fails', async () => {
+  it('throws a non-reauth error when the retry after refresh still fails', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(401, {})).mockResolvedValueOnce(jsonResponse(401, {}));
     vi.stubGlobal('fetch', fetchMock);
     mocks.refreshAccessToken.mockResolvedValue(tokens({ accessToken: 'fresh' }));
 
-    const events = await microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24);
-
-    expect(events).toEqual([]);
-    expect(mocks.markCalendarNeedsReauth).toHaveBeenCalledTimes(1);
+    // A 401 after a SUCCESSFUL refresh is a permission/config problem, not expired auth.
+    await expect(microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24)).rejects.toThrow(/HTTP 401/);
+    expect(mocks.markCalendarNeedsReauth).not.toHaveBeenCalled();
   });
 });
 
-describe('microsoftCalendarAdapter.fetchUpcoming — never throws', () => {
-  it('returns [] on a non-401 HTTP error without flagging reauth', async () => {
+describe('microsoftCalendarAdapter.fetchUpcoming — error propagation', () => {
+  it('throws a non-reauth error (with the HTTP status) on a non-401 HTTP error', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse(500, { error: 'boom' })),
     );
-    const events = await microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24);
-    expect(events).toEqual([]);
+    await expect(microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24)).rejects.toThrow(/HTTP 500/);
     expect(mocks.markCalendarNeedsReauth).not.toHaveBeenCalled();
   });
 
-  it('returns [] when fetch rejects (network error)', async () => {
+  it('propagates a network error to the caller (the poll orchestrator handles it)', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
         throw new Error('network down');
       }),
     );
-    const events = await microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24);
-    expect(events).toEqual([]);
+    await expect(microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24)).rejects.toThrow('network down');
   });
 });
 

@@ -306,41 +306,40 @@ describe('fetchUpcoming — 401 handling', () => {
     expect(h.markCalendarNeedsReauth).not.toHaveBeenCalled();
   });
 
-  it('flags needsReauth and returns [] when the refresh fails with invalid_grant', async () => {
+  it('propagates the reauth error when the refresh fails with invalid_grant', async () => {
+    // The adapter no longer classifies errors — it lets the reauth error propagate so the
+    // poll orchestrator can flip needsReauth. It must NOT flip needsReauth itself.
     fetchMock.mockResolvedValueOnce(jsonResponse({}, { status: 401 }));
     h.refreshAccessToken.mockRejectedValue(new MockReauthError('invalid_grant'));
 
-    const events = await googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 12);
-
-    expect(events).toEqual([]);
-    expect(h.markCalendarNeedsReauth).toHaveBeenCalledWith('google', expect.stringContaining('invalid_grant'));
+    await expect(googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 12)).rejects.toBeInstanceOf(
+      MockReauthError,
+    );
     // Never a second fetch after a failed refresh.
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(h.markCalendarNeedsReauth).not.toHaveBeenCalled();
   });
 
-  it('flags needsReauth and returns [] when the retry still returns non-ok', async () => {
+  it('throws a non-reauth error when the retry after refresh still returns non-ok', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({}, { status: 401 }))
       .mockResolvedValueOnce(jsonResponse({}, { status: 401 }));
     h.refreshAccessToken.mockResolvedValue(tokens({ accessToken: 'access-refreshed' }));
 
-    const events = await googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 12);
-
-    expect(events).toEqual([]);
-    expect(h.markCalendarNeedsReauth).toHaveBeenCalledTimes(1);
+    await expect(googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 12)).rejects.toThrow(/HTTP 401/);
+    // A 401 after a SUCCESSFUL refresh is a permission/config problem, not expired auth.
+    expect(h.markCalendarNeedsReauth).not.toHaveBeenCalled();
   });
 
-  it('never throws out of the fetch path even if fetch rejects', async () => {
+  it('propagates a network error to the caller (the poll orchestrator handles it)', async () => {
     fetchMock.mockRejectedValue(new Error('network down'));
-    const events = await googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 12);
-    expect(events).toEqual([]);
+    await expect(googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 12)).rejects.toThrow('network down');
   });
 
-  it('flags needsReauth on a non-401 error status', async () => {
+  it('throws a non-reauth error (with the HTTP status) on a non-401 error status', async () => {
     fetchMock.mockResolvedValue(jsonResponse({}, { status: 500 }));
-    const events = await googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 12);
-    expect(events).toEqual([]);
-    expect(h.markCalendarNeedsReauth).toHaveBeenCalledWith('google', expect.stringContaining('500'));
+    await expect(googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 12)).rejects.toThrow(/HTTP 500/);
+    expect(h.markCalendarNeedsReauth).not.toHaveBeenCalled();
   });
 });
 

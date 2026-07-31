@@ -16,12 +16,10 @@ import {
   runAuthorizationCodeFlow,
   refreshAccessToken,
   loadCalendarClientConfig,
-  markCalendarNeedsReauth,
   registerCalendarAdapter,
   type AuthorizationRequest,
   type OAuthProviderEndpoints,
 } from '../calendarAuthService';
-import { createLogger } from '../logger';
 import type {
   CalendarClientConfig,
   CalendarEvent,
@@ -29,8 +27,6 @@ import type {
   CalendarProviderAdapter,
   CalendarTokens,
 } from '../../../shared/types/calendar';
-
-const log = createLogger('GoogleCalendar');
 
 /**
  * Google OAuth + Calendar endpoints. `access_type=offline` + `prompt=consent` are
@@ -182,36 +178,42 @@ export const googleCalendarAdapter: CalendarProviderAdapter = {
     config: CalendarClientConfig,
     windowHours: number,
   ): Promise<CalendarEvent[]> {
-    // Fetch path must NEVER throw — it runs in the background poller (Task 4).
-    try {
-      let active = tokens;
-      let res = await requestEvents(active.accessToken, windowHours);
+    // NOTE: this may THROW — the poll orchestrator (Task 4) catches and classifies the
+    // error: a CalendarReauthRequiredError (dead refresh token → invalid_grant) flips
+    // needsReauth; ANY OTHER error is recorded as lastError WITHOUT flipping needsReauth.
+    // A 401/403 with a valid token is a permission / API-config problem (e.g. the Google
+    // Calendar API not being enabled, or insufficient scope) — NOT an expired
+    // authorization — so we surface it plainly instead of forcing a pointless reconnect.
+    let active = tokens;
+    let res = await requestEvents(active.accessToken, windowHours);
 
-      if (res.status === 401) {
-        // One refresh-then-retry attempt on 401 / invalid_grant.
-        try {
-          active = await refreshAccessToken(toRequest(config), active.refreshToken);
-        } catch (err) {
-          await markCalendarNeedsReauth('google', errorMessage(err));
-          return [];
-        }
-        res = await requestEvents(active.accessToken, windowHours);
-      }
-
-      if (!res.ok) {
-        await markCalendarNeedsReauth('google', `Google events fetch failed: ${res.status}`);
-        return [];
-      }
-      return await parseEvents(res);
-    } catch (err) {
-      log.warn(`fetchUpcoming failed: ${errorMessage(err)}`);
-      return [];
+    if (res.status === 401) {
+      // Access token likely expired — refresh once (invalid_grant propagates as
+      // CalendarReauthRequiredError) and retry.
+      active = await refreshAccessToken(toRequest(config), active.refreshToken);
+      res = await requestEvents(active.accessToken, windowHours);
     }
+
+    if (!res.ok) {
+      throw new Error(`Google Calendar fetch failed (HTTP ${res.status}): ${await readErrorDetail(res)}`);
+    }
+    return await parseEvents(res);
   },
 };
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+/** Extract a concise human-readable detail from a failed API response body. */
+async function readErrorDetail(res: Response): Promise<string> {
+  try {
+    const text = await res.text();
+    try {
+      const parsed = JSON.parse(text) as { error?: { message?: string } };
+      return (parsed.error?.message ?? text).slice(0, 250);
+    } catch {
+      return text.slice(0, 250);
+    }
+  } catch {
+    return res.statusText;
+  }
 }
 
 /**
