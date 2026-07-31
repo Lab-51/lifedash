@@ -47,6 +47,12 @@ jobs:
         env:
           SKIP_OBFUSCATION: 'true'
           OFFICIAL_BUILD: 'true'
+          # Embedded calendar OAuth defaults (vite.main.config.ts defines) — without
+          # these, macOS builds ship with no built-in calendar client and users are
+          # forced onto the BYO Advanced path.
+          GOOGLE_CALENDAR_CLIENT_ID: ${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}
+          GOOGLE_CALENDAR_CLIENT_SECRET: ${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}
+          MICROSOFT_CALENDAR_CLIENT_ID: ${{ secrets.MICROSOFT_CALENDAR_CLIENT_ID }}
 
       # Extract version from tag
       - name: Extract version from tag

@@ -28,28 +28,12 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
-    // BRAIN-UX.1 — Entity Knowledge & Post-Meeting Chat (Tasks 1-6). DRAFT entry
-    // ahead of the 2.5.0 release ceremony (which owns the actual version bump
-    // in package.json). Still behind the unreleased 2.4.0 draft below.
+    // Phase G — Calendar Integration + BRAIN-UX.1 — Entity Knowledge &
+    // Post-Meeting Chat + INTEL-FIX.1. Consolidated: the 2.4.0 draft (calendar)
+    // was never released before BRAIN-UX.1 landed on main, so both ship
+    // together as a single 2.5.0 (avoids a tag whose binaries would contain
+    // features the release label doesn't claim).
     version: '2.5.0',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          "The Brain now groups itself into Projects, People, and Topics — instead of one flat tree, you get three clear branches (plus Unlinked sessions) so it's obvious at a glance who and what your work is organized around.",
-          "People and topics in the Brain now carry a real fact profile: durable facts your Twin learned about them, each one showing exactly which session it came from, with a one-tap forget for anything you don't want remembered.",
-          '"Analyze past sessions" lets you backfill a person or topic\'s fact profile from meetings that happened before this feature existed — entirely on-demand, never automatic, so nothing runs in the background without you asking.',
-          "Every finished session now has a post-meeting chat — ask questions about what was discussed and get grounded answers straight from that meeting's transcript, with no side-effect tools (it can't move cards or touch your board, just answer).",
-          'The transcript view is easier to read and stays out of your way by default — it opens collapsed and expands automatically when a search result points you into it.',
-        ],
-      },
-    ],
-  },
-  {
-    // Phase G — Calendar Integration (Tasks 1-6). DRAFT entry ahead of the 2.4.0
-    // release ceremony (which owns the actual version bump in package.json).
-    version: '2.4.0',
     sections: [
       {
         category: 'new',
@@ -61,6 +45,20 @@ export const releaseHistory: ReleaseNotesData[] = [
           'A heads-up while you record — if another meeting is coming up soon, an in-recording banner tells you how many minutes you have left before the next one.',
           'Privacy-first by design: the calendar integration is read-only and metadata-only — it stores just event titles, times, and attendees, locally on your device. Event descriptions are never read in, and nothing is sent anywhere except to your own calendar provider.',
           'Connect in one click with the built-in setup, or bring your own OAuth app credentials under an Advanced option in Settings — either way, tokens are stored encrypted on your machine and your client secret is never shown back to you.',
+          "The Brain now groups itself into Projects, People, and Topics — instead of one flat tree, you get three clear branches (plus Unlinked sessions) so it's obvious at a glance who and what your work is organized around.",
+          "People and topics in the Brain now carry a real fact profile: durable facts your Twin learned about them, each one showing exactly which session it came from, with a one-tap forget for anything you don't want remembered.",
+          '"Analyze past sessions" lets you backfill a person or topic\'s fact profile from meetings that happened before this feature existed — entirely on-demand, never automatic, so nothing runs in the background without you asking.',
+          "Every finished session now has a post-meeting chat — ask questions about what was discussed and get grounded answers straight from that meeting's transcript, with no side-effect tools (it can't move cards or touch your board, just answer).",
+          'The transcript view is easier to read and stays out of your way by default — it opens collapsed and expands automatically when a search result points you into it.',
+          'The Intel news feed is back in the sidebar as a first-class destination.',
+        ],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Intel feed: bookmarking now works from the reader panel and daily briefs, deleting an article no longer silently fails, and manually added articles show up immediately instead of vanishing into a disabled source.',
+          'Intel feed: the Saved view now shows exactly what its badge counts — bookmarks no longer age out of the list after a week, and removing a source cleans up its reader and filter state instead of erroring.',
         ],
       },
     ],
