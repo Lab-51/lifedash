@@ -32,6 +32,8 @@ LifeDash records your meetings, transcribes them locally with Whisper, and gener
 
 A **Digital Twin** — built from a profile of your work and continuously learning from every session — works visibly alongside you during a meeting, answering questions and proposing and creating cards on a built-in Kanban board. Everything it hears builds a **living, queryable brain** (sessions → projects → cards → decisions → people) that you can watch grow as a mind map and search in plain language — *"what did we decide about pricing?"* — **answered, with citations, from your own past meetings.**
 
+Connect your **Google or Outlook calendar** and your week is right there: click an upcoming meeting to see who's coming, what was decided last time, and which action items are still open — then start recording it in one click.
+
 All of it runs **100% locally by default** — audio, transcription, reasoning, embeddings, and memory never have to leave the machine. Cloud is a per-task, clearly-labeled opt-in.
 
 ### Platform Support
@@ -53,6 +55,7 @@ All of it runs **100% locally by default** — audio, transcription, reasoning, 
 | AI briefs & summaries | Yes | Yes | Yes | Yes |
 | Action item extraction | Yes | Yes | Yes | Yes |
 | Project management | Yes | No | No | No |
+| Calendar integration | Yes | Yes | Yes | Yes |
 | Learning digital-twin assistant | Yes | No | No | No |
 | Ask your own meetings (cited, local) | Yes | No | No | No |
 | Bring your own AI key | Yes | No | No | No |
@@ -106,6 +109,15 @@ brew tap lab-51/lifedash && brew install --cask lifedash
 - **It learns from every finished session** — distilling a few durable facts (people, projects, preferences, commitments) into an **auditable memory**: every fact links to the session it came from, one tap forgets it for good, and a single switch pauses all learning
 - Optional cited web research and deep, orchestrated profile creation on a frontier provider — nothing is saved until you confirm
 
+### Your Calendar, In the App
+- Connect **Google Calendar** and/or **Microsoft Outlook** — read-only, and you pick exactly which calendars sync
+- Your week is always on the home screen, in the shape you prefer: a **day-grouped list**, a **week board**, or an **Outlook-style hour timeline** (your choice is remembered)
+- A ribbon surfaces the meeting that's about to start, with **one-click recording** that prefills the title and project — nothing is ever recorded automatically
+- Click any meeting for its details: attendees, the invite description, the suggested project — plus **what happened last time**: a snippet of the previous brief and the action items still open from it, drawn from your own past sessions with no AI call
+- Ask for a **prep note** and your local model writes a short briefing from that context — only when you press the button
+- Recurring meetings learn their project: record the same series against a project twice and LifeDash starts suggesting it
+- Calendar data is stored **locally only** — titles, times, attendees, and descriptions live on your machine and are never synced anywhere
+
 ### Meeting Intelligence
 - Record system audio + microphone
 - Real-time transcription (local Whisper or cloud providers)
@@ -113,12 +125,14 @@ brew tap lab-51/lifedash && brew install --cask lifedash
 - Automatic action item extraction, turned into board cards in one click
 - Speaker diarization and meeting analytics
 - A proactive in-meeting assistant that proposes actions (propose → one-tap accept) and executes board work as you talk
+- **Chat with a finished meeting** — ask what was discussed and get answers grounded in that transcript, with timestamps. Read-only by design: it answers, it never touches your board
+- **Inactivity auto-stop** — if a recording is left running in silence, you get a warning and a countdown before it stops itself cleanly (on by default, configurable)
 
 ### The Living Brain
-- A collapsible **mind map** of your workspace — or a single session — rendered from your own local data
+- A collapsible **mind map** of your workspace — or a single session — rendered from your own local data, organized into **Projects · People · Topics**
 - It **grows live** during a meeting: new cards fade in, with a badge on collapsed branches so nothing is missed
 - Hover any card, decision, or question to trace its provenance back to the session it came from
-- Its first **semantic layer**: the people and topics from each meeting become entities linked across every session they appear in
+- **People and topics carry fact profiles** — durable facts the Twin learned about them, each showing which session it came from, with one-tap forget. Backfill any person or topic from your past meetings on demand — never automatically
 
 ### Search That Understands Meaning
 - Full-text search across sessions, transcripts, briefs, cards, and projects — grouped, ranked, one click to jump in
@@ -132,8 +146,13 @@ brew tap lab-51/lifedash && brew install --cask lifedash
 - Card detail view with rich text, comments, checklists, due dates, labels, and tags
 - **Card & Project Agents** (tool-calling AI per card/board) and **background agents** for autonomous stale-card detection and project insights
 
+### Intel Feed
+- A built-in RSS reader for the sources you follow, with a distraction-free article view
+- **AI daily and weekly briefs** over what came in, plus on-demand summaries of any single article
+- Automatic categorization, bookmarking, and full-text search across everything you've collected
+
 ### Privacy by Design
-- All data stored locally in embedded PostgreSQL (PGlite); audio recordings stay on your machine
+- All data stored locally in embedded PostgreSQL (PGlite); audio recordings and calendar data stay on your machine
 - Local reasoning (LM Studio / Ollama) and **local embeddings** by default — cloud is a per-task, visible opt-in that warns before sending bulk content
 - AI uses YOUR API keys. We never see your data
 - Optional cloud sync (Supabase) — off by default, fully opt-in
@@ -182,6 +201,7 @@ No database setup. The app uses PGlite (embedded PostgreSQL) and runs migrations
 - **Local models:** Point any task at LM Studio or Ollama for fully-private reasoning. Semantic search needs a local embedding model (e.g. a multilingual EmbeddingGemma-300M-class model in LM Studio) assigned to the Embedding task.
 - **Whisper model:** Download and manage local Whisper models from Settings.
 - **Transcription providers:** Deepgram and AssemblyAI can be configured as cloud alternatives to local Whisper.
+- **Calendar:** Connect Google and/or Microsoft from Settings > Calendar, then choose which calendars sync. Tokens are encrypted on-device. Forks and self-hosters can supply their own OAuth client credentials under "Advanced".
 - **Cloud sync:** Optionally sign in with Supabase to sync data across devices. Off by default.
 - **Data export:** Export your entire database as JSON or CSV from Settings > Data & Storage.
 
@@ -218,6 +238,7 @@ No database setup. The app uses PGlite (embedded PostgreSQL) and runs migrations
 | ORM | Drizzle ORM |
 | AI SDK | Vercel AI SDK |
 | AI Providers | OpenAI, Anthropic, Google (Gemini), LM Studio, Ollama, Kimi |
+| Calendar | Google Calendar + Microsoft Graph (read-only, OAuth 2.0 + PKCE) |
 | Embeddings | Local by default (LM Studio) — on-device semantic index |
 | Semantic search | pgvector (HNSW) + Postgres full-text, hybrid RRF fusion |
 | Transcription Providers | Deepgram, AssemblyAI |
@@ -240,11 +261,11 @@ src/
   main/               # Electron main process
     db/                # Schema, migrations, connection (PGlite + pgvector)
     ipc/               # IPC handlers (100+ channels)
-    services/          # Business logic (AI, transcription, twin, embeddings, brain, backup)
+    services/          # Business logic (AI, transcription, twin, embeddings, brain, calendar, backup)
     workers/           # Background workers (transcription)
   preload/             # Electron preload bridge
   renderer/            # React frontend
-    components/        # Session workspace, Twin, Brain mind map, Board, Settings, UI
+    components/        # Session workspace, agenda/calendar, Twin, Brain mind map, Board, Settings, UI
     hooks/             # Custom React hooks
     pages/             # Route pages (Sessions, session detail, Twin, Board, Settings)
     services/          # Frontend service layer
@@ -255,7 +276,7 @@ src/
 
 ## Contributing
 
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues and submitting pull requests.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues and submitting pull requests. Note that contributions are licensed under this project's license and grant the maintainer the right to license them commercially — that's what keeps LifeDash free for everyone else.
 
 ## License
 
