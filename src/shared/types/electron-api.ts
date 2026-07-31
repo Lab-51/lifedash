@@ -124,6 +124,7 @@ import type {
   CalendarClientConfig,
   CalendarAccountStatus,
   CalendarEvent,
+  CalendarEventContext,
   CalendarListResult,
   CalendarProjectSuggestion,
 } from './calendar';
@@ -659,6 +660,10 @@ export interface ElectronAPI {
   /** Persist the synced-calendar selection (at least one id) and refresh the cache. */
   setSelectedCalendars: (provider: CalendarProvider, calendarIds: string[]) => Promise<void>;
   suggestCalendarProject: (input: { seriesId?: string; eventId?: string }) => Promise<CalendarProjectSuggestion | null>;
+  /** Deterministic cross-meeting context for one event — instant, never runs a model. */
+  getCalendarEventContext: (eventId: string) => Promise<CalendarEventContext>;
+  /** Opt-in AI prep note for one event (explicit click only); rejects when no model. */
+  generateCalendarPrepNote: (eventId: string) => Promise<{ note: string }>;
   onCalendarEventsUpdated: (callback: () => void) => () => void;
 }
 

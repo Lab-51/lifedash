@@ -27,6 +27,10 @@ vi.mock('../../services/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 vi.mock('../../services/calendarAssociationService', () => ({ suggestProject: vi.fn() }));
+vi.mock('../../services/calendarContextService', () => ({
+  getEventContext: vi.fn(),
+  generatePrepNote: vi.fn(),
+}));
 vi.mock('../../services/calendarSelectionService', () => ({
   loadSelectedCalendarIds: vi.fn(),
   saveSelectedCalendarIds: vi.fn(),
@@ -55,6 +59,7 @@ import { registerCalendarHandlers } from '../calendar';
 import { loadCalendarClientConfig, loadCalendarTokens, getCalendarAdapter } from '../../services/calendarAuthService';
 import { loadSelectedCalendarIds, saveSelectedCalendarIds } from '../../services/calendarSelectionService';
 import { replaceProviderEvents } from '../../services/calendarPollScheduler';
+import { getEventContext, generatePrepNote } from '../../services/calendarContextService';
 
 const handler = (channel: string) => registeredHandlers.get(channel)!;
 
@@ -219,5 +224,66 @@ describe('calendar:set-selected-calendars', () => {
       handler('calendar:set-selected-calendars')(makeEvent(), { provider: 'google', calendarIds: ['x'.repeat(513)] }),
     ).rejects.toThrow(/Validation failed/);
     expect(saveSelectedCalendarIds).not.toHaveBeenCalled();
+  });
+});
+
+// === calendar:get-event-context (CAL-UX.2) =========================================
+
+const EMPTY_CONTEXT = { recordedSession: null, lastSeriesSession: null, attendeeMatches: [] };
+
+describe('calendar:get-event-context', () => {
+  it('delegates to the context service and returns its result verbatim', async () => {
+    const context = {
+      recordedSession: { meetingId: 'm-1', title: 'Weekly sync' },
+      lastSeriesSession: null,
+      attendeeMatches: [{ entityId: 'e-1', name: 'Anna Kowalski', factCount: 2 }],
+    };
+    vi.mocked(getEventContext).mockResolvedValue(context);
+
+    const result = await handler('calendar:get-event-context')({}, { eventId: 'google:evt-1' });
+
+    expect(getEventContext).toHaveBeenCalledWith('google:evt-1');
+    expect(result).toEqual(context);
+  });
+
+  it('rejects a missing, empty or oversized eventId before touching the service', async () => {
+    vi.mocked(getEventContext).mockResolvedValue(EMPTY_CONTEXT);
+
+    await expect(handler('calendar:get-event-context')({}, {})).rejects.toThrow(/Validation failed/);
+    await expect(handler('calendar:get-event-context')({}, { eventId: '' })).rejects.toThrow(/Validation failed/);
+    await expect(handler('calendar:get-event-context')({}, { eventId: 'x'.repeat(513) })).rejects.toThrow(
+      /Validation failed/,
+    );
+    await expect(handler('calendar:get-event-context')({}, 'google:evt-1')).rejects.toThrow(/Validation failed/);
+    expect(getEventContext).not.toHaveBeenCalled();
+  });
+});
+
+// === calendar:generate-prep-note (CAL-UX.2) ========================================
+
+describe('calendar:generate-prep-note', () => {
+  it('delegates to the context service and wraps the note in { note }', async () => {
+    vi.mocked(generatePrepNote).mockResolvedValue('Follow up on the deck.');
+
+    const result = await handler('calendar:generate-prep-note')({}, { eventId: 'google:evt-1' });
+
+    expect(generatePrepNote).toHaveBeenCalledWith('google:evt-1');
+    expect(result).toEqual({ note: 'Follow up on the deck.' });
+  });
+
+  it('propagates the service rejection (e.g. no model configured) unchanged', async () => {
+    vi.mocked(generatePrepNote).mockRejectedValue(new Error('No AI provider configured for prep notes.'));
+
+    await expect(handler('calendar:generate-prep-note')({}, { eventId: 'google:evt-1' })).rejects.toThrow(
+      /No AI provider configured/,
+    );
+  });
+
+  it('rejects a missing or oversized eventId before touching the service', async () => {
+    await expect(handler('calendar:generate-prep-note')({}, {})).rejects.toThrow(/Validation failed/);
+    await expect(handler('calendar:generate-prep-note')({}, { eventId: 'x'.repeat(513) })).rejects.toThrow(
+      /Validation failed/,
+    );
+    expect(generatePrepNote).not.toHaveBeenCalled();
   });
 });

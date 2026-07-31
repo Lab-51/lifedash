@@ -540,6 +540,32 @@ When a Google connection's granted scopes predate the calendar-list scope (or th
 - WHEN the user expands "Choose calendars"
 - THEN a reconnect notice and button appear, and no calendar-list request is sent
 
+### Requirement: The agenda view preference is the user's and persists
+
+The Upcoming meetings panel MUST offer the list, week-board, and timeline views behind a switcher; the selected view MUST persist across app restarts. With no stored preference the default SHALL be the week board. All views MUST open the same event details surface for a clicked meeting.
+
+#### Scenario: Preference survives a restart
+
+- GIVEN the user switched the agenda to the timeline view
+- WHEN the app restarts
+- THEN the agenda renders the timeline view
+
+### Requirement: Event details context is deterministic by default; the model runs only on explicit request
+
+Opening an event's details MUST populate its cross-meeting context (previous same-series session's brief snippet, its still-open action items with an honest total, and attendee matches against known Brain persons) from local database lookups only — no model invocation. Generating a prep note MUST require an explicit user action per event, route through the per-task model resolution, and reject with a typed no-model message when no provider is configured. Calendar event bodies/descriptions MUST NOT appear anywhere in the details surface (none are ever stored).
+
+#### Scenario: Opening details never invokes the model
+
+- GIVEN an event whose series has a previously recorded session
+- WHEN the user opens the event's details
+- THEN the last-session context renders from lookups and no generation task is dispatched
+
+#### Scenario: Prep note only on demand
+
+- GIVEN the details modal is open
+- WHEN the user clicks "Generate prep note"
+- THEN exactly one generation runs (cached thereafter), and with no model configured a typed error message is shown instead
+
 ---
 
 <!-- Add further requirements following the same pattern, one `### Requirement:` block per behavior/domain. -->

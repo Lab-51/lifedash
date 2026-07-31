@@ -28,6 +28,23 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    // CAL-UX.2 — Agenda Views, Event Details & Meeting Context. DRAFT entry ahead
+    // of the 2.6.0 release ceremony (which owns the actual version bump).
+    version: '2.6.0',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'See your week the way you want it — the Upcoming meetings panel now has three switchable views: the day-grouped list, a week board (default), and an Outlook-style hour timeline. Your choice is remembered.',
+          "Click any meeting to open its details — time, attendees, recurring badge, and the suggested project — with a one-tap jump to the recorded session if you've already captured it, or straight into recording if you haven't.",
+          'Meetings now remember each other: for recurring meetings the details show what happened last time — a snippet of the previous brief, the action items still open from it, and what your Brain already knows about the attendees. Instant, on-device lookups — no AI involved.',
+          "Want more than a lookup? A 'Generate prep note' button asks your local model to write a short prep briefing from that context — only when you press it, never in the background.",
+        ],
+      },
+    ],
+  },
+  {
     // Phase G — Calendar Integration + BRAIN-UX.1 — Entity Knowledge &
     // Post-Meeting Chat + INTEL-FIX.1. Consolidated: the 2.4.0 draft (calendar)
     // was never released before BRAIN-UX.1 landed on main, so both ship

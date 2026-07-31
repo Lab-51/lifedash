@@ -38,6 +38,38 @@ export interface CalendarEvent {
   seriesId?: string;
 }
 
+/**
+ * Which agenda surface the Sessions-home renders (CAL-UX.2). Persisted under the
+ * `calendar:agendaView` settings key; default 'week' when absent/invalid.
+ */
+export type AgendaViewMode = 'list' | 'week' | 'timeline';
+
+/**
+ * Everything LifeDash already KNOWS about one calendar event — assembled by
+ * deterministic DB queries only (`calendar:get-event-context`, zero model calls).
+ *
+ * This is LifeDash-derived context (sessions, briefs, action items, entity facts),
+ * never calendar prose: the metadata-only policy above still holds.
+ */
+export interface CalendarEventContext {
+  /** THIS event already has a recorded session. */
+  recordedSession: { meetingId: string; title: string } | null;
+  /** Most recent COMPLETED session of the same series, excluding this event's own. */
+  lastSeriesSession: {
+    meetingId: string;
+    title: string;
+    /** ISO timestamp the session ended (falls back to its start when never stamped). */
+    endedAt: string;
+    /** First ~240 chars of that session's brief, plain-texted; null when it has none. */
+    briefSnippet: string | null;
+    /** Still-open action items, capped at 5 — `totalOpenActionItems` keeps the count honest. */
+    openActionItems: { id: string; text: string }[];
+    totalOpenActionItems: number;
+  } | null;
+  /** Attendees matched to a known person entity (exact normalized name), capped at 6. */
+  attendeeMatches: { entityId: string; name: string; factCount: number }[];
+}
+
 /** Per-provider connection status shown in Settings. */
 export interface CalendarAccountStatus {
   provider: CalendarProvider;

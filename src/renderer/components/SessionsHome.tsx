@@ -10,8 +10,13 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Mic, Info, X, ArrowDownWideNarrow, Sparkles, Calendar, RefreshCw } from 'lucide-react';
-import type { CalendarEvent } from '../../shared/types/calendar';
+import type { AgendaViewMode, CalendarEvent } from '../../shared/types/calendar';
 import { CALENDAR_LOOKAHEAD_HOURS } from '../../shared/types/calendar';
+import AgendaListView from './agenda/AgendaListView';
+import AgendaTimeline from './agenda/AgendaTimeline';
+import AgendaViewSwitcher from './agenda/AgendaViewSwitcher';
+import AgendaWeekBoard from './agenda/AgendaWeekBoard';
+import EventDetailsModal from './agenda/EventDetailsModal';
 import EmptyFeatureState from './EmptyFeatureState';
 import HudSelect from './HudSelect';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -41,61 +46,89 @@ function ribbonTiming(startsAt: string): { label: string; inProgress: boolean } 
   return { label: n <= 0 ? 'starting now' : `starts in ${n} min`, inProgress: false };
 }
 
-/** Row-level "when" label — the day now lives in the group header above the row. */
-function formatEventWhen(startsAt: string): string {
-  const d = new Date(startsAt);
-  const diffMin = (d.getTime() - Date.now()) / 60000;
-  if (diffMin < 0) return 'in progress';
-  if (diffMin < 60) return `in ${Math.max(1, Math.round(diffMin))} min`;
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-/** Midnight-of-day epoch, so day grouping ignores clock time. */
-function startOfDay(d: Date): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
-
-/**
- * Day-group header for the upcoming list: Today / Tomorrow / weekday name within
- * the next week, else a short date (the window is 7 days, so the date is a fallback
- * for events sitting exactly on the far edge).
- */
-function formatEventDayGroup(startsAt: string): string {
-  const d = new Date(startsAt);
-  const dayDiff = Math.round((startOfDay(d) - startOfDay(new Date())) / 86_400_000);
-  if (dayDiff <= 0) return 'Today';
-  if (dayDiff === 1) return 'Tomorrow';
-  if (dayDiff < 7) return d.toLocaleDateString([], { weekday: 'long' });
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-
-/** Max events shown in the upcoming-meetings list (keeps the home view compact). */
+/** Max events shown in the upcoming-meetings LIST view (keeps the home view compact). */
 const UPCOMING_LIST_LIMIT = 12;
 
-/** One day bucket of the upcoming-meetings list. */
-interface UpcomingDayGroup {
-  label: string;
-  events: CalendarEvent[];
+// Agenda view preference (CAL-UX.2). Persisted through the generic settings IPC;
+// 'week' is the default so the home screen shows the whole week at a glance.
+const AGENDA_VIEW_SETTING_KEY = 'calendar:agendaView';
+const DEFAULT_AGENDA_VIEW: AgendaViewMode = 'week';
+const AGENDA_VIEW_MODES: readonly string[] = ['list', 'week', 'timeline'];
+
+/** Absent or unrecognised stored values fall back to the default view. */
+function isAgendaViewMode(value: string | null): value is AgendaViewMode {
+  return value !== null && AGENDA_VIEW_MODES.includes(value);
+}
+
+/** Null-tolerant mount for the event details modal — the null branch lives here so
+ *  SessionsHome's baselined complexity stays flat (CAL-UX.2 Task 4). */
+function EventDetailsHost({
+  event,
+  onClose,
+  onStartRecording,
+}: {
+  event: CalendarEvent | null;
+  onClose: () => void;
+  onStartRecording: (event: CalendarEvent) => void;
+}) {
+  if (!event) return null;
+  return <EventDetailsModal event={event} onClose={onClose} onStartRecording={onStartRecording} />;
+}
+
+/** Renders the surface the switcher currently selects. */
+function AgendaBody({
+  mode,
+  listEvents,
+  boardEvents,
+  onStart,
+  onOpenEvent,
+}: {
+  mode: AgendaViewMode;
+  listEvents: CalendarEvent[];
+  boardEvents: CalendarEvent[];
+  onStart: (event: CalendarEvent) => void;
+  onOpenEvent: (event: CalendarEvent) => void;
+}) {
+  if (mode === 'week') return <AgendaWeekBoard events={boardEvents} onOpenEvent={onOpenEvent} />;
+  if (mode === 'timeline') return <AgendaTimeline events={boardEvents} onOpenEvent={onOpenEvent} />;
+  return <AgendaListView events={listEvents} onStart={onStart} onOpenEvent={onOpenEvent} />;
 }
 
 /**
- * The persistent agenda panel (CAL-UX.1). Rendered whenever a calendar is connected,
- * so an empty 7-day window shows an empty state instead of the section disappearing.
- * NEVER auto-records — every row needs an explicit click.
+ * The persistent agenda panel (CAL-UX.1, widened in CAL-UX.2). Rendered whenever a
+ * calendar is connected, so an empty 7-day window shows an empty state instead of
+ * the section disappearing. This shell owns the card, the header (switcher +
+ * refresh + error line) and the view dispatch; each surface itself lives in
+ * components/agenda/, and the persisted view preference lives one level up in
+ * SessionsHome (this panel mounts too late to read it without a visible flash).
+ *
+ * NEVER auto-records — every recording start needs an explicit click.
  */
 function UpcomingAgenda({
-  groups,
+  viewMode,
+  onViewModeChange,
+  listEvents,
+  boardEvents,
   onStart,
+  onOpenEvent,
   onRefresh,
   refreshing,
   refreshError,
 }: {
-  groups: UpcomingDayGroup[];
+  viewMode: AgendaViewMode;
+  onViewModeChange: (mode: AgendaViewMode) => void;
+  /** LIST data: ribbon event excluded and capped — the CAL-UX.1 behavior, unchanged. */
+  listEvents: CalendarEvent[];
+  /** WEEK/TIMELINE data: every non-dismissed event, ribbon event included. */
+  boardEvents: CalendarEvent[];
   onStart: (event: CalendarEvent) => void;
+  onOpenEvent: (event: CalendarEvent) => void;
   onRefresh: () => void;
   refreshing: boolean;
   refreshError: string | null;
 }) {
+  const visibleEvents = viewMode === 'list' ? listEvents : boardEvents;
+
   return (
     <div className="px-8 mb-4">
       <div className="rounded-xl border border-[var(--color-border)] bg-surface-50/60 dark:bg-surface-900/40 overflow-hidden">
@@ -104,53 +137,33 @@ function UpcomingAgenda({
           <span className="font-hud text-[0.6875rem] tracking-widest uppercase text-[var(--color-accent-dim)]">
             Upcoming meetings
           </span>
-          <button
-            onClick={onRefresh}
-            disabled={refreshing}
-            aria-label="Refresh calendar"
-            title="Sync now with your calendar"
-            className="ml-auto shrink-0 p-1 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-accent)]
-                   hover:bg-surface-100/80 dark:hover:bg-surface-800/80 transition-colors disabled:opacity-60"
-          >
-            <RefreshCw size={13} className={refreshing ? 'animate-spin' : undefined} />
-          </button>
+          <div className="ml-auto flex items-center gap-1.5">
+            <AgendaViewSwitcher mode={viewMode} onChange={onViewModeChange} />
+            <button
+              onClick={onRefresh}
+              disabled={refreshing}
+              aria-label="Refresh calendar"
+              title="Sync now with your calendar"
+              className="shrink-0 p-1 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-accent)]
+                     hover:bg-surface-100/80 dark:hover:bg-surface-800/80 transition-colors disabled:opacity-60"
+            >
+              <RefreshCw size={13} className={refreshing ? 'animate-spin' : undefined} />
+            </button>
+          </div>
         </div>
         {refreshError && (
           <p className="px-4 py-1.5 border-b border-[var(--color-border)] text-xs text-red-400">{refreshError}</p>
         )}
-        {groups.length === 0 ? (
+        {visibleEvents.length === 0 ? (
           <p className="px-4 py-3 text-xs text-[var(--color-text-muted)]">No meetings in the next 7 days.</p>
         ) : (
-          groups.map((group) => (
-            <div key={group.label}>
-              <p className="px-4 py-1.5 border-b border-[var(--color-border)] bg-surface-100/60 dark:bg-surface-900/60 font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-text-muted)]">
-                {group.label}
-              </p>
-              <ul>
-                {group.events.map((ev) => (
-                  <li
-                    key={ev.id}
-                    className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--color-border)] last:border-b-0"
-                  >
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-sm text-[var(--color-text-primary)] truncate">{ev.title}</p>
-                      <p className="text-xs text-[var(--color-text-muted)]">{formatEventWhen(ev.startsAt)}</p>
-                    </div>
-                    <button
-                      onClick={() => onStart(ev)}
-                      aria-label={`Start recording for ${ev.title}`}
-                      className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium
-                             bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)]
-                             border border-[var(--color-border-accent)] transition-colors"
-                    >
-                      <Mic size={13} />
-                      Record
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
+          <AgendaBody
+            mode={viewMode}
+            listEvents={listEvents}
+            boardEvents={boardEvents}
+            onStart={onStart}
+            onOpenEvent={onOpenEvent}
+          />
         )}
       </div>
     </div>
@@ -191,6 +204,10 @@ export default function SessionsHome() {
   // CAL-UX.1: true when at least one provider is connected — keeps the agenda
   // section on screen (with an empty state) even when the window has no events.
   const [calendarConnected, setCalendarConnected] = useState(false);
+  // CAL-UX.2: which agenda surface to render. Owned here rather than inside
+  // UpcomingAgenda because that panel only mounts once the calendar status/events
+  // resolve — reading the preference there would paint one frame of the wrong view.
+  const [agendaView, setAgendaView] = useState<AgendaViewMode>(DEFAULT_AGENDA_VIEW);
 
   // Legacy deep link: ?openMeeting=<id> (routed through /meetings) now redirects to
   // the routed session page. Preserves external bookmarks that predate /session/:id.
@@ -229,6 +246,21 @@ export default function SessionsHome() {
   // Check if whisper model is available
   useEffect(() => {
     window.electronAPI.hasWhisperModel().then(setHasModel);
+  }, []);
+
+  // Restore the persisted agenda view (CAL-UX.2). Declared BEFORE the calendar
+  // effect so its resolution lands in the same batch as (or ahead of) the events,
+  // i.e. the agenda's first paint already uses the stored surface. Guarded +
+  // non-critical: an older preload or a read failure keeps the default week board.
+  useEffect(() => {
+    window.electronAPI
+      .getSetting?.(AGENDA_VIEW_SETTING_KEY)
+      .then((stored) => {
+        if (isAgendaViewMode(stored)) setAgendaView(stored);
+      })
+      .catch(() => {
+        // Non-critical — keep the default view.
+      });
   }, []);
 
   // Calendar ribbon + agenda (Phase G Task 4, widened in CAL-UX.1): load the cached
@@ -371,24 +403,45 @@ export default function SessionsHome() {
       .slice(0, UPCOMING_LIST_LIMIT);
   }, [upcomingEvents, dismissedEventIds, ribbonEvent]);
 
-  // Day buckets for the list (events are already start-ordered, so consecutive rows
-  // sharing a label belong to the same day group).
-  const upcomingGroups = useMemo(() => {
-    const groups: UpcomingDayGroup[] = [];
-    for (const ev of upcomingList) {
-      const label = formatEventDayGroup(ev.startsAt);
-      const last = groups[groups.length - 1];
-      if (last && last.label === label) last.events.push(ev);
-      else groups.push({ label, events: [ev] });
-    }
-    return groups;
-  }, [upcomingList]);
+  // Week/timeline data (CAL-UX.2): EVERY non-dismissed cached event in the window,
+  // including the one the ribbon is currently surfacing — a week board with a hole
+  // where the next meeting should be reads as a bug. Uncapped on purpose: the seven
+  // day columns are the natural limit, whereas the LIST stays capped and keeps
+  // excluding the ribbon event (CAL-UX.1 behavior, unchanged).
+  const agendaEvents = useMemo(
+    () => upcomingEvents.filter((ev) => !dismissedEventIds.has(ev.id)),
+    [upcomingEvents, dismissedEventIds],
+  );
 
   // Ribbon "Start recording": open the recorder prefilled with this event.
   const handleStartFromEvent = useCallback((event: CalendarEvent) => {
     setPrefillEvent(event);
     setShowControls(true);
   }, []);
+
+  // Switching surfaces persists the choice; a failed write only costs the preference.
+  const handleAgendaViewChange = useCallback((mode: AgendaViewMode) => {
+    setAgendaView(mode);
+    void window.electronAPI.setSetting?.(AGENDA_VIEW_SETTING_KEY, mode).catch(() => {
+      // Non-critical — the preference simply won't survive a restart.
+    });
+  }, []);
+
+  // Event details modal (CAL-UX.2 Task 4): every agenda surface + the ribbon title
+  // opens the same modal; "Start recording" from inside it closes first, then reuses
+  // the exact ribbon prefill path.
+  const [detailsEvent, setDetailsEvent] = useState<CalendarEvent | null>(null);
+  const handleOpenEvent = useCallback((event: CalendarEvent) => {
+    setDetailsEvent(event);
+  }, []);
+  const handleCloseDetails = useCallback(() => setDetailsEvent(null), []);
+  const handleStartFromDetails = useCallback(
+    (event: CalendarEvent) => {
+      setDetailsEvent(null);
+      handleStartFromEvent(event);
+    },
+    [handleStartFromEvent],
+  );
 
   // Manual agenda refresh: poll-now mirrors the calendar (replace-based in main, so
   // events deleted upstream disappear too); the events-updated push reloads the list.
@@ -519,9 +572,14 @@ export default function SessionsHome() {
           <div className="p-4 rounded-xl bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] flex items-center gap-3">
             <Calendar size={18} className="text-[var(--color-accent)] shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+              {/* Accessible name = the visible "title — timing" text, deliberately distinct
+                  from the agenda rows' "Open details for …" labels (both can be on screen). */}
+              <button
+                onClick={() => handleOpenEvent(ribbonEvent)}
+                className="block w-full text-left text-sm font-medium text-[var(--color-text-primary)] truncate hover:text-[var(--color-accent)] transition-colors"
+              >
                 {'📅'} {ribbonEvent.title} — {ribbonTiming(ribbonEvent.startsAt).label}
-              </p>
+              </button>
             </div>
             <button
               onClick={() => handleStartFromEvent(ribbonEvent)}
@@ -543,20 +601,26 @@ export default function SessionsHome() {
         </div>
       )}
 
-      {/* Upcoming meetings list (Phase G follow-on, CAL-UX.1) — persistent whenever a
-          calendar is connected: it keeps its header and shows an empty state rather than
-          vanishing when the 7-day window holds no events. Rows are grouped by day and
-          exclude the event already shown in the ribbon above. Hidden while recording
-          (the recorder is the focus). NEVER auto-records — explicit click only. */}
+      {/* Upcoming meetings agenda (Phase G follow-on, CAL-UX.1; three switchable views
+          in CAL-UX.2) — persistent whenever a calendar is connected: it keeps its header
+          and shows an empty state rather than vanishing when the 7-day window holds no
+          events. Hidden while recording (the recorder is the focus). NEVER auto-records
+          — explicit click only. */}
       {!isRecording && (calendarConnected || upcomingList.length > 0) && (
         <UpcomingAgenda
-          groups={upcomingGroups}
+          viewMode={agendaView}
+          onViewModeChange={handleAgendaViewChange}
+          listEvents={upcomingList}
+          boardEvents={agendaEvents}
           onStart={handleStartFromEvent}
+          onOpenEvent={handleOpenEvent}
           onRefresh={handleRefreshCalendar}
           refreshing={refreshingCalendar}
           refreshError={calendarRefreshError}
         />
       )}
+
+      <EventDetailsHost event={detailsEvent} onClose={handleCloseDetails} onStartRecording={handleStartFromDetails} />
 
       {hasModel === false && (
         <div className="px-8 mb-4">

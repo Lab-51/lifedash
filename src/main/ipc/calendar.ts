@@ -27,6 +27,7 @@ import {
   CalendarReauthRequiredError,
 } from '../services/calendarAuthService';
 import { suggestProject } from '../services/calendarAssociationService';
+import { getEventContext, generatePrepNote } from '../services/calendarContextService';
 import { loadSelectedCalendarIds, saveSelectedCalendarIds } from '../services/calendarSelectionService';
 import { replaceProviderEvents } from '../services/calendarPollScheduler';
 import { hasCalendarListScope } from '../services/calendarProviders/googleCalendarProvider';
@@ -36,6 +37,7 @@ import type {
   CalendarProvider,
   CalendarEvent,
   CalendarEventAttendee,
+  CalendarEventContext,
   CalendarListResult,
   CalendarProjectSuggestion,
 } from '../../shared/types/calendar';
@@ -64,6 +66,9 @@ const suggestProjectSchema = z.object({
   seriesId: z.string().max(512).optional(),
   eventId: z.string().max(512).optional(),
 });
+
+// CAL-UX.2: both event-scoped channels take the prefixed cache id `${provider}:${eventId}`.
+const eventIdSchema = z.object({ eventId: z.string().min(1).max(512) });
 
 // At least one calendar: an empty selection ("sync nothing") is rejected at the edge.
 const setSelectedCalendarsSchema = z.object({
@@ -249,5 +254,21 @@ export function registerCalendarHandlers(): void {
     const valid = validateInput(suggestProjectSchema, payload);
     const result: CalendarProjectSuggestion | null = await suggestProject(valid);
     return result;
+  });
+
+  // CAL-UX.2 — what LifeDash already knows about ONE event. Deterministic DB reads
+  // only (zero model calls): the details modal calls this on every open.
+  ipcMain.handle('calendar:get-event-context', async (_event, payload: unknown) => {
+    const valid = validateInput(eventIdSchema, payload);
+    const result: CalendarEventContext = await getEventContext(valid.eventId);
+    return result;
+  });
+
+  // CAL-UX.2 — the OPT-IN prep note. Only ever reached by an explicit button click;
+  // rejects (never fabricates) when no model is configured. Cached per event in main.
+  ipcMain.handle('calendar:generate-prep-note', async (_event, payload: unknown) => {
+    const valid = validateInput(eventIdSchema, payload);
+    const note = await generatePrepNote(valid.eventId);
+    return { note };
   });
 }

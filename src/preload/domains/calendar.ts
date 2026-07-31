@@ -6,6 +6,7 @@ import type {
   CalendarClientConfig,
   CalendarAccountStatus,
   CalendarEvent,
+  CalendarEventContext,
   CalendarListResult,
   CalendarProjectSuggestion,
 } from '../../shared/types/calendar';
@@ -27,6 +28,11 @@ export const calendarBridge = {
     ipcRenderer.invoke('calendar:set-selected-calendars', { provider, calendarIds }),
   suggestCalendarProject: (input: { seriesId?: string; eventId?: string }): Promise<CalendarProjectSuggestion | null> =>
     ipcRenderer.invoke('calendar:suggest-project', input),
+  // CAL-UX.2 — instant deterministic context (no model), and the opt-in prep note.
+  getCalendarEventContext: (eventId: string): Promise<CalendarEventContext> =>
+    ipcRenderer.invoke('calendar:get-event-context', { eventId }),
+  generateCalendarPrepNote: (eventId: string): Promise<{ note: string }> =>
+    ipcRenderer.invoke('calendar:generate-prep-note', { eventId }),
 
   // Poller push: main emits after each poll cycle refreshes the event cache so the
   // renderer ribbon/banners can re-read it. Returns an unsubscribe fn.
