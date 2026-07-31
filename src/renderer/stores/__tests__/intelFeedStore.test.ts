@@ -8,7 +8,9 @@ vi.stubGlobal('electronAPI', {
   getIntelSources: vi.fn().mockResolvedValue([]),
   fetchAllIntelSources: vi.fn().mockResolvedValue({ newItems: 0 }),
   markIntelItemRead: vi.fn().mockResolvedValue(undefined),
-  toggleIntelItemBookmark: vi.fn().mockResolvedValue(undefined),
+  // Main returns the updated row (or null when the item is gone) — see intelFeedService.toggleBookmark
+  toggleIntelItemBookmark: vi.fn().mockImplementation((id: string) => Promise.resolve({ id, isBookmarked: true })),
+  getIntelBookmarkCount: vi.fn().mockResolvedValue(0),
   addManualIntelItem: vi.fn().mockImplementation((input: any) => Promise.resolve({ id: 'i-new', ...input })),
   createIntelSource: vi.fn().mockImplementation((input: any) => Promise.resolve({ id: 's-new', ...input })),
   updateIntelSource: vi.fn().mockImplementation((id: string, input: any) => Promise.resolve({ id, ...input })),
@@ -27,6 +29,9 @@ vi.stubGlobal('electronAPI', {
     length: 100,
   }),
   intelBriefChat: vi.fn().mockResolvedValue('AI response'),
+  intelToggleBriefPin: vi.fn().mockImplementation((id: string) => Promise.resolve({ id, isPinned: true })),
+  intelGetPinnedBriefs: vi.fn().mockResolvedValue([]),
+  intelGetBriefHistory: vi.fn().mockResolvedValue([]),
 });
 vi.stubGlobal('window', globalThis);
 
@@ -229,6 +234,185 @@ describe('intelFeedStore', () => {
     const sources = useIntelFeedStore.getState().sources;
     expect(sources).toHaveLength(1);
     expect(sources[0].id).toBe('s2');
+  });
+
+  // -------------------------------------------------------------------------
+  // INTEL-FIX.1 — bookmark & source-deletion flows
+  // -------------------------------------------------------------------------
+
+  describe('INTEL-FIX.1 — bookmark flow', () => {
+    beforeEach(() => {
+      useIntelFeedStore.setState({ briefItems: [], bookmarkCount: 0, sourceFilter: null, error: null });
+    });
+
+    it('bookmarks an article that is open in the reader but absent from items', async () => {
+      // Reader opened from the brief panel / saved-brief modal: the article lives in
+      // briefItems (unfiltered 'week' list), not in the date/bookmark-filtered items list.
+      const article = makeItem({ id: 'i-brief', isBookmarked: false });
+      useIntelFeedStore.setState({ items: [], briefItems: [article], readerItem: article, bookmarkCount: 2 });
+      vi.mocked(window.electronAPI.getIntelBookmarkCount).mockResolvedValue(3);
+
+      await useIntelFeedStore.getState().toggleBookmark('i-brief');
+
+      expect(window.electronAPI.toggleIntelItemBookmark).toHaveBeenCalledWith('i-brief');
+      const state = useIntelFeedStore.getState();
+      expect(state.readerItem!.isBookmarked).toBe(true);
+      // briefItems must be updated too, or reopening from the brief shows a stale star
+      expect(state.briefItems[0].isBookmarked).toBe(true);
+      expect(state.error).toBeNull();
+    });
+
+    it('keeps items, briefItems and readerItem in sync for the same article', async () => {
+      const article = makeItem({ id: 'i1', isBookmarked: false });
+      useIntelFeedStore.setState({
+        items: [article, makeItem({ id: 'i2' })],
+        briefItems: [article],
+        readerItem: article,
+        bookmarkCount: 0,
+      });
+
+      await useIntelFeedStore.getState().toggleBookmark('i1');
+
+      const state = useIntelFeedStore.getState();
+      expect(state.items.find((i) => i.id === 'i1')!.isBookmarked).toBe(true);
+      expect(state.briefItems[0].isBookmarked).toBe(true);
+      expect(state.readerItem!.isBookmarked).toBe(true);
+      expect(state.items.find((i) => i.id === 'i2')!.isBookmarked).toBe(false);
+    });
+
+    it('rolls back when the item no longer exists (service resolves null)', async () => {
+      vi.mocked(window.electronAPI.toggleIntelItemBookmark).mockResolvedValueOnce(null);
+      vi.mocked(window.electronAPI.getIntelBookmarkCount).mockResolvedValue(4);
+      const article = makeItem({ id: 'i1', isBookmarked: false });
+      useIntelFeedStore.setState({ items: [article], readerItem: article, bookmarkCount: 4 });
+
+      await useIntelFeedStore.getState().toggleBookmark('i1');
+
+      const state = useIntelFeedStore.getState();
+      expect(state.items[0].isBookmarked).toBe(false);
+      expect(state.readerItem!.isBookmarked).toBe(false);
+      expect(state.bookmarkCount).toBe(4);
+      expect(state.error).toBe('That article is no longer available.');
+    });
+
+    it('reverts the optimistic count and flag when the IPC rejects', async () => {
+      vi.mocked(window.electronAPI.toggleIntelItemBookmark).mockRejectedValueOnce(new Error('IPC down'));
+      vi.mocked(window.electronAPI.getIntelItems).mockResolvedValueOnce([makeItem({ id: 'i1', isBookmarked: false })]);
+      vi.mocked(window.electronAPI.getIntelBookmarkCount).mockResolvedValue(1);
+      useIntelFeedStore.setState({
+        items: [makeItem({ id: 'i1', isBookmarked: false })],
+        readerItem: makeItem({ id: 'i1', isBookmarked: false }),
+        bookmarkCount: 1,
+      });
+
+      await useIntelFeedStore.getState().toggleBookmark('i1');
+
+      const state = useIntelFeedStore.getState();
+      expect(state.items[0].isBookmarked).toBe(false);
+      expect(state.readerItem!.isBookmarked).toBe(false);
+      expect(state.bookmarkCount).toBe(1);
+      expect(state.error).toBe('IPC down');
+    });
+
+    it('refreshes pinned briefs after a pin toggle so the Saved badge is not stale', async () => {
+      // Saved badge = bookmarkCount + pinnedBriefs.length
+      const pinned = [{ id: 'b1', isPinned: true }] as any;
+      vi.mocked(window.electronAPI.intelGetPinnedBriefs).mockResolvedValueOnce(pinned);
+      useIntelFeedStore.setState({
+        brief: { id: 'b1', isPinned: false } as any,
+        briefHistory: [],
+        pinnedBriefs: [],
+      });
+
+      await useIntelFeedStore.getState().toggleBriefPin('b1');
+      // loadPinnedBriefs is fired without awaiting — let the microtask queue drain
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(window.electronAPI.intelGetPinnedBriefs).toHaveBeenCalled();
+      expect(useIntelFeedStore.getState().pinnedBriefs).toEqual(pinned);
+    });
+
+    it('never drives the bookmark count below zero', async () => {
+      useIntelFeedStore.setState({ items: [makeItem({ id: 'i1', isBookmarked: true })], bookmarkCount: 0 });
+
+      const promise = useIntelFeedStore.getState().toggleBookmark('i1');
+      expect(useIntelFeedStore.getState().bookmarkCount).toBe(0);
+      await promise;
+    });
+  });
+
+  describe('INTEL-FIX.1 — source deletion flow', () => {
+    beforeEach(() => {
+      useIntelFeedStore.setState({ briefItems: [], bookmarkCount: 0, sourceFilter: null, error: null });
+    });
+
+    it('drops the deleted source articles and releases a filter pointing at it', async () => {
+      useIntelFeedStore.setState({
+        sources: [
+          { id: 's1', name: 'Source A' },
+          { id: 's2', name: 'Source B' },
+        ] as any,
+        items: [makeItem({ id: 'i1', sourceId: 's1' }), makeItem({ id: 'i2', sourceId: 's2' })],
+        briefItems: [makeItem({ id: 'i1', sourceId: 's1' })],
+        sourceFilter: 's1',
+      });
+
+      await useIntelFeedStore.getState().deleteSource('s1');
+
+      const state = useIntelFeedStore.getState();
+      expect(state.sources.map((s) => s.id)).toEqual(['s2']);
+      expect(state.items.map((i) => i.id)).toEqual(['i2']);
+      expect(state.briefItems).toEqual([]);
+      // A filter on a deleted source can never match again — it would strand the feed empty
+      expect(state.sourceFilter).toBeNull();
+    });
+
+    it('closes the reader when the open article belonged to the deleted source', async () => {
+      useIntelFeedStore.setState({
+        sources: [{ id: 's1', name: 'Source A' }] as any,
+        items: [makeItem({ id: 'i1', sourceId: 's1' })],
+        readerItem: makeItem({ id: 'i1', sourceId: 's1' }),
+        readerContent: { title: 'x', content: 'y' } as any,
+      });
+
+      await useIntelFeedStore.getState().deleteSource('s1');
+
+      const state = useIntelFeedStore.getState();
+      expect(state.readerItem).toBeNull();
+      expect(state.readerContent).toBeNull();
+    });
+
+    it('leaves an unrelated open article in the reader', async () => {
+      useIntelFeedStore.setState({
+        sources: [
+          { id: 's1', name: 'A' },
+          { id: 's2', name: 'B' },
+        ] as any,
+        items: [makeItem({ id: 'i2', sourceId: 's2' })],
+        readerItem: makeItem({ id: 'i2', sourceId: 's2' }),
+      });
+
+      await useIntelFeedStore.getState().deleteSource('s1');
+
+      expect(useIntelFeedStore.getState().readerItem!.id).toBe('i2');
+    });
+
+    it('surfaces a delete failure instead of rejecting (no unhandled rejection)', async () => {
+      vi.mocked(window.electronAPI.deleteIntelSource).mockRejectedValueOnce(new Error('DB locked'));
+      useIntelFeedStore.setState({
+        sources: [{ id: 's1', name: 'Source A' }] as any,
+        items: [makeItem({ id: 'i1', sourceId: 's1' })],
+      });
+
+      await expect(useIntelFeedStore.getState().deleteSource('s1')).resolves.toBeUndefined();
+
+      const state = useIntelFeedStore.getState();
+      expect(state.error).toBe('DB locked');
+      // Nothing removed — the source is still there
+      expect(state.sources).toHaveLength(1);
+      expect(state.items).toHaveLength(1);
+    });
   });
 
   it('openReader uses description as fallback when article fetch fails', async () => {

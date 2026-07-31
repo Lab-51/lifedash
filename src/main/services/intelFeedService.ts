@@ -444,15 +444,20 @@ export async function getItems(filter: IntelDateFilter, extra?: IntelItemFilters
 
   const conditions = [];
 
-  // Date filter
-  if (filter === 'today') {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    conditions.push(gte(intelItems.publishedAt, startOfDay));
-  } else if (filter === 'week') {
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    conditions.push(gte(intelItems.publishedAt, weekAgo));
+  // Date filter — deliberately NOT applied to the Saved (bookmark) view.
+  // Saved articles are a persistent, user-curated collection: ageing them out of
+  // the list after 7 days made bookmarks silently vanish while the Saved badge
+  // (getBookmarkCount, which has no date window) still counted them.
+  if (!extra?.bookmarkFilter) {
+    if (filter === 'today') {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      conditions.push(gte(intelItems.publishedAt, startOfDay));
+    } else if (filter === 'week') {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      conditions.push(gte(intelItems.publishedAt, weekAgo));
+    }
   }
 
   // Only show items from enabled sources
@@ -498,10 +503,18 @@ export async function getItems(filter: IntelDateFilter, extra?: IntelItemFilters
   return rows.map((r) => toIntelItem(r.item, r.sourceName, r.sourceIconUrl || faviconUrl(r.sourceUrl)));
 }
 
-/** Get the total number of bookmarked items. */
+/**
+ * Get the number of bookmarked items the Saved view can actually show.
+ * Scoped to enabled sources so the badge matches getItems({ bookmarkFilter: true }) —
+ * counting bookmarks from disabled sources produced a badge that never matched the list.
+ */
 export async function getBookmarkCount(): Promise<number> {
   const db = getDb();
-  const [row] = await db.select({ value: count() }).from(intelItems).where(eq(intelItems.isBookmarked, true));
+  const [row] = await db
+    .select({ value: count() })
+    .from(intelItems)
+    .innerJoin(intelSources, eq(intelItems.sourceId, intelSources.id))
+    .where(and(eq(intelItems.isBookmarked, true), eq(intelSources.enabled, true)));
   return Number(row?.value ?? 0);
 }
 
@@ -809,7 +822,15 @@ export async function fetchAllSources(): Promise<{ newItems: number }> {
 // Manual Items
 // ---------------------------------------------------------------------------
 
-/** Add a manual item (user-provided URL). Creates a 'manual' source if needed. */
+/**
+ * Add a manual item (user-provided URL). Creates a 'manual' source if needed.
+ *
+ * The manual source MUST stay enabled: getItems() inner-joins on
+ * `intelSources.enabled = true`, so a disabled 'Saved Links' source makes every
+ * manually added article invisible in the feed and in the Saved view (while still
+ * being counted, since manual items are bookmarked on insert). `enabled` does not
+ * cause fetching here — fetchAllSources() skips any source whose type is not 'rss'.
+ */
 export async function addManualItem(input: AddManualItemInput): Promise<IntelItem> {
   const db = getDb();
 
@@ -823,9 +844,18 @@ export async function addManualItem(input: AddManualItemInput): Promise<IntelIte
         name: 'Saved Links',
         url: 'manual://',
         type: 'manual',
-        enabled: false, // manual sources are not fetched
+        enabled: true, // never fetched (type !== 'rss'), but must be enabled to be visible
       })
       .returning();
+  } else if (!manualSource.enabled) {
+    // Self-heal DBs created before this fix (and any accidental disable): the user is
+    // adding to this source right now, so it has to be visible.
+    const [reEnabled] = await db
+      .update(intelSources)
+      .set({ enabled: true, updatedAt: new Date() })
+      .where(eq(intelSources.id, manualSource.id))
+      .returning();
+    if (reEnabled) manualSource = reEnabled;
   }
 
   const [row] = await db

@@ -6,6 +6,7 @@
 // zustand, shared types, window.electronAPI
 
 import { create } from 'zustand';
+import { toast } from '../hooks/useToast';
 import type {
   IntelItem,
   IntelSource,
@@ -313,22 +314,51 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   },
 
   toggleBookmark: async (id: string) => {
-    const item = get().items.find((i) => i.id === id);
+    // The article may not be in `items`: the reader can be opened from the brief panel
+    // or a saved-brief modal (those link `briefItems`, an unfiltered 'week' list), and
+    // in the Saved view `items` only holds bookmarked articles. Resolving from `items`
+    // alone made the reader's bookmark button a silent no-op.
+    const { items, briefItems, readerItem, bookmarkCount } = get();
+    const item =
+      items.find((i) => i.id === id) ??
+      (readerItem?.id === id ? readerItem : undefined) ??
+      briefItems.find((i) => i.id === id);
     if (!item) return;
+
     const newBookmarked = !item.isBookmarked;
-    // Optimistic update — items list + reader panel + bookmark count
-    const { readerItem, bookmarkCount } = get();
-    set({
-      items: get().items.map((i) => (i.id === id ? { ...i, isBookmarked: newBookmarked } : i)),
-      ...(readerItem?.id === id ? { readerItem: { ...readerItem, isBookmarked: newBookmarked } } : {}),
-      bookmarkCount: bookmarkCount + (newBookmarked ? 1 : -1),
-    });
+
+    /** Apply a bookmark value across every collection that can render this article. */
+    const applyBookmark = (value: boolean) => {
+      const current = get();
+      set({
+        items: current.items.map((i) => (i.id === id ? { ...i, isBookmarked: value } : i)),
+        briefItems: current.briefItems.map((i) => (i.id === id ? { ...i, isBookmarked: value } : i)),
+        ...(current.readerItem?.id === id ? { readerItem: { ...current.readerItem, isBookmarked: value } } : {}),
+      });
+    };
+
+    // Optimistic update — items list + brief lists + reader panel + bookmark count
+    applyBookmark(newBookmarked);
+    set({ bookmarkCount: Math.max(0, bookmarkCount + (newBookmarked ? 1 : -1)) });
+
     try {
-      await window.electronAPI.toggleIntelItemBookmark(id);
+      const updated = await window.electronAPI.toggleIntelItemBookmark(id);
+      if (!updated) {
+        // Service returns null when the row is gone (source deleted / removed by sync).
+        // Nothing was persisted — undo the optimistic flip instead of leaving a
+        // bookmark on screen that does not exist in the DB.
+        applyBookmark(!newBookmarked);
+        set({ bookmarkCount });
+        await get().loadBookmarkCount();
+        set({ error: 'That article is no longer available.' });
+        return;
+      }
       // Reconcile count from DB after successful persist
-      get().loadBookmarkCount();
+      void get().loadBookmarkCount();
     } catch (error) {
-      // Revert on failure
+      // Revert on failure (loadItems clears `error`, so it is set last)
+      applyBookmark(!newBookmarked);
+      set({ bookmarkCount });
       await get().loadItems();
       await get().loadBookmarkCount();
       set({
@@ -357,10 +387,31 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
   },
 
   deleteSource: async (id: string) => {
-    await window.electronAPI.deleteIntelSource(id);
+    try {
+      await window.electronAPI.deleteIntelSource(id);
+    } catch (error) {
+      // Surface instead of rejecting: callers await this from click handlers with no
+      // catch, so a rejection became an unhandled promise rejection and the user saw
+      // nothing at all. The source stays listed and the caller's reload restores truth.
+      // Toast as well as `error` — callers reload right after, and loadItems() clears `error`.
+      const message = error instanceof Error ? error.message : 'Failed to delete source';
+      set({ error: message });
+      toast(message, 'error');
+      return;
+    }
+
+    // Deleting a source cascade-deletes its articles in the DB — drop them from every
+    // client-side collection (and the reader, which would otherwise point at a row that
+    // no longer exists) and release a source filter that can no longer match anything.
+    const { sourceFilter, readerItem } = get();
     set({
       sources: get().sources.filter((s) => s.id !== id),
+      items: get().items.filter((i) => i.sourceId !== id),
+      briefItems: get().briefItems.filter((i) => i.sourceId !== id),
+      ...(sourceFilter === id ? { sourceFilter: null } : {}),
+      ...(readerItem?.sourceId === id ? { readerItem: null, readerContent: null, readerLoading: false } : {}),
     });
+    void get().loadBookmarkCount();
   },
 
   seedDefaults: async () => {
@@ -430,6 +481,9 @@ export const useIntelFeedStore = create<IntelFeedStore>((set, get) => ({
     });
     try {
       await window.electronAPI.intelToggleBriefPin(id);
+      // The Saved badge is bookmarkCount + pinnedBriefs.length — refresh it here or
+      // pinning from the feed view leaves the badge stale until the view is switched.
+      void get().loadPinnedBriefs();
     } catch {
       // Revert on failure
       await get().loadBriefHistory();

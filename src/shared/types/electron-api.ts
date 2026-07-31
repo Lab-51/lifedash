@@ -561,7 +561,8 @@ export interface ElectronAPI {
     extra?: { searchQuery?: string; sourceFilter?: string; bookmarkFilter?: boolean },
   ) => Promise<IntelItem[]>;
   markIntelItemRead: (id: string) => Promise<void>;
-  toggleIntelItemBookmark: (id: string) => Promise<IntelItem>;
+  /** Resolves to null when the item no longer exists (source deleted / removed by sync). */
+  toggleIntelItemBookmark: (id: string) => Promise<IntelItem | null>;
   addManualIntelItem: (data: AddManualItemInput) => Promise<IntelItem>;
   fetchAllIntelSources: () => Promise<{ newItems: number }>;
   seedIntelDefaults: () => Promise<void>;
