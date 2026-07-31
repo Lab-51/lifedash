@@ -185,16 +185,20 @@ describe('calendar:set-selected-calendars', () => {
     expect(replaceProviderEvents).toHaveBeenCalledWith('google', []);
   });
 
-  it('poll-now keeps the upsert-only path (no replace-based eviction)', async () => {
+  it('poll-now mirrors the calendar: replace-based caching for both providers + refresh push', async () => {
     const adapter = makeAdapter();
     vi.mocked(loadCalendarTokens).mockResolvedValue(tokens(PICKER_SCOPE));
     vi.mocked(loadCalendarClientConfig).mockResolvedValue(GOOGLE_CONFIG);
     vi.mocked(getCalendarAdapter).mockReturnValue(adapter);
+    const event = makeEvent();
 
-    await handler('calendar:poll-now')({});
+    await handler('calendar:poll-now')(event);
 
     expect(adapter.fetchUpcoming).toHaveBeenCalled();
-    expect(replaceProviderEvents).not.toHaveBeenCalled();
+    // Manual refresh must evict upstream-deleted events, not just upsert.
+    expect(replaceProviderEvents).toHaveBeenCalledWith('google', []);
+    expect(replaceProviderEvents).toHaveBeenCalledWith('microsoft', []);
+    expect(event.sender.send).toHaveBeenCalledWith('calendar:events-updated');
   });
 
   it('rejects an EMPTY selection before touching storage', async () => {

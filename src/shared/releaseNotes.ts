@@ -41,7 +41,7 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Connect your Google or Microsoft/Outlook calendar so your upcoming meetings can drive recording — no more picking a project from a dropdown before you hit record.',
           'A new event ribbon on the Sessions home surfaces meetings that are about to start, with a one-click "Start recording" that prefills the title and project for you — nothing ever records automatically.',
-          "Your upcoming week is always in view — the Sessions home shows a 7-day agenda grouped by day (Today, Tomorrow, and beyond) that stays visible even when it's empty, so you always know your calendar is connected.",
+          "Your upcoming week is always in view — the Sessions home shows a 7-day agenda grouped by day (Today, Tomorrow, and beyond) that stays visible even when it's empty, with a refresh button to sync with your calendar on demand.",
           'Choose exactly which calendars LifeDash syncs — pick any combination per account under Settings. Existing Google connections will ask you to reconnect once to grant calendar-list access.',
           'LifeDash learns which project a recurring meeting belongs to: record the same series against a project a couple of times and it starts suggesting that project on its own.',
           'A heads-up while you record — if another meeting is coming up soon, an in-recording banner tells you how many minutes you have left before the next one.',

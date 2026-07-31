@@ -524,6 +524,12 @@ Calendar sync MUST fetch events from exactly the calendars the user selected for
 - WHEN a poll runs
 - THEN only the provider's primary/default calendar is fetched
 
+#### Scenario: Manual refresh mirrors the provider
+
+- GIVEN a cached event that was deleted upstream in the provider's calendar
+- WHEN the user triggers the agenda's manual refresh
+- THEN the event leaves the agenda immediately (session-linked events are retained)
+
 ### Requirement: Google calendar listing degrades to Reconnect, never an error
 
 When a Google connection's granted scopes predate the calendar-list scope (or the granted-scope string is unknown), the calendar picker MUST present a Reconnect affordance without attempting any network call. Listing calendars MUST NOT be treated as an error state, and reconnecting SHALL grant the additional `calendar.calendarlist.readonly` scope alongside the existing events scope.

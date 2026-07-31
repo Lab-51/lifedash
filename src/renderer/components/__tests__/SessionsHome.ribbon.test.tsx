@@ -15,6 +15,7 @@ import { CALENDAR_LOOKAHEAD_HOURS } from '../../../shared/types/calendar';
 const getUpcomingCalendarEvents = vi.fn().mockResolvedValue([]);
 const onCalendarEventsUpdated = vi.fn().mockReturnValue(() => {});
 const getCalendarStatus = vi.fn().mockResolvedValue([]);
+const pollCalendarNow = vi.fn().mockResolvedValue(undefined);
 
 vi.stubGlobal('electronAPI', {
   hasWhisperModel: vi.fn().mockResolvedValue(true),
@@ -32,6 +33,7 @@ vi.stubGlobal('electronAPI', {
   getUpcomingCalendarEvents,
   onCalendarEventsUpdated,
   getCalendarStatus,
+  pollCalendarNow,
 });
 
 const { useMeetingStore } = await import('../../stores/meetingStore');
@@ -65,6 +67,7 @@ describe('SessionsHome — calendar ribbon (Phase G Task 4)', () => {
     vi.clearAllMocks();
     getUpcomingCalendarEvents.mockResolvedValue([]);
     onCalendarEventsUpdated.mockReturnValue(() => {});
+    pollCalendarNow.mockResolvedValue(undefined);
     // Default: nothing connected — tests that need the persistent agenda opt in.
     getCalendarStatus.mockResolvedValue([]);
     useMeetingStore.setState({
@@ -218,6 +221,26 @@ describe('SessionsHome — calendar ribbon (Phase G Task 4)', () => {
     await waitFor(() => expect(getUpcomingCalendarEvents).toHaveBeenCalled());
     expect(screen.queryByText('Upcoming meetings')).toBeNull();
     expect(screen.queryByText('No meetings in the next 7 days.')).toBeNull();
+  });
+
+  it('refresh: the agenda header button triggers an on-demand calendar sync', async () => {
+    getCalendarStatus.mockResolvedValue(connectedStatus);
+    renderHome();
+
+    const button = await screen.findByRole('button', { name: 'Refresh calendar' });
+    await userEvent.click(button);
+
+    expect(pollCalendarNow).toHaveBeenCalledTimes(1);
+  });
+
+  it('refresh: a failed sync surfaces an inline error instead of failing silently', async () => {
+    getCalendarStatus.mockResolvedValue(connectedStatus);
+    pollCalendarNow.mockRejectedValueOnce(new Error('offline'));
+    renderHome();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Refresh calendar' }));
+
+    expect(await screen.findByText('Refresh failed — check your calendar connection in Settings.')).toBeInTheDocument();
   });
 
   it('grouping: rows are bucketed under Today / Tomorrow day headers', async () => {

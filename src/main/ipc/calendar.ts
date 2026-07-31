@@ -235,10 +235,13 @@ export function registerCalendarHandlers(): void {
     event.sender.send('calendar:events-updated');
   });
 
-  // Force a poll of every connected provider now.
-  ipcMain.handle('calendar:poll-now', async () => {
-    await pollProvider('google');
-    await pollProvider('microsoft');
+  // Force a poll of every connected provider now (manual agenda refresh). Replace-based:
+  // a manual "sync now" must MIRROR the calendar, so events deleted/moved upstream are
+  // evicted immediately instead of lingering until the scheduler's next cycle.
+  ipcMain.handle('calendar:poll-now', async (event) => {
+    await pollProvider('google', { replace: true });
+    await pollProvider('microsoft', { replace: true });
+    event.sender.send('calendar:events-updated');
   });
 
   // Series→project association learning (Task 5) — see calendarAssociationService.

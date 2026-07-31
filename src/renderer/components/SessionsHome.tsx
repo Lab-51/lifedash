@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Mic, Info, X, ArrowDownWideNarrow, Sparkles, Calendar } from 'lucide-react';
+import { Mic, Info, X, ArrowDownWideNarrow, Sparkles, Calendar, RefreshCw } from 'lucide-react';
 import type { CalendarEvent } from '../../shared/types/calendar';
 import { CALENDAR_LOOKAHEAD_HOURS } from '../../shared/types/calendar';
 import EmptyFeatureState from './EmptyFeatureState';
@@ -83,7 +83,19 @@ interface UpcomingDayGroup {
  * so an empty 7-day window shows an empty state instead of the section disappearing.
  * NEVER auto-records — every row needs an explicit click.
  */
-function UpcomingAgenda({ groups, onStart }: { groups: UpcomingDayGroup[]; onStart: (event: CalendarEvent) => void }) {
+function UpcomingAgenda({
+  groups,
+  onStart,
+  onRefresh,
+  refreshing,
+  refreshError,
+}: {
+  groups: UpcomingDayGroup[];
+  onStart: (event: CalendarEvent) => void;
+  onRefresh: () => void;
+  refreshing: boolean;
+  refreshError: string | null;
+}) {
   return (
     <div className="px-8 mb-4">
       <div className="rounded-xl border border-[var(--color-border)] bg-surface-50/60 dark:bg-surface-900/40 overflow-hidden">
@@ -92,7 +104,20 @@ function UpcomingAgenda({ groups, onStart }: { groups: UpcomingDayGroup[]; onSta
           <span className="font-hud text-[0.6875rem] tracking-widest uppercase text-[var(--color-accent-dim)]">
             Upcoming meetings
           </span>
+          <button
+            onClick={onRefresh}
+            disabled={refreshing}
+            aria-label="Refresh calendar"
+            title="Sync now with your calendar"
+            className="ml-auto shrink-0 p-1 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-accent)]
+                   hover:bg-surface-100/80 dark:hover:bg-surface-800/80 transition-colors disabled:opacity-60"
+          >
+            <RefreshCw size={13} className={refreshing ? 'animate-spin' : undefined} />
+          </button>
         </div>
+        {refreshError && (
+          <p className="px-4 py-1.5 border-b border-[var(--color-border)] text-xs text-red-400">{refreshError}</p>
+        )}
         {groups.length === 0 ? (
           <p className="px-4 py-3 text-xs text-[var(--color-text-muted)]">No meetings in the next 7 days.</p>
         ) : (
@@ -365,6 +390,20 @@ export default function SessionsHome() {
     setShowControls(true);
   }, []);
 
+  // Manual agenda refresh: poll-now mirrors the calendar (replace-based in main, so
+  // events deleted upstream disappear too); the events-updated push reloads the list.
+  const [refreshingCalendar, setRefreshingCalendar] = useState(false);
+  const [calendarRefreshError, setCalendarRefreshError] = useState<string | null>(null);
+  const handleRefreshCalendar = useCallback(() => {
+    if (!window.electronAPI.pollCalendarNow) return;
+    setRefreshingCalendar(true);
+    setCalendarRefreshError(null);
+    window.electronAPI
+      .pollCalendarNow()
+      .catch(() => setCalendarRefreshError('Refresh failed — check your calendar connection in Settings.'))
+      .finally(() => setRefreshingCalendar(false));
+  }, []);
+
   // Sort meetings (filtering is now SessionSearch's job — it navigates to a
   // result rather than filtering this grid in place; see Task 6).
   const sortedMeetings = useMemo(() => {
@@ -510,7 +549,13 @@ export default function SessionsHome() {
           exclude the event already shown in the ribbon above. Hidden while recording
           (the recorder is the focus). NEVER auto-records — explicit click only. */}
       {!isRecording && (calendarConnected || upcomingList.length > 0) && (
-        <UpcomingAgenda groups={upcomingGroups} onStart={handleStartFromEvent} />
+        <UpcomingAgenda
+          groups={upcomingGroups}
+          onStart={handleStartFromEvent}
+          onRefresh={handleRefreshCalendar}
+          refreshing={refreshingCalendar}
+          refreshError={calendarRefreshError}
+        />
       )}
 
       {hasModel === false && (
