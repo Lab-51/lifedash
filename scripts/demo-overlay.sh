@@ -135,7 +135,7 @@ fi
 ffmpeg -y -f lavfi -i "color=c=black:s=${WIDTH}x${HEIGHT}:d=${OUTRO_DUR}" \
   -vf "\
     drawtext=text='100%% local. 100%% private.':fontsize=40:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2-80:font='Segoe UI':enable='gte(t,0.5)',\
-    drawtext=text='Free and open source.':fontsize=32:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2-10:font='Segoe UI':enable='gte(t,1.5)',\
+    drawtext=text='Free for personal use.':fontsize=32:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2-10:font='Segoe UI':enable='gte(t,1.5)',\
     drawtext=text='LifeDash':fontsize=64:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2+60:font='Segoe UI':fontcolor=white:enable='gte(t,2.5)',\
     drawtext=text='github.com/Lab-51/lifedash':fontsize=24:fontcolor=0x00d4ff:x=(w-text_w)/2:y=(h-text_h)/2+140:font='Segoe UI':enable='gte(t,3.5)'" \
   -c:v libx264 -pix_fmt yuv420p -t ${OUTRO_DUR} "$OUTRO" 2>/dev/null

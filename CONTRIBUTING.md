@@ -48,4 +48,4 @@ The project uses TypeScript with React. Follow the existing patterns in the code
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [AGPL-3.0 License](LICENSE).
+By contributing, you agree that your contributions are licensed under the project's [PolyForm Noncommercial License 1.0.0](LICENSE), and you additionally grant the project maintainer (Daniel Rieger) a perpetual, irrevocable right to license your contribution under other terms, including commercial licenses. This is what allows the project to offer commercial licensing while staying free for noncommercial use.

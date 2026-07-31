@@ -43,6 +43,13 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Meeting details now include the invite description (converted to plain text, stored only on your device, never synced) and the full attendee list with emails. Outlook needs a one-time reconnect to grant description access; Google works as-is.',
         ],
       },
+      {
+        category: 'internal',
+        label: 'License',
+        items: [
+          'Starting with this release, LifeDash is licensed under the PolyForm Noncommercial License 1.0.0: free for personal and noncommercial use, while commercial use requires a license from the author. The source code remains fully public and inspectable. Releases up to v2.5.0 stay AGPL-3.0.',
+        ],
+      },
     ],
   },
   {

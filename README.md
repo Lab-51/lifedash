@@ -6,13 +6,13 @@
 
 **Your meetings. Your data. Your machine.**
 
-Free, open-source meeting intelligence with a **learning digital twin** — running entirely on your desktop.
+Source-available meeting intelligence with a **learning digital twin** — running entirely on your desktop. Free for personal and noncommercial use; commercial use requires a license.
 Record a meeting and the app *becomes* that session: a profiled AI assistant works alongside you, everything said turns into a living, searchable knowledge graph, and nothing ever leaves your computer.
 
 [![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Lab-51/lifedash/releases/latest)
 [![Install on macOS (Beta)](https://img.shields.io/badge/Install-macOS%20(Beta)-000000?style=for-the-badge&logo=apple&logoColor=white)](#macos)
 
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm--Noncommercial-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/Lab-51/lifedash?style=social)](https://github.com/Lab-51/lifedash)
 [![Latest Release](https://img.shields.io/github/v/release/Lab-51/lifedash)](https://github.com/Lab-51/lifedash/releases/latest)
 
@@ -56,8 +56,8 @@ All of it runs **100% locally by default** — audio, transcription, reasoning, 
 | Learning digital-twin assistant | Yes | No | No | No |
 | Ask your own meetings (cited, local) | Yes | No | No | No |
 | Bring your own AI key | Yes | No | No | No |
-| Open source | Yes | No | No | No |
-| **Price** | **Free** | **$204/yr** | **$216/yr** | **$384/yr** |
+| Source code you can inspect | Yes | No | No | No |
+| **Price** | **Free for personal use** | **$204/yr** | **$216/yr** | **$384/yr** |
 
 ## Download
 
@@ -139,7 +139,7 @@ brew tap lab-51/lifedash && brew install --cask lifedash
 - Optional cloud sync (Supabase) — off by default, fully opt-in
 - Encrypted API key storage via OS keychain
 - Factory reset with full data deletion
-- Open source. Read the code yourself
+- Source available. Read the code yourself
 
 ### Built to Last
 - **Crash recovery** — The app takes periodic snapshots of your work. If it shuts down unexpectedly, you get a recovery dialog on next launch to restore exactly where you left off
@@ -259,4 +259,6 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 
 ## License
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE). For commercial licensing inquiries, contact the author directly.
+LifeDash is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE): **free for personal and noncommercial use** — individuals, hobby projects, charities, educational and government institutions. **Any commercial use requires a commercial license from the author** — whether that's buying a license or simply asking, get in touch: riegerdaniel@ymail.com.
+
+Releases up to and including v2.5.0 were published under AGPL-3.0 and remain available under that license.

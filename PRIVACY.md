@@ -34,6 +34,6 @@ You can delete all local data by:
 
 If you used Cloud Sync, you can delete your synced data by signing into your account and requesting deletion.
 
-## Open Source
+## Source Available
 
-LifeDash is open source. You can inspect the complete source code to verify these privacy claims.
+LifeDash's complete source code is publicly available — you can inspect it to verify every privacy claim above. (Licensed under PolyForm Noncommercial 1.0.0; source visibility is unaffected.)

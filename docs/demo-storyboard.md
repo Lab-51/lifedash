@@ -160,7 +160,7 @@ scene to two features or drop it entirely.
 Black background. Text appears line by line with 1-second spacing:
 
 Line 1: "100% local. 100% private."
-Line 2: "Free and open source. Bring your own API key."
+Line 2: "Free for personal use. Bring your own API key."
 Line 3 (slightly larger, bold): "LifeDash"
 Line 4 (smaller, different color — e.g., the app's accent blue):
 "github.com/Lab-51/lifedash"
