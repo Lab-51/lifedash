@@ -19,15 +19,20 @@ import {
   refreshAccessToken,
   loadCalendarClientConfig,
   registerCalendarAdapter,
+  CalendarReauthRequiredError,
   type AuthorizationRequest,
   type OAuthProviderEndpoints,
 } from '../calendarAuthService';
+import { createLogger } from '../logger';
 import type {
   CalendarClientConfig,
   CalendarEvent,
+  CalendarInfo,
   CalendarProviderAdapter,
   CalendarTokens,
 } from '../../../shared/types/calendar';
+
+const log = createLogger('MicrosoftCalendar');
 
 // === Microsoft endpoints ===========================================================
 
@@ -51,7 +56,19 @@ const MICROSOFT_ENDPOINTS: OAuthProviderEndpoints = {
   sendClientSecret: false,
 };
 
+/** Default (no explicit selection) view across the user's default calendar. */
 const GRAPH_CALENDAR_VIEW_URL = 'https://graph.microsoft.com/v1.0/me/calendarView';
+/** The account's calendars; also the base for per-calendar calendarView requests. */
+const GRAPH_CALENDARS_URL = 'https://graph.microsoft.com/v1.0/me/calendars';
+
+/**
+ * Max rows requested PER CALENDAR. Honest hard cap — Graph paging is deliberately not
+ * implemented; a 7-day window on one calendar does not realistically exceed it.
+ */
+const GRAPH_TOP = '250';
+
+/** Fields requested from /me/calendars — id + display name + default flag only. */
+const GRAPH_CALENDAR_SELECT = 'id,name,isDefaultCalendar';
 
 /**
  * Fields requested from Graph. MUST NOT contain body / bodyPreview / location
@@ -88,6 +105,16 @@ interface GraphEvent {
 
 interface GraphCalendarViewResponse {
   value?: GraphEvent[];
+}
+
+interface GraphCalendar {
+  id?: string;
+  name?: string;
+  isDefaultCalendar?: boolean;
+}
+
+interface GraphCalendarsResponse {
+  value?: GraphCalendar[];
 }
 
 // === Helpers =======================================================================
@@ -136,21 +163,27 @@ function isMeetingOccurrence(ev: GraphEvent): boolean {
   return ev.isCancelled !== true && ev.isAllDay !== true && ev.type !== 'seriesMaster';
 }
 
-/** Build the Graph calendarView request URL for the [now, now+windowHours] window. */
-function buildCalendarViewUrl(windowHours: number): string {
+/**
+ * Build the Graph calendarView URL for the [now, now+windowHours] window. Without a
+ * calendarId this is the account-default view — the EXACT pre-picker request shape.
+ */
+function buildCalendarViewUrl(windowHours: number, calendarId?: string): string {
   const now = Date.now();
-  const url = new URL(GRAPH_CALENDAR_VIEW_URL);
+  const base = calendarId
+    ? `${GRAPH_CALENDARS_URL}/${encodeURIComponent(calendarId)}/calendarView`
+    : GRAPH_CALENDAR_VIEW_URL;
+  const url = new URL(base);
   url.searchParams.set('startDateTime', new Date(now).toISOString());
   url.searchParams.set('endDateTime', new Date(now + windowHours * 60 * 60 * 1000).toISOString());
   url.searchParams.set('$select', GRAPH_SELECT);
-  url.searchParams.set('$top', '50');
+  url.searchParams.set('$top', GRAPH_TOP);
   url.searchParams.set('$orderby', 'start/dateTime');
   return url.toString();
 }
 
-/** One authenticated GET against calendarView. */
-function requestCalendarView(accessToken: string, windowHours: number): Promise<Response> {
-  return fetch(buildCalendarViewUrl(windowHours), {
+/** One authenticated Graph GET. */
+function graphGet(url: string, accessToken: string): Promise<Response> {
+  return fetch(url, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -158,6 +191,35 @@ function requestCalendarView(accessToken: string, windowHours: number): Promise<
       Prefer: 'outlook.timezone="UTC"',
     },
   });
+}
+
+/** A Graph GET with the single refresh-then-retry-on-401 semantics; returns the
+ *  response plus the (possibly rotated) tokens so a batch reuses the fresh one. */
+async function authorizedGet(
+  url: string,
+  tokens: CalendarTokens,
+  config: CalendarClientConfig,
+): Promise<{ res: Response; tokens: CalendarTokens }> {
+  let active = tokens;
+  let res = await graphGet(url, active.accessToken);
+  if (res.status === 401) {
+    // Access token likely expired — refresh once (invalid_grant propagates as
+    // CalendarReauthRequiredError) and retry.
+    active = await refreshAccessToken(buildRequest(config.clientId), active.refreshToken);
+    res = await graphGet(url, active.accessToken);
+  }
+  return { res, tokens: active };
+}
+
+/** Map the selected/filtered Graph occurrences of one response body. */
+function parseCalendarView(json: GraphCalendarViewResponse): CalendarEvent[] {
+  const events: CalendarEvent[] = [];
+  for (const ev of json.value ?? []) {
+    if (!isMeetingOccurrence(ev)) continue;
+    const normalized = normalizeEvent(ev);
+    if (normalized) events.push(normalized);
+  }
+  return events;
 }
 
 // === Adapter =======================================================================
@@ -177,10 +239,28 @@ export const microsoftCalendarAdapter: CalendarProviderAdapter = {
     return refreshAccessToken(buildRequest(config.clientId), tokens.refreshToken);
   },
 
+  async listCalendars(tokens: CalendarTokens, config: CalendarClientConfig): Promise<CalendarInfo[]> {
+    const url = new URL(GRAPH_CALENDARS_URL);
+    url.searchParams.set('$select', GRAPH_CALENDAR_SELECT);
+    url.searchParams.set('$top', '50');
+    const { res } = await authorizedGet(url.toString(), tokens, config);
+    if (!res.ok) {
+      throw new Error(`Microsoft calendar list failed (HTTP ${res.status}): ${await readErrorDetail(res)}`);
+    }
+    const json = (await res.json()) as GraphCalendarsResponse;
+    const out: CalendarInfo[] = [];
+    for (const cal of json.value ?? []) {
+      if (!cal.id) continue;
+      out.push({ id: cal.id, name: cal.name ?? cal.id, isPrimary: !!cal.isDefaultCalendar });
+    }
+    return out;
+  },
+
   async fetchUpcoming(
     tokens: CalendarTokens,
     config: CalendarClientConfig,
     windowHours: number,
+    selectedCalendarIds?: string[],
   ): Promise<CalendarEvent[]> {
     // NOTE: this may THROW — the poll orchestrator (Task 4) catches and classifies:
     // CalendarReauthRequiredError (dead refresh token → invalid_grant) flips needsReauth;
@@ -188,28 +268,41 @@ export const microsoftCalendarAdapter: CalendarProviderAdapter = {
     // a valid token is a permission problem (e.g. the Calendars.ReadBasic Graph permission
     // not granted on the app registration) — NOT an expired authorization — so we surface
     // it plainly instead of forcing a pointless reconnect.
-    let res = await requestCalendarView(tokens.accessToken, windowHours);
+    // No selection ⇒ ONE request against the account-default /me/calendarView (unchanged).
+    const targets: (string | undefined)[] = selectedCalendarIds?.length ? selectedCalendarIds : [undefined];
+    let active = tokens;
+    // Dedupe across calendars: the same event on two calendars keeps ONE row (the cache
+    // PK is `${provider}:${eventId}`, so duplicates would collide anyway).
+    const merged = new Map<string, CalendarEvent>();
+    let firstError: unknown;
+    let succeeded = 0;
 
-    if (res.status === 401) {
-      // Access token likely expired — refresh once (invalid_grant propagates as
-      // CalendarReauthRequiredError) and retry.
-      const refreshed = await refreshAccessToken(buildRequest(config.clientId), tokens.refreshToken);
-      res = await requestCalendarView(refreshed.accessToken, windowHours);
+    for (const calendarId of targets) {
+      try {
+        const attempt = await authorizedGet(buildCalendarViewUrl(windowHours, calendarId), active, config);
+        active = attempt.tokens;
+        if (!attempt.res.ok) {
+          throw new Error(
+            `Microsoft Calendar fetch failed (HTTP ${attempt.res.status}): ${await readErrorDetail(attempt.res)}`,
+          );
+        }
+        for (const event of parseCalendarView((await attempt.res.json()) as GraphCalendarViewResponse)) {
+          if (!merged.has(event.id)) merged.set(event.id, event);
+        }
+        succeeded += 1;
+      } catch (err) {
+        // A dead refresh token is account-wide — never retry it per calendar.
+        if (err instanceof CalendarReauthRequiredError) throw err;
+        // One calendar failing (e.g. 404 after deletion) must not sink the batch, but a
+        // batch where EVERY calendar failed still surfaces its error so the poller can
+        // record lastError instead of silently reporting an empty agenda.
+        log.warn(`Skipping calendar "${calendarId ?? 'default'}":`, err instanceof Error ? err.message : err);
+        firstError ??= err;
+      }
     }
 
-    if (!res.ok) {
-      throw new Error(`Microsoft Calendar fetch failed (HTTP ${res.status}): ${await readErrorDetail(res)}`);
-    }
-
-    const json = (await res.json()) as GraphCalendarViewResponse;
-    const rows = json.value ?? [];
-    const events: CalendarEvent[] = [];
-    for (const ev of rows) {
-      if (!isMeetingOccurrence(ev)) continue;
-      const normalized = normalizeEvent(ev);
-      if (normalized) events.push(normalized);
-    }
-    return events;
+    if (succeeded === 0 && firstError !== undefined) throw firstError;
+    return [...merged.values()].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   },
 };
 

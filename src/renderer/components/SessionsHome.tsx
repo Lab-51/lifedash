@@ -11,6 +11,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Mic, Info, X, ArrowDownWideNarrow, Sparkles, Calendar } from 'lucide-react';
 import type { CalendarEvent } from '../../shared/types/calendar';
+import { CALENDAR_LOOKAHEAD_HOURS } from '../../shared/types/calendar';
 import EmptyFeatureState from './EmptyFeatureState';
 import HudSelect from './HudSelect';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -40,23 +41,96 @@ function ribbonTiming(startsAt: string): { label: string; inProgress: boolean } 
   return { label: n <= 0 ? 'starting now' : `starts in ${n} min`, inProgress: false };
 }
 
-/** Compact "when" label for the upcoming-meetings list (Today/Tomorrow/weekday + time). */
+/** Row-level "when" label — the day now lives in the group header above the row. */
 function formatEventWhen(startsAt: string): string {
   const d = new Date(startsAt);
   const diffMin = (d.getTime() - Date.now()) / 60000;
   if (diffMin < 0) return 'in progress';
   if (diffMin < 60) return `in ${Math.max(1, Math.round(diffMin))} min`;
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  const isTomorrow = d.toDateString() === new Date(now.getTime() + 86_400_000).toDateString();
-  if (isToday) return `Today ${time}`;
-  if (isTomorrow) return `Tomorrow ${time}`;
-  return `${d.toLocaleDateString([], { weekday: 'short' })} ${time}`;
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+/** Midnight-of-day epoch, so day grouping ignores clock time. */
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/**
+ * Day-group header for the upcoming list: Today / Tomorrow / weekday name within
+ * the next week, else a short date (the window is 7 days, so the date is a fallback
+ * for events sitting exactly on the far edge).
+ */
+function formatEventDayGroup(startsAt: string): string {
+  const d = new Date(startsAt);
+  const dayDiff = Math.round((startOfDay(d) - startOfDay(new Date())) / 86_400_000);
+  if (dayDiff <= 0) return 'Today';
+  if (dayDiff === 1) return 'Tomorrow';
+  if (dayDiff < 7) return d.toLocaleDateString([], { weekday: 'long' });
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
 /** Max events shown in the upcoming-meetings list (keeps the home view compact). */
-const UPCOMING_LIST_LIMIT = 6;
+const UPCOMING_LIST_LIMIT = 12;
+
+/** One day bucket of the upcoming-meetings list. */
+interface UpcomingDayGroup {
+  label: string;
+  events: CalendarEvent[];
+}
+
+/**
+ * The persistent agenda panel (CAL-UX.1). Rendered whenever a calendar is connected,
+ * so an empty 7-day window shows an empty state instead of the section disappearing.
+ * NEVER auto-records — every row needs an explicit click.
+ */
+function UpcomingAgenda({ groups, onStart }: { groups: UpcomingDayGroup[]; onStart: (event: CalendarEvent) => void }) {
+  return (
+    <div className="px-8 mb-4">
+      <div className="rounded-xl border border-[var(--color-border)] bg-surface-50/60 dark:bg-surface-900/40 overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--color-border)]">
+          <Calendar size={14} className="text-[var(--color-accent-dim)]" />
+          <span className="font-hud text-[0.6875rem] tracking-widest uppercase text-[var(--color-accent-dim)]">
+            Upcoming meetings
+          </span>
+        </div>
+        {groups.length === 0 ? (
+          <p className="px-4 py-3 text-xs text-[var(--color-text-muted)]">No meetings in the next 7 days.</p>
+        ) : (
+          groups.map((group) => (
+            <div key={group.label}>
+              <p className="px-4 py-1.5 border-b border-[var(--color-border)] bg-surface-100/60 dark:bg-surface-900/60 font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-text-muted)]">
+                {group.label}
+              </p>
+              <ul>
+                {group.events.map((ev) => (
+                  <li
+                    key={ev.id}
+                    className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--color-border)] last:border-b-0"
+                  >
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="text-sm text-[var(--color-text-primary)] truncate">{ev.title}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">{formatEventWhen(ev.startsAt)}</p>
+                    </div>
+                    <button
+                      onClick={() => onStart(ev)}
+                      aria-label={`Start recording for ${ev.title}`}
+                      className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium
+                             bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)]
+                             border border-[var(--color-border-accent)] transition-colors"
+                    >
+                      <Mic size={13} />
+                      Record
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function SessionsHome() {
   const meetings = useMeetingStore((s) => s.meetings);
@@ -89,6 +163,9 @@ export default function SessionsHome() {
   const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([]);
   const [dismissedEventIds, setDismissedEventIds] = useState<Set<string>>(new Set());
   const [prefillEvent, setPrefillEvent] = useState<CalendarEvent | undefined>(undefined);
+  // CAL-UX.1: true when at least one provider is connected — keeps the agenda
+  // section on screen (with an empty state) even when the window has no events.
+  const [calendarConnected, setCalendarConnected] = useState(false);
 
   // Legacy deep link: ?openMeeting=<id> (routed through /meetings) now redirects to
   // the routed session page. Preserves external bookmarks that predate /session/:id.
@@ -129,15 +206,24 @@ export default function SessionsHome() {
     window.electronAPI.hasWhisperModel().then(setHasModel);
   }, []);
 
-  // Calendar ribbon (Phase G Task 4): load cached upcoming events on mount and
-  // refresh whenever the poller pushes 'calendar:events-updated'. Guarded so the
+  // Calendar ribbon + agenda (Phase G Task 4, widened in CAL-UX.1): load the cached
+  // events for the shared lookahead window AND the connection status on mount, then
+  // refresh both whenever the poller pushes 'calendar:events-updated'. Guarded so the
   // page still works if the calendar API is unavailable (older preload / tests).
   useEffect(() => {
     let cancelled = false;
     const refresh = () => {
+      window.electronAPI
+        .getCalendarStatus?.()
+        .then((statuses) => {
+          if (!cancelled) setCalendarConnected(statuses.some((s) => s.connected));
+        })
+        .catch(() => {
+          // Non-critical — fall back to "not connected" (list-only rendering).
+        });
       if (!window.electronAPI.getUpcomingCalendarEvents) return;
       window.electronAPI
-        .getUpcomingCalendarEvents(24)
+        .getUpcomingCalendarEvents(CALENDAR_LOOKAHEAD_HOURS)
         .then((events) => {
           if (!cancelled) setUpcomingEvents(events);
         })
@@ -251,13 +337,27 @@ export default function SessionsHome() {
     });
   }, [upcomingEvents, dismissedEventIds]);
 
-  // The always-visible upcoming-meetings list: cached events (next ~24h), excluding
-  // the one already surfaced in the ribbon and any dismissed, capped for a compact view.
+  // The always-visible upcoming-meetings list: cached events for the whole lookahead
+  // window, excluding the one already surfaced in the ribbon and any dismissed,
+  // capped for a compact view.
   const upcomingList = useMemo(() => {
     return upcomingEvents
       .filter((ev) => !dismissedEventIds.has(ev.id) && ev.id !== ribbonEvent?.id)
       .slice(0, UPCOMING_LIST_LIMIT);
   }, [upcomingEvents, dismissedEventIds, ribbonEvent]);
+
+  // Day buckets for the list (events are already start-ordered, so consecutive rows
+  // sharing a label belong to the same day group).
+  const upcomingGroups = useMemo(() => {
+    const groups: UpcomingDayGroup[] = [];
+    for (const ev of upcomingList) {
+      const label = formatEventDayGroup(ev.startsAt);
+      const last = groups[groups.length - 1];
+      if (last && last.label === label) last.events.push(ev);
+      else groups.push({ label, events: [ev] });
+    }
+    return groups;
+  }, [upcomingList]);
 
   // Ribbon "Start recording": open the recorder prefilled with this event.
   const handleStartFromEvent = useCallback((event: CalendarEvent) => {
@@ -404,44 +504,13 @@ export default function SessionsHome() {
         </div>
       )}
 
-      {/* Upcoming meetings list (Phase G follow-on) — always-visible when a calendar is
-          connected and has events in the next 24h. One-click prefilled recording per event.
-          Hidden while recording; excludes the event already shown in the ribbon above.
-          NEVER auto-records — explicit click only. */}
-      {!isRecording && upcomingList.length > 0 && (
-        <div className="px-8 mb-4">
-          <div className="rounded-xl border border-[var(--color-border)] bg-surface-50/60 dark:bg-surface-900/40 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--color-border)]">
-              <Calendar size={14} className="text-[var(--color-accent-dim)]" />
-              <span className="font-hud text-[0.6875rem] tracking-widest uppercase text-[var(--color-accent-dim)]">
-                Upcoming meetings
-              </span>
-            </div>
-            <ul>
-              {upcomingList.map((ev) => (
-                <li
-                  key={ev.id}
-                  className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--color-border)] last:border-b-0"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[var(--color-text-primary)] truncate">{ev.title}</p>
-                    <p className="text-xs text-[var(--color-text-muted)]">{formatEventWhen(ev.startsAt)}</p>
-                  </div>
-                  <button
-                    onClick={() => handleStartFromEvent(ev)}
-                    aria-label={`Start recording for ${ev.title}`}
-                    className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium
-                             bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)]
-                             border border-[var(--color-border-accent)] transition-colors"
-                  >
-                    <Mic size={13} />
-                    Record
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+      {/* Upcoming meetings list (Phase G follow-on, CAL-UX.1) — persistent whenever a
+          calendar is connected: it keeps its header and shows an empty state rather than
+          vanishing when the 7-day window holds no events. Rows are grouped by day and
+          exclude the event already shown in the ribbon above. Hidden while recording
+          (the recorder is the focus). NEVER auto-records — explicit click only. */}
+      {!isRecording && (calendarConnected || upcomingList.length > 0) && (
+        <UpcomingAgenda groups={upcomingGroups} onStart={handleStartFromEvent} />
       )}
 
       {hasModel === false && (

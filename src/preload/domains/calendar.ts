@@ -6,6 +6,7 @@ import type {
   CalendarClientConfig,
   CalendarAccountStatus,
   CalendarEvent,
+  CalendarListResult,
   CalendarProjectSuggestion,
 } from '../../shared/types/calendar';
 
@@ -20,6 +21,10 @@ export const calendarBridge = {
   getUpcomingCalendarEvents: (withinHours: number): Promise<CalendarEvent[]> =>
     ipcRenderer.invoke('calendar:get-upcoming', withinHours),
   pollCalendarNow: (): Promise<void> => ipcRenderer.invoke('calendar:poll-now'),
+  listProviderCalendars: (provider: CalendarProvider): Promise<CalendarListResult> =>
+    ipcRenderer.invoke('calendar:list-calendars', provider),
+  setSelectedCalendars: (provider: CalendarProvider, calendarIds: string[]): Promise<void> =>
+    ipcRenderer.invoke('calendar:set-selected-calendars', { provider, calendarIds }),
   suggestCalendarProject: (input: { seriesId?: string; eventId?: string }): Promise<CalendarProjectSuggestion | null> =>
     ipcRenderer.invoke('calendar:suggest-project', input),
 

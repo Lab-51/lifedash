@@ -33,8 +33,10 @@ import {
   CalendarReauthRequiredError,
 } from './calendarAuthService';
 import { showNotification } from './notificationService';
+import { loadSelectedCalendarIds } from './calendarSelectionService';
 import { createLogger } from './logger';
 import {
+  CALENDAR_LOOKAHEAD_HOURS,
   CALENDAR_SETTING_POLL_INTERVAL_MINUTES,
   CALENDAR_SETTING_EVENT_NOTIFICATIONS,
   CALENDAR_DEFAULT_POLL_INTERVAL_MINUTES,
@@ -46,8 +48,6 @@ const log = createLogger('CalendarPoll');
 
 /** Delay before the first poll so it never blocks app startup. */
 const STARTUP_DELAY_MS = 15_000;
-/** How far ahead each poll asks the adapter to fetch. */
-const POLL_LOOKAHEAD_HOURS = 24;
 /** Floor for the configurable poll interval (minutes). */
 const MIN_POLL_INTERVAL_MINUTES = 1;
 
@@ -146,7 +146,9 @@ async function pollProvider(provider: CalendarProvider): Promise<void> {
       await updateCalendarTokens(provider, refreshed);
     }
 
-    const events = await adapter.fetchUpcoming(refreshed, config, POLL_LOOKAHEAD_HOURS);
+    // undefined ⇒ the user has never picked calendars ⇒ provider default.
+    const selectedCalendarIds = await loadSelectedCalendarIds(provider);
+    const events = await adapter.fetchUpcoming(refreshed, config, CALENDAR_LOOKAHEAD_HOURS, selectedCalendarIds);
     await replaceProviderEvents(provider, events);
     await recordCalendarSync(provider, { lastSyncAt: new Date().toISOString(), lastError: undefined });
   } catch (err) {
@@ -164,10 +166,12 @@ async function pollProvider(provider: CalendarProvider): Promise<void> {
  * Replace this provider's cached rows with the freshly-fetched set, RETAINING any
  * row referenced by meetings.calendarEventId. Approach: delete the provider's rows
  * whose id is NOT in the set of linked ids, then upsert the fresh events. A linked
- * event thus survives even after it leaves the 24h fetch window (Task 5 depends on
- * this to read the event post-session).
+ * event thus survives even after it leaves the fetch window (Task 5 depends on this to
+ * read the event post-session). It ALSO evicts events of newly-deselected calendars.
+ * Exported: ipc/calendar.ts's set-selected-calendars path uses it so a deselection
+ * takes effect immediately instead of waiting for the next poll cycle.
  */
-async function replaceProviderEvents(provider: CalendarProvider, events: CalendarEvent[]): Promise<void> {
+export async function replaceProviderEvents(provider: CalendarProvider, events: CalendarEvent[]): Promise<void> {
   const db = getDb();
 
   // Ids linked by any session (calendarEventId is the prefixed `${provider}:${eventId}`,

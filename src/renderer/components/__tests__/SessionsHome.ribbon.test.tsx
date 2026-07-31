@@ -1,15 +1,20 @@
 // @vitest-environment jsdom
 // Phase G Task 4: SessionsHome calendar ribbon render states (none / upcoming /
 // in-progress / dismissed) and the one-click path into the prefilled recorder.
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+// CAL-UX.1: the agenda list below the ribbon is persistent (survives an empty
+// window while a calendar is connected), spans the shared 7-day lookahead, and
+// groups its rows by day.
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
-import type { CalendarEvent } from '../../../shared/types/calendar';
+import type { CalendarEvent, CalendarAccountStatus } from '../../../shared/types/calendar';
+import { CALENDAR_LOOKAHEAD_HOURS } from '../../../shared/types/calendar';
 
 const getUpcomingCalendarEvents = vi.fn().mockResolvedValue([]);
 const onCalendarEventsUpdated = vi.fn().mockReturnValue(() => {});
+const getCalendarStatus = vi.fn().mockResolvedValue([]);
 
 vi.stubGlobal('electronAPI', {
   hasWhisperModel: vi.fn().mockResolvedValue(true),
@@ -26,6 +31,7 @@ vi.stubGlobal('electronAPI', {
   search: vi.fn().mockResolvedValue({ sessions: [], cards: [], projects: [] }),
   getUpcomingCalendarEvents,
   onCalendarEventsUpdated,
+  getCalendarStatus,
 });
 
 const { useMeetingStore } = await import('../../stores/meetingStore');
@@ -52,11 +58,15 @@ const makeEvent = (overrides: Partial<CalendarEvent> = {}): CalendarEvent => ({
   ...overrides,
 });
 
+const connectedStatus: CalendarAccountStatus[] = [{ provider: 'google', connected: true, needsReauth: false }];
+
 describe('SessionsHome — calendar ribbon (Phase G Task 4)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getUpcomingCalendarEvents.mockResolvedValue([]);
     onCalendarEventsUpdated.mockReturnValue(() => {});
+    // Default: nothing connected — tests that need the persistent agenda opt in.
+    getCalendarStatus.mockResolvedValue([]);
     useMeetingStore.setState({
       meetings: [],
       loading: false,
@@ -67,6 +77,10 @@ describe('SessionsHome — calendar ribbon (Phase G Task 4)', () => {
     } as never);
     useRecordingStore.setState({ isRecording: false, meetingId: null, elapsed: 0, starting: false } as never);
     useProjectStore.setState({ projects: [], loadProjects: vi.fn().mockResolvedValue(undefined) } as never);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('none: renders no ribbon when there are no qualifying events', async () => {
@@ -180,5 +194,60 @@ describe('SessionsHome — calendar ribbon (Phase G Task 4)', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Start recording for Planning' }));
     await waitFor(() => expect(screen.getByPlaceholderText('Meeting title...')).toHaveValue('Planning'));
+  });
+
+  // --- CAL-UX.1: 7-day window, persistent section, day grouping -------------------
+
+  it('window: requests the shared lookahead window, not a local literal', async () => {
+    renderHome();
+    await waitFor(() => expect(getUpcomingCalendarEvents).toHaveBeenCalledWith(CALENDAR_LOOKAHEAD_HOURS));
+  });
+
+  it('persistent: a connected calendar with an empty window keeps the section + empty state', async () => {
+    getCalendarStatus.mockResolvedValue(connectedStatus);
+    renderHome();
+
+    expect(await screen.findByText('Upcoming meetings')).toBeInTheDocument();
+    expect(screen.getByText('No meetings in the next 7 days.')).toBeInTheDocument();
+  });
+
+  it('persistent: no connected calendar and no events ⇒ no section at all', async () => {
+    renderHome();
+
+    await waitFor(() => expect(getCalendarStatus).toHaveBeenCalled());
+    await waitFor(() => expect(getUpcomingCalendarEvents).toHaveBeenCalled());
+    expect(screen.queryByText('Upcoming meetings')).toBeNull();
+    expect(screen.queryByText('No meetings in the next 7 days.')).toBeNull();
+  });
+
+  it('grouping: rows are bucketed under Today / Tomorrow day headers', async () => {
+    // Freeze only Date so "now + 1h" and "now + 26h" can never straddle midnight.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 6, 31, 9, 0, 0));
+    const now = Date.now();
+    getCalendarStatus.mockResolvedValue(connectedStatus);
+    getUpcomingCalendarEvents.mockResolvedValue([
+      makeEvent({
+        id: 'google:evt-today',
+        eventId: 'evt-today',
+        title: 'Design Review',
+        startsAt: new Date(now + 60 * 60_000).toISOString(),
+        endsAt: new Date(now + 90 * 60_000).toISOString(),
+      }),
+      makeEvent({
+        id: 'google:evt-tomorrow',
+        eventId: 'evt-tomorrow',
+        title: 'Roadmap Sync',
+        startsAt: new Date(now + 26 * 60 * 60_000).toISOString(),
+        endsAt: new Date(now + 27 * 60 * 60_000).toISOString(),
+      }),
+    ]);
+
+    renderHome();
+
+    expect(await screen.findByText('Today')).toBeInTheDocument();
+    expect(screen.getByText('Tomorrow')).toBeInTheDocument();
+    expect(screen.getByText('Design Review')).toBeInTheDocument();
+    expect(screen.getByText('Roadmap Sync')).toBeInTheDocument();
   });
 });

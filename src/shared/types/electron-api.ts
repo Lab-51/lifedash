@@ -124,6 +124,7 @@ import type {
   CalendarClientConfig,
   CalendarAccountStatus,
   CalendarEvent,
+  CalendarListResult,
   CalendarProjectSuggestion,
 } from './calendar';
 
@@ -653,6 +654,10 @@ export interface ElectronAPI {
   disconnectCalendar: (provider: CalendarProvider) => Promise<void>;
   getUpcomingCalendarEvents: (withinHours: number) => Promise<CalendarEvent[]>;
   pollCalendarNow: () => Promise<void>;
+  /** Calendars available for the picker + the stored selection (empty ⇒ provider default). */
+  listProviderCalendars: (provider: CalendarProvider) => Promise<CalendarListResult>;
+  /** Persist the synced-calendar selection (at least one id) and refresh the cache. */
+  setSelectedCalendars: (provider: CalendarProvider, calendarIds: string[]) => Promise<void>;
   suggestCalendarProject: (input: { seriesId?: string; eventId?: string }) => Promise<CalendarProjectSuggestion | null>;
   onCalendarEventsUpdated: (callback: () => void) => () => void;
 }

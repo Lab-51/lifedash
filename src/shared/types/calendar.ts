@@ -89,6 +89,26 @@ export interface CalendarTokens {
   tokenType?: string;
 }
 
+/** One calendar in a provider account, as offered by the Settings picker. */
+export interface CalendarInfo {
+  /** Provider-native calendar id (Google calendarList id / Graph calendar id). */
+  id: string;
+  /** Display name (user data — render with break-words). */
+  name: string;
+  /** True for the account's primary/default calendar. */
+  isPrimary: boolean;
+}
+
+/** Result of `calendar:list-calendars`. */
+export interface CalendarListResult {
+  /** Available calendars; EMPTY when `needsReconnect` is true (no network call was made). */
+  calendars: CalendarInfo[];
+  /** Currently stored selection; empty ⇒ provider default (Google primary / MS default view). */
+  selectedIds: string[];
+  /** True when the stored grant predates the calendar-listing scope — the user must reconnect. */
+  needsReconnect: boolean;
+}
+
 /**
  * The provider-specific adapter interface. Google (Task 2) and Microsoft (Task 3)
  * each implement this and register it via `registerCalendarAdapter`. The adapter
@@ -100,8 +120,19 @@ export interface CalendarProviderAdapter {
   authorize(config: CalendarClientConfig): Promise<{ tokens: CalendarTokens; accountEmail?: string }>;
   /** Refresh the access token if it is near/after expiry; returns the (possibly rotated) tokens. */
   refreshIfNeeded(tokens: CalendarTokens): Promise<CalendarTokens>;
-  /** Fetch upcoming events within `windowHours` and map them to metadata-only CalendarEvents. */
-  fetchUpcoming(tokens: CalendarTokens, config: CalendarClientConfig, windowHours: number): Promise<CalendarEvent[]>;
+  /** List the account's calendars for the Settings picker. */
+  listCalendars(tokens: CalendarTokens, config: CalendarClientConfig): Promise<CalendarInfo[]>;
+  /**
+   * Fetch upcoming events within `windowHours` and map them to metadata-only CalendarEvents.
+   * `selectedCalendarIds` undefined OR empty ⇒ the provider's DEFAULT behavior (Google
+   * `primary`, Microsoft `/me/calendarView`) — i.e. the pre-picker request shape.
+   */
+  fetchUpcoming(
+    tokens: CalendarTokens,
+    config: CalendarClientConfig,
+    windowHours: number,
+    selectedCalendarIds?: string[],
+  ): Promise<CalendarEvent[]>;
 }
 
 /**
@@ -116,6 +147,19 @@ export interface CalendarProjectSuggestion {
 }
 
 // === Settings keys (renderer + main) ===============================================
+
+/**
+ * How far ahead every calendar read looks — the SINGLE source of truth shared by the
+ * poll scheduler, the post-connect fetch and the Sessions-home agenda (7 days).
+ * The imminent-conflict banner during recording deliberately keeps its own short window.
+ */
+export const CALENDAR_LOOKAHEAD_HOURS = 168;
+
+/** Settings key holding the JSON `string[]` of selected calendar ids for a provider.
+ *  ABSENT ⇒ provider default. It is NEVER written as an empty array. */
+export function calendarSelectionKey(provider: CalendarProvider): string {
+  return `calendar:${provider}:selectedCalendars`;
+}
 
 /** Poll frequency in minutes (string KV value). */
 export const CALENDAR_SETTING_POLL_INTERVAL_MINUTES = 'calendar:pollIntervalMinutes';

@@ -38,7 +38,7 @@ vi.mock('../../logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
-import { googleCalendarAdapter, registerGoogleCalendarAdapter } from '../googleCalendarProvider';
+import { googleCalendarAdapter, registerGoogleCalendarAdapter, hasCalendarListScope } from '../googleCalendarProvider';
 import type { CalendarClientConfig, CalendarTokens } from '../../../../shared/types/calendar';
 
 const googleConfig: CalendarClientConfig = {
@@ -96,7 +96,11 @@ describe('authorize', () => {
     expect(req.clientSecret).toBe('g-secret');
     expect(req.endpoints.authorizeUrl).toBe('https://accounts.google.com/o/oauth2/v2/auth');
     expect(req.endpoints.tokenUrl).toBe('https://oauth2.googleapis.com/token');
-    expect(req.endpoints.scope).toBe('openid email https://www.googleapis.com/auth/calendar.events.readonly');
+    // CAL-UX.1: the calendarlist scope is REQUIRED to list calendars for the picker;
+    // events.readonly alone can read events but cannot enumerate calendars.
+    expect(req.endpoints.scope).toBe(
+      'openid email https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+    );
     expect(req.endpoints.sendClientSecret).toBe(true);
     expect(req.endpoints.extraAuthParams).toEqual({
       access_type: 'offline',
@@ -157,13 +161,168 @@ describe('fetchUpcoming — request URL', () => {
     expect(url.origin + url.pathname).toBe('https://www.googleapis.com/calendar/v3/calendars/primary/events');
     expect(url.searchParams.get('singleEvents')).toBe('true');
     expect(url.searchParams.get('orderBy')).toBe('startTime');
-    expect(url.searchParams.get('maxResults')).toBe('50');
+    expect(url.searchParams.get('maxResults')).toBe('250');
 
     const timeMin = new Date(url.searchParams.get('timeMin') as string).getTime();
     const timeMax = new Date(url.searchParams.get('timeMax') as string).getTime();
     expect(timeMax - timeMin).toBe(24 * 3_600_000);
 
     expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer access-1' });
+  });
+
+  it('an EMPTY selection is identical to no selection (single primary request)', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    await googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 24, []);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.origin + url.pathname).toBe('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+  });
+
+  it('requests one URL per selected calendar, url-encoding the id', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    await googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 24, [
+      'primary',
+      'team@group.calendar.google.com',
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const paths = fetchMock.mock.calls.map((c) => {
+      const u = new URL(c[0] as string);
+      return u.origin + u.pathname;
+    });
+    expect(paths).toEqual([
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+      'https://www.googleapis.com/calendar/v3/calendars/team%40group.calendar.google.com/events',
+    ]);
+    for (const call of fetchMock.mock.calls) {
+      expect(new URL(call[0] as string).searchParams.get('maxResults')).toBe('250');
+    }
+  });
+});
+
+describe('fetchUpcoming — multi-calendar merge', () => {
+  function event(id: string, startsAt: string) {
+    return {
+      id,
+      status: 'confirmed',
+      summary: id,
+      start: { dateTime: startsAt },
+      end: { dateTime: startsAt },
+    };
+  }
+
+  it('merges calendars, dedupes a shared event id, and sorts by start time', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ items: [event('shared', '2026-08-01T12:00:00Z')] }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          items: [event('shared', '2026-08-01T12:00:00Z'), event('earlier', '2026-08-01T08:00:00Z')],
+        }),
+      );
+
+    const events = await googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 24, ['a', 'b']);
+
+    expect(events.map((e) => e.eventId)).toEqual(['earlier', 'shared']);
+  });
+
+  it('skips a calendar that fails (404) without sinking the batch', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ error: { message: 'Not Found' } }, { status: 404 }))
+      .mockResolvedValueOnce(jsonResponse({ items: [event('kept', '2026-08-01T09:00:00Z')] }));
+
+    const events = await googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 24, ['deleted-cal', 'good-cal']);
+
+    expect(events.map((e) => e.eventId)).toEqual(['kept']);
+  });
+
+  it('still throws when EVERY selected calendar fails (the poller must record lastError)', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: { message: 'Not Found' } }, { status: 404 }));
+
+    await expect(googleCalendarAdapter.fetchUpcoming(tokens(), googleConfig, 24, ['a', 'b'])).rejects.toThrow(
+      /HTTP 404/,
+    );
+  });
+});
+
+// === listCalendars =================================================================
+
+describe('listCalendars', () => {
+  it('requests the calendarList endpoint and maps id/name/isPrimary', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        items: [
+          { id: 'primary-id', summary: 'Personal', primary: true },
+          { id: 'team-id', summary: 'Team', summaryOverride: 'My Team' },
+        ],
+      }),
+    );
+
+    const calendars = await googleCalendarAdapter.listCalendars(tokens(), googleConfig);
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.origin + url.pathname).toBe('https://www.googleapis.com/calendar/v3/users/me/calendarList');
+    expect(url.searchParams.get('maxResults')).toBe('250');
+    expect(calendars).toEqual([
+      { id: 'primary-id', name: 'Personal', isPrimary: true },
+      // summaryOverride (the user's rename) wins over summary.
+      { id: 'team-id', name: 'My Team', isPrimary: false },
+    ]);
+  });
+
+  it('skips deleted and hidden entries', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        items: [
+          { id: 'gone', summary: 'Deleted', deleted: true },
+          { id: 'invisible', summary: 'Hidden', hidden: true },
+          { id: 'keep', summary: 'Keep' },
+        ],
+      }),
+    );
+
+    const calendars = await googleCalendarAdapter.listCalendars(tokens(), googleConfig);
+    expect(calendars.map((c) => c.id)).toEqual(['keep']);
+  });
+
+  it('refreshes once and retries on 401', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({}, { status: 401 }))
+      .mockResolvedValueOnce(jsonResponse({ items: [{ id: 'after', summary: 'After refresh' }] }));
+    h.refreshAccessToken.mockResolvedValue(tokens({ accessToken: 'access-refreshed' }));
+
+    const calendars = await googleCalendarAdapter.listCalendars(tokens(), googleConfig);
+
+    expect(calendars.map((c) => c.id)).toEqual(['after']);
+    expect((fetchMock.mock.calls[1][1] as RequestInit).headers).toMatchObject({
+      Authorization: 'Bearer access-refreshed',
+    });
+  });
+
+  it('throws with the HTTP status when the list request fails', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: { message: 'insufficient scope' } }, { status: 403 }));
+    await expect(googleCalendarAdapter.listCalendars(tokens(), googleConfig)).rejects.toThrow(/HTTP 403/);
+  });
+});
+
+// === hasCalendarListScope (pure pre-check used by the IPC layer) ====================
+
+describe('hasCalendarListScope', () => {
+  it('is false for a pre-picker grant (events.readonly only) and for undefined', () => {
+    expect(hasCalendarListScope(undefined)).toBe(false);
+    expect(hasCalendarListScope('')).toBe(false);
+    expect(hasCalendarListScope('openid email https://www.googleapis.com/auth/calendar.events.readonly')).toBe(false);
+  });
+
+  it('is true for calendarlist.readonly or the broader calendar.readonly', () => {
+    expect(
+      hasCalendarListScope(
+        'openid email https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+      ),
+    ).toBe(true);
+    expect(hasCalendarListScope('https://www.googleapis.com/auth/calendar.readonly')).toBe(true);
   });
 });
 

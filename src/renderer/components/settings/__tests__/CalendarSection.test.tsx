@@ -14,6 +14,8 @@ const disconnectCalendar = vi.fn();
 const setCalendarClientConfig = vi.fn();
 const getSetting = vi.fn();
 const setSetting = vi.fn();
+const listProviderCalendars = vi.fn();
+const setSelectedCalendars = vi.fn();
 
 vi.stubGlobal('electronAPI', {
   getCalendarStatus,
@@ -22,6 +24,8 @@ vi.stubGlobal('electronAPI', {
   setCalendarClientConfig,
   getSetting,
   setSetting,
+  listProviderCalendars,
+  setSelectedCalendars,
 });
 
 const { default: CalendarSection } = await import('../CalendarSection');
@@ -48,6 +52,8 @@ describe('CalendarSection', () => {
     setCalendarClientConfig.mockResolvedValue(undefined);
     getSetting.mockResolvedValue(null);
     setSetting.mockResolvedValue(undefined);
+    listProviderCalendars.mockResolvedValue({ calendars: [], selectedIds: [], needsReconnect: false });
+    setSelectedCalendars.mockResolvedValue(undefined);
   });
 
   it('shows Connect for an unconnected provider and runs the OAuth flow on click', async () => {
@@ -139,6 +145,106 @@ describe('CalendarSection', () => {
     // ...and the secret is never rendered back anywhere in the DOM.
     expect(screen.queryByDisplayValue('super-secret-value')).not.toBeInTheDocument();
     expect(document.body.textContent).not.toContain('super-secret-value');
+  });
+
+  // --- CAL-UX.1: per-provider calendar picker -----------------------------------
+
+  const TWO_CALENDARS = [
+    { id: 'primary', name: 'Work', isPrimary: true },
+    { id: 'team@group.calendar.google.com', name: 'Team Events', isPrimary: false },
+  ];
+
+  /** Connected Google account + an expanded picker for it. */
+  async function expandGooglePicker() {
+    getCalendarStatus.mockResolvedValue([connected('google', 'me@example.com'), notConnected('microsoft')]);
+    render(<CalendarSection />);
+    fireEvent.click(await screen.findByLabelText('Choose calendars for Google Calendar'));
+    await waitFor(() => expect(listProviderCalendars).toHaveBeenCalledWith('google'));
+  }
+
+  it('does not offer the picker for a provider that is not connected', async () => {
+    render(<CalendarSection />);
+    await screen.findByLabelText('Connect Google Calendar');
+    expect(screen.queryByLabelText('Choose calendars for Google Calendar')).not.toBeInTheDocument();
+  });
+
+  it('loads the calendar list on first expand and checks the primary when nothing is stored', async () => {
+    listProviderCalendars.mockResolvedValue({ calendars: TWO_CALENDARS, selectedIds: [], needsReconnect: false });
+    await expandGooglePicker();
+
+    expect(await screen.findByRole('checkbox', { name: /Work/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Team Events/ })).not.toBeChecked();
+    expect(listProviderCalendars).toHaveBeenCalledTimes(1);
+  });
+
+  it('checks the stored selection when one exists', async () => {
+    listProviderCalendars.mockResolvedValue({
+      calendars: TWO_CALENDARS,
+      selectedIds: ['team@group.calendar.google.com'],
+      needsReconnect: false,
+    });
+    await expandGooglePicker();
+
+    expect(await screen.findByRole('checkbox', { name: /Team Events/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Work/ })).not.toBeChecked();
+  });
+
+  it('degrades to a reconnect prompt (never an error) when the account predates the list scope', async () => {
+    listProviderCalendars.mockResolvedValue({ calendars: [], selectedIds: [], needsReconnect: true });
+    await expandGooglePicker();
+
+    expect(await screen.findByText('Reconnect to choose which calendars sync')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /Work/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Reconnect Google Calendar to choose calendars'));
+    // Reuses the same OAuth connect flow as the card's Connect/Reconnect button.
+    await waitFor(() => expect(connectCalendar).toHaveBeenCalledWith('google'));
+    // ...and re-reads the list afterwards so the picker reflects the new grant.
+    await waitFor(() => expect(listProviderCalendars).toHaveBeenCalledTimes(2));
+  });
+
+  it('keeps Save disabled while the selection is unchanged or empty', async () => {
+    listProviderCalendars.mockResolvedValue({
+      calendars: TWO_CALENDARS,
+      selectedIds: ['primary'],
+      needsReconnect: false,
+    });
+    await expandGooglePicker();
+
+    const save = await screen.findByLabelText('Save calendar selection for Google Calendar');
+    expect(save).toBeDisabled(); // unchanged
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Work/ })); // now zero checked
+    expect(screen.getByRole('checkbox', { name: /Work/ })).not.toBeChecked();
+    expect(save).toBeDisabled(); // empty selection is forbidden by the API
+    expect(setSelectedCalendars).not.toHaveBeenCalled();
+  });
+
+  it('saves exactly the checked ids and refreshes the list afterwards', async () => {
+    listProviderCalendars.mockResolvedValue({
+      calendars: TWO_CALENDARS,
+      selectedIds: ['primary'],
+      needsReconnect: false,
+    });
+    await expandGooglePicker();
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Team Events/ }));
+    const save = screen.getByLabelText('Save calendar selection for Google Calendar');
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+
+    await waitFor(() =>
+      expect(setSelectedCalendars).toHaveBeenCalledWith('google', ['primary', 'team@group.calendar.google.com']),
+    );
+    await waitFor(() => expect(listProviderCalendars).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Selection saved')).toBeInTheDocument();
+  });
+
+  it('surfaces an inline error when the calendar list cannot be read', async () => {
+    listProviderCalendars.mockRejectedValue(new Error('network down'));
+    await expandGooglePicker();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load your calendars');
   });
 
   it('reads global settings with documented defaults on mount', async () => {

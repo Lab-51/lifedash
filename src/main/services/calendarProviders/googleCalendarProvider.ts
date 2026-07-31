@@ -17,16 +17,30 @@ import {
   refreshAccessToken,
   loadCalendarClientConfig,
   registerCalendarAdapter,
+  CalendarReauthRequiredError,
   type AuthorizationRequest,
   type OAuthProviderEndpoints,
 } from '../calendarAuthService';
+import { createLogger } from '../logger';
 import type {
   CalendarClientConfig,
   CalendarEvent,
   CalendarEventAttendee,
+  CalendarInfo,
   CalendarProviderAdapter,
   CalendarTokens,
 } from '../../../shared/types/calendar';
+
+const log = createLogger('GoogleCalendar');
+
+/**
+ * Scopes requested at connect time. `calendar.events.readonly` reads events from ANY
+ * of the user's calendars, but it does NOT permit LISTING calendars — that needs
+ * `calendar.calendarlist.readonly` (same sensitive-not-restricted class). Grants made
+ * before the picker shipped lack it; `hasCalendarListScope` detects that.
+ */
+const GOOGLE_SCOPE =
+  'openid email https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/calendar.calendarlist.readonly';
 
 /**
  * Google OAuth + Calendar endpoints. `access_type=offline` + `prompt=consent` are
@@ -36,19 +50,39 @@ import type {
 const GOOGLE_ENDPOINTS: OAuthProviderEndpoints = {
   authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
   tokenUrl: 'https://oauth2.googleapis.com/token',
-  scope: 'openid email https://www.googleapis.com/auth/calendar.events.readonly',
+  scope: GOOGLE_SCOPE,
   sendClientSecret: true,
   extraAuthParams: { access_type: 'offline', prompt: 'consent' },
 };
 
-/** Base URL for the Google Calendar events list (primary calendar). */
-const GOOGLE_EVENTS_URL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
+/** Base URL for a single calendar's events list; `{id}` is URL-encoded per request. */
+const GOOGLE_CALENDARS_URL = 'https://www.googleapis.com/calendar/v3/calendars';
+/** The user's calendar list (needs the calendarlist scope). */
+const GOOGLE_CALENDAR_LIST_URL = 'https://www.googleapis.com/calendar/v3/users/me/calendarList';
+
+/** Calendar id used when the user has not picked any (today's behavior). */
+const DEFAULT_CALENDAR_ID = 'primary';
 
 /** Refresh when the access token is within this many ms of expiry. */
 const EXPIRY_SKEW_MS = 60_000;
 
-/** Max events requested per poll. */
-const MAX_RESULTS = 50;
+/**
+ * Max rows requested PER CALENDAR (events and calendarList alike). This is an honest
+ * hard cap: neither request paginates, by design — a 7-day window on one calendar does
+ * not realistically exceed it, and the agenda is a preview, not an archive.
+ */
+const MAX_RESULTS = 250;
+
+/**
+ * Whether a stored grant can list calendars. Google echoes the granted scopes back in
+ * `tokens.scope`; `undefined` means we never recorded them, which for our purposes is
+ * indistinguishable from a pre-picker grant ⇒ treat as stale. Pure (no network) so the
+ * IPC layer can gate BEFORE calling the API.
+ */
+export function hasCalendarListScope(scope: string | undefined): boolean {
+  if (!scope) return false;
+  return scope.includes('calendar.calendarlist.readonly') || scope.includes('calendar.readonly');
+}
 
 // === Request assembly ==============================================================
 
@@ -95,6 +129,18 @@ interface GoogleEvent {
 interface GoogleEventsResponse {
   items?: GoogleEvent[];
 }
+/** The subset of a calendarList entry we read. */
+interface GoogleCalendarListEntry {
+  id?: string;
+  summary?: string;
+  summaryOverride?: string;
+  primary?: boolean;
+  deleted?: boolean;
+  hidden?: boolean;
+}
+interface GoogleCalendarListResponse {
+  items?: GoogleCalendarListEntry[];
+}
 
 function mapAttendee(a: GoogleAttendee): CalendarEventAttendee {
   const attendee: CalendarEventAttendee = {};
@@ -128,10 +174,10 @@ function normalizeEvent(item: GoogleEvent): CalendarEvent | null {
   return event;
 }
 
-/** Build the Google Calendar events-list URL for the [now, now+windowHours] window. */
-function buildEventsUrl(windowHours: number): string {
+/** Build one calendar's events-list URL for the [now, now+windowHours] window. */
+function buildEventsUrl(calendarId: string, windowHours: number): string {
   const now = Date.now();
-  const url = new URL(GOOGLE_EVENTS_URL);
+  const url = new URL(`${GOOGLE_CALENDARS_URL}/${encodeURIComponent(calendarId)}/events`);
   url.searchParams.set('singleEvents', 'true');
   url.searchParams.set('orderBy', 'startTime');
   url.searchParams.set('timeMin', new Date(now).toISOString());
@@ -140,10 +186,25 @@ function buildEventsUrl(windowHours: number): string {
   return url.toString();
 }
 
-async function requestEvents(accessToken: string, windowHours: number): Promise<Response> {
-  return fetch(buildEventsUrl(windowHours), {
+/** One authenticated GET with the single refresh-then-retry-on-401 semantics. Returns
+ *  the response plus the (possibly rotated) tokens so a batch reuses the fresh one. */
+async function authorizedGet(
+  url: string,
+  tokens: CalendarTokens,
+  config: CalendarClientConfig,
+): Promise<{ res: Response; tokens: CalendarTokens }> {
+  const init = (accessToken: string): RequestInit => ({
     headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
   });
+  let active = tokens;
+  let res = await fetch(url, init(active.accessToken));
+  if (res.status === 401) {
+    // Access token likely expired — refresh once (invalid_grant propagates as
+    // CalendarReauthRequiredError) and retry.
+    active = await refreshAccessToken(toRequest(config), active.refreshToken);
+    res = await fetch(url, init(active.accessToken));
+  }
+  return { res, tokens: active };
 }
 
 async function parseEvents(res: Response): Promise<CalendarEvent[]> {
@@ -154,6 +215,16 @@ async function parseEvents(res: Response): Promise<CalendarEvent[]> {
     if (normalized) out.push(normalized);
   }
   return out;
+}
+
+/** Map a calendarList entry, or null when it must be skipped (deleted/hidden/malformed). */
+function normalizeCalendarListEntry(entry: GoogleCalendarListEntry): CalendarInfo | null {
+  if (entry.deleted || entry.hidden || !entry.id) return null;
+  return {
+    id: entry.id,
+    name: entry.summaryOverride ?? entry.summary ?? entry.id,
+    isPrimary: !!entry.primary,
+  };
 }
 
 // === Adapter =======================================================================
@@ -173,10 +244,27 @@ export const googleCalendarAdapter: CalendarProviderAdapter = {
     return refreshAccessToken(req, tokens.refreshToken);
   },
 
+  async listCalendars(tokens: CalendarTokens, config: CalendarClientConfig): Promise<CalendarInfo[]> {
+    const url = new URL(GOOGLE_CALENDAR_LIST_URL);
+    url.searchParams.set('maxResults', String(MAX_RESULTS));
+    const { res } = await authorizedGet(url.toString(), tokens, config);
+    if (!res.ok) {
+      throw new Error(`Google calendar list failed (HTTP ${res.status}): ${await readErrorDetail(res)}`);
+    }
+    const json = (await res.json()) as GoogleCalendarListResponse;
+    const out: CalendarInfo[] = [];
+    for (const entry of json.items ?? []) {
+      const info = normalizeCalendarListEntry(entry);
+      if (info) out.push(info);
+    }
+    return out;
+  },
+
   async fetchUpcoming(
     tokens: CalendarTokens,
     config: CalendarClientConfig,
     windowHours: number,
+    selectedCalendarIds?: string[],
   ): Promise<CalendarEvent[]> {
     // NOTE: this may THROW — the poll orchestrator (Task 4) catches and classifies the
     // error: a CalendarReauthRequiredError (dead refresh token → invalid_grant) flips
@@ -184,20 +272,40 @@ export const googleCalendarAdapter: CalendarProviderAdapter = {
     // A 401/403 with a valid token is a permission / API-config problem (e.g. the Google
     // Calendar API not being enabled, or insufficient scope) — NOT an expired
     // authorization — so we surface it plainly instead of forcing a pointless reconnect.
+    const ids = selectedCalendarIds?.length ? selectedCalendarIds : [DEFAULT_CALENDAR_ID];
     let active = tokens;
-    let res = await requestEvents(active.accessToken, windowHours);
+    // Dedupe across calendars: the same event visible on two calendars keeps ONE row
+    // (the cache PK is `${provider}:${eventId}`, so duplicates would collide anyway).
+    const merged = new Map<string, CalendarEvent>();
+    let firstError: unknown;
+    let succeeded = 0;
 
-    if (res.status === 401) {
-      // Access token likely expired — refresh once (invalid_grant propagates as
-      // CalendarReauthRequiredError) and retry.
-      active = await refreshAccessToken(toRequest(config), active.refreshToken);
-      res = await requestEvents(active.accessToken, windowHours);
+    for (const calendarId of ids) {
+      try {
+        const attempt = await authorizedGet(buildEventsUrl(calendarId, windowHours), active, config);
+        active = attempt.tokens;
+        if (!attempt.res.ok) {
+          throw new Error(
+            `Google Calendar fetch failed (HTTP ${attempt.res.status}): ${await readErrorDetail(attempt.res)}`,
+          );
+        }
+        for (const event of await parseEvents(attempt.res)) {
+          if (!merged.has(event.id)) merged.set(event.id, event);
+        }
+        succeeded += 1;
+      } catch (err) {
+        // A dead refresh token is account-wide — never retry it per calendar.
+        if (err instanceof CalendarReauthRequiredError) throw err;
+        // One calendar failing (e.g. 404 after deletion) must not sink the batch, but a
+        // batch where EVERY calendar failed still surfaces its error so the poller can
+        // record lastError instead of silently reporting an empty agenda.
+        log.warn(`Skipping calendar "${calendarId}":`, err instanceof Error ? err.message : err);
+        firstError ??= err;
+      }
     }
 
-    if (!res.ok) {
-      throw new Error(`Google Calendar fetch failed (HTTP ${res.status}): ${await readErrorDetail(res)}`);
-    }
-    return await parseEvents(res);
+    if (succeeded === 0 && firstError !== undefined) throw firstError;
+    return [...merged.values()].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   },
 };
 

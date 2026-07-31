@@ -22,7 +22,13 @@ import {
   Unlink,
   AlertTriangle,
 } from 'lucide-react';
-import type { CalendarProvider, CalendarAccountStatus, CalendarClientConfig } from '../../../shared/types/calendar';
+import type {
+  CalendarProvider,
+  CalendarAccountStatus,
+  CalendarClientConfig,
+  CalendarInfo,
+  CalendarListResult,
+} from '../../../shared/types/calendar';
 import {
   CALENDAR_SETTING_POLL_INTERVAL_MINUTES,
   CALENDAR_SETTING_EVENT_NOTIFICATIONS,
@@ -73,6 +79,243 @@ function ProviderStatusLine({ status }: { status?: CalendarAccountStatus }) {
   return <p className="text-xs text-surface-500 mt-0.5">Not connected</p>;
 }
 
+/**
+ * Which boxes start checked (CAL-UX.1): the stored selection when there is one,
+ * otherwise the provider's primary calendar — that mirrors what actually syncs
+ * today when no selection has ever been saved.
+ */
+function initialSelection(result: CalendarListResult): string[] {
+  if (result.selectedIds.length > 0) return result.selectedIds;
+  return result.calendars.filter((c) => c.isPrimary).map((c) => c.id);
+}
+
+/** Order-insensitive id-set equality (drives the "unchanged ⇒ Save disabled" gate). */
+function sameIds(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id) => b.includes(id));
+}
+
+/** Checkbox list of a provider's calendars. Names are user data — never clipped away. */
+function CalendarCheckboxList({
+  calendars,
+  checked,
+  onToggle,
+}: {
+  calendars: CalendarInfo[];
+  checked: string[];
+  onToggle: (id: string) => void;
+}) {
+  if (calendars.length === 0) {
+    return <p className="text-[0.6875rem] text-surface-500">No calendars found for this account.</p>;
+  }
+  return (
+    <ul className="space-y-1.5">
+      {calendars.map((cal) => (
+        <li key={cal.id}>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={checked.includes(cal.id)}
+              onChange={() => onToggle(cal.id)}
+              className="mt-0.5 w-3.5 h-3.5 shrink-0"
+            />
+            <span className="text-xs text-[var(--color-text-primary)] min-w-0 overflow-hidden break-words">
+              {cal.name}
+              {cal.isPrimary && <span className="text-surface-500"> (primary)</span>}
+            </span>
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Per-provider "Choose calendars" collapsible (CAL-UX.1). Loads lazily on first
+ * expand. Google accounts connected before the calendar-list scope existed come
+ * back with needsReconnect — that degrades to a reconnect prompt, never an error.
+ * An empty selection is forbidden by the API, so Save stays disabled at zero boxes.
+ */
+function CalendarPicker({
+  provider,
+  label,
+  onReconnect,
+}: {
+  provider: CalendarProvider;
+  label: string;
+  onReconnect: (provider: CalendarProvider) => Promise<void>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<CalendarListResult | null>(null);
+  const [checked, setChecked] = useState<string[]>([]);
+  const [baseline, setBaseline] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const listed = await window.electronAPI.listProviderCalendars(provider);
+      const initial = initialSelection(listed);
+      setResult(listed);
+      setChecked(initial);
+      setBaseline(initial);
+    } catch (err) {
+      console.error(`Failed to list ${provider} calendars:`, err);
+      setError('Could not load your calendars. Check the connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [provider]);
+
+  const handleToggleExpanded = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && !result) void load();
+  };
+
+  const handleToggleCalendar = (id: string) => {
+    setSaved(false);
+    setChecked((prev) => (prev.includes(id) ? prev.filter((existing) => existing !== id) : [...prev, id]));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await window.electronAPI.setSelectedCalendars(provider, checked);
+      await load();
+      setSaved(true);
+    } catch (err) {
+      console.error(`Failed to save ${provider} calendar selection:`, err);
+      setError('Could not save your calendar selection.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReconnect = async () => {
+    await onReconnect(provider);
+    await load();
+  };
+
+  const canSave = checked.length > 0 && !sameIds(checked, baseline);
+
+  return (
+    <div className="mt-2 pt-2 border-t border-[var(--color-border)]">
+      <button
+        type="button"
+        onClick={handleToggleExpanded}
+        aria-expanded={expanded}
+        aria-label={`Choose calendars for ${label}`}
+        className="flex items-center gap-1.5 text-[0.6875rem] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+      >
+        <ChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        Choose calendars
+      </button>
+
+      {expanded && (
+        <div className="mt-2 space-y-2">
+          {loading && (
+            <p className="inline-flex items-center gap-1.5 text-[0.6875rem] text-surface-500">
+              <Loader2 size={12} className="animate-spin" />
+              Loading calendars...
+            </p>
+          )}
+          {error && (
+            <p className="text-[0.6875rem] text-red-400" role="alert">
+              {error}
+            </p>
+          )}
+          {!loading &&
+            result &&
+            (result.needsReconnect ? (
+              <div className="space-y-1.5">
+                <p className="text-[0.6875rem] text-amber-400/90">Reconnect to choose which calendars sync</p>
+                <button
+                  type="button"
+                  onClick={() => void handleReconnect()}
+                  aria-label={`Reconnect ${label} to choose calendars`}
+                  className="flex items-center gap-1 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] px-2.5 py-1 rounded-lg text-xs transition-colors"
+                >
+                  <Link2 size={12} />
+                  Reconnect
+                </button>
+              </div>
+            ) : (
+              <>
+                <CalendarCheckboxList calendars={result.calendars} checked={checked} onToggle={handleToggleCalendar} />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleSave()}
+                    disabled={!canSave || saving}
+                    aria-label={`Save calendar selection for ${label}`}
+                    className="flex items-center gap-1 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] disabled:opacity-50 disabled:cursor-not-allowed px-2.5 py-1 rounded-lg text-xs transition-colors"
+                  >
+                    {saving && <Loader2 size={12} className="animate-spin" />}
+                    Save
+                  </button>
+                  {saved && (
+                    <span className="inline-flex items-center gap-1 text-[0.625rem] text-emerald-400 font-medium">
+                      <Check size={11} />
+                      Selection saved
+                    </span>
+                  )}
+                </div>
+              </>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The card's single primary action: Disconnect when healthy, else Connect/Reconnect. */
+function ProviderActionButton({
+  provider,
+  label,
+  isConnected,
+  needsReauth,
+  connecting,
+  onConnect,
+  onDisconnect,
+}: {
+  provider: CalendarProvider;
+  label: string;
+  isConnected: boolean;
+  needsReauth: boolean;
+  connecting: boolean;
+  onConnect: (provider: CalendarProvider) => Promise<void>;
+  onDisconnect: (provider: CalendarProvider) => void;
+}) {
+  if (isConnected) {
+    return (
+      <button
+        onClick={() => onDisconnect(provider)}
+        aria-label={`Disconnect ${label}`}
+        className="flex items-center gap-1.5 border border-red-500/30 hover:border-red-500/50 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-2.5 py-1.5 rounded-lg text-xs transition-colors shrink-0"
+      >
+        <Unlink size={13} />
+        Disconnect
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={() => onConnect(provider)}
+      disabled={connecting}
+      aria-label={`${needsReauth ? 'Reconnect' : 'Connect'} ${label}`}
+      className="flex items-center gap-1.5 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] disabled:opacity-50 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg text-xs transition-colors shrink-0"
+    >
+      {connecting ? <Loader2 size={13} className="animate-spin" /> : <Link2 size={13} />}
+      {needsReauth ? 'Reconnect' : 'Connect'}
+    </button>
+  );
+}
+
 /** Primary embedded connect/disconnect/reconnect card for one provider. */
 function ProviderCard({
   provider,
@@ -88,7 +331,7 @@ function ProviderCard({
   status?: CalendarAccountStatus;
   connecting: boolean;
   connectError?: string;
-  onConnect: (provider: CalendarProvider) => void;
+  onConnect: (provider: CalendarProvider) => Promise<void>;
   onDisconnect: (provider: CalendarProvider) => void;
 }) {
   const needsReauth = status?.needsReauth === true;
@@ -103,26 +346,15 @@ function ProviderCard({
           <ProviderStatusLine status={status} />
         </div>
 
-        {isConnected ? (
-          <button
-            onClick={() => onDisconnect(provider)}
-            aria-label={`Disconnect ${label}`}
-            className="flex items-center gap-1.5 border border-red-500/30 hover:border-red-500/50 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-2.5 py-1.5 rounded-lg text-xs transition-colors shrink-0"
-          >
-            <Unlink size={13} />
-            Disconnect
-          </button>
-        ) : (
-          <button
-            onClick={() => onConnect(provider)}
-            disabled={connecting}
-            aria-label={`${needsReauth ? 'Reconnect' : 'Connect'} ${label}`}
-            className="flex items-center gap-1.5 bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)] border border-[var(--color-border-accent)] disabled:opacity-50 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg text-xs transition-colors shrink-0"
-          >
-            {connecting ? <Loader2 size={13} className="animate-spin" /> : <Link2 size={13} />}
-            {needsReauth ? 'Reconnect' : 'Connect'}
-          </button>
-        )}
+        <ProviderActionButton
+          provider={provider}
+          label={label}
+          isConnected={isConnected}
+          needsReauth={needsReauth}
+          connecting={connecting}
+          onConnect={onConnect}
+          onDisconnect={onDisconnect}
+        />
       </div>
 
       {isConnected && status?.lastSyncAt && (
@@ -138,6 +370,10 @@ function ProviderCard({
           {connectError}
         </p>
       )}
+
+      {/* CAL-UX.1: pick which of this account's calendars actually sync. Only for a
+          healthy connection — a reauth-needed account must be fixed above first. */}
+      {isConnected && <CalendarPicker provider={provider} label={label} onReconnect={onConnect} />}
     </div>
   );
 }

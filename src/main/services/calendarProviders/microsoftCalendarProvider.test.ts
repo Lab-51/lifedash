@@ -10,13 +10,22 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { CalendarClientConfig, CalendarTokens } from '../../../shared/types/calendar';
 
 // --- Mocks (declared before importing the module under test) -----------------------
-const mocks = vi.hoisted(() => ({
-  runAuthorizationCodeFlow: vi.fn(),
-  refreshAccessToken: vi.fn(),
-  loadCalendarClientConfig: vi.fn(),
-  markCalendarNeedsReauth: vi.fn().mockResolvedValue(undefined),
-  registerCalendarAdapter: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  class MockReauthError extends Error {
+    constructor(message = 'Calendar authorization expired') {
+      super(message);
+      this.name = 'CalendarReauthRequiredError';
+    }
+  }
+  return {
+    runAuthorizationCodeFlow: vi.fn(),
+    refreshAccessToken: vi.fn(),
+    loadCalendarClientConfig: vi.fn(),
+    markCalendarNeedsReauth: vi.fn().mockResolvedValue(undefined),
+    registerCalendarAdapter: vi.fn(),
+    CalendarReauthRequiredError: MockReauthError,
+  };
+});
 vi.mock('../calendarAuthService', () => mocks);
 vi.mock('../logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -47,6 +56,7 @@ function jsonResponse(status: number, body: unknown): Response {
 afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('microsoftCalendarAdapter.authorize', () => {
@@ -136,7 +146,7 @@ describe('microsoftCalendarAdapter.fetchUpcoming — request shape', () => {
 
     const url = new URL(capturedUrl);
     expect(url.origin + url.pathname).toBe('https://graph.microsoft.com/v1.0/me/calendarView');
-    expect(url.searchParams.get('$top')).toBe('50');
+    expect(url.searchParams.get('$top')).toBe('250');
     expect(url.searchParams.get('$orderby')).toBe('start/dateTime');
 
     // MS-specific (b): $select MUST NOT contain body / bodyPreview / location.
@@ -155,6 +165,164 @@ describe('microsoftCalendarAdapter.fetchUpcoming — request shape', () => {
     const headers = capturedInit.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer the-access');
     expect(headers.Prefer).toBe('outlook.timezone="UTC"');
+  });
+});
+
+describe('microsoftCalendarAdapter.fetchUpcoming — calendar selection (CAL-UX.1)', () => {
+  function stubFetch(...responses: Response[]) {
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
+    for (const res of responses) fetchMock.mockResolvedValueOnce(res);
+    if (responses.length === 0) fetchMock.mockResolvedValue(jsonResponse(200, { value: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  function graphEvent(id: string, startsAt: string) {
+    return {
+      id,
+      subject: id,
+      start: { dateTime: startsAt },
+      end: { dateTime: startsAt },
+      type: 'singleInstance',
+    };
+  }
+
+  it('with NO selection hits the account-default /me/calendarView with the exact legacy URL', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-31T10:00:00.000Z'));
+    const fetchMock = stubFetch();
+
+    await microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'https://graph.microsoft.com/v1.0/me/calendarView' +
+        '?startDateTime=2026-07-31T10%3A00%3A00.000Z' +
+        '&endDateTime=2026-08-01T10%3A00%3A00.000Z' +
+        '&%24select=subject%2Cstart%2Cend%2Cattendees%2CseriesMasterId%2CisCancelled%2CisAllDay%2Ctype' +
+        '&%24top=250' +
+        '&%24orderby=start%2FdateTime',
+    );
+  });
+
+  it('treats an EMPTY selection exactly like no selection', async () => {
+    const fetchMock = stubFetch();
+
+    await microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24, []);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.origin + url.pathname).toBe('https://graph.microsoft.com/v1.0/me/calendarView');
+  });
+
+  it('requests one per-calendar calendarView per selected id, url-encoding the id', async () => {
+    const fetchMock = stubFetch(jsonResponse(200, { value: [] }), jsonResponse(200, { value: [] }));
+
+    await microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24, ['AAA=', 'B/B']);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const paths = fetchMock.mock.calls.map((c) => {
+      const u = new URL(c[0] as string);
+      return u.origin + u.pathname;
+    });
+    expect(paths).toEqual([
+      'https://graph.microsoft.com/v1.0/me/calendars/AAA%3D/calendarView',
+      'https://graph.microsoft.com/v1.0/me/calendars/B%2FB/calendarView',
+    ]);
+    for (const call of fetchMock.mock.calls) {
+      const u = new URL(call[0] as string);
+      expect(u.searchParams.get('$top')).toBe('250');
+      expect(u.searchParams.get('$select')).toBe(
+        'subject,start,end,attendees,seriesMasterId,isCancelled,isAllDay,type',
+      );
+    }
+  });
+
+  it('merges calendars, dedupes a shared event id, and sorts by start time', async () => {
+    stubFetch(
+      jsonResponse(200, { value: [graphEvent('shared', '2026-08-01T12:00:00.0000000')] }),
+      jsonResponse(200, {
+        value: [
+          graphEvent('shared', '2026-08-01T12:00:00.0000000'),
+          graphEvent('earlier', '2026-08-01T08:00:00.0000000'),
+        ],
+      }),
+    );
+
+    const events = await microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24, ['a', 'b']);
+
+    expect(events.map((e) => e.eventId)).toEqual(['earlier', 'shared']);
+  });
+
+  it('skips a calendar that fails (404) without sinking the batch', async () => {
+    stubFetch(
+      jsonResponse(404, { error: { message: 'Not Found' } }),
+      jsonResponse(200, { value: [graphEvent('kept', '2026-08-01T09:00:00.0000000')] }),
+    );
+
+    const events = await microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24, ['deleted-cal', 'good-cal']);
+
+    expect(events.map((e) => e.eventId)).toEqual(['kept']);
+  });
+
+  it('still throws when EVERY selected calendar fails (the poller must record lastError)', async () => {
+    stubFetch(
+      jsonResponse(404, { error: { message: 'Not Found' } }),
+      jsonResponse(404, { error: { message: 'Not Found' } }),
+    );
+
+    await expect(microsoftCalendarAdapter.fetchUpcoming(tokens(), MS_CONFIG, 24, ['a', 'b'])).rejects.toThrow(
+      /HTTP 404/,
+    );
+  });
+});
+
+describe('microsoftCalendarAdapter.listCalendars', () => {
+  it('requests /me/calendars with a minimal $select and maps isDefaultCalendar → isPrimary', async () => {
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        value: [
+          { id: 'cal-1', name: 'Calendar', isDefaultCalendar: true },
+          { id: 'cal-2', name: 'Team' },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const calendars = await microsoftCalendarAdapter.listCalendars(tokens(), MS_CONFIG);
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.origin + url.pathname).toBe('https://graph.microsoft.com/v1.0/me/calendars');
+    expect(url.searchParams.get('$select')).toBe('id,name,isDefaultCalendar');
+    expect(url.searchParams.get('$top')).toBe('50');
+    expect(calendars).toEqual([
+      { id: 'cal-1', name: 'Calendar', isPrimary: true },
+      { id: 'cal-2', name: 'Team', isPrimary: false },
+    ]);
+  });
+
+  it('refreshes once and retries on 401', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(401, {}))
+      .mockResolvedValueOnce(jsonResponse(200, { value: [{ id: 'after', name: 'After refresh' }] }));
+    vi.stubGlobal('fetch', fetchMock);
+    mocks.refreshAccessToken.mockResolvedValue(tokens({ accessToken: 'fresh-access' }));
+
+    const calendars = await microsoftCalendarAdapter.listCalendars(tokens(), MS_CONFIG);
+
+    expect(calendars.map((c) => c.id)).toEqual(['after']);
+    const retryHeaders = (fetchMock.mock.calls[1][1] as RequestInit).headers as Record<string, string>;
+    expect(retryHeaders.Authorization).toBe('Bearer fresh-access');
+  });
+
+  it('throws with the HTTP status when the list request fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(403, { error: { message: 'no permission' } })),
+    );
+    await expect(microsoftCalendarAdapter.listCalendars(tokens(), MS_CONFIG)).rejects.toThrow(/HTTP 403/);
   });
 });
 

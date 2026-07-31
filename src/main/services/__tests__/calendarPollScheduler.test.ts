@@ -13,6 +13,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { eq } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { calendarEvents, meetings, settings } from '../../db/schema';
+import { CALENDAR_LOOKAHEAD_HOURS } from '../../../shared/types/calendar';
 import type { CalendarProviderAdapter, CalendarTokens } from '../../../shared/types/calendar';
 
 // --- Mocks (before importing the modules under test) --------------------------------
@@ -45,6 +46,7 @@ function makeAdapter(overrides: Partial<CalendarProviderAdapter> = {}): Calendar
   return {
     authorize: vi.fn(),
     refreshIfNeeded: vi.fn(async (t: CalendarTokens) => t),
+    listCalendars: vi.fn(async () => []),
     fetchUpcoming: vi.fn(async () => []),
     ...overrides,
   };
@@ -261,6 +263,70 @@ describe('poll interval honors the settings key', () => {
     // A 2-min interval means one more tick after 2 min (a 5-min default would not).
     await vi.advanceTimersByTimeAsync(2 * 60_000);
     expect(fetchUpcoming).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('selected-calendar plumbing (CAL-UX.1)', () => {
+  it('passes the stored selection to fetchUpcoming, with the shared 7-day lookahead', async () => {
+    await setSetting('calendar:eventNotifications', 'false');
+    await setSetting(
+      'calendar:google:selectedCalendars',
+      JSON.stringify(['primary', 'team@group.calendar.google.com']),
+    );
+    await persistCalendarConnection('google', connectedTokens, 'me@example.com');
+
+    const fetchUpcoming = vi.fn(async () => []);
+    registerCalendarAdapter('google', makeAdapter({ fetchUpcoming }));
+
+    await runPollCycle(fakeWindow as never);
+
+    expect(fetchUpcoming).toHaveBeenCalledTimes(1);
+    const [, , windowHours, selection] = fetchUpcoming.mock.calls[0] as unknown as [
+      unknown,
+      unknown,
+      number,
+      string[] | undefined,
+    ];
+    expect(windowHours).toBe(CALENDAR_LOOKAHEAD_HOURS);
+    expect(windowHours).toBe(168);
+    expect(selection).toEqual(['primary', 'team@group.calendar.google.com']);
+  });
+
+  it('passes undefined (provider default) when the selection key is absent', async () => {
+    await setSetting('calendar:eventNotifications', 'false');
+    await persistCalendarConnection('google', connectedTokens, 'me@example.com');
+
+    const fetchUpcoming = vi.fn(async () => []);
+    registerCalendarAdapter('google', makeAdapter({ fetchUpcoming }));
+
+    await runPollCycle(fakeWindow as never);
+
+    const [, , , selection] = fetchUpcoming.mock.calls[0] as unknown as [
+      unknown,
+      unknown,
+      number,
+      string[] | undefined,
+    ];
+    expect(selection).toBeUndefined();
+  });
+
+  it('falls back to the provider default when the stored selection is unparseable', async () => {
+    await setSetting('calendar:eventNotifications', 'false');
+    await setSetting('calendar:google:selectedCalendars', 'not-json');
+    await persistCalendarConnection('google', connectedTokens, 'me@example.com');
+
+    const fetchUpcoming = vi.fn(async () => []);
+    registerCalendarAdapter('google', makeAdapter({ fetchUpcoming }));
+
+    await runPollCycle(fakeWindow as never);
+
+    const [, , , selection] = fetchUpcoming.mock.calls[0] as unknown as [
+      unknown,
+      unknown,
+      number,
+      string[] | undefined,
+    ];
+    expect(selection).toBeUndefined();
   });
 });
 

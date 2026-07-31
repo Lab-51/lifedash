@@ -492,6 +492,48 @@ Attendee email addresses MUST NOT be included in any AI prompt. Where attendee i
 - WHEN attendee information is woven into the project auto-detect prompt
 - THEN only the names are included and no email address appears in the prompt
 
+### Requirement: The agenda stays visible whenever a calendar is connected
+
+The Sessions-home agenda section MUST remain visible whenever at least one calendar provider is connected (outside of an active recording), covering a 7-day lookahead grouped by day. An empty window MUST show the section header with an explicit empty state — the section MUST NOT disappear merely because no events fall inside the window.
+
+#### Scenario: Empty week still shows the agenda
+
+- GIVEN a connected calendar with no events in the next 7 days
+- WHEN the user views the Sessions home
+- THEN the agenda header renders with a "No meetings in the next 7 days." empty state
+
+#### Scenario: No connection, no section
+
+- GIVEN no calendar provider is connected
+- WHEN the user views the Sessions home with no cached events
+- THEN the agenda section is absent
+
+### Requirement: Sync covers exactly the selected calendars
+
+Calendar sync MUST fetch events from exactly the calendars the user selected for that provider; with no stored selection it SHALL default to the provider's primary/default calendar (pre-picker behavior). An empty selection MUST be rejected at the API edge. Changing the selection MUST take effect immediately: events of a deselected calendar are evicted from the cache on save (session-linked events are retained), not on the next poll cycle.
+
+#### Scenario: Deselection evicts immediately
+
+- GIVEN cached events from two selected calendars
+- WHEN the user deselects one and saves
+- THEN that calendar's unlinked events leave the agenda without waiting for the next poll
+
+#### Scenario: No selection means primary only
+
+- GIVEN a connected provider with no stored calendar selection
+- WHEN a poll runs
+- THEN only the provider's primary/default calendar is fetched
+
+### Requirement: Google calendar listing degrades to Reconnect, never an error
+
+When a Google connection's granted scopes predate the calendar-list scope (or the granted-scope string is unknown), the calendar picker MUST present a Reconnect affordance without attempting any network call. Listing calendars MUST NOT be treated as an error state, and reconnecting SHALL grant the additional `calendar.calendarlist.readonly` scope alongside the existing events scope.
+
+#### Scenario: Pre-picker token shows Reconnect
+
+- GIVEN a Google calendar connected before the picker feature existed
+- WHEN the user expands "Choose calendars"
+- THEN a reconnect notice and button appear, and no calendar-list request is sent
+
 ---
 
 <!-- Add further requirements following the same pattern, one `### Requirement:` block per behavior/domain. -->
