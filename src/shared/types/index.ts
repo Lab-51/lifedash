@@ -27,4 +27,5 @@ export * from './search';
 export * from './brain';
 export * from './twin';
 export * from './embedding';
+export * from './calendar';
 export * from './electron-api';

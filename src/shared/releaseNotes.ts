@@ -28,6 +28,25 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    // Phase G — Calendar Integration (Tasks 1-6). DRAFT entry ahead of the 2.4.0
+    // release ceremony (which owns the actual version bump in package.json).
+    version: '2.4.0',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'Connect your Google or Microsoft/Outlook calendar so your upcoming meetings can drive recording — no more picking a project from a dropdown before you hit record.',
+          'A new event ribbon on the Sessions home surfaces meetings that are about to start, with a one-click "Start recording" that prefills the title and project for you — nothing ever records automatically.',
+          'LifeDash learns which project a recurring meeting belongs to: record the same series against a project a couple of times and it starts suggesting that project on its own.',
+          'A heads-up while you record — if another meeting is coming up soon, an in-recording banner tells you how many minutes you have left before the next one.',
+          'Privacy-first by design: the calendar integration is read-only and metadata-only — it stores just event titles, times, and attendees, locally on your device. Event descriptions are never read in, and nothing is sent anywhere except to your own calendar provider.',
+          'Connect in one click with the built-in setup, or bring your own OAuth app credentials under an Advanced option in Settings — either way, tokens are stored encrypted on your machine and your client secret is never shown back to you.',
+        ],
+      },
+    ],
+  },
+  {
     // V3.1 session-centric pivot (Tasks 1-6) + V3.2 Living Brain (Tasks 1-5) +
     // V3.3 Digital Twin (Tasks 1-5) + V3.3.5/V3.3.6 + V3.4 + GUARD.1.
     // Shipped as 2.3.1, not 2.3.0: the v2.3.0 tag/release was already public
@@ -139,26 +158,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         items: [
           'Settings model picker now shows a distinct tier label per Whisper model (Basic / Standard / High Quality / Enhanced / Best) instead of calling three different models "Standard"',
           'Corrected the "Better Czech/Slovak transcription available" banner path to "Settings → General → Transcription"',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.37',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Auto-recover microphone — if your mic disconnects during recording, LifeDash automatically reconnects when it comes back and notifies you via toast',
-        ],
-      },
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Meeting briefs now work better with local models — improved prompt for fuller coverage',
-          "Friendly error message when your local model's context window is too small for a request",
         ],
       },
     ],

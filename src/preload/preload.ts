@@ -37,6 +37,7 @@ import { searchBridge } from './domains/search';
 import { brainBridge } from './domains/brain';
 import { twinBridge } from './domains/twin';
 import { embeddingBridge } from './domains/embedding';
+import { calendarBridge } from './domains/calendar';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -72,4 +73,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...brainBridge,
   ...twinBridge,
   ...embeddingBridge,
+  ...calendarBridge,
 });

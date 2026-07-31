@@ -33,6 +33,9 @@ import {
 import { initSentry } from './services/sentryService';
 import { initSyncService, stopSyncService } from './services/syncService';
 import { getSupabaseClient } from './services/supabaseClient';
+import { registerGoogleCalendarAdapter } from './services/calendarProviders/googleCalendarProvider';
+import { registerMicrosoftCalendarAdapter } from './services/calendarProviders/microsoftCalendarProvider';
+import { initCalendarPollScheduler, stopCalendarPollScheduler } from './services/calendarPollScheduler';
 
 const log = createLogger('App');
 
@@ -231,6 +234,12 @@ const createWindow = async () => {
     // Start background agent scheduler (after DB is ready, lower priority than notifications)
     initBackgroundAgentScheduler(mainWindow);
 
+    // Register calendar provider adapters (Task 2/3 left boot wiring to Task 4), then
+    // start the calendar poll scheduler (after DB is ready).
+    registerGoogleCalendarAdapter();
+    registerMicrosoftCalendarAdapter();
+    initCalendarPollScheduler(mainWindow);
+
     // Initialize opt-in crash reporting (reads preference from DB)
     await initSentry();
   } catch (error) {
@@ -312,6 +321,7 @@ app.on('before-quit', async () => {
   stopAutoBackup();
   stopNotificationScheduler();
   stopBackgroundAgentScheduler();
+  stopCalendarPollScheduler();
   stopSyncService();
   await disconnectDatabase();
 });

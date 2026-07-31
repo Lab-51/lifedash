@@ -23,3 +23,4 @@ export * from './intel-feed';
 export * from './twin';
 export * from './embeddings';
 export * from './entities';
+export * from './calendar';

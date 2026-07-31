@@ -252,6 +252,10 @@ export const createMeetingInputSchema = z.object({
   template: meetingTemplateTypeSchema.optional(),
   prepBriefing: z.string().optional(),
   transcriptionLanguage: z.string().max(10).optional(),
+  // Optional link back to the calendar event this session was recorded for (Phase G).
+  // Prefixed ids (`${provider}:${eventId}` / series id), not uuids.
+  calendarEventId: z.string().max(512).optional(),
+  calendarSeriesId: z.string().max(512).optional(),
 });
 
 export const updateMeetingInputSchema = z.object({

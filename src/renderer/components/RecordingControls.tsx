@@ -14,6 +14,7 @@ import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
+import type { CalendarEvent } from '../../shared/types/calendar';
 import HudSelect from './HudSelect';
 import AudioLevelMeter from './AudioLevelMeter';
 import { suggestMeetingTitle } from '../../shared/utils/meetingTitle';
@@ -155,9 +156,15 @@ function ProcessingProgressPanel() {
 
 interface RecordingControlsProps {
   hasModel?: boolean | null;
+  /**
+   * Optional calendar-event prefill (Phase G Task 4). When present, seeds the title
+   * with the event title and preselects the suggested project (unless the user has
+   * already picked one). Absent → identical to the pre-Phase-G behavior.
+   */
+  initialCalendarEvent?: CalendarEvent;
 }
 
-export default function RecordingControls({ hasModel }: RecordingControlsProps) {
+export default function RecordingControls({ hasModel, initialCalendarEvent }: RecordingControlsProps) {
   const isRecording = useRecordingStore((s) => s.isRecording);
   const isProcessing = useRecordingStore((s) => s.isProcessing);
   const liveModeMinimized = useRecordingStore((s) => s.liveModeMinimized);
@@ -197,6 +204,8 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
   const [transcriptionProvider, setTranscriptionProvider] = useState<string>('local');
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  // Tracks a MANUAL project choice so a calendar suggestion never overrides the user.
+  const userChoseProjectRef = useRef(false);
 
   // Load saved language, active model, and transcription provider on mount
   useEffect(() => {
@@ -244,6 +253,31 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
       cancelled = true;
     };
   }, []);
+
+  // Calendar prefill (Phase G Task 4): when an event is supplied, seed the title and
+  // ask for a project suggestion. Preselect it ONLY if the user hasn't picked a
+  // project themselves. suggest-project returns null until Task 5 lands — handled as
+  // "no preselection". No-ops entirely when initialCalendarEvent is absent.
+  useEffect(() => {
+    if (!initialCalendarEvent) return;
+    setTitle(initialCalendarEvent.title);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const suggestion = await window.electronAPI.suggestCalendarProject({
+          seriesId: initialCalendarEvent.seriesId,
+          eventId: initialCalendarEvent.eventId,
+        });
+        if (cancelled || !suggestion || userChoseProjectRef.current) return;
+        setSelectedProjectId(suggestion.projectId);
+      } catch {
+        // Suggestion unavailable — leave the project selection as-is.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialCalendarEvent]);
 
   // Re-check model when language changes
   useEffect(() => {
@@ -324,10 +358,20 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
 
   const handleStart = async () => {
     if (!title.trim()) return;
-    await startRecording(title.trim(), selectedProjectId || undefined, selectedTemplate, selectedLanguage);
+    // Calendar linkage threads through only when an event prefill is present; both are
+    // undefined otherwise, preserving the pre-Phase-G startRecording behavior exactly.
+    await startRecording(
+      title.trim(),
+      selectedProjectId || undefined,
+      selectedTemplate,
+      selectedLanguage,
+      initialCalendarEvent?.id,
+      initialCalendarEvent?.seriesId,
+    );
     setTitle(suggestMeetingTitle());
     setSelectedTemplate('none');
     setSelectedProjectId('');
+    userChoseProjectRef.current = false;
   };
 
   const handleDiscard = () => {
@@ -377,7 +421,10 @@ export default function RecordingControls({ hasModel }: RecordingControlsProps) 
             )}
             <HudSelect
               value={selectedProjectId}
-              onChange={(v) => setSelectedProjectId(v)}
+              onChange={(v) => {
+                userChoseProjectRef.current = true;
+                setSelectedProjectId(v);
+              }}
               placeholder="(no project)"
               icon={FolderOpen}
               disabled={starting}

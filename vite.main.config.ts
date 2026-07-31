@@ -3,13 +3,25 @@
 // Externalizes native Node.js addons that cannot be bundled by Vite.
 // Obfuscation is applied post-build in forge.config.ts packageAfterCopy hook.
 
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import path from 'path';
 
-export default defineConfig({
+// Load env from process.env AND gitignored local .env files (dev). Empty prefix ('')
+// loads ALL keys; real process.env values (CI secrets) take precedence over .env files,
+// so official builds are unaffected while local dev can supply values via a .env file.
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  return {
   define: {
-    'process.env.SENTRY_DSN': JSON.stringify(process.env.SENTRY_DSN || ''),
-    'process.env.OFFICIAL_BUILD': JSON.stringify(process.env.OFFICIAL_BUILD || ''),
+    'process.env.SENTRY_DSN': JSON.stringify(env.SENTRY_DSN || ''),
+    'process.env.OFFICIAL_BUILD': JSON.stringify(env.OFFICIAL_BUILD || ''),
+    // Embedded calendar OAuth client credentials (Phase G). Sourced from the build
+    // environment (gitignored local .env in dev, CI secrets in official builds).
+    // Empty when unset — fork/dev builds still compile and run, just with Connect
+    // disabled until the user pastes their own via calendar:set-client-config.
+    'process.env.GOOGLE_CALENDAR_CLIENT_ID': JSON.stringify(env.GOOGLE_CALENDAR_CLIENT_ID || ''),
+    'process.env.GOOGLE_CALENDAR_CLIENT_SECRET': JSON.stringify(env.GOOGLE_CALENDAR_CLIENT_SECRET || ''),
+    'process.env.MICROSOFT_CALENDAR_CLIENT_ID': JSON.stringify(env.MICROSOFT_CALENDAR_CLIENT_ID || ''),
   },
   resolve: {
     alias: {
@@ -30,4 +42,5 @@ export default defineConfig({
       external: [/^@electric-sql\/pglite(\/.*)?$/, '@fugood/whisper.node', 'canvas'],
     },
   },
+  };
 });

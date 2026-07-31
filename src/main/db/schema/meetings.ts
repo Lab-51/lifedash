@@ -34,6 +34,10 @@ export const meetings = pgTable('meetings', {
   // Set to true when auto-detect routes the meeting to the system Unassigned project.
   // Used by the UI to surface a "set project?" pill on the meeting card.
   unassignedPending: boolean('unassigned_pending').default(false).notNull(),
+  // Optional link back to the calendar event this session was recorded for (Phase G).
+  // Both are prefixed ids (varchar, not uuid) — the external provider's event/series id.
+  calendarEventId: varchar('calendar_event_id', { length: 512 }),
+  calendarSeriesId: varchar('calendar_series_id', { length: 512 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

@@ -383,4 +383,53 @@ describe('detectProjectFromTranscript', () => {
     // The default generate from ai-provider must NOT have been called
     expect(generate).not.toHaveBeenCalled();
   });
+
+  // -------------------------------------------------------------------------
+  // Calendar hint (Phase G Task 5) — REGRESSION-CRITICAL byte-identity +
+  // labeled-block weave, ahead of the transcript excerpt.
+  // -------------------------------------------------------------------------
+
+  describe('calendarContext (Phase G Task 5)', () => {
+    it('builds a prompt byte-identical to the pre-calendar-hint baseline when calendarContext is absent', async () => {
+      vi.mocked(generate).mockResolvedValue(mockResponse('{"projectId":"p1","confidence":0.9,"reason":"ok"}') as never);
+
+      await detectProjectFromTranscript({
+        transcript: 'Talk about the redesign.',
+        projects: [project('p1', 'Website Redesign', 'Customer-facing site'), project('p2', 'API Refactor')],
+      });
+
+      const callArg = vi.mocked(generate).mock.calls[0][0];
+      // Snapshot of the exact prompt shape produced BEFORE calendarContext existed.
+      const expectedPrompt = [
+        'Projects:',
+        '- id: p1, name: Website Redesign, description: Customer-facing site',
+        '- id: p2, name: API Refactor, description: no description',
+        '',
+        'Meeting transcript (first ~500 words):',
+        'Talk about the redesign.',
+        '',
+        'Reply ONLY with JSON in this exact shape:',
+        '{ "projectId": "<id>" or null, "confidence": <number 0-1>, "reason": "<one sentence>" }',
+      ].join('\n');
+
+      expect(callArg.prompt).toBe(expectedPrompt);
+      expect(callArg.prompt).not.toContain('Calendar event for this meeting');
+    });
+
+    it('weaves calendarContext as a labeled block BEFORE the transcript excerpt when present', async () => {
+      vi.mocked(generate).mockResolvedValue(mockResponse('{"projectId":"p1","confidence":0.9,"reason":"ok"}') as never);
+
+      await detectProjectFromTranscript({
+        transcript: 'Talk about the redesign.',
+        projects: [project('p1', 'Website Redesign')],
+        calendarContext: 'Weekly Sync; attendees: Alice, Bob',
+      });
+
+      const callArg = vi.mocked(generate).mock.calls[0][0];
+      expect(callArg.prompt).toContain('Calendar event for this meeting: Weekly Sync; attendees: Alice, Bob');
+      expect(callArg.prompt.indexOf('Calendar event for this meeting:')).toBeLessThan(
+        callArg.prompt.indexOf('Meeting transcript (first ~500 words):'),
+      );
+    });
+  });
 });

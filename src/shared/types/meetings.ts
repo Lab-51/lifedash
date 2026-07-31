@@ -98,6 +98,10 @@ export interface Meeting {
    * to false (handled in Task 4).
    */
   unassignedPending: boolean;
+  /** Prefixed calendar event id this session was recorded for (Phase G), if any. */
+  calendarEventId?: string | null;
+  /** Prefixed calendar series id, if the linked event belongs to a series (Phase G). */
+  calendarSeriesId?: string | null;
   createdAt: string;
 }
 
@@ -124,6 +128,9 @@ export interface CreateMeetingInput {
   template?: MeetingTemplateType;
   prepBriefing?: string;
   transcriptionLanguage?: string;
+  /** Optional calendar linkage (Phase G) — prefixed ids, persisted as-is. */
+  calendarEventId?: string;
+  calendarSeriesId?: string;
 }
 
 export interface UpdateMeetingInput {

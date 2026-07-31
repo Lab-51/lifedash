@@ -51,6 +51,7 @@ import LiveTranscriptFeed from './LiveTranscriptFeed';
 import EmbeddedBoard from './EmbeddedBoard';
 import ViewingProjectBanner from './ViewingProjectBanner';
 import InactivityBanner from './InactivityBanner';
+import UpcomingEventBanner from './UpcomingEventBanner';
 import BrainTabPanel, { resolveBrainOpenTarget } from './BrainTabPanel';
 import LiveProposalsFeed from './LiveProposalsFeed';
 import ActivityFeed from './ActivityFeed';
@@ -386,6 +387,11 @@ export default function LiveModeOverlay() {
           recordingStore.inactivityState, so mounting it unconditionally here is
           equivalent to only rendering it during the countdown. */}
       <InactivityBanner />
+
+      {/* Phase G Task 4: heads-up when a DIFFERENT calendar event is about to start
+          during this recording. Self-gates (renders nothing when none qualifies) and
+          excludes the event being recorded. Informational only — never records. */}
+      <UpcomingEventBanner currentCalendarEventId={meeting?.calendarEventId} />
 
       {/* BODY: switchable canvas (center) + proposals/chat (right) */}
       <div className="flex-1 min-h-0 flex">

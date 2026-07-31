@@ -65,6 +65,8 @@ interface RecordingStore {
     projectId?: string,
     template?: MeetingTemplateType,
     transcriptionLanguage?: string,
+    calendarEventId?: string,
+    calendarSeriesId?: string,
   ) => Promise<void>;
   stopRecording: () => Promise<void>;
   cancelRecording: () => Promise<void>;
@@ -101,16 +103,20 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     projectId?: string,
     template?: MeetingTemplateType,
     transcriptionLanguage?: string,
+    calendarEventId?: string,
+    calendarSeriesId?: string,
   ) => {
     set({ starting: true, error: null });
     try {
-      // Step 1: Create meeting in DB
+      // Step 1: Create meeting in DB (calendar linkage threads through untouched when absent)
       const meeting = await window.electronAPI.createMeeting({
         title,
         projectId,
         template: template ?? 'none',
         prepBriefing: get().prepBriefing ?? undefined,
         transcriptionLanguage,
+        calendarEventId,
+        calendarSeriesId,
       });
 
       // Step 2: Tell main process to start recording

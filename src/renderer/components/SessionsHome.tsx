@@ -9,7 +9,8 @@
 
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Mic, Info, X, ArrowDownWideNarrow, Sparkles } from 'lucide-react';
+import { Mic, Info, X, ArrowDownWideNarrow, Sparkles, Calendar } from 'lucide-react';
+import type { CalendarEvent } from '../../shared/types/calendar';
 import EmptyFeatureState from './EmptyFeatureState';
 import HudSelect from './HudSelect';
 import { useMeetingStore } from '../stores/meetingStore';
@@ -25,6 +26,19 @@ import LiveSessionPin from './LiveSessionPin';
 import SessionSearch from './SessionSearch';
 
 type SortOption = 'newest' | 'oldest' | 'title';
+
+// Ribbon qualification window: an event qualifies when it starts within the next
+// 15 min OR started less than 10 min ago (still joinable / in progress).
+const RIBBON_UPCOMING_MINUTES = 15;
+const RIBBON_IN_PROGRESS_MINUTES = 10;
+
+/** Human copy for the ribbon based on how far off the event start is. */
+function ribbonTiming(startsAt: string): { label: string; inProgress: boolean } {
+  const diffMin = (new Date(startsAt).getTime() - Date.now()) / 60000;
+  if (diffMin < 0) return { label: 'in progress', inProgress: true };
+  const n = Math.round(diffMin);
+  return { label: n <= 0 ? 'starting now' : `starts in ${n} min`, inProgress: false };
+}
 
 export default function SessionsHome() {
   const meetings = useMeetingStore((s) => s.meetings);
@@ -52,6 +66,11 @@ export default function SessionsHome() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [showTurboBanner, setShowTurboBanner] = useState(false);
+  // Calendar ribbon state (Phase G Task 4): cached upcoming events, per-event
+  // dismissals, and the event chosen to prefill the recorder.
+  const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([]);
+  const [dismissedEventIds, setDismissedEventIds] = useState<Set<string>>(new Set());
+  const [prefillEvent, setPrefillEvent] = useState<CalendarEvent | undefined>(undefined);
 
   // Legacy deep link: ?openMeeting=<id> (routed through /meetings) now redirects to
   // the routed session page. Preserves external bookmarks that predate /session/:id.
@@ -90,6 +109,30 @@ export default function SessionsHome() {
   // Check if whisper model is available
   useEffect(() => {
     window.electronAPI.hasWhisperModel().then(setHasModel);
+  }, []);
+
+  // Calendar ribbon (Phase G Task 4): load cached upcoming events on mount and
+  // refresh whenever the poller pushes 'calendar:events-updated'. Guarded so the
+  // page still works if the calendar API is unavailable (older preload / tests).
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      if (!window.electronAPI.getUpcomingCalendarEvents) return;
+      window.electronAPI
+        .getUpcomingCalendarEvents(24)
+        .then((events) => {
+          if (!cancelled) setUpcomingEvents(events);
+        })
+        .catch(() => {
+          // Non-critical — leave the ribbon hidden on error.
+        });
+    };
+    refresh();
+    const unsubscribe = window.electronAPI.onCalendarEventsUpdated?.(refresh);
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
   // Check whether to show the large-v3-turbo recommendation banner
@@ -180,6 +223,22 @@ export default function SessionsHome() {
     [navigate],
   );
 
+  // The single event the ribbon should surface: the earliest non-dismissed cached
+  // event inside the qualification window. upcomingEvents is already start-ordered.
+  const ribbonEvent = useMemo(() => {
+    return upcomingEvents.find((ev) => {
+      if (dismissedEventIds.has(ev.id)) return false;
+      const diffMin = (new Date(ev.startsAt).getTime() - Date.now()) / 60000;
+      return diffMin <= RIBBON_UPCOMING_MINUTES && diffMin > -RIBBON_IN_PROGRESS_MINUTES;
+    });
+  }, [upcomingEvents, dismissedEventIds]);
+
+  // Ribbon "Start recording": open the recorder prefilled with this event.
+  const handleStartFromEvent = useCallback((event: CalendarEvent) => {
+    setPrefillEvent(event);
+    setShowControls(true);
+  }, []);
+
   // Sort meetings (filtering is now SessionSearch's job — it navigates to a
   // result rather than filtering this grid in place; see Task 6).
   const sortedMeetings = useMemo(() => {
@@ -260,7 +319,7 @@ export default function SessionsHome() {
         {(showControls || isRecording) && (
           <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-300">
             <div className="max-w-2xl mx-auto shadow-2xl rounded-xl overflow-hidden ring-1 ring-surface-950/5">
-              <RecordingControls hasModel={hasModel} />
+              <RecordingControls hasModel={hasModel} initialCalendarEvent={prefillEvent} />
             </div>
           </div>
         )}
@@ -286,6 +345,38 @@ export default function SessionsHome() {
           </div>
         </div>
       </div>
+
+      {/* Calendar upcoming-event ribbon (Phase G Task 4) — one-click prefilled
+          recording. Hidden while recording (the recorder is already the focus) and
+          when no cached event qualifies. NEVER auto-records — explicit click only. */}
+      {!isRecording && ribbonEvent && (
+        <div className="px-8 mb-4">
+          <div className="p-4 rounded-xl bg-[var(--color-accent-subtle)] border border-[var(--color-border-accent)] flex items-center gap-3">
+            <Calendar size={18} className="text-[var(--color-accent)] shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                {'📅'} {ribbonEvent.title} — {ribbonTiming(ribbonEvent.startsAt).label}
+              </p>
+            </div>
+            <button
+              onClick={() => handleStartFromEvent(ribbonEvent)}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                       bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)]
+                       border border-[var(--color-border-accent)] transition-colors"
+            >
+              <Mic size={14} />
+              Start recording
+            </button>
+            <button
+              onClick={() => setDismissedEventIds((prev) => new Set(prev).add(ribbonEvent.id))}
+              aria-label="Dismiss upcoming event"
+              className="shrink-0 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {hasModel === false && (
         <div className="px-8 mb-4">

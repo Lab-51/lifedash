@@ -18,7 +18,7 @@
 
 import { eq, desc, asc, count, and, ne, isNotNull, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { meetingBriefs, actionItems, cards, meetings, projects, liveSuggestions } from '../db/schema';
+import { meetingBriefs, actionItems, cards, meetings, projects, liveSuggestions, calendarEvents } from '../db/schema';
 import { generate, resolveTaskModel } from './ai-provider';
 import { getMeeting, updateMeeting } from './meetingService';
 import { createLogger } from './logger';
@@ -190,14 +190,53 @@ function formatTranscript(segments: { startTime: number; content: string }[]): s
 }
 
 /**
+ * Build the classifier's calendar hint (Phase G Task 5) from the cached
+ * `calendar_events` row linked to a meeting — title + attendee NAMES ONLY,
+ * NEVER emails (emails stay in the DB; names ride the same task-routed model
+ * that already sees the full transcript, so they add no new exposure class).
+ *
+ * Returns `undefined` when there's no linked event, the cached row is absent
+ * (e.g. purged after disconnect), or the lookup fails — in all cases the
+ * caller omits `calendarContext` and the built prompt stays byte-identical
+ * to today's. Never throws — bonus context, not core classification.
+ */
+async function buildCalendarContext(calendarEventId: string | null | undefined): Promise<string | undefined> {
+  if (!calendarEventId) return undefined;
+  try {
+    const db = getDb();
+    const [event] = await db
+      .select({ title: calendarEvents.title, attendees: calendarEvents.attendees })
+      .from(calendarEvents)
+      .where(eq(calendarEvents.id, calendarEventId));
+    if (!event) return undefined; // not cached (never synced, or purged on disconnect)
+
+    const names = (event.attendees ?? [])
+      .map((a) => a.name)
+      .filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
+    const attendeeText = names.length > 0 ? names.join(', ') : 'none listed';
+    return `${event.title}; attendees: ${attendeeText}`;
+  } catch (err) {
+    log.error('Calendar context lookup failed for event', calendarEventId, ':', err);
+    return undefined;
+  }
+}
+
+/**
  * Run project auto-detect for a meeting that does not yet have a projectId,
  * then assign the resolved project (or the system Unassigned project for
  * low-confidence cases) via updateMeeting. Returns the resolved projectId.
  *
  * Returns null only if no projects are available AND the Unassigned project
  * cannot be created — that's never expected in practice but handled gracefully.
+ *
+ * `calendarEventId`, when present, feeds the classifier's optional calendar
+ * hint (Phase G Task 5) — see {@link buildCalendarContext}.
  */
-async function runProjectDetection(meetingId: string, transcript: string): Promise<string | null> {
+async function runProjectDetection(
+  meetingId: string,
+  transcript: string,
+  calendarEventId?: string | null,
+): Promise<string | null> {
   const db = getDb();
 
   // Load classifier candidates: non-archived, non-system projects
@@ -212,9 +251,12 @@ async function runProjectDetection(meetingId: string, transcript: string): Promi
     description: r.description ?? null,
   }));
 
+  const calendarContext = await buildCalendarContext(calendarEventId);
+
   const detection = await detectProjectFromTranscript({
     transcript,
     projects: candidates,
+    calendarContext,
   });
 
   // High confidence + valid projectId → auto-assign
@@ -481,7 +523,7 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
         .sort((a, b) => a.startTime - b.startTime)
         .map((s) => s.content)
         .join(' ');
-      resolvedProjectId = await runProjectDetection(meetingId, classifierTranscript);
+      resolvedProjectId = await runProjectDetection(meetingId, classifierTranscript, meeting.calendarEventId);
     } catch (err) {
       // Detection should never block brief generation
       log.error('Project detection failed for meeting', meetingId, ':', err);

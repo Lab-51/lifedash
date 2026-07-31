@@ -117,6 +117,13 @@ import type {
   TwinFact,
   TwinMemoryListFilter,
 } from './twin';
+import type {
+  CalendarProvider,
+  CalendarClientConfig,
+  CalendarAccountStatus,
+  CalendarEvent,
+  CalendarProjectSuggestion,
+} from './calendar';
 
 export interface RecoveryState {
   timestamp: string;
@@ -629,6 +636,16 @@ export interface ElectronAPI {
   twinMemoryList: (filter?: TwinMemoryListFilter) => Promise<TwinFact[]>;
   twinMemoryForget: (factId: string) => Promise<TwinFact | null>;
   twinMemoryRestore: (factId: string) => Promise<TwinFact | null>;
+
+  // Calendar Integration (Phase G) — BYO OAuth, metadata-only event cache.
+  getCalendarStatus: () => Promise<CalendarAccountStatus[]>;
+  setCalendarClientConfig: (config: CalendarClientConfig) => Promise<void>;
+  connectCalendar: (provider: CalendarProvider) => Promise<CalendarAccountStatus | null>;
+  disconnectCalendar: (provider: CalendarProvider) => Promise<void>;
+  getUpcomingCalendarEvents: (withinHours: number) => Promise<CalendarEvent[]>;
+  pollCalendarNow: () => Promise<void>;
+  suggestCalendarProject: (input: { seriesId?: string; eventId?: string }) => Promise<CalendarProjectSuggestion | null>;
+  onCalendarEventsUpdated: (callback: () => void) => () => void;
 }
 
 declare global {

@@ -302,6 +302,13 @@
       "when": 1783710105750,
       "tag": "0042_woozy_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1784876651280,
+      "tag": "0043_demonic_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

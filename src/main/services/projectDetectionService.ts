@@ -51,6 +51,16 @@ export interface DetectArgs {
    * generate() call from ai-provider.
    */
   generateFn?: typeof generate;
+  /**
+   * OPTIONAL calendar hint (Phase G Task 5) — a single labeled line built from
+   * the linked calendar event's title + attendee NAMES ONLY (never emails; see
+   * meetingIntelligenceService.runProjectDetection). When present, it is woven
+   * into the user prompt BEFORE the transcript excerpt so truncation never
+   * drops it. REGRESSION-CRITICAL: when absent/undefined, the built prompt is
+   * byte-identical to before this field existed — see the snapshot test in
+   * projectDetectionService.test.ts.
+   */
+  calendarContext?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,23 +86,32 @@ function firstNWords(text: string, n: number): string {
 }
 
 /**
- * Build the user prompt: project list + transcript window + JSON shape spec.
+ * Build the user prompt: project list + optional calendar hint + transcript
+ * window + JSON shape spec.
+ *
+ * `calendarContext`, when provided, is woven in as a clearly-labeled block
+ * BEFORE the transcript excerpt so truncation never drops it. When omitted,
+ * the output is byte-identical to the prompt built before this parameter
+ * existed (see the snapshot regression test).
  */
-function buildUserPrompt(transcript: string, projects: DetectionProject[]): string {
+function buildUserPrompt(transcript: string, projects: DetectionProject[], calendarContext?: string): string {
   const projectLines = projects
     .map((p) => `- id: ${p.id}, name: ${p.name}, description: ${p.description ?? 'no description'}`)
     .join('\n');
 
-  return [
-    'Projects:',
-    projectLines,
-    '',
+  const lines = ['Projects:', projectLines, ''];
+  if (calendarContext) {
+    lines.push(`Calendar event for this meeting: ${calendarContext}`, '');
+  }
+  lines.push(
     'Meeting transcript (first ~500 words):',
     transcript,
     '',
     'Reply ONLY with JSON in this exact shape:',
     '{ "projectId": "<id>" or null, "confidence": <number 0-1>, "reason": "<one sentence>" }',
-  ].join('\n');
+  );
+
+  return lines.join('\n');
 }
 
 /**
@@ -202,7 +221,7 @@ export async function detectProjectFromTranscript(args: DetectArgs): Promise<Det
 
   // 4. Build prompt
   const window = firstNWords(trimmed, TRANSCRIPT_WORD_LIMIT);
-  const userPrompt = buildUserPrompt(window, projects);
+  const userPrompt = buildUserPrompt(window, projects, args.calendarContext);
 
   log.info(
     `Classifying meeting: ${projects.length} project(s) considered, transcript ${window.length} chars, model ${provider.providerName}/${provider.model}`,

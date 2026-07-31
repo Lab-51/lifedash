@@ -39,6 +39,7 @@ import { registerSearchHandlers } from './search';
 import { registerBrainHandlers } from './brain';
 import { registerTwinHandlers } from './twin';
 import { registerEmbeddingHandlers } from './embedding';
+import { registerCalendarHandlers } from './calendar';
 import { trackTiming } from '../services/performanceTracker';
 
 /**
@@ -98,6 +99,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerBrainHandlers();
   registerTwinHandlers();
   registerEmbeddingHandlers();
+  registerCalendarHandlers();
 
   // App-level: open URL in system browser (not Electron)
   ipcMain.handle('app:open-external', async (_event, url: string) => {

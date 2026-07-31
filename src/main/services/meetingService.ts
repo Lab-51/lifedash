@@ -42,6 +42,8 @@ function toMeeting(row: typeof meetings.$inferSelect): Meeting {
     prepBriefing: row.prepBriefing ?? null,
     transcriptionLanguage: row.transcriptionLanguage ?? null,
     unassignedPending: row.unassignedPending,
+    calendarEventId: row.calendarEventId ?? null,
+    calendarSeriesId: row.calendarSeriesId ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -157,6 +159,8 @@ export async function createMeeting(data: CreateMeetingInput): Promise<Meeting> 
       template: data.template ?? 'none',
       prepBriefing: data.prepBriefing ?? null,
       transcriptionLanguage: data.transcriptionLanguage ?? null,
+      calendarEventId: data.calendarEventId ?? null,
+      calendarSeriesId: data.calendarSeriesId ?? null,
       startedAt: new Date(),
       status: 'recording',
     })

@@ -401,5 +401,60 @@ Every switch of the active transcription provider from local Whisper to a cloud 
 
 ---
 
+### Requirement: Calendar integration is read-only and metadata-only
+
+The calendar integration SHALL be strictly read-only: LifeDash MUST NOT create, edit, move, or delete any calendar event. For each cached event it MUST store ONLY the title, start/end times, attendees, and recurring-series id, all held locally. It MUST NOT persist event bodies, descriptions, or locations — this metadata-only policy is enforced structurally (the event shape has no field to hold a body) as well as contractually. No calendar data leaves the device except the requests made directly to the user's own calendar provider.
+
+#### Scenario: Only metadata is stored for a synced event
+
+- GIVEN a connected calendar with an event that has a description and location
+- WHEN the event is cached during a poll
+- THEN only its title, times, attendees, and series id are stored
+- AND its description, body, and location are never persisted
+
+#### Scenario: The integration never writes to the calendar
+
+- GIVEN a connected calendar
+- WHEN LifeDash syncs upcoming events
+- THEN no event is created, modified, moved, or deleted on the provider
+
+### Requirement: Calendar signals never auto-start a recording
+
+No calendar signal — an event starting, a notification firing, or a poll completing — SHALL ever start a recording automatically. Starting a recording for an event MUST always require an explicit user action.
+
+#### Scenario: An event starting does not record
+
+- GIVEN a connected calendar and event-start notifications enabled
+- WHEN a calendar event reaches its start time
+- THEN a notification MAY be shown but no recording is started until the user explicitly chooses to record
+
+### Requirement: Calendar OAuth runs in the system browser with encrypted tokens
+
+Calendar authorization SHALL run in the user's system browser (never an embedded/in-app window) via an authorization-code + PKCE flow. OAuth tokens MUST be stored encrypted at rest via the OS secure storage (safeStorage). When a refresh token becomes invalid, the account status SHOULD surface a `needsReauth` state that Settings presents as a Reconnect affordance.
+
+#### Scenario: Authorization opens the system browser
+
+- GIVEN the user connects a calendar provider from Settings
+- WHEN the OAuth flow begins
+- THEN the authorization page opens in the system browser, not an embedded window
+
+#### Scenario: Expired authorization is surfaced as Reconnect
+
+- GIVEN a connected calendar whose refresh token has become invalid
+- WHEN the user views the calendar Settings section
+- THEN the provider shows a Reconnect affordance and a short "authorization expired" note
+
+### Requirement: Attendee emails never enter AI prompts
+
+Attendee email addresses MUST NOT be included in any AI prompt. Where attendee information is used to hint project auto-detection, only attendee names SHALL be passed to the model.
+
+#### Scenario: Only names reach the classifier
+
+- GIVEN an event whose attendees have both names and email addresses
+- WHEN attendee information is woven into the project auto-detect prompt
+- THEN only the names are included and no email address appears in the prompt
+
+---
+
 <!-- Add further requirements following the same pattern, one `### Requirement:` block per behavior/domain. -->
 <!-- When this project graduates Tier 1 → Tier 2, each `### Requirement:` block can move into its own `specs/<domain>/spec.md` unchanged. -->
