@@ -75,13 +75,16 @@ describe('SessionsHome — calendar ribbon (Phase G Task 4)', () => {
     expect(screen.queryByRole('button', { name: 'Start recording' })).toBeNull();
   });
 
-  it('none: an event outside the window (starts in 60 min) does not show a ribbon', async () => {
+  it('none: an event outside the window (starts in 60 min) shows in the list but not the ribbon', async () => {
     getUpcomingCalendarEvents.mockResolvedValue([
       makeEvent({ startsAt: new Date(Date.now() + 60 * 60_000).toISOString() }),
     ]);
     renderHome();
     await waitFor(() => expect(getUpcomingCalendarEvents).toHaveBeenCalled());
-    expect(screen.queryByText(/Team Sync/)).toBeNull();
+    // No imminent ribbon for a far event...
+    expect(screen.queryByRole('button', { name: 'Start recording' })).toBeNull();
+    // ...but it IS listed under Upcoming meetings.
+    await waitFor(() => expect(screen.getByText('Team Sync')).toBeInTheDocument());
   });
 
   it('upcoming: shows the event title + a Start recording button', async () => {
@@ -121,5 +124,61 @@ describe('SessionsHome — calendar ribbon (Phase G Task 4)', () => {
 
     // Recorder expands with the event title seeded into its title input.
     await waitFor(() => expect(screen.getByPlaceholderText('Meeting title...')).toHaveValue('Team Sync'));
+  });
+
+  it('list: an event outside the ribbon window (60 min out) appears in the Upcoming meetings list', async () => {
+    getUpcomingCalendarEvents.mockResolvedValue([
+      makeEvent({
+        id: 'google:evt-far',
+        eventId: 'evt-far',
+        title: 'Planning',
+        startsAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+        endsAt: new Date(Date.now() + 90 * 60_000).toISOString(),
+      }),
+    ]);
+    renderHome();
+    await waitFor(() => expect(screen.getByText('Upcoming meetings')).toBeInTheDocument());
+    expect(screen.getByText('Planning')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start recording for Planning' })).toBeInTheDocument();
+    // The far event is NOT surfaced in the imminent ribbon.
+    expect(screen.queryByRole('button', { name: 'Start recording' })).toBeNull();
+  });
+
+  it('list: excludes the event already shown in the ribbon (no duplicate)', async () => {
+    getUpcomingCalendarEvents.mockResolvedValue([
+      makeEvent(), // imminent (10 min) → ribbon (title "Team Sync")
+      makeEvent({
+        id: 'google:evt-far',
+        eventId: 'evt-far',
+        title: 'Planning',
+        startsAt: new Date(Date.now() + 90 * 60_000).toISOString(),
+        endsAt: new Date(Date.now() + 120 * 60_000).toISOString(),
+      }),
+    ]);
+    renderHome();
+    await waitFor(() => expect(screen.getByText('Upcoming meetings')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Start recording' })).toBeInTheDocument(); // ribbon
+    expect(screen.getByRole('button', { name: 'Start recording for Planning' })).toBeInTheDocument(); // list
+    // The imminent event (in the ribbon) is NOT duplicated as a list row.
+    expect(screen.queryByRole('button', { name: 'Start recording for Team Sync' })).toBeNull();
+  });
+
+  it('list: Record opens the recorder prefilled with the event title', async () => {
+    const user = userEvent.setup();
+    getUpcomingCalendarEvents.mockResolvedValue([
+      makeEvent({
+        id: 'google:evt-far',
+        eventId: 'evt-far',
+        title: 'Planning',
+        startsAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+        endsAt: new Date(Date.now() + 90 * 60_000).toISOString(),
+      }),
+    ]);
+    renderHome();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Start recording for Planning' })).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Start recording for Planning' }));
+    await waitFor(() => expect(screen.getByPlaceholderText('Meeting title...')).toHaveValue('Planning'));
   });
 });

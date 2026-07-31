@@ -40,6 +40,24 @@ function ribbonTiming(startsAt: string): { label: string; inProgress: boolean } 
   return { label: n <= 0 ? 'starting now' : `starts in ${n} min`, inProgress: false };
 }
 
+/** Compact "when" label for the upcoming-meetings list (Today/Tomorrow/weekday + time). */
+function formatEventWhen(startsAt: string): string {
+  const d = new Date(startsAt);
+  const diffMin = (d.getTime() - Date.now()) / 60000;
+  if (diffMin < 0) return 'in progress';
+  if (diffMin < 60) return `in ${Math.max(1, Math.round(diffMin))} min`;
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const isTomorrow = d.toDateString() === new Date(now.getTime() + 86_400_000).toDateString();
+  if (isToday) return `Today ${time}`;
+  if (isTomorrow) return `Tomorrow ${time}`;
+  return `${d.toLocaleDateString([], { weekday: 'short' })} ${time}`;
+}
+
+/** Max events shown in the upcoming-meetings list (keeps the home view compact). */
+const UPCOMING_LIST_LIMIT = 6;
+
 export default function SessionsHome() {
   const meetings = useMeetingStore((s) => s.meetings);
   const loading = useMeetingStore((s) => s.loading);
@@ -233,6 +251,14 @@ export default function SessionsHome() {
     });
   }, [upcomingEvents, dismissedEventIds]);
 
+  // The always-visible upcoming-meetings list: cached events (next ~24h), excluding
+  // the one already surfaced in the ribbon and any dismissed, capped for a compact view.
+  const upcomingList = useMemo(() => {
+    return upcomingEvents
+      .filter((ev) => !dismissedEventIds.has(ev.id) && ev.id !== ribbonEvent?.id)
+      .slice(0, UPCOMING_LIST_LIMIT);
+  }, [upcomingEvents, dismissedEventIds, ribbonEvent]);
+
   // Ribbon "Start recording": open the recorder prefilled with this event.
   const handleStartFromEvent = useCallback((event: CalendarEvent) => {
     setPrefillEvent(event);
@@ -374,6 +400,46 @@ export default function SessionsHome() {
             >
               <X size={16} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Upcoming meetings list (Phase G follow-on) — always-visible when a calendar is
+          connected and has events in the next 24h. One-click prefilled recording per event.
+          Hidden while recording; excludes the event already shown in the ribbon above.
+          NEVER auto-records — explicit click only. */}
+      {!isRecording && upcomingList.length > 0 && (
+        <div className="px-8 mb-4">
+          <div className="rounded-xl border border-[var(--color-border)] bg-surface-50/60 dark:bg-surface-900/40 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--color-border)]">
+              <Calendar size={14} className="text-[var(--color-accent-dim)]" />
+              <span className="font-hud text-[0.6875rem] tracking-widest uppercase text-[var(--color-accent-dim)]">
+                Upcoming meetings
+              </span>
+            </div>
+            <ul>
+              {upcomingList.map((ev) => (
+                <li
+                  key={ev.id}
+                  className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--color-border)] last:border-b-0"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[var(--color-text-primary)] truncate">{ev.title}</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">{formatEventWhen(ev.startsAt)}</p>
+                  </div>
+                  <button
+                    onClick={() => handleStartFromEvent(ev)}
+                    aria-label={`Start recording for ${ev.title}`}
+                    className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium
+                             bg-[var(--color-accent-muted)] hover:bg-[var(--color-accent-dim)] text-[var(--color-accent)]
+                             border border-[var(--color-border-accent)] transition-colors"
+                  >
+                    <Mic size={13} />
+                    Record
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
