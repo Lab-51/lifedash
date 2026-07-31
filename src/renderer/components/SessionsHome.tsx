@@ -578,7 +578,7 @@ export default function SessionsHome() {
                 onClick={() => handleOpenEvent(ribbonEvent)}
                 className="block w-full text-left text-sm font-medium text-[var(--color-text-primary)] truncate hover:text-[var(--color-accent)] transition-colors"
               >
-                {'📅'} {ribbonEvent.title} — {ribbonTiming(ribbonEvent.startsAt).label}
+                {ribbonEvent.title} — {ribbonTiming(ribbonEvent.startsAt).label}
               </button>
             </div>
             <button
