@@ -415,6 +415,11 @@ const TABS: CanvasTabDef[] = [
   { id: 'brain', label: 'Brain' },
 ];
 
+// Completed meetings: the first tab hosts prep + collapsed transcript + the
+// Meeting Assistant chat (the primary post-meeting surface), so "Transcript"
+// would under-sell it. Same id — expansion/routing state is unaffected.
+const COMPLETED_TABS: CanvasTabDef[] = [{ id: 'transcript', label: 'Meeting' }, ...TABS.slice(1)];
+
 type SessionLoadState = 'loading' | 'ready' | 'missing';
 
 // ---------------------------------------------------------------------------
@@ -671,8 +676,19 @@ export default function SessionWorkspace() {
         <BrainTabPanel meetingId={meeting.id} projectId={meeting.projectId} onOpenEntity={handleBrainOpenEntity} />
       );
     }
+    // Completed meetings: this tab is the meeting's primary surface — prep +
+    // collapsed transcript (reference material, one click away) with the
+    // Meeting Assistant chat filling the remaining canvas height (BRAIN-UX.1
+    // follow-up: the chat was buried in the 380px rail while this canvas sat
+    // nearly empty once the transcript collapsed by default).
+    const completed = meeting.status === 'completed';
     return (
-      <div role="tabpanel" id="panel-transcript" aria-labelledby="tab-transcript" className="p-6">
+      <div
+        role="tabpanel"
+        id="panel-transcript"
+        aria-labelledby="tab-transcript"
+        className={completed ? 'p-6 flex-1 min-h-0 flex flex-col' : 'p-6'}
+      >
         {meeting.prepBriefing && <MeetingPrepSection prepBriefing={meeting.prepBriefing} />}
         <TranscriptSection
           meeting={meeting}
@@ -683,6 +699,7 @@ export default function SessionWorkspace() {
           copiedField={copiedField}
           onCopy={handleCopy}
         />
+        {completed && <LiveAssistantSection meetingId={meeting.id} variant="canvas" />}
       </div>
     );
   };
@@ -711,7 +728,11 @@ export default function SessionWorkspace() {
         {/* Center canvas */}
         <section className="flex-1 flex flex-col min-w-0 overflow-y-auto">
           <div className="px-6 pt-4 shrink-0">
-            <LiveCanvasTabs tabs={TABS} active={activeTab} onSelect={setActiveTab} />
+            <LiveCanvasTabs
+              tabs={meeting.status === 'completed' ? COMPLETED_TABS : TABS}
+              active={activeTab}
+              onSelect={setActiveTab}
+            />
           </div>
           {renderPanel()}
         </section>
@@ -723,7 +744,6 @@ export default function SessionWorkspace() {
           {meeting.status === 'completed' && (
             <LiveProposalsSection meetingId={meeting.id} projectName={linkedProjectName ?? 'Unassigned'} />
           )}
-          {meeting.status === 'completed' && <LiveAssistantSection meetingId={meeting.id} />}
           {meeting.status === 'completed' && <SessionActivityFeed meetingId={meeting.id} onSelectTab={setActiveTab} />}
           <DeleteMeetingButton onDelete={handleDelete} />
         </aside>

@@ -7,6 +7,18 @@
 // and create+link a new project for an unlinked meeting — modeled on
 // cardAgentService.createCardAgentTools.
 //
+// === TWO MODES, ONE THREAD (BRAIN-UX.1 Task 5) ===
+// The same per-meeting thread serves both phases; getMeetingAgentMode() decides
+// which toolset a send uses from the meeting's status:
+//   'live' (recording/processing/unknown) -> createMeetingAgentTools: the full
+//     toolset above, unchanged.
+//   'qa'   (completed)                    -> createMeetingQaTools: READ-ONLY
+//     (transcript window, transcript search, meeting context/prior briefs) with
+//     QA_SYSTEM_PROMPT. After the meeting the assistant informs but never acts,
+//     so NO card/note/project/board-write tool may ever be added here — the live
+//     toolset is built by spreading the Q&A toolset, so the read-only half can
+//     never drift, and the Q&A half can never silently gain a side effect.
+//
 // === DEPENDENCIES ===
 // ai (tool), zod, drizzle-orm, meetingService (getMeeting/getTranscripts/updateMeeting),
 // projectService (createProjectRecord — shared project-creation path),
@@ -33,7 +45,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { eq, asc, count } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { cards, projects, meetingAgentThreads, meetingAgentMessages, liveSuggestions } from '../db/schema';
+import { cards, meetings, projects, meetingAgentThreads, meetingAgentMessages, liveSuggestions } from '../db/schema';
 import { getMeeting, getTranscripts, updateMeeting } from './meetingService';
 import { createProjectRecord } from './projectService';
 import { fetchPriorBriefs } from './meetingIntelligenceService';
@@ -74,6 +86,53 @@ const CONTEXT_BRIEF_LIMIT = 3;
  * not crash the tool loop. Exported for tests.
  */
 export const NO_PROJECT_MESSAGE = 'no project linked to this meeting yet — ask the user or use createCardInInbox';
+
+// ---------------------------------------------------------------------------
+// Post-meeting Q&A mode (BRAIN-UX.1 Task 5)
+// ---------------------------------------------------------------------------
+
+/** Which assistant mode a meeting's thread is in — see the TWO MODES note above. */
+export type MeetingAgentMode = 'live' | 'qa';
+
+/**
+ * System prompt for the post-meeting Q&A mode. Counterpart of the live
+ * SYSTEM_PROMPT in ipc/meeting-agent.ts — kept here next to the Q&A toolset it
+ * describes, since prompt and toolset must change together.
+ */
+export const QA_SYSTEM_PROMPT = `## Your Role
+You are the Meeting Assistant, answering questions about a meeting that has ALREADY ENDED.
+This is the same conversation the user had with you during the meeting, continued afterwards.
+You can only read and answer — you have no tools to create cards, notes, or projects now.
+
+## Tool Use
+- Use searchTranscript to find where something was discussed anywhere in the meeting — this
+  is your main tool, since the meeting is over and the answer may be at any point in it.
+- Use getTranscriptWindow to read the transcript around the END of the meeting (it returns
+  the most recent minutes, which for a finished meeting means how it wrapped up).
+- Use getMeetingContext for the meeting's title, project, duration, and prior briefs from
+  the same project.
+- Ground every answer in what the tools return — never invent meeting content.
+
+## Answering
+- Reference timestamps like [mm:ss] when you cite something that was said.
+- If the transcript does not contain the answer, say so plainly instead of guessing — e.g.
+  "that wasn't discussed in this meeting" — and offer what was said nearby if it helps.
+- Keep answers concise and specific; expand only when the user asks for detail.`;
+
+/**
+ * Resolve the assistant mode for a meeting at send time. Only a COMPLETED
+ * meeting switches to read-only Q&A; recording/processing (and an unknown id)
+ * keep the live path exactly as it is today.
+ *
+ * Reads only the status column rather than reusing meetingService.getMeeting —
+ * that loads the full transcript, brief, and action items, which would be a
+ * heavy extra read on every single send.
+ */
+export async function getMeetingAgentMode(meetingId: string): Promise<MeetingAgentMode> {
+  const db = getDb();
+  const [row] = await db.select({ status: meetings.status }).from(meetings).where(eq(meetings.id, meetingId));
+  return row?.status === 'completed' ? 'qa' : 'live';
+}
 
 // ---------------------------------------------------------------------------
 // Digital Twin profile injection (V3.3 Task 2)
@@ -288,29 +347,17 @@ function noProjectTool(description: string) {
   });
 }
 
-export async function createMeetingAgentTools(meetingId: string) {
-  const meeting = await getMeeting(meetingId);
-  const projectId = meeting?.projectId ?? null;
-
-  // Board tools are borrowed from projectAgentService (not duplicated) and
-  // scoped to the meeting's linked project; degrade to a clear message when
-  // there is none yet (Unassigned/no-project meetings).
-  const boardTools = projectId
-    ? {
-        listBoards: createListBoardsTool(projectId),
-        listColumnCards: createListColumnCardsTool(),
-        moveCard: createMoveCardTool(),
-        getProjectStats: createGetProjectStatsTool(projectId),
-        searchProjectCards: createSearchProjectCardsTool(projectId),
-      }
-    : {
-        listBoards: noProjectTool("List boards in this meeting's linked project."),
-        listColumnCards: noProjectTool("List cards in a column of this meeting's linked project."),
-        moveCard: noProjectTool("Move a card between columns in this meeting's linked project."),
-        getProjectStats: noProjectTool("Get aggregate statistics for this meeting's linked project."),
-        searchProjectCards: noProjectTool("Search for cards in this meeting's linked project by title keyword."),
-      };
-
+/**
+ * The post-meeting Q&A toolset (BRAIN-UX.1 Task 5): every tool here is a pure
+ * READ of this meeting — transcript window, transcript search, meeting context
+ * + prior briefs. It is ALSO the read-only half of the live toolset (spread into
+ * createMeetingAgentTools below), so the two can never drift apart.
+ *
+ * Never add a tool with a side effect to this function: a completed meeting's
+ * assistant answers questions and takes no actions (see DECISIONS.md,
+ * 2026-07-31 "post-meeting chat is Q&A-only").
+ */
+export function createMeetingQaTools(meetingId: string) {
   return {
     getTranscriptWindow: tool({
       description:
@@ -374,6 +421,35 @@ export async function createMeetingAgentTools(meetingId: string) {
         return { title: meeting.title, project, elapsedMinutes, priorBriefs };
       },
     }),
+  };
+}
+
+export async function createMeetingAgentTools(meetingId: string) {
+  const meeting = await getMeeting(meetingId);
+  const projectId = meeting?.projectId ?? null;
+
+  // Board tools are borrowed from projectAgentService (not duplicated) and
+  // scoped to the meeting's linked project; degrade to a clear message when
+  // there is none yet (Unassigned/no-project meetings).
+  const boardTools = projectId
+    ? {
+        listBoards: createListBoardsTool(projectId),
+        listColumnCards: createListColumnCardsTool(),
+        moveCard: createMoveCardTool(),
+        getProjectStats: createGetProjectStatsTool(projectId),
+        searchProjectCards: createSearchProjectCardsTool(projectId),
+      }
+    : {
+        listBoards: noProjectTool("List boards in this meeting's linked project."),
+        listColumnCards: noProjectTool("List cards in a column of this meeting's linked project."),
+        moveCard: noProjectTool("Move a card between columns in this meeting's linked project."),
+        getProjectStats: noProjectTool("Get aggregate statistics for this meeting's linked project."),
+        searchProjectCards: noProjectTool("Search for cards in this meeting's linked project by title keyword."),
+      };
+
+  return {
+    // Read-only half — shared verbatim with the post-meeting Q&A toolset.
+    ...createMeetingQaTools(meetingId),
 
     createCardInInbox: tool({
       description:

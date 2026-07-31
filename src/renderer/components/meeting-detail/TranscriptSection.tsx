@@ -1,8 +1,14 @@
 // Transcript viewer — searchable segment list with copy buttons,
 // timestamp display, and speaker color coding.
+//
+// Collapsed by default (BRAIN-UX.1 Task 5): the transcript is reference
+// material, while the brief/actions/chat are the primary reading surface. The
+// header row is the toggle; search + copy controls and the segment list only
+// exist while open. A deep link that passes `initialSearch` opens the section
+// so search results never land on a closed panel.
 
 import { useState, type RefObject } from 'react';
-import { Search, Copy, Check, X } from 'lucide-react';
+import { Search, Copy, Check, X, ChevronRight } from 'lucide-react';
 import { getSpeakerColor } from '../MeetingAnalyticsSection';
 import { formatTimestamp } from './utils';
 import type { MeetingWithTranscript } from '../../../shared/types';
@@ -59,6 +65,63 @@ function CopyBtn({
   );
 }
 
+/** The open section's body: the empty/no-match states, or the segment list itself. */
+function TranscriptBody({
+  meeting,
+  filteredSegments,
+  transcriptSearch,
+  searchQuery,
+  transcriptEndRef,
+}: {
+  meeting: MeetingWithTranscript;
+  filteredSegments: MeetingWithTranscript['segments'];
+  transcriptSearch: string;
+  searchQuery: string;
+  transcriptEndRef: RefObject<HTMLDivElement | null>;
+}) {
+  if (meeting.segments.length === 0) {
+    return (
+      <div className="text-center py-12 bg-surface-50 dark:bg-surface-800/20 rounded-xl border border-dashed border-surface-200 dark:border-surface-700 text-surface-500 text-sm">
+        {meeting.status === 'recording' ? 'Transcription in progress...' : 'No transcript available'}
+      </div>
+    );
+  }
+
+  if (filteredSegments.length === 0) {
+    return (
+      <div className="text-center py-10 bg-surface-50 dark:bg-surface-800/20 rounded-xl border border-dashed border-surface-200 dark:border-surface-700 text-surface-500 text-sm">
+        No segments match &ldquo;{transcriptSearch}&rdquo;
+      </div>
+    );
+  }
+
+  return (
+    // Prose reads in the app's body font; font-data stays on timestamps only.
+    <div className="max-h-80 overflow-y-auto rounded-xl bg-surface-100/50 dark:bg-surface-950/50 border border-[var(--color-border)] p-4 space-y-3 font-sans">
+      {filteredSegments.map((segment) => {
+        const speakerColor = segment.speaker ? getSpeakerColor(segment.speaker) : null;
+        return (
+          <div
+            key={segment.id}
+            className="flex gap-4 text-sm hover:bg-[var(--color-border)]/30 p-2 -mx-2 rounded-lg transition-colors"
+          >
+            <span className="font-data text-xs text-[var(--color-accent-dim)] pt-0.5 shrink-0 w-12 text-right">
+              {formatTimestamp(segment.startTime)}
+            </span>
+            <p className="text-surface-800 dark:text-surface-200 flex-1 leading-relaxed">
+              {segment.speaker && speakerColor && (
+                <span className={`${speakerColor.text} font-medium text-xs mr-1.5`}>[{segment.speaker}]</span>
+              )}
+              {searchQuery ? highlightText(segment.content, transcriptSearch) : segment.content}
+            </p>
+          </div>
+        );
+      })}
+      <div ref={transcriptEndRef} />
+    </div>
+  );
+}
+
 export default function TranscriptSection({
   meeting,
   transcriptEndRef,
@@ -69,6 +132,8 @@ export default function TranscriptSection({
   onCopy,
 }: TranscriptSectionProps) {
   const [transcriptSearch, setTranscriptSearch] = useState(initialSearch ?? '');
+  // Open only when the host deep-linked into a search — otherwise start collapsed.
+  const [open, setOpen] = useState(Boolean(initialSearch));
 
   const searchQuery = transcriptSearch.trim().toLowerCase();
   const filteredSegments = searchQuery
@@ -89,19 +154,30 @@ export default function TranscriptSection({
   return (
     <div className="mb-5">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <h3 className="font-hud text-xs text-[var(--color-text-secondary)] shrink-0">
-          Transcript
-          {meeting.segments.length > 0 && (
-            <span className="ml-2 text-surface-500">
-              {searchQuery
-                ? `(${filteredSegments.length} of ${meeting.segments.length})`
-                : `(${meeting.segments.length} segment${meeting.segments.length !== 1 ? 's' : ''})`}
-            </span>
-          )}
+        <h3 className="shrink-0">
+          <button
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="flex items-center gap-1.5 font-hud text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors"
+          >
+            <ChevronRight
+              size={13}
+              className={`transition-transform shrink-0 ${open ? 'rotate-90' : ''}`}
+              aria-hidden="true"
+            />
+            Transcript
+            {meeting.segments.length > 0 && (
+              <span className="text-surface-500">
+                {searchQuery
+                  ? `(${filteredSegments.length} of ${meeting.segments.length})`
+                  : `(${meeting.segments.length} segment${meeting.segments.length !== 1 ? 's' : ''})`}
+              </span>
+            )}
+          </button>
         </h3>
         <div className="flex items-center gap-3">
           {/* Copy buttons */}
-          {meeting.segments.length > 0 && (
+          {open && meeting.segments.length > 0 && (
             <div className="flex items-center gap-2">
               <CopyBtn field="transcript" label="Transcript" onClick={copyTranscript} copiedField={copiedField} />
               <CopyBtn
@@ -121,7 +197,7 @@ export default function TranscriptSection({
             </div>
           )}
           {/* Search input */}
-          {meeting.segments.length > 0 && (
+          {open && meeting.segments.length > 0 && (
             <div className="relative">
               <Search
                 size={12}
@@ -147,37 +223,14 @@ export default function TranscriptSection({
         </div>
       </div>
 
-      {meeting.segments.length === 0 ? (
-        <div className="text-center py-12 bg-surface-50 dark:bg-surface-800/20 rounded-xl border border-dashed border-surface-200 dark:border-surface-700 text-surface-500 text-sm">
-          {meeting.status === 'recording' ? 'Transcription in progress...' : 'No transcript available'}
-        </div>
-      ) : filteredSegments.length === 0 ? (
-        <div className="text-center py-10 bg-surface-50 dark:bg-surface-800/20 rounded-xl border border-dashed border-surface-200 dark:border-surface-700 text-surface-500 text-sm">
-          No segments match &ldquo;{transcriptSearch}&rdquo;
-        </div>
-      ) : (
-        <div className="max-h-80 overflow-y-auto rounded-xl bg-surface-100/50 dark:bg-surface-950/50 border border-[var(--color-border)] p-4 space-y-3 font-data">
-          {filteredSegments.map((segment) => {
-            const speakerColor = segment.speaker ? getSpeakerColor(segment.speaker) : null;
-            return (
-              <div
-                key={segment.id}
-                className="flex gap-4 text-sm hover:bg-[var(--color-border)]/30 p-2 -mx-2 rounded-lg transition-colors"
-              >
-                <span className="font-data text-xs text-[var(--color-accent-dim)] pt-0.5 shrink-0 w-12 text-right">
-                  {formatTimestamp(segment.startTime)}
-                </span>
-                <p className="text-surface-800 dark:text-surface-200 flex-1 leading-relaxed">
-                  {segment.speaker && speakerColor && (
-                    <span className={`${speakerColor.text} font-medium text-xs mr-1.5`}>[{segment.speaker}]</span>
-                  )}
-                  {searchQuery ? highlightText(segment.content, transcriptSearch) : segment.content}
-                </p>
-              </div>
-            );
-          })}
-          <div ref={transcriptEndRef} />
-        </div>
+      {open && (
+        <TranscriptBody
+          meeting={meeting}
+          filteredSegments={filteredSegments}
+          transcriptSearch={transcriptSearch}
+          searchQuery={searchQuery}
+          transcriptEndRef={transcriptEndRef}
+        />
       )}
     </div>
   );

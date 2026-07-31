@@ -47,18 +47,22 @@ describe('SidebarModern — V3.1 IA collapse (3-entry nav)', () => {
     useMeetingStore.setState({ unreviewedAutoPushedCount: 0 });
   });
 
-  it('renders exactly 3 nav entries', () => {
+  it('renders exactly 4 nav entries (Intel restored 2026-07-31)', () => {
     renderSidebar();
-    expect(screen.getAllByTestId('nav-item')).toHaveLength(3);
+    expect(screen.getAllByTestId('nav-item')).toHaveLength(4);
   });
 
-  it('legacy surfaces (Projects, Brainstorm, Ideas, Focus, Intel) are absent from the nav', () => {
+  it('legacy surfaces (Projects, Brainstorm, Ideas, Focus) are absent from the nav', () => {
     renderSidebar();
     expect(screen.queryByRole('link', { name: /projects/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /brainstorm/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /ideas/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /focus/i })).toBeNull();
-    expect(screen.queryByRole('link', { name: /intel/i })).toBeNull();
+  });
+
+  it('renders an Intel link pointing at the intel route', () => {
+    renderSidebar();
+    expect(screen.getByRole('link', { name: /intel/i })).toHaveAttribute('href', '/intel');
   });
 
   it('renders a Sessions link pointing at the home route', () => {

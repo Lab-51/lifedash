@@ -38,7 +38,12 @@ vi.mock('../../services/meetingAgentService', () => ({
   addMessage: vi.fn(),
   getThreadMessages: vi.fn(),
   getMessagesForMeeting: vi.fn(),
-  createMeetingAgentTools: vi.fn(() => ({})),
+  createMeetingAgentTools: vi.fn(() => ({ live: true })),
+  // Post-meeting Q&A (BRAIN-UX.1 Task 5). Default mode is 'live' so every
+  // pre-existing test exercises the unchanged recording path.
+  createMeetingQaTools: vi.fn(() => ({ qa: true })),
+  getMeetingAgentMode: vi.fn(() => Promise.resolve('live')),
+  QA_SYSTEM_PROMPT: 'QA_SYSTEM_PROMPT_FIXTURE',
   // Default: identity passthrough (no profile) — matches production behavior when
   // no digital-twin profile exists, so existing tests stay byte-identical without
   // each one needing to configure this mock.
@@ -130,6 +135,9 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default every test to the live (recording) path — a test that overrides the
+  // mode with mockResolvedValue would otherwise leak it into later tests.
+  vi.mocked(meetingAgentService.getMeetingAgentMode).mockResolvedValue('live');
 });
 
 // ---------------------------------------------------------------------------
@@ -269,6 +277,75 @@ describe('meeting-agent:send — twin profile injection wiring', () => {
 
     const streamArg = vi.mocked(streamText).mock.calls[0][0] as { system: string };
     expect(streamArg.system).toBe(augmented);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// meeting-agent:send — status-gated toolset (BRAIN-UX.1 Task 5)
+// ---------------------------------------------------------------------------
+
+describe('meeting-agent:send — post-meeting Q&A branch', () => {
+  it('uses the live toolset and SYSTEM_PROMPT while the meeting is still recording (byte-identical to the pre-Q&A path)', async () => {
+    setupHappyMocks(VALID_MEETING_ID);
+    vi.mocked(meetingAgentService.getMeetingAgentMode).mockResolvedValue('live');
+    vi.mocked(streamText).mockReturnValue(makeStreamResult([{ type: 'text-delta', text: 'hi' }]) as never);
+
+    const handler = registeredHandlers.get('meeting-agent:send')!;
+    await handler(makeFakeEvent(), VALID_MEETING_ID, 'hello');
+
+    expect(meetingAgentService.createMeetingAgentTools).toHaveBeenCalledWith(VALID_MEETING_ID);
+    expect(meetingAgentService.createMeetingQaTools).not.toHaveBeenCalled();
+
+    const streamArg = vi.mocked(streamText).mock.calls[0][0] as { system: string; tools: unknown };
+    expect(streamArg.tools).toEqual({ live: true });
+    expect(meetingAgentService.buildLiveAssistantSystemPrompt).toHaveBeenCalledWith(SYSTEM_PROMPT);
+    expect(streamArg.system).toBe(SYSTEM_PROMPT);
+  });
+
+  it('switches to the read-only Q&A toolset and QA_SYSTEM_PROMPT once the meeting is completed', async () => {
+    setupHappyMocks(VALID_MEETING_ID);
+    vi.mocked(meetingAgentService.getMeetingAgentMode).mockResolvedValue('qa');
+    vi.mocked(streamText).mockReturnValue(makeStreamResult([{ type: 'text-delta', text: 'hi' }]) as never);
+
+    const handler = registeredHandlers.get('meeting-agent:send')!;
+    await handler(makeFakeEvent(), VALID_MEETING_ID, 'what did we decide?');
+
+    expect(meetingAgentService.createMeetingQaTools).toHaveBeenCalledWith(VALID_MEETING_ID);
+    expect(meetingAgentService.createMeetingAgentTools).not.toHaveBeenCalled();
+
+    const streamArg = vi.mocked(streamText).mock.calls[0][0] as { system: string; tools: unknown };
+    expect(streamArg.tools).toEqual({ qa: true });
+    expect(meetingAgentService.buildLiveAssistantSystemPrompt).toHaveBeenCalledWith(
+      meetingAgentService.QA_SYSTEM_PROMPT,
+    );
+    expect(streamArg.system).toBe(meetingAgentService.QA_SYSTEM_PROMPT);
+  });
+
+  it('keeps the same thread, persistence, and streaming events in Q&A mode (no new channel)', async () => {
+    const thread = setupHappyMocks(VALID_MEETING_ID);
+    vi.mocked(meetingAgentService.getMeetingAgentMode).mockResolvedValue('qa');
+    vi.mocked(streamText).mockReturnValue(
+      makeStreamResult([
+        { type: 'text-delta', text: 'You decided ' },
+        { type: 'text-delta', text: 'to use Postgres [12:04].' },
+      ]) as never,
+    );
+
+    const handler = registeredHandlers.get('meeting-agent:send')!;
+    const event = makeFakeEvent();
+    const result = (await handler(event, VALID_MEETING_ID, 'what did we decide?')) as {
+      assistantMessage: { content: string | null };
+      threadId: string;
+    };
+
+    expect(meetingAgentService.getOrCreateThread).toHaveBeenCalledWith(VALID_MEETING_ID);
+    expect(result.threadId).toBe(thread.id);
+    expect(result.assistantMessage.content).toBe('You decided to use Postgres [12:04].');
+    expect(event.sender.send.mock.calls.map((c) => c[0])).toEqual([
+      'meeting-agent:text-delta',
+      'meeting-agent:text-delta',
+      'meeting-agent:done',
+    ]);
   });
 });
 

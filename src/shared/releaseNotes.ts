@@ -28,6 +28,25 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    // BRAIN-UX.1 — Entity Knowledge & Post-Meeting Chat (Tasks 1-6). DRAFT entry
+    // ahead of the 2.5.0 release ceremony (which owns the actual version bump
+    // in package.json). Still behind the unreleased 2.4.0 draft below.
+    version: '2.5.0',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          "The Brain now groups itself into Projects, People, and Topics — instead of one flat tree, you get three clear branches (plus Unlinked sessions) so it's obvious at a glance who and what your work is organized around.",
+          "People and topics in the Brain now carry a real fact profile: durable facts your Twin learned about them, each one showing exactly which session it came from, with a one-tap forget for anything you don't want remembered.",
+          '"Analyze past sessions" lets you backfill a person or topic\'s fact profile from meetings that happened before this feature existed — entirely on-demand, never automatic, so nothing runs in the background without you asking.',
+          "Every finished session now has a post-meeting chat — ask questions about what was discussed and get grounded answers straight from that meeting's transcript, with no side-effect tools (it can't move cards or touch your board, just answer).",
+          'The transcript view is easier to read and stays out of your way by default — it opens collapsed and expands automatically when a search result points you into it.',
+        ],
+      },
+    ],
+  },
+  {
     // Phase G — Calendar Integration (Tasks 1-6). DRAFT entry ahead of the 2.4.0
     // release ceremony (which owns the actual version bump in package.json).
     version: '2.4.0',
@@ -135,29 +154,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Meeting modal stays open when you assign a project — no more accidental closes mid-edit',
           'Retry/regenerate the meeting brief directly from the brief section if the first pass misses the mark',
           'Create a new project inline from the project picker dropdown — no need to leave the meeting',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.38',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          'Slovak transcription language support — select Slovak explicitly in the language picker',
-          'Two new Whisper models for much better Czech/Slovak accuracy: Enhanced (~539 MB) and Best / large-v3-turbo (~874 MB, recommended)',
-          'Mixed-language presets for meetings that switch between Czech, Slovak, and English',
-          "The 'Recommended' model badge now reflects the best choice for your selected language",
-        ],
-      },
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Settings model picker now shows a distinct tier label per Whisper model (Basic / Standard / High Quality / Enhanced / Best) instead of calling three different models "Standard"',
-          'Corrected the "Better Czech/Slovak transcription available" banner path to "Settings → General → Transcription"',
         ],
       },
     ],

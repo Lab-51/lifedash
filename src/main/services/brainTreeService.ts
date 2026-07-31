@@ -3,11 +3,13 @@
 //
 // buildBrainTree({ scope }) reads the knowledge structure straight from the DB
 // (ZERO AI calls) and assembles a HIERARCHICAL tree for two scopes:
-//   - 'workspace'          -> workspace > projects > (Sessions group + board
-//                             columns) > sessions/cards, plus a root-level
-//                             "Unlinked sessions" group for project-less meetings.
+//   - 'workspace'          -> workspace > exactly four root groups (Projects,
+//                             People, Topics, Unlinked sessions) -> project
+//                             nodes branch to (Sessions group + board columns)
+//                             > sessions/cards; person/topic entity nodes
+//                             branch to the sessions they are linked to.
 //   - { meetingId }        -> one session > Project / Cards created / Decisions /
-//                             Open questions branches.
+//                             Open questions / People / Topics branches.
 // Cross-hierarchy relations (a card's meeting provenance, an accepted
 // suggestion's card/project) ride in a flat crossLinks array — rendered later as
 // dashed overlays, never as tree edges.
@@ -19,7 +21,9 @@
 //   synthetic key). Task 4's live-growth diff depends on identical ids across
 //   refetches — never use index/timestamp/random.
 // - Empty-branch pruning: a column with 0 cards and a group with 0 children are
-//   dropped. Projects are NEVER pruned (an empty project is still meaningful).
+//   dropped. Projects are NEVER pruned (an empty project is still meaningful);
+//   the root "Projects" group is likewise NEVER pruned (it is the structural
+//   spine) even if it has zero project children.
 // - childCount reflects direct children AFTER pruning.
 // - The whole tree is returned — no caps / lazy-loading (that is the renderer's
 //   job). Personal-tool scale serializes fine over one IPC call.
@@ -41,6 +45,7 @@ type DB = ReturnType<typeof getDb>;
 // Entity nodes: `${type}:${entityId}`. Synthetic (group/root) nodes: a fixed
 // key that only ever depends on stable parent identity.
 const WORKSPACE_ROOT_ID = 'workspace';
+const PROJECTS_GROUP_ID = 'group:projects';
 const UNLINKED_GROUP_ID = 'group:unlinked';
 const projectNodeId = (id: string) => `project:${id}`;
 const columnNodeId = (id: string) => `column:${id}`;
@@ -56,8 +61,12 @@ const questionsGroupId = (meetingId: string) => `group:questions:${meetingId}`;
 // V3.4 entity nodes (the Brain's first semantic layer). The entity node id is
 // kind-independent + stable (`entity:${entityId}`); each entity branches to the
 // sessions it links to via a synthetic-but-stable per-link session node id.
-const entitiesGroupId = (suffix: string) => `group:entities:${suffix}`;
-const WORKSPACE_ENTITIES_GROUP_ID = entitiesGroupId('workspace');
+// People and topics are split into two sibling groups (BRAIN-UX.1 Task 2) —
+// same suffix convention as the old combined group: 'workspace' or a meetingId.
+const peopleGroupId = (suffix: string) => `group:people:${suffix}`;
+const topicsGroupId = (suffix: string) => `group:topics:${suffix}`;
+const WORKSPACE_PEOPLE_GROUP_ID = peopleGroupId('workspace');
+const WORKSPACE_TOPICS_GROUP_ID = topicsGroupId('workspace');
 const entityNodeId = (id: string) => `entity:${id}`;
 const entityLinkSessionNodeId = (entityId: string, meetingId: string) => `entity-session:${entityId}:${meetingId}`;
 
@@ -201,23 +210,30 @@ async function loadEntities(db: DB): Promise<{ entities: EntityRow[]; links: Ent
 }
 
 /**
- * Assemble the "People & topics" group of entity nodes. Each entity node's TYPE is
- * its kind (person/topic — so it styles distinctly) and it branches to the sessions
- * it is linked to (the entity—session edges, straight from entity_links), so the
- * inspector and the map both show a person/topic threaded across sessions. Entities
- * with no links are skipped (pruned like every other empty branch); `restrictToMeetingId`
- * (session scope) keeps only entities that touch that session — but each surviving
- * entity still shows ALL its sessions. Returns null when the group would be empty.
+ * Assemble one kind-specific entity group ("People" or "Topics" — split from the
+ * former combined group by BRAIN-UX.1 Task 2 so persons and topics no longer
+ * interleave at root). Each entity node's TYPE is its kind (so it styles
+ * distinctly) and it branches to the sessions it is linked to (the entity—session
+ * edges, straight from entity_links), so the inspector and the map both show a
+ * person/topic threaded across sessions. `entities`/`links` are the SAME rows for
+ * both the people and topics call — filtering by `kind` happens here, in memory,
+ * so calling this twice never issues an extra query. Entities with no links are
+ * skipped (pruned like every other empty branch); `restrictToMeetingId` (session
+ * scope) keeps only entities that touch that session — but each surviving entity
+ * still shows ALL its sessions. Returns null when the group would be empty.
  */
 function makeEntityGroup(
   entities: EntityRow[],
   links: EntityLinkRow[],
+  kind: 'person' | 'topic',
   groupId: string,
+  label: string,
   restrictToMeetingId: string | null,
 ): BrainNode | null {
   const linksByEntity = groupBy(links, (l) => l.entity_id);
   const entityNodes: BrainNode[] = [];
   for (const e of entities) {
+    if (e.kind !== kind) continue;
     const entityLinkRows = linksByEntity.get(e.id) ?? [];
     if (entityLinkRows.length === 0) continue; // an unlinked entity is not shown
     if (restrictToMeetingId && !entityLinkRows.some((l) => l.meeting_id === restrictToMeetingId)) continue;
@@ -227,7 +243,7 @@ function makeEntityGroup(
     entityNodes.push(node(entityNodeId(e.id), e.kind, e.name, e.id, sessionChildren));
   }
   if (entityNodes.length === 0) return null;
-  return node(groupId, 'group', 'People & topics', null, entityNodes);
+  return node(groupId, 'group', label, null, entityNodes);
 }
 
 // --- Workspace scope --------------------------------------------------------
@@ -292,15 +308,19 @@ async function buildWorkspaceTree(db: DB): Promise<BrainTree> {
     return node(projectNodeId(project.id), 'project', project.name, project.id, children);
   });
 
-  const rootChildren = [...projectNodes];
+  // Root = exactly four groups, in order: Projects (never pruned) | People |
+  // Topics | Unlinked sessions (both entity groups pruned when empty).
+  const rootChildren: BrainNode[] = [node(PROJECTS_GROUP_ID, 'group', 'Projects', null, projectNodes)];
+
+  const peopleGroup = makeEntityGroup(entityRows, entityLinkRows, 'person', WORKSPACE_PEOPLE_GROUP_ID, 'People', null);
+  if (peopleGroup) rootChildren.push(peopleGroup);
+  const topicsGroup = makeEntityGroup(entityRows, entityLinkRows, 'topic', WORKSPACE_TOPICS_GROUP_ID, 'Topics', null);
+  if (topicsGroup) rootChildren.push(topicsGroup);
+
   if (unlinkedSessions.length > 0) {
     const sessionNodes = unlinkedSessions.map((m) => node(sessionNodeId(m.id), 'session', m.title, m.id, []));
     rootChildren.push(node(UNLINKED_GROUP_ID, 'group', 'Unlinked sessions', null, sessionNodes));
   }
-
-  // "People & topics" — the V3.4 flat entities threaded across every session.
-  const entityGroup = makeEntityGroup(entityRows, entityLinkRows, WORKSPACE_ENTITIES_GROUP_ID, null);
-  if (entityGroup) rootChildren.push(entityGroup);
 
   const root = node(WORKSPACE_ROOT_ID, 'workspace', 'Workspace', null, rootChildren);
 
@@ -425,12 +445,29 @@ async function buildSessionTree(db: DB, meetingId: string): Promise<BrainTree> {
   `);
   appendSuggestionBranches(suggestionsRes.rows, meetingId, rootChildren, accepted);
 
-  // Branch: "People & topics" — the entities linked to THIS session (each still
-  // shows every session it appears in, so the map threads a person/topic across
-  // sessions). Fetched last so the entity queries stay after the structural ones.
+  // Branches: "People" + "Topics" — the entities linked to THIS session (each
+  // still shows every session it appears in, so the map threads a person/topic
+  // across sessions). Fetched last so the entity queries stay after the
+  // structural ones.
   const { entities: entityRows, links: entityLinkRows } = await loadEntities(db);
-  const entityGroup = makeEntityGroup(entityRows, entityLinkRows, entitiesGroupId(meetingId), meetingId);
-  if (entityGroup) rootChildren.push(entityGroup);
+  const peopleGroup = makeEntityGroup(
+    entityRows,
+    entityLinkRows,
+    'person',
+    peopleGroupId(meetingId),
+    'People',
+    meetingId,
+  );
+  if (peopleGroup) rootChildren.push(peopleGroup);
+  const topicsGroup = makeEntityGroup(
+    entityRows,
+    entityLinkRows,
+    'topic',
+    topicsGroupId(meetingId),
+    'Topics',
+    meetingId,
+  );
+  if (topicsGroup) rootChildren.push(topicsGroup);
 
   const root = node(sessionNodeId(meetingId), 'session', meeting?.title ?? 'Session', meetingId, rootChildren);
   return { root, crossLinks: buildCrossLinks(collectIds(root), provenance, accepted) };

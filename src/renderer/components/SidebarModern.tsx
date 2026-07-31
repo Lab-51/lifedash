@@ -2,12 +2,13 @@
 // Sidebar Modern — Primary navigation with HUD-styled unified teal glow.
 // V3.1: collapsed to exactly 3 entries (Sessions / Twin / Settings).
 // V3.3 Task 3: Twin is now a real routable destination.
-// Legacy surfaces (Projects, Brainstorm, Ideas, Focus, Intel) keep their routes
-// mounted for deep links and search results — only their nav entries are gone.
+// 2026-07-31: Intel restored to the nav (user request) — its route/stores never
+// left. Remaining legacy surfaces (Projects, Brainstorm, Ideas, Focus) keep
+// their routes mounted for deep links and search results — nav entries gone.
 
 import { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Mic, Brain, Settings, Sun, Moon, Monitor, Timer } from 'lucide-react';
+import { Mic, Brain, Newspaper, Settings, Sun, Moon, Monitor, Timer } from 'lucide-react';
 import dashIcon from '../assets/icon.svg';
 import { useTheme } from '../hooks/useTheme';
 import { useSoundEffect } from '../hooks/useSoundEffect';
@@ -31,6 +32,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: '/', label: 'Sessions', icon: Mic, tourId: 'nav-sessions' },
   { path: '/twin', label: 'Twin', icon: Brain },
+  { path: '/intel', label: 'Intel', icon: Newspaper },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 

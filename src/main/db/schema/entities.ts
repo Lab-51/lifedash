@@ -18,8 +18,16 @@
 // The (entityId, meetingId) join is the entity's PROVENANCE — every link ties an
 // entity to a real session it was extracted from. Composite primary key so a
 // re-extraction of the same session is idempotent (ON CONFLICT DO NOTHING).
+//
+// === entity_facts (BRAIN-UX.1 Task 1) ===
+// Per-entity learned facts — the same auditable-memory triad as `twin_facts`
+// (list/forget/provenance), but scoped to a Brain entity (person or topic)
+// instead of the user's own twin profile. `sourceMeetingId` cascades on delete
+// so a fact whose source session is gone loses its provenance guarantee — a
+// fact can never outlive the session that grounds it (see entity_facts' own
+// header note in migration 0044 for the full rationale).
 
-import { pgTable, uuid, varchar, timestamp, index, pgEnum, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, index, pgEnum, primaryKey } from 'drizzle-orm/pg-core';
 import { meetings } from './meetings';
 import type { TwinEntityKind } from '../../../shared/types/twin';
 
@@ -56,5 +64,28 @@ export const entityLinks = pgTable(
     // Reverse lookup: all entities for a given session (the PK already covers the
     // entity → sessions direction).
     index('entity_links_meeting_idx').on(table.meetingId),
+  ],
+);
+
+export const entityFacts = pgTable(
+  'entity_facts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    entityId: uuid('entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'cascade' }),
+    // The fact itself (one short, self-contained sentence — mirrors twin_facts.fact).
+    content: text('content').notNull(),
+    // Per-fact PROVENANCE (the auditable-memory pattern): cascade so a fact whose
+    // source session is deleted loses its provenance guarantee and is removed
+    // structurally, rather than left pointing at nothing.
+    sourceMeetingId: uuid('source_meeting_id')
+      .notNull()
+      .references(() => meetings.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // entity:list-facts reads by entityId — the hot lookup path for the modal.
+    index('entity_facts_entity_idx').on(table.entityId),
   ],
 );

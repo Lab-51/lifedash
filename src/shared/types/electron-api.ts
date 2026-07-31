@@ -116,6 +116,8 @@ import type {
   TwinCreationModel,
   TwinFact,
   TwinMemoryListFilter,
+  EntityFact,
+  AnalyzeEntityHistoryResult,
 } from './twin';
 import type {
   CalendarProvider,
@@ -612,6 +614,12 @@ export interface ElectronAPI {
 
   // Brain (hierarchical mind-map data for the workspace or a session, V3.2 Task 1)
   buildBrainTree: (scope: BrainScope) => Promise<BrainTree>;
+
+  // Per-entity learned facts (BRAIN-UX.1 Task 1) — list/forget are real;
+  // analyze-history is an honest not-implemented stub until Task 3 lands.
+  entityListFacts: (entityId: string) => Promise<EntityFact[]>;
+  entityForgetFact: (factId: string) => Promise<void>;
+  entityAnalyzeHistory: (entityId: string) => Promise<AnalyzeEntityHistoryResult>;
 
   // Digital Twin profile (V3.3 Tasks 3-4) — singleton profile read, section-level
   // patch (incl. the `brief` section), and the Quick-form "Interview me" draft.

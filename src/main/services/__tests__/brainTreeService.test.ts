@@ -92,7 +92,7 @@ describe('isParameterized helper sanity check', () => {
 
 // Workspace query order: projects, columns, cards, meetings (Promise.all), then
 // the two V3.4 entity queries (entities, entity_links) issued by loadEntities. The
-// base fixture has NO entities, so the "People & topics" group is pruned and every
+// base fixture has NO entities, so the People/Topics groups are pruned and every
 // pre-entity assertion holds unchanged; entity behavior gets its own fixture below.
 function workspaceFixture() {
   return [
@@ -137,17 +137,25 @@ describe('buildBrainTree — workspace scope', () => {
     expect(execute).toHaveBeenCalledTimes(6);
   });
 
-  it('builds workspace > projects > (Sessions group + columns) with an Unlinked sessions root group', async () => {
+  it('roots exactly at Projects | Unlinked sessions when there are no entities', async () => {
     mockExecuteSequence(workspaceFixture());
     const { root } = await buildBrainTree({ scope: 'workspace' });
 
     expect(root).toMatchObject({ id: 'workspace', type: 'workspace', label: 'Workspace', entityId: null });
-    // 3 projects + 1 unlinked group
-    expect(root.childCount).toBe(4);
-    expect(root.children).toHaveLength(4);
+    // Projects group (never pruned) + Unlinked sessions group; no People/Topics (no entities)
+    expect(root.childCount).toBe(2);
+    expect(root.children.map((c) => c.id)).toEqual(['group:projects', 'group:unlinked']);
+  });
+
+  it('builds group:projects > projects > (Sessions group + columns)', async () => {
+    mockExecuteSequence(workspaceFixture());
+    const { root } = await buildBrainTree({ scope: 'workspace' });
+
+    const projectsGroup = child(root, 'group:projects');
+    expect(projectsGroup).toMatchObject({ type: 'group', label: 'Projects', entityId: null, childCount: 3 });
 
     // --- Project Alpha: Sessions group first, then non-empty column ---
-    const alpha = child(root, 'project:p1');
+    const alpha = child(projectsGroup as BrainNode, 'project:p1');
     expect(alpha).toMatchObject({ type: 'project', label: 'Alpha', entityId: 'p1', childCount: 2 });
 
     const sessions = child(alpha as BrainNode, 'group:sessions:p1');
@@ -171,7 +179,8 @@ describe('buildBrainTree — workspace scope', () => {
     mockExecuteSequence(workspaceFixture());
     const { root } = await buildBrainTree({ scope: 'workspace' });
 
-    const gamma = child(root, 'project:p2');
+    const projectsGroup = child(root, 'group:projects') as BrainNode;
+    const gamma = child(projectsGroup, 'project:p2');
     expect(gamma?.childCount).toBe(1);
     expect(child(gamma as BrainNode, 'group:sessions:p2')).toBeUndefined();
     expect(child(gamma as BrainNode, 'column:col3')).toMatchObject({ label: 'Backlog', childCount: 1 });
@@ -181,7 +190,8 @@ describe('buildBrainTree — workspace scope', () => {
     mockExecuteSequence(workspaceFixture());
     const { root } = await buildBrainTree({ scope: 'workspace' });
 
-    const empty = child(root, 'project:p3');
+    const projectsGroup = child(root, 'group:projects') as BrainNode;
+    const empty = child(projectsGroup, 'project:p3');
     expect(empty).toMatchObject({ type: 'project', label: 'Empty', childCount: 0 });
     expect(empty?.children).toEqual([]);
   });
@@ -195,13 +205,24 @@ describe('buildBrainTree — workspace scope', () => {
     expect(unlinked?.children[0]).toMatchObject({ id: 'session:m2', label: 'Solo' });
   });
 
-  it('omits the Unlinked sessions group when every meeting is linked', async () => {
+  it('omits the Unlinked sessions group when every meeting is linked, but keeps the Projects group', async () => {
     const fx = workspaceFixture();
     fx[3] = [{ id: 'm1', title: 'Kickoff', project_id: 'p1' }]; // no unlinked meeting
     mockExecuteSequence(fx);
     const { root } = await buildBrainTree({ scope: 'workspace' });
     expect(child(root, 'group:unlinked')).toBeUndefined();
-    expect(root.childCount).toBe(3);
+    expect(root.childCount).toBe(1);
+    expect(root.children.map((c) => c.id)).toEqual(['group:projects']);
+  });
+
+  it('keeps the Projects group even when there are zero projects', async () => {
+    const fx = workspaceFixture();
+    fx[0] = []; // no projects
+    mockExecuteSequence(fx);
+    const { root } = await buildBrainTree({ scope: 'workspace' });
+    const projectsGroup = child(root, 'group:projects');
+    expect(projectsGroup).toMatchObject({ type: 'group', label: 'Projects', childCount: 0 });
+    expect(projectsGroup?.children).toEqual([]);
   });
 
   it('emits provenance crossLinks from card to originating session (only when both exist)', async () => {
@@ -379,11 +400,11 @@ describe('buildBrainTree — session scope', () => {
 // Entity nodes (V3.4 semantic layer)
 // ---------------------------------------------------------------------------
 
-describe('buildBrainTree — entity nodes (People & topics)', () => {
+describe('buildBrainTree — entity nodes (People / Topics)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('adds a workspace "People & topics" group; each entity node is typed by kind and branches to its sessions', async () => {
-    mockExecuteSequence([
+  it('adds separate workspace "People" and "Topics" root groups from the SAME two entity queries (no added queries)', async () => {
+    const execute = mockExecuteSequence([
       [{ id: 'p1', name: 'Alpha' }], // projects
       [], // columns
       [], // cards
@@ -406,27 +427,40 @@ describe('buildBrainTree — entity nodes (People & topics)', () => {
     ]);
     const { root } = await buildBrainTree({ scope: 'workspace' });
 
-    const group = child(root, 'group:entities:workspace');
-    expect(group).toMatchObject({ type: 'group', label: 'People & topics', entityId: null, childCount: 2 });
+    // Still exactly 6 queries — the People/Topics split filters in memory.
+    expect(execute).toHaveBeenCalledTimes(6);
+    expect(root.children.map((c) => c.id)).toEqual([
+      'group:projects',
+      'group:people:workspace',
+      'group:topics:workspace',
+    ]);
 
     // Dana Lee (person) → both sessions she appeared in, as session children.
-    const dana = child(group as BrainNode, 'entity:e1');
+    const people = child(root, 'group:people:workspace');
+    expect(people).toMatchObject({ type: 'group', label: 'People', entityId: null, childCount: 1 });
+    const dana = child(people as BrainNode, 'entity:e1');
     expect(dana).toMatchObject({ type: 'person', label: 'Dana Lee', entityId: 'e1', childCount: 2 });
     expect(dana?.children.map((c) => c.id)).toEqual(['entity-session:e1:m1', 'entity-session:e1:m2']);
     expect(dana?.children[0]).toMatchObject({ type: 'session', label: 'Kickoff', entityId: 'm1' });
+    // Only the person is under People — the topic must NOT leak in here.
+    expect(child(people as BrainNode, 'entity:e2')).toBeUndefined();
 
-    // Billing (topic) → the one session it appeared in.
-    const billing = child(group as BrainNode, 'entity:e2');
+    // Billing (topic) → its own "Topics" group, the one session it appeared in.
+    const topics = child(root, 'group:topics:workspace');
+    expect(topics).toMatchObject({ type: 'group', label: 'Topics', entityId: null, childCount: 1 });
+    const billing = child(topics as BrainNode, 'entity:e2');
     expect(billing).toMatchObject({ type: 'topic', label: 'Billing', entityId: 'e2', childCount: 1 });
 
-    // An entity with no links is pruned (never shown).
-    expect(child(group as BrainNode, 'entity:e3')).toBeUndefined();
+    // An entity with no links is pruned from both groups (never shown).
+    expect(child(people as BrainNode, 'entity:e3')).toBeUndefined();
+    expect(child(topics as BrainNode, 'entity:e3')).toBeUndefined();
   });
 
-  it('omits the People & topics group entirely when there are no entities', async () => {
-    mockExecuteSequence(workspaceFixture()); // base fixture: no entities
+  it('omits the People and/or Topics group when there are no entities of that kind', async () => {
+    mockExecuteSequence(workspaceFixture()); // base fixture: no entities at all
     const { root } = await buildBrainTree({ scope: 'workspace' });
-    expect(child(root, 'group:entities:workspace')).toBeUndefined();
+    expect(child(root, 'group:people:workspace')).toBeUndefined();
+    expect(child(root, 'group:topics:workspace')).toBeUndefined();
   });
 
   it('in session scope, shows only entities linked to THIS session — but each still shows ALL its sessions', async () => {
@@ -450,15 +484,17 @@ describe('buildBrainTree — entity nodes (People & topics)', () => {
     ]);
     const { root } = await buildBrainTree({ scope: { meetingId: 'm1' } });
 
-    const group = child(root, 'group:entities:m1');
-    expect(group).toMatchObject({ type: 'group', label: 'People & topics', childCount: 2 });
+    const people = child(root, 'group:people:m1');
+    expect(people).toMatchObject({ type: 'group', label: 'People', childCount: 1 });
+    const topics = child(root, 'group:topics:m1');
+    expect(topics).toMatchObject({ type: 'group', label: 'Topics', childCount: 1 });
 
     // e1 is in m1's scope AND still surfaces its OTHER session (m2) as a child.
-    const dana = child(group as BrainNode, 'entity:e1');
+    const dana = child(people as BrainNode, 'entity:e1');
     expect(dana).toMatchObject({ type: 'person', childCount: 2 });
     expect(dana?.children.map((c) => c.entityId)).toEqual(['m1', 'm2']);
 
     // e3 (linked only to m2) is excluded from m1's scope.
-    expect(child(group as BrainNode, 'entity:e3')).toBeUndefined();
+    expect(child(topics as BrainNode, 'entity:e3')).toBeUndefined();
   });
 });

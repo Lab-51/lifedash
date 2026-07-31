@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { forwardRef, useImperativeHandle } from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import '@testing-library/jest-dom';
@@ -98,6 +98,15 @@ const makeMeeting = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+/**
+ * The transcript section is collapsed by default (BRAIN-UX.1 Task 5) — click its
+ * header toggle to reveal the segment list.
+ */
+function expandTranscript() {
+  const toggle = screen.getAllByRole('button', { expanded: false }).find((b) => /Transcript/.test(b.textContent ?? ''));
+  fireEvent.click(toggle!);
+}
+
 function renderWorkspace(meetingId = 'meet-1') {
   return render(
     <MemoryRouter initialEntries={[`/session/${meetingId}`]}>
@@ -151,17 +160,27 @@ describe('SessionWorkspace — routed session page', () => {
     renderWorkspace();
     // Header title
     expect(screen.getByText('Weekly Standup')).toBeInTheDocument();
-    // Transcript tab is active by default — its segment content shows
+    // Transcript tab is active by default — its segment content shows once the
+    // (collapsed-by-default) transcript section is opened
+    expandTranscript();
     expect(screen.getByText('Hello from the transcript')).toBeInTheDocument();
     // Right-rail action-items section
     expect(screen.getByText('Action Items')).toBeInTheDocument();
   });
 
-  it('shows the three canvas tabs (Transcript | Board | Brain)', () => {
+  it('shows the three canvas tabs (Meeting | Board | Brain — completed meetings relabel the first tab)', () => {
     renderWorkspace();
-    expect(screen.getByRole('tab', { name: 'Transcript' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Meeting' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Board' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Brain' })).toBeInTheDocument();
+  });
+
+  it('hosts the Meeting Assistant chat in the center canvas (not the rail) for completed meetings', () => {
+    renderWorkspace();
+    // The chat lives inside the transcript/meeting tabpanel — the primary surface.
+    const panel = document.getElementById('panel-transcript')!;
+    expect(within(panel as HTMLElement).getByText('Meeting Assistant')).toBeInTheDocument();
+    expect(within(panel as HTMLElement).getByLabelText('Ask about this meeting')).toBeInTheDocument();
   });
 
   it('switches to the Board tab and shows the no-project empty state', async () => {
@@ -386,7 +405,8 @@ describe('SessionWorkspace — routed session page', () => {
     await user.click(screen.getByText('go-to-/session/meet-2'));
 
     expect(await screen.findByText('Meeting Two')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Transcript' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Meeting' })).toHaveAttribute('aria-selected', 'true');
+    expandTranscript();
     expect(screen.getByText('Second meeting transcript')).toBeInTheDocument();
   });
 });

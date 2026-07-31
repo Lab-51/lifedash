@@ -329,6 +329,44 @@ Post-session extraction SHALL resolve the concrete PEOPLE and TOPICS a session w
 
 ---
 
+### Requirement: Entity Knowledge & Post-Meeting Chat
+
+Entity fact extraction SHALL attach, to every stored fact, the source session it was extracted from — the same provenance the twin's session-level learning already provides — and each fact MUST be individually deletable ("forget") without affecting any other fact on that entity or on any other entity. Analyzing an entity's PAST sessions to backfill facts MUST be user-initiated only; the app MUST NEVER run this analysis automatically in the background, on load, or on a schedule. The post-meeting chat available on a finished session MUST NOT expose any side-effect tool — no card creation, no board mutation, no fact writes — it is answer-only, grounded in that session's transcript and context. A session's transcript section SHALL default to collapsed and MUST auto-expand when the user arrives via a search deep-link that points into the transcript. A fact-extraction failure MUST surface as a typed error, and MUST NEVER fabricate a fact to mask the failure.
+
+#### Scenario: A fact is provenance-linked and independently forgettable
+
+- GIVEN an entity has multiple stored facts from different sessions
+- WHEN the user forgets one fact
+- THEN only that fact is removed and every other fact — on that entity and on other entities — is unaffected
+
+#### Scenario: History analysis never runs unattended
+
+- GIVEN an entity with past sessions not yet analyzed for facts
+- WHEN no user action has requested analysis
+- THEN no backfill extraction runs — analysis starts ONLY when the user explicitly triggers it
+
+#### Scenario: Post-meeting chat cannot take side-effect actions
+
+- GIVEN a finished session's post-meeting chat
+- WHEN the user asks a question
+- THEN the assistant may only read transcript/context — no tool that creates, moves, or mutates a card, board, or fact is ever offered
+
+#### Scenario: Transcript collapses by default, expands for a deep-link
+
+- GIVEN a session detail page opened normally
+- WHEN the page loads
+- THEN the transcript section starts collapsed
+- AND WHEN the user arrives via a search result that deep-links into the transcript
+- THEN the transcript section is auto-expanded to show the matched location
+
+#### Scenario: Extraction failure is honest, never fabricated
+
+- GIVEN entity fact extraction throws or the model is unavailable
+- WHEN the failure occurs
+- THEN a typed error state is surfaced and no fact is invented to fill the gap
+
+---
+
 ### Requirement: Recording auto-stop warns first, is one-action cancellable, and stays on the clean stop path
 
 A recording session SHALL monitor for sustained audio silence and, after a configurable threshold (default 10 minutes, adjustable 2-120), MUST warn the user with a visible countdown before taking any stopping action — it MUST NEVER stop a recording silently. The warning MUST be cancellable in a single action ("Keep recording") that cancels the countdown and returns the session to normal monitoring with no interruption. If the countdown elapses unattended, auto-stop MUST invoke the SAME clean stop path used by a manual stop (audio saved, meeting finalized, normal processing) — never a distinct or partial teardown. The feature MUST be disableable via a settings toggle and defaults to enabled.

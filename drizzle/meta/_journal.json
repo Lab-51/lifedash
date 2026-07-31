@@ -309,6 +309,13 @@
       "when": 1784876651280,
       "tag": "0043_demonic_goblin_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1785503026162,
+      "tag": "0044_ambiguous_tinkerer",
+      "breakpoints": true
     }
   ]
 }

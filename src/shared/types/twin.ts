@@ -306,6 +306,46 @@ export interface TwinEntity {
   kind: TwinEntityKind;
 }
 
+// --- entity facts (BRAIN-UX.1 Task 1) — per-entity auditable memory ---
+
+/**
+ * A discrete fact the twin learned about a Brain entity (person or topic),
+ * scoped to `entities.id` rather than the user's own twin profile. Mirrors the
+ * `TwinFact` auditable-memory shape (provenance + one-tap forget) but is its own
+ * table (`entity_facts`) — entity knowledge and the twin's self-knowledge are
+ * deliberately separate stores. `entity:forget-fact` is a HARD delete (unlike
+ * `TwinFact`'s soft forgotten-status), matching the twin-ledger "forget" verb;
+ * there is no restore for entity facts.
+ */
+export interface EntityFact {
+  id: string;
+  entityId: string;
+  content: string;
+  /** The session this was learned from — always present (entity_facts.sourceMeetingId is NOT NULL). */
+  sourceMeetingId: string;
+  /** Denormalized for provenance display (`entity:list-facts` joins meetings.title). Absent only if the join can't resolve it. */
+  sourceMeetingTitle?: string;
+  createdAt: string;
+}
+
+/**
+ * Result of `entity:analyze-history` — mines every past session for facts about
+ * one entity (sequential mining, dedupe by (entityId, sourceMeetingId), per the
+ * BRAIN-UX.1 session decision). `status` discriminates a real run from the
+ * Task-1 HONEST STUB: Task 1 always returns `{ status: 'not-implemented', error,
+ * minedMeetings: 0, newFacts: 0, skippedMeetings: 0 }` — NEVER a fabricated
+ * success count. Task 3 un-stubs the `'ok'` branch with real numbers. Renderer
+ * code MUST check `status` before trusting the counts.
+ */
+export interface AnalyzeEntityHistoryResult {
+  status: 'ok' | 'not-implemented';
+  minedMeetings: number;
+  newFacts: number;
+  skippedMeetings: number;
+  /** Present only when status is 'not-implemented'. */
+  error?: string;
+}
+
 // --- memory-management IPC payloads (twin:memory-list / -forget / -restore) ---
 
 /** Optional filter for `twin:memory-list`. Omitted ⇒ the service returns all

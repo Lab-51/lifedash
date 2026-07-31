@@ -142,6 +142,28 @@ async function loadBriefSummary(db: Db, meetingId: string): Promise<string> {
   return row?.summary ?? '';
 }
 
+/** An entity already linked to a session (the `entity_links` provenance join). */
+export interface LinkedEntity {
+  id: string;
+  name: string;
+  kind: TwinEntityKind;
+}
+
+/**
+ * The entities extraction has already linked to a session. Lives here (entities are
+ * this module's domain) and is consumed by entityFactService's per-session fact
+ * mining, which needs to know WHICH entities a finished session is about.
+ */
+export async function listMeetingEntities(meetingId: string): Promise<LinkedEntity[]> {
+  const db = getDb();
+  const rows = await db
+    .select({ id: entities.id, name: entities.name, kind: entities.kind })
+    .from(entityLinks)
+    .innerJoin(entities, eq(entityLinks.entityId, entities.id))
+    .where(eq(entityLinks.meetingId, meetingId));
+  return rows.map((r) => ({ id: r.id, name: r.name, kind: r.kind }));
+}
+
 /**
  * Insert-or-get by `normalizedName`: reuse an existing entity row (any prior
  * session's) or insert a new one, returning its id. ON CONFLICT DO NOTHING on the

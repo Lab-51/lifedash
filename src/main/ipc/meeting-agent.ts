@@ -4,6 +4,12 @@
 // streaming loop structure. Unlike card-agent (multi-thread per card), a meeting
 // has exactly one thread (unique index on meetingId), so `send` takes no threadId
 // and auto-creates the thread on first use.
+//
+// BRAIN-UX.1 Task 5: the SAME channel + thread also serves post-meeting Q&A —
+// `send` asks meetingAgentService for the meeting's mode and swaps toolset +
+// system prompt accordingly ('qa' for completed meetings, 'live' otherwise).
+// Everything else (streaming events, persistence, abort, usage logging) is
+// shared, so a meeting's live and post-meeting Q&A are one conversation.
 
 import { ipcMain } from 'electron';
 import { streamText, stepCountIs, type LanguageModel } from 'ai';
@@ -89,8 +95,14 @@ export function registerMeetingAgentHandlers(): void {
       throw new Error('No AI provider configured for the Live Assistant. Go to Settings to add one.');
     }
 
-    // 4. Create tools and abort controller
-    const tools = await meetingAgentService.createMeetingAgentTools(validMeetingId);
+    // 4. Select the toolset by meeting status (BRAIN-UX.1 Task 5) and create the
+    //    abort controller. A COMPLETED meeting gets the read-only Q&A toolset;
+    //    every other status keeps the live toolset unchanged.
+    const mode = await meetingAgentService.getMeetingAgentMode(validMeetingId);
+    const tools =
+      mode === 'qa'
+        ? meetingAgentService.createMeetingQaTools(validMeetingId)
+        : await meetingAgentService.createMeetingAgentTools(validMeetingId);
     const abortController = new AbortController();
     activeStreams.set(validMeetingId, abortController);
 
@@ -105,8 +117,10 @@ export function registerMeetingAgentHandlers(): void {
 
     // 5b. Inject the digital-twin profile context (V3.3 Task 2) — read fresh from
     // the DB every send so profile edits apply on the very next message. Falls
-    // back to SYSTEM_PROMPT unchanged when no profile exists or the lookup fails.
-    const system = await meetingAgentService.buildLiveAssistantSystemPrompt(SYSTEM_PROMPT);
+    // back to the base prompt unchanged when no profile exists or the lookup fails.
+    // The base is the mode's prompt: Q&A for a finished meeting, SYSTEM_PROMPT live.
+    const basePrompt = mode === 'qa' ? meetingAgentService.QA_SYSTEM_PROMPT : SYSTEM_PROMPT;
+    const system = await meetingAgentService.buildLiveAssistantSystemPrompt(basePrompt);
 
     // 6. Stream with tools
     const streamStart = performance.now();

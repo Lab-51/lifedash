@@ -9,7 +9,7 @@
 // BrainMindMap.test.tsx — this suite asserts only the content, not placement.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, within, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { BrainNode, LiveSuggestion, MeetingWithTranscript } from '../../../shared/types';
 
@@ -74,6 +74,19 @@ const acceptedDecision: LiveSuggestion = {
   updatedAt: '2026-01-01T00:00:00Z',
 };
 
+// BRAIN-UX.1 Task 4 — kept as typed consts (not inline `vi.fn()`) so tests can call
+// `.mockResolvedValueOnce` / `.mockRejectedValueOnce` on them without fighting the
+// ElectronAPI interface's plain function signatures.
+const entityListFacts = vi.fn().mockResolvedValue([]);
+const entityForgetFact = vi.fn().mockResolvedValue(undefined);
+const entityAnalyzeHistory = vi.fn().mockResolvedValue({
+  status: 'not-implemented',
+  error: 'Analyze past sessions is not implemented yet.',
+  minedMeetings: 0,
+  newFacts: 0,
+  skippedMeetings: 0,
+});
+
 vi.stubGlobal('electronAPI', {
   getMeeting: vi.fn().mockResolvedValue(completedMeeting),
   listLiveSuggestions: vi.fn().mockResolvedValue([acceptedDecision]),
@@ -82,6 +95,9 @@ vi.stubGlobal('electronAPI', {
   getCardActivities: vi.fn().mockResolvedValue([]),
   getCardAttachments: vi.fn().mockResolvedValue([]),
   getChecklistItems: vi.fn().mockResolvedValue([]),
+  entityListFacts,
+  entityForgetFact,
+  entityAnalyzeHistory,
 });
 
 const { default: BrainInspector } = await import('../BrainInspector');
@@ -234,7 +250,7 @@ describe('BrainInspector — per-type reuse', () => {
     expect(window.electronAPI.listLiveSuggestions).toHaveBeenCalledWith('m1');
   });
 
-  it('person entity node lists its linked sessions and navigates to one via onOpenEntity', () => {
+  it('person entity node lists its linked sessions and navigates to one via onOpenEntity', async () => {
     const onOpenEntity = vi.fn();
     const s1 = node({ id: 'entity-session:e1:m1', type: 'session', label: 'Kickoff', entityId: 'm1' });
     const s2 = node({ id: 'entity-session:e1:m2', type: 'session', label: 'Retro', entityId: 'm2' });
@@ -249,11 +265,14 @@ describe('BrainInspector — per-type reuse', () => {
 
     // Clicking a linked session NAVIGATES (host onOpenEntity), threading the person
     // across sessions — never a fabricated destination.
-    fireEvent.click(screen.getByRole('button', { name: /Kickoff/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kickoff' }));
     expect(onOpenEntity).toHaveBeenCalledWith({ type: 'session', entityId: 'm1' });
+
+    // Flush the mount-time facts fetch so its setState settles inside act().
+    await screen.findByText(/No facts learned yet/);
   });
 
-  it('topic entity node shows the Topic kind and a zero-session count without fetching', () => {
+  it('topic entity node shows the Topic kind and a zero-session count without fetching', async () => {
     renderInspector(node({ id: 'entity:e2', type: 'topic', label: 'Billing', entityId: 'e2', children: [] }));
     const panel = screen.getByTestId('brain-inspector-entity');
     expect(within(panel).getByRole('heading', { name: 'Billing' })).toBeInTheDocument();
@@ -261,6 +280,9 @@ describe('BrainInspector — per-type reuse', () => {
     expect(within(panel).getByText(/Linked to 0 sessions/)).toBeInTheDocument();
     // An entity has no standalone page → no "Open full page" affordance.
     expect(screen.queryByRole('button', { name: /Open .*→/ })).toBeNull();
+
+    // Flush the mount-time facts fetch so its setState settles inside act().
+    await screen.findByText(/No facts learned yet/);
   });
 
   it('question node with no resolvable meeting still shows the real payload label (no fetch, no fake)', () => {
@@ -277,6 +299,151 @@ describe('BrainInspector — per-type reuse', () => {
       within(screen.getByTestId('brain-inspector-suggestion')).getByRole('heading', { name: 'How do we scale?' }),
     ).toBeInTheDocument();
     expect(window.electronAPI.listLiveSuggestions).not.toHaveBeenCalled();
+  });
+});
+
+describe('EntityInspector — fact profile + analyze-history (BRAIN-UX.1 Task 4)', () => {
+  const entityNode = (over: Partial<BrainNode> = {}) =>
+    node({ id: 'entity:e1', type: 'person', label: 'Dana Lee', entityId: 'e1', children: [], ...over });
+
+  it('renders learned facts with source-session provenance, and forget optimistically removes then restores on error', async () => {
+    const onOpenEntity = vi.fn();
+    entityListFacts.mockResolvedValueOnce([
+      {
+        id: 'f1',
+        entityId: 'e1',
+        content: 'Prefers async written updates',
+        sourceMeetingId: 'm1',
+        sourceMeetingTitle: 'Kickoff',
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+    ]);
+    renderInspector(entityNode(), { onOpenEntity });
+
+    expect(await screen.findByText('Prefers async written updates')).toBeInTheDocument();
+
+    // Provenance link navigates via the host onOpenEntity, never a fabricated destination.
+    fireEvent.click(screen.getByRole('button', { name: 'Kickoff' }));
+    expect(onOpenEntity).toHaveBeenCalledWith({ type: 'session', entityId: 'm1' });
+
+    // Forget: optimistic remove immediately, IPC call fires, and a rejection restores the row.
+    entityForgetFact.mockRejectedValueOnce(new Error('db unavailable'));
+    fireEvent.click(screen.getByRole('button', { name: 'Forget: Prefers async written updates' }));
+    expect(entityForgetFact).toHaveBeenCalledWith('f1');
+    expect(screen.queryByText('Prefers async written updates')).toBeNull();
+    expect(await screen.findByText('Prefers async written updates')).toBeInTheDocument();
+  });
+
+  it('forget removes the row for good when the IPC call succeeds', async () => {
+    entityListFacts.mockResolvedValueOnce([
+      {
+        id: 'f2',
+        entityId: 'e1',
+        content: 'Leads the billing workstream',
+        sourceMeetingId: 'm2',
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+    ]);
+    renderInspector(entityNode());
+
+    expect(await screen.findByText('Leads the billing workstream')).toBeInTheDocument();
+    // No sourceMeetingTitle -> honest fallback label, never a fabricated title.
+    expect(screen.getByRole('button', { name: 'Open source session' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Forget: Leads the billing workstream' }));
+    expect(entityForgetFact).toHaveBeenCalledWith('f2');
+    await waitFor(() => expect(screen.queryByText('Leads the billing workstream')).toBeNull());
+  });
+
+  it('shows the honest empty-state copy when no facts have been learned yet', async () => {
+    renderInspector(entityNode());
+    expect(
+      await screen.findByText(
+        'No facts learned yet — recorded meetings will add facts automatically, or analyze past sessions below.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('shows an honest error state when the facts list fails to load', async () => {
+    entityListFacts.mockRejectedValueOnce(new Error('boom'));
+    renderInspector(entityNode());
+    expect(await screen.findByText('Could not load learned facts.')).toBeInTheDocument();
+  });
+
+  it('"Analyze past sessions" disables in flight with the local-model hint, then refreshes facts and shows the counts', async () => {
+    entityListFacts.mockResolvedValueOnce([]); // mount-time load: empty
+    let resolveAnalyze!: (value: {
+      status: 'ok';
+      minedMeetings: number;
+      newFacts: number;
+      skippedMeetings: number;
+    }) => void;
+    entityAnalyzeHistory.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveAnalyze = resolve;
+      }),
+    );
+    renderInspector(entityNode());
+    await screen.findByText(/No facts learned yet/);
+
+    const analyzeButton = screen.getByRole('button', { name: /Analyze past sessions/ });
+    fireEvent.click(analyzeButton);
+    expect(analyzeButton).toBeDisabled();
+    expect(screen.getByText('Analyzing past sessions can take a while on a local model.')).toBeInTheDocument();
+
+    // The post-analyze refresh call resolves with the newly mined fact.
+    entityListFacts.mockResolvedValueOnce([
+      {
+        id: 'f3',
+        entityId: 'e1',
+        content: 'Newly mined fact',
+        sourceMeetingId: 'm3',
+        sourceMeetingTitle: 'Session 3',
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+    ]);
+    resolveAnalyze({ status: 'ok', minedMeetings: 3, newFacts: 1, skippedMeetings: 0 });
+
+    expect(await screen.findByText('3 sessions analyzed, 1 new fact')).toBeInTheDocument();
+    expect(await screen.findByText('Newly mined fact')).toBeInTheDocument();
+    expect(analyzeButton).not.toBeDisabled();
+  });
+
+  it('shows the Task-1 not-implemented stub error text (possible if tasks land out of order)', async () => {
+    renderInspector(entityNode());
+    await screen.findByText(/No facts learned yet/);
+
+    fireEvent.click(screen.getByRole('button', { name: /Analyze past sessions/ }));
+    expect(await screen.findByText('Analyze past sessions is not implemented yet.')).toBeInTheDocument();
+  });
+
+  it('shows actionable "assign a model in Settings" copy for Task 3\'s real no-model rejection (regression lock)', async () => {
+    // Task 3's entityFactService.analyzeHistory throws NO_MODEL_ERROR_MESSAGE =
+    // 'No AI provider configured for learning. Go to Settings to add one.' —
+    // ipcRenderer.invoke wraps thrown main-process errors as "Error invoking
+    // remote method '...': Error: <message>", so the renderer sees the wrapped
+    // form. It says "provider", not "model" — this locks that seam.
+    entityAnalyzeHistory.mockRejectedValueOnce(
+      new Error(
+        "Error invoking remote method 'entity:analyze-history': Error: No AI provider configured for learning. Go to Settings to add one.",
+      ),
+    );
+    renderInspector(entityNode());
+    await screen.findByText(/No facts learned yet/);
+
+    fireEvent.click(screen.getByRole('button', { name: /Analyze past sessions/ }));
+    expect(
+      await screen.findByText('No model is assigned for this task. Assign one in Settings, then try again.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows a generic honest failure message for an unrelated rejection', async () => {
+    entityAnalyzeHistory.mockRejectedValueOnce(new Error('network unavailable'));
+    renderInspector(entityNode());
+    await screen.findByText(/No facts learned yet/);
+
+    fireEvent.click(screen.getByRole('button', { name: /Analyze past sessions/ }));
+    expect(await screen.findByText('Could not analyze past sessions. Try again later.')).toBeInTheDocument();
   });
 });
 

@@ -7,7 +7,10 @@
 // captureNote's direct live_suggestions write, a moveCard round trip, and
 // (V3.3 Task 2) buildLiveAssistantSystemPrompt's digital-twin profile
 // injection contract: profile present -> block prepended; absent/error ->
-// base prompt returned byte-identical.
+// base prompt returned byte-identical. BRAIN-UX.1 Task 5 adds the post-meeting
+// Q&A mode: createMeetingQaTools is read-only (side-effect tools provably
+// absent) and shared with the live toolset, QA_SYSTEM_PROMPT's contract, and
+// getMeetingAgentMode's status gate (completed -> 'qa', everything else 'live').
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -44,6 +47,7 @@ vi.mock('../../db/schema', () => ({
     description: 'description',
     status: 'status',
   },
+  meetings: { id: 'id', status: 'status' },
 }));
 
 vi.mock('../meetingService', () => ({
@@ -85,12 +89,15 @@ import {
   searchSegments,
   createLiveAssistantCard,
   createMeetingAgentTools,
+  createMeetingQaTools,
+  getMeetingAgentMode,
   buildLiveAssistantSystemPrompt,
   NO_PROJECT_MESSAGE,
+  QA_SYSTEM_PROMPT,
   TRANSCRIPT_WINDOW_CHAR_BUDGET,
 } from '../meetingAgentService';
 import { getDb } from '../../db/connection';
-import { getMeeting, updateMeeting } from '../meetingService';
+import { getMeeting, getTranscripts, updateMeeting } from '../meetingService';
 import { createProjectRecord } from '../projectService';
 import { ensureInboxColumn } from '../inboxColumnService';
 import { ensureUnassignedProject } from '../unassignedProjectService';
@@ -500,5 +507,94 @@ describe('buildLiveAssistantSystemPrompt', () => {
     const result = await buildLiveAssistantSystemPrompt(BASE_PROMPT);
 
     expect(result).toBe(BASE_PROMPT);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Post-meeting Q&A mode (BRAIN-UX.1 Task 5)
+// ---------------------------------------------------------------------------
+
+/** Every tool in the live toolset that has a side effect — none may be in the Q&A toolset. */
+const SIDE_EFFECT_TOOL_NAMES = ['createCardInInbox', 'captureNote', 'createProject', 'moveCard'];
+
+describe('createMeetingQaTools — read-only toolset', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('exposes ONLY the read-only transcript/context tools — no card, note, project, or board-write tool', () => {
+    const tools = createMeetingQaTools('m1');
+
+    expect(Object.keys(tools).sort()).toEqual(['getMeetingContext', 'getTranscriptWindow', 'searchTranscript'].sort());
+    for (const name of SIDE_EFFECT_TOOL_NAMES) {
+      expect(tools).not.toHaveProperty(name);
+    }
+    // Board tools are project-scoped writes/reads that only exist in live mode.
+    for (const name of BOARD_TOOL_NAMES) {
+      expect(tools).not.toHaveProperty(name);
+    }
+  });
+
+  it('is the same read-only half the live toolset uses (the two can never drift)', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting('proj-1') as never);
+    vi.mocked(getDb).mockReturnValue({} as never);
+
+    const liveTools = await getTools('m1');
+    const qaTools = createMeetingQaTools('m1') as unknown as Record<string, { description?: string }>;
+
+    for (const name of Object.keys(qaTools)) {
+      expect(liveTools).toHaveProperty(name);
+      expect((liveTools[name] as unknown as { description?: string }).description).toBe(qaTools[name].description);
+    }
+  });
+
+  it('reads the transcript through the same budgeted window helper as live mode', async () => {
+    vi.mocked(getTranscripts).mockResolvedValue([
+      { content: 'We agreed on Postgres', startTime: 0, endTime: 1000, speaker: null },
+    ] as never);
+
+    const tools = createMeetingQaTools('m1') as unknown as Record<string, AnyTool>;
+    const result = (await tools.getTranscriptWindow.execute({ minutes: 10 })) as { text: string };
+
+    expect(result.text).toBe('[00:00] We agreed on Postgres');
+  });
+});
+
+describe('QA_SYSTEM_PROMPT', () => {
+  it('tells the model the meeting is over, to cite [mm:ss], and to admit gaps honestly', () => {
+    expect(QA_SYSTEM_PROMPT).toContain('ALREADY ENDED');
+    expect(QA_SYSTEM_PROMPT).toContain('[mm:ss]');
+    expect(QA_SYSTEM_PROMPT).toMatch(/does not contain the answer/);
+    // No action-taking instructions leak in from the live prompt.
+    expect(QA_SYSTEM_PROMPT).not.toContain('createCardInInbox');
+    expect(QA_SYSTEM_PROMPT).not.toContain('captureNote');
+  });
+});
+
+describe('getMeetingAgentMode', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function mockStatus(row: { status: string } | undefined) {
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({ where: vi.fn().mockResolvedValue(row ? [row] : []) })),
+      })),
+    } as never);
+  }
+
+  it("returns 'qa' for a completed meeting", async () => {
+    mockStatus({ status: 'completed' });
+    await expect(getMeetingAgentMode('m1')).resolves.toBe('qa');
+  });
+
+  it("keeps 'live' while recording or processing", async () => {
+    mockStatus({ status: 'recording' });
+    await expect(getMeetingAgentMode('m1')).resolves.toBe('live');
+
+    mockStatus({ status: 'processing' });
+    await expect(getMeetingAgentMode('m1')).resolves.toBe('live');
+  });
+
+  it("falls back to 'live' for an unknown meeting (status quo path is the default)", async () => {
+    mockStatus(undefined);
+    await expect(getMeetingAgentMode('missing')).resolves.toBe('live');
   });
 });

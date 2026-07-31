@@ -536,3 +536,13 @@ export const feedSourcesSchema = z.object({
 });
 
 export const feedIdsArraySchema = z.array(z.string().uuid());
+
+// ============================================================================
+// Entities (BRAIN-UX.1 Task 1) — per-entity learned facts
+// ============================================================================
+
+/** For entity:list-facts / entity:analyze-history — the entities.id parameter. */
+export const entityIdSchema = uuid;
+
+/** For entity:forget-fact — the entity_facts.id parameter. */
+export const entityFactIdSchema = uuid;
