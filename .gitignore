@@ -60,6 +60,10 @@ temp/
 .nexus/
 .planning/
 .internal/
+DECISIONS.md
+LEARNINGS.md
+ADR-*.md
+docs/demo-storyboard.md
 STATE.md
 PLAN.md
 SUMMARY.md
