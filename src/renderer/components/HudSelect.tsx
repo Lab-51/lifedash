@@ -30,6 +30,8 @@ interface HudSelectProps {
   compact?: boolean; // Transparent background for inline/toolbar use
   disabled?: boolean;
   onCreateNew?: CreateNewConfig;
+  /** Accessible name for the trigger when no visible <label> is associated with it. */
+  ariaLabel?: string;
 }
 
 function HudSelect({
@@ -41,6 +43,7 @@ function HudSelect({
   compact = false,
   disabled = false,
   onCreateNew,
+  ariaLabel,
 }: HudSelectProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -53,12 +56,18 @@ function HudSelect({
 
   const selectedOption = options.find((o) => o.value === value);
 
-  // Compute dropdown position from trigger bounding rect
+  // Compute dropdown position from trigger bounding rect. Opens downward, but
+  // flips above the trigger when the list would run past the bottom of the window
+  // — otherwise the last options are simply unreachable (hit on the Local AI
+  // license filter, which sits low on a long Settings page).
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    setPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
-  }, []);
+    const estimatedHeight = Math.min(280, options.length * 40 + 12);
+    const fitsBelow = window.innerHeight - rect.bottom - 12 >= estimatedHeight;
+    const top = fitsBelow ? rect.bottom + 6 : Math.max(8, rect.top - estimatedHeight - 6);
+    setPos({ top, left: rect.left, width: rect.width });
+  }, [options.length]);
 
   // Reset create state when dropdown closes
   useEffect(() => {
@@ -153,6 +162,9 @@ function HudSelect({
         type="button"
         onClick={handleToggle}
         disabled={disabled}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
           disabled
             ? 'opacity-50 cursor-not-allowed bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)]'

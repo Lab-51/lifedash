@@ -1,6 +1,11 @@
 // === AI provider, usage, and configuration types ===
 
-export type AIProviderName = 'openai' | 'anthropic' | 'google' | 'ollama' | 'kimi' | 'lmstudio';
+/**
+ * `builtin` is LifeDash's own bundled llama.cpp sidecar (LOCAL-RT.1) — fully local,
+ * no external runtime to install. It is opt-in: it only exists as a provider row
+ * once the user explicitly adds it, and nothing spawns or downloads before that.
+ */
+export type AIProviderName = 'openai' | 'anthropic' | 'google' | 'ollama' | 'kimi' | 'lmstudio' | 'builtin';
 
 /**
  * The SINGLE definition of "frontier / state-of-the-art" cloud providers (V3.3.5).
@@ -104,6 +109,46 @@ export interface AIUsageDaily {
   cost: number;
   count: number; // number of API calls
 }
+
+// --- Built-in (bundled llama.cpp) runtime ---------------------------------
+// Shared because the runtime's state crosses the IPC boundary (`ai:check-builtin`);
+// the supervisor in src/main/services/llamaRuntimeService.ts re-exports these.
+
+/** Which sidecar process a request is for. Chat and embeddings cannot share one
+ *  process — llama-server gates /v1/embeddings behind a startup flag. */
+export type LlamaRole = 'chat' | 'embedding';
+/** Compute backend of the running sidecar binary. */
+export type LlamaBackend = 'vulkan' | 'cpu' | 'metal';
+
+export interface LlamaRoleStatus {
+  running: boolean;
+  starting: boolean;
+  modelId: string | null;
+  baseUrl: string | null;
+  pid: number | null;
+  lastUsedAt: number | null;
+  crashes: number;
+}
+
+export interface LlamaRuntimeStatus {
+  /** True when at least one role process is up. */
+  running: boolean;
+  /** Backend of the last successful start, or null before the first one. */
+  backend: LlamaBackend | null;
+  binaryAvailable: boolean;
+  /** Model ids currently resident, across both roles. */
+  loadedModels: string[];
+  chat: LlamaRoleStatus;
+  embedding: LlamaRoleStatus;
+  idleStopMinutes: number;
+}
+
+/** Settings key holding the built-in runtime's idle auto-stop window. 0 = never stop. */
+export const LOCAL_AI_IDLE_SETTING_KEY = 'localAI.idleStopMinutes';
+/** Idle window used when the key was never written. */
+export const DEFAULT_IDLE_STOP_MINUTES = 15;
+/** Upper bound offered in Settings — beyond this "never stop" (0) is the honest choice. */
+export const MAX_IDLE_STOP_MINUTES = 240;
 
 /** Per-task model configuration (stored as JSON in settings table) */
 export interface TaskModelConfig {

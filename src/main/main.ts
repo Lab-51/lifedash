@@ -36,6 +36,9 @@ import { getSupabaseClient } from './services/supabaseClient';
 import { registerGoogleCalendarAdapter } from './services/calendarProviders/googleCalendarProvider';
 import { registerMicrosoftCalendarAdapter } from './services/calendarProviders/microsoftCalendarProvider';
 import { initCalendarPollScheduler, stopCalendarPollScheduler } from './services/calendarPollScheduler';
+// Shutdown-only import: the built-in AI sidecar starts lazily from a routed request,
+// never at boot. This just guarantees no llama-server outlives the app.
+import { stop as stopLlamaRuntime } from './services/llamaRuntimeService';
 
 const log = createLogger('App');
 
@@ -323,6 +326,7 @@ app.on('before-quit', async () => {
   stopBackgroundAgentScheduler();
   stopCalendarPollScheduler();
   stopSyncService();
+  await stopLlamaRuntime();
   await disconnectDatabase();
 });
 

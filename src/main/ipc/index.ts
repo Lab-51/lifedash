@@ -40,6 +40,7 @@ import { registerBrainHandlers } from './brain';
 import { registerTwinHandlers } from './twin';
 import { registerEmbeddingHandlers } from './embedding';
 import { registerCalendarHandlers } from './calendar';
+import { registerLocalModelHandlers } from './local-models';
 import { trackTiming } from '../services/performanceTracker';
 
 /**
@@ -100,6 +101,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerTwinHandlers();
   registerEmbeddingHandlers();
   registerCalendarHandlers();
+  registerLocalModelHandlers(mainWindow);
 
   // App-level: open URL in system browser (not Electron)
   ipcMain.handle('app:open-external', async (_event, url: string) => {

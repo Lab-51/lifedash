@@ -41,7 +41,7 @@ let criticalFailures = 0;
  * @param {string} [detail] - Optional detail message
  */
 function record(label, passed, critical, detail) {
-  const status = passed ? 'PASS' : (critical ? 'FAIL' : 'WARN');
+  const status = passed ? 'PASS' : critical ? 'FAIL' : 'WARN';
   results.push({ label, status, detail });
   if (!passed && critical) {
     criticalFailures++;
@@ -71,9 +71,25 @@ function dirExists(dirPath) {
 function countFilesWithExt(dirPath, ext) {
   try {
     const entries = fs.readdirSync(dirPath);
-    return entries.filter(e => e.endsWith(ext)).length;
+    return entries.filter((e) => e.endsWith(ext)).length;
   } catch {
     return 0;
+  }
+}
+
+function countFilesMatching(dirPath, pattern) {
+  try {
+    return fs.readdirSync(dirPath).filter((e) => pattern.test(e)).length;
+  } catch {
+    return 0;
+  }
+}
+
+function readJsonFile(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
   }
 }
 
@@ -120,9 +136,9 @@ function asarHas(asarRelPath, prefix) {
   const normalize = (p) => p.replace(/^[\\\/]/, '').replace(/\\/g, '/');
   const needle = normalize(asarRelPath);
   if (prefix) {
-    return files.some(f => normalize(f).startsWith(needle));
+    return files.some((f) => normalize(f).startsWith(needle));
   }
-  return files.some(f => normalize(f) === needle);
+  return files.some((f) => normalize(f) === needle);
 }
 
 /**
@@ -136,7 +152,7 @@ function asarExtract(asarRelPath) {
   // Find the matching entry to get the exact asar-internal path
   const normalize = (p) => p.replace(/^[\\\/]/, '').replace(/\\/g, '/');
   const needle = normalize(asarRelPath);
-  const entry = files.find(f => normalize(f) === needle);
+  const entry = files.find((f) => normalize(f) === needle);
   if (!entry) return null;
   try {
     // extractFile expects the path without a leading separator
@@ -153,12 +169,7 @@ function asarExtract(asarRelPath) {
 
 function checkOutputDir() {
   const exists = dirExists(outDir);
-  record(
-    `Output directory exists: out/lifedash-${platformArch}/`,
-    exists,
-    true,
-    exists ? '' : `Expected: ${outDir}`
-  );
+  record(`Output directory exists: out/lifedash-${platformArch}/`, exists, true, exists ? '' : `Expected: ${outDir}`);
   return exists;
 }
 
@@ -189,7 +200,7 @@ function checkAsarModule() {
     '@electron/asar module available (needed to inspect asar)',
     loaded,
     true,
-    loaded ? '' : 'Install @electron/asar or run from the project root'
+    loaded ? '' : 'Install @electron/asar or run from the project root',
   );
   return loaded;
 }
@@ -198,24 +209,12 @@ function checkBuildOutputsInsideAsar() {
   record('asar: .vite/build/main.js', asarHas('.vite/build/main.js'), true);
   record('asar: .vite/build/preload.js', asarHas('.vite/build/preload.js'), true);
   record('asar: .vite/renderer/ directory', asarHas('.vite/renderer', true), true);
-  record(
-    'asar: .vite/renderer/main_window/index.html',
-    asarHas('.vite/renderer/main_window/index.html'),
-    true
-  );
+  record('asar: .vite/renderer/main_window/index.html', asarHas('.vite/renderer/main_window/index.html'), true);
 }
 
 function checkExternalPackages() {
-  record(
-    'asar: node_modules/@electric-sql/pglite/',
-    asarHas('node_modules/@electric-sql/pglite', true),
-    true
-  );
-  record(
-    'asar: node_modules/@fugood/whisper.node/',
-    asarHas('node_modules/@fugood/whisper.node', true),
-    true
-  );
+  record('asar: node_modules/@electric-sql/pglite/', asarHas('node_modules/@electric-sql/pglite', true), true);
+  record('asar: node_modules/@fugood/whisper.node/', asarHas('node_modules/@fugood/whisper.node', true), true);
   // Platform whisper binary — warn if missing, not critical (may be cross-platform build)
   const isWindows = platformArch.startsWith('win32');
   const isMac = platformArch.includes('darwin');
@@ -223,14 +222,14 @@ function checkExternalPackages() {
     record(
       'asar: node_modules/@fugood/node-whisper-win32-x64/',
       asarHas('node_modules/@fugood/node-whisper-win32-x64', true),
-      false // warn only — platform binary might not always be present
+      false, // warn only — platform binary might not always be present
     );
   } else if (isMac) {
     const arch = platformArch.includes('arm64') ? 'arm64' : 'x64';
     record(
       `asar: node_modules/@fugood/node-whisper-darwin-${arch}/`,
       asarHas(`node_modules/@fugood/node-whisper-darwin-${arch}`, true),
-      false
+      false,
     );
   }
 }
@@ -245,7 +244,7 @@ function checkMigrations() {
       `resources/drizzle/ contains .sql files (found ${sqlCount})`,
       sqlCount > 0,
       true,
-      sqlCount === 0 ? 'No .sql migration files found' : ''
+      sqlCount === 0 ? 'No .sql migration files found' : '',
     );
   }
 }
@@ -255,35 +254,148 @@ function checkIconFiles() {
   record('resources/icon.png exists', fileExists(iconPng), false);
 }
 
+// ---------------------------------------------------------------------------
+// llama.cpp sidecar (extraResource — the integrity fuse keeps binaries out of asar)
+// ---------------------------------------------------------------------------
+
+/**
+ * The pinned llama.cpp tag scripts/fetch-llama-server.js stages. Kept in sync by
+ * the provenance.json assertion below — a stale or hand-copied binary set fails.
+ */
+const LLAMA_TAG = 'b10219';
+
+/**
+ * Per-platform backend directories under resources/llama/. `libs` is the minimum
+ * sibling set: llama-server is a thin launcher, so a bare executable will NOT run —
+ * it loads its impl + ggml backends from the same directory at process start.
+ * `cpuBackendPattern`/`minCpuBackends` catch the "staged only the .exe" regression:
+ * ggml picks a CPU micro-arch backend dynamically from that fan-out on Windows.
+ */
+const LLAMA_VARIANTS = {
+  win32: [
+    {
+      backend: 'vulkan',
+      server: 'llama-server.exe',
+      libs: ['llama-server-impl.dll', 'ggml.dll', 'ggml-base.dll', 'ggml-vulkan.dll'],
+      cpuBackendPattern: /^ggml-cpu-.*\.dll$/i,
+      minCpuBackends: 10,
+    },
+    {
+      backend: 'cpu',
+      server: 'llama-server.exe',
+      libs: ['llama-server-impl.dll', 'ggml.dll', 'ggml-base.dll'],
+      cpuBackendPattern: /^ggml-cpu-.*\.dll$/i,
+      minCpuBackends: 10,
+    },
+  ],
+  darwin: [
+    {
+      backend: 'metal',
+      server: 'llama-server',
+      libs: ['libllama-server-impl.dylib', 'libggml.dylib', 'libggml-base.dylib', 'libggml-metal.dylib'],
+      cpuBackendPattern: /^libggml-cpu.*\.dylib$/i,
+      minCpuBackends: 1,
+    },
+  ],
+};
+
+function checkLlamaVariant(llamaDir, variant, critical) {
+  const dir = path.join(llamaDir, variant.backend);
+  const prefix = `resources/llama/${variant.backend}`;
+
+  record(`${prefix}/${variant.server} exists`, fileExists(path.join(dir, variant.server)), critical);
+
+  const missing = variant.libs.filter((lib) => !fileExists(path.join(dir, lib)));
+  record(
+    `${prefix}/ ships its library set (${variant.libs.length} required)`,
+    missing.length === 0,
+    critical,
+    missing.length > 0 ? `Missing: ${missing.join(', ')}` : '',
+  );
+
+  const cpuBackends = countFilesMatching(dir, variant.cpuBackendPattern);
+  record(
+    `${prefix}/ ggml CPU backends present (found ${cpuBackends}, need >= ${variant.minCpuBackends})`,
+    cpuBackends >= variant.minCpuBackends,
+    critical,
+  );
+
+  const prov = readJsonFile(path.join(dir, 'provenance.json'));
+  const pinned = !!prov && prov.tag === LLAMA_TAG && typeof prov.sha256 === 'string' && prov.sha256.length === 64;
+  record(
+    `${prefix}/ pinned to llama.cpp ${LLAMA_TAG} with a recorded sha256`,
+    pinned,
+    critical,
+    pinned
+      ? ''
+      : `provenance.json missing or not tag ${LLAMA_TAG} (was the binary staged by scripts/fetch-llama-server.js?)`,
+  );
+}
+
+function checkLlamaSidecar() {
+  const llamaDir = path.join(resourcesDir, 'llama');
+  const targetPlatform = platformArch.split('-')[0];
+  const variants = LLAMA_VARIANTS[targetPlatform] || [];
+  // Only the build host's own variants can be asserted hard — verifying a package
+  // built elsewhere warns instead, matching the whisper platform-binary convention.
+  const critical = targetPlatform === process.platform && variants.length > 0;
+
+  const exists = dirExists(llamaDir);
+  record(
+    'resources/llama/ directory exists (forge extraResource)',
+    exists,
+    critical,
+    exists ? '' : 'Run: npm run fetch:llama',
+  );
+  if (!exists) return;
+
+  if (variants.length === 0) {
+    record(
+      `resources/llama/: no pinned variants for ${targetPlatform}`,
+      false,
+      false,
+      'Built-in AI will be unavailable in this build',
+    );
+    return;
+  }
+  for (const variant of variants) checkLlamaVariant(llamaDir, variant, critical);
+}
+
+function checkThirdPartyNotices() {
+  // MIT requires the notice to travel with the binaries, not just live in the repo.
+  const notices = path.join(resourcesDir, 'THIRD_PARTY_NOTICES.md');
+  record(
+    'resources/THIRD_PARTY_NOTICES.md exists (MIT attribution ships with the binaries)',
+    fileExists(notices),
+    true,
+  );
+}
+
 function checkSecurityNoSourceMaps() {
   // .map files from our own build are a security risk (expose source).
   // node_modules may ship their own .map files (e.g. pglite) — those are acceptable.
   const files = getAsarFiles();
   const normalize = (p) => p.replace(/^[\\\/]/, '').replace(/\\/g, '/');
-  const ourMapFiles = files
-    .map(normalize)
-    .filter(f => f.endsWith('.map') && !f.startsWith('node_modules/'));
+  const ourMapFiles = files.map(normalize).filter((f) => f.endsWith('.map') && !f.startsWith('node_modules/'));
 
   record(
     `Security: no source map files outside node_modules (found ${ourMapFiles.length})`,
     ourMapFiles.length === 0,
     false,
-    ourMapFiles.length > 0 ? `Found: ${ourMapFiles.slice(0, 5).join(', ')}` : ''
+    ourMapFiles.length > 0 ? `Found: ${ourMapFiles.slice(0, 5).join(', ')}` : '',
   );
 }
 
 function checkSecurityNoEnvFiles() {
   const files = getAsarFiles();
   const normalize = (p) => p.replace(/^[\\\/]/, '').replace(/\\/g, '/');
-  const envFiles = files
-    .map(normalize)
-    .filter(f => f === '.env' || f.endsWith('/.env'));
+  const envFiles = files.map(normalize).filter((f) => f === '.env' || f.endsWith('/.env'));
 
   record(
     `Security: no .env files inside asar (found ${envFiles.length})`,
     envFiles.length === 0,
     true,
-    envFiles.length > 0 ? `Found: ${envFiles.join(', ')}` : ''
+    envFiles.length > 0 ? `Found: ${envFiles.join(', ')}` : '',
   );
 }
 
@@ -305,7 +417,7 @@ function isObfuscated(content) {
     'export default ',
     'const __filename =',
   ];
-  return !plainPatterns.some(p => content.includes(p));
+  return !plainPatterns.some((p) => content.includes(p));
 }
 
 function checkObfuscation() {
@@ -316,7 +428,7 @@ function checkObfuscation() {
       'Security: main.js is obfuscated',
       isObfuscated(mainStr),
       false, // warn only — obfuscation can be disabled
-      isObfuscated(mainStr) ? '' : 'main.js appears to be unobfuscated plain-text JavaScript'
+      isObfuscated(mainStr) ? '' : 'main.js appears to be unobfuscated plain-text JavaScript',
     );
   } else {
     record('Security: main.js is obfuscated', false, false, 'Could not extract main.js from asar');
@@ -329,7 +441,7 @@ function checkObfuscation() {
       'Security: preload.js is obfuscated',
       isObfuscated(preloadStr),
       false,
-      isObfuscated(preloadStr) ? '' : 'preload.js appears to be unobfuscated plain-text JavaScript'
+      isObfuscated(preloadStr) ? '' : 'preload.js appears to be unobfuscated plain-text JavaScript',
     );
   } else {
     record('Security: preload.js is obfuscated', false, false, 'Could not extract preload.js from asar');
@@ -370,6 +482,8 @@ if (asarExists && checkAsarModule()) {
 
 checkMigrations();
 checkIconFiles();
+checkLlamaSidecar();
+checkThirdPartyNotices();
 
 // ---------------------------------------------------------------------------
 // Print results
@@ -377,18 +491,15 @@ checkIconFiles();
 
 function printResults() {
   const total = results.length;
-  const passed = results.filter(r => r.status === 'PASS').length;
-  const failed = results.filter(r => r.status === 'FAIL').length;
-  const warned = results.filter(r => r.status === 'WARN').length;
+  const passed = results.filter((r) => r.status === 'PASS').length;
+  const failed = results.filter((r) => r.status === 'FAIL').length;
+  const warned = results.filter((r) => r.status === 'WARN').length;
 
   // Column widths
-  const labelWidth = Math.max(...results.map(r => r.label.length), 10);
+  const labelWidth = Math.max(...results.map((r) => r.label.length), 10);
 
   for (const r of results) {
-    const statusColor =
-      r.status === 'PASS' ? '\x1b[32m' :
-      r.status === 'FAIL' ? '\x1b[31m' :
-      '\x1b[33m'; // WARN = yellow
+    const statusColor = r.status === 'PASS' ? '\x1b[32m' : r.status === 'FAIL' ? '\x1b[31m' : '\x1b[33m'; // WARN = yellow
     const reset = '\x1b[0m';
     const label = r.label.padEnd(labelWidth);
     const detail = r.detail ? `  (${r.detail})` : '';

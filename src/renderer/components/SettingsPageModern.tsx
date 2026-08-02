@@ -59,6 +59,7 @@ import ProxySettingsSection from '../components/settings/ProxySettingsSection';
 import BackgroundAgentSettings from '../components/settings/BackgroundAgentSettings';
 import DiagnosticsSection from '../components/settings/DiagnosticsSection';
 import SyncSettings from '../components/settings/SyncSettings';
+import LocalAISection from '../components/settings/LocalAISection';
 import IntelFeedInterestsSection from './settings/IntelFeedInterestsSection';
 import SemanticIndexSection from './settings/SemanticIndexSection';
 import HudBackground from './HudBackground';
@@ -418,6 +419,9 @@ export default function SettingsPageModern() {
                 )}
               </section>
 
+              {/* Local AI — bundled llama.cpp runtime + GGUF model manager (LOCAL-RT.1) */}
+              <LocalAISection />
+
               {/* Model Assignments */}
               <section className="hud-panel-accent clip-corner-cut-sm p-6">
                 <div className="flex items-start justify-between mb-6">
@@ -451,7 +455,9 @@ export default function SettingsPageModern() {
                             Select provider
                           </p>
                           {enabledProviders
-                            .filter((p) => ['openai', 'anthropic', 'google', 'kimi', 'ollama'].includes(p.name))
+                            .filter((p) =>
+                              ['openai', 'anthropic', 'google', 'kimi', 'ollama', 'builtin'].includes(p.name),
+                            )
                             .map((p) => (
                               <button
                                 key={p.id}

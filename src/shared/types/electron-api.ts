@@ -1,6 +1,13 @@
 // === ElectronAPI interface exposed to renderer via contextBridge ===
 
 import type { DatabaseStatus } from './common';
+import type { LlamaRuntimeStatus } from './ai';
+import type {
+  CatalogModel,
+  LocalModelDownloadProgress,
+  LocalModelsView,
+  RegisterCustomModelInput,
+} from './localModels';
 import type {
   Project,
   Board,
@@ -287,6 +294,17 @@ export interface ElectronAPI {
 
   // LM Studio health check
   checkLmStudio: () => Promise<{ running: boolean; models: string[] }>;
+
+  // Built-in (bundled llama.cpp) runtime readiness — inspection only, never starts it
+  checkBuiltinRuntime: () => Promise<{
+    binaryPresent: boolean;
+    modelsDir: string;
+    models: string[];
+    runtime: LlamaRuntimeStatus;
+  }>;
+
+  // Stop the built-in runtime on the user's command; resolves with the new status.
+  stopBuiltinRuntime: () => Promise<LlamaRuntimeStatus>;
 
   // Meetings
   getMeetings: () => Promise<Meeting[]>;
@@ -665,6 +683,27 @@ export interface ElectronAPI {
   /** Opt-in AI prep note for one event (explicit click only); rejects when no model. */
   generateCalendarPrepNote: (eventId: string) => Promise<{ note: string }>;
   onCalendarEventsUpdated: (callback: () => void) => () => void;
+
+  // Local models (bundled llama.cpp runtime). Nothing here runs at startup — the
+  // first call is the user opening Settings → Local AI.
+  /** Catalog + hardware tier + per-model status + in-flight downloads. `force` re-fetches the remote catalog. */
+  getLocalModelsView: (force?: boolean) => Promise<LocalModelsView>;
+  /** Queue (or resume) a resumable download; returns the initial progress snapshot. */
+  downloadLocalModel: (input: { modelId: string; quant?: string }) => Promise<LocalModelDownloadProgress>;
+  /** Stop transferring but keep the partial file so the next call resumes it. */
+  pauseLocalModelDownload: (key: string) => Promise<boolean>;
+  /** Abandon a download and discard its partial data. */
+  cancelLocalModelDownload: (key: string) => Promise<boolean>;
+  listLocalModelDownloads: () => Promise<LocalModelDownloadProgress[]>;
+  clearFinishedLocalModelDownloads: () => Promise<void>;
+  /** Delete one downloaded .gguf; resolves with the reclaimed bytes. */
+  deleteLocalModel: (fileName: string) => Promise<{ freedBytes: number }>;
+  registerCustomLocalModel: (input: RegisterCustomModelInput) => Promise<CatalogModel>;
+  unregisterCustomLocalModel: (modelId: string) => Promise<boolean>;
+  /** Native .gguf picker for "add my own model"; resolves null when cancelled. */
+  pickLocalModelFile: () => Promise<string | null>;
+  openLocalModelsFolder: () => Promise<void>;
+  onLocalModelProgress: (callback: (progress: LocalModelDownloadProgress) => void) => () => void;
 }
 
 declare global {

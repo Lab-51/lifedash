@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useNavigate } from 'react-router-dom';
-import type { AIProviderName } from '../../shared/types';
+import type { AIProviderName, AITaskType, TaskModelConfig } from '../../shared/types';
 import type { WizardStep, SetupWizardProps } from './setup-wizard/types';
 
 import StepIndicator from './setup-wizard/StepIndicator';
@@ -17,16 +17,21 @@ import StepWelcome from './setup-wizard/StepWelcome';
 import StepHaveKey from './setup-wizard/StepHaveKey';
 import StepPickProvider from './setup-wizard/StepPickProvider';
 import StepTutorial from './setup-wizard/StepTutorial';
+import StepLocalBuiltin from './setup-wizard/StepLocalBuiltin';
 import StepConfigure from './setup-wizard/StepConfigure';
 import StepTest from './setup-wizard/StepTest';
 import StepDone from './setup-wizard/StepDone';
+import { builtinTaskModelPatch, type BuiltinAssignment } from './setup-wizard/localBuiltin';
 
 export default function SetupWizard({ onClose }: SetupWizardProps) {
   const navigate = useNavigate();
+  const providers = useSettingsStore((s) => s.providers);
   const createProvider = useSettingsStore((s) => s.createProvider);
   const deleteProvider = useSettingsStore((s) => s.deleteProvider);
   const loadProviders = useSettingsStore((s) => s.loadProviders);
   const setSetting = useSettingsStore((s) => s.setSetting);
+  const getTaskModels = useSettingsStore((s) => s.getTaskModels);
+  const setTaskModels = useSettingsStore((s) => s.setTaskModels);
 
   const [step, setStep] = useState<WizardStep>('welcome');
   const [prevStep, setPrevStep] = useState<WizardStep>('have-key');
@@ -168,7 +173,56 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     handleSaveAndTest();
   }
 
+  /**
+   * Built-in path completion. Runs only after the chosen model's file is on disk
+   * (StepLocalBuiltin gates the button on that), because an undownloaded model is
+   * not routable. Writes `ai.taskModels` through the same store action Settings →
+   * Model Assignments uses, MERGED over whatever is stored so a returning user's
+   * other assignments survive. Then the existing StepTest proves the runtime by
+   * lazy-starting the sidecar.
+   */
+  async function handleBuiltinFinish(pick: BuiltinAssignment) {
+    setSelectedProvider('builtin');
+    setPrevStep('local-builtin');
+    setStep('test');
+    setTestStatus('running');
+    setTestError(null);
+    setTestLatency(undefined);
+
+    try {
+      // Reuse a built-in provider the user may already have rather than adding a
+      // duplicate row — and so going Back can never delete something pre-existing.
+      const existing = providers.find((p) => p.name === 'builtin');
+      const provider = existing ?? (await createProvider({ name: 'builtin' }));
+      setCreatedProviderId(provider.id);
+
+      const merged = { ...(getTaskModels() ?? {}), ...builtinTaskModelPatch(provider.id, pick) };
+      await setTaskModels(merged as Record<AITaskType, TaskModelConfig>);
+
+      const result = await window.electronAPI.testAIConnection(provider.id);
+      if (result.success) {
+        setTestStatus('success');
+        setTestLatency(result.latencyMs);
+      } else {
+        setTestStatus('failure');
+        setTestError(result.error ?? 'Connection test failed');
+      }
+
+      await loadProviders();
+    } catch (err) {
+      setTestStatus('failure');
+      setTestError(err instanceof Error ? err.message : 'Failed to set up the built-in runtime');
+    }
+  }
+
   async function handleTestBack() {
+    // The built-in path has no credentials to re-enter — going back means picking
+    // a different model. Its provider row is reused, so deleting it here could
+    // destroy one the user configured before ever opening the wizard.
+    if (selectedProvider === 'builtin') {
+      setStep('local-builtin');
+      return;
+    }
     if (createdProviderId) {
       await deleteProvider(createdProviderId);
       setCreatedProviderId(null);
@@ -211,15 +265,18 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={handleSkip}
     >
+      {/* Capped and column-flexed so a tall step (the built-in model list) scrolls
+          its body instead of pushing Back / Skip outside the window, where they
+          become unclickable — the wizard has to stay leaveable at every step. */}
       <div
-        className="w-full max-w-[560px] mx-4 hud-panel-accent clip-corner-cut shadow-2xl relative overflow-hidden"
+        className="w-full max-w-[560px] max-h-[92vh] mx-4 flex flex-col hud-panel-accent clip-corner-cut shadow-2xl relative overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Ambient glow */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[200px] bg-[radial-gradient(ellipse,rgba(62,232,228,0.06)_0%,transparent_70%)] pointer-events-none" />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border-accent)]">
+        <div className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-[var(--color-border-accent)]">
           <span className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)]">
             Setup Wizard
           </span>
@@ -233,20 +290,33 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5">
+        <div className="px-6 py-5 overflow-y-auto">
           <StepIndicator current={step} />
 
           {step === 'welcome' && <StepWelcome onSetup={() => setStep('have-key')} onSkip={handleSkip} />}
 
           {step === 'have-key' && (
             <StepHaveKey
-              onHaveKey={() => setStep('pick-provider')}
-              onGetHelp={() => setStep('tutorial')}
-              onUseLocal={() => {
-                setSelectedProvider('ollama');
+              onUseBuiltin={() => setStep('local-builtin')}
+              onUseExistingLocal={(provider) => {
+                setSelectedProvider(provider);
                 setPrevStep('have-key');
                 setStep('configure');
               }}
+              onHaveKey={() => setStep('pick-provider')}
+              onGetHelp={() => setStep('tutorial')}
+              onSkip={handleClose}
+            />
+          )}
+
+          {step === 'local-builtin' && (
+            <StepLocalBuiltin
+              onFinish={(pick) => void handleBuiltinFinish(pick)}
+              onUseCloud={() => {
+                setSelectedProvider(null);
+                setStep('pick-provider');
+              }}
+              onBack={() => setStep('have-key')}
               onSkip={handleClose}
             />
           )}

@@ -31,9 +31,11 @@ test.describe('Project CRUD', () => {
   test('can create a new project', async () => {
     // Look for a "New Project" or "+" button to create a project
     // Try common patterns: button with "New", "Add", or "+" text
-    const newProjectButton = page.locator(
-      'button:has-text("New Project"), button:has-text("New"), button:has-text("Add Project"), button[aria-label*="new" i], button[aria-label*="add" i], button[title*="New" i]'
-    ).first();
+    const newProjectButton = page
+      .locator(
+        'button:has-text("New Project"), button:has-text("New"), button:has-text("Add Project"), button[aria-label*="new" i], button[aria-label*="add" i], button[title*="New" i]',
+      )
+      .first();
 
     // If no new project button found, the page might show an empty state with a CTA
     const exists = await newProjectButton.isVisible().catch(() => false);
@@ -53,7 +55,9 @@ test.describe('Project CRUD', () => {
     await page.waitForTimeout(500);
 
     // Type the project name into whatever input appears (modal or inline)
-    const nameInput = page.locator('input[type="text"], input[placeholder*="name" i], input[placeholder*="project" i]').first();
+    const nameInput = page
+      .locator('input[type="text"], input[placeholder*="name" i], input[placeholder*="project" i]')
+      .first();
     const inputVisible = await nameInput.isVisible({ timeout: 3000 }).catch(() => false);
     if (!inputVisible) {
       test.skip(true, 'No project name input appeared — UI may have changed');
@@ -95,9 +99,11 @@ test.describe('Card CRUD', () => {
 
   test('can create a card', async () => {
     // Look for an add card button or input
-    const addCardButton = page.locator(
-      'button:has-text("Add"), button:has-text("New Card"), button[aria-label*="add card" i], button[title*="Add" i]'
-    ).first();
+    const addCardButton = page
+      .locator(
+        'button:has-text("Add"), button:has-text("New Card"), button[aria-label*="add card" i], button[title*="Add" i]',
+      )
+      .first();
 
     const exists = await addCardButton.isVisible({ timeout: 3000 }).catch(() => false);
     if (!exists) {

@@ -3,8 +3,8 @@
 // Renders one row per AITaskType with provider and model selectors.
 // Persists selections as JSON to the settings table (key: 'ai.taskModels').
 
-import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { Save, RotateCcw, Info } from 'lucide-react';
+import { useState, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
+import { Save, RotateCcw, Info, AlertTriangle } from 'lucide-react';
 import { useSettingsStore } from '../stores/settingsStore';
 import type {
   AIProvider,
@@ -12,6 +12,8 @@ import type {
   AITaskType,
   TaskModelConfig as TaskModelConfigType,
 } from '../../shared/types';
+import type { LocalModelsView, ModelRole } from '../../shared/types/localModels';
+import { useLocalModels } from '../hooks/useLocalModels';
 import HudSelect from './HudSelect';
 
 // Human-readable labels for task types
@@ -60,7 +62,15 @@ const TASK_TYPE_INFO: { type: AITaskType; label: string; description: string }[]
 ];
 
 /** Provider families that run entirely on the user's machine — no transcript leaves the device. */
-const LOCAL_PROVIDERS: Set<AIProviderName> = new Set(['ollama', 'lmstudio']);
+const LOCAL_PROVIDERS: Set<AIProviderName> = new Set(['ollama', 'lmstudio', 'builtin']);
+
+/**
+ * Task types that actually call tools (verified in src/main/ipc: card-agent,
+ * meeting-agent and project-agent build a ToolSet; nothing else does). Routing one
+ * of these to a model whose GGUF chat template has no tool section produces a model
+ * that chats but silently cannot act, so the row warns instead of failing later.
+ */
+const TOOL_CALLING_TASKS: Set<AITaskType> = new Set(['live_assistant', 'card_agent', 'project_agent']);
 
 // Known models per provider (v1 — hardcoded, expandable later)
 const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
@@ -91,6 +101,9 @@ const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
     { id: 'kimi-k2.5-preview', label: 'Kimi K2.5 Preview' },
   ],
   lmstudio: [{ id: 'default', label: 'Loaded Model (default)' }],
+  // Built-in has no static list on purpose: only a model you have actually
+  // downloaded is routable, so its options come from getLocalModelsView() below.
+  builtin: [],
 };
 
 // Recommended presets: which model to use per task type for each provider.
@@ -102,7 +115,12 @@ const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
 //   - Background Agent → autonomous checks, no need for flagship
 const FLAGSHIP_TASKS: Set<AITaskType> = new Set(['brainstorming', 'idea_analysis', 'card_agent', 'project_agent']);
 
-const RECOMMENDED_MODELS: Record<AIProviderName, { flagship: string; efficient: string }> = {
+type ModelPreset = { flagship: string; efficient: string };
+
+// `builtin` is deliberately absent: there is no fixed id to recommend, because the
+// only routable built-in models are the ones on this machine's disk. Its presets
+// are derived from the downloaded list in builtinPresets() below.
+const RECOMMENDED_MODELS: Record<Exclude<AIProviderName, 'builtin'>, ModelPreset> = {
   openai: { flagship: 'gpt-5.2', efficient: 'gpt-5-mini' },
   anthropic: { flagship: 'claude-opus-4-6', efficient: 'claude-sonnet-4-6' },
   // Auto-assign uses GA (non-preview) Gemini so it never routes to a preview
@@ -112,6 +130,62 @@ const RECOMMENDED_MODELS: Record<AIProviderName, { flagship: string; efficient: 
   ollama: { flagship: 'llama3.2', efficient: 'llama3.2' },
   lmstudio: { flagship: 'default', efficient: 'default' },
 };
+
+/** One downloaded GGUF served by the built-in runtime — the only routable kind. */
+interface BuiltinModelOption {
+  /** Runtime id from the shared `runtimeModelIdForUrl` helper, never re-derived here. */
+  id: string;
+  label: string;
+  role: ModelRole;
+  toolCalling: boolean;
+  sizeBytes: number;
+}
+
+/**
+ * Downloaded built-in GGUFs from a local-models view, in catalog order.
+ *
+ * Only files flagged `downloaded` are offered: an id the runtime cannot serve is
+ * not a routable choice. Ids and the tool-calling verdict come straight from the
+ * view (main derives them with the shared `runtimeModelIdForUrl`), so nothing is
+ * re-derived here. Pure and exported so auto-assign can run it against a freshly
+ * re-read view without duplicating the mapping.
+ */
+export function builtinOptionsFromView(view: LocalModelsView | null): BuiltinModelOption[] {
+  const options: BuiltinModelOption[] = [];
+  for (const status of view?.statuses ?? []) {
+    const model = view?.catalog?.models?.find((m) => m.id === status.modelId);
+    if (!model) continue;
+    for (const file of status.files) {
+      if (!file.downloaded) continue;
+      options.push({
+        id: file.runtimeModelId,
+        label:
+          model.role === 'chat'
+            ? `${model.displayName} — ${model.toolCalling ? 'tool calling' : 'no tool calling'}`
+            : model.displayName,
+        role: model.role,
+        toolCalling: model.toolCalling,
+        sizeBytes: file.sizeBytes,
+      });
+    }
+  }
+  return options;
+}
+
+/**
+ * Auto-assign presets for the built-in runtime, from what is actually downloaded.
+ * Tool-callers win regardless of size (the agents need them); within that group the
+ * largest is the flagship and the smallest the efficient pick. Returns null when
+ * nothing is downloaded — auto-assign then leaves the rows alone rather than
+ * writing an id that cannot be served.
+ */
+function builtinPresets(models: BuiltinModelOption[]): ModelPreset | null {
+  const chat = models.filter((m) => m.role === 'chat');
+  if (chat.length === 0) return null;
+  const pool = chat.some((m) => m.toolCalling) ? chat.filter((m) => m.toolCalling) : chat;
+  const bySize = [...pool].sort((a, b) => b.sizeBytes - a.sizeBytes);
+  return { flagship: bySize[0].id, efficient: bySize[bySize.length - 1].id };
+}
 
 /** Heuristic for spotting an embedding model id among a runtime's loaded models. */
 const EMBEDDING_MODEL_PATTERN = /text-embedding|embed|bge|nomic/i;
@@ -132,7 +206,10 @@ function getEmbeddingModelIds(loaded: string[]): string[] {
   return matches.length > 0 ? matches : loaded;
 }
 
-type LiveModels = { lmstudio?: string[]; ollama?: string[] };
+type LiveModels = { lmstudio?: string[]; ollama?: string[]; builtin?: string[] };
+
+/** Local runtimes whose embedding options come from a live model list. */
+const LIVE_LIST_PROVIDERS = new Set<AIProviderName>(['lmstudio', 'ollama', 'builtin']);
 
 /**
  * Derive the Embedding row's selector state: the dropdown options (live-loaded
@@ -149,7 +226,10 @@ function deriveEmbeddingRow(
   customOverride: boolean | undefined,
 ): { options: string[]; showDropdown: boolean } {
   if (!isEmbedding) return { options: [], showDropdown: false };
-  const loaded = providerName === 'lmstudio' || providerName === 'ollama' ? (liveModels[providerName] ?? []) : [];
+  const loaded =
+    providerName && LIVE_LIST_PROVIDERS.has(providerName)
+      ? (liveModels[providerName as 'lmstudio' | 'ollama' | 'builtin'] ?? [])
+      : [];
   const options = getEmbeddingModelIds(loaded);
   const custom = customOverride ?? (!!model && !options.includes(model));
   return { options, showDropdown: options.length > 0 && !custom };
@@ -175,7 +255,8 @@ function EmbeddingPrivacyHint({
         <Info size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
         <span>
           {providerName} is a cloud provider — your briefs, transcripts, and cards will be sent to it to be embedded for
-          semantic search. For fully-private semantic search, assign a local embedding model (LM Studio or Ollama).
+          semantic search. For fully-private semantic search, assign a local embedding model (the built-in runtime, LM
+          Studio or Ollama).
         </span>
       </p>
     );
@@ -188,6 +269,130 @@ function EmbeddingPrivacyHint({
         Recommended: a multilingual EmbeddingGemma-300M-class model (e.g. text-embedding-embeddinggemma-300m) for
         German/mixed meetings. Alternatives: bge-m3 (larger, higher quality) or nomic-embed-text-v1.5 (English-only).
         Enter the exact model id loaded in LM Studio.
+      </span>
+    </p>
+  );
+}
+
+interface ModelSelectorProps {
+  model: string;
+  /** Dropdown entries for the row's provider (built-in: downloaded files only). */
+  models: { id: string; label: string }[];
+  /** Live-loaded ids for the Embedding row, when its provider offers a list. */
+  embeddingOptions: string[];
+  showEmbeddingDropdown: boolean;
+  isOllama: boolean;
+  isEmbedding: boolean;
+  isBuiltin: boolean;
+  freeTextValue: string;
+  onModelChange: (value: string) => void;
+  onFreeTextChange: (value: string) => void;
+  onCustomMode: (on: boolean) => void;
+}
+
+/**
+ * The row's model control. Embedding + a live list → dropdown of loaded ids with a
+ * Custom… escape; Ollama / cloud-with-no-catalog → free text; built-in → a dropdown
+ * of downloaded files ONLY (no free-text escape: the runtime can serve nothing else,
+ * so a typed id would be a dead end); everything else → the KNOWN_MODELS dropdown.
+ */
+function ModelSelector({
+  model,
+  models,
+  embeddingOptions,
+  showEmbeddingDropdown,
+  isOllama,
+  isEmbedding,
+  isBuiltin,
+  freeTextValue,
+  onModelChange,
+  onFreeTextChange,
+  onCustomMode,
+}: ModelSelectorProps) {
+  if (showEmbeddingDropdown) {
+    return (
+      <HudSelect
+        value={model}
+        onChange={(v) => {
+          if (v === '__custom__') {
+            // Enter free-text mode; keep the current id as an editable seed.
+            onCustomMode(true);
+            return;
+          }
+          onCustomMode(false);
+          onModelChange(v);
+        }}
+        placeholder="Select model"
+        compact
+        options={[
+          { value: '', label: 'Select model' },
+          ...embeddingOptions.map((id) => ({ value: id, label: id })),
+          { value: '__custom__', label: 'Custom…' },
+        ]}
+      />
+    );
+  }
+  if (isBuiltin) {
+    return models.length === 0 ? (
+      <span className="text-xs text-[var(--color-text-muted)] w-36 break-words">No models downloaded yet</span>
+    ) : (
+      <HudSelect
+        value={model}
+        onChange={onModelChange}
+        placeholder="Select model"
+        compact
+        options={[{ value: '', label: 'Select model' }, ...models.map((m) => ({ value: m.id, label: m.label }))]}
+      />
+    );
+  }
+  if (isOllama || isEmbedding || models.length === 0) {
+    return (
+      <input
+        type="text"
+        value={freeTextValue}
+        onChange={(e) => onFreeTextChange(e.target.value)}
+        placeholder="Model name..."
+        className="text-xs bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] w-36 font-data"
+      />
+    );
+  }
+  return (
+    <HudSelect
+      value={model}
+      onChange={onModelChange}
+      placeholder="Select model"
+      compact
+      options={[{ value: '', label: 'Select model' }, ...models.map((m) => ({ value: m.id, label: m.label }))]}
+    />
+  );
+}
+
+/**
+ * Warning for a tool-dependent task pointed at a built-in model whose GGUF chat
+ * template has no tool section. Task 3 verified this per shipped file, not from the
+ * upstream model card — Mistral-7B advertises function calling its GGUF cannot do —
+ * so the check is a lookup, never an inference from the model's name.
+ */
+function BuiltinToolCallingWarning({
+  taskType,
+  providerName,
+  model,
+  builtinModels,
+}: {
+  taskType: AITaskType;
+  providerName: AIProviderName | null;
+  model: string;
+  builtinModels: BuiltinModelOption[];
+}) {
+  if (providerName !== 'builtin' || !TOOL_CALLING_TASKS.has(taskType) || !model) return null;
+  const chosen = builtinModels.find((m) => m.id === model);
+  if (!chosen || chosen.toolCalling) return null;
+  return (
+    <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-400">
+      <AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+      <span className="break-words">
+        This model cannot call tools, so it will chat here but never create, move or update cards. Pick one of the
+        built-in models badged “Tool calling” in Settings → Local AI if you want it to act.
       </span>
     </p>
   );
@@ -220,6 +425,9 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
+  // Explains an auto-assign that intentionally wrote nothing. Silence would read
+  // as a broken button.
+  const [autoAssignNote, setAutoAssignNote] = useState<string | null>(null);
 
   const enabledProviders = providers.filter((p) => p.enabled);
 
@@ -230,6 +438,18 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
   )
     .sort()
     .join(',');
+
+  // Downloaded built-in GGUFs — the only routable ones. Shared hook rather than a
+  // one-shot read: it re-reads the view whenever a download finishes, so a model
+  // pulled from the Local AI section (same Settings tab) becomes assignable here
+  // without a remount. `enabled: false` keeps it inert — zero IPC — when the
+  // built-in provider isn't switched on.
+  const builtinEnabled = enabledLocalKey.split(',').includes('builtin');
+  const { view: localModelsView, refresh: refreshLocalModels } = useLocalModels(builtinEnabled);
+  const builtinModels = useMemo(
+    () => (builtinEnabled ? builtinOptionsFromView(localModelsView) : []),
+    [builtinEnabled, localModelsView],
+  );
 
   // Load saved config when settings become available (after async loadSettings)
   useEffect(() => {
@@ -307,9 +527,13 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
     return p ? p.name : null;
   };
 
-  const getModelsForProvider = (providerId: string) => {
+  const getModelsForProvider = (providerId: string, type: AITaskType) => {
     const name = getProviderName(providerId);
     if (!name) return [];
+    if (name === 'builtin') {
+      const role: ModelRole = type === 'embedding' ? 'embedding' : 'chat';
+      return builtinModels.filter((m) => m.role === role).map((m) => ({ id: m.id, label: m.label }));
+    }
     return KNOWN_MODELS[name] || [];
   };
 
@@ -354,9 +578,25 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
     setSaved(false);
   };
 
-  const handleAutoAssign = (provider: AIProvider) => {
-    const presets = RECOMMENDED_MODELS[provider.name];
-    if (!presets) return;
+  /**
+   * Assign every task to `provider` using its presets.
+   *
+   * `available` is the built-in model list to assign from — passed in rather than
+   * read from state so the built-in path can act on a view re-read moments earlier
+   * (a model deleted since mount must not be assigned).
+   */
+  const applyAutoAssign = (provider: AIProvider, available: BuiltinModelOption[]) => {
+    // Built-in has no static preset: it can only recommend a model already on disk,
+    // and if none is downloaded there is nothing honest to assign.
+    const presets = provider.name === 'builtin' ? builtinPresets(available) : RECOMMENDED_MODELS[provider.name];
+    if (!presets) {
+      // Writing nothing is correct here, but silence reads as a dead button.
+      setAutoAssignNote(
+        'No built-in models are downloaded yet, so there was nothing to assign. Download one in Local AI above, then try again.',
+      );
+      return;
+    }
+    setAutoAssignNote(null);
     const auto: DraftConfig = {} as DraftConfig;
     for (const { type } of TASK_TYPE_INFO) {
       if (type === 'embedding') {
@@ -364,7 +604,14 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
         // model (or a sane default). For a CLOUD provider we deliberately leave the
         // user's existing choice untouched so bulk content is never silently routed
         // off-device (mirrors EmbeddingPrivacyHint's no-silent-cloud guarantee).
-        if (provider.name === 'lmstudio' || provider.name === 'ollama') {
+        if (provider.name === 'builtin') {
+          const downloaded = available.find((m) => m.role === 'embedding');
+          // No embedding GGUF downloaded → leave the row alone rather than writing
+          // an id the runtime cannot serve.
+          auto[type] = downloaded
+            ? { providerId: provider.id, model: downloaded.id }
+            : (draft[type] ?? { providerId: '', model: '' });
+        } else if (provider.name === 'lmstudio' || provider.name === 'ollama') {
           const loaded = liveModels[provider.name] ?? [];
           const model = loaded.find((id) => EMBEDDING_MODEL_PATTERN.test(id)) ?? DEFAULT_EMBEDDING_MODEL[provider.name];
           auto[type] = { providerId: provider.id, model };
@@ -383,6 +630,24 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
     setSaved(false);
   };
 
+  const handleAutoAssign = (provider: AIProvider) => {
+    if (provider.name !== 'builtin') {
+      applyAutoAssign(provider, builtinModels);
+      return;
+    }
+    // Read the view fresh before assigning. Finished downloads already refresh it,
+    // but a model DELETED since mount would otherwise still be assignable — and the
+    // runtime cannot serve a file that is gone. `local-models:view` is a pure read:
+    // it never starts the runtime or a transfer.
+    void (async () => {
+      const fresh = await window.electronAPI?.getLocalModelsView?.().catch(() => null);
+      // Fall back to the hook's list if the read fails, so the button still works.
+      applyAutoAssign(provider, fresh ? builtinOptionsFromView(fresh) : builtinModels);
+      // Keep the row dropdowns in step with what was just assigned.
+      void refreshLocalModels();
+    })();
+  };
+
   useImperativeHandle(ref, () => ({
     autoAssign: handleAutoAssign,
   }));
@@ -399,11 +664,12 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
     <div className="space-y-3">
       {TASK_TYPE_INFO.map(({ type, label, description }) => {
         const entry = draft[type] || { providerId: '', model: '' };
-        const models = getModelsForProvider(entry.providerId);
+        const models = getModelsForProvider(entry.providerId, type);
         const providerName = getProviderName(entry.providerId);
         const isOllama = providerName === 'ollama';
         const isEmbedding = type === 'embedding';
         const isLocalProvider = !!providerName && LOCAL_PROVIDERS.has(providerName);
+        const isBuiltin = providerName === 'builtin';
 
         // Embedding row only: offer a dropdown of the runtime's live-loaded models
         // when the provider is local and any are reachable; otherwise (or in Custom…
@@ -412,7 +678,7 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
           isEmbedding,
           providerName,
           entry.model,
-          liveModels,
+          { ...liveModels, builtin: builtinModels.filter((m) => m.role === 'embedding').map((m) => m.id) },
           customMode[type],
         );
 
@@ -436,53 +702,24 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
                   ]}
                 />
 
-                {/* Model selector. Embedding + local + live models → dropdown of loaded
-                    ids (with a Custom… escape); Ollama/custom/embedding-fallback →
-                    free text; everything else → the KNOWN_MODELS dropdown. */}
-                {entry.providerId &&
-                  (showEmbeddingDropdown ? (
-                    <HudSelect
-                      value={entry.model}
-                      onChange={(v) => {
-                        if (v === '__custom__') {
-                          // Enter free-text mode; keep the current id as an editable seed.
-                          setCustomMode((prev) => ({ ...prev, [type]: true }));
-                          return;
-                        }
-                        setCustomMode((prev) => ({ ...prev, [type]: false }));
-                        updateDraft(type, 'model', v);
-                      }}
-                      placeholder="Select model"
-                      compact
-                      options={[
-                        { value: '', label: 'Select model' },
-                        ...embeddingOptions.map((id) => ({ value: id, label: id })),
-                        { value: '__custom__', label: 'Custom…' },
-                      ]}
-                    />
-                  ) : isOllama || isEmbedding || models.length === 0 ? (
-                    <input
-                      type="text"
-                      value={entry.model || customModel[type] || ''}
-                      onChange={(e) => {
-                        setCustomModel((prev) => ({ ...prev, [type]: e.target.value }));
-                        updateDraft(type, 'model', e.target.value);
-                      }}
-                      placeholder="Model name..."
-                      className="text-xs bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded px-2 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] w-36 font-data"
-                    />
-                  ) : (
-                    <HudSelect
-                      value={entry.model}
-                      onChange={(v) => updateDraft(type, 'model', v)}
-                      placeholder="Select model"
-                      compact
-                      options={[
-                        { value: '', label: 'Select model' },
-                        ...models.map((m) => ({ value: m.id, label: m.label })),
-                      ]}
-                    />
-                  ))}
+                {entry.providerId && (
+                  <ModelSelector
+                    model={entry.model}
+                    models={models}
+                    embeddingOptions={embeddingOptions}
+                    showEmbeddingDropdown={showEmbeddingDropdown}
+                    isOllama={isOllama}
+                    isEmbedding={isEmbedding}
+                    isBuiltin={isBuiltin}
+                    freeTextValue={entry.model || customModel[type] || ''}
+                    onModelChange={(v) => updateDraft(type, 'model', v)}
+                    onFreeTextChange={(v) => {
+                      setCustomModel((prev) => ({ ...prev, [type]: v }));
+                      updateDraft(type, 'model', v);
+                    }}
+                    onCustomMode={(on) => setCustomMode((prev) => ({ ...prev, [type]: on }))}
+                  />
+                )}
               </div>
             </div>
 
@@ -491,11 +728,20 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
               <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-400">
                 <Info size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
                 <span>
-                  Transcripts go to whichever provider you pick. For fully-private meetings use LM Studio or Ollama —
-                  recommended: Qwen3 14B (or 8B for faster replies).
+                  Transcripts go to whichever provider you pick. For fully-private meetings use the built-in runtime, LM
+                  Studio or Ollama — recommended: Qwen3 14B (or a 4B/8B model for faster replies).
                 </span>
               </p>
             )}
+
+            {/* Built-in models differ in whether their GGUF can call tools at all —
+                surface that where the routing decision is actually made. */}
+            <BuiltinToolCallingWarning
+              taskType={type}
+              providerName={providerName}
+              model={entry.model}
+              builtinModels={builtinModels}
+            />
 
             {/* Embedding privacy hint — provider-aware (mirrors the live_assistant
                 gate). Extracted so the on-device reassurance never renders for a
@@ -504,6 +750,17 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
           </div>
         );
       })}
+
+      {/* Why an auto-assign wrote nothing. Without this the button looks broken. */}
+      {autoAssignNote && (
+        <p
+          role="status"
+          className="flex items-start gap-1.5 pt-2 text-[0.6875rem] text-amber-400 overflow-hidden break-words"
+        >
+          <AlertTriangle size={12} className="mt-px shrink-0" aria-hidden="true" />
+          <span className="break-words">{autoAssignNote}</span>
+        </p>
+      )}
 
       {/* Save / Reset buttons */}
       <div className="flex items-center gap-2 pt-2">

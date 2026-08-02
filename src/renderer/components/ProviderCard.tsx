@@ -20,6 +20,7 @@ export const PROVIDER_META: Record<AIProviderName, { label: string; color: strin
   ollama: { label: 'Ollama', color: '#ffffff', privacy: 'local' },
   lmstudio: { label: 'LM Studio', color: '#a855f7', privacy: 'local' },
   kimi: { label: 'Kimi', color: '#6366f1', privacy: 'cloud' },
+  builtin: { label: 'Built-in AI', color: '#22c55e', privacy: 'local' },
 };
 
 /** Small badge signaling whether a provider processes data locally or in the cloud. */

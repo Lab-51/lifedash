@@ -2,7 +2,15 @@
 
 import type { AIProviderName } from '../../../shared/types';
 
-export type WizardStep = 'welcome' | 'have-key' | 'pick-provider' | 'tutorial' | 'configure' | 'test' | 'done';
+export type WizardStep =
+  | 'welcome'
+  | 'have-key'
+  | 'pick-provider'
+  | 'tutorial'
+  | 'local-builtin'
+  | 'configure'
+  | 'test'
+  | 'done';
 
 export interface ProviderOption {
   value: AIProviderName;
@@ -24,6 +32,9 @@ export const STEP_LABELS: Record<WizardStep, string> = {
   'have-key': 'Provider',
   'pick-provider': 'Provider',
   tutorial: 'Provider',
+  // The built-in path has no credentials to configure — it takes the second
+  // position and StepIndicator swaps in this label there.
+  'local-builtin': 'Model',
   configure: 'Configure',
   test: 'Test',
   done: 'Done',

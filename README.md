@@ -7,10 +7,10 @@
 **Your meetings. Your data. Your machine.**
 
 Source-available meeting intelligence with a **learning digital twin** — running entirely on your desktop. Free for personal and noncommercial use; commercial use requires a license.
-Record a meeting and the app *becomes* that session: a profiled AI assistant works alongside you, everything said turns into a living, searchable knowledge graph, and nothing ever leaves your computer.
+Record a meeting and the app _becomes_ that session: a profiled AI assistant works alongside you, everything said turns into a living, searchable knowledge graph, and nothing ever leaves your computer.
 
 [![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Lab-51/lifedash/releases/latest)
-[![Install on macOS (Beta)](https://img.shields.io/badge/Install-macOS%20(Beta)-000000?style=for-the-badge&logo=apple&logoColor=white)](#macos)
+[![Install on macOS (Beta)](<https://img.shields.io/badge/Install-macOS%20(Beta)-000000?style=for-the-badge&logo=apple&logoColor=white>)](#macos)
 
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm--Noncommercial-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/Lab-51/lifedash?style=social)](https://github.com/Lab-51/lifedash)
@@ -30,7 +30,7 @@ Record a meeting and the app *becomes* that session: a profiled AI assistant wor
 
 LifeDash records your meetings, transcribes them locally with Whisper, and generates briefs and action items — all offline, no accounts. But it goes further than a transcriber: **the recording session is the center of the app.**
 
-A **Digital Twin** — built from a profile of your work and continuously learning from every session — works visibly alongside you during a meeting, answering questions and proposing and creating cards on a built-in Kanban board. Everything it hears builds a **living, queryable brain** (sessions → projects → cards → decisions → people) that you can watch grow as a mind map and search in plain language — *"what did we decide about pricing?"* — **answered, with citations, from your own past meetings.**
+A **Digital Twin** — built from a profile of your work and continuously learning from every session — works visibly alongside you during a meeting, answering questions and proposing and creating cards on a built-in Kanban board. Everything it hears builds a **living, queryable brain** (sessions → projects → cards → decisions → people) that you can watch grow as a mind map and search in plain language — _"what did we decide about pricing?"_ — **answered, with citations, from your own past meetings.**
 
 Connect your **Google or Outlook calendar** and your week is right there: click an upcoming meeting to see who's coming, what was decided last time, and which action items are still open — then start recording it in one click.
 
@@ -38,29 +38,29 @@ All of it runs **100% locally by default** — audio, transcription, reasoning, 
 
 ### Platform Support
 
-| Platform | Status |
-|----------|--------|
-| Windows 10+ | Available. [Download the installer](https://github.com/Lab-51/lifedash/releases/latest) |
+| Platform               | Status                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| Windows 10+            | Available. [Download the installer](https://github.com/Lab-51/lifedash/releases/latest)     |
 | macOS 12.3+ (Monterey) | Beta. `brew tap lab-51/lifedash && brew install --cask lifedash` ([manual install](#macos)) |
-| Linux | [Planned](https://github.com/Lab-51/lifedash/issues/2). Contributions welcome |
+| Linux                  | [Planned](https://github.com/Lab-51/lifedash/issues/2). Contributions welcome               |
 
 ## Why LifeDash?
 
-| Feature | LifeDash | Otter.ai | Fireflies | Fathom |
-|---------|:--------:|:--------:|:---------:|:------:|
-| Local processing | Yes | No | No | No |
-| Data leaves your machine | Never | Always | Always | Always |
-| Works offline | Yes | No | No | No |
-| Meeting transcription | Yes | Yes | Yes | Yes |
-| AI briefs & summaries | Yes | Yes | Yes | Yes |
-| Action item extraction | Yes | Yes | Yes | Yes |
-| Project management | Yes | No | No | No |
-| Calendar integration | Yes | Yes | Yes | Yes |
-| Learning digital-twin assistant | Yes | No | No | No |
-| Ask your own meetings (cited, local) | Yes | No | No | No |
-| Bring your own AI key | Yes | No | No | No |
-| Source code you can inspect | Yes | No | No | No |
-| **Price** | **Free for personal use** | **$204/yr** | **$216/yr** | **$384/yr** |
+| Feature                              |         LifeDash          |  Otter.ai   |  Fireflies  |   Fathom    |
+| ------------------------------------ | :-----------------------: | :---------: | :---------: | :---------: |
+| Local processing                     |            Yes            |     No      |     No      |     No      |
+| Data leaves your machine             |           Never           |   Always    |   Always    |   Always    |
+| Works offline                        |            Yes            |     No      |     No      |     No      |
+| Meeting transcription                |            Yes            |     Yes     |     Yes     |     Yes     |
+| AI briefs & summaries                |            Yes            |     Yes     |     Yes     |     Yes     |
+| Action item extraction               |            Yes            |     Yes     |     Yes     |     Yes     |
+| Project management                   |            Yes            |     No      |     No      |     No      |
+| Calendar integration                 |            Yes            |     Yes     |     Yes     |     Yes     |
+| Learning digital-twin assistant      |            Yes            |     No      |     No      |     No      |
+| Ask your own meetings (cited, local) |            Yes            |     No      |     No      |     No      |
+| Bring your own AI key                |            Yes            |     No      |     No      |     No      |
+| Source code you can inspect          |            Yes            |     No      |     No      |     No      |
+| **Price**                            | **Free for personal use** | **$204/yr** | **$216/yr** | **$384/yr** |
 
 ## Download
 
@@ -71,7 +71,8 @@ All of it runs **100% locally by default** — audio, transcription, reasoning, 
 1. Go to the [latest release](https://github.com/Lab-51/lifedash/releases/latest)
 2. Download `LifeDash-X.X.X-Setup.exe`
 3. Run the installer
-4. Open LifeDash, add your AI API key (or point it at a local model) in the setup wizard, and start recording
+4. Open LifeDash and pick **"Private — AI runs on this computer"** in the setup wizard — see [Setting up AI](#setting-up-ai) below
+5. Start recording
 
 ### macOS
 
@@ -95,21 +96,63 @@ brew tap lab-51/lifedash && brew install --cask lifedash
 
 > The app uses an embedded database and runs fully offline. No accounts, no cloud, nothing to configure beyond the installer.
 
+## Setting up AI
+
+The setup wizard's first question is where your AI should run. The recommended
+answer — **"Private — AI runs on this computer"** — needs no key, no account, and
+nothing installed alongside LifeDash.
+
+### Built in (recommended)
+
+LifeDash ships a local AI runtime ([llama.cpp](https://github.com/ggml-org/llama.cpp),
+GPU-accelerated: Vulkan on Windows for NVIDIA/AMD/Intel, Metal on Apple Silicon,
+with a CPU fallback). You pick a model from a built-in catalog and LifeDash
+downloads it — resumable, checksum-verified — straight from Hugging Face.
+
+- **Start here if you're unsure:** _Qwen3 4B_ (~2.5 GB, 8 GB RAM). It's the smallest
+  model that can also _act_ — moving cards, creating tasks — not just answer.
+- Bigger machine? _Qwen3 14B_ and _Mistral Small 24B_ are in the same list.
+- Semantic search additionally uses a small embedding model (~0.3 GB) that the
+  wizard sets up for you in the same step.
+- Models are plain `.gguf` files under your app data folder. Delete one from
+  **Settings → AI & Models → Local AI** and the disk space comes straight back.
+
+Nothing runs until you use it: the runtime starts on demand, shows up as a status
+card you can stop by hand, and shuts itself down after 15 idle minutes. Installing
+LifeDash never starts a model.
+
+### Alternatives (power users)
+
+Prefer to manage models yourself, or already have a server running? All of these
+are still first-class, configured per task under **Settings → AI & Models**:
+
+| Option                                           | When it makes sense                                                               |
+| ------------------------------------------------ | --------------------------------------------------------------------------------- |
+| **LM Studio**                                    | You already curate models there, or want one server shared across apps            |
+| **Ollama**                                       | You prefer its CLI/model management                                               |
+| **Cloud keys** (OpenAI, Anthropic, Gemini, Kimi) | You want frontier-model quality and accept that those requests leave your machine |
+
+Cloud is never a default and never silent: it's a per-task, clearly-labeled choice,
+and LifeDash warns before sending bulk content anywhere.
+
 ## Features
 
 ### The Session Workspace
+
 - The recording session is home — **Transcript · Board · Brain** on one switchable canvas
 - A live rail for the brief, action items, twin proposals, and a session activity feed
 - The relevant Kanban board is embedded right in the session — cards appear and move live as they're created, without leaving the conversation
 - Post-meeting, each session is its own full page you can revisit, search, and continue working from
 
 ### The Digital Twin
+
 - Author a profile of the professional you are — through a guided wizard (fully manual, or with an optional local-AI "Interview me" draft you always review), from a short brief, or mined from your own meeting history with explicit per-run consent
 - Once authored, the Twin is woven into the **live assistant, live triage, and briefs** — so they speak your vocabulary, track your projects and people, and match your tone, within a strict budget that never crowds out the meeting
 - **It learns from every finished session** — distilling a few durable facts (people, projects, preferences, commitments) into an **auditable memory**: every fact links to the session it came from, one tap forgets it for good, and a single switch pauses all learning
 - Optional cited web research and deep, orchestrated profile creation on a frontier provider — nothing is saved until you confirm
 
 ### Your Calendar, In the App
+
 - Connect **Google Calendar** and/or **Microsoft Outlook** — read-only, and you pick exactly which calendars sync
 - Your week is always on the home screen, in the shape you prefer: a **day-grouped list**, a **week board**, or an **Outlook-style hour timeline** (your choice is remembered)
 - A ribbon surfaces the meeting that's about to start, with **one-click recording** that prefills the title and project — nothing is ever recorded automatically
@@ -119,6 +162,7 @@ brew tap lab-51/lifedash && brew install --cask lifedash
 - Calendar data is stored **locally only** — titles, times, attendees, and descriptions live on your machine and are never synced anywhere
 
 ### Meeting Intelligence
+
 - Record system audio + microphone
 - Real-time transcription (local Whisper or cloud providers)
 - AI-generated meeting briefs and summaries
@@ -129,31 +173,36 @@ brew tap lab-51/lifedash && brew install --cask lifedash
 - **Inactivity auto-stop** — if a recording is left running in silence, you get a warning and a countdown before it stops itself cleanly (on by default, configurable)
 
 ### The Living Brain
+
 - A collapsible **mind map** of your workspace — or a single session — rendered from your own local data, organized into **Projects · People · Topics**
 - It **grows live** during a meeting: new cards fade in, with a badge on collapsed branches so nothing is missed
 - Hover any card, decision, or question to trace its provenance back to the session it came from
 - **People and topics carry fact profiles** — durable facts the Twin learned about them, each showing which session it came from, with one-tap forget. Backfill any person or topic from your past meetings on demand — never automatically
 
 ### Search That Understands Meaning
+
 - Full-text search across sessions, transcripts, briefs, cards, and projects — grouped, ranked, one click to jump in
 - **Semantic search:** a paraphrase finds the right session even when the words don't match
 - **Ask:** get a short, cited answer drawn straight from your own sessions — and an honest "I don't find that in your sessions" instead of a guess
 - **Local-first:** the index is built on-device by default; choosing a cloud embedding model warns you, at that moment, that your content would be sent — it never happens silently
 
 ### Project Board
+
 - Turn action items into Kanban cards, seen through the sessions that created them
 - Drag-and-drop cards with customizable columns
 - Card detail view with rich text, comments, checklists, due dates, labels, and tags
 - **Card & Project Agents** (tool-calling AI per card/board) and **background agents** for autonomous stale-card detection and project insights
 
 ### Intel Feed
+
 - A built-in RSS reader for the sources you follow, with a distraction-free article view
 - **AI daily and weekly briefs** over what came in, plus on-demand summaries of any single article
 - Automatic categorization, bookmarking, and full-text search across everything you've collected
 
 ### Privacy by Design
+
 - All data stored locally in embedded PostgreSQL (PGlite); audio recordings and calendar data stay on your machine
-- Local reasoning (LM Studio / Ollama) and **local embeddings** by default — cloud is a per-task, visible opt-in that warns before sending bulk content
+- **Local reasoning and local embeddings out of the box** — a built-in llama.cpp runtime, no second app to install and no API key; LM Studio and Ollama remain supported. Cloud is a per-task, visible opt-in that warns before sending bulk content
 - AI uses YOUR API keys. We never see your data
 - Optional cloud sync (Supabase) — off by default, fully opt-in
 - Encrypted API key storage via OS keychain
@@ -161,6 +210,7 @@ brew tap lab-51/lifedash && brew install --cask lifedash
 - Source available. Read the code yourself
 
 ### Built to Last
+
 - **Crash recovery** — The app takes periodic snapshots of your work. If it shuts down unexpectedly, you get a recovery dialog on next launch to restore exactly where you left off
 - **Database integrity checks** — Every startup verifies your data is intact across all tables, with automatic retry if the database is slow to connect
 - **Atomic backup/restore** — Restores run inside a database transaction. If anything goes wrong mid-restore, the whole thing rolls back and your original data stays untouched
@@ -195,10 +245,24 @@ npm start
 
 No database setup. The app uses PGlite (embedded PostgreSQL) and runs migrations on first launch.
 
+The built-in AI runtime is **not** fetched by `npm start` — packaging pulls it in
+automatically, and in dev you get it on demand:
+
+```bash
+npm run fetch:llama   # downloads the pinned llama.cpp release into resources/llama/
+```
+
+That script downloads only a pinned llama.cpp tag, verifies each archive against a
+recorded sha256 before staging it, and caches the archives under `.cache/llama-bin/`
+so later builds are offline-friendly. Both directories are gitignored — binaries are
+never committed. `npm run package` / `npm run make` run it for you via a forge
+`prePackage` hook, so CI needs no extra step.
+
 ### Configuration
 
+- **Local AI (default):** Nothing to configure — the packaged app ships the llama.cpp runtime and downloads models on request. See [Setting up AI](#setting-up-ai).
 - **AI API keys:** Set them in the Settings page. Keys are stored using OS-level encryption via Electron safeStorage.
-- **Local models:** Point any task at LM Studio or Ollama for fully-private reasoning. Semantic search needs a local embedding model (e.g. a multilingual EmbeddingGemma-300M-class model in LM Studio) assigned to the Embedding task.
+- **Local models via LM Studio / Ollama:** Still supported for anyone who'd rather manage models themselves — point any task at them under Settings → AI & Models. Semantic search then needs a local embedding model (e.g. a multilingual EmbeddingGemma-300M-class model) assigned to the Embedding task.
 - **Whisper model:** Download and manage local Whisper models from Settings.
 - **Transcription providers:** Deepgram and AssemblyAI can be configured as cloud alternatives to local Whisper.
 - **Calendar:** Connect Google and/or Microsoft from Settings > Calendar, then choose which calendars sync. Tokens are encrypted on-device. Forks and self-hosters can supply their own OAuth client credentials under "Advanced".
@@ -207,52 +271,54 @@ No database setup. The app uses PGlite (embedded PostgreSQL) and runs migrations
 
 ### Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
+| Problem                                    | Solution                                                                                                          |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | `npm install` fails with `node-gyp` errors | Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with C++ workload |
-| `npm install` fails with Python errors | Install Python 3.x and set `npm config set python python3` |
-| App shows white screen on start | Run `npm run lint` to check for TypeScript errors |
+| `npm install` fails with Python errors     | Install Python 3.x and set `npm config set python python3`                                                        |
+| App shows white screen on start            | Run `npm run lint` to check for TypeScript errors                                                                 |
 
 ### Available Scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm start` | Launch in dev mode |
-| `npm run package` | Package for distribution |
-| `npm run make` | Build platform installers |
-| `npm run lint` | Type-check with TypeScript |
-| `npm test` | Run tests |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run db:generate` | Generate migration files |
-| `npm run db:migrate` | Apply migrations |
-| `npm run db:studio` | Open Drizzle Studio (database GUI) |
+| Script                | Description                                                             |
+| --------------------- | ----------------------------------------------------------------------- |
+| `npm start`           | Launch in dev mode                                                      |
+| `npm run fetch:llama` | Download + verify the pinned llama.cpp binaries into `resources/llama/` |
+| `npm run package`     | Package for distribution                                                |
+| `npm run make`        | Build platform installers                                               |
+| `npm run lint`        | Type-check with TypeScript                                              |
+| `npm test`            | Run tests                                                               |
+| `npm run test:watch`  | Run tests in watch mode                                                 |
+| `npm run db:generate` | Generate migration files                                                |
+| `npm run db:migrate`  | Apply migrations                                                        |
+| `npm run db:studio`   | Open Drizzle Studio (database GUI)                                      |
 
 ## Tech Stack
 
-| Category | Technology |
-|----------|-----------|
-| Runtime | Electron |
-| Frontend | React 19 + TypeScript |
-| Styling | Tailwind CSS 4 |
-| Database | PGlite (embedded WASM PostgreSQL) + pgvector |
-| ORM | Drizzle ORM |
-| AI SDK | Vercel AI SDK |
-| AI Providers | OpenAI, Anthropic, Google (Gemini), LM Studio, Ollama, Kimi |
-| Calendar | Google Calendar + Microsoft Graph (read-only, OAuth 2.0 + PKCE) |
-| Embeddings | Local by default (LM Studio) — on-device semantic index |
-| Semantic search | pgvector (HNSW) + Postgres full-text, hybrid RRF fusion |
-| Transcription Providers | Deepgram, AssemblyAI |
-| Transcription | @fugood/whisper.node (local) |
-| Brain / mind map | d3-hierarchy + d3-zoom (event-driven SVG) |
-| Drag and Drop | @atlaskit/pragmatic-drag-and-drop |
-| State | Zustand |
-| Rich Text | TipTap |
-| Animation | Framer Motion |
-| Icons | Lucide React |
-| Routing | React Router |
-| Build | Vite |
-| Cloud Sync | Supabase (optional) |
-| Testing | Vitest |
+| Category                | Technology                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| Runtime                 | Electron                                                                      |
+| Frontend                | React 19 + TypeScript                                                         |
+| Styling                 | Tailwind CSS 4                                                                |
+| Database                | PGlite (embedded WASM PostgreSQL) + pgvector                                  |
+| ORM                     | Drizzle ORM                                                                   |
+| AI SDK                  | Vercel AI SDK                                                                 |
+| Local AI runtime        | Bundled llama.cpp (`llama-server`) — Vulkan / Metal / CPU                     |
+| AI Providers            | Built-in (local), OpenAI, Anthropic, Google (Gemini), LM Studio, Ollama, Kimi |
+| Calendar                | Google Calendar + Microsoft Graph (read-only, OAuth 2.0 + PKCE)               |
+| Embeddings              | Local by default (built-in runtime or LM Studio) — on-device semantic index   |
+| Semantic search         | pgvector (HNSW) + Postgres full-text, hybrid RRF fusion                       |
+| Transcription Providers | Deepgram, AssemblyAI                                                          |
+| Transcription           | @fugood/whisper.node (local)                                                  |
+| Brain / mind map        | d3-hierarchy + d3-zoom (event-driven SVG)                                     |
+| Drag and Drop           | @atlaskit/pragmatic-drag-and-drop                                             |
+| State                   | Zustand                                                                       |
+| Rich Text               | TipTap                                                                        |
+| Animation               | Framer Motion                                                                 |
+| Icons                   | Lucide React                                                                  |
+| Routing                 | React Router                                                                  |
+| Build                   | Vite                                                                          |
+| Cloud Sync              | Supabase (optional)                                                           |
+| Testing                 | Vitest                                                                        |
 
 ## Project Structure
 
@@ -283,3 +349,5 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 LifeDash is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE): **free for personal and noncommercial use** — individuals, hobby projects, charities, educational and government institutions. **Any commercial use requires a commercial license from the author** — whether that's buying a license or simply asking, get in touch: riegerdaniel@ymail.com.
 
 Releases up to and including v2.5.0 were published under AGPL-3.0 and remain available under that license.
+
+LifeDash redistributes third-party binaries — llama.cpp and whisper.cpp bindings, both MIT — under their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); a copy ships inside every build.

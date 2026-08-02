@@ -25,6 +25,7 @@ import { getDb } from '../db/connection';
 import { aiUsage, aiProviders, settings } from '../db/schema';
 import { decryptString } from './secure-storage';
 import { createLogger } from './logger';
+import { ensureRunning, touch as touchBuiltinRuntime, type LlamaRole } from './llamaRuntimeService';
 import type { AIProviderName, AITaskType, TaskModelConfig } from '../../shared/types';
 
 const log = createLogger('AI');
@@ -38,6 +39,7 @@ const TEST_MODELS: Record<AIProviderName, string> = {
   ollama: 'llama3.2',
   kimi: 'kimi-k2.5',
   lmstudio: 'default',
+  builtin: 'default',
 };
 
 // Pricing per token (USD). Prices sourced from provider pricing pages (Feb 2026).
@@ -68,6 +70,16 @@ const MODEL_PRICING: Record<string, TokenPricing> = {
   // Kimi (Moonshot)
   'kimi-k2.5': { input: 1.0 / 1e6, output: 4.0 / 1e6 },
   'kimi-k2.5-preview': { input: 1.0 / 1e6, output: 4.0 / 1e6 },
+};
+
+/** Recovery hint shown when a local runtime rejects an oversized request (HTTP 400). */
+const LOCAL_CONTEXT_HINTS: Partial<Record<AIProviderName, string>> = {
+  lmstudio:
+    'Try increasing the context length in LM Studio (model settings → Context Length / n_ctx), or use fewer input items.',
+  ollama:
+    'Try increasing the context length in Ollama (model settings → Context Length / n_ctx), or use fewer input items.',
+  builtin:
+    'The built-in runtime caps context to leave GPU memory for transcription — use fewer input items, or pick a model with a larger context.',
 };
 
 /** Estimate cost in USD from token counts and model ID. Returns 0 for unknown/local models. */
@@ -124,6 +136,96 @@ function createGoogleFactory(apiKey?: string, baseUrl?: string): ProviderFactory
   return createGoogleGenerativeAI(options) as unknown as ProviderFactory;
 }
 
+// ---------------------------------------------------------------------------
+// Built-in provider (bundled llama.cpp sidecar)
+// ---------------------------------------------------------------------------
+// The `builtin` provider reuses the SAME OpenAI-compatible AI SDK client as
+// LM Studio and Kimi. The only difference is that its base URL and bearer token
+// cannot be known when the client is constructed — the sidecar uses a dynamically
+// probed port and a per-spawn API key, and it must not be running at all until a
+// request actually needs it. Both are therefore resolved inside a custom `fetch`
+// (an option @ai-sdk/openai already supports), which also performs the lazy start.
+// This keeps chat, streaming, tool calling, usage logging and embeddings on the
+// single proven SDK path — there is no second HTTP client for llama-server.
+
+/** Stand-in base URL. Replaced per request with the live sidecar origin; the
+ *  `ai_providers.baseUrl` column is deliberately never used for `builtin`. */
+const BUILTIN_PLACEHOLDER_BASE_URL = 'http://127.0.0.1:1/v1';
+/** The SDK requires a key; the real per-spawn token is injected by builtinFetch. */
+const BUILTIN_PLACEHOLDER_API_KEY = 'builtin';
+/** "Whatever built-in model suits this role" — mirrors LM Studio's `default`. */
+const BUILTIN_DEFAULT_MODEL = 'default';
+
+/** Normalize the SDK's fetch arguments. `@ai-sdk/provider-utils` always calls
+ *  `fetch(urlString, init)`; the Request form is accepted defensively (it would
+ *  fail loudly at the server rather than silently mis-send). */
+function splitFetchArgs(input: RequestInfo | URL, init?: RequestInit): { url: string; init: RequestInit } {
+  if (typeof input === 'string') return { url: input, init: init ?? {} };
+  if (input instanceof URL) return { url: input.href, init: init ?? {} };
+  return { url: input.url, init: init ?? { method: input.method, headers: input.headers } };
+}
+
+/** Point the outgoing `model` field at the model actually loaded. Needed only for
+ *  the `default` sentinel: llama-server echoes the REQUESTED id back verbatim
+ *  (verified), so leaving `default` in place would record it as the embedding
+ *  index's provenance instead of the real model. */
+function retargetModelField(body: BodyInit | null | undefined, loadedModelId: string): BodyInit | null | undefined {
+  if (typeof body !== 'string') return body;
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    if (typeof parsed.model !== 'string') return body;
+    return JSON.stringify({ ...parsed, model: loadedModelId });
+  } catch {
+    return body;
+  }
+}
+
+/** Count every streamed chunk as activity so the sidecar's idle auto-stop can
+ *  never terminate a long generation that is still producing tokens. */
+function keepAliveWhileStreaming(role: LlamaRole, response: Response): Response {
+  const isEventStream = response.headers.get('content-type')?.includes('text/event-stream');
+  if (!isEventStream || !response.body) return response;
+  const tap = new TransformStream({
+    transform(chunk, controller) {
+      touchBuiltinRuntime(role);
+      controller.enqueue(chunk);
+    },
+  });
+  return new Response(response.body.pipeThrough(tap), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+/**
+ * Custom fetch for the built-in sidecar: lazily starts the right process, rewrites
+ * the placeholder origin to the live one, and injects the per-spawn bearer token.
+ */
+function builtinFetch(role: LlamaRole, modelId: string): typeof globalThis.fetch {
+  const requestedModel = modelId === BUILTIN_DEFAULT_MODEL ? undefined : modelId;
+  return async (input: RequestInfo | URL, rawInit?: RequestInit): Promise<Response> => {
+    const endpoint = await ensureRunning(role, requestedModel);
+    const { url, init } = splitFetchArgs(input, rawInit);
+    const requested = new URL(url);
+    const target = new URL(requested.pathname + requested.search, new URL(endpoint.baseUrl).origin);
+    const headers = new Headers(init.headers);
+    headers.set('authorization', `Bearer ${endpoint.apiKey}`);
+    const body = requestedModel ? init.body : retargetModelField(init.body, endpoint.modelId);
+    const response = await fetch(target, { ...init, headers, body });
+    return keepAliveWhileStreaming(role, response);
+  };
+}
+
+/** OpenAI-compatible client bound to the built-in sidecar for one model id. */
+function createBuiltinClient(role: LlamaRole, modelId: string) {
+  return createOpenAI({
+    apiKey: BUILTIN_PLACEHOLDER_API_KEY,
+    baseURL: BUILTIN_PLACEHOLDER_BASE_URL,
+    fetch: builtinFetch(role, modelId),
+  });
+}
+
 function createFactory(name: AIProviderName, apiKey?: string, baseUrl?: string): ProviderFactory {
   // Each SDK provider is a callable object that returns its own LanguageModel version.
   // OpenAI/Anthropic return LanguageModelV3, Ollama returns LanguageModelV1.
@@ -158,6 +260,10 @@ function createFactory(name: AIProviderName, apiKey?: string, baseUrl?: string):
       });
       return ((modelId: string) => lms.chat(modelId)) as unknown as ProviderFactory;
     }
+    case 'builtin':
+      // Bundled llama.cpp sidecar — same .chat() shape as LM Studio/Kimi. The DB
+      // row's baseUrl is ignored on purpose: the sidecar's port is dynamic.
+      return ((modelId: string) => createBuiltinClient('chat', modelId).chat(modelId)) as unknown as ProviderFactory;
     default:
       throw new Error(`Unknown AI provider: ${name}`);
   }
@@ -231,6 +337,13 @@ export async function testConnection(
     // The static TEST_MODELS entry ('default') isn't a real model — we need to
     // query /v1/models to find what's loaded.
     let testModelId = TEST_MODELS[name];
+    if (name === 'builtin') {
+      // Start the sidecar up front so a missing binary or an empty model folder
+      // surfaces as its own actionable message instead of a generic connection
+      // failure, and so the test request carries the real model id.
+      const endpoint = await ensureRunning('chat');
+      testModelId = endpoint.modelId;
+    }
     if (name === 'lmstudio') {
       let lmsUrl = baseUrl || 'http://localhost:1234/v1';
       if (!lmsUrl.endsWith('/v1')) lmsUrl = lmsUrl.replace(/\/+$/, '') + '/v1';
@@ -298,15 +411,11 @@ export async function generate(options: {
     });
   } catch (err: unknown) {
     // Re-throw with user-friendly message for local model context overflow
-    if (options.providerName === 'lmstudio' || options.providerName === 'ollama') {
+    const contextHint = LOCAL_CONTEXT_HINTS[options.providerName];
+    if (contextHint) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('400') || msg.toLowerCase().includes('bad request')) {
-        throw new Error(
-          `Request too large for the local model. ` +
-            `Try increasing the context length in ${options.providerName === 'lmstudio' ? 'LM Studio' : 'Ollama'} ` +
-            `(model settings → Context Length / n_ctx), or use fewer input items.`,
-          { cause: err },
-        );
+        throw new Error(`Request too large for the local model. ${contextHint}`, { cause: err });
       }
     }
     throw err;
@@ -376,6 +485,7 @@ const DEFAULT_MODELS: Record<AIProviderName, string> = {
   ollama: 'llama3.2',
   kimi: 'kimi-k2.5',
   lmstudio: 'default',
+  builtin: 'default',
 };
 
 /**
@@ -596,6 +706,10 @@ function createEmbeddingModel(
       return openAICompatEmbeddingModel(modelId, key, baseUrl ?? 'https://api.moonshot.ai/v1');
     case 'lmstudio':
       return openAICompatEmbeddingModel(modelId, 'lm-studio', normalizeLmStudioUrl(baseUrl));
+    case 'builtin':
+      // Separate sidecar process from chat: llama-server gates /v1/embeddings behind
+      // its --embeddings startup flag, so the two roles cannot share one process.
+      return createBuiltinClient('embedding', modelId).textEmbeddingModel(modelId) as unknown as EmbeddingModel;
     case 'anthropic':
       throw new Error(
         'Anthropic does not provide embedding models. Route the Embedding task to LM Studio (local) or another embedding-capable provider.',

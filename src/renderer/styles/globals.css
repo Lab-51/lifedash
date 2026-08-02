@@ -76,6 +76,12 @@
   --color-text-secondary: #7a8ba0;
   --color-text-muted: #3d4f63;
 
+  /* Text ON an --color-accent-muted surface. The normal muted/accent pair is
+     unreadable there (--color-text-muted on --color-accent-muted is ~1.2:1), so
+     highlighted blocks use these instead. Both clear WCAG AA for small text. */
+  --color-text-on-accent-muted: #a8c0c0; /* ~5.2:1 on --color-accent-muted */
+  --color-accent-on-muted: #3ee8e4; /* ~6.6:1 on --color-accent-muted */
+
   /* Chrome (title bar, sidebar, status bar) */
   --color-chrome: #0a0e17;
   --color-chrome-glow: rgba(62, 232, 228, 0.2);
@@ -139,12 +145,29 @@ html.design-modern.light {
   --color-text-secondary: #4a5568;
   --color-text-muted: #94a3b8;
 
+  /* Light theme flips these dark: --color-accent-muted is a pale teal here, so
+     the readable text on it is dark, not light. (Muted grey would be ~1.8:1.) */
+  --color-text-on-accent-muted: #3f5250; /* ~5.8:1 on --color-accent-muted */
+  --color-accent-on-muted: #085453; /* ~6.1:1 on --color-accent-muted */
+
   --color-chrome: #ffffff;
   --color-chrome-glow: transparent;
 
   --color-border: #d1dce5;
   --color-border-accent: #8ecfce;
   --color-border-bright: #0d969433;
+}
+
+/* Any block painted with --color-accent-muted. The default muted/secondary text
+   colours are unreadable on that surface (--color-text-muted lands at ~1.2:1 in
+   dark and ~1.8:1 in light — the text looks like it simply isn't there), so this
+   remaps them for the whole subtree. Descendants keep using
+   text-[var(--color-text-muted)] as normal and pick the readable value up from
+   the cascade — no prop threading, and components dropped in later are covered
+   automatically. Both replacements clear WCAG AA for small text. */
+.on-accent-surface {
+  --color-text-muted: var(--color-text-on-accent-muted);
+  --color-text-secondary: var(--color-text-on-accent-muted);
 }
 
 /* Custom scrollbar */

@@ -1,0 +1,204 @@
+{
+  "catalogVersion": 1,
+  "updatedAt": "2026-08-01T00:00:00.000Z",
+  "models": [
+    {
+      "id": "qwen3-14b",
+      "displayName": "Qwen3 14B (Q4_K_M)",
+      "vendor": "Alibaba",
+      "originCountry": "CN",
+      "license": "Apache-2.0",
+      "role": "chat",
+      "parameters": "14B",
+      "files": [
+        {
+          "quant": "Q4_K_M",
+          "url": "https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/530227a7d994db8eca5ab5ced2fb692b614357fd/Qwen3-14B-Q4_K_M.gguf",
+          "sha256": "500a8806e85ee9c83f3ae08420295592451379b4f8cf2d0f41c15dffeb6b81f0",
+          "sizeBytes": 9001752960
+        }
+      ],
+      "minRamGB": 24,
+      "languages": ["*", "cs", "sk"],
+      "toolCalling": true,
+      "contextLength": 40960,
+      "notes": "Strong agentic/tool-calling model. Vendor lists 119 languages incl. Czech and Slovak. Hybrid thinking modes."
+    },
+    {
+      "id": "qwen3-4b",
+      "displayName": "Qwen3 4B (Q4_K_M)",
+      "vendor": "Alibaba",
+      "originCountry": "CN",
+      "license": "Apache-2.0",
+      "role": "chat",
+      "parameters": "4B",
+      "files": [
+        {
+          "quant": "Q4_K_M",
+          "url": "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/bc640142c66e1fdd12af0bd68f40445458f3869b/Qwen3-4B-Q4_K_M.gguf",
+          "sha256": "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5",
+          "sizeBytes": 2497280256
+        }
+      ],
+      "minRamGB": 8,
+      "languages": ["*", "cs", "sk"],
+      "toolCalling": true,
+      "contextLength": 40960,
+      "notes": "Smallest tool-calling option. Best fit for machines under 16 GB RAM. Vendor lists 119 languages incl. Czech and Slovak, but that is a training-data claim, not a quality measurement — at 4B, expect comprehension to hold up better than fluent writing in a heavily inflected language. Test it on your own material before relying on it."
+    },
+    {
+      "id": "gemma-3-12b-it",
+      "displayName": "Gemma 3 12B Instruct (Q4_K_M)",
+      "vendor": "Google",
+      "originCountry": "US",
+      "license": "Gemma",
+      "role": "chat",
+      "parameters": "12B",
+      "files": [
+        {
+          "quant": "Q4_K_M",
+          "url": "https://huggingface.co/ggml-org/gemma-3-12b-it-GGUF/resolve/ec0cbabd8dbff316f659876a50202295c3c4a314/gemma-3-12b-it-Q4_K_M.gguf",
+          "sha256": "7bb69bff3f48a7b642355d64a90e481182a7794707b3133890646b1efa778ff5",
+          "sizeBytes": 7300574976
+        }
+      ],
+      "minRamGB": 16,
+      "languages": ["*"],
+      "toolCalling": false,
+      "contextLength": 131072,
+      "notes": "140+ languages. Google's own GGUF repo is gated, so this is the ungated ggml-org (llama.cpp) conversion. Text-only here (no mmproj vision projector). Chat template has no tool-call section."
+    },
+    {
+      "id": "gemma-3-4b-it",
+      "displayName": "Gemma 3 4B Instruct (Q4_K_M)",
+      "vendor": "Google",
+      "originCountry": "US",
+      "license": "Gemma",
+      "role": "chat",
+      "parameters": "4B",
+      "files": [
+        {
+          "quant": "Q4_K_M",
+          "url": "https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF/resolve/d0976223747697cb51e056d85c532013931fe52e/gemma-3-4b-it-Q4_K_M.gguf",
+          "sha256": "882e8d2db44dc554fb0ea5077cb7e4bc49e7342a1f0da57901c0802ea21a0863",
+          "sizeBytes": 2489757856
+        }
+      ],
+      "minRamGB": 8,
+      "languages": ["*"],
+      "toolCalling": false,
+      "contextLength": 131072,
+      "notes": "Low-RAM option of non-Chinese origin. Ungated ggml-org conversion. No tool calling."
+    },
+    {
+      "id": "phi-4",
+      "displayName": "Phi-4 14B (Q4_K)",
+      "vendor": "Microsoft",
+      "originCountry": "US",
+      "license": "MIT",
+      "role": "chat",
+      "parameters": "14B",
+      "files": [
+        {
+          "quant": "Q4_K",
+          "url": "https://huggingface.co/microsoft/phi-4-gguf/resolve/6edc2ef6664b739a8e11e62f2672ff6afe0c15ac/phi-4-Q4_K.gguf",
+          "sha256": "5652b9be0ea4ae2842130d04fe31bc869fcb99a2b7106c53b4e754a343fd688f",
+          "sizeBytes": 9053114560
+        }
+      ],
+      "minRamGB": 24,
+      "languages": ["en"],
+      "toolCalling": false,
+      "contextLength": 16384,
+      "notes": "Microsoft's own GGUF repo. MIT licensed. English-focused; no tool-call chat template."
+    },
+    {
+      "id": "mistral-small-3.2-24b",
+      "displayName": "Mistral Small 3.2 24B Instruct (Q4_K_M)",
+      "vendor": "Mistral AI",
+      "originCountry": "FR",
+      "license": "Apache-2.0",
+      "role": "chat",
+      "parameters": "24B",
+      "files": [
+        {
+          "quant": "Q4_K_M",
+          "url": "https://huggingface.co/bartowski/mistralai_Mistral-Small-3.2-24B-Instruct-2506-GGUF/resolve/b3592d09be469bedab6be51f577824b3b6b76ba1/mistralai_Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf",
+          "sha256": "80f5bda68f156f12650ca03a0a2dbfae06a215ac41caa773b8631a479f82415e",
+          "sizeBytes": 14333915264
+        }
+      ],
+      "minRamGB": 32,
+      "languages": ["en", "fr", "de", "es", "pt", "it", "ja", "ko", "ru", "zh", "ar", "fa"],
+      "toolCalling": true,
+      "contextLength": 131072,
+      "notes": "European-origin flagship with native tool calling. Largest entry -- needs a 32 GB machine."
+    },
+    {
+      "id": "mistral-7b-v0.3",
+      "displayName": "Mistral 7B Instruct v0.3 (Q4_K_M)",
+      "vendor": "Mistral AI",
+      "originCountry": "FR",
+      "license": "Apache-2.0",
+      "role": "chat",
+      "parameters": "7B",
+      "files": [
+        {
+          "quant": "Q4_K_M",
+          "url": "https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF/resolve/61fd4167fff3ab01ee1cfe0da183fa27a944db48/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf",
+          "sha256": "1270d22c0fbb3d092fb725d4d96c457b7b687a5f5a715abe1e818da303e562b6",
+          "sizeBytes": 4372812000
+        }
+      ],
+      "minRamGB": 16,
+      "languages": ["en", "fr", "de", "es", "it"],
+      "toolCalling": false,
+      "contextLength": 32768,
+      "notes": "European-origin option for 16 GB machines. Upstream Mistral supports function calling, but the chat template embedded in this GGUF has no tool-call section, so tool use is not available through the built-in runtime."
+    },
+    {
+      "id": "llama-3.1-8b",
+      "displayName": "Llama 3.1 8B Instruct (Q4_K_M)",
+      "vendor": "Meta",
+      "originCountry": "US",
+      "license": "Llama-3.1-Community",
+      "role": "chat",
+      "parameters": "8B",
+      "files": [
+        {
+          "quant": "Q4_K_M",
+          "url": "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/bf5b95e96dac0462e2a09145ec66cae9a3f12067/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+          "sha256": "7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c",
+          "sizeBytes": 4920739232
+        }
+      ],
+      "minRamGB": 16,
+      "languages": ["en", "de", "fr", "it", "pt", "hi", "es", "th"],
+      "toolCalling": true,
+      "contextLength": 131072,
+      "notes": "Tool calling supported. Llama 3.1 Community License -- review before commercial use."
+    },
+    {
+      "id": "embeddinggemma-300m",
+      "displayName": "EmbeddingGemma 300M (Q8_0)",
+      "vendor": "Google",
+      "originCountry": "US",
+      "license": "Gemma",
+      "role": "embedding",
+      "parameters": "300M",
+      "files": [
+        {
+          "quant": "Q8_0",
+          "url": "https://huggingface.co/ggml-org/embeddinggemma-300M-GGUF/resolve/0f741b5a6585bd53aeb15cd1372c56f2a0f65e12/embeddinggemma-300M-Q8_0.gguf",
+          "sha256": "b5ce9d77a3fc4b3b39ccb5643c36777911cc4eb46a66962eadfa3f5f60490d63",
+          "sizeBytes": 333590944
+        }
+      ],
+      "minRamGB": 4,
+      "languages": ["*"],
+      "toolCalling": false,
+      "contextLength": 2048,
+      "notes": "768-dimension output -- matches LifeDash's frozen EMBEDDING_DIM. 100+ languages. Required for local semantic search."
+    }
+  ]
+}

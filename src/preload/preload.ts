@@ -38,6 +38,7 @@ import { brainBridge } from './domains/brain';
 import { twinBridge } from './domains/twin';
 import { embeddingBridge } from './domains/embedding';
 import { calendarBridge } from './domains/calendar';
+import { localModelsBridge } from './domains/local-models';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -74,4 +75,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...twinBridge,
   ...embeddingBridge,
   ...calendarBridge,
+  ...localModelsBridge,
 });

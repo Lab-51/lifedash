@@ -28,6 +28,41 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    // LOCAL-RT.1 — Built-in local AI runtime (bundled llama.cpp + model manager).
+    // DRAFT entry ahead of the 2.7.0 release ceremony (which owns the version bump).
+    version: '2.7.0',
+    sections: [
+      {
+        category: 'new',
+        label: "What's New",
+        items: [
+          'LifeDash now runs AI by itself. No second app to install, no API key, no account — pick a model in the setup wizard and it runs on your machine, using your GPU where one is available.',
+          'Choose from a built-in model catalog with the tradeoffs spelled out: how much disk and RAM each one needs, where it came from, its license, and whether it can actually act on your board or only answer. Downloads resume where they left off and are checksum-verified before use.',
+          'Not sure which to pick? Qwen3 4B (~2.5 GB) is the smallest model that can still create and move cards for you — a solid default on an 8 GB machine.',
+          'Semantic search works out of the box too — the same step sets up a small local embedding model, so "what did we decide about pricing?" works without any cloud service.',
+          'A new Local AI section in Settings manages everything: download or remove models, see exactly how much space each frees when you delete it, add your own GGUF file, and watch the runtime status live.',
+          'Nothing runs behind your back. The model starts when you use it, shows a status card with a Stop button, and shuts itself down after 15 idle minutes. Installing this update starts nothing.',
+          'Already using LM Studio, Ollama, or a cloud key? Nothing changes — your setup is untouched and all of them remain fully supported per task.',
+        ],
+      },
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'Dropdowns near the bottom of the window now open upward instead of running off-screen, so the last options are always reachable.',
+          'The setup wizard now fits on screen on large displays — the Back, Skip, and confirm buttons could previously render below the visible area.',
+        ],
+      },
+      {
+        category: 'internal',
+        label: 'Licenses',
+        items: [
+          'The bundled local AI runtime is llama.cpp (MIT), redistributed unmodified from its official release build. Full attribution and license text ship with the app in THIRD_PARTY_NOTICES.md. LifeDash itself stays under the PolyForm Noncommercial License 1.0.0.',
+        ],
+      },
+    ],
+  },
+  {
     // CAL-UX.2 — Agenda Views, Event Details & Meeting Context. DRAFT entry ahead
     // of the 2.6.0 release ceremony (which owns the actual version bump).
     version: '2.6.0',
@@ -165,20 +200,6 @@ export const releaseHistory: ReleaseNotesData[] = [
         label: 'Internal',
         items: [
           'Code-quality hardening: broke 4 circular dependencies, promoted no-explicit-any to error, added no-floating-promises + complexity guardrails.',
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.39',
-    sections: [
-      {
-        category: 'fixes',
-        label: 'Fixes',
-        items: [
-          'Meeting modal stays open when you assign a project — no more accidental closes mid-edit',
-          'Retry/regenerate the meeting brief directly from the brief section if the first pass misses the mark',
-          'Create a new project inline from the project picker dropdown — no need to leave the meeting',
         ],
       },
     ],

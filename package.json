@@ -32,6 +32,7 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "make:icons": "node scripts/make-icons.js",
+    "fetch:llama": "node scripts/fetch-llama-server.js",
     "verify:package": "node scripts/verify-package.js",
     "demo:record": "node scripts/record-demo.mjs",
     "demo:overlay": "bash scripts/demo-overlay.sh",

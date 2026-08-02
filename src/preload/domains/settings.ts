@@ -32,4 +32,10 @@ export const settingsBridge = {
 
   // LM Studio health check
   checkLmStudio: () => ipcRenderer.invoke('ai:check-lmstudio'),
+
+  // Built-in (bundled llama.cpp) runtime readiness — inspection only, never starts it
+  checkBuiltinRuntime: () => ipcRenderer.invoke('ai:check-builtin'),
+
+  // Stop the built-in runtime on the user's command; resolves with the new status.
+  stopBuiltinRuntime: () => ipcRenderer.invoke('ai:stop-builtin'),
 };

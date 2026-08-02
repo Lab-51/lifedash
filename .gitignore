@@ -14,6 +14,11 @@ release/
 .vite/
 /main.js
 
+# Pinned llama.cpp sidecar binaries — fetched + sha256-verified at build time by
+# scripts/fetch-llama-server.js, never committed (~137MB)
+/resources/llama/
+/.cache/
+
 # Environment
 .env
 .env.local

@@ -9,17 +9,43 @@ import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { obfuscate as jsObfuscate } from 'javascript-obfuscator';
 
 // IPC channel prefixes and renderer bridge identifiers that must NOT be
 // renamed by the obfuscator — Electron's ipcMain.handle / ipcRenderer.invoke
 // match on exact string values, so these must be preserved verbatim.
 const IPC_RESERVED_STRINGS = [
-  'brainstorm', 'backup', 'meetings', 'cards', 'labels', 'card',
-  'card-agent', 'project-agent', 'card-templates', 'window', 'recording', 'ideas', 'idea',
-  'ai', 'focus', 'db', 'dashboard', 'whisper', 'gamification', 'app',
-  'projects', 'boards', 'columns', 'settings', 'transcription', 'license', 'diagnostics',
-  'audio', 'electronAPI', 'contextBridge',
+  'brainstorm',
+  'backup',
+  'meetings',
+  'cards',
+  'labels',
+  'card',
+  'card-agent',
+  'project-agent',
+  'card-templates',
+  'window',
+  'recording',
+  'ideas',
+  'idea',
+  'ai',
+  'focus',
+  'db',
+  'dashboard',
+  'whisper',
+  'gamification',
+  'app',
+  'projects',
+  'boards',
+  'columns',
+  'settings',
+  'transcription',
+  'license',
+  'diagnostics',
+  'audio',
+  'electronAPI',
+  'contextBridge',
 ];
 
 // Packages that Vite externalizes (not bundled) and must be copied
@@ -44,37 +70,55 @@ const config: ForgeConfig = {
     asar: {
       unpack: '{**/node_modules/@electric-sql/pglite/**,**/node_modules/@fugood/**}',
     },
-    extraResource: ['./drizzle', './src/assets/icon.png'],
+    // extraResource — NOT asar. The integrity fuse is on, so anything executable
+    // must live outside the archive. ./resources/llama holds the pinned llama.cpp
+    // sidecar binaries staged by scripts/fetch-llama-server.js (prePackage hook);
+    // llamaRuntimeConfig.ts resolves them at process.resourcesPath/llama/<backend>/.
+    // THIRD_PARTY_NOTICES.md ships with them because MIT requires the notice to
+    // travel with the binaries, not just sit in the repo.
+    extraResource: ['./drizzle', './src/assets/icon.png', './resources/llama', './THIRD_PARTY_NOTICES.md'],
     // macOS code signing — only active when APPLE_IDENTITY env var is set.
     // Requires Apple Developer account ($99/year) and valid signing certificate.
     // On macOS: generate .icns from icon.png using `iconutil` or `png2icns`.
-    ...(process.env.APPLE_IDENTITY ? {
-      osxSign: {
-        identity: process.env.APPLE_IDENTITY,
-      },
-    } : {}),
+    ...(process.env.APPLE_IDENTITY
+      ? {
+          osxSign: {
+            identity: process.env.APPLE_IDENTITY,
+          },
+        }
+      : {}),
     // macOS notarization — only active when APPLE_ID env var is set.
     // Required for distributing outside the Mac App Store on Catalina+.
-    ...(process.env.APPLE_ID ? {
-      osxNotarize: {
-        appleId: process.env.APPLE_ID,
-        appleIdPassword: process.env.APPLE_PASSWORD!,
-        teamId: process.env.APPLE_TEAM_ID!,
-      },
-    } : {}),
+    ...(process.env.APPLE_ID
+      ? {
+          osxNotarize: {
+            appleId: process.env.APPLE_ID,
+            appleIdPassword: process.env.APPLE_PASSWORD!,
+            teamId: process.env.APPLE_TEAM_ID!,
+          },
+        }
+      : {}),
     // macOS Info.plist permission descriptions — required for audio/screen capture.
     // macOS 15 (Sequoia) silently produces empty audio without these entries.
     extendInfo: {
-      NSAudioCaptureUsageDescription:
-        'LifeDash needs audio access to record and transcribe your meetings.',
+      NSAudioCaptureUsageDescription: 'LifeDash needs audio access to record and transcribe your meetings.',
       NSMicrophoneUsageDescription:
         'LifeDash can optionally capture your microphone alongside system audio for better transcription.',
-      NSScreenCaptureUsageDescription:
-        'LifeDash uses screen capture to record system audio from your meetings.',
+      NSScreenCaptureUsageDescription: 'LifeDash uses screen capture to record system audio from your meetings.',
     },
   },
   rebuildConfig: {},
   hooks: {
+    // Stage the pinned llama.cpp sidecar binaries into ./resources/llama before
+    // packaging. Living in a forge hook (rather than an npm pre-script) means
+    // `npx electron-forge make` — what both CI workflows run — needs no manual
+    // step. The script is a fast no-op once the sha256-verified cache is warm.
+    prePackage: async () => {
+      execFileSync(process.execPath, [path.join(__dirname, 'scripts', 'fetch-llama-server.js')], {
+        stdio: 'inherit',
+      });
+    },
+
     // Copy externalized packages into the staging directory before asar creation.
     // The Forge Vite plugin bundles all code into .vite/build/ but excludes
     // packages listed in rollupOptions.external — those need node_modules.

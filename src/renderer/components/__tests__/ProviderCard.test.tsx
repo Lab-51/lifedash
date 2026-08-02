@@ -63,7 +63,7 @@ function makeProvider(overrides: Partial<AIProvider>): AIProvider {
 // added there without a matching PROVIDER_META entry, the exhaustive Record type
 // in ProviderCard.tsx fails to compile (see STORY-5 verification step 3) — this
 // runtime test is a second, independent guard against a missing/blank entry.
-const ALL_PROVIDER_NAMES: AIProviderName[] = ['openai', 'anthropic', 'google', 'ollama', 'kimi', 'lmstudio'];
+const ALL_PROVIDER_NAMES: AIProviderName[] = ['openai', 'anthropic', 'google', 'ollama', 'kimi', 'lmstudio', 'builtin'];
 
 describe('ProviderCard — privacy metadata', () => {
   it('classifies every AIProviderName as local or cloud with no gaps', () => {
@@ -78,6 +78,8 @@ describe('ProviderCard — privacy metadata', () => {
   it('marks local-first providers as local', () => {
     expect(PROVIDER_META.lmstudio.privacy).toBe('local');
     expect(PROVIDER_META.ollama.privacy).toBe('local');
+    // The bundled llama.cpp sidecar runs on-device — never classify it as cloud.
+    expect(PROVIDER_META.builtin.privacy).toBe('local');
   });
 
   it('marks hosted providers as cloud', () => {

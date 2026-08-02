@@ -8,6 +8,8 @@ import { useSettingsStore } from '../stores/settingsStore';
 import type { AIProviderName } from '../../shared/types';
 
 const PROVIDER_OPTIONS: { value: AIProviderName; label: string; description: string }[] = [
+  // Built-in leads: it is the only option that needs no account, key or install.
+  { value: 'builtin', label: 'Built-in AI', description: 'Runs on this computer — no API key' },
   { value: 'openai', label: 'OpenAI', description: 'GPT-5.2, GPT-5 Mini, o4-mini' },
   { value: 'anthropic', label: 'Anthropic', description: 'Claude Sonnet, Claude Haiku' },
   { value: 'google', label: 'Google', description: 'Gemini 2.5 Pro, Flash, Flash-Lite' },
@@ -15,6 +17,9 @@ const PROVIDER_OPTIONS: { value: AIProviderName; label: string; description: str
   { value: 'lmstudio', label: 'LM Studio', description: 'Local models via LM Studio' },
   { value: 'kimi', label: 'Kimi', description: 'Kimi K2.5 by Moonshot AI' },
 ];
+
+/** Providers that authenticate with no user-supplied key (local runtimes). */
+const KEYLESS_PROVIDERS: AIProviderName[] = ['ollama', 'lmstudio', 'builtin'];
 
 interface AddProviderFormProps {
   onClose: () => void;
@@ -30,9 +35,13 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const needsApiKey = name !== 'ollama' && name !== 'lmstudio';
+  const needsApiKey = !KEYLESS_PROVIDERS.includes(name);
+  // The built-in runtime's port is probed per spawn, so its DB baseUrl is never
+  // read (ai-provider.ts). Offering the field would imply a knob that does nothing.
+  const usesBaseUrl = name !== 'builtin';
   const [ollamaDetected, setOllamaDetected] = useState<boolean | null>(null);
   const [lmStudioDetected, setLmStudioDetected] = useState<boolean | null>(null);
+  const [builtinModelCount, setBuiltinModelCount] = useState<number | null>(null);
 
   // Auto-detect Ollama when Ollama is selected as the provider
   useEffect(() => {
@@ -66,6 +75,20 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
       .catch(() => {
         setLmStudioDetected(false);
       });
+  }, [name]);
+
+  // Built-in runtime readiness. `checkBuiltinRuntime` is a pure read — it reports
+  // the binary and the downloaded-model count without ever starting the sidecar.
+  useEffect(() => {
+    if (name !== 'builtin') {
+      setBuiltinModelCount(null);
+      return;
+    }
+    setBuiltinModelCount(null);
+    window.electronAPI
+      .checkBuiltinRuntime()
+      .then((result) => setBuiltinModelCount(result.binaryPresent ? result.models.length : -1))
+      .catch(() => setBuiltinModelCount(-1));
   }, [name]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,7 +130,7 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
         {/* Provider type selection -- button group */}
         <div>
           <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">Provider</label>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {PROVIDER_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -122,18 +145,49 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
                     setBaseUrl('https://api.moonshot.ai/v1');
                   }
                 }}
-                className={`flex-1 p-2.5 rounded-lg border text-left text-sm transition-all ${
+                className={`p-2.5 rounded-lg border text-left text-sm transition-all overflow-hidden ${
                   name === opt.value
                     ? 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] text-[var(--color-accent)]'
                     : 'border-[var(--color-border)] bg-[var(--color-chrome)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-accent)]'
                 }`}
               >
-                <div className="font-medium">{opt.label}</div>
-                <div className="text-xs text-[var(--color-text-muted)] mt-0.5">{opt.description}</div>
+                <div className="font-medium break-words">{opt.label}</div>
+                <div className="text-xs text-[var(--color-text-muted)] mt-0.5 break-words">{opt.description}</div>
               </button>
             ))}
           </div>
         </div>
+
+        {/* Built-in runtime hint — no key to paste, and an honest "download a model first" */}
+        {name === 'builtin' && (
+          <div className="space-y-1 px-1">
+            <div className="flex items-center gap-1.5 text-xs font-data text-emerald-500">
+              <CheckCircle size={13} />
+              No API key needed — the model runs on this computer
+            </div>
+            {builtinModelCount !== null && (
+              <div
+                className={`flex items-start gap-1.5 text-xs font-data ${builtinModelCount > 0 ? 'text-emerald-500' : 'text-amber-400'}`}
+              >
+                {builtinModelCount > 0 ? (
+                  <>
+                    <CheckCircle size={13} className="mt-px shrink-0" />
+                    {builtinModelCount} model{builtinModelCount === 1 ? '' : 's'} downloaded and ready
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={13} className="mt-px shrink-0" />
+                    <span className="break-words">
+                      {builtinModelCount === 0
+                        ? 'No models downloaded yet — add one in Settings → AI & Models → Local AI before assigning tasks to this provider.'
+                        : 'The bundled runtime is not available in this install.'}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Ollama detection hint */}
         {name === 'ollama' && ollamaDetected !== null && (
@@ -224,34 +278,36 @@ export default function AddProviderForm({ onClose }: AddProviderFormProps) {
           </div>
         )}
 
-        {/* Base URL (always shown, pre-filled for Ollama) */}
-        <div>
-          <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">
-            Base URL{' '}
-            <span className="text-[var(--color-text-muted)]">
-              (optional
-              {name === 'ollama'
-                ? ', default: localhost:11434'
-                : name === 'lmstudio'
-                  ? ', default: localhost:1234'
-                  : ''}
-              )
-            </span>
-          </label>
-          <input
-            type="text"
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder={
-              name === 'ollama'
-                ? 'http://localhost:11434'
-                : name === 'lmstudio'
-                  ? 'http://localhost:1234/v1'
-                  : 'Leave blank for default'
-            }
-            className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
-          />
-        </div>
+        {/* Base URL (hidden for the built-in runtime, whose port is probed per spawn) */}
+        {usesBaseUrl && (
+          <div>
+            <label className="block text-xs text-[var(--color-text-secondary)] mb-1.5 font-data">
+              Base URL{' '}
+              <span className="text-[var(--color-text-muted)]">
+                (optional
+                {name === 'ollama'
+                  ? ', default: localhost:11434'
+                  : name === 'lmstudio'
+                    ? ', default: localhost:1234'
+                    : ''}
+                )
+              </span>
+            </label>
+            <input
+              type="text"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder={
+                name === 'ollama'
+                  ? 'http://localhost:11434'
+                  : name === 'lmstudio'
+                    ? 'http://localhost:1234/v1'
+                    : 'Leave blank for default'
+              }
+              className="w-full text-sm bg-surface-50 dark:bg-surface-950 border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]"
+            />
+          </div>
+        )}
 
         {/* Buttons */}
         <div className="flex items-center gap-2 pt-1">

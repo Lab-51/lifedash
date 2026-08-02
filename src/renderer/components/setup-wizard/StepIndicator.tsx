@@ -7,6 +7,9 @@ import { ORDERED_STEPS, STEP_LABELS } from './types';
 /** Maps any step to its indicator position in ORDERED_STEPS */
 function getIndicatorStep(step: WizardStep): WizardStep {
   if (step === 'pick-provider' || step === 'tutorial') return 'have-key';
+  // The built-in path replaces "Configure" (it has no credentials to enter) with
+  // its model choice, so it occupies that same position under its own label.
+  if (step === 'local-builtin') return 'configure';
   return step;
 }
 
@@ -22,6 +25,9 @@ export default function StepIndicator({ current }: { current: WizardStep }) {
       {ORDERED_STEPS.map((step, idx) => {
         const isActive = step === indicatorStep;
         const isDone = idx < currentIdx;
+        // Second position reads "Model" on the built-in path, "Configure" elsewhere.
+        const label =
+          step === 'configure' && current === 'local-builtin' ? STEP_LABELS['local-builtin'] : STEP_LABELS[step];
 
         return (
           <div key={step} className="flex items-center gap-1">
@@ -41,7 +47,7 @@ export default function StepIndicator({ current }: { current: WizardStep }) {
                 isActive ? 'text-[var(--color-accent)]' : isDone ? 'text-emerald-500' : 'text-[var(--color-text-muted)]'
               }`}
             >
-              {STEP_LABELS[step]}
+              {label}
             </span>
             {idx < ORDERED_STEPS.length - 1 && (
               <div className={`w-4 h-px mx-1 ${isDone ? 'bg-emerald-500/40' : 'bg-[var(--color-border)]'}`} />

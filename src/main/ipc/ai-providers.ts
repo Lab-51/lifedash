@@ -19,6 +19,7 @@ import { getDb } from '../db/connection';
 import { aiProviders, aiUsage } from '../db/schema';
 import { encryptString, isEncryptionAvailable } from '../services/secure-storage';
 import { testConnection, clearProviderCache } from '../services/ai-provider';
+import { status, stop as stopBuiltin, getModelsDir, listAvailableModels } from '../services/llamaRuntimeService';
 import type { AIProviderName } from '../../shared/types';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import {
@@ -144,6 +145,27 @@ export function registerAIProviderHandlers(): void {
     } catch {
       return { running: false, models: [] };
     }
+  });
+
+  // Report the built-in (bundled llama.cpp) runtime's readiness. Pure inspection:
+  // it reads the filesystem and in-memory supervisor state only — it never starts
+  // the sidecar, so opening Settings costs nothing.
+  ipcMain.handle('ai:check-builtin', async () => {
+    const runtime = status();
+    return {
+      binaryPresent: runtime.binaryAvailable,
+      modelsDir: getModelsDir(),
+      models: listAvailableModels().map((m) => m.id),
+      runtime,
+    };
+  });
+
+  // Stop the built-in runtime on the user's command (Settings → Local AI runtime
+  // card). Frees the VRAM the sidecar holds; the next AI request starts it again.
+  // Resolves with the post-stop status so the card re-renders from one round trip.
+  ipcMain.handle('ai:stop-builtin', async () => {
+    await stopBuiltin();
+    return status();
   });
 
   // --- Usage Tracking ---
