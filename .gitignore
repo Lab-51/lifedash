@@ -49,6 +49,7 @@ npm-debug.log*
 
 # Testing
 coverage/
+test-results/
 
 # Temporary
 tmp/
