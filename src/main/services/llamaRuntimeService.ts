@@ -45,7 +45,13 @@ import {
   resolveModel,
 } from './llamaRuntimeConfig';
 import { DEFAULT_IDLE_STOP_MINUTES, LOCAL_AI_IDLE_SETTING_KEY } from '../../shared/types/ai';
-import type { LlamaBackend, LlamaRole, LlamaRoleStatus, LlamaRuntimeStatus } from '../../shared/types/ai';
+import type {
+  LlamaBackend,
+  LlamaContextUsage,
+  LlamaRole,
+  LlamaRoleStatus,
+  LlamaRuntimeStatus,
+} from '../../shared/types/ai';
 
 export {
   getBinaryDir,
@@ -54,7 +60,7 @@ export {
   isBinaryAvailable,
   listAvailableModels,
 } from './llamaRuntimeConfig';
-export type { LlamaBackend, LlamaRole, LlamaRoleStatus, LlamaRuntimeStatus };
+export type { LlamaBackend, LlamaContextUsage, LlamaRole, LlamaRoleStatus, LlamaRuntimeStatus };
 
 const log = createLogger('llama');
 
@@ -78,6 +84,8 @@ const MAX_CRASH_RESTARTS = 3;
 const CRASH_WINDOW_MS = 5 * 60_000;
 const CRASH_BACKOFF_MS = [1_000, 2_000, 4_000];
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
+/** `/slots` is a loopback read of an already-running process — fail fast, never hang a poll. */
+const SLOTS_TIMEOUT_MS = 1_500;
 // Shared with the renderer's Settings → Local AI control, so both agree on the
 // key and the "never written" default instead of duplicating the literals.
 const IDLE_SETTING_KEY = LOCAL_AI_IDLE_SETTING_KEY;
@@ -129,6 +137,28 @@ const failedBackends = new Set<LlamaBackend>();
 let lastGoodBackend: LlamaBackend | null = null;
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms).unref?.());
+
+// --- Lifecycle observation ------------------------------------------------------------
+// A single callback slot rather than an import of the telemetry layer: the observer
+// (runtimeTelemetry) already depends on this module for status()/readContextUsage(),
+// so importing it back would create a module cycle. Observation is strictly one-way
+// and MUST NOT be able to affect the runtime — notifyChange swallows everything.
+
+let changeListener: (() => void) | null = null;
+
+/** Register the observer notified on real lifecycle transitions (start / stop / crash
+ *  / model swap). Pass null to clear. Purely informational — see notifyChange. */
+export function setRuntimeChangeListener(listener: (() => void) | null): void {
+  changeListener = listener;
+}
+
+function notifyChange(): void {
+  try {
+    changeListener?.();
+  } catch (err) {
+    log.warn('runtime change listener threw (ignored):', (err as Error).message);
+  }
+}
 
 // --- Rotating log ---------------------------------------------------------------------------
 
@@ -289,6 +319,7 @@ function handleExit(role: LlamaRole, child: ChildProcess, code: number | null, s
   if (!requested) {
     log.error(`${role} sidecar exited unexpectedly (code ${code}, signal ${signal}) — crash ${state.crashes}`);
   }
+  notifyChange(); // crashed, or finished shutting down
 }
 
 /** Gate a (re)start after a crash: exponential backoff, hard cap inside the window. */
@@ -350,6 +381,7 @@ async function spawnRole(
   state.idleMs = await readIdleMs();
   touch(role);
   log.info(`${role} sidecar ready on ${state.baseUrl} (${candidate.backend})`);
+  notifyChange(); // started (a model swap surfaces as the preceding stop + this start)
   return { baseUrl: state.baseUrl!, modelId: model.modelId, backend: candidate.backend, apiKey };
 }
 
@@ -464,4 +496,52 @@ export function status(): LlamaRuntimeStatus {
     embedding,
     idleStopMinutes: Math.round((roles.chat.idleMs || roles.embedding.idleMs) / 60_000),
   };
+}
+
+/** Pick the busiest slot from a `/slots` body. Only `id`/`n_ctx`/`is_processing` are
+ *  always present; `n_prompt_tokens` appears once the slot has served a request
+ *  (verified against b10219 — see LlamaContextUsage). Unknown shapes yield null. */
+function readSlots(role: LlamaRole, body: unknown): LlamaContextUsage | null {
+  if (!Array.isArray(body)) return null;
+  let best: LlamaContextUsage | null = null;
+  for (const raw of body) {
+    if (!raw || typeof raw !== 'object') continue;
+    const slot = raw as { n_ctx?: unknown; n_prompt_tokens?: unknown; is_processing?: unknown };
+    if (typeof slot.n_ctx !== 'number' || slot.n_ctx <= 0) continue;
+    const used = typeof slot.n_prompt_tokens === 'number' ? slot.n_prompt_tokens : 0;
+    if (best && best.usedTokens >= used) continue;
+    best = { role, usedTokens: used, contextTokens: slot.n_ctx, processing: slot.is_processing === true };
+  }
+  return best;
+}
+
+/**
+ * Context (KV cache) utilisation of an ALREADY-RUNNING sidecar, from llama-server's
+ * `/slots` endpoint (enabled by default in b10219; it requires the per-spawn bearer
+ * token, verified — 401 without it, which is why this lives here and not in the
+ * telemetry layer: the key never leaves this module).
+ *
+ * OPTIONALITY GUARD: returns null when the role is not running. It must never call
+ * ensureRunning() — observing is not a reason to spawn a process.
+ * Never throws: a failed read degrades to null.
+ */
+export async function readContextUsage(role: LlamaRole = 'chat'): Promise<LlamaContextUsage | null> {
+  const state = roles[role];
+  if (!state.child || !state.baseUrl || !state.apiKey) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SLOTS_TIMEOUT_MS);
+  timer.unref?.();
+  try {
+    const url = `${state.baseUrl.replace(/\/v1$/, '')}/slots`;
+    const resp = await fetch(url, {
+      headers: { authorization: `Bearer ${state.apiKey}` },
+      signal: controller.signal,
+    });
+    if (!resp.ok) return null;
+    return readSlots(role, await resp.json());
+  } catch {
+    return null; // sidecar shutting down, endpoint disabled, or timed out — not an error
+  } finally {
+    clearTimeout(timer);
+  }
 }

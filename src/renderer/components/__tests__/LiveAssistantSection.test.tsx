@@ -96,7 +96,7 @@ describe('LiveAssistantSection (post-meeting Q&A chat)', () => {
 
     expect(await screen.findByText('Summarize the meeting so far')).toBeInTheDocument();
     expect(screen.getByText('We covered pricing and hiring.')).toBeInTheDocument();
-    expect(screen.getByText('Searched transcript')).toBeInTheDocument();
+    expect(screen.getByText('Searched transcript for “pricing”')).toBeInTheDocument();
   });
 
   it('sends the question on the existing meeting-agent bridge and renders the streamed reply', async () => {
@@ -246,5 +246,37 @@ describe('LiveAssistantSection (post-meeting Q&A chat)', () => {
     const rail = render(<LiveAssistantSection meetingId="meeting-2" />);
     const railScroll = rail.container.querySelector('.overflow-y-auto');
     expect(railScroll?.className).toContain('max-h-80');
+  });
+});
+
+describe('LiveAssistantSection — starter prompts', () => {
+  it('offers opening moves on an empty thread and sends one on click', async () => {
+    meetingAgentLoad.mockResolvedValue([]);
+    render(<LiveAssistantSection meetingId="meeting-1" />);
+
+    const chip = await screen.findByRole('button', { name: 'What tasks do I need to do?' });
+    fireEvent.click(chip);
+
+    await waitFor(() => expect(meetingAgentSend).toHaveBeenCalledWith('meeting-1', 'What tasks do I need to do?'));
+  });
+
+  it('hides the starters once the thread has messages', async () => {
+    meetingAgentLoad.mockResolvedValue([makeMessage({ id: 'm1', role: 'user', content: 'hello' })]);
+    render(<LiveAssistantSection meetingId="meeting-1" />);
+
+    await screen.findByText('hello');
+    expect(screen.queryByRole('button', { name: 'What tasks do I need to do?' })).not.toBeInTheDocument();
+  });
+
+  it('a starter click does not discard text the user was already typing', async () => {
+    meetingAgentLoad.mockResolvedValue([]);
+    render(<LiveAssistantSection meetingId="meeting-1" />);
+
+    const input = await screen.findByPlaceholderText(/ask/i);
+    fireEvent.change(input, { target: { value: 'half-written question' } });
+    fireEvent.click(screen.getByRole('button', { name: 'What was decided?' }));
+
+    await waitFor(() => expect(meetingAgentSend).toHaveBeenCalledWith('meeting-1', 'What was decided?'));
+    expect(input).toHaveValue('half-written question');
   });
 });

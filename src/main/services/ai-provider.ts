@@ -26,6 +26,7 @@ import { aiUsage, aiProviders, settings } from '../db/schema';
 import { decryptString } from './secure-storage';
 import { createLogger } from './logger';
 import { ensureRunning, touch as touchBuiltinRuntime, type LlamaRole } from './llamaRuntimeService';
+import { recordGeneration, type GenerationTiming } from './runtimeTelemetry';
 import type { AIProviderName, AITaskType, TaskModelConfig } from '../../shared/types';
 
 const log = createLogger('AI');
@@ -81,6 +82,23 @@ const LOCAL_CONTEXT_HINTS: Partial<Record<AIProviderName, string>> = {
   builtin:
     'The built-in runtime caps context to leave GPU memory for transcription — use fewer input items, or pick a model with a larger context.',
 };
+
+/**
+ * Record a tok/s measurement for one completed generation (LOCAL-RT.2). Fire-and-forget,
+ * exactly like the logUsage() call below: telemetry must NEVER fail a generation, so the
+ * call site catches too even though recordGeneration already swallows its own errors.
+ *
+ * The elapsed time is wall clock around the model call, so it includes queue and HTTP
+ * transport overhead and reads slightly pessimistic versus llama.cpp's internal
+ * `predicted_per_second` — deliberately, since it is what the user actually waited for.
+ */
+function safeRecordTelemetry(timing: GenerationTiming): void {
+  try {
+    recordGeneration(timing);
+  } catch (telemetryError) {
+    log.error('Failed to record runtime telemetry:', telemetryError);
+  }
+}
 
 /** Estimate cost in USD from token counts and model ID. Returns 0 for unknown/local models. */
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
@@ -401,6 +419,8 @@ export async function generate(options: {
   const factory = getProvider(options.providerId, options.providerName, options.apiKeyEncrypted, options.baseUrl);
 
   let result;
+  const startedAt = Date.now();
+  let elapsedMs: number; // always assigned below; the catch path only ever rethrows
   try {
     result = await generateText({
       model: factory(options.model) as LanguageModel,
@@ -409,6 +429,7 @@ export async function generate(options: {
       temperature: sanitizeTemperature(options.providerName, options.temperature),
       maxOutputTokens: sanitizeMaxTokens(options.providerName, options.maxTokens),
     });
+    elapsedMs = Date.now() - startedAt; // before any post-processing, so only the model call counts
   } catch (err: unknown) {
     // Re-throw with user-friendly message for local model context overflow
     const contextHint = LOCAL_CONTEXT_HINTS[options.providerName];
@@ -457,6 +478,16 @@ export async function generate(options: {
   } catch (logError) {
     log.error('Failed to log usage:', logError);
   }
+
+  // Speed telemetry (in memory only; no ai_usage row, no table).
+  safeRecordTelemetry({
+    providerName: options.providerName,
+    model: options.model,
+    outputTokens: result.usage?.outputTokens ?? 0,
+    elapsedMs,
+    ttftMs: null, // non-streaming: the whole call IS the wait
+    streaming: false,
+  });
 
   return {
     text,
@@ -637,6 +668,12 @@ export function streamGenerate(options: {
 }) {
   const factory = getProvider(options.providerId, options.providerName, options.apiKeyEncrypted, options.baseUrl);
 
+  // Speed telemetry ONLY (LOCAL-RT.2). This path deliberately does NOT call logUsage:
+  // all four streaming callers log usage themselves, so doing it here would write a
+  // duplicate ai_usage row for every streamed reply.
+  const startedAt = Date.now();
+  let firstTokenAt: number | null = null;
+
   return streamText({
     model: factory(options.model) as LanguageModel,
     messages: options.messages,
@@ -644,6 +681,21 @@ export function streamGenerate(options: {
     temperature: sanitizeTemperature(options.providerName, options.temperature),
     maxOutputTokens: options.maxTokens,
     abortSignal: options.abortSignal,
+    onChunk() {
+      // Time-to-first-token — what a user actually feels as responsiveness. Measured
+      // separately from the generation rate below, which runs to the LAST token.
+      firstTokenAt ??= Date.now();
+    },
+    onFinish({ usage }) {
+      safeRecordTelemetry({
+        providerName: options.providerName,
+        model: options.model,
+        outputTokens: usage?.outputTokens ?? 0,
+        elapsedMs: Date.now() - startedAt,
+        ttftMs: firstTokenAt === null ? null : firstTokenAt - startedAt,
+        streaming: true,
+      });
+    },
   });
 }
 

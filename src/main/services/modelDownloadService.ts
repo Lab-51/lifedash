@@ -25,6 +25,9 @@ import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import { EventEmitter } from 'node:events';
 import { getModelsDir } from './llamaRuntimeConfig';
+import { activateBuiltinAfterDownload } from './builtinProviderSetup';
+import { emitRuntimeStatus } from './runtimeTelemetry';
+import { inferredRoleForFileName, runtimeModelIdForUrl } from '../../shared/types/localModels';
 import type { LocalModelDownloadProgress, LocalModelDownloadState } from '../../shared/types/localModels';
 
 /** Refuse to start unless free space covers the remaining bytes with 10% headroom. */
@@ -326,6 +329,27 @@ async function runJob(job: Job): Promise<void> {
   job.received = actualSize;
   job.total = actualSize;
   setState(job, 'ready');
+
+  // The file is on disk and verified — make it usable. Fire-and-forget on
+  // purpose: the download SUCCEEDED, and a provider/settings write failing must
+  // never turn that into a reported failure. Spawns nothing.
+  void activateAfterDownload(job);
+}
+
+/** Ensure the built-in provider exists so the new file is routable, then push a
+ *  fresh snapshot so the status indicator and Settings update without a
+ *  restart. Never throws into the download path. */
+async function activateAfterDownload(job: Job): Promise<void> {
+  try {
+    const changed = await activateBuiltinAfterDownload(
+      runtimeModelIdForUrl(job.url),
+      inferredRoleForFileName(job.fileName),
+    );
+    if (changed) await emitRuntimeStatus();
+  } catch {
+    // Activation is a convenience on top of a completed download; the user can
+    // still switch it on from Settings → Local AI.
+  }
 }
 
 // --- Queue --------------------------------------------------------------------

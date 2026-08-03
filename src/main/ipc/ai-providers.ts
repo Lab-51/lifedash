@@ -13,13 +13,14 @@
 // - Usage summary loads all rows into memory (fine for typical volumes)
 // - No pagination on usage list (capped at 100 rows newest-first)
 
-import { ipcMain } from 'electron';
+import { ipcMain, type BrowserWindow } from 'electron';
 import { eq, desc, sql, gte } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { aiProviders, aiUsage } from '../db/schema';
 import { encryptString, isEncryptionAvailable } from '../services/secure-storage';
 import { testConnection, clearProviderCache } from '../services/ai-provider';
 import { status, stop as stopBuiltin, getModelsDir, listAvailableModels } from '../services/llamaRuntimeService';
+import { emitRuntimeStatus, getRuntimeSnapshot, initRuntimeTelemetry } from '../services/runtimeTelemetry';
 import type { AIProviderName } from '../../shared/types';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import {
@@ -42,7 +43,22 @@ function toAIProvider(row: typeof aiProviders.$inferSelect) {
   };
 }
 
-export function registerAIProviderHandlers(): void {
+/**
+ * Push a fresh runtime snapshot after provider CRUD touched the `builtin` row.
+ * This is what lets the status indicator appear or disappear mid-session — the
+ * `configured` flag is derived from an ENABLED builtin row, so adding, enabling,
+ * disabling or deleting one changes visibility with no app restart.
+ * Best-effort; emitRuntimeStatus never throws.
+ */
+function notifyIfBuiltin(name: string | null | undefined): void {
+  if (name === 'builtin') void emitRuntimeStatus();
+}
+
+export function registerAIProviderHandlers(mainWindow: BrowserWindow): void {
+  // Wire the ai:runtime-status push channel. Subscribing observes only — it never
+  // starts the sidecar (LOCAL-RT.1 optionality guarantee).
+  initRuntimeTelemetry(mainWindow);
+
   // --- Provider CRUD ---
 
   // List all configured providers
@@ -70,6 +86,7 @@ export function registerAIProviderHandlers(): void {
       values.apiKeyEncrypted = encryptString(input.apiKey);
     }
     const [row] = await db.insert(aiProviders).values(values).returning();
+    notifyIfBuiltin(row.name);
     return toAIProvider(row);
   });
 
@@ -87,6 +104,7 @@ export function registerAIProviderHandlers(): void {
     }
     const [row] = await db.update(aiProviders).set(updates).where(eq(aiProviders.id, validId)).returning();
     clearProviderCache(validId);
+    notifyIfBuiltin(row?.name);
     return toAIProvider(row);
   });
 
@@ -94,8 +112,12 @@ export function registerAIProviderHandlers(): void {
   ipcMain.handle('ai:delete-provider', async (_event, id: unknown) => {
     const validId = validateInput(idParamSchema, id);
     const db = getDb();
+    // Read the name first: once the row is gone there is no way to tell whether the
+    // status indicator's visibility just changed.
+    const [existing] = await db.select({ name: aiProviders.name }).from(aiProviders).where(eq(aiProviders.id, validId));
     await db.delete(aiProviders).where(eq(aiProviders.id, validId));
     clearProviderCache(validId);
+    notifyIfBuiltin(existing?.name);
   });
 
   // --- Connection Testing ---
@@ -166,6 +188,14 @@ export function registerAIProviderHandlers(): void {
   ipcMain.handle('ai:stop-builtin', async () => {
     await stopBuiltin();
     return status();
+  });
+
+  // ONE combined pull for initial state (LOCAL-RT.2): whether the built-in provider is
+  // configured, whether a binary shipped, the runtime status and the speed/context
+  // telemetry — so a consumer needs a single round trip and then just listens on
+  // 'ai:runtime-status'. Pure inspection: it never starts the sidecar.
+  ipcMain.handle('ai:get-runtime-snapshot', async () => {
+    return getRuntimeSnapshot();
   });
 
   // --- Usage Tracking ---

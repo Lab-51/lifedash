@@ -71,7 +71,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerProjectHandlers();
   registerCardHandlers();
   registerSettingsHandlers(mainWindow);
-  registerAIProviderHandlers();
+  registerAIProviderHandlers(mainWindow);
   registerMeetingHandlers();
   registerRecordingHandlers(mainWindow);
   registerWhisperHandlers(mainWindow);

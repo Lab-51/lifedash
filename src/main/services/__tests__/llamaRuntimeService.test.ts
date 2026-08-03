@@ -396,3 +396,117 @@ describe('shutdown', () => {
     await vi.waitFor(() => expect(fs.readFileSync(logFile, 'utf8')).toContain('listening'));
   });
 });
+
+// ------------------------------------------------------------------------------------
+// Context usage (LOCAL-RT.2). The bodies below are the REAL responses captured from
+// llama.cpp b10219 by running the binary and curling /slots — `params` and `next_token`
+// are elided because nothing reads them. `n_prompt_tokens` is absent until the slot has
+// served one request, and afterwards tracks the KV cache (it read 43 where the same
+// request reported total_tokens 44). /slots requires the api key: 401 without it.
+const SLOTS_FRESH = [{ id: 0, n_ctx: 16384, speculative: false, is_processing: false }];
+const SLOTS_AFTER_REQUEST = [
+  {
+    id: 0,
+    n_ctx: 16384,
+    speculative: false,
+    is_processing: false,
+    id_task: 406,
+    n_prompt_tokens: 43,
+    n_prompt_tokens_processed: 17,
+    n_prompt_tokens_cache: 0,
+  },
+];
+
+/** Healthy /health plus a scripted /slots, recording what the caller sent. */
+function slotsFetch(body: unknown, ok = true) {
+  const seen: { url: string; auth?: string }[] = [];
+  const fn = vi.fn(async (input: string | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input.href;
+    if (url.endsWith('/slots')) {
+      seen.push({ url, auth: (init?.headers as Record<string, string> | undefined)?.authorization });
+      return { ok, status: ok ? 200 : 503, json: async () => body } as unknown as Response;
+    }
+    return { ok: true, status: 200 } as unknown as Response;
+  });
+  return { fn, seen };
+}
+
+describe('context usage — observation never spawns', () => {
+  it('returns null WITHOUT starting anything when the role is not running', async () => {
+    const svc = await loadService();
+    await expect(svc.readContextUsage('chat')).resolves.toBeNull();
+    expect(h.spawnCalls).toHaveLength(0);
+  });
+
+  it('parses the real /slots body of a running sidecar and sends the per-spawn token', async () => {
+    const { fn, seen } = slotsFetch(SLOTS_AFTER_REQUEST);
+    vi.stubGlobal('fetch', fn);
+    const svc = await loadService();
+    const endpoint = await svc.ensureRunning('chat');
+
+    await expect(svc.readContextUsage('chat')).resolves.toEqual({
+      role: 'chat',
+      usedTokens: 43,
+      contextTokens: 16384,
+      processing: false,
+    });
+    // Sibling of /v1, not under it — and authenticated.
+    expect(seen[0].url).toBe(`${endpoint.baseUrl.replace(/\/v1$/, '')}/slots`);
+    expect(seen[0].auth).toBe(`Bearer ${endpoint.apiKey}`);
+  });
+
+  it('reports 0 used for a slot that has not served a request yet', async () => {
+    vi.stubGlobal('fetch', slotsFetch(SLOTS_FRESH).fn);
+    const svc = await loadService();
+    await svc.ensureRunning('chat');
+    await expect(svc.readContextUsage('chat')).resolves.toEqual({
+      role: 'chat',
+      usedTokens: 0,
+      contextTokens: 16384,
+      processing: false,
+    });
+  });
+
+  it('degrades to null rather than throwing on an error status or an unusable body', async () => {
+    vi.stubGlobal('fetch', slotsFetch(SLOTS_AFTER_REQUEST, false).fn);
+    const svc = await loadService();
+    await svc.ensureRunning('chat');
+    await expect(svc.readContextUsage('chat')).resolves.toBeNull();
+
+    vi.stubGlobal('fetch', slotsFetch({ error: { message: 'Loading model' } }).fn);
+    const svc2 = await loadService();
+    await svc2.ensureRunning('chat');
+    await expect(svc2.readContextUsage('chat')).resolves.toBeNull();
+  });
+});
+
+describe('lifecycle notifications', () => {
+  it('notifies the observer on start, stop and crash — and a throwing observer is harmless', async () => {
+    const svc = await loadService();
+    const seen = vi.fn(() => {
+      throw new Error('observer exploded');
+    });
+    svc.setRuntimeChangeListener(seen);
+
+    await svc.ensureRunning('chat');
+    expect(seen).toHaveBeenCalledTimes(1); // started
+
+    await svc.stop('chat');
+    expect(seen).toHaveBeenCalledTimes(2); // stopped
+
+    await svc.ensureRunning('chat');
+    h.children[h.children.length - 1].simulateExit(1);
+    expect(seen).toHaveBeenCalledTimes(4); // restarted + crashed
+
+    svc.setRuntimeChangeListener(null);
+    await svc.ensureRunning('chat');
+    expect(seen).toHaveBeenCalledTimes(4); // detached
+  });
+
+  it('registering an observer starts nothing', async () => {
+    const svc = await loadService();
+    svc.setRuntimeChangeListener(vi.fn());
+    expect(svc.status().running).toBe(false);
+    expect(h.spawnCalls).toHaveLength(0);
+  });
+});

@@ -13,9 +13,9 @@
 // - Composition only. Every row, badge, progress bar and the hedged best-match
 //   rationale come from the Task 4 components; none of that copy is restated.
 // - Optional by construction: mounting costs one `local-models:view` read plus
-//   the runtime card's `status()` poll — both pure reads. No download and no
-//   settings write happens without a click, so Back and Skip leave the app
-//   exactly as it was.
+//   the runtime card's one-time runtime-snapshot pull (then push-driven) — both
+//   pure reads. No download and no settings write happens without a click, so
+//   Back and Skip leave the app exactly as it was.
 // - The Download click IS the pick. Finishing stays disabled until that model's
 //   file is on disk, because an undownloaded model is not routable.
 

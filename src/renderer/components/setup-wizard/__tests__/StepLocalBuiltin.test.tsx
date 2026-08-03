@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { NO_TOOL_CALLING_CONSEQUENCE, bestMatchRationale } from '../../settings/local-ai/format';
-import { IDLE_RUNTIME, makeView, runtimeIdOf } from './localModelsFixture';
+import { IDLE_RUNTIME, IDLE_SNAPSHOT, makeView, runtimeIdOf } from './localModelsFixture';
 
 const getLocalModelsView = vi.fn();
 const downloadLocalModel = vi.fn().mockResolvedValue({});
@@ -17,6 +17,8 @@ const cancelLocalModelDownload = vi.fn().mockResolvedValue(true);
 const deleteLocalModel = vi.fn().mockResolvedValue({ freedBytes: 1 });
 const checkBuiltinRuntime = vi.fn();
 const stopBuiltinRuntime = vi.fn();
+const getRuntimeSnapshot = vi.fn();
+const onRuntimeStatus = vi.fn(() => () => {});
 const getSetting = vi.fn().mockResolvedValue(null);
 const setSetting = vi.fn().mockResolvedValue(undefined);
 const onLocalModelProgress = vi.fn(() => () => {});
@@ -29,6 +31,8 @@ vi.stubGlobal('electronAPI', {
   deleteLocalModel,
   checkBuiltinRuntime,
   stopBuiltinRuntime,
+  getRuntimeSnapshot,
+  onRuntimeStatus,
   getSetting,
   setSetting,
   onLocalModelProgress,
@@ -55,6 +59,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getLocalModelsView.mockResolvedValue(makeView());
   checkBuiltinRuntime.mockResolvedValue(IDLE_RUNTIME);
+  getRuntimeSnapshot.mockResolvedValue(IDLE_SNAPSHOT);
   getSetting.mockResolvedValue(null);
 });
 
@@ -96,8 +101,8 @@ describe('StepLocalBuiltin — optional by construction', () => {
     await screen.findByText(/Your machine reports/);
 
     expect(getLocalModelsView).toHaveBeenCalledWith(false);
-    // checkBuiltinRuntime is main-process status() — a pure read that never spawns.
-    expect(checkBuiltinRuntime).toHaveBeenCalled();
+    // getRuntimeSnapshot (LocalRuntimeCard's shared hook) is a pure read that never spawns.
+    expect(getRuntimeSnapshot).toHaveBeenCalled();
     expect(downloadLocalModel).not.toHaveBeenCalled();
     expect(deleteLocalModel).not.toHaveBeenCalled();
     expect(stopBuiltinRuntime).not.toHaveBeenCalled();

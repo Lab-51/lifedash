@@ -39,6 +39,8 @@ import { initCalendarPollScheduler, stopCalendarPollScheduler } from './services
 // Shutdown-only import: the built-in AI sidecar starts lazily from a routed request,
 // never at boot. This just guarantees no llama-server outlives the app.
 import { stop as stopLlamaRuntime } from './services/llamaRuntimeService';
+import { reconcileBuiltinFromDisk } from './services/builtinProviderSetup';
+import { emitRuntimeStatus } from './services/runtimeTelemetry';
 
 const log = createLogger('App');
 
@@ -86,6 +88,20 @@ app.on('second-instance', () => {
     mainWindow.focus();
   }
 });
+
+/**
+ * Models downloaded before auto-activation existed would otherwise stay dead —
+ * nothing re-runs on an old file. Treats a GGUF already on disk like a download
+ * that just finished, and never overwrites an assignment the user made. No-op
+ * when no models are installed; reads the filesystem and spawns nothing.
+ */
+async function reconcileBuiltinRuntime(): Promise<void> {
+  try {
+    if (await reconcileBuiltinFromDisk()) await emitRuntimeStatus();
+  } catch (err) {
+    log.warn('Built-in runtime reconciliation skipped:', err);
+  }
+}
 
 const createWindow = async () => {
   // Restore previous window position and size
@@ -224,6 +240,8 @@ const createWindow = async () => {
     if (dbSizeBytes !== null) {
       log.info(`DB size: ${(dbSizeBytes / 1024 / 1024).toFixed(1)} MB`);
     }
+
+    await reconcileBuiltinRuntime();
 
     // Apply proxy settings for enterprise networks (before any AI calls)
     await applyGlobalProxy();

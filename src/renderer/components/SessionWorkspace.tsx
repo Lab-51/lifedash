@@ -34,6 +34,7 @@ import BriefSection from './BriefSection';
 import ActionItemList from './ActionItemList';
 import ConvertActionModal from './ConvertActionModal';
 import MeetingAnalyticsSection from './MeetingAnalyticsSection';
+import SessionRail from './SessionRail';
 import EmptyAIState from './EmptyAIState';
 import LoadingSpinner from './LoadingSpinner';
 import ActivityFeed from './ActivityFeed';
@@ -737,8 +738,10 @@ export default function SessionWorkspace() {
           {renderPanel()}
         </section>
 
-        {/* Right rail — intelligence + review affordances */}
-        <aside className="w-[380px] shrink-0 border-l border-[var(--color-border)] overflow-y-auto p-6 space-y-5">
+        {/* Right rail — intelligence + review affordances. Resizable/collapsible
+            (SessionRail): one fixed width could not serve both a laptop and an
+            ultrawide, and 380px squeezed every section inside it. */}
+        <SessionRail>
           <MeetingAnalyticsSection meetingId={meeting.id} isCompleted={meeting.status === 'completed'} />
           <SessionIntelligence meeting={meeting} autoGenerate={autoGenerate} onConvert={setConvertingAction} />
           {meeting.status === 'completed' && (
@@ -746,7 +749,7 @@ export default function SessionWorkspace() {
           )}
           {meeting.status === 'completed' && <SessionActivityFeed meetingId={meeting.id} onSelectTab={setActiveTab} />}
           <DeleteMeetingButton onDelete={handleDelete} />
-        </aside>
+        </SessionRail>
       </div>
 
       {convertingAction && (

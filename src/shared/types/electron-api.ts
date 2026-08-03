@@ -1,7 +1,7 @@
 // === ElectronAPI interface exposed to renderer via contextBridge ===
 
 import type { DatabaseStatus } from './common';
-import type { LlamaRuntimeStatus } from './ai';
+import type { LlamaRuntimeSnapshot, LlamaRuntimeStatus } from './ai';
 import type {
   CatalogModel,
   LocalModelDownloadProgress,
@@ -305,6 +305,13 @@ export interface ElectronAPI {
 
   // Stop the built-in runtime on the user's command; resolves with the new status.
   stopBuiltinRuntime: () => Promise<LlamaRuntimeStatus>;
+
+  // One combined pull for initial local-runtime state — inspection only, never starts it.
+  getRuntimeSnapshot: () => Promise<LlamaRuntimeSnapshot>;
+
+  // Push of the SAME snapshot on runtime transitions, after each completed generation,
+  // and on builtin provider add/enable/disable/remove. Returns an unsubscribe fn.
+  onRuntimeStatus: (callback: (snapshot: LlamaRuntimeSnapshot) => void) => () => void;
 
   // Meetings
   getMeetings: () => Promise<Meeting[]>;

@@ -11,8 +11,9 @@
 // === CONTRACT NOTES ===
 // - NO SILENT DEFAULT: the hardware tier only HIGHLIGHTS a model with hedged copy.
 //   Nothing here selects or downloads a model without an explicit click.
-// - Rendering this section costs one `local-models:view` read plus a `status()`
-//   poll in the runtime card. Neither spawns the runtime; neither starts a transfer.
+// - Rendering this section costs one `local-models:view` read plus the runtime
+//   card's one-time `ai:get-runtime-snapshot` pull (then push-driven from
+//   `ai:runtime-status`). Neither spawns the runtime; neither starts a transfer.
 
 import { useMemo, useState } from 'react';
 import { AlertTriangle, Cpu, FolderOpen, Loader2, Plus, RefreshCw } from 'lucide-react';
@@ -26,6 +27,7 @@ import { useLocalModels } from '../../hooks/useLocalModels';
 import { ConfirmDialog } from '../ConfirmDialog';
 import CatalogModelRow from './local-ai/CatalogModelRow';
 import CustomModelForm from './local-ai/CustomModelForm';
+import EnableBuiltinCard from './local-ai/EnableBuiltinCard';
 import LocalAIFilterBar, { ANY, applyFilters, type CatalogFilters } from './local-ai/LocalAIFilterBar';
 import LocalRuntimeCard from './local-ai/LocalRuntimeCard';
 import { bestMatchRationale, formatSize } from './local-ai/format';
@@ -217,6 +219,11 @@ export default function LocalAISection() {
       </div>
 
       <LocalRuntimeCard />
+
+      {/* The bridge from "downloaded" to "actually used": downloading creates no
+          `builtin` provider row, so without this the catalog dead-ends. Hides
+          itself once one exists. */}
+      {view && <EnableBuiltinCard view={view} onActivated={() => void refresh(false)} />}
 
       {(actionError ?? error) && (
         <p className="mt-3 p-2 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-data break-words overflow-hidden">

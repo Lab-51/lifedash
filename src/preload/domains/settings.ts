@@ -1,6 +1,6 @@
 // === Preload bridge: Settings and AI providers ===
 import { ipcRenderer } from 'electron';
-import type { CreateAIProviderInput, UpdateAIProviderInput } from '../../shared/types';
+import type { CreateAIProviderInput, LlamaRuntimeSnapshot, UpdateAIProviderInput } from '../../shared/types';
 
 export const settingsBridge = {
   // Settings
@@ -38,4 +38,19 @@ export const settingsBridge = {
 
   // Stop the built-in runtime on the user's command; resolves with the new status.
   stopBuiltinRuntime: () => ipcRenderer.invoke('ai:stop-builtin'),
+
+  // One combined pull for initial local-runtime state (configured / binaryPresent /
+  // runtime status / speed + context telemetry). Inspection only — never starts it.
+  getRuntimeSnapshot: () => ipcRenderer.invoke('ai:get-runtime-snapshot'),
+
+  // Main pushes the SAME snapshot on lifecycle transitions, after each completed
+  // generation (so tok/s is fresh), and when the builtin provider row is added,
+  // enabled, disabled or removed. Returns an unsubscribe fn.
+  onRuntimeStatus: (callback: (snapshot: LlamaRuntimeSnapshot) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, snapshot: LlamaRuntimeSnapshot) => callback(snapshot);
+    ipcRenderer.on('ai:runtime-status', handler);
+    return () => {
+      ipcRenderer.removeListener('ai:runtime-status', handler);
+    };
+  },
 };

@@ -12,10 +12,10 @@
 // wiring below therefore mirrors meetingAgentStore.send()'s listener lifecycle:
 // listeners are registered per send and torn down in `finally`, plus on unmount.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SendHorizonal, Square, Loader2, Bot, Info } from 'lucide-react';
 import ChatMessageModern from '../ChatMessageModern';
-import { describeToolCall, describeToolEvent } from '../../utils/toolCallLabels';
+import { describeToolEvent, groupToolCalls } from '../../utils/toolCallLabels';
 import type { MeetingAgentMessage, BrainstormMessage } from '../../../shared/types';
 
 /** Actionable copy for the one error the user can actually fix themselves. */
@@ -43,18 +43,41 @@ function toBrainstormMessage(message: MeetingAgentMessage, content: string): Bra
   };
 }
 
+/** Beyond this many distinct rows the steps fold behind a toggle. Mirrors
+ *  LiveAssistantChat: one answer's tool calls must never bury the answer. */
+const VISIBLE_TOOL_ROWS = 4;
+
 /** One persisted message: markdown content (if any) + tool-call badges (if any). */
 function AssistantMessage({ message }: { message: MeetingAgentMessage }) {
+  const [expanded, setExpanded] = useState(false);
+  // Adjacent identical calls collapse to one "×N" row — a model can emit many
+  // tool calls per step, and twenty raw rows read as a malfunction.
+  const grouped = useMemo(() => groupToolCalls(message.toolCalls ?? []), [message.toolCalls]);
+  const hidden = Math.max(0, grouped.length - VISIBLE_TOOL_ROWS);
+  const shown = expanded ? grouped : grouped.slice(0, VISIBLE_TOOL_ROWS);
+
   return (
     <div>
       {message.content && <ChatMessageModern message={toBrainstormMessage(message, message.content)} />}
-      {message.toolCalls && message.toolCalls.length > 0 && (
-        <div className="flex flex-col gap-1 mb-4 -mt-2 px-1">
-          {message.toolCalls.map((call, i) => (
-            <span key={call.id || i} className="text-[0.6875rem] font-data text-[var(--color-text-muted)]">
-              {describeToolCall(call)}
+      {grouped.length > 0 && (
+        <div className="flex flex-col gap-1 mb-4 -mt-2 px-1 overflow-hidden">
+          {shown.map((row) => (
+            <span
+              key={row.id}
+              className="text-[0.6875rem] font-data text-[var(--color-text-muted)] break-words min-w-0"
+            >
+              {row.label}
+              {row.count > 1 && <span className="opacity-70"> ×{row.count}</span>}
             </span>
           ))}
+          {hidden > 0 && (
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="self-start text-[0.6875rem] font-data text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+            >
+              {expanded ? 'Show fewer steps' : `Show ${hidden} more step${hidden === 1 ? '' : 's'}`}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -90,8 +113,22 @@ const VARIANT_UI = {
   },
 } as const;
 
+/**
+ * Opening moves. An empty chat with only a blinking cursor makes the user invent
+ * the interaction; these are the questions a completed meeting can actually
+ * answer, so the first click needs no typing. Deliberately static: a generated
+ * set would cost a model call before the user has asked for anything, on a
+ * surface whose whole promise is that nothing runs unless you ask.
+ */
+const STARTER_PROMPTS = [
+  'What tasks do I need to do?',
+  'What was decided?',
+  'What was left unresolved?',
+  'Summarize this meeting',
+] as const;
+
 /** Empty-thread invitation — vertically centered when the chat owns the canvas. */
-function EmptyThreadState({ variant }: { variant: 'rail' | 'canvas' }) {
+function EmptyThreadState({ variant, onPick }: { variant: 'rail' | 'canvas'; onPick: (prompt: string) => void }) {
   const canvas = variant === 'canvas';
   return (
     <div className={`flex flex-col items-center text-center ${canvas ? 'justify-center h-full py-10' : 'py-3'}`}>
@@ -108,6 +145,17 @@ function EmptyThreadState({ variant }: { variant: 'rail' | 'canvas' }) {
       <p className={`${canvas ? 'text-xs' : 'text-[0.6875rem]'} text-[var(--color-text-muted)] mt-1`}>
         Answers are grounded in the transcript, with [mm:ss] references.
       </p>
+      <div className="mt-3 flex flex-wrap justify-center gap-1.5 px-2">
+        {STARTER_PROMPTS.map((prompt) => (
+          <button
+            key={prompt}
+            onClick={() => onPick(prompt)}
+            className={`${canvas ? 'text-xs' : 'text-[0.6875rem]'} max-w-full break-words rounded-full border border-[var(--color-border)] hover:border-[var(--color-border-accent)] px-2.5 py-1 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors`}
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -157,56 +205,63 @@ export default function LiveAssistantSection({ meetingId, variant = 'rail' }: Li
     endRef.current?.scrollIntoView?.({ behavior: 'smooth' });
   }, [messages, streamingText]);
 
-  const handleSend = useCallback(async () => {
-    const content = input.trim();
-    if (!content || streaming) return;
+  // `override` lets a starter chip send its prompt directly. Both existing call
+  // sites already wrap this in an arrow, so no click event can leak in as one.
+  const handleSend = useCallback(
+    async (override?: string) => {
+      const content = (override ?? input).trim();
+      if (!content || streaming) return;
 
-    setInput('');
-    setError(null);
-    setStreamingText('');
-    setActiveTool(null);
-    setStreaming(true);
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `temp-${Date.now()}`,
-        threadId: '',
-        role: 'user',
-        content,
-        toolCalls: null,
-        toolResults: null,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+      // Only clear the box when the box is what was sent — a chip click must not
+      // discard something the user had half-typed.
+      if (override === undefined) setInput('');
+      setError(null);
+      setStreamingText('');
+      setActiveTool(null);
+      setStreaming(true);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `temp-${Date.now()}`,
+          threadId: '',
+          role: 'user',
+          content,
+          toolCalls: null,
+          toolResults: null,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
 
-    const cleanups = [
-      window.electronAPI.onMeetingAgentTextDelta((data) => {
-        if (data.meetingId === meetingId) setStreamingText((text) => text + data.chunk);
-      }),
-      window.electronAPI.onMeetingAgentToolCall((data) => {
-        if (data.meetingId === meetingId) setActiveTool({ toolName: data.toolName, args: data.args });
-      }),
-      window.electronAPI.onMeetingAgentError((data) => {
-        if (data.meetingId === meetingId) setError(data.error);
-      }),
-    ];
-    cleanupsRef.current = cleanups;
+      const cleanups = [
+        window.electronAPI.onMeetingAgentTextDelta((data) => {
+          if (data.meetingId === meetingId) setStreamingText((text) => text + data.chunk);
+        }),
+        window.electronAPI.onMeetingAgentToolCall((data) => {
+          if (data.meetingId === meetingId) setActiveTool({ toolName: data.toolName, args: data.args });
+        }),
+        window.electronAPI.onMeetingAgentError((data) => {
+          if (data.meetingId === meetingId) setError(data.error);
+        }),
+      ];
+      cleanupsRef.current = cleanups;
 
-    try {
-      const result = await window.electronAPI.meetingAgentSend(meetingId, content);
-      if (result && mountedRef.current) setMessages((prev) => [...prev, result.assistantMessage]);
-    } catch (err) {
-      if (mountedRef.current) setError(toDisplayError(err));
-    } finally {
-      cleanups.forEach((fn) => fn());
-      cleanupsRef.current = [];
-      if (mountedRef.current) {
-        setStreaming(false);
-        setStreamingText('');
-        setActiveTool(null);
+      try {
+        const result = await window.electronAPI.meetingAgentSend(meetingId, content);
+        if (result && mountedRef.current) setMessages((prev) => [...prev, result.assistantMessage]);
+      } catch (err) {
+        if (mountedRef.current) setError(toDisplayError(err));
+      } finally {
+        cleanups.forEach((fn) => fn());
+        cleanupsRef.current = [];
+        if (mountedRef.current) {
+          setStreaming(false);
+          setStreamingText('');
+          setActiveTool(null);
+        }
       }
-    }
-  }, [input, streaming, meetingId]);
+    },
+    [input, streaming, meetingId],
+  );
 
   return (
     <div className={ui.root}>
@@ -221,7 +276,9 @@ export default function LiveAssistantSection({ meetingId, variant = 'rail' }: Li
 
       <div className={ui.card}>
         <div className={ui.scroll}>
-          {messages.length === 0 && !streaming && <EmptyThreadState variant={variant} />}
+          {messages.length === 0 && !streaming && (
+            <EmptyThreadState variant={variant} onPick={(prompt) => void handleSend(prompt)} />
+          )}
 
           {messages.map((message) => (
             <AssistantMessage key={message.id} message={message} />

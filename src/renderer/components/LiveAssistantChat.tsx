@@ -12,7 +12,7 @@ import ChatMessageModern from './ChatMessageModern';
 import { useMeetingAgentStore } from '../stores/meetingAgentStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useBoardStore } from '../stores/boardStore';
-import { describeToolEvent, describeToolCall } from '../utils/toolCallLabels';
+import { describeToolEvent, describeToolCall, groupToolCalls } from '../utils/toolCallLabels';
 import type { MeetingAgentMessage, BrainstormMessage } from '../../shared/types';
 
 const STARTER_PROMPTS = [
@@ -31,29 +31,54 @@ function toBrainstormMessage(message: MeetingAgentMessage, content: string): Bra
   };
 }
 
+/** Beyond this many distinct tool rows the list is folded behind a toggle — an
+ *  agent that fires twenty searches must not push its own answer off screen. */
+const VISIBLE_TOOL_ROWS = 4;
+
 /** One persisted message: markdown content (if any) + tool-call badges (if any). */
 function MeetingMessage({ message }: { message: MeetingAgentMessage }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const grouped = useMemo(
+    () =>
+      groupToolCalls(
+        message.toolCalls ?? [],
+        (call) =>
+          (message.toolResults?.find((r) => r.toolCallId === call.id)?.result as Record<string, unknown> | undefined)
+            ?.success === false,
+      ),
+    [message.toolCalls, message.toolResults],
+  );
+
+  const hidden = Math.max(0, grouped.length - VISIBLE_TOOL_ROWS);
+  const shown = expanded ? grouped : grouped.slice(0, VISIBLE_TOOL_ROWS);
+
   return (
     <div>
       {message.content && <ChatMessageModern message={toBrainstormMessage(message, message.content)} />}
-      {message.toolCalls && message.toolCalls.length > 0 && (
-        <div className="flex flex-col gap-1 mb-4 -mt-1 px-1">
-          {message.toolCalls.map((call, i) => {
-            const result = message.toolResults?.find((r) => r.toolCallId === call.id);
-            const failed = result && (result.result as Record<string, unknown> | undefined)?.success === false;
-            return (
-              <div key={call.id || i} className="flex items-center gap-1.5">
-                {failed ? (
-                  <XCircle size={11} className="text-red-500 shrink-0" />
-                ) : (
-                  <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
-                )}
-                <span className="text-[0.6875rem] font-data text-[var(--color-text-secondary)]">
-                  {describeToolCall(call)}
-                </span>
-              </div>
-            );
-          })}
+      {grouped.length > 0 && (
+        <div className="flex flex-col gap-1 mb-4 -mt-1 px-1 overflow-hidden">
+          {shown.map((row) => (
+            <div key={row.id} className="flex items-center gap-1.5 min-w-0">
+              {row.failed ? (
+                <XCircle size={11} className="text-red-500 shrink-0" />
+              ) : (
+                <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
+              )}
+              <span className="text-[0.6875rem] font-data text-[var(--color-text-secondary)] break-words min-w-0">
+                {row.label}
+                {row.count > 1 && <span className="text-[var(--color-text-muted)]"> ×{row.count}</span>}
+              </span>
+            </div>
+          ))}
+          {hidden > 0 && (
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="self-start text-[0.6875rem] font-data text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+            >
+              {expanded ? 'Show fewer steps' : `Show ${hidden} more step${hidden === 1 ? '' : 's'}`}
+            </button>
+          )}
         </div>
       )}
     </div>

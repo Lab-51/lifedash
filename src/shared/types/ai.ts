@@ -143,6 +143,89 @@ export interface LlamaRuntimeStatus {
   idleStopMinutes: number;
 }
 
+// --- Runtime telemetry (LOCAL-RT.2) ---------------------------------------
+// Measured at the single provider seam in ai-provider.ts, so ONE measurement point
+// covers builtin, LM Studio, Ollama and cloud alike and cannot drift from what ran.
+
+/**
+ * Context (KV cache) utilisation of a running built-in sidecar, read from
+ * llama-server's `/slots` endpoint.
+ *
+ * Field provenance — VERIFIED against llama.cpp b10219 by running the binary and
+ * curling `/slots` (LOCAL-RT.2 Task 1); the shape is NOT assumed:
+ *   `[{ "id":0, "n_ctx":16384, "speculative":false, "is_processing":false,
+ *       "n_prompt_tokens":43, "n_prompt_tokens_processed":17, ... }]`
+ * `n_prompt_tokens` is the slot's resident token count (prompt + generated) after a
+ * request; it read 43 where the same request reported total_tokens 44, i.e. it
+ * tracks the KV cache, not the request. It is ABSENT until the slot has served one
+ * request, which is reported here as 0 used.
+ */
+export interface LlamaContextUsage {
+  role: LlamaRole;
+  /** `slot.n_prompt_tokens` — tokens resident in the slot's KV cache. */
+  usedTokens: number;
+  /** `slot.n_ctx` — the slot's context window. */
+  contextTokens: number;
+  /** `slot.is_processing` — true while the slot is serving a request. */
+  processing: boolean;
+}
+
+/** Rolling stats for one `provider:model` pair, over the last N samples. */
+export interface RuntimeModelStats {
+  providerName: AIProviderName;
+  model: string;
+  /** Samples currently held for this key (capped — see RUNTIME_TELEMETRY_WINDOW). */
+  samples: number;
+  averageTokensPerSecond: number;
+  lastTokensPerSecond: number;
+  /** Mean time-to-first-token across the streaming samples, or null when none. */
+  averageTtftMs: number | null;
+  /** Epoch ms of the newest sample. */
+  lastAt: number;
+}
+
+/** One measured generation. Wall-clock around the model call — see recordGeneration. */
+export interface RuntimeGenerationSample {
+  providerName: AIProviderName;
+  model: string;
+  outputTokens: number;
+  elapsedMs: number;
+  tokensPerSecond: number;
+  /** Time to first streamed token, or null for non-streaming calls. */
+  ttftMs: number | null;
+  streaming: boolean;
+  at: number;
+}
+
+export interface RuntimeTelemetrySnapshot {
+  /** Newest sample across all providers, or null before the first generation. */
+  latest: RuntimeGenerationSample | null;
+  /** Rolling stats keyed by `${providerName}:${model}`. */
+  byModel: Record<string, RuntimeModelStats>;
+  /** Built-in chat sidecar context use, or null when it is not running. */
+  context: LlamaContextUsage | null;
+}
+
+/**
+ * Everything a renderer needs for initial runtime state in ONE call, and the exact
+ * payload pushed on `ai:runtime-status`.
+ */
+export interface LlamaRuntimeSnapshot {
+  /**
+   * An ENABLED `builtin` provider row exists. This — not `binaryPresent` — is the
+   * visibility signal for the status indicator: the binaries ship with every
+   * install, so keying off them would show the dot to deliberate cloud-only users.
+   */
+  configured: boolean;
+  /** At least one sidecar binary is installed (the runtime card's missing-binary warning). */
+  binaryPresent: boolean;
+  runtime: LlamaRuntimeStatus;
+  telemetry: RuntimeTelemetrySnapshot;
+}
+
+/** Measurements retained per `provider:model`. In memory only — no table, by design. */
+export const RUNTIME_TELEMETRY_WINDOW = 10;
+
 /** Settings key holding the built-in runtime's idle auto-stop window. 0 = never stop. */
 export const LOCAL_AI_IDLE_SETTING_KEY = 'localAI.idleStopMinutes';
 /** Idle window used when the key was never written. */

@@ -43,6 +43,7 @@ export const releaseHistory: ReleaseNotesData[] = [
           'A new Local AI section in Settings manages everything: download or remove models, see exactly how much space each frees when you delete it, add your own GGUF file, and watch the runtime status live.',
           'Nothing runs behind your back. The model starts when you use it, shows a status card with a Stop button, and shuts itself down after 15 idle minutes. Installing this update starts nothing.',
           'Already using LM Studio, Ollama, or a cloud key? Nothing changes — your setup is untouched and all of them remain fully supported per task.',
+          "See the built-in runtime's real performance, not just whether it's running: the status bar and Settings → Local AI's runtime card now show live tokens-per-second and context usage, both read from the exact same measurement so the two can never disagree. That figure is measured end-to-end at the moment LifeDash calls the model, so it includes a little queue/transport overhead and reads slightly lower than llama.cpp's own internal number. It does not show VRAM or overall system load.",
         ],
       },
       {

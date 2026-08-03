@@ -184,7 +184,9 @@ describe('LiveAssistantChat', () => {
 
     renderChat();
 
-    expect(screen.getByText('Searched transcript')).toBeInTheDocument();
+    // The searched phrase is part of the label: twenty opaque "Searched
+    // transcript" rows told the user nothing about what was looked for.
+    expect(screen.getByText('Searched transcript for “budget”')).toBeInTheDocument();
     expect(screen.getByText('Read transcript window')).toBeInTheDocument();
     expect(screen.getByText('Loaded meeting context')).toBeInTheDocument();
   });
@@ -198,7 +200,7 @@ describe('LiveAssistantChat', () => {
 
     renderChat();
 
-    expect(screen.getByText('Searching transcript…')).toBeInTheDocument();
+    expect(screen.getByText('Searching transcript for “budget”…')).toBeInTheDocument();
   });
 
   it('collapses a call+result pair into one done row with the past-tense label (not a lingering "…" row)', () => {

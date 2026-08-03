@@ -5,7 +5,7 @@
 // === DEPENDENCIES ===
 // react, lucide-react, meetingStore, MeetingAnalytics type
 
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { BarChart3, Users, Clock, MessageSquare, Loader2 } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 
@@ -42,6 +42,40 @@ function formatDurationLong(ms: number): string {
   if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
+}
+
+/**
+ * One stat tile. `min-w-0` + `truncate` on the value is the fix for the clipped
+ * word count: without it a long number overflowed its tile silently instead of
+ * shrinking or eliding. `tabular-nums` keeps the four tiles optically aligned.
+ */
+function StatTile({
+  label,
+  value,
+  icon,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  icon?: ReactNode;
+  accent?: boolean;
+}) {
+  return (
+    <div className="min-w-0 bg-surface-100/50 dark:bg-surface-950/50 rounded-xl p-3 border border-[var(--color-border)]">
+      <div className="flex items-center justify-center gap-1.5 font-hud text-[0.625rem] text-[var(--color-text-muted)] mb-1">
+        {icon}
+        <span className="truncate">{label}</span>
+      </div>
+      <div
+        title={value}
+        className={`font-data text-lg font-bold tracking-tight text-center tabular-nums truncate ${
+          accent ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'
+        }`}
+      >
+        {value}
+      </div>
+    </div>
+  );
 }
 
 export default function MeetingAnalyticsSection({ meetingId, isCompleted }: MeetingAnalyticsSectionProps) {
@@ -86,35 +120,20 @@ export default function MeetingAnalyticsSection({ meetingId, isCompleted }: Meet
       </h3>
 
       <div className="hud-panel clip-corner-cut-sm p-5 space-y-6">
-        {/* Top stats row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-          <div className="bg-surface-100/50 dark:bg-surface-950/50 rounded-xl p-3 border border-[var(--color-border)]">
-            <div className="flex items-center justify-center gap-1.5 font-hud text-[0.625rem] text-[var(--color-text-muted)] mb-1">
-              <Clock size={14} />
-              Duration
-            </div>
-            <div className="font-data text-[var(--color-accent)] text-xl font-bold tracking-tight text-center">
-              {formatDurationLong(analytics.durationMs)}
-            </div>
-          </div>
-          <div className="bg-surface-100/50 dark:bg-surface-950/50 rounded-xl p-3 border border-[var(--color-border)]">
-            <div className="font-hud text-[0.625rem] text-[var(--color-text-muted)] mb-1 text-center">Segments</div>
-            <div className="font-data text-[var(--color-text-primary)] text-xl font-bold tracking-tight text-center">
-              {analytics.totalSegments.toLocaleString()}
-            </div>
-          </div>
-          <div className="bg-surface-100/50 dark:bg-surface-950/50 rounded-xl p-3 border border-[var(--color-border)]">
-            <div className="font-hud text-[0.625rem] text-[var(--color-text-muted)] mb-1 text-center">Words</div>
-            <div className="font-data text-[var(--color-text-primary)] text-xl font-bold tracking-tight text-center">
-              {analytics.totalWords.toLocaleString()}
-            </div>
-          </div>
-          <div className="bg-surface-100/50 dark:bg-surface-950/50 rounded-xl p-3 border border-[var(--color-border)]">
-            <div className="font-hud text-[0.625rem] text-[var(--color-text-muted)] mb-1 text-center">WPM</div>
-            <div className="font-data text-[var(--color-text-primary)] text-xl font-bold tracking-tight text-center">
-              {analytics.wordsPerMinute}
-            </div>
-          </div>
+        {/* Top stats row. `@xl/rail:` — NOT `md:` — because these tiles live in
+            the right rail: a viewport breakpoint forced 4 columns into ~332px on
+            any wide window, which is what truncated "Segments" and clipped the
+            word count. Four columns only once the rail itself is wide enough. */}
+        <div className="grid grid-cols-2 @xl/rail:grid-cols-4 gap-3 text-center">
+          <StatTile
+            label="Duration"
+            value={formatDurationLong(analytics.durationMs)}
+            accent
+            icon={<Clock size={13} />}
+          />
+          <StatTile label="Segments" value={analytics.totalSegments.toLocaleString()} />
+          <StatTile label="Words" value={analytics.totalWords.toLocaleString()} />
+          <StatTile label="WPM" value={String(analytics.wordsPerMinute)} />
         </div>
 
         {/* Speaker breakdown */}

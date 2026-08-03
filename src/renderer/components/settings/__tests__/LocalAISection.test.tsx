@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { CatalogModel, LocalModelDownloadProgress, LocalModelsView } from '../../../../shared/types/localModels';
+import type { LlamaRuntimeSnapshot } from '../../../../shared/types/ai';
 import bundledCatalog from '../../../../../catalog/models.json';
 
 // --- Bridge mock -------------------------------------------------------------
@@ -22,6 +23,7 @@ const openLocalModelsFolder = vi.fn().mockResolvedValue(undefined);
 const pickLocalModelFile = vi.fn().mockResolvedValue(null);
 const checkBuiltinRuntime = vi.fn();
 const stopBuiltinRuntime = vi.fn();
+const getRuntimeSnapshot = vi.fn();
 const getSetting = vi.fn().mockResolvedValue(null);
 const setSetting = vi.fn().mockResolvedValue(undefined);
 
@@ -30,6 +32,23 @@ const onLocalModelProgress = vi.fn((cb: (p: LocalModelDownloadProgress) => void)
   progressListener = cb;
   return () => {
     progressListener = null;
+  };
+});
+
+// LocalRuntimeCard (Task 3) reads the SAME push-driven hook as StatusBar (Task 2):
+// one `getRuntimeSnapshot` pull, then `onRuntimeStatus` pushes — never a poll.
+// Multiple subscribers on purpose: this section mounts TWO consumers of the hook
+// (LocalRuntimeCard and EnableBuiltinCard). The real bridge registers a separate
+// ipcRenderer handler per call (preload/domains/settings.ts), so a single-slot
+// mock would silently model behaviour the product does not have.
+const runtimeStatusCbs = new Set<(snapshot: LlamaRuntimeSnapshot) => void>();
+const runtimeStatusCb = (snapshot: LlamaRuntimeSnapshot) => runtimeStatusCbs.forEach((cb) => cb(snapshot));
+const runtimeUnsubscribe = vi.fn();
+const onRuntimeStatus = vi.fn((cb: (snapshot: LlamaRuntimeSnapshot) => void) => {
+  runtimeStatusCbs.add(cb);
+  return () => {
+    runtimeStatusCbs.delete(cb);
+    runtimeUnsubscribe();
   };
 });
 
@@ -46,6 +65,8 @@ vi.stubGlobal('electronAPI', {
   onLocalModelProgress,
   checkBuiltinRuntime,
   stopBuiltinRuntime,
+  getRuntimeSnapshot,
+  onRuntimeStatus,
   getSetting,
   setSetting,
 });
@@ -153,6 +174,18 @@ const IDLE_RUNTIME = {
   },
 };
 
+/** `getRuntimeSnapshot` / `ai:runtime-status` payload for LocalRuntimeCard —
+ *  reuses `IDLE_RUNTIME.runtime` so the two fixtures can't disagree. */
+function snapshot(overrides: Partial<LlamaRuntimeSnapshot> = {}): LlamaRuntimeSnapshot {
+  return {
+    configured: true,
+    binaryPresent: true,
+    runtime: IDLE_RUNTIME.runtime,
+    telemetry: { latest: null, byModel: {}, context: null },
+    ...overrides,
+  };
+}
+
 /** Open a HudSelect by its accessible name and click one of its options. */
 async function pickFromSelect(selectLabel: string, optionLabel: string) {
   fireEvent.click(screen.getByRole('button', { name: selectLabel }));
@@ -163,8 +196,10 @@ async function pickFromSelect(selectLabel: string, optionLabel: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   progressListener = null;
+  runtimeStatusCbs.clear();
   getLocalModelsView.mockResolvedValue(view());
   checkBuiltinRuntime.mockResolvedValue(IDLE_RUNTIME);
+  getRuntimeSnapshot.mockResolvedValue(snapshot());
   getSetting.mockResolvedValue(null);
   deleteLocalModel.mockResolvedValue({ freedBytes: 9_001_752_960 });
 });
@@ -258,8 +293,8 @@ describe('LocalAISection — guided best match, never a silent default', () => {
     await screen.findByText('Qwen3 14B (Q4_K_M)');
 
     expect(getLocalModelsView).toHaveBeenCalledWith(false);
-    // checkBuiltinRuntime is main-process `status()` — a pure read that never spawns.
-    expect(checkBuiltinRuntime).toHaveBeenCalled();
+    // getRuntimeSnapshot (LocalRuntimeCard's shared hook) is a pure read that never spawns.
+    expect(getRuntimeSnapshot).toHaveBeenCalled();
     expect(downloadLocalModel).not.toHaveBeenCalled();
     expect(registerCustomLocalModel).not.toHaveBeenCalled();
     expect(deleteLocalModel).not.toHaveBeenCalled();
@@ -499,44 +534,86 @@ describe('LocalAISection — failure handling', () => {
   });
 });
 
-describe('LocalAISection — runtime card', () => {
-  it('reports the stopped state and disables Stop when nothing is running', async () => {
+describe('LocalAISection — runtime card (fed by the SAME useRuntimeStatus hook as StatusBar)', () => {
+  it('reports the ready state (never "Stopped") and disables Stop when nothing is running', async () => {
     render(<LocalAISection />);
 
-    expect(await screen.findByText('Stopped')).toBeInTheDocument();
+    // "Ready" not "Stopped" — the idle-stopped sidecar is a designed resting
+    // state, not an error, and the word must come from the shared hook so it
+    // can never read healthy on the status bar and dead here.
+    expect(await screen.findByText('Ready')).toBeInTheDocument();
+    expect(screen.queryByText('Stopped')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Stop the built-in runtime' })).toBeDisabled();
   });
 
-  it('reports backend and loaded models while running, and stops on click', async () => {
-    checkBuiltinRuntime.mockResolvedValue({
-      ...IDLE_RUNTIME,
-      models: ['qwen3-14b-Q4_K_M'],
-      runtime: {
-        ...IDLE_RUNTIME.runtime,
-        running: true,
-        backend: 'vulkan',
-        loadedModels: ['qwen3-14b-Q4_K_M'],
-        chat: { ...IDLE_RUNTIME.runtime.chat, running: true, modelId: 'qwen3-14b-Q4_K_M' },
-      },
-    });
+  it('reports backend, loaded models, context usage and last tok/s while running, then stops on click', async () => {
+    getRuntimeSnapshot.mockResolvedValue(
+      snapshot({
+        runtime: {
+          ...IDLE_RUNTIME.runtime,
+          running: true,
+          backend: 'vulkan',
+          loadedModels: ['qwen3-14b-Q4_K_M'],
+          chat: { ...IDLE_RUNTIME.runtime.chat, running: true, modelId: 'qwen3-14b-Q4_K_M' },
+        },
+        telemetry: {
+          latest: null,
+          context: { role: 'chat', usedTokens: 512, contextTokens: 8192, processing: false },
+          byModel: {
+            'builtin:qwen3-14b-Q4_K_M': {
+              providerName: 'builtin',
+              model: 'qwen3-14b-Q4_K_M',
+              samples: 3,
+              averageTokensPerSecond: 42,
+              lastTokensPerSecond: 42,
+              averageTtftMs: 110,
+              lastAt: Date.now(),
+            },
+          },
+        },
+      }),
+    );
     stopBuiltinRuntime.mockResolvedValue(IDLE_RUNTIME.runtime);
     render(<LocalAISection />);
 
-    expect(await screen.findByText('Running')).toBeInTheDocument();
+    // `runtimeStateLabel` folds tok/s into the "running" wording once a sample
+    // exists — byte-identical to what the status bar would show for this same
+    // snapshot (its own docstring requires this), so the badge reads "42 tok/s"
+    // rather than the bare word "Running".
+    expect(await screen.findByText('42 tok/s')).toBeInTheDocument();
     expect(screen.getByText(/Backend: vulkan/)).toBeInTheDocument();
     expect(screen.getByText('qwen3-14b-Q4_K_M')).toBeInTheDocument();
+    // Context + a labelled "Last" tok/s line are new detail this card adds
+    // (the status bar only offers them in its hover popover) — same
+    // `builtinChatStats`/context source, so the two surfaces cannot diverge.
+    expect(screen.getByText('Context: 512 / 8192 tokens')).toBeInTheDocument();
+    expect(screen.getByText('Last: 42 tok/s')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Stop the built-in runtime' }));
-
     await waitFor(() => expect(stopBuiltinRuntime).toHaveBeenCalled());
-    expect(await screen.findByText('Stopped')).toBeInTheDocument();
+
+    // No local write-back: the card only updates once the push channel delivers
+    // the post-stop snapshot, exactly like the status bar.
+    expect(screen.getByText('42 tok/s')).toBeInTheDocument();
+    act(() => runtimeStatusCb(snapshot()));
+    expect(await screen.findByText('Ready')).toBeInTheDocument();
+  });
+
+  it('says "Checking…" — never "Ready" — when no snapshot has arrived', async () => {
+    // A stale preload after an update leaves `getRuntimeSnapshot` missing or
+    // failing. Claiming the healthy resting state on zero data would render a
+    // reassuring card that knows nothing about the runtime.
+    getRuntimeSnapshot.mockRejectedValue(new Error('bridge missing'));
+    render(<LocalAISection />);
+
+    expect(await screen.findByText('Checking…')).toBeInTheDocument();
+    expect(screen.queryByText('Ready')).not.toBeInTheDocument();
   });
 
   it('shows the starting state while a role is coming up', async () => {
-    checkBuiltinRuntime.mockResolvedValue({
-      ...IDLE_RUNTIME,
-      runtime: { ...IDLE_RUNTIME.runtime, chat: { ...IDLE_RUNTIME.runtime.chat, starting: true } },
-    });
+    getRuntimeSnapshot.mockResolvedValue(
+      snapshot({ runtime: { ...IDLE_RUNTIME.runtime, chat: { ...IDLE_RUNTIME.runtime.chat, starting: true } } }),
+    );
     render(<LocalAISection />);
 
     expect(await screen.findByText('Starting…')).toBeInTheDocument();

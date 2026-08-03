@@ -1,22 +1,80 @@
 // === FILE PURPOSE ===
-// Fixed bottom status bar showing database connection status (left)
-// and dynamic context-aware content (right): sync indicator, pending action items,
-// level badge, command hint.
+// Fixed bottom status bar showing system health (left) — the database dot plus
+// the built-in local-AI runtime indicator — and dynamic context-aware content
+// (right): sync indicator, pending action items, level badge, command hint.
 // Hidden during focus/break modes when the full-screen FocusOverlay is active.
 
 // === DEPENDENCIES ===
-// useDatabaseStatus hook, useSyncStatus hook, meetingStore, focusStore, gamificationStore,
-// react, react-router-dom, lucide-react
+// useDatabaseStatus hook, useSyncStatus hook, useRuntimeStatus hook, meetingStore,
+// focusStore, gamificationStore, react, react-router-dom, lucide-react
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Timer, Cloud, CloudOff, AlertCircle } from 'lucide-react';
+import { Timer, Cloud, CloudOff, AlertCircle, Cpu } from 'lucide-react';
 import useDatabaseStatus from '../hooks/useDatabaseStatus';
 import useSyncStatus, { formatRelativeTime } from '../hooks/useSyncStatus';
+import {
+  useRuntimeStatus,
+  builtinChatStats,
+  runtimeStateLabel,
+  type RuntimeIndicatorState,
+} from '../hooks/useRuntimeStatus';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useFocusStore } from '../stores/focusStore';
 import { useGamificationStore } from '../stores/gamificationStore';
 import LevelBadge from './LevelBadge';
+
+/** Colour per state — `ready` is deliberately calm (never red/amber): the idle
+ *  sidecar is a designed resting state, not an error. `failed` is the ONLY
+ *  alarming state. */
+const RUNTIME_INDICATOR_STYLE: Record<Exclude<RuntimeIndicatorState, 'not-set-up'>, string> = {
+  ready: 'text-emerald-400/60',
+  starting: 'animate-pulse text-blue-400',
+  running: 'text-emerald-400',
+  failed: 'text-red-400',
+};
+
+/** Local-AI runtime indicator for the status bar. Renders nothing until a
+ * `builtin` provider is configured; the underlying hook keeps its push
+ * listener attached regardless so a later provider-CRUD push can reveal it. */
+function RuntimeIndicator() {
+  const { snapshot, state } = useRuntimeStatus();
+  const navigate = useNavigate();
+  const [hovered, setHovered] = useState(false);
+
+  if (state === 'not-set-up') return null;
+
+  const handleClick = () => navigate('/settings?tab=ai');
+  const runtime = snapshot?.runtime;
+  const context = snapshot?.telemetry.context;
+  const stats = builtinChatStats(snapshot);
+  const label = runtimeStateLabel(state, snapshot);
+
+  return (
+    <button
+      onClick={handleClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={`relative flex items-center gap-1 text-xs transition-colors hover:text-[var(--color-text-primary)] ${RUNTIME_INDICATOR_STYLE[state]}`}
+      aria-label={label}
+    >
+      <Cpu size={12} aria-hidden="true" />
+      <span>{label}</span>
+      {hovered && (
+        <span className="absolute bottom-full left-2 mb-1.5 w-56 px-2 py-1.5 text-[0.625rem] leading-relaxed text-left bg-[var(--color-chrome)] border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded shadow-lg pointer-events-none z-50 overflow-hidden">
+          <span className="block break-words">Model: {runtime?.chat.modelId ?? 'none loaded'}</span>
+          <span className="block">Backend: {runtime?.backend ?? 'unknown'}</span>
+          {context && (
+            <span className="block">
+              Context: {context.usedTokens} / {context.contextTokens} tokens
+            </span>
+          )}
+          {stats && <span className="block">Last: {Math.round(stats.lastTokensPerSecond)} tok/s</span>}
+        </span>
+      )}
+    </button>
+  );
+}
 
 /** Resolves status indicator color class based on connection state */
 function getIndicatorClass(connected: boolean, checking: boolean): string {
@@ -109,12 +167,15 @@ function StatusBar() {
       <div className="ruled-line-accent" />
 
       <div className="h-6 flex items-center justify-between bg-[var(--color-chrome)] border-t border-[var(--color-border)] px-3 font-data">
-        {/* Left: database connection status */}
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full ${getIndicatorClass(connected, checking)}`} aria-hidden="true" />
-          <span className="text-xs text-[var(--color-text-secondary)] animate-data-flicker">
-            {getStatusLabel(connected, checking)}
-          </span>
+        {/* Left: system health — database connection status + local-AI runtime */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${getIndicatorClass(connected, checking)}`} aria-hidden="true" />
+            <span className="text-xs text-[var(--color-text-secondary)] animate-data-flicker">
+              {getStatusLabel(connected, checking)}
+            </span>
+          </div>
+          <RuntimeIndicator />
         </div>
 
         {/* Right: dynamic content */}

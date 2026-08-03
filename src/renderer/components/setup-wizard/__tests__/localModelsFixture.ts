@@ -97,3 +97,13 @@ export const IDLE_RUNTIME = {
     idleStopMinutes: 15,
   },
 };
+
+/** `getRuntimeSnapshot` / `ai:runtime-status` payload (LOCAL-RT.2) for a
+ *  present-but-idle runtime — reuses `IDLE_RUNTIME.runtime` so the two fixtures
+ *  can never disagree about the underlying process state. */
+export const IDLE_SNAPSHOT = {
+  configured: false,
+  binaryPresent: true,
+  runtime: IDLE_RUNTIME.runtime,
+  telemetry: { latest: null, byModel: {}, context: null },
+};
