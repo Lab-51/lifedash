@@ -15,8 +15,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SendHorizonal, Square, Loader2, Bot, Info } from 'lucide-react';
 import ChatMessageModern from '../ChatMessageModern';
+import AssistantThreadMenu from './AssistantThreadMenu';
 import { describeToolEvent, groupToolCalls } from '../../utils/toolCallLabels';
-import type { MeetingAgentMessage, BrainstormMessage } from '../../../shared/types';
+import type { MeetingAgentMessage, MeetingAgentThreadSummary, BrainstormMessage } from '../../../shared/types';
 
 /** Actionable copy for the one error the user can actually fix themselves. */
 const NO_MODEL_MESSAGE =
@@ -81,6 +82,103 @@ function AssistantMessage({ message }: { message: MeetingAgentMessage }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Loading the CURRENT thread vs an ARCHIVED one. Extracted from the component
+ * because both paths are "fetch, guard against unmount, fall back to empty" —
+ * inline they pushed the component past its complexity ceiling without adding
+ * any behaviour worth reading there.
+ */
+function useThreadView(
+  meetingId: string,
+  mountedRef: React.RefObject<boolean>,
+  setMessages: (messages: MeetingAgentMessage[]) => void,
+  setViewingArchived: (thread: MeetingAgentThreadSummary | null) => void,
+) {
+  const load = useCallback(
+    (fetcher: () => Promise<MeetingAgentMessage[]>) => {
+      fetcher()
+        .then((loaded) => {
+          if (mountedRef.current) setMessages(loaded);
+        })
+        .catch(() => {
+          // A thread that cannot be read shows as empty rather than stale
+          // messages from whichever conversation was open before.
+          if (mountedRef.current) setMessages([]);
+        });
+    },
+    [mountedRef, setMessages],
+  );
+
+  /** After a clear or a new chat — read back from main, never optimistically. */
+  const reloadCurrent = useCallback(() => {
+    setViewingArchived(null);
+    load(() => window.electronAPI.meetingAgentLoad(meetingId));
+  }, [load, meetingId, setViewingArchived]);
+
+  /** Open an archived conversation read-only, or return to the current one. */
+  const openArchived = useCallback(
+    (thread: MeetingAgentThreadSummary | null) => {
+      if (!thread) {
+        reloadCurrent();
+        return;
+      }
+      setViewingArchived(thread);
+      load(() => window.electronAPI.meetingAgentThreadMessages(thread.id));
+    },
+    [load, reloadCurrent, setViewingArchived],
+  );
+
+  return { reloadCurrent, openArchived };
+}
+
+/** Title, message count, thread controls and the read-only archive notice.
+ *  Its own component so the chat body's branching stays under the ceiling. */
+function AssistantHeader({
+  meetingId,
+  messageCount,
+  streaming,
+  viewingArchived,
+  onReset,
+  onOpenArchived,
+}: {
+  meetingId: string;
+  messageCount: number;
+  streaming: boolean;
+  viewingArchived: MeetingAgentThreadSummary | null;
+  onReset: () => void;
+  onOpenArchived: (thread: MeetingAgentThreadSummary | null) => void;
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
+        <h3 className="font-hud text-xs text-[var(--color-text-secondary)] min-w-0">
+          Meeting Assistant
+          {messageCount > 0 && (
+            <span className="ml-2 text-surface-500">
+              ({messageCount} message{messageCount !== 1 ? 's' : ''})
+            </span>
+          )}
+        </h3>
+        <AssistantThreadMenu
+          meetingId={meetingId}
+          busy={streaming}
+          hasMessages={messageCount > 0}
+          onReset={onReset}
+          onOpenArchived={onOpenArchived}
+          viewingArchivedId={viewingArchived?.id ?? null}
+        />
+      </div>
+
+      {viewingArchived && (
+        <p className="mb-2 shrink-0 text-[0.6875rem] text-[var(--color-text-muted)] break-words">
+          Viewing an earlier conversation from {new Date(viewingArchived.archivedAt ?? '').toLocaleString()} — read
+          only. Use Archive → “Back to current chat” to continue asking.
+        </p>
+      )}
+    </>
   );
 }
 
@@ -168,6 +266,8 @@ export default function LiveAssistantSection({ meetingId, variant = 'rail' }: Li
   const [streamingText, setStreamingText] = useState('');
   const [activeTool, setActiveTool] = useState<{ toolName: string; args: unknown } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Non-null while an archived conversation is open read-only.
+  const [viewingArchived, setViewingArchived] = useState<MeetingAgentThreadSummary | null>(null);
 
   const mountedRef = useRef(false);
   const cleanupsRef = useRef<Array<() => void>>([]);
@@ -263,16 +363,18 @@ export default function LiveAssistantSection({ meetingId, variant = 'rail' }: Li
     [input, streaming, meetingId],
   );
 
+  const { reloadCurrent, openArchived } = useThreadView(meetingId, mountedRef, setMessages, setViewingArchived);
+
   return (
     <div className={ui.root}>
-      <h3 className="font-hud text-xs text-[var(--color-text-secondary)] mb-3 shrink-0">
-        Meeting Assistant
-        {messages.length > 0 && (
-          <span className="ml-2 text-surface-500">
-            ({messages.length} message{messages.length !== 1 ? 's' : ''})
-          </span>
-        )}
-      </h3>
+      <AssistantHeader
+        meetingId={meetingId}
+        messageCount={messages.length}
+        streaming={streaming}
+        viewingArchived={viewingArchived}
+        onReset={reloadCurrent}
+        onOpenArchived={openArchived}
+      />
 
       <div className={ui.card}>
         <div className={ui.scroll}>

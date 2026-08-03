@@ -1,10 +1,15 @@
 // === FILE PURPOSE ===
 // Schema definition for the meeting_agent_threads and meeting_agent_messages tables.
-// Stores the in-meeting "Live Assistant" conversation: one thread per meeting
-// (unique index on meetingId keeps the drawer UI stateless) plus its message history.
-// Mirrors the card-agent schema conventions (see card-agent.ts).
+// Stores the "Live Assistant" / post-meeting assistant conversation and its
+// message history. Mirrors the card-agent schema conventions (see card-agent.ts).
+//
+// A meeting had exactly ONE thread until the archive feature: the unique index on
+// meetingId is now a plain index, and `archivedAt` marks superseded threads.
+// "The current thread" = the newest row for the meeting with archivedAt IS NULL,
+// so the UI stays as stateless as it was before while old conversations survive
+// starting a new one.
 
-import { pgTable, uuid, varchar, text, jsonb, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
 import { meetings } from './meetings';
 
 export const meetingAgentThreads = pgTable(
@@ -14,11 +19,13 @@ export const meetingAgentThreads = pgTable(
     meetingId: uuid('meeting_id')
       .notNull()
       .references(() => meetings.id, { onDelete: 'cascade' }),
+    // Null = the live thread. Set when the user starts a new chat, which keeps
+    // the old conversation readable instead of destroying it.
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
-  // One thread per meeting — unique so "open drawer = load THE thread".
-  (table) => [uniqueIndex('meeting_agent_threads_meeting_id_idx').on(table.meetingId)],
+  (table) => [index('meeting_agent_threads_meeting_id_idx').on(table.meetingId)],
 );
 
 export const meetingAgentMessages = pgTable(

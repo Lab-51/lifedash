@@ -77,6 +77,7 @@ function makeThread(meetingId: string) {
   return {
     id: `thread-${meetingId}`,
     meetingId,
+    archivedAt: null, // null = the current thread; archived ones are read-only history
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

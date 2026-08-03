@@ -82,7 +82,7 @@ import type { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodSta
 import type { GamificationStats, Achievement, XpEventType, XpDailyData } from './gamification';
 import type { CardAgentMessage, CardAgentThread, AgentAction } from './card-agent';
 import type { ProjectAgentMessage, ProjectAgentThread, ProjectAgentAction } from './project-agent';
-import type { MeetingAgentMessage } from './meeting-agent';
+import type { MeetingAgentMessage, MeetingAgentThread, MeetingAgentThreadSummary } from './meeting-agent';
 import type { LiveSuggestion } from './live-suggestions';
 
 import type { AgentInsight, BackgroundAgentPreferences, InsightType, InsightStatus } from './background-agent';
@@ -517,6 +517,13 @@ export interface ElectronAPI {
   ) => Promise<{ assistantMessage: MeetingAgentMessage; threadId: string } | null>;
   meetingAgentLoad: (meetingId: string) => Promise<MeetingAgentMessage[]>;
   meetingAgentStop: (meetingId: string) => Promise<void>;
+  /** Destructive: wipes the current thread's messages, resolving with the empty history. */
+  meetingAgentClear: (meetingId: string) => Promise<MeetingAgentMessage[]>;
+  /** Non-destructive: archives the current thread, returns the new empty one. */
+  meetingAgentNewThread: (meetingId: string) => Promise<MeetingAgentThread>;
+  meetingAgentListThreads: (meetingId: string) => Promise<MeetingAgentThreadSummary[]>;
+  meetingAgentThreadMessages: (threadId: string) => Promise<MeetingAgentMessage[]>;
+  meetingAgentDeleteThread: (threadId: string) => Promise<void>;
   onMeetingAgentTextDelta: (
     callback: (data: { meetingId: string; threadId: string; chunk: string }) => void,
   ) => () => void;

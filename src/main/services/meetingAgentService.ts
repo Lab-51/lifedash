@@ -43,7 +43,7 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import { eq, asc, count } from 'drizzle-orm';
+import { eq, asc, desc, and, count, isNull, isNotNull } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { cards, meetings, projects, meetingAgentThreads, meetingAgentMessages, liveSuggestions } from '../db/schema';
 import { getMeeting, getTranscripts, updateMeeting } from './meetingService';
@@ -61,7 +61,13 @@ import {
   createGetProjectStatsTool,
   createSearchProjectCardsTool,
 } from './projectAgentService';
-import type { MeetingAgentMessage, MeetingAgentThread, ToolCallRecord, ToolResultRecord } from '../../shared/types';
+import type {
+  MeetingAgentMessage,
+  MeetingAgentThread,
+  MeetingAgentThreadSummary,
+  ToolCallRecord,
+  ToolResultRecord,
+} from '../../shared/types';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -526,6 +532,7 @@ function toThread(row: typeof meetingAgentThreads.$inferSelect): MeetingAgentThr
   return {
     id: row.id,
     meetingId: row.meetingId,
+    archivedAt: row.archivedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -544,17 +551,28 @@ function toMessage(row: typeof meetingAgentMessages.$inferSelect): MeetingAgentM
 }
 
 // ---------------------------------------------------------------------------
-// Thread + Message Persistence (one thread per meeting)
+// Thread + Message Persistence
+//
+// A meeting may now hold several threads: exactly one CURRENT (archivedAt null)
+// plus any number archived by "New chat". Every read path below resolves the
+// current one, so callers that only ever knew about "the" thread keep working.
 // ---------------------------------------------------------------------------
 
-/** Fetch the meeting's single thread, if one has been created yet. */
+/** The meeting's CURRENT (non-archived) thread, if one has been created yet.
+ *  Newest-first guards the invariant: even if two un-archived rows ever existed,
+ *  a deterministic single winner is returned rather than an arbitrary row. */
 export async function getThreadForMeeting(meetingId: string): Promise<MeetingAgentThread | null> {
   const db = getDb();
-  const [row] = await db.select().from(meetingAgentThreads).where(eq(meetingAgentThreads.meetingId, meetingId));
+  const [row] = await db
+    .select()
+    .from(meetingAgentThreads)
+    .where(and(eq(meetingAgentThreads.meetingId, meetingId), isNull(meetingAgentThreads.archivedAt)))
+    .orderBy(desc(meetingAgentThreads.createdAt))
+    .limit(1);
   return row ? toThread(row) : null;
 }
 
-/** Get the meeting's thread, creating it on first use. Unique index on meetingId keeps it one-per-meeting. */
+/** Get the meeting's current thread, creating it on first use. */
 export async function getOrCreateThread(meetingId: string): Promise<MeetingAgentThread> {
   const existing = await getThreadForMeeting(meetingId);
   if (existing) return existing;
@@ -562,6 +580,85 @@ export async function getOrCreateThread(meetingId: string): Promise<MeetingAgent
   const db = getDb();
   const [row] = await db.insert(meetingAgentThreads).values({ meetingId }).returning();
   return toThread(row);
+}
+
+/**
+ * Every thread for a meeting — current first, then most-recently archived —
+ * each with its message count and the first user line, so the archive picker can
+ * label a conversation by what it was about instead of by a uuid.
+ *
+ * Empty threads are included deliberately: only the CURRENT one can be empty
+ * (startNewThread refuses to archive a blank), and hiding it would make the
+ * picker disagree with what the user is looking at.
+ */
+export async function listThreadsWithCounts(meetingId: string): Promise<MeetingAgentThreadSummary[]> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(meetingAgentThreads)
+    .where(eq(meetingAgentThreads.meetingId, meetingId))
+    .orderBy(desc(meetingAgentThreads.createdAt));
+
+  const summaries = await Promise.all(
+    rows.map(async (row) => {
+      const messages = await getThreadMessages(row.id);
+      const firstUser = messages.find((m) => m.role === 'user' && m.content?.trim());
+      return {
+        ...toThread(row),
+        messageCount: messages.length,
+        preview: firstUser?.content?.trim().slice(0, 80) ?? null,
+      };
+    }),
+  );
+  // Current thread first; archived ones stay newest-first behind it.
+  return summaries.sort((a, b) => Number(!!a.archivedAt) - Number(!!b.archivedAt));
+}
+
+/**
+ * Start a fresh conversation, keeping the old one readable: archive the current
+ * thread rather than deleting it. Returns the new (empty) current thread.
+ *
+ * Archiving with no thread yet, or with an empty one, is a no-op reuse — there
+ * is nothing to preserve, and it would otherwise litter the archive with blanks.
+ */
+export async function startNewThread(meetingId: string): Promise<MeetingAgentThread> {
+  const db = getDb();
+  const current = await getThreadForMeeting(meetingId);
+  if (!current) return getOrCreateThread(meetingId);
+
+  const existingMessages = await getThreadMessages(current.id);
+  if (existingMessages.length === 0) return current;
+
+  await db.update(meetingAgentThreads).set({ archivedAt: new Date() }).where(eq(meetingAgentThreads.id, current.id));
+
+  const [row] = await db.insert(meetingAgentThreads).values({ meetingId }).returning();
+  return toThread(row);
+}
+
+/**
+ * Permanently delete a thread's messages. Unlike "New chat" this keeps NO copy —
+ * it is the explicit "clean this chat" action, so the UI must confirm first.
+ *
+ * Deletes messages by threadId only; the thread row itself survives so the open
+ * chat keeps its identity and an in-flight stream cannot land on a missing FK.
+ * Nothing here touches transcripts, briefs, cards or twin facts — the assistant
+ * conversation is not a source for any of them.
+ */
+export async function clearThreadMessages(meetingId: string): Promise<void> {
+  const thread = await getThreadForMeeting(meetingId);
+  if (!thread) return;
+  const db = getDb();
+  await db.delete(meetingAgentMessages).where(eq(meetingAgentMessages.threadId, thread.id));
+  await db.update(meetingAgentThreads).set({ updatedAt: new Date() }).where(eq(meetingAgentThreads.id, thread.id));
+}
+
+/** Delete one archived thread outright (its messages cascade). Refuses to touch
+ *  the current thread — that is `clearThreadMessages`'s job, which keeps the row. */
+export async function deleteArchivedThread(threadId: string): Promise<void> {
+  const db = getDb();
+  await db
+    .delete(meetingAgentThreads)
+    .where(and(eq(meetingAgentThreads.id, threadId), isNotNull(meetingAgentThreads.archivedAt)));
 }
 
 /** All messages for a thread, oldest first. */

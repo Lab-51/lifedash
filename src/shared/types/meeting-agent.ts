@@ -18,6 +18,15 @@ export interface MeetingAgentMessage {
 export interface MeetingAgentThread {
   id: string;
   meetingId: string;
+  /** ISO timestamp when "New chat" superseded this thread; null = the current one. */
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** A thread plus what the archive picker needs to label it without opening it. */
+export interface MeetingAgentThreadSummary extends MeetingAgentThread {
+  messageCount: number;
+  /** First user line, trimmed to 80 chars — null for an empty thread. */
+  preview: string | null;
 }

@@ -266,6 +266,42 @@ export function registerMeetingAgentHandlers(): void {
     return meetingAgentService.getMessagesForMeeting(validMeetingId);
   });
 
+  // --- Thread management: clear, start new (archiving the old), browse archive ---
+
+  /** Permanently delete the CURRENT thread's messages. Destructive by design —
+   *  the renderer confirms first. Nothing else reads this conversation, so no
+   *  brief, card, embedding or twin fact is affected. */
+  ipcMain.handle('meeting-agent:clear', async (_event, meetingId: unknown) => {
+    const validMeetingId = validateInput(idParamSchema, meetingId);
+    await meetingAgentService.clearThreadMessages(validMeetingId);
+    log.info(`Meeting agent thread cleared for meeting ${validMeetingId.slice(0, 8)}`);
+    return meetingAgentService.getMessagesForMeeting(validMeetingId);
+  });
+
+  /** Archive the current thread and start an empty one. Non-destructive. */
+  ipcMain.handle('meeting-agent:new-thread', async (_event, meetingId: unknown) => {
+    const validMeetingId = validateInput(idParamSchema, meetingId);
+    return meetingAgentService.startNewThread(validMeetingId);
+  });
+
+  /** Current + archived threads, with a message count so the picker can label them. */
+  ipcMain.handle('meeting-agent:list-threads', async (_event, meetingId: unknown) => {
+    const validMeetingId = validateInput(idParamSchema, meetingId);
+    return meetingAgentService.listThreadsWithCounts(validMeetingId);
+  });
+
+  /** Read one archived thread's messages (read-only history view). */
+  ipcMain.handle('meeting-agent:thread-messages', async (_event, threadId: unknown) => {
+    const validThreadId = validateInput(idParamSchema, threadId);
+    return meetingAgentService.getThreadMessages(validThreadId);
+  });
+
+  /** Delete an archived thread outright. Refuses the current one by construction. */
+  ipcMain.handle('meeting-agent:delete-thread', async (_event, threadId: unknown) => {
+    const validThreadId = validateInput(idParamSchema, threadId);
+    await meetingAgentService.deleteArchivedThread(validThreadId);
+  });
+
   // --- Abort the active stream for a meeting ---
   ipcMain.handle('meeting-agent:stop', async (_event, meetingId: unknown) => {
     const validMeetingId = validateInput(idParamSchema, meetingId);

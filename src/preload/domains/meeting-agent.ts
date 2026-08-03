@@ -10,6 +10,22 @@ export const meetingAgentBridge = {
 
   meetingAgentStop: (meetingId: string) => ipcRenderer.invoke('meeting-agent:stop', meetingId),
 
+  /** Permanently delete the current thread's messages; resolves with the (empty)
+   *  history so the caller re-renders from main's answer, not an optimistic guess. */
+  meetingAgentClear: (meetingId: string) => ipcRenderer.invoke('meeting-agent:clear', meetingId),
+
+  /** Archive the current conversation and start an empty one. Non-destructive. */
+  meetingAgentNewThread: (meetingId: string) => ipcRenderer.invoke('meeting-agent:new-thread', meetingId),
+
+  /** Current + archived threads with message counts and previews. */
+  meetingAgentListThreads: (meetingId: string) => ipcRenderer.invoke('meeting-agent:list-threads', meetingId),
+
+  /** Messages of one specific thread — used to read an archived conversation. */
+  meetingAgentThreadMessages: (threadId: string) => ipcRenderer.invoke('meeting-agent:thread-messages', threadId),
+
+  /** Delete an archived thread outright (main refuses to delete the current one). */
+  meetingAgentDeleteThread: (threadId: string) => ipcRenderer.invoke('meeting-agent:delete-thread', threadId),
+
   onMeetingAgentTextDelta: (callback: (data: { meetingId: string; threadId: string; chunk: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { meetingId: string; threadId: string; chunk: string }) =>
       callback(data);
