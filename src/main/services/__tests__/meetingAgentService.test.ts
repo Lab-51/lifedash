@@ -11,6 +11,10 @@
 // Q&A mode: createMeetingQaTools is read-only (side-effect tools provably
 // absent) and shared with the live toolset, QA_SYSTEM_PROMPT's contract, and
 // getMeetingAgentMode's status gate (completed -> 'qa', everything else 'live').
+// MEET-GROUND.1 Task 1 adds grounding: getMeetingContext now returns THIS
+// meeting's own brief next to the relabeled priorBriefsFromOtherMeetings, and
+// buildMeetingGroundingBlock's format/cap/null contract (no brief, no meeting,
+// or a failed lookup all yield null — it never throws).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -62,6 +66,8 @@ vi.mock('../projectService', () => ({
 
 vi.mock('../meetingIntelligenceService', () => ({
   fetchPriorBriefs: vi.fn(),
+  // MEET-GROUND.1: the meeting's OWN brief — fetchPriorBriefs excludes it by design.
+  getBrief: vi.fn(),
 }));
 
 vi.mock('../inboxColumnService', () => ({
@@ -92,11 +98,15 @@ import {
   createMeetingQaTools,
   getMeetingAgentMode,
   buildLiveAssistantSystemPrompt,
+  buildMeetingGroundingBlock,
+  BRIEF_TRUNCATION_MARKER,
+  MEETING_BRIEF_INJECTION_CHAR_CAP,
   NO_PROJECT_MESSAGE,
   QA_SYSTEM_PROMPT,
   TRANSCRIPT_WINDOW_CHAR_BUDGET,
 } from '../meetingAgentService';
 import { getDb } from '../../db/connection';
+import { fetchPriorBriefs, getBrief } from '../meetingIntelligenceService';
 import { getMeeting, getTranscripts, updateMeeting } from '../meetingService';
 import { createProjectRecord } from '../projectService';
 import { ensureInboxColumn } from '../inboxColumnService';
@@ -507,6 +517,162 @@ describe('buildLiveAssistantSystemPrompt', () => {
     const result = await buildLiveAssistantSystemPrompt(BASE_PROMPT);
 
     expect(result).toBe(BASE_PROMPT);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Meeting grounding — own brief in the toolset + the injected block
+// (MEET-GROUND.1 Task 1)
+// ---------------------------------------------------------------------------
+
+describe('getMeetingContext — own brief vs other meetings briefs', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** getMeetingGroundingFacts' only direct db use is the project-name lookup. */
+  function mockProjectName(name: string | null) {
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({ where: vi.fn().mockResolvedValue(name ? [{ name }] : []) })),
+      })),
+    } as never);
+  }
+
+  async function runContextTool() {
+    const tools = createMeetingQaTools('m1') as unknown as Record<string, AnyTool>;
+    return tools.getMeetingContext.execute({});
+  }
+
+  it("returns THIS meeting's own brief alongside the relabeled other-meetings briefs", async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting('proj-1') as never);
+    mockProjectName('Platform');
+    vi.mocked(getBrief).mockResolvedValue({
+      id: 'b1',
+      meetingId: 'm1',
+      summary: 'We set Q3 hiring goals.',
+      createdAt: new Date().toISOString(),
+    });
+    vi.mocked(fetchPriorBriefs).mockResolvedValue(['An earlier meeting about pricing.']);
+
+    const result = (await runContextTool()) as Record<string, unknown>;
+
+    expect(getBrief).toHaveBeenCalledWith('m1');
+    expect(result).toMatchObject({
+      title: 'Roadmap sync',
+      project: 'Platform',
+      brief: 'We set Q3 hiring goals.',
+      priorBriefsFromOtherMeetings: ['An earlier meeting about pricing.'],
+    });
+    // The old ambiguous key is gone — other meetings' briefs can no longer be
+    // mistaken for this meeting's content.
+    expect(result).not.toHaveProperty('priorBriefs');
+  });
+
+  it('returns brief: null cleanly when this meeting has no brief yet', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting('proj-1') as never);
+    mockProjectName('Platform');
+    vi.mocked(getBrief).mockResolvedValue(null);
+    vi.mocked(fetchPriorBriefs).mockResolvedValue([]);
+
+    const result = (await runContextTool()) as Record<string, unknown>;
+
+    expect(result.brief).toBeNull();
+    expect(result.priorBriefsFromOtherMeetings).toEqual([]);
+  });
+
+  it('skips the other-meetings lookup entirely when the meeting has no project', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting(null) as never);
+    mockProjectName(null);
+    vi.mocked(getBrief).mockResolvedValue(null);
+
+    const result = (await runContextTool()) as Record<string, unknown>;
+
+    expect(fetchPriorBriefs).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ project: null, brief: null, priorBriefsFromOtherMeetings: [] });
+  });
+
+  it('reports a missing meeting instead of throwing', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(null as never);
+    vi.mocked(getDb).mockReturnValue({} as never);
+
+    await expect(runContextTool()).resolves.toEqual({ error: 'Meeting not found' });
+  });
+
+  it("names the own brief and the other meetings' briefs distinctly in the tool description", () => {
+    const tools = createMeetingQaTools('m1') as unknown as Record<string, { description: string }>;
+    const description = tools.getMeetingContext.description;
+
+    expect(description).toContain('brief');
+    expect(description).toContain('priorBriefsFromOtherMeetings');
+    expect(description).toMatch(/OTHER/);
+  });
+});
+
+describe('buildMeetingGroundingBlock', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function mockMeetingWithBrief(summary: string | null, projectName: string | null = 'Platform') {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting(projectName ? 'proj-1' : null) as never);
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({ where: vi.fn().mockResolvedValue(projectName ? [{ name: projectName }] : []) })),
+      })),
+    } as never);
+    vi.mocked(getBrief).mockResolvedValue(
+      summary === null ? null : { id: 'b1', meetingId: 'm1', summary, createdAt: new Date().toISOString() },
+    );
+  }
+
+  it('builds a labeled ground-truth block with the title, project and own brief', async () => {
+    mockMeetingWithBrief('We set Q3 hiring goals.');
+
+    await expect(buildMeetingGroundingBlock('m1')).resolves.toBe(
+      '## This meeting (ground truth)\nTitle: Roadmap sync\nProject: Platform\nBrief:\nWe set Q3 hiring goals.',
+    );
+  });
+
+  it('omits the project line when the meeting has no project', async () => {
+    mockMeetingWithBrief('We set Q3 hiring goals.', null);
+
+    await expect(buildMeetingGroundingBlock('m1')).resolves.toBe(
+      '## This meeting (ground truth)\nTitle: Roadmap sync\nBrief:\nWe set Q3 hiring goals.',
+    );
+  });
+
+  it('returns null when no brief has been generated yet (nothing to ground with)', async () => {
+    mockMeetingWithBrief(null);
+
+    await expect(buildMeetingGroundingBlock('m1')).resolves.toBeNull();
+  });
+
+  it('treats a blank brief as no brief', async () => {
+    mockMeetingWithBrief('   \n  ');
+
+    await expect(buildMeetingGroundingBlock('m1')).resolves.toBeNull();
+  });
+
+  it('returns null for a meeting that does not exist', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(null as never);
+    vi.mocked(getDb).mockReturnValue({} as never);
+
+    await expect(buildMeetingGroundingBlock('missing')).resolves.toBeNull();
+  });
+
+  it('truncates an oversized brief at the cap and marks it as cut', async () => {
+    const long = 'x'.repeat(MEETING_BRIEF_INJECTION_CHAR_CAP + 500);
+    mockMeetingWithBrief(long);
+
+    const block = (await buildMeetingGroundingBlock('m1'))!;
+
+    expect(block).toContain(BRIEF_TRUNCATION_MARKER);
+    expect(block.length).toBeLessThan(long.length);
+    expect(block).toContain(`Brief:\n${'x'.repeat(MEETING_BRIEF_INJECTION_CHAR_CAP)}\n${BRIEF_TRUNCATION_MARKER}`);
+  });
+
+  it('never throws — a failed lookup is treated as no brief', async () => {
+    vi.mocked(getMeeting).mockRejectedValue(new Error('db exploded'));
+    vi.mocked(getDb).mockReturnValue({} as never);
+
+    await expect(buildMeetingGroundingBlock('m1')).resolves.toBeNull();
   });
 });
 

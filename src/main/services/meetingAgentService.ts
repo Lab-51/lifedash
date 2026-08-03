@@ -13,7 +13,7 @@
 //   'live' (recording/processing/unknown) -> createMeetingAgentTools: the full
 //     toolset above, unchanged.
 //   'qa'   (completed)                    -> createMeetingQaTools: READ-ONLY
-//     (transcript window, transcript search, meeting context/prior briefs) with
+//     (transcript window, transcript search, meeting context + own brief) with
 //     QA_SYSTEM_PROMPT. After the meeting the assistant informs but never acts,
 //     so NO card/note/project/board-write tool may ever be added here — the live
 //     toolset is built by spreading the Q&A toolset, so the read-only half can
@@ -22,7 +22,8 @@
 // === DEPENDENCIES ===
 // ai (tool), zod, drizzle-orm, meetingService (getMeeting/getTranscripts/updateMeeting),
 // projectService (createProjectRecord — shared project-creation path),
-// meetingIntelligenceService (fetchPriorBriefs), inbox/unassigned/autoPush rails,
+// meetingIntelligenceService (fetchPriorBriefs + getBrief — this meeting's OWN
+//   brief, see the GROUNDING note below), inbox/unassigned/autoPush rails,
 // projectAgentService (reused board-tool factories — see CIRCULAR IMPORT note
 // below for why liveSuggestionService is NOT imported here),
 // twinProfileService (buildProfileContext — V3.3 Task 2 profile injection into
@@ -35,6 +36,11 @@
 // - No embeddings / semantic search (that is Phase C).
 // - Board tools degrade to a clear string (not a throw) when the meeting has no
 //   linked project yet — see NO_PROJECT_MESSAGE below.
+// - The transcript is NEVER injected into the system prompt (MEET-GROUND.1):
+//   an hour of speech is already ~11k tokens against the local runtime's 16k
+//   chat context, and a partial window would read as if it covered the whole
+//   meeting. Only title/project/own-brief are injected; the transcript stays
+//   reachable through getTranscriptWindow/searchTranscript.
 // - captureNote writes to live_suggestions directly via getDb()/drizzle instead
 //   of going through liveSuggestionService: liveSuggestionService imports
 //   createLiveAssistantCard FROM this file, so this file must never import
@@ -48,7 +54,7 @@ import { getDb } from '../db/connection';
 import { cards, meetings, projects, meetingAgentThreads, meetingAgentMessages, liveSuggestions } from '../db/schema';
 import { getMeeting, getTranscripts, updateMeeting } from './meetingService';
 import { createProjectRecord } from './projectService';
-import { fetchPriorBriefs } from './meetingIntelligenceService';
+import { fetchPriorBriefs, getBrief } from './meetingIntelligenceService';
 import { ensureInboxColumn } from './inboxColumnService';
 import { ensureUnassignedProject } from './unassignedProjectService';
 import { resolvePrimaryBoardId } from './autoPushService';
@@ -115,8 +121,9 @@ You can only read and answer — you have no tools to create cards, notes, or pr
   is your main tool, since the meeting is over and the answer may be at any point in it.
 - Use getTranscriptWindow to read the transcript around the END of the meeting (it returns
   the most recent minutes, which for a finished meeting means how it wrapped up).
-- Use getMeetingContext for the meeting's title, project, duration, and prior briefs from
-  the same project.
+- Use getMeetingContext for THIS meeting's own brief (a summary of this meeting itself),
+  plus its title, project and duration. It also returns briefs from OTHER meetings in the
+  same project — treat those as background only, never as what happened in this meeting.
 - Ground every answer in what the tools return — never invent meeting content.
 
 ## Answering
@@ -161,6 +168,99 @@ export async function buildLiveAssistantSystemPrompt(basePrompt: string): Promis
     // profile injection is an enhancement, never a failure source — fall through with ''
   }
   return profileBlock ? `${profileBlock}\n\n${basePrompt}` : basePrompt;
+}
+
+// ---------------------------------------------------------------------------
+// Meeting grounding (MEET-GROUND.1 Task 1)
+//
+// A completed meeting's own material used to be invisible to the assistant:
+// fetchPriorBriefs deliberately EXCLUDES the current meeting, and the transcript
+// only ever arrived through a tool the model was free not to call. A 4B local
+// model duly answered "summarize this meeting" from the injected twin profile
+// with zero tool calls. These helpers are the deterministic half of the fix —
+// the same facts feed the getMeetingContext tool AND the Q&A system prompt, so
+// the grounding material is present whatever the model decides to do.
+// ---------------------------------------------------------------------------
+
+/** Facts about THIS meeting, read once and shared by tool + prompt injection. */
+export interface MeetingGroundingFacts {
+  title: string;
+  /** Linked project NAME (null when the meeting has no project). */
+  project: string | null;
+  /** Linked project id — needed to look up other meetings' briefs. */
+  projectId: string | null;
+  elapsedMinutes: number;
+  /** THIS meeting's OWN brief summary (newest), or null if none generated yet. */
+  brief: string | null;
+}
+
+/**
+ * Char cap for the brief injected into the Q&A system prompt. Defensive: the
+ * builtin runtime's chat context is 16k tokens and the brief is only one part
+ * of the prompt, so an unusually long summary is truncated rather than allowed
+ * to crowd out the conversation.
+ */
+export const MEETING_BRIEF_INJECTION_CHAR_CAP = 6000;
+
+/** Appended when a brief is cut at the cap, so the model knows it is partial. */
+export const BRIEF_TRUNCATION_MARKER = '[brief truncated]';
+
+/**
+ * Read this meeting's title, project and OWN brief in ONE place. `getBrief` is
+ * reused from meetingIntelligenceService (newest brief for this meeting) — no
+ * new query. Returns null when the meeting does not exist.
+ */
+export async function getMeetingGroundingFacts(meetingId: string): Promise<MeetingGroundingFacts | null> {
+  const db = getDb();
+  const meeting = await getMeeting(meetingId);
+  if (!meeting) return null;
+
+  let project: string | null = null;
+  if (meeting.projectId) {
+    const [proj] = await db.select({ name: projects.name }).from(projects).where(eq(projects.id, meeting.projectId));
+    project = proj?.name ?? null;
+  }
+
+  const started = new Date(meeting.startedAt).getTime();
+  const end = meeting.endedAt ? new Date(meeting.endedAt).getTime() : Date.now();
+  const elapsedMinutes = Math.max(0, Math.round((end - started) / 60_000));
+
+  const ownBrief = await getBrief(meetingId);
+  const summary = ownBrief?.summary?.trim() ? ownBrief.summary : null;
+
+  return { title: meeting.title, project, projectId: meeting.projectId, elapsedMinutes, brief: summary };
+}
+
+/**
+ * The labeled block appended to the post-meeting Q&A system prompt. Returns
+ * null when there is nothing to ground with — no such meeting, or no brief
+ * generated yet — which the caller records so it can refuse honestly instead of
+ * letting the model narrate this meeting from unrelated context.
+ *
+ * Never throws: grounding enriches the prompt, it is not a failure source. A
+ * lookup that fails is treated exactly like "no brief yet".
+ */
+export async function buildMeetingGroundingBlock(meetingId: string): Promise<string | null> {
+  let facts: MeetingGroundingFacts | null;
+  try {
+    facts = await getMeetingGroundingFacts(meetingId);
+  } catch {
+    return null;
+  }
+  if (!facts?.brief) return null;
+
+  const brief =
+    facts.brief.length > MEETING_BRIEF_INJECTION_CHAR_CAP
+      ? `${facts.brief.slice(0, MEETING_BRIEF_INJECTION_CHAR_CAP)}\n${BRIEF_TRUNCATION_MARKER}`
+      : facts.brief;
+
+  return [
+    '## This meeting (ground truth)',
+    `Title: ${facts.title}`,
+    ...(facts.project ? [`Project: ${facts.project}`] : []),
+    'Brief:',
+    brief,
+  ].join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -399,32 +499,26 @@ export function createMeetingQaTools(meetingId: string) {
 
     getMeetingContext: tool({
       description:
-        "Get this meeting's title, project, elapsed time, and recent briefs from the same project for continuity.",
+        "Get THIS meeting's own brief (a summary of this meeting itself), plus its title, project and elapsed time. `brief` is THIS meeting and is null until one has been generated; `priorBriefsFromOtherMeetings` are summaries of OTHER, earlier meetings in the same project — background continuity only, never report them as what happened in this meeting.",
       inputSchema: z.object({}),
       execute: async () => {
-        const db = getDb();
-        const meeting = await getMeeting(meetingId);
-        if (!meeting) return { error: 'Meeting not found' };
+        const facts = await getMeetingGroundingFacts(meetingId);
+        if (!facts) return { error: 'Meeting not found' };
 
-        let project: string | null = null;
-        if (meeting.projectId) {
-          const [proj] = await db
-            .select({ name: projects.name })
-            .from(projects)
-            .where(eq(projects.id, meeting.projectId));
-          project = proj?.name ?? null;
-        }
-
-        const started = new Date(meeting.startedAt).getTime();
-        const end = meeting.endedAt ? new Date(meeting.endedAt).getTime() : Date.now();
-        const elapsedMinutes = Math.max(0, Math.round((end - started) / 60_000));
-
-        // Prior-brief continuity (fetchPriorBriefs skips the system Unassigned project).
-        const priorBriefs = meeting.projectId
-          ? await fetchPriorBriefs(meeting.projectId, meetingId, CONTEXT_BRIEF_LIMIT)
+        // Prior-brief continuity (fetchPriorBriefs skips the system Unassigned
+        // project AND excludes this meeting — which is exactly why `brief` above
+        // has to be fetched separately).
+        const priorBriefsFromOtherMeetings = facts.projectId
+          ? await fetchPriorBriefs(facts.projectId, meetingId, CONTEXT_BRIEF_LIMIT)
           : [];
 
-        return { title: meeting.title, project, elapsedMinutes, priorBriefs };
+        return {
+          title: facts.title,
+          project: facts.project,
+          elapsedMinutes: facts.elapsedMinutes,
+          brief: facts.brief,
+          priorBriefsFromOtherMeetings,
+        };
       },
     }),
   };

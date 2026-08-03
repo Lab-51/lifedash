@@ -10,15 +10,29 @@
 // system prompt accordingly ('qa' for completed meetings, 'live' otherwise).
 // Everything else (streaming events, persistence, abort, usage logging) is
 // shared, so a meeting's live and post-meeting Q&A are one conversation.
+//
+// MEET-GROUND.1 Task 1: Q&A mode additionally gets the meeting's own brief
+// appended to the system prompt (deterministic grounding), and an answer that
+// provably read nothing is replaced by NO_GROUNDING_REFUSAL below. Both are
+// Q&A-only — the live path is byte-identical to before.
 
 import { ipcMain } from 'electron';
-import { streamText, stepCountIs, type LanguageModel } from 'ai';
+import {
+  streamText,
+  stepCountIs,
+  type LanguageModel,
+  type ModelMessage,
+  type TextPart,
+  type ToolCallPart,
+  type ToolResultPart,
+  type JSONValue,
+} from 'ai';
 import * as meetingAgentService from '../services/meetingAgentService';
 import { resolveTaskModel, getProvider, logUsage } from '../services/ai-provider';
 import { createLogger } from '../services/logger';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema, meetingAgentMessageContentSchema } from '../../shared/validation/schemas';
-import type { ToolCallRecord, ToolResultRecord } from '../../shared/types';
+import type { ToolCallRecord, ToolResultRecord, MeetingAgentMessage } from '../../shared/types';
 
 const log = createLogger('MeetingAgent');
 
@@ -73,6 +87,92 @@ user states. The user should not need to leave the meeting to manage their board
 Keep responses short (2-4 sentences) — the user is in a live meeting and cannot read
 long text. Ask one clarifying question if a request is ambiguous.`;
 
+/**
+ * Persisted INSTEAD of the model's text when a post-meeting answer provably read
+ * nothing about the meeting: no brief was injected into the prompt AND no tool
+ * was called, so whatever it wrote cannot be grounded in this meeting (the
+ * incident this guards against: a confident four-point "summary" assembled from
+ * the injected twin profile, with zero tool calls).
+ *
+ * Copy rule (see DECISIONS.md): it may only claim what is true — the brief was
+ * unavailable and no transcript search happened. It is a normal assistant
+ * message, not an error, and the renderer replaces the streamed bubble with the
+ * persisted message on `done`. Single exported constant so tests can assert it
+ * byte-identically and the wording cannot drift.
+ */
+export const NO_GROUNDING_REFUSAL =
+  "I couldn't read this meeting — its brief isn't available yet and I didn't search the transcript. Ask me something specific (e.g. 'search for X') so I can look it up, or try again once the brief has generated.";
+
+/**
+ * MEET-GROUND.1 Task 2: turns one persisted assistant row into the ModelMessage(s)
+ * replayed to the model. A row with tool calls becomes an assistant message whose
+ * content is a parts array — an optional text part, then tool-call parts — followed
+ * by ONE tool message carrying the matching results. This is what lets a follow-up
+ * turn see what an earlier turn searched and found instead of re-reading from
+ * scratch (the "cross-turn amnesia" this task fixes).
+ *
+ * Only tool calls with a MATCHING result (`call.id === result.toolCallId`) are
+ * replayed — llama-server is OpenAI-compatible, and those servers hard-reject an
+ * assistant `tool_calls` entry with no following tool result. A row whose calls
+ * have no match at all (or has no calls) degrades to the plain text mapping used
+ * for tool-free rows, and emits no tool message.
+ */
+function mapAssistantRow(m: MeetingAgentMessage): ModelMessage[] {
+  const calls = m.toolCalls ?? [];
+  const resultsById = new Map((m.toolResults ?? []).map((r) => [r.toolCallId, r] as const));
+  const matchedCalls = calls.filter((c) => resultsById.has(c.id));
+
+  if (matchedCalls.length === 0) {
+    return [{ role: 'assistant', content: m.content ?? '' }];
+  }
+
+  const contentParts: Array<TextPart | ToolCallPart> = [
+    ...(m.content ? [{ type: 'text', text: m.content } as const] : []),
+    ...matchedCalls.map<ToolCallPart>((c) => ({
+      type: 'tool-call',
+      toolCallId: c.id,
+      toolName: c.name,
+      input: c.args,
+    })),
+  ];
+
+  const toolResultParts = matchedCalls.map<ToolResultPart>((c) => {
+    const r = resultsById.get(c.id)!; // present by construction — c passed the resultsById.has(c.id) filter above
+    return {
+      type: 'tool-result',
+      toolCallId: r.toolCallId,
+      toolName: r.toolName,
+      output: { type: 'json', value: r.result as JSONValue },
+    };
+  });
+
+  return [
+    { role: 'assistant', content: contentParts },
+    { role: 'tool', content: toolResultParts },
+  ];
+}
+
+/**
+ * Faithful history replay (MEET-GROUND.1 Task 2) — replaces the old flatten-to-
+ * content mapping that dropped every turn's toolCalls/toolResults, leaving a
+ * follow-up question with no record of what an earlier turn already searched or
+ * found (and making re-searching the "rational" move). Exported so the mapping
+ * is unit-testable independent of the streaming handler. Persisted `role: 'tool'`
+ * rows are skipped — defensive: none are written today, but the DB column allows
+ * the value.
+ */
+export function toModelMessages(messages: MeetingAgentMessage[]): ModelMessage[] {
+  const aiMessages: ModelMessage[] = [];
+  for (const m of messages) {
+    if (m.role === 'user') {
+      aiMessages.push({ role: 'user', content: m.content ?? '' });
+    } else if (m.role === 'assistant') {
+      aiMessages.push(...mapAssistantRow(m));
+    }
+  }
+  return aiMessages;
+}
+
 export function registerMeetingAgentHandlers(): void {
   // --- Streaming agent chat ---
   ipcMain.handle('meeting-agent:send', async (event, meetingId: unknown, content: unknown) => {
@@ -106,12 +206,12 @@ export function registerMeetingAgentHandlers(): void {
     const abortController = new AbortController();
     activeStreams.set(validMeetingId, abortController);
 
-    // 5. Convert messages to AI SDK format (windowed to last N messages)
+    // 5. Convert messages to AI SDK format (windowed to last N messages), replaying
+    // each turn's tool calls/results faithfully (MEET-GROUND.1 Task 2) so a
+    // follow-up question sees what an earlier turn searched and found rather than
+    // starting blind. Window over DB rows FIRST, then map — unchanged semantics.
     const recentMessages = messages.slice(-CONVERSATION_WINDOW);
-    const aiMessages = recentMessages.map((m) => ({
-      role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-      content: m.content ?? '',
-    }));
+    const aiMessages = toModelMessages(recentMessages);
 
     const factory = getProvider(provider.providerId, provider.providerName, provider.apiKeyEncrypted, provider.baseUrl);
 
@@ -120,7 +220,21 @@ export function registerMeetingAgentHandlers(): void {
     // back to the base prompt unchanged when no profile exists or the lookup fails.
     // The base is the mode's prompt: Q&A for a finished meeting, SYSTEM_PROMPT live.
     const basePrompt = mode === 'qa' ? meetingAgentService.QA_SYSTEM_PROMPT : SYSTEM_PROMPT;
-    const system = await meetingAgentService.buildLiveAssistantSystemPrompt(basePrompt);
+    let system = await meetingAgentService.buildLiveAssistantSystemPrompt(basePrompt);
+
+    // 5c. Q&A grounding (MEET-GROUND.1): append THIS meeting's title/project/own
+    // brief LAST, so the most specific material is also the most recent thing in
+    // the prompt. Deterministic on purpose — telling the model to ground itself
+    // did not stop a small local model from answering from the twin profile
+    // instead, and tool_choice forcing is silently ignored by the builtin
+    // llama-server runtime. The transcript is never injected (too large; a
+    // window would masquerade as the whole meeting) — it stays tool-only.
+    // Null when no brief exists yet; that fact is read ONCE here and reused at
+    // persistence time, so the refusal below cannot race a brief generated
+    // mid-stream. Live mode is untouched: forcing grounding there would
+    // interfere with action flows (create card, move card, ...).
+    const groundingBlock = mode === 'qa' ? await meetingAgentService.buildMeetingGroundingBlock(validMeetingId) : null;
+    if (groundingBlock) system = `${system}\n\n${groundingBlock}`;
 
     // 6. Stream with tools
     const streamStart = performance.now();
@@ -236,10 +350,22 @@ export function registerMeetingAgentHandlers(): void {
         ? collectedToolResults.map((tr) => ({ toolCallId: tr.toolCallId, toolName: tr.toolName, result: tr.output }))
         : undefined;
 
+    // A post-meeting answer that read NOTHING — no brief in the prompt and no
+    // tool call — cannot be about this meeting, whatever it says. Replace it
+    // with an honest refusal rather than persist a fabrication. Deterministic,
+    // never heuristic: all four conditions must hold. Never live mode (grounding
+    // is a Q&A concern), never an aborted stream (the user cut it short), never
+    // when a tool ran or the brief was injected (a zero-tool answer grounded in
+    // an injected brief is legitimate — "summarize this meeting" is exactly it).
+    const readNothing = mode === 'qa' && !aborted && collectedToolCalls.length === 0 && !groundingBlock;
+    if (readNothing) {
+      log.info('Q&A answer had no grounding (no brief injected, no tool call) — persisting the refusal instead');
+    }
+
     const assistantMessage = await meetingAgentService.addMessage(
       thread.id,
       'assistant',
-      fullText || null,
+      readNothing ? NO_GROUNDING_REFUSAL : fullText || null,
       toolCallRecords,
       toolResultRecords,
     );
