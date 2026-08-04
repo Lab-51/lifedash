@@ -44,12 +44,17 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Nothing runs behind your back. The model starts when you use it, shows a status card with a Stop button, and shuts itself down after 15 idle minutes. Installing this update starts nothing.',
           'Already using LM Studio, Ollama, or a cloud key? Nothing changes — your setup is untouched and all of them remain fully supported per task.',
           "See the built-in runtime's real performance, not just whether it's running: the status bar and Settings → Local AI's runtime card now show live tokens-per-second and context usage, both read from the exact same measurement so the two can never disagree. That figure is measured end-to-end at the moment LifeDash calls the model, so it includes a little queue/transport overhead and reads slightly lower than llama.cpp's own internal number. It does not show VRAM or overall system load.",
+          'Downloading a model now switches the built-in runtime on for you — the provider is created and the model routed automatically, including models you downloaded before this update (picked up on the next start). Your existing assignments are never overwritten: if a task already points at LM Studio, Ollama, or a cloud model, it stays exactly where you put it.',
+          'The meeting assistant chat can now start fresh: "New chat" keeps the old conversation in an archive you can reopen read-only, and "Clear" permanently empties the current one (with a confirmation — your transcript, brief, cards and learned facts are never touched, the chat is not a source for any of them).',
+          'An empty meeting assistant now offers one-click starter questions ("What tasks do I need to do?", "What was decided?") instead of a blank box, and its work log names what it actually searched for, collapsing repeated steps instead of listing each one.',
+          'The meeting workspace side panel is now resizable and collapsible, and remembers your width. Meeting analytics lay out to the panel instead of the window, so numbers no longer truncate.',
         ],
       },
       {
         category: 'fixes',
         label: 'Fixes',
         items: [
+          "The post-meeting assistant could answer from your profile's general context instead of the meeting itself — most visibly when its brief had not finished generating. Answers are now grounded in the meeting's own brief, follow-up questions remember what earlier answers already found in the transcript, and when the assistant genuinely could not read the meeting it says so plainly instead of guessing.",
           'Dropdowns near the bottom of the window now open upward instead of running off-screen, so the last options are always reachable.',
           'The setup wizard now fits on screen on large displays — the Back, Skip, and confirm buttons could previously render below the visible area.',
         ],
