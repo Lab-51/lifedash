@@ -48,12 +48,17 @@ export const releaseHistory: ReleaseNotesData[] = [
           'The meeting assistant chat can now start fresh: "New chat" keeps the old conversation in an archive you can reopen read-only, and "Clear" permanently empties the current one (with a confirmation — your transcript, brief, cards and learned facts are never touched, the chat is not a source for any of them).',
           'An empty meeting assistant now offers one-click starter questions ("What tasks do I need to do?", "What was decided?") instead of a blank box, and its work log names what it actually searched for, collapsing repeated steps instead of listing each one.',
           'The meeting workspace side panel is now resizable and collapsible, and remembers your width. Meeting analytics lay out to the panel instead of the window, so numbers no longer truncate.',
+          'Everything your twin has learned is now a map you can explore instead of a flat list. It opens as structure — your twin on the left, one branch per category (people, projects, preferences, commitments) with an honest count of what each holds — and you open the branches you care about. Several can be open at once, and a branch you leave closed costs nothing to display.',
+          'Each fact sits on its own line with a short title, so nothing overlaps and nothing is cut off mid-sentence. Click one to read it in full, see which session it came from, and forget it if it should not have been learned — with a few seconds to undo if you change your mind.',
+          'Point at a fact — or reach it with the keyboard — and its own category stays readable while the others fade back, so you can follow one thread without losing your place. Everything stays reachable while faded; the fading is only there to help you look.',
+          'Watch it learn during a meeting: a new fact grows into place on its branch, and a closed branch simply bumps its count rather than yanking your view open. If you prefer reduced motion, everything updates instantly with no animation, and the fading still works.',
         ],
       },
       {
         category: 'fixes',
         label: 'Fixes',
         items: [
+          'Transcripts could contain lines nobody said — subtitle credits like "Titulky vytvořil…" or a stray "Thanks for watching" — invented by the speech model when it was handed silence, background hum, or typing. LifeDash now detects whether a stretch of audio actually contains speech before transcribing it, and discards these fabrications if one still slips through, so a credit line can no longer seed the next one. Speech itself is transcribed exactly as before. Transcripts you already recorded are cleaned up once, automatically, on the next start.',
           "The post-meeting assistant could answer from your profile's general context instead of the meeting itself — most visibly when its brief had not finished generating. Answers are now grounded in the meeting's own brief, follow-up questions remember what earlier answers already found in the transcript, and when the assistant genuinely could not read the meeting it says so plainly instead of guessing.",
           'Dropdowns near the bottom of the window now open upward instead of running off-screen, so the last options are always reachable.',
           'The setup wizard now fits on screen on large displays — the Back, Skip, and confirm buttons could previously render below the visible area.',

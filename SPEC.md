@@ -574,5 +574,190 @@ Opening an event's details MUST populate its cross-meeting context (previous sam
 
 ---
 
+### Requirement: The twin's memory is navigated by category, opening collapsed
+
+The twin's learned memory SHALL be presented as a navigable structure that opens **collapsed** — showing the twin, one anchor per populated category, and each category's honest fact count — rather than showing every fact at once. Expanding a category MUST reveal only that category's facts; a collapsed category's facts MUST be genuinely absent from the rendered surface, not merely visually hidden, so that display cost scales with what the user has opened rather than with what exists. Multiple categories MAY be open simultaneously, and opening one MUST NOT close another — the categories occupy separate regions, so this is navigation, not an accordion. Expansion state MUST survive a data refresh and MUST NOT be changed by any memory write. A category's count MUST always reflect the full ledger, never what is currently on screen — collapsing a category is not forgetting.
+
+#### Scenario: The memory opens as structure, not as a wall of facts
+
+- GIVEN a twin with facts across several categories
+- WHEN the user opens the memory surface
+- THEN every populated category is named with its total fact count, and no individual fact is shown
+
+#### Scenario: A collapsed category is absent, not hidden
+
+- GIVEN a collapsed category holding facts
+- WHEN the surface is rendered
+- THEN that category's facts are not present on the surface at all
+- AND the category's stated count still reports every fact it holds
+
+#### Scenario: Opening a second category keeps the first open
+
+- GIVEN one category is expanded
+- WHEN the user expands a different category
+- THEN both remain expanded
+
+---
+
+### Requirement: A fact shows a short title at rest and its full text on demand
+
+Each remembered fact SHALL be listed by a short caption, and its complete original text MUST be reachable by an explicit user action (activating the fact), never by hover alone. The caption MUST NOT be blank under any circumstance: when no stored caption exists, a derived fallback MUST be shown instead. Activating a fact MUST open the app's own node-anchored inspector positioned beside that fact and visually connected to it, and it MUST NOT obscure the caption the user just activated. Activating a different fact MUST move the inspector to it. The inspector MUST be dismissible by keyboard and by clicking away from any control.
+
+#### Scenario: The full sentence is revealed by activation, not by pointing
+
+- GIVEN a fact listed by its short caption
+- WHEN the user moves the pointer over it without activating it
+- THEN the caption does not change
+- AND WHEN the user activates the fact, the inspector opens showing the fact's complete text
+
+#### Scenario: An uncaptioned fact still reads as something
+
+- GIVEN a fact with no stored caption
+- WHEN it is listed
+- THEN a derived caption is shown and the row is never blank
+
+#### Scenario: The inspector never covers what was clicked
+
+- GIVEN a fact whose caption sits beside its marker
+- WHEN the user activates it
+- THEN the inspector is placed clear of the caption's full extent, with its connector attached
+
+---
+
+### Requirement: Memory emphasis is decoration and never removes anything from reach
+
+When a fact is attended (by pointer OR by keyboard focus), the memory surface SHALL emphasise that fact and its own category while de-emphasising other categories, so that attention reads as focus-plus-context. Keyboard focus MUST produce the same emphasis as pointing. A fact opened in the inspector MUST remain emphasised when the pointer moves away. This emphasis is **decoration**: a de-emphasised item MUST remain fully focusable, MUST keep its accessible name, and MUST NOT be removed from the accessibility tree. No animation may leave a lingering state that defeats the emphasis — a fact that has just arrived and animated MUST still de-emphasise correctly afterwards.
+
+#### Scenario: Keyboard users get the same model as pointer users
+
+- GIVEN the memory surface with several categories
+- WHEN the user focuses a fact using the keyboard
+- THEN that fact and its category are emphasised exactly as if it had been pointed at
+
+#### Scenario: De-emphasis never costs reachability
+
+- GIVEN a fact de-emphasised because another category is attended
+- WHEN the user tabs to it
+- THEN it is focusable, correctly named, and present to assistive technology
+
+#### Scenario: A just-arrived fact still de-emphasises
+
+- GIVEN a newly learned fact that has played its arrival animation
+- WHEN attention moves to a different category
+- THEN the arrived fact de-emphasises like any other
+
+---
+
+### Requirement: Memory motion is one-shot, honors reduced motion, and costs nothing at idle
+
+Expanding a category, a fact arriving, and restoring a forgotten fact SHALL be accompanied by motion that reads as growth rather than an instant pop. All such motion MUST be one-shot: once finished it MUST leave no scheduled work and no lingering visual state. At rest the memory surface MUST schedule no repeating animation frames or timers, with a single sanctioned exception — an ambient shimmer on the twin itself, which MUST stop whenever the surface is not the visible tab, whenever the window is hidden, and whenever reduced motion is preferred. When the user prefers reduced motion, ALL motion MUST be disabled — counts and facts update instantly — while attention emphasis MUST remain, because emphasis is state rather than motion. A newly learned fact MUST NOT cause its category to expand on its own.
+
+#### Scenario: Nothing is scheduled once the surface settles
+
+- GIVEN the user has opened and closed categories and a fact has arrived
+- WHEN the surface is left untouched
+- THEN no animation frames or timers remain scheduled, except the twin's ambient shimmer under its stated conditions
+
+#### Scenario: Reduced motion keeps meaning, drops movement
+
+- GIVEN the user prefers reduced motion
+- WHEN a category is expanded and a new fact arrives
+- THEN both render instantly with no animation
+- AND attention emphasis still distinguishes the attended category
+
+#### Scenario: Learning never yanks the view
+
+- GIVEN a collapsed category
+- WHEN a new fact is learned into it during a recording
+- THEN the category's count increases and it signals the arrival
+- AND it does not expand by itself
+
+---
+
+### Requirement: The safety triad remains reachable from the memory surface
+
+Every affordance of the learned-memory safety triad — per-fact provenance, forgetting a fact with an undo window, and the learning kill-switch — MUST remain reachable from the memory surface, including by keyboard alone. Provenance MUST identify the source session, and when that source no longer exists it MUST say so in plain language rather than exposing an internal identifier or offering a dead link. Forgetting a fact MUST remove it from the surface and reduce its category's count immediately, and MUST be undoable for a short window, with the restored fact reappearing in place.
+
+#### Scenario: A keyboard-only user can audit and forget
+
+- GIVEN the memory surface with the keyboard as the only input
+- WHEN the user tabs to a fact, activates it, and tabs onward
+- THEN the inspector opens and the forget action is reachable without a pointer
+
+#### Scenario: A vanished source is described, not leaked
+
+- GIVEN a fact whose source session has been deleted
+- WHEN the user opens that fact
+- THEN its provenance reads as an unnamed past session, with no identifier and no dead link
+
+#### Scenario: Forgetting is reversible
+
+- GIVEN the user forgets a fact
+- WHEN they choose undo within the offered window
+- THEN the fact returns to its category and the count is restored
+
+---
+
+### Requirement: Non-speech audio never becomes transcript text
+
+Transcription MUST NOT emit fabricated text for audio that contains no speech. Windows of audio that carry no detected speech MUST be skipped rather than decoded, and any decoded segment that is recognisably a transcription artifact rather than spoken content — such as a subtitle credit or a stock sign-off — MUST be discarded before it is stored, shown, or acted upon. A discarded segment MUST ALSO be withheld from the context passed to subsequent transcription, so that one artifact cannot make the next more likely. Discarding MUST be conservative: genuine speech that merely mentions such phrasing MUST be preserved. Voice input consisting entirely of such an artifact MUST be treated as if nothing was said.
+
+#### Scenario: Silence and room noise produce nothing
+
+- GIVEN a stretch of recording containing no speech
+- WHEN transcription processes it
+- THEN no transcript text is produced for that stretch
+
+#### Scenario: A fabricated credit line never reaches the transcript
+
+- GIVEN a decoded segment that is essentially a subtitle-credit artifact
+- WHEN the segment is processed
+- THEN it is not stored, not displayed, and not passed to downstream analysis
+- AND it does not influence the transcription of the following audio
+
+#### Scenario: Real speech about subtitles survives
+
+- GIVEN a speaker genuinely discussing subtitles within a longer sentence
+- WHEN the segment is processed
+- THEN it is kept and transcribed normally
+
+---
+
+### Requirement: Speech detection degrades to prior behavior and never blocks recording
+
+Speech detection SHALL be an additive safeguard: it MUST NOT alter the audio handed to transcription, and a window containing any speech MUST be transcribed in full exactly as it would have been without it. If the speech-detection capability is unavailable for any reason — its model cannot be obtained, or it fails to initialise or run — transcription MUST continue using the prior behavior, logging the condition once, and MUST NEVER fail, block, or interrupt a recording. Acquiring any supporting model MUST happen quietly in the background and MUST NOT be a precondition for recording.
+
+#### Scenario: A speech window is transcribed unchanged
+
+- GIVEN a window of audio containing speech
+- WHEN speech detection runs on it
+- THEN the whole window is transcribed exactly as before, with no trimming or re-timing
+
+#### Scenario: Unavailable speech detection is invisible to the user
+
+- GIVEN the speech-detection model cannot be obtained or fails to start
+- WHEN the user records
+- THEN recording and transcription proceed under the prior behavior with no error surfaced and no interruption
+
+---
+
+### Requirement: Previously stored fabricated transcript text is cleaned up exactly once
+
+Transcript text already stored before this safeguard existed SHALL be cleaned up once, removing only segments that the same conservative test identifies as artifacts. The cleanup MUST NOT run again on subsequent launches once it has completed, MUST report how many segments it removed — including when it removed none — and MUST leave genuine speech untouched. If it fails, it MUST NOT be recorded as complete, so that it is retried on the next launch.
+
+#### Scenario: Old fabricated lines disappear once
+
+- GIVEN stored transcripts containing fabricated credit lines
+- WHEN the app next starts
+- THEN those segments are removed, the count is reported, and the cleanup does not run again on later starts
+
+#### Scenario: A failed cleanup retries rather than silently skipping
+
+- GIVEN the cleanup does not complete successfully
+- WHEN the app starts again
+- THEN the cleanup is attempted again
+
+---
+
 <!-- Add further requirements following the same pattern, one `### Requirement:` block per behavior/domain. -->
 <!-- When this project graduates Tier 1 → Tier 2, each `### Requirement:` block can move into its own `specs/<domain>/spec.md` unchanged. -->
