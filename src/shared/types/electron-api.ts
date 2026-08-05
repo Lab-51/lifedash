@@ -103,7 +103,7 @@ import type {
 } from './intel-feed';
 import type { SearchResults, SearchAnswer } from './search';
 import type { EmbeddingStatus } from './embedding';
-import type { BrainScope, BrainTree } from './brain';
+import type { BrainScope, BrainTree, BrainGraphScope, BrainGraph } from './brain';
 import type {
   TwinProfile,
   TwinProfileSections,
@@ -123,6 +123,8 @@ import type {
   TwinCreationModel,
   TwinFact,
   TwinMemoryListFilter,
+  TwinMemoryGraph,
+  BackfillFactLabelsResult,
   EntityFact,
   AnalyzeEntityHistoryResult,
 } from './twin';
@@ -572,7 +574,7 @@ export interface ElectronAPI {
   openExternal: (url: string) => Promise<void>;
   onShowCommandPalette: (callback: () => void) => () => void;
   onDataChanged: (
-    callback: (data: { scope: 'cards' | 'columns' | 'projects'; projectId?: string }) => void,
+    callback: (data: { scope: 'cards' | 'columns' | 'projects' | 'twin-memory'; projectId?: string }) => void,
   ) => () => void;
   onUpdateStatus: (callback: (data: { status: string; releaseName?: string }) => void) => () => void;
   installUpdate: () => Promise<void>;
@@ -650,6 +652,10 @@ export interface ElectronAPI {
   // Brain (hierarchical mind-map data for the workspace or a session, V3.2 Task 1)
   buildBrainTree: (scope: BrainScope) => Promise<BrainTree>;
 
+  // Memory graph (TWIN-GRAPH.1 Task 1) — entities + facts + twin ledger + source
+  // sessions as one flat, force-directed graph. Distinct from buildBrainTree above.
+  buildBrainGraph: (scope: BrainGraphScope) => Promise<BrainGraph>;
+
   // Per-entity learned facts (BRAIN-UX.1 Task 1) — list/forget are real;
   // analyze-history is an honest not-implemented stub until Task 3 lands.
   entityListFacts: (entityId: string) => Promise<EntityFact[]>;
@@ -679,6 +685,14 @@ export interface ElectronAPI {
   twinMemoryList: (filter?: TwinMemoryListFilter) => Promise<TwinFact[]>;
   twinMemoryForget: (factId: string) => Promise<TwinFact | null>;
   twinMemoryRestore: (factId: string) => Promise<TwinFact | null>;
+  // User-triggered label backfill (TWIN-READ.1 Task 1) — labels existing facts
+  // with no stored label yet, one bounded chunk per call.
+  twinMemoryBackfillLabels: () => Promise<BackfillFactLabelsResult>;
+
+  // Twin memory GRAPH (TWIN-GRAPH.2 Task 1) — the twin's own tiered graph
+  // (core -> category hub -> fact). Distinct from buildBrainGraph above,
+  // which is the entity-centric sibling shape. No scope — always the full ledger.
+  twinBuildMemoryGraph: () => Promise<TwinMemoryGraph>;
 
   // Calendar Integration (Phase G) — BYO OAuth, metadata-only event cache.
   getCalendarStatus: () => Promise<CalendarAccountStatus[]>;

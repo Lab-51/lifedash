@@ -1261,6 +1261,40 @@ html.light .ecg-glow-bright {
   }
 }
 
+/* GraphPinnedCard's connector LINE draws outward from the node toward the
+   card (TWIN-READ.2 Task 3), rather than appearing or fading. Pure
+   arithmetic: `--connector-length` is `Math.hypot(dx, dy)` on the straight
+   line's own two endpoints, set once per pin by GraphPinnedCard.tsx — never
+   `getTotalLength()`, which jsdom does not implement and which would behave
+   one way in the app and another in every test regardless. `stroke-dasharray`
+   is set to that SAME length (one dash spanning the whole line, reading
+   solid at rest) and is left set after the animation ends — harmless, since
+   a dash exactly as long as its line looks identical to no dash at all.
+   Default fill-mode (none, never forwards/both) reverts `stroke-dashoffset`
+   to its CSS initial value of 0 the instant the animation ends, which IS the
+   fully-drawn state, so nothing needs stripping for this one to end clean.
+   Opt-in via GraphPinnedCard's `animateConnector` prop; only the twin river
+   canvas passes it today, gated there by reduced motion and re-keyed per pin
+   so it replays on every re-pin. */
+@keyframes graph-connector-draw-in {
+  from {
+    stroke-dashoffset: var(--connector-length, 0);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.graph-connector-draw-in {
+  animation: graph-connector-draw-in 260ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-connector-draw-in {
+    animation: none;
+  }
+}
+
 /* ─── Animation Utilities ─── */
 .animate-scanline {
   animation: scanline-move 8s linear infinite;
@@ -1284,4 +1318,189 @@ html.light .ecg-glow-bright {
 /* override forms */
 textarea:focus {
   box-shadow: none !important;
+}
+
+/* ─── Twin memory graph — the synaptic visual language (TWIN-READ.1 Task 4) ───
+   ADDITIVE ONLY. Every selector below is new and namespaced to the twin memory
+   graph. Nothing above it is redefined or restyled, because this file is shared
+   with the session Brain canvas, which must stay byte-identical this phase. */
+
+/* The graph's own ALWAYS-DARK surface, in BOTH app themes (explicit user
+   decision: glow and gradients only read on dark, and maintaining two visual
+   languages would be twice the surface to get wrong).
+
+   The palette variables are RE-PINNED FOR THIS SUBTREE ONLY — the same
+   mechanism `.on-accent-surface` above uses. That is what makes the decision
+   affordable: every var(--color-*) the canvas already referenced keeps
+   resolving, so in light theme the captions, the paint-order halo and the lane
+   borders take the dark-theme values that are legible on this surface instead
+   of inheriting the page's light ones. No component needs a theme branch. */
+.twin-graph-surface {
+  color-scheme: dark;
+  background: radial-gradient(115% 85% at 50% 0%, #101a2b 0%, #090e18 55%, #05070c 100%);
+  border: 1px solid #1a2332;
+  border-radius: 12px;
+
+  --color-chrome: #0a0e17;
+  --color-text-primary: #e2e8f0;
+  --color-text-secondary: #7a8ba0;
+  --color-text-muted: #3d4f63;
+  --color-border: #1a2332;
+  --color-border-accent: #1a4a49;
+  --color-border-bright: #3ee8e433;
+  --color-accent: #3ee8e4;
+  --color-accent-dim: #1a8e8c;
+  --color-accent-muted: #0d4a49;
+  --color-accent-subtle: #0a2d2d;
+  --color-warm: #e8a33e;
+  --color-primary-300: #6bfbf7;
+}
+
+/* THE ONE SANCTIONED IDLE ANIMATION — a slow breath on the TWIN CORE node's
+   outer ring and nothing else on the canvas. Deliberately scoped: shimmer on
+   every node was rejected, because a permanent animation loop competes with
+   local Whisper transcription and a local LLM for the same GPU, which is the
+   entire reason the graph freezes at all. The class is granted by
+   TwinMemoryGraphCanvas only while the Memory tab is on screen AND the window
+   is visible; see the reduced-motion block at the bottom for the third gate.
+   Applied to the ring rather than to the node group, whose `transform`
+   ATTRIBUTE a CSS transform would override. */
+@keyframes twin-core-shimmer {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.26;
+    transform: scale(1.08);
+  }
+}
+
+.twin-core-shimmer {
+  animation: twin-core-shimmer 4.5s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Activation pulse — a one-shot highlight travelling along a touched node's
+   connections. INTERACTION-TRIGGERED and removed when it ends, so a settled
+   graph still schedules nothing. The dash pattern's gap is longer than any
+   dendrite, so exactly one segment ever travels; the offset range covers the
+   longest connection the tiered layout can produce (one TIER_GAP plus its bow)
+   without needing getTotalLength(), which SVG measurement in tests cannot
+   provide. */
+@keyframes twin-dendrite-pulse {
+  from {
+    stroke-dashoffset: 30;
+  }
+  to {
+    stroke-dashoffset: -520;
+  }
+}
+
+.twin-dendrite-pulse {
+  stroke-dasharray: 26 620;
+  animation: twin-dendrite-pulse 520ms ease-out 1 forwards;
+}
+
+/* A connection the pulsed node RECEIVES: the highlight must travel OUTWARD from
+   what the user touched, and a dendrite's path always runs parent -> child.
+   Must stay after the rule above, whose `animation` shorthand resets direction. */
+.twin-dendrite-pulse-reverse {
+  animation-direction: reverse;
+}
+
+/* ─── Twin memory RIVER canvas — the growth cascade (TWIN-READ.2 Task 2) ───
+   ADDITIVE ONLY, and namespaced to the riverbank. Nothing above is redefined.
+
+   WHY THESE EXIST: the riverbank's layout is closed-form arithmetic, so the
+   force simulation retires on that surface — and with it the settle motion that
+   made the graph feel alive. The user's requirement was explicit ("keep the
+   organic feel... don't want to lose that"), so a lane's contents GROW instead
+   of appearing: each branch scales out of its hub and each row slides its last
+   few px into place, staggered per row by riverMotion.cascadeDelayMs.
+
+   THE EASE is cubic-bezier(.22,1,.36,1) — ease-out with a breath of overshoot,
+   the mockup's own curve. Motion reads as grown, not slid.
+
+   >>> `backwards` IS NOT THE FORBIDDEN FILL-MODE. <<< A `forwards`/`both` fill
+   pins an animation's FINAL value forever, and an animation beats a normal
+   declaration — that is how an "finished" enter animation silently defeats the
+   attention dimming layered on top of it (the mockup caught exactly that bug).
+   `backwards` applies the FIRST keyframe during the animation's DELAY and
+   NOTHING after it ends, which is what a staggered entrance needs so a row is
+   not visible for 300ms before it grows in. Belt to that braces: the renderer
+   strips these classes once the cascade window has elapsed, so after the
+   cascade there is no animation on the element at all. */
+@keyframes twin-river-branch-grow {
+  from {
+    opacity: 0;
+    transform: scaleX(0.02);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* `fill-box` + a LEFT origin: every river edge runs strictly left-to-right, so
+   a ribbon's own bounding box starts exactly at its hub — scaling X about that
+   edge is a hub-origin reveal, expressed in the one transform every engine gets
+   right (no dash length to measure, and SVG text/path metrics do not exist in
+   jsdom). */
+.twin-river-branch-grow {
+  animation: twin-river-branch-grow 460ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transform-box: fill-box;
+  transform-origin: left center;
+}
+
+@keyframes twin-river-row-grow {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.twin-river-row-grow {
+  animation: twin-river-row-grow 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* The click's tactile answer: a hair of scale on the hub that was toggled. It
+   is also the WHOLE of what a collapse plays — faster than the cascade and
+   un-staggered — because a collapsing lane's rows leave the DOM outright. */
+@keyframes twin-river-tap {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.twin-river-tap {
+  animation: twin-river-tap 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Accessibility carve-out, non-negotiable: reduced motion switches off every one
+   of the graph's animations. The renderer also declines to mount them at all in
+   that case — this is the belt to that braces, so a class arriving by any other
+   route still animates nothing. */
+@media (prefers-reduced-motion: reduce) {
+  .twin-core-shimmer,
+  .twin-dendrite-pulse,
+  .twin-river-branch-grow,
+  .twin-river-row-grow,
+  .twin-river-tap {
+    animation: none;
+  }
 }

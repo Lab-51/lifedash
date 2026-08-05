@@ -20,6 +20,7 @@ import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { useBoardLiveSync } from './hooks/useBoardLiveSync';
 import { useBrainLiveSync } from './hooks/useBrainLiveSync';
+import { useTwinMemoryLiveSync } from './hooks/useTwinMemoryLiveSync';
 import { useTheme } from './hooks/useTheme';
 import { useFontScale } from './hooks/useFontScale';
 import { suggestMeetingTitle } from '../shared/utils/meetingTitle';
@@ -339,6 +340,11 @@ function AppShell({ children }: { children: ReactNode }) {
   // fires while the Brain tab isn't the one currently viewed (needed for the
   // off-canvas 'brain' badge) and never double-registers across hosts.
   useBrainLiveSync();
+  // Live twin memory growth (TWIN-GRAPH.2 Task 4): the twin-side SIBLING to
+  // useBrainLiveSync above — debounce-refreshes twinMemoryGraphStore on a
+  // 'twin-memory'-scoped data:changed broadcast, so a fact learned while the
+  // user is sitting on Twin -> Memory blooms in without leaving the tab.
+  useTwinMemoryLiveSync();
 
   // Show toast when break timer ends (break -> idle transition)
   const prevModeRef = useRef(focusMode);

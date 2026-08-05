@@ -15,6 +15,7 @@ import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import https from 'node:https';
+import crypto from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
@@ -210,12 +211,58 @@ export async function createWhisperContext(modelPath: string): Promise<{
   return { context, backend: 'cpu' };
 }
 
-/** Download a model from HuggingFace with progress callback */
+/**
+ * Initialize a WhisperVadContext, mirroring createWhisperContext's GPU-detection
+ * strategy (Metal on darwin arm64; Vulkan -> CUDA -> CPU on Windows/Linux) and
+ * release handling — callers own the returned context and must call
+ * context.release() when done, same lifecycle as WhisperContext.
+ */
+export async function createVadContext(modelPath: string): Promise<{
+  context: Awaited<ReturnType<typeof import('@fugood/whisper.node').initWhisperVad>>;
+  backend: string;
+}> {
+  const { initWhisperVad } = await import('@fugood/whisper.node');
+
+  if (process.platform === 'darwin') {
+    try {
+      const context = await initWhisperVad({ filePath: modelPath, useGpu: true });
+      const backend = process.arch === 'arm64' ? 'metal' : 'cpu';
+      return { context, backend };
+    } catch (err) {
+      console.warn('[whisper-vad] Metal GPU init failed, falling back to CPU:', (err as Error).message ?? err);
+      const context = await initWhisperVad({ filePath: modelPath });
+      return { context, backend: 'cpu' };
+    }
+  }
+
+  // Windows / Linux: try GPU variant packages (vulkan → cuda), then CPU
+  const vadVariants = ['vulkan', 'cuda'] as const;
+  for (const variant of vadVariants) {
+    try {
+      const context = await initWhisperVad({ filePath: modelPath, useGpu: true }, variant);
+      console.info(`[whisper-vad] GPU backend initialized: ${variant}`);
+      return { context, backend: variant };
+    } catch (err) {
+      console.warn(`[whisper-vad] ${variant} GPU init failed:`, (err as Error).message ?? err);
+    }
+  }
+
+  console.warn('[whisper-vad] All GPU variants failed — falling back to CPU');
+  const context = await initWhisperVad({ filePath: modelPath });
+  return { context, backend: 'cpu' };
+}
+
+/**
+ * Download a model with progress callback. Defaults to HuggingFace's
+ * ggerganov/whisper.cpp repo; pass `sourceUrl` to fetch from elsewhere (used
+ * by ensureVadModel() below, whose model lives in a different HF repo).
+ */
 export function downloadModel(
   fileName: string,
   onProgress?: (downloaded: number, total: number) => void,
+  sourceUrl?: string,
 ): { promise: Promise<string>; abort: () => void } {
-  const url = `${HF_BASE_URL}/${fileName}`;
+  const url = sourceUrl ?? `${HF_BASE_URL}/${fileName}`;
   const destPath = getModelPath(fileName);
   let aborted = false;
   let req: ReturnType<typeof https.get> | null = null;
@@ -284,4 +331,76 @@ export function downloadModel(
   };
 
   return { promise, abort };
+}
+
+// === VAD (Voice Activity Detection) model — infrastructure, not user-facing ===
+//
+// Deliberately kept OUT of AVAILABLE_MODELS: users never choose this model, it is
+// an internal input to the hallucination-suppression pipeline (TRANS-HALL.1).
+//
+// URL + sha256 verified 2026-08-04 by:
+//   1. Reading whisper.cpp's own models/download-vad-model.sh (the project's
+//      canonical source), which resolves to src="https://huggingface.co/ggml-org/whisper-vad"
+//      pfx="resolve/main/ggml" — NOT the ggerganov/whisper.cpp repo AVAILABLE_MODELS uses.
+//   2. Confirming the file exists via the HuggingFace API's file listing for
+//      ggml-org/whisper-vad (siblings: ggml-silero-v5.1.2.bin, ggml-silero-v6.2.0.bin).
+//   3. Downloading the file and computing its sha256 locally, then cross-checking
+//      against the response's X-Linked-ETag header (HF's own recorded content hash).
+//   4. Running a live spike: initWhisperVad() + detectSpeechData() against this exact
+//      file on Windows (win32-x64, default/CPU backend) — speech buffer -> 3 segments,
+//      silence buffer -> 0 segments.
+const VAD_MODEL_FILENAME = 'ggml-silero-v5.1.2.bin';
+const VAD_MODEL_URL = 'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin';
+const VAD_MODEL_SHA256 = '29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf';
+
+let vadModelWarned = false;
+
+function sha256File(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', reject);
+  });
+}
+
+/**
+ * Ensure the Silero VAD model is present in the userData models dir, downloading
+ * it via the existing whisper model download path (downloadModel) if missing or
+ * corrupted. Idempotent — a second call with the file already present and
+ * hash-verified is a no-op (no network request).
+ *
+ * NEVER throws. Resolves the model path on success, or null on any failure
+ * (network error, HTTP error, sha256 mismatch, disk error) — logged once via
+ * console.warn. Callers MUST treat a null result as "VAD unavailable" and fall
+ * back to RMS-only behavior; this must never block transcription.
+ */
+export async function ensureVadModel(): Promise<string | null> {
+  const destPath = getModelPath(VAD_MODEL_FILENAME);
+  try {
+    if (fs.existsSync(destPath)) {
+      const existingHash = await sha256File(destPath);
+      if (existingHash === VAD_MODEL_SHA256) return destPath;
+      // Present but corrupted/partial — remove and re-download below.
+      fs.unlinkSync(destPath);
+    }
+
+    const { promise } = downloadModel(VAD_MODEL_FILENAME, undefined, VAD_MODEL_URL);
+    await promise;
+
+    const downloadedHash = await sha256File(destPath);
+    if (downloadedHash !== VAD_MODEL_SHA256) {
+      if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
+      throw new Error(`sha256 mismatch: expected ${VAD_MODEL_SHA256}, got ${downloadedHash}`);
+    }
+
+    return destPath;
+  } catch (err) {
+    if (!vadModelWarned) {
+      vadModelWarned = true;
+      console.warn('[whisper-vad] VAD model unavailable, falling back to RMS-only:', (err as Error).message ?? err);
+    }
+    return null;
+  }
 }

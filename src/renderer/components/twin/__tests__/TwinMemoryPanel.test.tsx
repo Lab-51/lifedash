@@ -55,6 +55,7 @@ function fact(overrides: Partial<TwinFact> = {}): TwinFact {
   return {
     id: 'fact-1',
     fact: 'Prefers async updates over meetings',
+    label: null,
     category: 'preference',
     sourceMeetingId: 'meeting-1',
     status: 'active',

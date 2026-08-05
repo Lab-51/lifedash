@@ -61,6 +61,7 @@ function fact(over: Partial<TwinFact>): TwinFact {
   return {
     id: 'f',
     fact: 'a fact',
+    label: null,
     category: 'domain',
     sourceMeetingId: 'm1',
     status: 'active',

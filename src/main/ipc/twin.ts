@@ -13,11 +13,16 @@
 // Every AI-touching handler delegates to a service that returns a discriminated
 // result ({ ok … } | { skipped, reason } | …) and NEVER throws for AI reasons, so
 // the wizard degrades gracefully. IPC stays thin — modeled on brain.ts.
+//   - twin:build-memory-graph (TWIN-GRAPH.2 Task 1) — the twin's own tiered
+//     memory graph (core -> category hub -> fact), a structural DB read via
+//     twinGraphService (no AI, no input). See that file's header for why it is
+//     a SIBLING of brainGraphService rather than an extension of it.
 
 import { ipcMain } from 'electron';
 import { z } from 'zod';
 import * as twinProfileService from '../services/twinProfileService';
 import * as twinMemoryService from '../services/twinMemoryService';
+import * as twinGraphService from '../services/twinGraphService';
 import { draftSection } from '../services/twinInterviewService';
 import * as twinDeepInterviewService from '../services/twinDeepInterviewService';
 import * as twinResearchService from '../services/twinResearchService';
@@ -252,6 +257,25 @@ export function registerTwinHandlers(): void {
   ipcMain.handle('twin:memory-restore', async (_event, factId: unknown) => {
     const id = validateInput(factIdSchema, factId);
     return twinMemoryService.restoreFact(id);
+  });
+
+  // Label backfill (TWIN-READ.1 Task 1) — user-triggered pass that labels
+  // existing facts with no stored label yet. No input, unlike entity:analyze-
+  // history: this is the twin's whole ledger, never a single entity. Unlike
+  // that channel, this one NEVER rejects on "no model" — twinMemoryService
+  // .backfillFactLabels() returns a typed `{ status: 'skipped', reason:
+  // 'no-model' }` instead of throwing, because a fact with no stored label
+  // still renders via factLabel.ts's derived fallback, so a skipped backfill is
+  // a quality regression, never a breakage the caller needs to catch.
+  ipcMain.handle('twin:memory-backfill-labels', async () => {
+    return twinMemoryService.backfillFactLabels();
+  });
+
+  // Twin memory GRAPH (TWIN-GRAPH.2 Task 1) — the whole tiered ledger in one
+  // round trip. No input: unlike brain:build-graph there is no scope, this is
+  // always the twin's full memory.
+  ipcMain.handle('twin:build-memory-graph', async () => {
+    return twinGraphService.buildTwinMemoryGraph();
   });
 
   // Creation-model gate descriptor — drives the wizard's mode-fork SOTA notice.

@@ -1,21 +1,24 @@
 // @vitest-environment jsdom
 // === FILE PURPOSE ===
-// TwinPage (V3.3 Tasks 3-4, V3.4 Task 3): empty state (no profile) + the mounted
-// creation wizard (open/close from both the empty-state CTA and the "Refine
-// profile" header button), section render + inline edit/save round-trip via
-// twinUpdateProfileSection, and the Memory tab (ledger list + tab count badge —
-// TwinMemoryPanel's own test file covers the full safety-triad behavior:
-// provenance resolution, forget+undo focus management, and the pause toggle).
+// TwinPage (V3.3 Tasks 3-4, V3.4 Task 3, TWIN-GRAPH.2 Task 3): empty state (no
+// profile) + the mounted creation wizard (open/close from both the empty-state
+// CTA and the "Refine profile" header button), section render + inline edit/save
+// round-trip via twinUpdateProfileSection, and the Memory tab — which since
+// TWIN-GRAPH.2 renders the tiered memory GRAPH (TwinMemoryGraph) rather than the
+// flat list. What is asserted here is the SEAM: the graph mounts on that tab and
+// still feeds the tab count badge. TwinMemoryGraph's own test file covers the
+// full safety-triad behaviour (provenance, forget+undo with rollback, the pause
+// toggle, and their keyboard reachability).
 // window.electronAPI.twinGetProfile / twinUpdateProfileSection / twinDraftSection
-// / twinMemoryList are mocked — the real IPC/service round trip is covered by
-// twinProfileService's / twinMemoryService's own unit tests and TwinWizard's own
-// tests (Task 4).
+// / twinBuildMemoryGraph are mocked — the real IPC/service round trip is covered
+// by twinProfileService's / twinGraphService's own unit tests and TwinWizard's
+// own tests (Task 4).
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
-import type { TwinProfile } from '../../../shared/types/twin';
+import type { TwinMemoryGraph, TwinProfile } from '../../../shared/types/twin';
 
 const twinGetProfile = vi.fn();
 const twinUpdateProfileSection = vi.fn();
@@ -24,9 +27,9 @@ const twinDraftSection = vi.fn();
 const twinGetCreationModel = vi
   .fn()
   .mockResolvedValue({ providerLabel: 'openai', modelLabel: 'gpt-5-mini', isLocal: false, isFrontier: true });
-// Memory tab (V3.4) — the tab panel is always mounted (badge needs the count
-// even while Profile is active), so every test here indirectly mounts it.
-const twinMemoryList = vi.fn().mockResolvedValue([]);
+// Memory tab — the tab panel is always mounted (badge needs the count even while
+// Profile is active), so every test here indirectly mounts the memory graph.
+const twinBuildMemoryGraph = vi.fn();
 const twinMemoryForget = vi.fn();
 const twinMemoryRestore = vi.fn();
 const setSetting = vi.fn().mockResolvedValue(undefined);
@@ -36,7 +39,7 @@ vi.stubGlobal('electronAPI', {
   twinUpdateProfileSection,
   twinDraftSection,
   twinGetCreationModel,
-  twinMemoryList,
+  twinBuildMemoryGraph,
   twinMemoryForget,
   twinMemoryRestore,
   setSetting,
@@ -47,6 +50,65 @@ vi.stubGlobal('electronAPI', {
 const { default: TwinPage } = await import('../TwinPage');
 const { useMeetingStore } = await import('../../stores/meetingStore');
 const { useSettingsStore } = await import('../../stores/settingsStore');
+const { useTwinMemoryGraphStore, NO_ENTERING_NODES, NO_EXPANDED_LANES } =
+  await import('../../stores/twinMemoryGraphStore');
+
+/** The twin core alone — a ledger that has learned nothing yet. */
+function emptyMemoryGraph(): TwinMemoryGraph {
+  return {
+    nodes: [
+      {
+        id: 'twin',
+        type: 'twin',
+        tier: 0,
+        label: 'You',
+        recordId: 'singleton',
+        category: null,
+        degree: 0,
+        newestTimestamp: null,
+      },
+    ],
+    edges: [],
+    droppedCount: 0,
+  };
+}
+
+/** Core -> one populated hub -> one fact, provenance joined in by the payload. */
+function oneFactMemoryGraph(): TwinMemoryGraph {
+  const graph = emptyMemoryGraph();
+  return {
+    nodes: [
+      ...graph.nodes,
+      {
+        id: 'category:preference',
+        type: 'category',
+        tier: 1,
+        label: 'Preference',
+        recordId: 'preference',
+        category: 'preference',
+        degree: 2,
+        newestTimestamp: '2026-07-01T00:00:00.000Z',
+      },
+      {
+        id: 'fact:fact-1',
+        type: 'fact',
+        tier: 2,
+        label: 'Prefers async updates over meetings',
+        recordId: 'fact-1',
+        category: 'preference',
+        degree: 1,
+        newestTimestamp: '2026-07-01T00:00:00.000Z',
+        sourceMeetingId: 'meeting-1',
+        sourceMeetingTitle: 'Weekly Sync',
+      },
+    ],
+    edges: [
+      { fromId: 'twin', toId: 'category:preference', kind: 'twin-hub' },
+      { fromId: 'category:preference', toId: 'fact:fact-1', kind: 'hub-fact' },
+    ],
+    droppedCount: 0,
+  };
+}
 
 // The creation wizard's mode-choice screen uses useNavigate (Settings pointer), so
 // TwinPage is rendered inside a router (repo test pattern).
@@ -74,9 +136,18 @@ function fullProfile(overrides: Partial<TwinProfile> = {}): TwinProfile {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  twinMemoryList.mockResolvedValue([]);
+  twinBuildMemoryGraph.mockResolvedValue(emptyMemoryGraph());
   useMeetingStore.setState({ meetings: [] } as any);
   useSettingsStore.setState({ settings: {} } as any);
+  // The graph store is a module singleton and its `load` is cache-or-fetch, so a
+  // leftover graph from the previous test would suppress the next fetch. Lane
+  // disclosure is deliberately sticky across graph writes, so it has to be reset
+  // here too or one test's open lane becomes the next test's starting state.
+  useTwinMemoryGraphStore.setState({
+    graph: null,
+    entering: NO_ENTERING_NODES,
+    expandedLanes: NO_EXPANDED_LANES,
+  });
 });
 
 describe('TwinPage — empty state + creation wizard', () => {
@@ -182,10 +253,10 @@ describe('TwinPage — section render, edit, save round-trip', () => {
   });
 });
 
-describe('TwinPage — Memory tab (V3.4)', () => {
+describe('TwinPage — Memory tab (the tiered memory graph)', () => {
   it('shows the empty-state explainer and a "0" count badge when no facts exist yet', async () => {
     twinGetProfile.mockResolvedValue(fullProfile());
-    twinMemoryList.mockResolvedValue([]);
+    twinBuildMemoryGraph.mockResolvedValue(emptyMemoryGraph());
     renderPage();
     await screen.findByText('Jane Doe');
 
@@ -196,27 +267,39 @@ describe('TwinPage — Memory tab (V3.4)', () => {
     expect(memoryTab).toHaveTextContent('0');
   });
 
-  it('lists a learned fact with resolved session-title provenance and badges the tab with the active count', async () => {
+  it('mounts the graph with its safety triad and badges the tab with the active fact count', async () => {
     twinGetProfile.mockResolvedValue(fullProfile());
-    useMeetingStore.setState({ meetings: [{ id: 'meeting-1', title: 'Weekly Sync' }] as any } as any);
-    twinMemoryList.mockResolvedValue([
-      {
-        id: 'fact-1',
-        fact: 'Prefers async updates over meetings',
-        category: 'preference',
-        sourceMeetingId: 'meeting-1',
-        status: 'active',
-        createdAt: '2026-07-01T00:00:00.000Z',
-      },
-    ]);
+    twinBuildMemoryGraph.mockResolvedValue(oneFactMemoryGraph());
     renderPage();
     await screen.findByText('Jane Doe');
 
     const memoryTab = screen.getByRole('tab', { name: /memory/i });
     fireEvent.click(memoryTab);
 
-    expect(await screen.findByText('Prefers async updates over meetings')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /learned in weekly sync/i })).toBeInTheDocument();
+    // The graph opens COLLAPSED (TWIN-READ.1 Task 2), so the lane's hub is what
+    // is on screen — carrying the count the lane holds — and opening it reveals
+    // the fact as a node on the canvas, not a row.
+    fireEvent.click(await screen.findByRole('button', { name: 'Category: Preferences, 1 learned fact' }));
+    expect(
+      screen.getByRole('button', { name: 'Learned fact: Prefers async updates over meetings' }),
+    ).toBeInTheDocument();
+    // ...the kill-switch rides above it...
+    expect(screen.getByRole('button', { name: /pause learning/i })).toBeInTheDocument();
+    // ...and the badge still counts ACTIVE facts only (not the core or the hub).
     expect(memoryTab).toHaveTextContent('1');
+  });
+
+  it('opens a fact node to its provenance — the title the payload carried, never an id', async () => {
+    twinGetProfile.mockResolvedValue(fullProfile());
+    twinBuildMemoryGraph.mockResolvedValue(oneFactMemoryGraph());
+    renderPage();
+    await screen.findByText('Jane Doe');
+
+    fireEvent.click(screen.getByRole('tab', { name: /memory/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Category: Preferences/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Learned fact:/ }));
+
+    expect(screen.getByRole('button', { name: 'learned in Weekly Sync' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Forget:/ })).toBeInTheDocument();
   });
 });

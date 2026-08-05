@@ -23,6 +23,8 @@ import type {
   TwinCreationModel,
   TwinFact,
   TwinMemoryListFilter,
+  TwinMemoryGraph,
+  BackfillFactLabelsResult,
 } from '../../shared/types';
 
 export const twinBridge = {
@@ -52,4 +54,10 @@ export const twinBridge = {
     ipcRenderer.invoke('twin:memory-list', filter),
   twinMemoryForget: (factId: string): Promise<TwinFact | null> => ipcRenderer.invoke('twin:memory-forget', factId),
   twinMemoryRestore: (factId: string): Promise<TwinFact | null> => ipcRenderer.invoke('twin:memory-restore', factId),
+  // User-triggered label backfill (TWIN-READ.1 Task 1) — labels existing facts
+  // with no stored label yet, one bounded chunk per call.
+  twinMemoryBackfillLabels: (): Promise<BackfillFactLabelsResult> => ipcRenderer.invoke('twin:memory-backfill-labels'),
+
+  // Twin memory graph (TWIN-GRAPH.2 Task 1) — the twin's own tiered graph.
+  twinBuildMemoryGraph: (): Promise<TwinMemoryGraph> => ipcRenderer.invoke('twin:build-memory-graph'),
 };

@@ -1,0 +1,1 @@
+ALTER TABLE "twin_facts" ADD COLUMN "label" text;

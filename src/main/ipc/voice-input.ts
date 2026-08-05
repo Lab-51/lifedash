@@ -15,6 +15,7 @@ import { eq } from 'drizzle-orm';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { voiceAudioBufferSchema } from '../../shared/validation/schemas';
 import { resolveLanguagePreset } from '../../shared/types/transcription';
+import { isHallucinatedSegment } from '../../shared/transcription/hallucinationFilter';
 
 const log = createLogger('VoiceInput');
 
@@ -79,6 +80,11 @@ export function registerVoiceInputHandlers(): void {
         const { promise } = ctx.transcribeData(arrayBuffer, whisperOpts);
         const result = await promise;
         const text = (result.result ?? '').trim();
+        // A known Whisper hallucination phrase carries no real speech — same contract as silent input.
+        if (isHallucinatedSegment(text)) {
+          log.debug(`Voice input matched a hallucination phrase, discarding: "${text}"`);
+          return { text: '' };
+        }
         return { text };
       } finally {
         await ctx.release().catch(() => {});

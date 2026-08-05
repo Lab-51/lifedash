@@ -18,6 +18,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../ai-provider', () => ({ resolveTaskModel: vi.fn() }));
 vi.mock('../twinResearchService', () => ({ generateValidated: vi.fn() }));
+vi.mock('../dataChangeNotifier', () => ({ notifyDataChanged: vi.fn() }));
 vi.mock('../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
@@ -28,6 +29,7 @@ vi.mock('../../db/schema', () => ({
     __table: 'twinFacts',
     id: 'id',
     fact: 'fact',
+    label: 'label',
     category: 'category',
     status: 'status',
     createdAt: 'createdAt',
@@ -44,13 +46,23 @@ vi.mock('../../db/schema', () => ({
 }));
 vi.mock('drizzle-orm', () => ({
   and: (...a: unknown[]) => ({ and: a }),
+  asc: (x: unknown) => x,
   desc: (x: unknown) => x,
   eq: (...a: unknown[]) => ({ eq: a }),
+  isNull: (col: unknown) => ({ isNull: col }),
 }));
 
-import { extractFacts, listFacts, forgetFact, restoreFact, learningPostSessionHook } from '../twinMemoryService';
+import {
+  extractFacts,
+  listFacts,
+  forgetFact,
+  restoreFact,
+  backfillFactLabels,
+  learningPostSessionHook,
+} from '../twinMemoryService';
 import { resolveTaskModel } from '../ai-provider';
 import { generateValidated } from '../twinResearchService';
+import { notifyDataChanged } from '../dataChangeNotifier';
 import { getDb } from '../../db/connection';
 import { registerPostSessionHook, dispatchPostSession, _resetPostSessionHooks } from '../postSessionDispatcher';
 import type { MeetingBrief } from '../../../shared/types';
@@ -80,7 +92,7 @@ function makeDb(cfg: DbConfig) {
   const build = (rows: Rows) => {
     let out = rows;
     const q: Record<string, unknown> = {
-      where: (cond?: { eq?: unknown[] }) => {
+      where: (cond?: { eq?: unknown[]; isNull?: string }) => {
         // Honor a direct eq(status, X) filter so the 'active' vs 'forgotten' fact
         // loaders return DISTINCT rows (rows with no status default to 'active').
         // Composite (and(...)) conditions carry no top-level `.eq` and are ignored.
@@ -88,6 +100,12 @@ function makeDb(cfg: DbConfig) {
         if (Array.isArray(pair) && pair[0] === 'status') {
           const want = pair[1];
           out = out.filter((r) => ((r.status as string | undefined) ?? 'active') === want);
+        }
+        // Honor a direct isNull(twinFacts.label) filter (backfillFactLabels' "still
+        // unlabelled" query) — a row with no `label` key at all counts as null too.
+        if (cond && typeof cond.isNull === 'string') {
+          const field = cond.isNull;
+          out = out.filter((r) => (r as Record<string, unknown>)[field] == null);
         }
         return q;
       },
@@ -124,11 +142,28 @@ function makeDb(cfg: DbConfig) {
         },
       }),
     }),
-    update: () => ({
+    // table-aware: an id-matched update() mutates the matching row IN PLACE within
+    // cfg[table] (so a later select() in the SAME test sees the write — mirrors
+    // "read your own writes"), used by backfillFactLabels' per-fact label update.
+    // Falls back to the legacy fixed `cfg.updateRow` path (forgetFact/restoreFact
+    // tests, which never populate cfg.twinFacts) when no id match is found.
+    update: (table: { __table: keyof DbConfig }) => ({
       set: (s: Record<string, unknown>) => ({
-        where: () => ({
-          returning: () => Promise.resolve(cfg.updateRow ? [{ ...cfg.updateRow, ...s }] : []),
-        }),
+        where: (cond?: { eq?: unknown[] }) => {
+          const pair = cond?.eq;
+          const rows = (cfg[table.__table] as Rows) ?? [];
+          let matched: Record<string, unknown> | undefined;
+          if (Array.isArray(pair) && pair[0] === 'id') {
+            matched = rows.find((r) => r.id === pair[1]);
+            if (matched) Object.assign(matched, s);
+          }
+          const result = matched ?? (cfg.updateRow ? { ...cfg.updateRow, ...s } : undefined);
+          return {
+            returning: () => Promise.resolve(result ? [result] : []),
+            then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) =>
+              Promise.resolve(undefined).then(res, rej),
+          };
+        },
       }),
     }),
   };
@@ -336,6 +371,106 @@ describe('extractFacts — dedupe, cap, provenance', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Stored label (TWIN-READ.1 Task 1) — persisted when the model supplies one,
+// null when it does not; a garbage/wrong-type label degrades to null WITHOUT
+// corrupting or dropping the fact itself.
+// ---------------------------------------------------------------------------
+
+describe('extractFacts — label persistence', () => {
+  it('persists a label the model supplies', async () => {
+    vi.mocked(generateValidated).mockResolvedValue([
+      { fact: 'Acme uses Stripe', category: 'domain', label: 'Uses Stripe' },
+    ]);
+    const result = await extractFacts(MEETING_ID);
+    expect(result.facts[0].label).toBe('Uses Stripe');
+    expect(inserted[0].label).toBe('Uses Stripe');
+  });
+
+  it('stores null when the model omits the label field', async () => {
+    vi.mocked(generateValidated).mockResolvedValue([{ fact: 'Acme uses Stripe', category: 'domain' }]);
+    const result = await extractFacts(MEETING_ID);
+    expect(result.facts[0].label).toBeNull();
+  });
+
+  it('degrades a wrong-type label to null without corrupting or dropping the fact', async () => {
+    vi.mocked(generateValidated).mockResolvedValue([
+      { fact: 'Acme uses Stripe', category: 'domain', label: 12345 }, // garbage: not a string
+    ]);
+    const result = await extractFacts(MEETING_ID);
+    expect(result.status).toBe('ok');
+    expect(result.facts).toHaveLength(1);
+    expect(result.facts[0].fact).toBe('Acme uses Stripe');
+    expect(result.facts[0].label).toBeNull();
+  });
+
+  it('degrades a blank/whitespace-only label to null', async () => {
+    vi.mocked(generateValidated).mockResolvedValue([{ fact: 'Acme uses Stripe', category: 'domain', label: '   ' }]);
+    const result = await extractFacts(MEETING_ID);
+    expect(result.facts[0].label).toBeNull();
+  });
+
+  it('trims and caps an overlong label rather than rejecting the fact', async () => {
+    const longLabel = 'x'.repeat(200);
+    vi.mocked(generateValidated).mockResolvedValue([
+      { fact: 'Acme uses Stripe', category: 'domain', label: `  ${longLabel}  ` },
+    ]);
+    const result = await extractFacts(MEETING_ID);
+    expect(result.facts[0].label).toHaveLength(60);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Live-refresh trigger (TWIN-GRAPH.2 Task 4) — data:changed({scope:'twin-memory'})
+// fires ONLY on an actual write, so a renderer sitting on the Memory tab has
+// something to bloom in and a no-op extraction never causes a needless refetch.
+// ---------------------------------------------------------------------------
+
+describe('extractFacts — live-refresh notification', () => {
+  it('broadcasts data:changed(twin-memory) when at least one fact is actually learned', async () => {
+    vi.mocked(generateValidated).mockResolvedValue([{ fact: 'Acme uses Stripe', category: 'domain' }]);
+
+    const result = await extractFacts(MEETING_ID);
+
+    expect(result.status).toBe('ok');
+    expect(vi.mocked(notifyDataChanged)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notifyDataChanged)).toHaveBeenCalledWith({ scope: 'twin-memory' });
+  });
+
+  it('does NOT broadcast when everything deduped away (status ok, but no write)', async () => {
+    setDb({
+      settings: [],
+      meetingBriefs: [{ summary: 'x' }],
+      liveSuggestions: [],
+      twinFacts: [{ fact: 'Acme uses Stripe' }],
+    });
+    vi.mocked(generateValidated).mockResolvedValue([{ fact: 'acme uses stripe.', category: 'domain' }]);
+
+    const result = await extractFacts(MEETING_ID);
+
+    expect(result).toEqual({ status: 'ok', facts: [] });
+    expect(vi.mocked(notifyDataChanged)).not.toHaveBeenCalled();
+  });
+
+  it('does NOT broadcast on a skip (paused / no model / no material / bad output)', async () => {
+    setDb({ settings: [{ value: 'true' }], meetingBriefs: [{ summary: 'x' }] });
+
+    const result = await extractFacts(MEETING_ID);
+
+    expect(result.status).toBe('skipped');
+    expect(vi.mocked(notifyDataChanged)).not.toHaveBeenCalled();
+  });
+
+  it('does NOT broadcast when the insert itself throws (defensive skip)', async () => {
+    happyDb({ insertThrows: true });
+    vi.mocked(generateValidated).mockResolvedValue([{ fact: 'Acme uses Stripe', category: 'domain' }]);
+
+    await extractFacts(MEETING_ID);
+
+    expect(vi.mocked(notifyDataChanged)).not.toHaveBeenCalled();
+  });
+});
+
 describe('extractFacts — forgotten facts are not silently re-learned', () => {
   it('does NOT re-insert a fact the user explicitly Forgot (dedupe spans forgotten)', async () => {
     setDb({
@@ -371,7 +506,7 @@ describe('extractFacts — forgotten facts are not silently re-learned', () => {
 // ---------------------------------------------------------------------------
 
 describe('listFacts', () => {
-  it('maps twin_facts rows to the public fact shape', async () => {
+  it('maps twin_facts rows to the public fact shape, including a null label', async () => {
     setDb({
       twinFacts: [
         {
@@ -389,12 +524,31 @@ describe('listFacts', () => {
       {
         id: 'f1',
         fact: 'Acme uses Stripe',
+        label: null, // no label column value on this row → rowToFact carries it through as null
         category: 'domain',
         sourceMeetingId: 'm1',
         status: 'active',
         createdAt: '2026-07-08T00:00:00.000Z',
       },
     ]);
+  });
+
+  it('carries a stored label through unchanged', async () => {
+    setDb({
+      twinFacts: [
+        {
+          id: 'f1',
+          fact: 'Acme uses Stripe',
+          label: 'Uses Stripe',
+          category: 'domain',
+          sourceMeetingId: 'm1',
+          status: 'active',
+          createdAt: new Date('2026-07-08T00:00:00Z'),
+        },
+      ],
+    });
+    const [fact] = await listFacts({ status: 'active' });
+    expect(fact.label).toBe('Uses Stripe');
   });
 
   it('returns [] when there are no facts', async () => {
@@ -430,5 +584,122 @@ describe('forgetFact / restoreFact', () => {
     setDb({ updateRow: undefined });
     expect(await forgetFact('nope')).toBeNull();
     expect(await restoreFact('nope')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// backfillFactLabels (TWIN-READ.1 Task 1) — user-triggered, chunked, resumable
+// pass that labels existing facts with no stored label yet. Follows the
+// entity:analyze-history precedent (user-triggered only); pause-gated by the
+// SAME main-side isLearningPaused() extraction uses.
+// ---------------------------------------------------------------------------
+
+describe('backfillFactLabels', () => {
+  interface BackfillFixture extends Record<string, unknown> {
+    id: string;
+    fact: string;
+    label?: string;
+    category: string;
+    status: string;
+    createdAt: Date;
+  }
+
+  it('labels only unlabelled rows — an already-labelled row is never re-sent to the model', async () => {
+    const unlabelled1: BackfillFixture = {
+      id: 'f1',
+      fact: 'Prefers async standups',
+      category: 'preference',
+      status: 'active',
+      createdAt: new Date('2026-07-01T00:00:00Z'),
+    };
+    const unlabelled2: BackfillFixture = {
+      id: 'f2',
+      fact: 'Leads the billing project',
+      category: 'project',
+      status: 'active',
+      createdAt: new Date('2026-07-02T00:00:00Z'),
+    };
+    const alreadyLabelled: BackfillFixture = {
+      id: 'f3',
+      fact: 'Works in fintech',
+      label: 'Fintech domain',
+      category: 'domain',
+      status: 'active',
+      createdAt: new Date('2026-07-03T00:00:00Z'),
+    };
+    setDb({ settings: [], twinFacts: [unlabelled1, unlabelled2, alreadyLabelled] });
+    vi.mocked(generateValidated)
+      .mockResolvedValueOnce({ label: 'Async standups' })
+      .mockResolvedValueOnce({ label: 'Owns billing' });
+
+    const result = await backfillFactLabels();
+
+    expect(result).toEqual({ status: 'ok', labeled: 2, remaining: 0 });
+    expect(vi.mocked(generateValidated)).toHaveBeenCalledTimes(2);
+    expect(unlabelled1.label).toBe('Async standups');
+    expect(unlabelled2.label).toBe('Owns billing');
+    expect(alreadyLabelled.label).toBe('Fintech domain'); // untouched — never re-sent
+  });
+
+  it('no-ops when learning is paused (no model call, nothing labeled)', async () => {
+    setDb({
+      settings: [{ value: 'true' }],
+      twinFacts: [{ id: 'f1', fact: 'Prefers async standups', category: 'preference', status: 'active' }],
+    });
+
+    const result = await backfillFactLabels();
+
+    expect(result).toEqual({ status: 'skipped', reason: 'paused', labeled: 0, remaining: 0 });
+    expect(vi.mocked(resolveTaskModel)).not.toHaveBeenCalled();
+    expect(vi.mocked(generateValidated)).not.toHaveBeenCalled();
+  });
+
+  it('degrades to a typed no-op when no model is configured (never throws)', async () => {
+    setDb({
+      settings: [],
+      twinFacts: [{ id: 'f1', fact: 'Prefers async standups', category: 'preference', status: 'active' }],
+    });
+    vi.mocked(resolveTaskModel).mockResolvedValue(null);
+
+    const result = await backfillFactLabels();
+
+    expect(result).toEqual({ status: 'skipped', reason: 'no-model', labeled: 0, remaining: 0 });
+    expect(vi.mocked(generateValidated)).not.toHaveBeenCalled();
+  });
+
+  it('is resumable — a fact that fails to label THIS pass stays unlabelled for the next call', async () => {
+    const failsThisPass: BackfillFixture = {
+      id: 'f1',
+      fact: 'Prefers async standups',
+      category: 'preference',
+      status: 'active',
+      createdAt: new Date('2026-07-01T00:00:00Z'),
+    };
+    const succeeds: BackfillFixture = {
+      id: 'f2',
+      fact: 'Leads the billing project',
+      category: 'project',
+      status: 'active',
+      createdAt: new Date('2026-07-02T00:00:00Z'),
+    };
+    setDb({ settings: [], twinFacts: [failsThisPass, succeeds] });
+    vi.mocked(generateValidated)
+      .mockResolvedValueOnce(null) // f1: bad/unusable model output this pass
+      .mockResolvedValueOnce({ label: 'Owns billing' }); // f2: succeeds
+
+    const result = await backfillFactLabels();
+
+    expect(result).toEqual({ status: 'ok', labeled: 1, remaining: 1 });
+    expect(failsThisPass.label).toBeUndefined(); // still unlabelled
+    expect(succeeds.label).toBe('Owns billing');
+  });
+
+  it('is a typed no-op (no facts labeled) when there is nothing left to label', async () => {
+    setDb({ settings: [], twinFacts: [] });
+
+    const result = await backfillFactLabels();
+
+    expect(result).toEqual({ status: 'ok', labeled: 0, remaining: 0 });
+    expect(vi.mocked(generateValidated)).not.toHaveBeenCalled();
   });
 });

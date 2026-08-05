@@ -64,6 +64,14 @@ export const twinFacts = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     fact: text('fact').notNull(),
+    // Short (2-4 word) LLM-written display label for graph/list surfaces (TWIN-READ.1
+    // Task 1). Nullable is deliberate: every pre-existing row starts unlabelled, and a
+    // model that ignores the label field at extraction time must not break extraction
+    // — a missing label is simply null. Read ONLY through shared/twin/factLabel.ts's
+    // labelFor(), which derives a safe fallback so an unlabelled fact never renders
+    // blank. NEVER derived/written here — deriving in code was explicitly rejected on
+    // quality grounds (see DECISIONS.md).
+    label: text('label'),
     category: twinFactCategoryEnum('category').notNull(),
     // set null (not cascade): a learned fact outlives the deletion of its source
     // session — the knowledge persists, it just loses its provenance link.

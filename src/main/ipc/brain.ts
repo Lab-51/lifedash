@@ -31,6 +31,7 @@
 import { ipcMain } from 'electron';
 import { z } from 'zod';
 import * as brainTreeService from '../services/brainTreeService';
+import * as brainGraphService from '../services/brainGraphService';
 import * as entityFactService from '../services/entityFactService';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { entityIdSchema, entityFactIdSchema } from '../../shared/validation/schemas';
@@ -41,10 +42,21 @@ import '../services/entityService';
 
 const scopeSchema = z.union([z.literal('workspace'), z.object({ meetingId: z.string().uuid() })]);
 
+// TWIN-GRAPH.1 Task 1 — the memory graph's own scope literal ('everything', not
+// 'workspace') so it never gets confused with the tree's BrainScope above.
+const graphScopeSchema = z.union([z.literal('everything'), z.object({ meetingId: z.string().uuid() })]);
+
 export function registerBrainHandlers(): void {
   ipcMain.handle('brain:build-tree', async (_event, scope: unknown) => {
     const validScope = validateInput(scopeSchema, scope);
     return brainTreeService.buildBrainTree({ scope: validScope });
+  });
+
+  // TWIN-GRAPH.1 Task 1 — memory graph (entities + facts + twin ledger + source
+  // sessions as one flat graph). Distinct from brain:build-tree above.
+  ipcMain.handle('brain:build-graph', async (_event, scope: unknown) => {
+    const validScope = validateInput(graphScopeSchema, scope);
+    return brainGraphService.buildBrainGraph({ scope: validScope });
   });
 
   // --- Per-entity learned facts (BRAIN-UX.1 Task 1) ---

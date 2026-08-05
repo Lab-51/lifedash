@@ -19,22 +19,39 @@
 // throw into the dispatcher (defensive + error-isolated), so a learning failure
 // never harms brief generation.
 //
+// === LIVE-REFRESH TRIGGER (TWIN-GRAPH.2 Task 4) ===
+// A successful extraction (>=1 fact actually inserted) broadcasts
+// data:changed({scope:'twin-memory'}) so a renderer sitting on Twin -> Memory
+// picks the new fact up without leaving and returning to the tab (see
+// renderer/services/twinMemoryLiveSync.ts, the twin-side sibling to
+// brainLiveSync — that file is NOT touched by this scope). A skip (paused, no
+// model, no material, or everything deduped away) fires nothing: no write, no
+// point refetching.
+//
 // === DEPENDENCIES ===
 // drizzle-orm, db/connection (getDb), db/schema (settings/twinFacts/meetingBriefs/
 // liveSuggestions), ai-provider (resolveTaskModel), twinResearchService
-// (generateValidated — the shared extraction helper), postSessionDispatcher
-// (registerPostSessionHook), shared twin types.
+// (generateValidated — the shared extraction helper), dataChangeNotifier
+// (notifyDataChanged), postSessionDispatcher (registerPostSessionHook), shared
+// twin types.
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db/connection';
 import { settings, twinFacts, meetingBriefs, liveSuggestions } from '../db/schema';
 import { createLogger } from './logger';
-import { resolveTaskModel } from './ai-provider';
+import { resolveTaskModel, type ResolvedProvider } from './ai-provider';
 import { generateValidated } from './twinResearchService';
+import { notifyDataChanged } from './dataChangeNotifier';
 import { registerPostSessionHook, type PostSessionHook } from './postSessionDispatcher';
 import { TWIN_LEARNING_PAUSED_SETTING_KEY } from '../../shared/types/twin';
-import type { TwinFact, TwinFactCategory, TwinFactStatus, TwinMemoryListFilter } from '../../shared/types/twin';
+import type {
+  TwinFact,
+  TwinFactCategory,
+  TwinFactStatus,
+  TwinMemoryListFilter,
+  BackfillFactLabelsResult,
+} from '../../shared/types/twin';
 
 const log = createLogger('TwinMemory');
 
@@ -44,6 +61,16 @@ const TWIN_FACT_CAP = 5;
 /** Bound the extraction context so a big brief + many accepted items can't blow
  *  the model's window (the twin_learning ≥4096 output floor handles the reply). */
 const MAX_EXTRACTION_CONTEXT_CHARS = 6000;
+
+/** Defensive ceiling on a stored label's length (TWIN-READ.1 Task 1) — labels are
+ *  meant to be 2-4 words, but this only guards against a runaway/garbage model
+ *  output; it is never the primary shaping mechanism. */
+const LABEL_MAX_CHARS = 60;
+
+/** Facts labeled per backfillFactLabels() call — chunked so a single
+ *  user-triggered pass stays fast and never blocks the caller; naturally
+ *  resumable (each call re-queries "still unlabelled", no cursor to track). */
+const BACKFILL_CHUNK_SIZE = 20;
 
 const FACT_CATEGORIES = ['person', 'project', 'preference', 'domain', 'commitment'] as const;
 
@@ -65,25 +92,54 @@ Rules:
 - Extract ONLY facts clearly supported by the provided brief and confirmed items — never invent, guess, or infer beyond them.
 - Each fact is ONE short, self-contained sentence that will still be true and useful in FUTURE meetings — avoid meeting-specific ephemera (e.g. "the call started late", "we reviewed the deck").
 - Prefer durable, reusable knowledge over one-off details.
+- Also give each fact a SHORT 2-4 word "label" naming it (e.g. "Prefers async standups") — a phrase, not a sentence, no trailing punctuation. If you cannot produce a good short label, omit the field entirely rather than guessing.
 - Do NOT repeat anything already listed under "Already known" below.
 - Return AT MOST 5 facts. If nothing durable is worth remembering, return an empty array [].
 Respond with ONLY the JSON described below — no prose, no markdown code fences.`;
 
 const EXTRACTION_OUTPUT_SPEC =
-  'a JSON array of { "fact": string, "category": "person"|"project"|"preference"|"domain"|"commitment" } — at most 5 durable facts.';
+  'a JSON array of { "fact": string, "category": "person"|"project"|"preference"|"domain"|"commitment", "label"?: string } — at most 5 durable facts. "label" is a short 2-4 word phrase naming the fact; omit it if you cannot produce a good one.';
 
-/** Validates the model's output; malformed/over-cap-shape output is rejected by
- *  generateValidated's retry-then-skip discipline. */
+/**
+ * Validates the model's output; malformed/over-cap-shape output is rejected by
+ * generateValidated's retry-then-skip discipline. `label` is intentionally
+ * `z.unknown().optional()`, NOT a strict string schema: a model that ignores the
+ * field, returns the wrong type, or returns garbage must NEVER fail validation
+ * for the whole batch and lose otherwise-good facts — sanitizeLabel() validates
+ * it defensively in code instead, degrading a bad label to null.
+ */
 const extractedFactsSchema = z.array(
   z.object({
     fact: z.string().min(1),
     category: z.enum(FACT_CATEGORIES),
+    label: z.unknown().optional(),
   }),
 );
 
 interface ExtractedFact {
   fact: string;
   category: TwinFactCategory;
+  label?: unknown;
+}
+
+/** A fact after dedupe, with its label validated/sanitized (never raw model output). */
+interface DedupedFact {
+  fact: string;
+  category: TwinFactCategory;
+  label: string | null;
+}
+
+/**
+ * Defensive validation for the model's optional label field. NEVER throws;
+ * anything that isn't a non-empty string quietly degrades to null (the derived
+ * fallback in shared/twin/factLabel.ts covers it) rather than corrupting or
+ * dropping the fact itself. Overlong output is capped, never rejected.
+ */
+function sanitizeLabel(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return trimmed.length > LABEL_MAX_CHARS ? trimmed.slice(0, LABEL_MAX_CHARS).trim() : trimmed;
 }
 
 /** Accepted live-suggestion (the user one-tap-confirmed it during the meeting). */
@@ -104,6 +160,7 @@ function rowToFact(row: typeof twinFacts.$inferSelect): TwinFact {
   return {
     id: row.id,
     fact: row.fact,
+    label: row.label ?? null,
     category: row.category,
     sourceMeetingId: row.sourceMeetingId,
     status: row.status,
@@ -130,16 +187,16 @@ function normalizeFact(fact: string): string {
  * (they are NOT added to the prompt's "Already known" list). Preserves the model's
  * ordering for the survivors.
  */
-function dedupeFacts(candidates: ExtractedFact[], existingKnown: string[]): ExtractedFact[] {
+function dedupeFacts(candidates: ExtractedFact[], existingKnown: string[]): DedupedFact[] {
   const seen = new Set(existingKnown.map(normalizeFact));
-  const out: ExtractedFact[] = [];
+  const out: DedupedFact[] = [];
   for (const c of candidates) {
     const fact = c.fact.trim();
     if (!fact) continue;
     const key = normalizeFact(fact);
     if (!key || seen.has(key)) continue; // dedupe vs existing active + within batch
     seen.add(key);
-    out.push({ fact, category: c.category });
+    out.push({ fact, category: c.category, label: sanitizeLabel(c.label) });
     if (out.length >= TWIN_FACT_CAP) break; // ~5-cap per session
   }
   return out;
@@ -262,6 +319,7 @@ export async function extractFacts(meetingId: string): Promise<ExtractFactsResul
       .values(
         deduped.map((c) => ({
           fact: c.fact,
+          label: c.label, // sanitized by dedupeFacts — null when the model omitted/botched it
           category: c.category,
           sourceMeetingId: meetingId, // provenance on EVERY learned fact
           status: 'active' as const,
@@ -270,6 +328,9 @@ export async function extractFacts(meetingId: string): Promise<ExtractFactsResul
       .returning();
 
     log.info(`Learned ${inserted.length} fact(s) from meeting ${meetingId}`);
+    // Live-growth trigger: only on an actual write — a renderer sitting on the
+    // Memory tab has something new to bloom in.
+    notifyDataChanged({ scope: 'twin-memory' });
     return { status: 'ok', facts: inserted.map(rowToFact) };
   } catch (err) {
     // Defensive: extraction can NEVER throw into the post-session dispatcher, so a
@@ -337,6 +398,98 @@ export async function isLearningPaused(): Promise<boolean> {
     log.error('Failed to read learning-pause setting — treating as not paused:', err);
     return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Label backfill (TWIN-READ.1 Task 1) — user-triggered, chunked, resumable
+// ---------------------------------------------------------------------------
+
+const BACKFILL_LABEL_SYSTEM = `You write a SHORT 2-4 word label naming the point of ONE fact about a professional's world (their people, projects, preferences, domain, or commitments) — a phrase, not a sentence, no trailing punctuation.
+Respond with ONLY the JSON described below — no prose, no markdown code fences.`;
+
+const BACKFILL_LABEL_OUTPUT_SPEC = 'a JSON object { "label": string } — a short 2-4 word phrase naming the fact.';
+
+const backfillLabelSchema = z.object({ label: z.string().min(1) });
+
+/** Every fact with no stored label yet (any status — a restored fact should
+ *  already have one waiting for it), oldest first, capped at the chunk size —
+ *  the unit backfillFactLabels processes per call. */
+async function loadUnlabelledFacts(db: Db, limit: number): Promise<{ id: string; fact: string }[]> {
+  return db
+    .select({ id: twinFacts.id, fact: twinFacts.fact })
+    .from(twinFacts)
+    .where(isNull(twinFacts.label))
+    .orderBy(asc(twinFacts.createdAt))
+    .limit(limit);
+}
+
+/** Honest count of facts still unlabelled — drives `remaining`, never estimated. */
+async function countUnlabelledFacts(db: Db): Promise<number> {
+  const rows = await db.select({ id: twinFacts.id }).from(twinFacts).where(isNull(twinFacts.label));
+  return rows.length;
+}
+
+/**
+ * Label ONE fact via the model. Returns null on ANY failure/garbage output
+ * (generateValidated's own retry-then-skip discipline, plus sanitizeLabel as a
+ * second defensive pass) — never throws. The caller simply leaves this fact
+ * unlabelled for this pass; the derived fallback in shared/twin/factLabel.ts
+ * covers it until a later pass succeeds.
+ */
+async function labelOneFact(provider: ResolvedProvider, fact: string): Promise<string | null> {
+  const parsed = await generateValidated({
+    provider,
+    taskType: 'twin_learning',
+    system: `${BACKFILL_LABEL_SYSTEM}\n\nReturn ${BACKFILL_LABEL_OUTPUT_SPEC}`,
+    context: `Fact:\n${fact}`,
+    schema: backfillLabelSchema,
+    label: 'Fact label backfill',
+  });
+  if (!parsed) return null;
+  return sanitizeLabel((parsed as { label: unknown }).label);
+}
+
+/**
+ * User-triggered backfill: label existing facts that have no stored label yet,
+ * ONE bounded chunk (~20) per call, via the local model. Follows the
+ * `entity:analyze-history` precedent (entityFactService.analyzeHistory) —
+ * user-triggered only, NEVER automatic or on a schedule — rather than inventing
+ * a new mechanism. Pause-gated by the SAME main-side isLearningPaused()
+ * extraction uses (never re-implemented in the renderer): a typed no-op, not a
+ * throw. No model configured degrades the same way — a typed no-op, never a
+ * throw — because the derived fallback covers an unlabelled fact regardless, so
+ * a skipped/failed backfill is a quality regression, never a breakage. Facts are
+ * labeled strictly SEQUENTIALLY, one model call at a time (never Promise.all — a
+ * local model must not be parallel-hammered, mirroring analyzeHistory). Never
+ * blocks the caller: bounded to one chunk, so a single call returns promptly
+ * regardless of how many facts remain. Naturally resumable — each call
+ * re-queries "still unlabelled" rows, so calling it again continues wherever the
+ * last call left off; there is no cursor to track or lose.
+ */
+export async function backfillFactLabels(): Promise<BackfillFactLabelsResult> {
+  if (await isLearningPaused()) {
+    log.debug('backfillFactLabels — learning paused; no-op');
+    return { status: 'skipped', reason: 'paused', labeled: 0, remaining: 0 };
+  }
+
+  const provider = await resolveTaskModel('twin_learning');
+  if (!provider) return { status: 'skipped', reason: 'no-model', labeled: 0, remaining: 0 };
+
+  const db = getDb();
+  const chunk = await loadUnlabelledFacts(db, BACKFILL_CHUNK_SIZE);
+
+  let labeled = 0;
+  // Strictly sequential — one fact (one model call) at a time, never Promise.all.
+  for (const row of chunk) {
+    const label = await labelOneFact(provider, row.fact);
+    if (!label) continue; // failed/garbage output — skip THIS pass, fallback covers it
+    await db.update(twinFacts).set({ label }).where(eq(twinFacts.id, row.id));
+    labeled++;
+  }
+
+  const remaining = await countUnlabelledFacts(db);
+  log.info(`backfillFactLabels — labeled ${labeled}/${chunk.length} fact(s) this pass, ${remaining} still unlabelled`);
+  return { status: 'ok', labeled, remaining };
 }
 
 // ---------------------------------------------------------------------------

@@ -9,13 +9,16 @@
 // deepgramTranscriber, assemblyaiTranscriber
 //
 // === LIMITATIONS ===
-// - Fixed 10-second segments (no VAD-based splitting)
+// - Fixed 10-second segments (VAD gates whole windows, it never splits them)
 // - API providers add network latency per segment
 //
 // === NOTES ===
 // Whisper runs in-process (no Worker thread). The native module's
 // transcribeData() is non-blocking — it queues work on a background
 // C++ thread via Napi::AsyncWorker and returns a Promise.
+// Silence detection is two-stage: a cheap RMS fast path, then a Silero VAD
+// gate (local provider only) that SKIPS whole windows with no detected
+// speech. See the VAD section below — it never trims or remaps audio.
 
 import { BrowserWindow } from 'electron';
 import * as meetingService from './meetingService';
@@ -31,11 +34,12 @@ import { createLogger } from './logger';
 import { trackTiming } from './performanceTracker';
 import type { TranscriptionProviderType, TranscriptionProgress } from '../../shared/types';
 import { resolveLanguagePreset, DEFAULT_MIXED_PROMPTS } from '../../shared/types/transcription';
+import { findMatchedHallucinationPhrase } from '../../shared/transcription/hallucinationFilter';
 
 const log = createLogger('Transcription');
 
-// Whisper context type — imported as type-only to avoid eager native module loading
-import type { WhisperContext } from '@fugood/whisper.node';
+// Whisper context types — imported as type-only to avoid eager native module loading
+import type { WhisperContext, WhisperVadContext } from '@fugood/whisper.node';
 
 // Whisper speed presets — trade accuracy for speed via beam search parameters
 const WHISPER_PRESETS = {
@@ -58,6 +62,14 @@ const OVERLAP_BYTES = SAMPLE_RATE * OVERLAP_SEC * 2; // 32,000
 const SILENCE_RMS_THRESHOLD = 50;
 
 let whisperContext: WhisperContext | null = null;
+let vadContext: WhisperVadContext | null = null;
+// Single shared init promise: dispatchNext runs up to MAX_CONCURRENT segments,
+// so two windows can race on first use. Awaiting the same promise makes context
+// creation single-flight without a lock.
+let vadInitPromise: Promise<WhisperVadContext | null> | null = null;
+// Session-scoped kill switch: set on the first VAD failure of any kind, after
+// which the session is RMS-only (today's exact pipeline).
+let vadDisabled = false;
 let mainWindow: BrowserWindow | null = null;
 let currentMeetingId: string | null = null;
 let accumulatorBuffer: Buffer = Buffer.alloc(0);
@@ -184,6 +196,11 @@ export async function start(meetingId: string, language?: string): Promise<void>
   segmentsCompleted = 0;
   whisperBackend = 'cpu';
 
+  // Fresh VAD gate per session: a previous session's failure must not disable
+  // this one, and a leaked context must not outlive it.
+  await releaseVadContext();
+  vadDisabled = false;
+
   if (activeProvider === 'local') {
     // Local Whisper path — need a model
     const modelPath = await whisperModelManager.getDefaultModelPath();
@@ -295,6 +312,9 @@ export async function stop(): Promise<void> {
     whisperContext = null;
   }
 
+  // Release the VAD context alongside it (same lifecycle, same owner).
+  await releaseVadContext();
+
   currentMeetingId = null;
   activeProvider = 'local';
   activeInitialPrompt = '';
@@ -314,6 +334,90 @@ function calculateInt16RMS(buffer: Buffer): number {
   return Math.sqrt(sum / samples.length);
 }
 
+// === VAD gate (TRANS-HALL.1) ==============================================
+// Second silence stage, after the cheap RMS fast path. SKIP-ONLY: a window with
+// any detected speech is transcribed in FULL, byte-identically to before — the
+// detected spans are never used to trim or remap audio, so timestamp and
+// 1s-overlap bookkeeping is untouched. Only zero-speech windows are skipped,
+// with the same bookkeeping as the RMS skip.
+//
+// Every failure mode (model unavailable, context init, inference) degrades to
+// RMS-only for the rest of the session, logged once. VAD must never block or
+// break a recording.
+
+/** Disable VAD for the rest of the session, logging the reason exactly once. */
+function disableVad(reason: string): void {
+  if (vadDisabled) return;
+  vadDisabled = true;
+  log.warn(`${reason} — using RMS-only silence detection for the rest of this session`);
+}
+
+/** Create the VAD context. Never rejects — resolves null and disables VAD instead. */
+async function initVadContext(): Promise<WhisperVadContext | null> {
+  try {
+    const modelPath = await whisperModelManager.ensureVadModel();
+    if (!modelPath) {
+      disableVad('VAD model unavailable');
+      return null;
+    }
+    const { context, backend } = await whisperModelManager.createVadContext(modelPath);
+    vadContext = context;
+    log.info(`VAD gate active [${backend}]`);
+    return context;
+  } catch (err) {
+    disableVad(`VAD init failed (${(err as Error)?.message ?? String(err)})`);
+    return null;
+  }
+}
+
+/** Single-flight accessor — concurrent first-use windows share one init. */
+function getVadContext(): Promise<WhisperVadContext | null> {
+  vadInitPromise ??= initVadContext();
+  return vadInitPromise;
+}
+
+/** Release the VAD context and reset the per-session gate state. */
+async function releaseVadContext(): Promise<void> {
+  // Settle any in-flight init first so its context can't outlive the session.
+  const pendingInit = vadInitPromise;
+  vadInitPromise = null;
+  if (pendingInit) await pendingInit; // never rejects (initVadContext catches)
+
+  const context = vadContext;
+  vadContext = null;
+  if (!context) return;
+  try {
+    await context.release();
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * True when the window contains no detected speech and may be skipped whole.
+ * Never throws: on any failure VAD is disabled for the session and this returns
+ * false, so the window is transcribed exactly as it is today.
+ */
+async function isWindowSilentByVad(segment: Buffer): Promise<boolean> {
+  // Cloud providers keep today's pipeline untouched — VAD is part of the local
+  // Whisper hallucination fix and must not gate network transcription.
+  if (vadDisabled || activeProvider !== 'local') return false;
+
+  const context = await getVadContext();
+  if (!context) return false;
+
+  try {
+    // Copy into a standalone ArrayBuffer — `segment` itself is passed on to
+    // transcription untouched.
+    const pcm = segment.buffer.slice(segment.byteOffset, segment.byteOffset + segment.byteLength) as ArrayBuffer;
+    const speech = await context.detectSpeechData(pcm);
+    return speech.length === 0;
+  } catch (err) {
+    disableVad(`VAD detection failed (${(err as Error)?.message ?? String(err)})`);
+    return false;
+  }
+}
+
 /** Dispatch the next pending segment to Whisper or cloud API */
 function dispatchNext(): void {
   if (activeTranscriptions >= MAX_CONCURRENT || pendingSegments.length === 0) return;
@@ -323,34 +427,54 @@ function dispatchNext(): void {
 
   const segment = pendingSegments.shift()!;
   const startTimeMs = segmentIndex * SEGMENT_DURATION_SEC * 1000;
+  const segmentNumber = segmentIndex;
   segmentIndex++;
 
   // Skip silent segments to avoid Whisper hallucinations and save CPU
   const rms = calculateInt16RMS(segment);
   if (rms < SILENCE_RMS_THRESHOLD) {
-    log.debug(`Skipping silent segment #${segmentIndex - 1} (RMS: ${rms.toFixed(0)})`);
+    log.debug(`Skipping silent segment #${segmentNumber} (RMS: ${rms.toFixed(0)})`);
     segmentsCompleted++;
     emitProgress('transcribing');
     dispatchNext(); // Try next segment
     return;
   }
 
+  // Claim the concurrency slot before the (async) VAD check, so an in-flight
+  // check keeps stop() waiting instead of releasing contexts underneath it.
   activeTranscriptions++;
-
-  if (activeProvider === 'local') {
-    // Local Whisper: transcribe directly (non-blocking via native async worker)
-    dispatchToWhisper(segment, startTimeMs);
-  } else {
-    // Cloud API: dispatch async
-    dispatchToApi(segment, startTimeMs);
-  }
+  void gateAndDispatch(segment, startTimeMs, segmentNumber);
 
   // Try to fill the next concurrent slot
   dispatchNext();
 }
 
+/**
+ * Run the VAD gate for a window that passed RMS, then dispatch it unchanged.
+ * A skipped window gets the same bookkeeping as the RMS skip: progress
+ * increments, nothing persisted, no triage.
+ */
+async function gateAndDispatch(segment: Buffer, startTimeMs: number, segmentNumber: number): Promise<void> {
+  if (await isWindowSilentByVad(segment)) {
+    log.debug(`Skipping segment #${segmentNumber} — no speech detected (VAD)`);
+    activeTranscriptions--;
+    segmentsCompleted++;
+    emitProgress('transcribing');
+    dispatchNext(); // Try next segment
+    return;
+  }
+
+  if (activeProvider === 'local') {
+    // Local Whisper: transcribe directly (non-blocking via native async worker)
+    await dispatchToWhisper(segment, startTimeMs, segmentNumber);
+  } else {
+    // Cloud API: dispatch async
+    await dispatchToApi(segment, startTimeMs, segmentNumber);
+  }
+}
+
 /** Dispatch a segment to the local Whisper context for transcription */
-async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<void> {
+async function dispatchToWhisper(segment: Buffer, startTimeMs: number, segmentNumber: number): Promise<void> {
   try {
     // Convert Buffer to ArrayBuffer for the native module
     const arrayBuffer = segment.buffer.slice(
@@ -386,7 +510,7 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
     // When activeLanguage is 'auto', omit language so Whisper auto-detects per segment
     const { promise } = whisperContext!.transcribeData(arrayBuffer, whisperOpts);
 
-    const result = await trackTiming(`Whisper: segment #${segmentIndex - 1}`, () => promise);
+    const result = await trackTiming(`Whisper: segment #${segmentNumber}`, () => promise);
 
     activeTranscriptions--;
     segmentsCompleted++;
@@ -394,12 +518,24 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
 
     if (result.result && result.result.trim() && currentMeetingId) {
       lastTranscriptText = result.result.trim();
-      // Keep last ~200 chars as context prompt for the next segment
-      lastSegmentPrompt = lastTranscriptText.slice(-200);
 
-      // Save each segment to the database
+      // Save each segment to the database. Track only the text that survives
+      // the hallucination filter — a dropped hallucination must never feed
+      // back into the next window's Whisper prompt (self-reinforcement loop).
+      const survivingTexts: string[] = [];
+
       for (const seg of result.segments) {
-        if (!seg.text.trim()) continue;
+        const segText = seg.text.trim();
+        if (!segText) continue;
+
+        const matchedPhrase = findMatchedHallucinationPhrase(segText);
+        if (matchedPhrase) {
+          log.debug(`Dropping hallucinated segment #${segmentNumber} (matched: "${matchedPhrase}")`);
+          continue;
+        }
+
+        survivingTexts.push(segText);
+
         // Sanitize timestamps — whisper.cpp may return denormalized floats
         const t0 = Number.isFinite(seg.t0) ? Math.round(seg.t0) : 0;
         const t1 = Number.isFinite(seg.t1) ? Math.round(seg.t1) : 0;
@@ -407,12 +543,7 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
         const segEndMs = Math.max(0, Math.round(startTimeMs + t1));
 
         try {
-          const saved = await meetingService.addTranscriptSegment(
-            currentMeetingId,
-            seg.text.trim(),
-            segStartMs,
-            segEndMs,
-          );
+          const saved = await meetingService.addTranscriptSegment(currentMeetingId, segText, segStartMs, segEndMs);
 
           // Push segment to renderer
           if (mainWindow && !mainWindow.isDestroyed()) {
@@ -424,6 +555,13 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
         } catch (err) {
           log.error('Failed to save segment:', err);
         }
+      }
+
+      // Keep last ~200 chars of surviving text as context prompt for the next
+      // segment. If everything in this window was filtered, leave the prior
+      // prompt in place rather than feeding a hallucination forward.
+      if (survivingTexts.length > 0) {
+        lastSegmentPrompt = survivingTexts.join(' ').slice(-200);
       }
     }
   } catch (err) {
@@ -442,7 +580,7 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number): Promise<
 }
 
 /** Dispatch a segment to the configured cloud API (Deepgram or AssemblyAI) */
-async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void> {
+async function dispatchToApi(segment: Buffer, startTimeMs: number, segmentNumber: number): Promise<void> {
   try {
     const result = await trackTiming(`Transcription API: ${activeProvider}`, async () => {
       if (activeProvider === 'deepgram') {
@@ -504,7 +642,7 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number): Promise<void
           reason: 'API transcription failed, using local Whisper',
         });
       }
-      await dispatchToWhisper(segment, startTimeMs);
+      await dispatchToWhisper(segment, startTimeMs, segmentNumber);
       return; // dispatchToWhisper handles activeTranscriptions and dispatchNext
     }
 

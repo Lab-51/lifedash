@@ -41,6 +41,7 @@ import { initCalendarPollScheduler, stopCalendarPollScheduler } from './services
 import { stop as stopLlamaRuntime } from './services/llamaRuntimeService';
 import { reconcileBuiltinFromDisk } from './services/builtinProviderSetup';
 import { emitRuntimeStatus } from './services/runtimeTelemetry';
+import { sweepHallucinatedTranscripts } from './services/transcriptCleanupService';
 
 const log = createLogger('App');
 
@@ -100,6 +101,21 @@ async function reconcileBuiltinRuntime(): Promise<void> {
     if (await reconcileBuiltinFromDisk()) await emitRuntimeStatus();
   } catch (err) {
     log.warn('Built-in runtime reconciliation skipped:', err);
+  }
+}
+
+/**
+ * TRANS-HALL.1 Task 4: one-shot cleanup of previously-stored Whisper
+ * hallucination segments (subtitle-credit boilerplate etc.), gated by a
+ * settings flag so it runs exactly once. Non-fatal: any error is logged and
+ * skipped here, and — because the service only writes the flag after a
+ * successful delete — a failed run always retries on the next launch.
+ */
+async function sweepTranscriptHallucinations(): Promise<void> {
+  try {
+    await sweepHallucinatedTranscripts();
+  } catch (err) {
+    log.warn('Transcript hallucination cleanup skipped (will retry next launch):', err);
   }
 }
 
@@ -230,6 +246,10 @@ const createWindow = async () => {
     } catch (migrationErr) {
       log.error('Migration failed (continuing with existing schema):', migrationErr);
     }
+
+    // Must run AFTER migrations — the transcripts table (and the settings flag
+    // row it gates on) must exist first.
+    await sweepTranscriptHallucinations();
 
     const integrity = await checkDatabaseIntegrity();
     if (!integrity.healthy) {

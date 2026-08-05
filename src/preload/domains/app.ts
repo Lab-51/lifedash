@@ -12,13 +12,16 @@ export const appBridge = {
     };
   },
 
-  // Live data-change broadcast: main emits after any card/column/project mutation
-  // so the visible board can debounce-refetch. Payload carries the affected scope
-  // and (optionally) the project the change belongs to.
-  onDataChanged: (callback: (data: { scope: 'cards' | 'columns' | 'projects'; projectId?: string }) => void) => {
+  // Live data-change broadcast: main emits after any card/column/project/twin-fact
+  // mutation so the visible board (or the twin memory graph) can debounce-refetch.
+  // Payload carries the affected scope and (optionally) the project the change
+  // belongs to — 'twin-memory' never carries a projectId.
+  onDataChanged: (
+    callback: (data: { scope: 'cards' | 'columns' | 'projects' | 'twin-memory'; projectId?: string }) => void,
+  ) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      data: { scope: 'cards' | 'columns' | 'projects'; projectId?: string },
+      data: { scope: 'cards' | 'columns' | 'projects' | 'twin-memory'; projectId?: string },
     ) => callback(data);
     ipcRenderer.on('data:changed', handler);
     return () => {

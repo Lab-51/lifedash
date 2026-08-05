@@ -1,8 +1,10 @@
 // === FILE PURPOSE ===
 // Twin page (V3.3 Task 3) — the Twin nav destination. Shows the Digital Twin
-// profile as editable, section-level cards (Profile tab) plus the V3.4 Memory
-// ledger (Memory tab — see twin/TwinMemoryPanel for the safety-triad UI:
-// provenance, one-tap forget + undo, and the learning-pause kill-switch). When no
+// profile as editable, section-level cards (Profile tab) plus the Memory tab —
+// since TWIN-GRAPH.2 that is twin/TwinMemoryGraph, the tiered memory GRAPH, which
+// carries the whole safety triad (provenance, one-tap forget + undo, and the
+// learning-pause kill-switch) and still reports the badge count up. The flat list
+// it replaced, twin/TwinMemoryPanel, is retained unreferenced. When no
 // profile has ever been authored, shows a "Create your twin" empty state instead
 // of the section cards. Reads/writes via twinProfileService's section-level patch
 // API, exposed over IPC as twinGetProfile / twinUpdateProfileSection (see
@@ -37,7 +39,7 @@ import EmptyFeatureState from './EmptyFeatureState';
 import HudBackground from './HudBackground';
 import LoadingSpinner from './LoadingSpinner';
 import TwinSectionCard from './twin/TwinSectionCard';
-import TwinMemoryPanel from './twin/TwinMemoryPanel';
+import TwinMemoryGraph from './twin/TwinMemoryGraph';
 import TwinWizard from './TwinWizard';
 import type { TwinCreationMode } from './twin/TwinModeChoice';
 import {
@@ -420,11 +422,17 @@ export default function TwinPage() {
             id="panel-memory"
             aria-labelledby="tab-memory"
             hidden={activeTab !== 'memory'}
-            className="pt-6"
+            // The graph is a canvas and needs a box to fill, which the list did
+            // not. Display utilities are applied ONLY while this panel is the
+            // visible one: a `flex` class on a `hidden` element would win over
+            // [hidden]{display:none} and show the panel on both tabs.
+            className={activeTab === 'memory' ? 'pt-6 flex-1 min-h-0 flex flex-col' : 'pt-6'}
           >
             {/* Always mounted (not just while active) so the tab badge above can
-                show the live fact count even while the Profile tab is showing. */}
-            <TwinMemoryPanel onCountChange={setMemoryCount} />
+                show the live fact count even while the Profile tab is showing.
+                `active` is also the graph's refresh trigger — see
+                twinMemoryGraphStore's header. */}
+            <TwinMemoryGraph onCountChange={setMemoryCount} active={activeTab === 'memory'} />
           </div>
         </div>
       )}
