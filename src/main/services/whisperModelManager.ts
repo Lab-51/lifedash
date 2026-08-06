@@ -212,9 +212,8 @@ export async function createWhisperContext(modelPath: string): Promise<{
 }
 
 /**
- * Initialize a WhisperVadContext, mirroring createWhisperContext's GPU-detection
- * strategy (Metal on darwin arm64; Vulkan -> CUDA -> CPU on Windows/Linux) and
- * release handling — callers own the returned context and must call
+ * Initialize a WhisperVadContext (Vulkan -> CUDA -> CPU on Windows/Linux;
+ * always CPU on darwin) — callers own the returned context and must call
  * context.release() when done, same lifecycle as WhisperContext.
  */
 export async function createVadContext(modelPath: string): Promise<{
@@ -224,15 +223,14 @@ export async function createVadContext(modelPath: string): Promise<{
   const { initWhisperVad } = await import('@fugood/whisper.node');
 
   if (process.platform === 'darwin') {
-    try {
-      const context = await initWhisperVad({ filePath: modelPath, useGpu: true });
-      const backend = process.arch === 'arm64' ? 'metal' : 'cpu';
-      return { context, backend };
-    } catch (err) {
-      console.warn('[whisper-vad] Metal GPU init failed, falling back to CPU:', (err as Error).message ?? err);
-      const context = await initWhisperVad({ filePath: modelPath });
-      return { context, backend: 'cpu' };
-    }
+    // whisper.node <=1.1.1 darwin-arm64: the VAD loader places model weights in
+    // a Metal buffer while whisper's scheduler only gets CPU/BLAS ("no GPU
+    // found"), so whisper_vad_init_with_params hits a ggml assert and calls
+    // native abort() — killing the process before any JS catch can run, with
+    // useGpu true OR false. Never construct a VAD context here; callers treat
+    // this rejection as "disable VAD, RMS-only pipeline" (transcriptionService
+    // initVadContext), which is the designed degradation path.
+    throw new Error('VAD unsupported on macOS: whisper.node native VAD init aborts (Metal buffer/scheduler mismatch)');
   }
 
   // Windows / Linux: try GPU variant packages (vulkan → cuda), then CPU

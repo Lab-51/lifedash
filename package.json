@@ -50,7 +50,7 @@
     "@fontsource/orbitron": "^5.2.8",
     "@fontsource/rajdhani": "^5.2.7",
     "@fontsource/share-tech-mono": "^5.2.7",
-    "@fugood/whisper.node": "^1.0.16",
+    "@fugood/whisper.node": "^1.1.1",
     "@lemonsqueezy/lemonsqueezy.js": "^4.0.0",
     "@mozilla/readability": "^0.6.0",
     "@sentry/electron": "^7.9.0",
