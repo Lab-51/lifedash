@@ -89,7 +89,17 @@ const config: ForgeConfig = {
     // '-' is passed to codesign verbatim instead of searched in the keychain.
     osxSign: process.env.APPLE_IDENTITY
       ? { identity: process.env.APPLE_IDENTITY }
-      : { identity: '-', identityValidation: false },
+      : {
+          identity: '-',
+          identityValidation: false,
+          // osx-sign defaults every file to hardenedRuntime: true. Hardened
+          // runtime enforces library validation, which requires frameworks to
+          // share the process's Team ID — an ad-hoc signature has none, so dyld
+          // kills the app at launch ("mapping process and mapped file
+          // (non-platform) have different Team IDs" loading Electron Framework).
+          // Ad-hoc builds must therefore sign without the hardened runtime.
+          optionsForFile: () => ({ hardenedRuntime: false }),
+        },
     // macOS notarization — only active when APPLE_ID env var is set.
     // Required for distributing outside the Mac App Store on Catalina+.
     ...(process.env.APPLE_ID
