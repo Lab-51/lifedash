@@ -277,7 +277,7 @@ describe('runProjectDetection — calendar hint wiring (Phase G Task 5)', () => 
 
     const result = await generateBrief(MEETING_ID);
 
-    expect(result.id).toBe('brief-1');
+    expect(result?.id).toBe('brief-1');
     const detectArgs = vi.mocked(detectProjectFromTranscript).mock.calls[0][0];
     expect(detectArgs.calendarContext).toBeUndefined();
   });

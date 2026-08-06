@@ -21,11 +21,16 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../logger', () => ({
-  createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+// Hoisted so the mock factory (itself hoisted above imports by Vitest) can close
+// over ONE shared log-mock instance — needed to assert on log.info call content
+// for the MEET-DEL.1 race-absorption tests below.
+const { logMock } = vi.hoisted(() => ({
+  logMock: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+vi.mock('../logger', () => ({ createLogger: () => logMock }));
 vi.mock('../ai-provider', () => ({ resolveTaskModel: vi.fn() }));
 vi.mock('../twinResearchService', () => ({ generateValidated: vi.fn() }));
+vi.mock('../meetingService', () => ({ getMeeting: vi.fn() }));
 vi.mock('../../db/connection', () => ({ getDb: vi.fn() }));
 vi.mock('../../db/schema', () => ({
   entityFacts: {
@@ -78,6 +83,7 @@ import {
 import { getDb } from '../../db/connection';
 import { resolveTaskModel } from '../ai-provider';
 import { generateValidated } from '../twinResearchService';
+import { getMeeting } from '../meetingService';
 import { dispatchPostSession } from '../postSessionDispatcher';
 import type { MeetingBrief } from '../../../shared/types';
 
@@ -113,6 +119,9 @@ interface Fixture {
   factsByEntity?: Record<string, Rows>;
   /** sourceMeetingId → existing entity_facts rows (the per-session idempotence check). */
   factsByMeeting?: Record<string, Rows>;
+  /** When set, the entityFacts insert rejects with THIS error instead of
+   *  succeeding — used to simulate an FK-violation-coded DatabaseError (MEET-DEL.1). */
+  insertError?: unknown;
 }
 
 let fx: Fixture = {};
@@ -181,7 +190,10 @@ function makeDb() {
           // entityService's insert-or-get echoes a fresh entity id.
           returning: () => Promise.resolve([{ id: `ent-${entitySeq++}` }]),
           then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => {
-            if (t.__table === 'entityFacts') insertedFacts.push(...arr);
+            if (t.__table === 'entityFacts') {
+              if (fx.insertError !== undefined) return Promise.reject(fx.insertError).then(res, rej);
+              insertedFacts.push(...arr);
+            }
             return Promise.resolve(undefined).then(res, rej);
           },
         };
@@ -207,6 +219,10 @@ beforeEach(() => {
   vi.mocked(getDb).mockReturnValue(makeDb() as never);
   vi.mocked(resolveTaskModel).mockResolvedValue(PROVIDER as never);
   vi.mocked(generateValidated).mockResolvedValue([]);
+  // Default: the meeting still exists at the MEET-DEL.1 pre-write recheck — most
+  // tests are not exercising the deleted-meeting race and need mining to proceed
+  // to the insert as before.
+  vi.mocked(getMeeting).mockResolvedValue({ id: MEETING_ID } as never);
 });
 
 // ---------------------------------------------------------------------------
@@ -519,6 +535,71 @@ describe('mineFactsForMeeting', () => {
     const { context } = vi.mocked(generateValidated).mock.calls[0][0];
     expect(context).toContain('Speaker 1: We agreed Dana owns pricing.');
     expect(context).not.toContain('TRUNCATED');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MEET-DEL.1 — deleted-meeting race absorption. Shared by BOTH entry points
+// (the automatic post-session hook AND analyzeHistory's backfill) since both
+// route through this one core routine. Resolves to the SAME typed no-op on
+// EITHER signal — a fresh existence recheck immediately before the write, or
+// the insert's own FK violation catching a delete in the narrower remaining gap.
+// ---------------------------------------------------------------------------
+
+describe('mineFactsForMeeting — MEET-DEL.1 deleted-meeting race', () => {
+  it('resolves the typed no-op when the meeting is deleted between mining start and the write (existence recheck)', async () => {
+    vi.mocked(generateValidated).mockResolvedValue([{ entity: 'Dana Lee', fact: 'Owns the pricing decision' }]);
+    // Gone by the pre-write recheck — simulates a delete landing during the
+    // (long-running) mining call above.
+    vi.mocked(getMeeting).mockResolvedValue(null);
+
+    const result = await mineFactsForMeeting(MEETING_ID, [DANA], PROVIDER as never);
+
+    expect(result).toEqual({ status: 'skipped', reason: 'meeting-deleted', newFacts: 0 });
+    expect(insertedFacts).toHaveLength(0);
+    expect(logMock.info).toHaveBeenCalledTimes(1);
+    expect(logMock.info).toHaveBeenCalledWith(expect.stringContaining(MEETING_ID));
+    expect(logMock.info).toHaveBeenCalledWith(expect.stringContaining('discarded'));
+    expect(logMock.error).not.toHaveBeenCalled();
+  });
+
+  it('resolves the same typed no-op when the delete lands AFTER the existence check (FK violation on insert)', async () => {
+    // The recheck still sees the meeting (default getMeeting mock from
+    // beforeEach) — the delete happens in the gap between that check and the
+    // insert itself, surfacing as a foreign_key_violation (23503) on the write.
+    fx.insertError = Object.assign(
+      new Error(
+        'insert into entity_facts violates foreign key constraint "entity_facts_source_meeting_id_meetings_id_fk"',
+      ),
+      { code: '23503' },
+    );
+    vi.mocked(generateValidated).mockResolvedValue([{ entity: 'Dana Lee', fact: 'Owns the pricing decision' }]);
+
+    const result = await mineFactsForMeeting(MEETING_ID, [DANA], PROVIDER as never);
+
+    expect(result).toEqual({ status: 'skipped', reason: 'meeting-deleted', newFacts: 0 });
+    expect(insertedFacts).toHaveLength(0);
+    expect(logMock.info).toHaveBeenCalledTimes(1);
+    expect(logMock.info).toHaveBeenCalledWith(expect.stringContaining('discarded'));
+    expect(logMock.error).not.toHaveBeenCalled();
+  });
+
+  it('a generic (non-FK) insert failure still propagates — never silently absorbed as meeting-deleted', async () => {
+    fx.insertError = new Error('a real bug, unrelated to any deleted meeting'); // no `.code` — not FK-shaped
+    vi.mocked(generateValidated).mockResolvedValue([{ entity: 'Dana Lee', fact: 'Owns the pricing decision' }]);
+
+    await expect(mineFactsForMeeting(MEETING_ID, [DANA], PROVIDER as never)).rejects.toThrow(
+      'a real bug, unrelated to any deleted meeting',
+    );
+  });
+
+  it('the automatic post-session hook still absorbs the race silently (typed no-op, never throws into the dispatcher)', async () => {
+    vi.mocked(generateValidated).mockResolvedValue([{ entity: 'Dana Lee', fact: 'Owns the pricing decision' }]);
+    vi.mocked(getMeeting).mockResolvedValue(null);
+
+    const result = await mineFactsForSession(MEETING_ID);
+
+    expect(result).toEqual({ status: 'skipped', reason: 'meeting-deleted', newFacts: 0 });
   });
 });
 

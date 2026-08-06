@@ -271,6 +271,15 @@ export const reassignFromUnassignedSchema = z.object({
   newProjectId: uuid,
 });
 
+/** For meetings:delete — the optional second arg. Renderer call sites that omit
+ *  it entirely (source-compatible with the pre-MEET-DEL.1 single-arg call) pass
+ *  `undefined`, which this schema accepts as-is. */
+export const deleteMeetingOptsSchema = z
+  .object({
+    keepLearnedFacts: z.boolean().optional(),
+  })
+  .optional();
+
 // ============================================================================
 // Meeting Intelligence
 // ============================================================================

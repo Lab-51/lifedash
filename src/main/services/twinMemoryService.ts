@@ -33,7 +33,17 @@
 // liveSuggestions), ai-provider (resolveTaskModel), twinResearchService
 // (generateValidated — the shared extraction helper), dataChangeNotifier
 // (notifyDataChanged), postSessionDispatcher (registerPostSessionHook), shared
-// twin types.
+// twin types, meetingService (getMeeting — MEET-DEL.1 existence recheck),
+// db/errors (isForeignKeyViolation — MEET-DEL.1 FK-violation classification).
+//
+// === MEET-DEL.1: deleted-meeting race absorption ===
+// extractFacts's own insert is guarded twice: a fresh getMeeting() check right
+// before the write (closes most of the race a deleted meeting opens under the
+// long-running extraction call), AND an isForeignKeyViolation() check in the
+// existing outer catch (closes the remainder — a delete landing between that
+// check and the insert). Either signal resolves to the SAME typed no-op this
+// function already used for every other skip: {status:'skipped', reason:
+// 'meeting-deleted', facts:[]}, logged once at info — never a raw FK error.
 
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
@@ -44,6 +54,8 @@ import { resolveTaskModel, type ResolvedProvider } from './ai-provider';
 import { generateValidated } from './twinResearchService';
 import { notifyDataChanged } from './dataChangeNotifier';
 import { registerPostSessionHook, type PostSessionHook } from './postSessionDispatcher';
+import { getMeeting } from './meetingService';
+import { isForeignKeyViolation } from '../db/errors';
 import { TWIN_LEARNING_PAUSED_SETTING_KEY } from '../../shared/types/twin';
 import type {
   TwinFact,
@@ -78,8 +90,10 @@ const FACT_CATEGORIES = ['person', 'project', 'preference', 'domain', 'commitmen
  *  post-session dispatcher; `facts` carries the newly learned (active) facts. */
 export interface ExtractFactsResult {
   status: 'ok' | 'skipped';
-  /** Why nothing was learned (only present on `skipped`). */
-  reason?: 'no-model' | 'failed' | 'paused';
+  /** Why nothing was learned (only present on `skipped`). `meeting-deleted`
+   *  (MEET-DEL.1) is the deleted-meeting race — closed either by a fresh
+   *  existence recheck or by catching the insert's FK violation. */
+  reason?: 'no-model' | 'failed' | 'paused' | 'meeting-deleted';
   facts: TwinFact[];
 }
 
@@ -314,6 +328,15 @@ export async function extractFacts(meetingId: string): Promise<ExtractFactsResul
     const deduped = dedupeFacts(parsed as ExtractedFact[], [...existingActive, ...forgotten]);
     if (deduped.length === 0) return { status: 'ok', facts: [] };
 
+    // MEET-DEL.1: re-check existence immediately before the write — the extraction
+    // call above is long-running, which is exactly the window a delete can land in.
+    // This alone cannot close the race (see the FK catch below); it just closes
+    // most of it cheaply, before spending a write on a meeting that is already gone.
+    if (!(await getMeeting(meetingId))) {
+      log.info(`Meeting ${meetingId} deleted before fact extraction completed — discarded`);
+      return { status: 'skipped', reason: 'meeting-deleted', facts: [] };
+    }
+
     const inserted = await db
       .insert(twinFacts)
       .values(
@@ -333,6 +356,13 @@ export async function extractFacts(meetingId: string): Promise<ExtractFactsResul
     notifyDataChanged({ scope: 'twin-memory' });
     return { status: 'ok', facts: inserted.map(rowToFact) };
   } catch (err) {
+    if (isForeignKeyViolation(err)) {
+      // MEET-DEL.1: the existence check above closes most of the race window; a
+      // delete landing between that check and this insert still hits the FK —
+      // same benign no-op, never a raw SQL error carrying fact text.
+      log.info(`Meeting ${meetingId} deleted before fact extraction completed — discarded`);
+      return { status: 'skipped', reason: 'meeting-deleted', facts: [] };
+    }
     // Defensive: extraction can NEVER throw into the post-session dispatcher, so a
     // learning failure can never fail or delay brief generation.
     log.error('extractFacts failed — no facts learned this session:', err);

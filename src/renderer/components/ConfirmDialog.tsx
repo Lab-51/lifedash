@@ -14,6 +14,10 @@ interface ConfirmDialogProps {
   variant?: 'danger' | 'default';
   onConfirm: () => void;
   onCancel: () => void;
+  /** Optional extra content rendered between the message and the button row —
+   *  e.g. a loading skeleton or impact details (MEET-DEL.1 Task 2). Omitted by
+   *  every pre-existing caller, so their rendered output is unchanged. */
+  children?: React.ReactNode;
 }
 
 export function ConfirmDialog({
@@ -25,6 +29,7 @@ export function ConfirmDialog({
   variant = 'default',
   onConfirm,
   onCancel,
+  children,
 }: ConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
 
@@ -64,6 +69,7 @@ export function ConfirmDialog({
       <div className="bg-[var(--color-chrome)] border border-[var(--color-border)] rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
         <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">{title}</h3>
         <p className="text-sm text-[var(--color-text-secondary)] mb-6">{message}</p>
+        {children}
         <div className="flex justify-end gap-2">
           <button
             onClick={onCancel}

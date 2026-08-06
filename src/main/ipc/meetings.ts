@@ -16,6 +16,7 @@ import {
   createMeetingInputSchema,
   updateMeetingInputSchema,
   reassignFromUnassignedSchema,
+  deleteMeetingOptsSchema,
 } from '../../shared/validation/schemas';
 
 const meetingIdsSchema = z.array(z.string().uuid());
@@ -41,9 +42,15 @@ export function registerMeetingHandlers(): void {
     return meetingService.updateMeeting(validId, input);
   });
 
-  ipcMain.handle('meetings:delete', async (_event, id: unknown) => {
+  ipcMain.handle('meetings:delete', async (_event, id: unknown, opts?: unknown) => {
     const validId = validateInput(idParamSchema, id);
-    return meetingService.deleteMeeting(validId);
+    const validOpts = validateInput(deleteMeetingOptsSchema, opts);
+    return meetingService.deleteMeeting(validId, validOpts);
+  });
+
+  ipcMain.handle('meetings:get-delete-impact', async (_event, id: unknown) => {
+    const validId = validateInput(idParamSchema, id);
+    return meetingService.getMeetingDeleteImpact(validId);
   });
 
   ipcMain.handle('meetings:action-item-counts', async (_event, ids: unknown) => {

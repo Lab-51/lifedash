@@ -73,9 +73,23 @@ export const twinFacts = pgTable(
     // quality grounds (see DECISIONS.md).
     label: text('label'),
     category: twinFactCategoryEnum('category').notNull(),
-    // set null (not cascade): a learned fact outlives the deletion of its source
-    // session — the knowledge persists, it just loses its provenance link.
+    // set null (not cascade): MEET-DEL.1 SUPERSEDES the original "a learned fact
+    // outlives the deletion of its source session" rationale that used to live
+    // here — deleteMeeting's default path now hard-deletes a meeting's facts
+    // (forgetting is the default, not an outlived side effect). This FK stays
+    // set-null, never cascade, to serve ONLY the explicit "keep these facts" path:
+    // the row survives with sourceMeetingId nulled by this constraint and
+    // sourceMeetingLabel (below) carrying the provenance the FK can no longer
+    // hold. The constraint itself remains the last line of defense — see
+    // meetingService.deleteMeeting.
     sourceMeetingId: uuid('source_meeting_id').references(() => meetings.id, { onDelete: 'set null' }),
+    // Snapshot provenance for a KEPT fact whose source meeting was deleted
+    // (MEET-DEL.1): "‹meeting title› — deleted ‹YYYY-MM-DD›". Null for every
+    // other fact — including interview-learned facts that never had a source
+    // meeting — so `sourceMeetingId IS NULL` alone can never tell "never had a
+    // source" apart from "source was deleted and kept". Written once, at delete
+    // time, by meetingService.deleteMeeting's keep path; never touched again.
+    sourceMeetingLabel: text('source_meeting_label'),
     status: twinFactStatusEnum('status').default('active').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },

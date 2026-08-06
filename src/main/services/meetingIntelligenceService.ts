@@ -19,6 +19,7 @@
 import { eq, desc, asc, count, and, ne, isNotNull, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { meetingBriefs, actionItems, cards, meetings, projects, liveSuggestions, calendarEvents } from '../db/schema';
+import { isForeignKeyViolation } from '../db/errors';
 import { generate, resolveTaskModel } from './ai-provider';
 import { getMeeting, updateMeeting } from './meetingService';
 import { createLogger } from './logger';
@@ -484,6 +485,63 @@ export async function injectTwinProfileContext(systemPrompt: string): Promise<st
 }
 
 // ---------------------------------------------------------------------------
+// MEET-DEL.1: deleted-meeting race absorption
+// ---------------------------------------------------------------------------
+
+/**
+ * Persist the generated brief and fire the post-session dispatch — or discard
+ * as a benign no-op if the meeting was deleted first. Extracted from
+ * generateBrief to keep its complexity bounded (same precedent as
+ * injectConfirmedLiveContext above).
+ *
+ * Guarded by TWO independent signals, closing the race window opened by
+ * generateBrief's long-running generate() call: a fresh existence recheck
+ * immediately before the write, and catching the insert's own FK violation
+ * for the narrower gap the recheck cannot close. Either signal logs once at
+ * info and returns null — never a raw SQL error carrying the generated
+ * summary text, never a throw into IPC. A genuine (non-FK) insert failure
+ * still propagates, unchanged from before this extraction.
+ */
+async function persistBriefAndDispatch(meetingId: string, summaryText: string): Promise<MeetingBrief | null> {
+  if (!(await getMeeting(meetingId))) {
+    log.info(`Meeting ${meetingId} deleted before brief generation completed — discarded`);
+    return null;
+  }
+
+  const db = getDb();
+  let insertedRows: (typeof meetingBriefs.$inferSelect)[];
+  try {
+    insertedRows = await db
+      .insert(meetingBriefs)
+      .values({
+        meetingId,
+        summary: summaryText,
+      })
+      .returning();
+  } catch (err) {
+    if (isForeignKeyViolation(err)) {
+      // The existence check above closes most of the race window; a delete
+      // landing between that check and this insert still hits the FK — same
+      // benign no-op, never a raw SQL error carrying the generated summary text.
+      log.info(`Meeting ${meetingId} deleted before brief generation completed — discarded`);
+      return null;
+    }
+    throw err; // genuine failure — never silently swallowed
+  }
+
+  const brief = toBrief(insertedRows[0]);
+
+  // Post-session dispatcher seam (V3.4) — fire-and-forget, error-isolated. The
+  // living-memory modules (fact extraction, embedding, entity extraction)
+  // register hooks with the dispatcher; a failing/slow hook can never affect
+  // this brief. This is the ONE call site for the phase — new post-session work
+  // registers a hook, it does NOT edit generateBrief.
+  dispatchPostSession({ meetingId, brief });
+
+  return brief;
+}
+
+// ---------------------------------------------------------------------------
 // Exported Functions
 // ---------------------------------------------------------------------------
 
@@ -501,8 +559,14 @@ export async function injectTwinProfileContext(systemPrompt: string): Promise<st
  *      the meeting" preamble.
  *   4. Inject the digital-twin profile context (V3.3) into the system prompt.
  *   5. Generate the brief and persist it.
+ *
+ * MEET-DEL.1: returns `null` (never throws) when the meeting was deleted while
+ * the (long-running) generate() call above was in flight — detected by a fresh
+ * existence recheck immediately before the write, and by catching the insert's
+ * own FK violation as a second, closing signal. Mirrors this file's own
+ * `getBrief`, which already returns `MeetingBrief | null` for "no brief exists".
  */
-export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
+export async function generateBrief(meetingId: string): Promise<MeetingBrief | null> {
   const meeting = await getMeeting(meetingId);
   if (!meeting) throw new Error(`Meeting not found: ${meetingId}`);
   if (!meeting.segments || meeting.segments.length === 0) {
@@ -598,26 +662,11 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief> {
     summaryText = 'AI brief generation failed. The transcript is available for manual review.';
   }
 
-  // Store in DB
-  const db = getDb();
-  const [row] = await db
-    .insert(meetingBriefs)
-    .values({
-      meetingId,
-      summary: summaryText,
-    })
-    .returning();
-
-  const brief = toBrief(row);
-
-  // 6. Post-session dispatcher seam (V3.4) — fire-and-forget, error-isolated. The
-  //    living-memory modules (fact extraction, embedding, entity extraction)
-  //    register hooks with the dispatcher; a failing/slow hook can never affect
-  //    this brief. This is the ONE call site for the phase — new post-session work
-  //    registers a hook, it does NOT edit generateBrief.
-  dispatchPostSession({ meetingId, brief });
-
-  return brief;
+  // 6. Persist + dispatch, or discard as a benign no-op if the meeting was
+  //    deleted while generate() above was in flight — see
+  //    persistBriefAndDispatch (extracted to keep this function's complexity
+  //    bounded; MEET-DEL.1).
+  return persistBriefAndDispatch(meetingId, summaryText);
 }
 
 /**
@@ -688,20 +737,42 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
     return [];
   }
 
+  // MEET-DEL.1: re-check existence immediately before the write — generate()
+  // above is a long-running LLM call, which is exactly the window a delete can
+  // land in. This alone cannot close the race (see the FK catch below); it just
+  // closes most of it cheaply, before spending writes on a meeting that is
+  // already gone. Mirrors this function's own existing degrade-gracefully
+  // convention (an empty array — see the generate() failure branch above).
+  if (!(await getMeeting(meetingId))) {
+    log.info(`Meeting ${meetingId} deleted before action items completed — discarded`);
+    return [];
+  }
+
   // Insert into DB
   const db = getDb();
   const items: ActionItem[] = [];
 
-  for (const description of descriptions) {
-    const [row] = await db
-      .insert(actionItems)
-      .values({
-        meetingId,
-        description,
-        status: 'pending',
-      })
-      .returning();
-    items.push(toActionItem(row));
+  try {
+    for (const description of descriptions) {
+      const [row] = await db
+        .insert(actionItems)
+        .values({
+          meetingId,
+          description,
+          status: 'pending',
+        })
+        .returning();
+      items.push(toActionItem(row));
+    }
+  } catch (err) {
+    if (isForeignKeyViolation(err)) {
+      // The existence check above closes most of the race window; a delete
+      // landing mid-batch still hits the FK — discard the WHOLE batch (never a
+      // partial result) as the same benign no-op.
+      log.info(`Meeting ${meetingId} deleted before action items completed — discarded`);
+      return [];
+    }
+    throw err; // genuine failure — never silently swallowed
   }
 
   // Auto-push to Inbox column when the meeting is linked to a project

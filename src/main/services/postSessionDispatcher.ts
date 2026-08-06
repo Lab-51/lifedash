@@ -21,6 +21,7 @@
 // frozen for the phase; new work registers a hook here instead of editing it.
 
 import { createLogger } from './logger';
+import { isForeignKeyViolation } from '../db/errors';
 import type { MeetingBrief } from '../../shared/types';
 
 const log = createLogger('PostSession');
@@ -57,6 +58,17 @@ async function runHooks(ctx: PostSessionContext): Promise<void> {
     try {
       await hook(ctx);
     } catch (err) {
+      if (isForeignKeyViolation(err)) {
+        // Benign race (MEET-DEL.1): the meeting was deleted while this hook's own
+        // write was in flight. Each hook is expected to absorb this itself (see
+        // twinMemoryService.extractFacts / entityFactService.mineFactsForMeeting) —
+        // this is defense-in-depth for any hook that doesn't, so it is classified
+        // as an expected no-op (info, not error) rather than a bug.
+        log.info(
+          `Post-session hook skipped for meeting ${ctx.meetingId} — meeting deleted before its write completed, discarded`,
+        );
+        continue;
+      }
       // Error-isolated: a failing hook can never affect the brief or later hooks.
       log.error(`Post-session hook failed for meeting ${ctx.meetingId}:`, err);
     }

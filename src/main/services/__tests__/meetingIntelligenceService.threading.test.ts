@@ -426,6 +426,6 @@ describe('generateBrief — brief threading', () => {
     vi.mocked(getDb).mockReturnValue(throwingDb as never);
 
     const result = await generateBrief('meeting-1');
-    expect(result.id).toBe('brief-1');
+    expect(result?.id).toBe('brief-1');
   });
 });

@@ -9,9 +9,21 @@
 
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Mic, Info, X, ArrowDownWideNarrow, Sparkles, Calendar, RefreshCw } from 'lucide-react';
+import {
+  Mic,
+  Info,
+  X,
+  ArrowDownWideNarrow,
+  Sparkles,
+  Calendar,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Brain,
+} from 'lucide-react';
 import type { AgendaViewMode, CalendarEvent } from '../../shared/types/calendar';
 import { CALENDAR_LOOKAHEAD_HOURS } from '../../shared/types/calendar';
+import type { DeleteMeetingOptions, MeetingDeleteImpact } from '../../shared/types';
 import AgendaListView from './agenda/AgendaListView';
 import AgendaTimeline from './agenda/AgendaTimeline';
 import AgendaViewSwitcher from './agenda/AgendaViewSwitcher';
@@ -167,6 +179,175 @@ function UpcomingAgenda({
         )}
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Delete-impact confirm (MEET-DEL.1 Task 2)
+// ---------------------------------------------------------------------------
+
+/** Fact labels shown before an honest "and N more". Task 1's IPC response is
+ *  already capped at 8 (see MeetingDeleteImpact.factLabels) — sliced again here
+ *  so the renderer is correct even against a mock/future response that isn't. */
+const DELETE_IMPACT_FACT_PREVIEW_LIMIT = 8;
+
+/** Human file size — B/KB/MB/GB, one decimal above KB. Mirrors the small
+ *  per-file formatSize helpers already duplicated across the app (e.g.
+ *  AttachmentsSection.tsx) rather than reaching into the unrelated
+ *  settings/local-ai formatter. */
+function formatImpactBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+/** Worded so the line never claims more than the meeting actually has — "brief
+ *  and transcript" only when BOTH exist, otherwise whichever single one does.
+ *  Accuracy of these numbers is the feature (see STORY-2 Architecture Context). */
+function briefTranscriptLine(impact: MeetingDeleteImpact): string | null {
+  if (impact.hasBrief && impact.transcriptSegmentCount > 0) {
+    return `brief and transcript (${impact.transcriptSegmentCount} segments)`;
+  }
+  if (impact.hasBrief) return 'brief';
+  if (impact.transcriptSegmentCount > 0) return `transcript (${impact.transcriptSegmentCount} segments)`;
+  return null;
+}
+
+/** True when a resolved impact has nothing to show — the dialog then renders
+ *  today's plain message unchanged (no empty impact-list ceremony). */
+function hasNoImpact(impact: MeetingDeleteImpact): boolean {
+  return impact.factCount === 0 && impact.audioBytes === 0 && !impact.hasBrief && impact.transcriptSegmentCount === 0;
+}
+
+/** The learned-facts row: a titles-only preview (TWIN-READ.2 (c) pattern) that
+ *  expands to up to 8 labels plus an honest "and N more". Split out of
+ *  DeleteMeetingDialog to keep that component's complexity flat. */
+function DeleteImpactFacts({ impact }: { impact: MeetingDeleteImpact }) {
+  const [expanded, setExpanded] = useState(false);
+  const shown = impact.factLabels.slice(0, DELETE_IMPACT_FACT_PREVIEW_LIMIT);
+  const more = impact.factCount - shown.length;
+
+  return (
+    <li className="overflow-hidden break-words">
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        aria-label={expanded ? 'Collapse learned facts list' : 'Expand learned facts list'}
+        className="flex items-center gap-1 hover:text-[var(--color-text-primary)] transition-colors"
+      >
+        {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        {impact.factCount} learned facts
+      </button>
+      {expanded && (
+        <div className="mt-1.5 ml-5 space-y-1 text-xs text-[var(--color-text-muted)]">
+          <ul className="list-disc space-y-1 pl-4">
+            {shown.map((label, i) => (
+              <li key={i} className="overflow-hidden break-words">
+                {label}
+              </li>
+            ))}
+          </ul>
+          {more > 0 && <p className="overflow-hidden break-words">and {more} more</p>}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Impact-aware delete confirmation. Composes the shared ConfirmDialog (its
+ * focus-on-open, Escape-to-close, and danger styling are exactly what every
+ * other destructive confirm in the app uses — this does not invent a new
+ * dialog idiom) with the meeting's delete impact, fetched without blocking
+ * the dialog's first paint. A meeting with nothing to lose renders today's
+ * plain message unchanged.
+ */
+function DeleteMeetingDialog({
+  target,
+  onConfirm,
+  onCancel,
+}: {
+  target: { id: string; title: string } | null;
+  onConfirm: (id: string, opts?: DeleteMeetingOptions) => void;
+  onCancel: () => void;
+}) {
+  const [impact, setImpact] = useState<MeetingDeleteImpact | null>(null);
+  const [loadingImpact, setLoadingImpact] = useState(false);
+  const [keepLearnedFacts, setKeepLearnedFacts] = useState(false);
+
+  useEffect(() => {
+    if (!target) return;
+    let cancelled = false;
+    setImpact(null); // eslint-disable-line react-hooks/set-state-in-effect -- resets stale impact/checkbox state before each fetch, same async-effect pattern as useDatabaseStatus
+    setKeepLearnedFacts(false);
+    setLoadingImpact(true);
+    window.electronAPI
+      .getMeetingDeleteImpact(target.id)
+      .then((result) => {
+        if (!cancelled) setImpact(result);
+      })
+      .catch(() => {
+        // Non-critical — falls back to the plain confirm below; the delete
+        // action itself is unaffected either way.
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingImpact(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [target]);
+
+  const showImpact = !!impact && !hasNoImpact(impact);
+  const transcriptLine = impact ? briefTranscriptLine(impact) : null;
+
+  return (
+    <ConfirmDialog
+      open={!!target}
+      title="Delete Meeting"
+      message={target ? `Delete "${target.title}"? This cannot be undone.` : ''}
+      confirmLabel="Delete"
+      variant="danger"
+      onConfirm={() => {
+        if (!target) return;
+        onConfirm(target.id, showImpact ? { keepLearnedFacts } : undefined);
+      }}
+      onCancel={onCancel}
+    >
+      {loadingImpact && (
+        <div
+          data-testid="delete-impact-skeleton"
+          className="mb-4 h-3 w-2/3 rounded bg-[var(--color-border)] animate-pulse"
+          aria-hidden="true"
+        />
+      )}
+      {showImpact && impact && (
+        <div className="mb-4 -mt-2 space-y-2 text-sm text-[var(--color-text-secondary)]">
+          <p className="text-xs uppercase tracking-wide text-[var(--color-text-muted)]">This also deletes</p>
+          <ul className="space-y-1.5">
+            {impact.factCount > 0 && <DeleteImpactFacts impact={impact} />}
+            {impact.audioBytes > 0 && (
+              <li className="overflow-hidden break-words">recording file ({formatImpactBytes(impact.audioBytes)})</li>
+            )}
+            {transcriptLine && <li className="overflow-hidden break-words">{transcriptLine}</li>}
+          </ul>
+          {impact.factCount > 0 && (
+            <label className="flex items-center gap-2 pt-1 text-sm text-[var(--color-text-primary)] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={keepLearnedFacts}
+                onChange={(e) => setKeepLearnedFacts(e.target.checked)}
+                className="accent-[var(--color-accent)] cursor-pointer"
+              />
+              <Brain size={14} className="text-[var(--color-accent-dim)] shrink-0" />
+              Keep what the twin learned
+            </label>
+          )}
+        </div>
+      )}
+    </ConfirmDialog>
   );
 }
 
@@ -739,17 +920,11 @@ export default function SessionsHome() {
         )}
       </div>
 
-      <ConfirmDialog
-        open={!!deleteMeetingConfirm}
-        title="Delete Meeting"
-        message={deleteMeetingConfirm ? `Delete "${deleteMeetingConfirm.title}"? This cannot be undone.` : ''}
-        confirmLabel="Delete"
-        variant="danger"
-        onConfirm={() => {
-          if (deleteMeetingConfirm) {
-            deleteMeeting(deleteMeetingConfirm.id);
-            setDeleteMeetingConfirm(null);
-          }
+      <DeleteMeetingDialog
+        target={deleteMeetingConfirm}
+        onConfirm={(id, opts) => {
+          void deleteMeeting(id, opts);
+          setDeleteMeetingConfirm(null);
         }}
         onCancel={() => setDeleteMeetingConfirm(null)}
       />

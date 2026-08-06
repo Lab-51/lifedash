@@ -22,6 +22,7 @@ import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { createLogger } from './logger';
 import { createWavHeader } from './wavUtils';
+import { setActiveMeetingId } from './recordingState';
 
 const log = createLogger('Audio');
 
@@ -65,6 +66,7 @@ export async function startRecording(meetingId: string, language?: string): Prom
     throw new Error('Already recording. Stop current recording first.');
   }
   currentMeetingId = meetingId;
+  setActiveMeetingId(meetingId);
   startTime = Date.now();
 
   // Check if audio saving is enabled (default: true) and open WAV file
@@ -141,6 +143,7 @@ export async function stopRecording(): Promise<string> {
   }
 
   currentMeetingId = null;
+  setActiveMeetingId(null);
 
   // Stop the proactive triage loop for this session (clears its watermark/state).
   liveTriageService.stopTriage(stoppedMeetingId);

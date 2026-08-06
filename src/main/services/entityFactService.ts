@@ -37,7 +37,18 @@
 // entityFacts/meetings/meetingBriefs/transcripts), ai-provider (resolveTaskModel),
 // twinResearchService (generateValidated), twinMemoryService (isLearningPaused),
 // entityService (listMeetingEntities/normalizeEntityName), postSessionDispatcher,
-// shared twin types (EntityFact, AnalyzeEntityHistoryResult).
+// shared twin types (EntityFact, AnalyzeEntityHistoryResult), meetingService
+// (getMeeting — MEET-DEL.1 existence recheck), db/errors (isForeignKeyViolation —
+// MEET-DEL.1 FK-violation classification).
+//
+// === MEET-DEL.1: deleted-meeting race absorption ===
+// mineFactsForMeeting's own insert is guarded twice: a fresh getMeeting() check
+// right before the write (closes most of the race the long-running mining call
+// opens), AND an isForeignKeyViolation() check around the insert itself (closes
+// the remainder). Both entry points (the automatic hook AND the user-initiated
+// analyzeHistory backfill) share this ONE core routine, so both get the guard for
+// free. Either signal resolves to the same typed no-op this module already used
+// for every other skip: {status:'skipped', reason:'meeting-deleted', newFacts:0}.
 
 import { asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -49,6 +60,8 @@ import { generateValidated } from './twinResearchService';
 import { isLearningPaused } from './twinMemoryService';
 import { listMeetingEntities, normalizeEntityName, type LinkedEntity } from './entityService';
 import { registerPostSessionHook, type PostSessionHook } from './postSessionDispatcher';
+import { getMeeting } from './meetingService';
+import { isForeignKeyViolation } from '../db/errors';
 import type { EntityFact, AnalyzeEntityHistoryResult } from '../../shared/types/twin';
 
 const log = createLogger('EntityFacts');
@@ -79,8 +92,10 @@ type Db = ReturnType<typeof getDb>;
 export interface MineFactsResult {
   status: 'ok' | 'skipped';
   /** Why nothing was mined (only present on `skipped`) — each no-op is reported
-   *  honestly rather than collapsed into a zero-count "success". */
-  reason?: 'no-material' | 'failed' | 'paused' | 'already-mined' | 'no-entities' | 'no-model';
+   *  honestly rather than collapsed into a zero-count "success". `meeting-deleted`
+   *  (MEET-DEL.1) is the deleted-meeting race — closed either by a fresh
+   *  existence recheck or by catching the insert's FK violation. */
+  reason?: 'no-material' | 'failed' | 'paused' | 'already-mined' | 'no-entities' | 'no-model' | 'meeting-deleted';
   newFacts: number;
 }
 
@@ -308,7 +323,28 @@ export async function mineFactsForMeeting(
 
   const rows = selectFactRows(parsed as MinedFact[], targets, meetingId);
   if (rows.length === 0) return { status: 'ok', newFacts: 0 }; // an empty result IS a result
-  await db.insert(entityFacts).values(rows);
+
+  // MEET-DEL.1: re-check existence immediately before the write — the mining call
+  // above is long-running, which is exactly the window a delete can land in. This
+  // alone cannot close the race (see the FK catch below); it just closes most of
+  // it cheaply, before spending a write on a meeting that is already gone.
+  if (!(await getMeeting(meetingId))) {
+    log.info(`Meeting ${meetingId} deleted before entity fact mining completed — discarded`);
+    return { status: 'skipped', reason: 'meeting-deleted', newFacts: 0 };
+  }
+
+  try {
+    await db.insert(entityFacts).values(rows);
+  } catch (err) {
+    if (isForeignKeyViolation(err)) {
+      // The existence check above closes most of the race window; a delete
+      // landing between that check and this insert still hits the FK — same
+      // benign no-op, never a raw SQL error carrying fact content.
+      log.info(`Meeting ${meetingId} deleted before entity fact mining completed — discarded`);
+      return { status: 'skipped', reason: 'meeting-deleted', newFacts: 0 };
+    }
+    throw err; // genuine failure — never silently swallowed
+  }
 
   log.info(`Learned ${rows.length} entity fact(s) from meeting ${meetingId}`);
   return { status: 'ok', newFacts: rows.length };

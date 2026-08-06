@@ -14,6 +14,7 @@ import type {
   UpdateMeetingInput,
   ActionItemStatus,
   MeetingAnalytics,
+  DeleteMeetingOptions,
 } from '../../shared/types';
 
 interface MeetingStore {
@@ -47,7 +48,11 @@ interface MeetingStore {
   refreshUnreviewedCount: () => Promise<void>;
   reassignFromUnassigned: (meetingId: string, newProjectId: string) => Promise<void>;
   updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<void>;
-  deleteMeeting: (id: string) => Promise<void>;
+  /** opts is additive — omitted (default) preserves the existing forget-by-default
+   *  behavior for every pre-existing caller (RecordingControls discard, recordingStore
+   *  failure cleanups, SessionWorkspace delete). Only the impact-aware confirm in
+   *  SessionsHome passes `{ keepLearnedFacts: true }` (MEET-DEL.1 Task 2). */
+  deleteMeeting: (id: string, opts?: DeleteMeetingOptions) => Promise<void>;
   clearSelectedMeeting: () => void;
   addTranscriptSegment: (segment: TranscriptSegment) => void;
 
@@ -170,8 +175,8 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
     }
   },
 
-  deleteMeeting: async (id) => {
-    await window.electronAPI.deleteMeeting(id);
+  deleteMeeting: async (id, opts) => {
+    await window.electronAPI.deleteMeeting(id, opts);
     set({
       meetings: get().meetings.filter((m) => m.id !== id),
       selectedMeeting: get().selectedMeeting?.id === id ? null : get().selectedMeeting,

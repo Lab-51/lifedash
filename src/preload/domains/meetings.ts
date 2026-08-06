@@ -6,6 +6,8 @@ import type {
   RecordingState,
   TranscriptSegment,
   TranscriptionProgress,
+  DeleteMeetingOptions,
+  MeetingDeleteImpact,
 } from '../../shared/types';
 import type { ActionItemStatus } from '../../shared/types';
 import type { WhisperDownloadProgress } from '../../shared/types';
@@ -16,7 +18,9 @@ export const meetingsBridge = {
   getMeeting: (id: string) => ipcRenderer.invoke('meetings:get', id),
   createMeeting: (data: CreateMeetingInput) => ipcRenderer.invoke('meetings:create', data),
   updateMeeting: (id: string, data: UpdateMeetingInput) => ipcRenderer.invoke('meetings:update', id, data),
-  deleteMeeting: (id: string) => ipcRenderer.invoke('meetings:delete', id),
+  deleteMeeting: (id: string, opts?: DeleteMeetingOptions) => ipcRenderer.invoke('meetings:delete', id, opts),
+  getMeetingDeleteImpact: (id: string) =>
+    ipcRenderer.invoke('meetings:get-delete-impact', id) as Promise<MeetingDeleteImpact>,
   getActionItemCounts: (meetingIds: string[]) => ipcRenderer.invoke('meetings:action-item-counts', meetingIds),
   meetingsGetPendingActionCount: () => ipcRenderer.invoke('meetings:pending-action-count'),
 

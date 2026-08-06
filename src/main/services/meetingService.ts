@@ -10,11 +10,14 @@
 // - No recording/transcription logic (that's Plans 4.2-4.3).
 
 import { eq, desc, asc, count, inArray, ilike, and, ne } from 'drizzle-orm';
+import fsp from 'node:fs/promises';
 import { getDb } from '../db/connection';
-import { meetings, transcripts, meetingBriefs, actionItems } from '../db/schema';
+import { meetings, transcripts, meetingBriefs, actionItems, twinFacts } from '../db/schema';
 import { autoPushActionItems, readAutoPushSetting } from './autoPushService';
 import { notifyDataChanged } from './dataChangeNotifier';
 import { createLogger } from './logger';
+import { getActiveMeetingId } from './recordingState';
+import { labelFor } from '../../shared/twin/factLabel';
 import type {
   Meeting,
   MeetingBrief,
@@ -24,9 +27,24 @@ import type {
   TranscriptSearchResult,
   CreateMeetingInput,
   UpdateMeetingInput,
+  DeleteMeetingOptions,
+  MeetingDeleteImpact,
 } from '../../shared/types';
 
 const log = createLogger('MeetingService');
+
+/** Max fact labels returned by getMeetingDeleteImpact's preview. */
+const IMPACT_FACT_LABEL_PREVIEW_COUNT = 8;
+
+/** Thrown by deleteMeeting when the target meeting is the one currently being
+ *  recorded — deleting it out from under an in-progress recording would pull the
+ *  row out from under audioProcessor/transcriptionService mid-write. */
+export class ActiveRecordingDeleteError extends Error {
+  constructor(message = 'Cannot delete a meeting while it is currently recording.') {
+    super(message);
+    this.name = 'ActiveRecordingDeleteError';
+  }
+}
 
 /** Map a DB meeting row to the shared Meeting type (timestamps -> ISO strings) */
 function toMeeting(row: typeof meetings.$inferSelect): Meeting {
@@ -242,9 +260,110 @@ export async function updateMeeting(id: string, data: UpdateMeetingInput): Promi
   return toMeeting(row);
 }
 
-export async function deleteMeeting(id: string): Promise<void> {
+/**
+ * Read-only preview of what deleting a meeting would affect (MEET-DEL.1) — no
+ * side effects. Used by the confirm UI before the user picks the default
+ * (forget) or keep path.
+ */
+export async function getMeetingDeleteImpact(id: string): Promise<MeetingDeleteImpact> {
   const db = getDb();
-  await db.delete(meetings).where(eq(meetings.id, id));
+
+  const [meetingRow] = await db.select({ audioPath: meetings.audioPath }).from(meetings).where(eq(meetings.id, id));
+
+  // No status filter: a delete expunges BOTH active and forgotten facts, so the
+  // impact preview counts both. Ordered so "first 8" is deterministic.
+  const facts = await db
+    .select()
+    .from(twinFacts)
+    .where(eq(twinFacts.sourceMeetingId, id))
+    .orderBy(asc(twinFacts.createdAt));
+
+  const [briefRow] = await db
+    .select({ id: meetingBriefs.id })
+    .from(meetingBriefs)
+    .where(eq(meetingBriefs.meetingId, id))
+    .limit(1);
+
+  const [{ value: transcriptSegmentCount }] = await db
+    .select({ value: count() })
+    .from(transcripts)
+    .where(eq(transcripts.meetingId, id));
+
+  let audioBytes = 0;
+  if (meetingRow?.audioPath) {
+    try {
+      const stat = await fsp.stat(meetingRow.audioPath);
+      audioBytes = stat.size;
+    } catch {
+      audioBytes = 0; // missing/unreadable file — the preview reports 0, never throws
+    }
+  }
+
+  return {
+    factCount: facts.length,
+    // labelFor() is the ONLY accessor a fact label is ever read through — a raw
+    // null (unlabelled fact) is never returned here.
+    factLabels: facts.slice(0, IMPACT_FACT_LABEL_PREVIEW_COUNT).map((fact) => labelFor(fact)),
+    audioBytes,
+    hasBrief: !!briefRow,
+    transcriptSegmentCount,
+  };
+}
+
+/**
+ * Delete a meeting and its learned-fact influence in one transaction
+ * (MEET-DEL.1). Default path hard-deletes the meeting's twin_facts (both
+ * active and forgotten — the source is being expunged, not "forgotten by
+ * choice"); `keepLearnedFacts: true` instead snapshots human-readable
+ * provenance onto each fact and leaves the rows alive with their FK nulled by
+ * the schema's own `onDelete: 'set null'` when the meeting row goes. Briefs /
+ * transcripts / action items already cascade via their own FK — not
+ * re-implemented here. Audio cleanup happens AFTER commit and never throws: a
+ * successful DB deletion must never be reported as a failure because of a
+ * file-system hiccup.
+ */
+export async function deleteMeeting(id: string, opts?: DeleteMeetingOptions): Promise<void> {
+  if (getActiveMeetingId() === id) {
+    throw new ActiveRecordingDeleteError();
+  }
+
+  const db = getDb();
+
+  // Read BEFORE the row is gone: audioPath (post-commit unlink) and title (the
+  // keep-path provenance snapshot) are both unreadable once the row is deleted.
+  const [row] = await db
+    .select({ audioPath: meetings.audioPath, title: meetings.title })
+    .from(meetings)
+    .where(eq(meetings.id, id));
+  const audioPath = row?.audioPath ?? null;
+
+  await db.transaction(async (tx) => {
+    if (opts?.keepLearnedFacts) {
+      const snapshotLabel = `${row?.title ?? 'Untitled meeting'} — deleted ${new Date().toISOString().slice(0, 10)}`;
+      await tx.update(twinFacts).set({ sourceMeetingLabel: snapshotLabel }).where(eq(twinFacts.sourceMeetingId, id));
+    } else {
+      await tx.delete(twinFacts).where(eq(twinFacts.sourceMeetingId, id));
+    }
+
+    // Cascades briefs/transcripts/action items (onDelete: 'cascade'), and sets
+    // sourceMeetingId null on any fact row still pointing here — the keep path
+    // only, since the default path already removed them above.
+    await tx.delete(meetings).where(eq(meetings.id, id));
+  });
+
+  if (!audioPath) return;
+
+  try {
+    await fsp.unlink(audioPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      log.debug(`Recording already absent, nothing to remove: ${audioPath}`);
+    } else {
+      // DB deletion already committed — a file-cleanup failure must never
+      // surface as a deletion failure. Log once and move on.
+      log.error(`Failed to remove recording file after meeting delete: ${audioPath}`, err);
+    }
+  }
 }
 
 export async function addTranscriptSegment(

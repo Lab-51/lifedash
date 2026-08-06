@@ -337,6 +337,13 @@
       "when": 1785876082403,
       "tag": "0047_twin_facts_label",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1786025936814,
+      "tag": "0048_third_power_man",
+      "breakpoints": true
     }
   ]
 }

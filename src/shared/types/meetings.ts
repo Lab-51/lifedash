@@ -181,3 +181,32 @@ export interface TranscriptionProgress {
   percentComplete: number; // 0-100
   backendUsed: string; // 'metal' | 'vulkan' | 'cuda' | 'cpu' | 'deepgram' | 'assemblyai'
 }
+
+// ---------------------------------------------------------------------------
+// Deletion (MEET-DEL.1) — delete-impact preview + transactional delete options
+// ---------------------------------------------------------------------------
+
+/** Options for `meetings:delete`. Omitted (or `keepLearnedFacts` false/absent)
+ *  takes the default path — forgetting is the default; keeping is the explicit,
+ *  visible exception (see DECISIONS.md and src/main/db/schema/twin.ts). */
+export interface DeleteMeetingOptions {
+  keepLearnedFacts?: boolean;
+}
+
+/** Read-only preview of what deleting a meeting would affect, returned by
+ *  `meetings:get-delete-impact` so a confirm UI can show the user what's about
+ *  to be lost before they commit to the default (forget) or keep path. Has no
+ *  side effects. */
+export interface MeetingDeleteImpact {
+  /** Learned facts sourced from this meeting — active + forgotten combined,
+   *  since deletion expunges both. */
+  factCount: number;
+  /** The first 8 fact labels (by creation order), resolved via
+   *  shared/twin/factLabel.ts's labelFor() — never a raw null. */
+  factLabels: string[];
+  /** Size in bytes of the recording at `audioPath`. 0 if `audioPath` is null or
+   *  the file is missing on disk. */
+  audioBytes: number;
+  hasBrief: boolean;
+  transcriptSegmentCount: number;
+}

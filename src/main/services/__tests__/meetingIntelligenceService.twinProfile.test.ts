@@ -232,7 +232,7 @@ describe('generateBrief — twin profile injection (V3.3 Task 2)', () => {
 
     const result = await generateBrief(MEETING_ID);
 
-    expect(result.id).toBe('brief-1');
+    expect(result?.id).toBe('brief-1');
     const callArg = vi.mocked(generate).mock.calls[0][0];
     expect(callArg.system).not.toContain('User profile');
   });

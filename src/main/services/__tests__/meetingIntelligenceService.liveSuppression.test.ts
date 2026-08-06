@@ -329,7 +329,7 @@ describe('generateBrief — LIVE.2 confirmed context', () => {
     });
 
     const result = await generateBrief(MEETING_ID);
-    expect(result.id).toBe('brief-1');
+    expect(result?.id).toBe('brief-1');
   });
 });
 

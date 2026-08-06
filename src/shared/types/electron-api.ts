@@ -55,6 +55,8 @@ import type {
   MeetingPrepData,
   CreateMeetingInput,
   UpdateMeetingInput,
+  DeleteMeetingOptions,
+  MeetingDeleteImpact,
 } from './meetings';
 import type { ActionItem, ActionItemStatus, ConvertActionToCardResult, MeetingWithTranscript } from './intelligence';
 import type { WhisperModel, WhisperDownloadProgress } from './whisper';
@@ -320,7 +322,8 @@ export interface ElectronAPI {
   getMeeting: (id: string) => Promise<MeetingWithTranscript | null>;
   createMeeting: (data: CreateMeetingInput) => Promise<Meeting>;
   updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<Meeting>;
-  deleteMeeting: (id: string) => Promise<void>;
+  deleteMeeting: (id: string, opts?: DeleteMeetingOptions) => Promise<void>;
+  getMeetingDeleteImpact: (id: string) => Promise<MeetingDeleteImpact>;
   getActionItemCounts: (meetingIds: string[]) => Promise<Record<string, number>>;
   meetingsGetPendingActionCount: () => Promise<number>;
   searchTranscripts: (query: string, limit?: number) => Promise<TranscriptSearchResult[]>;
@@ -351,7 +354,9 @@ export interface ElectronAPI {
   onWhisperDownloadProgress: (callback: (progress: WhisperDownloadProgress) => void) => () => void;
 
   // Meeting Intelligence
-  generateBrief: (meetingId: string) => Promise<MeetingBrief>;
+  // generateBrief resolves null when the meeting was deleted mid-generation
+  // (MEET-DEL.1 race absorption) — never rejects for that case.
+  generateBrief: (meetingId: string) => Promise<MeetingBrief | null>;
   generateActionItems: (meetingId: string) => Promise<ActionItem[]>;
   getMeetingBrief: (meetingId: string) => Promise<MeetingBrief | null>;
   getMeetingActionItems: (meetingId: string) => Promise<ActionItem[]>;

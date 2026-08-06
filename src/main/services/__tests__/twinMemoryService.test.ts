@@ -19,9 +19,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../ai-provider', () => ({ resolveTaskModel: vi.fn() }));
 vi.mock('../twinResearchService', () => ({ generateValidated: vi.fn() }));
 vi.mock('../dataChangeNotifier', () => ({ notifyDataChanged: vi.fn() }));
-vi.mock('../logger', () => ({
-  createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+vi.mock('../meetingService', () => ({ getMeeting: vi.fn() }));
+// Hoisted so the mock factory (itself hoisted above imports by Vitest) can close
+// over ONE shared log-mock instance — needed to assert on log.info call content
+// for the MEET-DEL.1 race-absorption tests below.
+const { logMock } = vi.hoisted(() => ({
+  logMock: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+vi.mock('../logger', () => ({ createLogger: () => logMock }));
 vi.mock('../../db/connection', () => ({ getDb: vi.fn() }));
 vi.mock('../../db/schema', () => ({
   settings: { __table: 'settings', key: 'key', value: 'value' },
@@ -63,6 +68,7 @@ import {
 import { resolveTaskModel } from '../ai-provider';
 import { generateValidated } from '../twinResearchService';
 import { notifyDataChanged } from '../dataChangeNotifier';
+import { getMeeting } from '../meetingService';
 import { getDb } from '../../db/connection';
 import { registerPostSessionHook, dispatchPostSession, _resetPostSessionHooks } from '../postSessionDispatcher';
 import type { MeetingBrief } from '../../../shared/types';
@@ -82,8 +88,11 @@ interface DbConfig {
   liveSuggestions?: Rows;
   /** Row echoed by update().returning(); undefined ⇒ [] (not found). */
   updateRow?: Record<string, unknown> | undefined;
-  /** When set, getDb().insert throws (to exercise extractFacts's defensiveness). */
+  /** When set, getDb().insert throws a generic Error (extractFacts's general defensiveness). */
   insertThrows?: boolean;
+  /** When set, getDb().insert throws THIS error instead — used to simulate a
+   *  specific shape (e.g. an FK-violation-coded DatabaseError, MEET-DEL.1). */
+  insertError?: unknown;
 }
 
 const inserted: Rows = [];
@@ -128,6 +137,7 @@ function makeDb(cfg: DbConfig) {
     insert: () => ({
       values: (vals: Record<string, unknown> | Record<string, unknown>[]) => ({
         returning: () => {
+          if (cfg.insertError !== undefined) throw cfg.insertError;
           if (cfg.insertThrows) throw new Error('insert boom');
           const arr = Array.isArray(vals) ? vals : [vals];
           const rows = arr.map((v, i) => ({
@@ -195,6 +205,10 @@ beforeEach(() => {
   inserted.length = 0;
   vi.mocked(resolveTaskModel).mockResolvedValue(PROVIDER as never);
   vi.mocked(generateValidated).mockResolvedValue([]);
+  // Default: the meeting still exists at the MEET-DEL.1 pre-write recheck — most
+  // tests are not exercising the deleted-meeting race and need extraction to
+  // proceed to the insert as before.
+  vi.mocked(getMeeting).mockResolvedValue({ id: MEETING_ID } as never);
   happyDb();
 });
 
@@ -368,6 +382,72 @@ describe('extractFacts — dedupe, cap, provenance', () => {
     vi.mocked(generateValidated).mockResolvedValue([{ fact: 'Acme uses Stripe', category: 'domain' }]);
     const result = await extractFacts(MEETING_ID);
     expect(result).toEqual({ status: 'skipped', reason: 'failed', facts: [] });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MEET-DEL.1 — deleted-meeting race absorption. Reproduces the production bug
+// (a meeting deleted while generateBrief's post-session hooks are mid-flight):
+// extraction must resolve to the SAME typed no-op on EITHER signal — a fresh
+// existence recheck immediately before the write, or the insert's own FK
+// violation catching a delete that lands in the narrower remaining gap — never
+// a raw SQL error, never a throw into the dispatcher.
+// ---------------------------------------------------------------------------
+
+describe('extractFacts — MEET-DEL.1 deleted-meeting race', () => {
+  it('resolves the typed no-op when the meeting is deleted between generation start and the write (existence recheck)', async () => {
+    vi.mocked(generateValidated).mockResolvedValue([{ fact: 'Acme uses Stripe', category: 'domain' }]);
+    // Gone by the pre-write recheck — simulates a delete landing during the
+    // (long-running) extraction call above.
+    vi.mocked(getMeeting).mockResolvedValue(null);
+
+    const result = await extractFacts(MEETING_ID);
+
+    expect(result).toEqual({ status: 'skipped', reason: 'meeting-deleted', facts: [] });
+    expect(inserted).toHaveLength(0);
+    expect(logMock.info).toHaveBeenCalledTimes(1);
+    expect(logMock.info).toHaveBeenCalledWith(expect.stringContaining(MEETING_ID));
+    expect(logMock.info).toHaveBeenCalledWith(expect.stringContaining('discarded'));
+    expect(logMock.error).not.toHaveBeenCalled();
+  });
+
+  it('resolves the same typed no-op when the delete lands AFTER the existence check (FK violation on insert)', async () => {
+    // The recheck still sees the meeting (default getMeeting mock from
+    // beforeEach) — the delete happens in the gap between that check and the
+    // insert itself, surfacing as a foreign_key_violation (23503) on the write.
+    const fkError = Object.assign(
+      new Error('insert into twin_facts violates foreign key constraint "twin_facts_source_meeting_id_meetings_id_fk"'),
+      { code: '23503' },
+    );
+    happyDb({ insertError: fkError });
+    vi.mocked(generateValidated).mockResolvedValue([{ fact: 'Acme uses Stripe', category: 'domain' }]);
+
+    const result = await extractFacts(MEETING_ID);
+
+    expect(result).toEqual({ status: 'skipped', reason: 'meeting-deleted', facts: [] });
+    expect(inserted).toHaveLength(0);
+    expect(logMock.info).toHaveBeenCalledTimes(1);
+    expect(logMock.info).toHaveBeenCalledWith(expect.stringContaining('discarded'));
+    expect(logMock.error).not.toHaveBeenCalled();
+  });
+
+  it('does NOT broadcast a live-refresh notification on either race signal', async () => {
+    vi.mocked(generateValidated).mockResolvedValue([{ fact: 'Acme uses Stripe', category: 'domain' }]);
+    vi.mocked(getMeeting).mockResolvedValue(null);
+
+    await extractFacts(MEETING_ID);
+
+    expect(vi.mocked(notifyDataChanged)).not.toHaveBeenCalled();
+  });
+
+  it('a generic (non-FK) insert failure is still the ordinary "failed" skip, never misclassified as meeting-deleted', async () => {
+    happyDb({ insertThrows: true }); // a plain Error, no `.code` — not FK-shaped
+    vi.mocked(generateValidated).mockResolvedValue([{ fact: 'Acme uses Stripe', category: 'domain' }]);
+
+    const result = await extractFacts(MEETING_ID);
+
+    expect(result).toEqual({ status: 'skipped', reason: 'failed', facts: [] });
+    expect(logMock.error).toHaveBeenCalled();
   });
 });
 

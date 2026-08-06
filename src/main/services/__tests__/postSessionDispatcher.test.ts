@@ -5,9 +5,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+// Hoisted so the mock factory (itself hoisted above imports by Vitest) can close
+// over ONE shared log-mock instance — needed to assert on log.info/log.error
+// call content for the MEET-DEL.1 FK-violation classification tests below.
+const { logMock } = vi.hoisted(() => ({
+  logMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
+vi.mock('../logger', () => ({ createLogger: () => logMock }));
 
 import {
   registerPostSessionHook,
@@ -99,5 +103,55 @@ describe('postSessionDispatcher', () => {
 
   it('is a no-op when nothing is registered', () => {
     expect(() => dispatchPostSession(ctx)).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MEET-DEL.1 — deleted-meeting race, orchestration-level defense-in-depth.
+// twinMemoryService / entityFactService already absorb this race themselves
+// (existence recheck + FK catch around their own insert — see those services'
+// own tests), so in practice a hook never throws for this race. These tests
+// cover the DISPATCHER's own last-resort behavior: if a hook's rejection IS
+// shaped like a foreign-key violation (any future hook that doesn't defend
+// itself), it must be classified as an expected no-op (info, "discarded"),
+// never logged as an error — while a genuine bug still logs at error, so this
+// classification never masks a real failure.
+// ---------------------------------------------------------------------------
+
+describe('postSessionDispatcher — MEET-DEL.1 FK-violation classification', () => {
+  it('classifies a hook rejecting with an FK-violation-shaped error as a benign no-op (info, not error)', async () => {
+    const later = vi.fn();
+    // Mirrors PGlite's DatabaseError shape (extends Error, carries the Postgres
+    // SQLSTATE on `.code`) — the exact shape isForeignKeyViolation() checks for.
+    const fkError = Object.assign(new Error('insert into twin_facts violates foreign key constraint'), {
+      code: '23503',
+    });
+    registerPostSessionHook(() => {
+      throw fkError;
+    });
+    registerPostSessionHook(later);
+
+    expect(() => dispatchPostSession(ctx)).not.toThrow();
+    await flush();
+
+    // Later hooks still run — error isolation held.
+    expect(later).toHaveBeenCalledWith(ctx);
+    // Classified as benign — logged once, at info, never at error.
+    expect(logMock.error).not.toHaveBeenCalled();
+    expect(logMock.info).toHaveBeenCalledTimes(1);
+    expect(logMock.info).toHaveBeenCalledWith(expect.stringContaining('m1'));
+    expect(logMock.info).toHaveBeenCalledWith(expect.stringContaining('discarded'));
+  });
+
+  it('still logs a genuine (non-FK) hook failure at error — classification never masks a real bug', async () => {
+    registerPostSessionHook(() => {
+      throw new Error('a real bug, unrelated to any deleted meeting');
+    });
+
+    dispatchPostSession(ctx);
+    await flush();
+
+    expect(logMock.error).toHaveBeenCalledTimes(1);
+    expect(logMock.info).not.toHaveBeenCalled();
   });
 });

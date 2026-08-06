@@ -42,6 +42,7 @@ import { stop as stopLlamaRuntime } from './services/llamaRuntimeService';
 import { reconcileBuiltinFromDisk } from './services/builtinProviderSetup';
 import { emitRuntimeStatus } from './services/runtimeTelemetry';
 import { sweepHallucinatedTranscripts } from './services/transcriptCleanupService';
+import { sweepOrphanedRecordings } from './services/recordingSweepService';
 
 const log = createLogger('App');
 
@@ -117,6 +118,21 @@ async function sweepTranscriptHallucinations(): Promise<void> {
   } catch (err) {
     log.warn('Transcript hallucination cleanup skipped (will retry next launch):', err);
   }
+}
+
+/**
+ * MEET-DEL.1 Task 4: one-shot startup sweep that deletes recording WAVs no
+ * meeting references (see recordingSweepService.ts for the guard rules).
+ * Fire-and-forget, unlike sweepTranscriptHallucinations above — a large
+ * backlog of orphaned recordings should not delay the rest of startup (DB
+ * integrity checks, schedulers, etc.). Non-fatal by the same contract: the
+ * service only marks its flag on a failure-free run, so a failure here always
+ * retries next launch.
+ */
+function sweepOrphanedRecordingsOnStartup(): void {
+  sweepOrphanedRecordings().catch((err) => {
+    log.warn('Recording orphan sweep skipped (will retry next launch):', err);
+  });
 }
 
 const createWindow = async () => {
@@ -250,6 +266,10 @@ const createWindow = async () => {
     // Must run AFTER migrations — the transcripts table (and the settings flag
     // row it gates on) must exist first.
     await sweepTranscriptHallucinations();
+
+    // Must run AFTER migrations too (the meetings table + settings flag row it
+    // gates on). Fire-and-forget — does not block the rest of startup below.
+    sweepOrphanedRecordingsOnStartup();
 
     const integrity = await checkDatabaseIntegrity();
     if (!integrity.healthy) {

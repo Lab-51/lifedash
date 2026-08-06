@@ -766,5 +766,41 @@ Transcript text already stored before this safeguard existed SHALL be cleaned up
 
 ---
 
+### Requirement: Deleting a meeting deletes its influence
+
+Deleting a meeting SHALL remove its influence, not merely its own rows. By default, deletion MUST hard-delete every twin fact learned from that meeting and MUST remove its recording file from disk; the meeting's briefs, transcripts, and other meeting-scoped data continue to cascade via their existing foreign keys, unchanged by this requirement. The user MAY instead choose to keep what the twin learned: in that case the facts MUST remain active, and their provenance MUST be rewritten to a human-readable snapshot of the source meeting's title and deletion date — provenance MUST NEVER degrade to a silent null. A board card the user previously accepted from the meeting into a project MUST survive the meeting's deletion regardless of which path is chosen — acceptance was a deliberate, separate action, not something contingent on the meeting continuing to exist. Post-session work (brief generation, action items, fact or entity extraction) already in progress for a meeting that is deleted before it finishes MUST complete as a silent, internally-logged no-op — it MUST NEVER surface a raw database error to the user. Recording files left orphaned by a deletion that predates this contract, or by any failure path, MUST be reclaimed by a startup sweep that runs AT MOST once per install and MUST NEVER delete a file any meeting row still references or that an active recording is still writing.
+
+#### Scenario: Default deletion expunges facts and the recording
+
+- GIVEN a meeting has learned facts and a saved recording
+- WHEN the user deletes it without choosing to keep what the twin learned
+- THEN its twin facts are hard-deleted and its recording file is removed from disk
+
+#### Scenario: Keeping preserves facts with a readable provenance snapshot
+
+- GIVEN a meeting has learned facts
+- WHEN the user deletes it with "Keep what the twin learned" checked
+- THEN the facts remain active with their provenance rewritten to the meeting's title and the deletion date, never a silent null
+
+#### Scenario: In-flight post-session work absorbs a mid-generation deletion
+
+- GIVEN a brief, action items, or a fact/entity extraction is being written for a meeting
+- WHEN that meeting is deleted before the write completes
+- THEN the write resolves as a no-op with nothing persisted, logged once internally, and no raw error reaches the user
+
+#### Scenario: An accepted board card is not deleted with its meeting
+
+- GIVEN a board card was accepted from a meeting into a project
+- WHEN the meeting is later deleted, by either path
+- THEN the card remains on the board unaffected, by design
+
+#### Scenario: The orphan sweep runs once and only removes what nothing references
+
+- GIVEN recording files on disk that no meeting row references
+- WHEN the app starts
+- THEN each orphan is deleted, exactly once across the install's lifetime, and any file a meeting still references or that an active recording is writing is left untouched
+
+---
+
 <!-- Add further requirements following the same pattern, one `### Requirement:` block per behavior/domain. -->
 <!-- When this project graduates Tier 1 → Tier 2, each `### Requirement:` block can move into its own `specs/<domain>/spec.md` unchanged. -->
