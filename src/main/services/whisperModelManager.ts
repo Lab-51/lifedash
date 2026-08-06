@@ -237,15 +237,20 @@ export async function createVadContext(modelPath: string): Promise<{
     throw new Error('VAD unsupported on macOS: whisper.node native VAD init aborts (Metal buffer/scheduler mismatch)');
   }
 
-  // Windows / Linux: CPU only. The GPU variant packages hit the same ggml
-  // buffer-placement abort as darwin when initialising the VAD graph —
-  // bench-reproduced on win32-x64-vulkan with whisper.node 1.0.16 AND 1.1.1
-  // ("pre-allocated tensor (leaf_0) in a buffer (Vulkan0) that cannot run the
-  // operation (NONE)", a native abort() that skips every JS catch and kills
-  // the app). The CPU-only default package cannot express the bug (no GPU
-  // buffer type is compiled in), and Silero VAD is small enough that CPU
-  // inference is effectively free per window.
-  const context = await initWhisperVad({ filePath: modelPath });
+  // Windows / Linux: CPU only, and the useGpu:false MUST be explicit.
+  // whisper.node keeps a GLOBAL module cache: the first init in the process
+  // wins and every later init reuses that native module, silently ignoring
+  // its variant argument. Main transcription loads the vulkan variant first,
+  // so VAD always receives the vulkan binding — and with useGpu defaulting to
+  // true, VAD graph init hits a ggml buffer-placement assert and calls native
+  // abort(), which no JS catch can intercept ("pre-allocated tensor (leaf_0)
+  // in a buffer (Vulkan0) that cannot run the operation (NONE)"; reproduced
+  // on whisper.node 1.0.16 AND 1.1.1, and only when a vulkan main context
+  // already exists in the process — a fresh process passes, which is why
+  // standalone probes missed it). Explicit useGpu:false is honored by the
+  // vulkan binding (init + detect verified on real speech audio) and is inert
+  // on the CPU package. Silero VAD is tiny; CPU inference is effectively free.
+  const context = await initWhisperVad({ filePath: modelPath, useGpu: false });
   return { context, backend: 'cpu' };
 }
 
