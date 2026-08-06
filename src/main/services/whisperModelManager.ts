@@ -212,9 +212,13 @@ export async function createWhisperContext(modelPath: string): Promise<{
 }
 
 /**
- * Initialize a WhisperVadContext (Vulkan -> CUDA -> CPU on Windows/Linux;
- * always CPU on darwin) — callers own the returned context and must call
+ * Initialize a WhisperVadContext — CPU-only on Windows/Linux, refused on darwin
+ * (native abort, see below) — callers own the returned context and must call
  * context.release() when done, same lifecycle as WhisperContext.
+ *
+ * VAD deliberately does NOT mirror createWhisperContext's GPU-variant chain:
+ * initWhisperVad on a GPU-capable binary hits a ggml buffer-placement assert
+ * that calls native abort(), which no JS catch can intercept.
  */
 export async function createVadContext(modelPath: string): Promise<{
   context: Awaited<ReturnType<typeof import('@fugood/whisper.node').initWhisperVad>>;
@@ -233,19 +237,14 @@ export async function createVadContext(modelPath: string): Promise<{
     throw new Error('VAD unsupported on macOS: whisper.node native VAD init aborts (Metal buffer/scheduler mismatch)');
   }
 
-  // Windows / Linux: try GPU variant packages (vulkan → cuda), then CPU
-  const vadVariants = ['vulkan', 'cuda'] as const;
-  for (const variant of vadVariants) {
-    try {
-      const context = await initWhisperVad({ filePath: modelPath, useGpu: true }, variant);
-      console.info(`[whisper-vad] GPU backend initialized: ${variant}`);
-      return { context, backend: variant };
-    } catch (err) {
-      console.warn(`[whisper-vad] ${variant} GPU init failed:`, (err as Error).message ?? err);
-    }
-  }
-
-  console.warn('[whisper-vad] All GPU variants failed — falling back to CPU');
+  // Windows / Linux: CPU only. The GPU variant packages hit the same ggml
+  // buffer-placement abort as darwin when initialising the VAD graph —
+  // bench-reproduced on win32-x64-vulkan with whisper.node 1.0.16 AND 1.1.1
+  // ("pre-allocated tensor (leaf_0) in a buffer (Vulkan0) that cannot run the
+  // operation (NONE)", a native abort() that skips every JS catch and kills
+  // the app). The CPU-only default package cannot express the bug (no GPU
+  // buffer type is compiled in), and Silero VAD is small enough that CPU
+  // inference is effectively free per window.
   const context = await initWhisperVad({ filePath: modelPath });
   return { context, backend: 'cpu' };
 }

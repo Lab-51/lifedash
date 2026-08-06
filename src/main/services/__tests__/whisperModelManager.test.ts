@@ -9,9 +9,10 @@
 // whisperModelManager.ts, which the live spike (initWhisperVad + detectSpeechData)
 // also proved actually run on this project's shipped Windows binaries.
 //
-// createVadContext()'s GPU-detection control flow mirrors createWhisperContext,
-// which itself has no direct unit test in this codebase (callers mock it wholesale
-// — see transcriptionService.localOnly.test.ts) — same convention followed here.
+// createVadContext() is deliberately CPU-only (GPU VAD init natively aborts —
+// see the comment in whisperModelManager.ts) and, like createWhisperContext, has
+// no direct unit test here (callers mock it wholesale — see
+// transcriptionService.localOnly.test.ts) — same convention followed here.
 
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import fs from 'node:fs';
