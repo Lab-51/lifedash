@@ -28,6 +28,31 @@ export function getReleaseType(prev: string, curr: string): ReleaseType {
 /** Full release history — most recent first. Keep at most 5 entries. */
 export const releaseHistory: ReleaseNotesData[] = [
   {
+    // PR #6 — macOS bench findings (broken bundle seal, VAD native abort) plus
+    // the Windows VAD crash caught by the merge-gate smoke test on real hardware.
+    version: '2.7.1',
+    sections: [
+      {
+        category: 'fixes',
+        label: 'Fixes',
+        items: [
+          'macOS recording works now. The beta app was shipping with a broken signature seal: downloaded copies showed a false "LifeDash is damaged" error with no way past it, and even a copy that launched could never capture system audio — macOS attributed the permission to the wrong identity, so recordings came out silent. The app bundle is now properly sealed. It remains an unsigned beta: on first launch use right-click → Open (or Privacy & Security → "Open Anyway").',
+          'After updating on macOS you may get a one-time keychain question — choose "Always Allow". That is LifeDash reading its own encryption key; the question will repeat once per update for as long as the beta is unsigned.',
+          'Fixed a crash that would have taken down the whole app mid-recording the first time silence detection engaged on a machine with a Vulkan-capable GPU (Windows/Linux). Silence detection now runs on CPU — the model is tiny, so there is no speed difference.',
+          'On macOS, the silence-detection step is switched off entirely: its speech engine crashes natively there. Recording, transcription, and the fabricated-credits filter are unaffected — silent stretches are skipped by the simpler loudness check instead.',
+          'Honest caveat for the macOS beta: the optional microphone mix-in is still under investigation — if you enable it and the mic track comes out silent, that is a known issue. System-audio capture (the default) is what this release fixes.',
+        ],
+      },
+      {
+        category: 'internal',
+        label: 'Internal',
+        items: [
+          'Whisper engine updated 1.0.16 → 1.1.1 — verified before shipping to produce byte-identical transcripts on the same real recording.',
+        ],
+      },
+    ],
+  },
+  {
     // LOCAL-RT.1 — Built-in local AI runtime (bundled llama.cpp + model manager).
     // DRAFT entry ahead of the 2.7.0 release ceremony (which owns the version bump).
     version: '2.7.0',
@@ -183,34 +208,6 @@ export const releaseHistory: ReleaseNotesData[] = [
           'Twin profile context is deterministically serialized and budgeted per task (triage ~800 chars, assistant ~1500, brief ~1200), trimmed at section boundaries only — never mid-sentence — and is a byte-identical no-op when no profile has been authored.',
           "V3.4 adds a pgvector semantic index (HNSW) over briefs, cards, and transcript chunks with hybrid full-text + vector retrieval (RRF fusion); it degrades to exactly today's full-text results when no embedding model is configured, records the model it was built with (rebuild-on-mismatch), and runs all learning/embedding jobs on an error-isolated post-session seam so they never block a brief.",
           "Fixed macOS auto-update, which had been silently compiled out of every release since 2.2.34: the release build now sets OFFICIAL_BUILD at build time (both locally and in CI), and the publish preflight fails fast if it's missing instead of shipping another update-less build.",
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.2.40',
-    sections: [
-      {
-        category: 'new',
-        label: "What's New",
-        items: [
-          "Action items now land automatically in your project's Inbox column when a recording ends — no approval click required. Reject any card you don't want.",
-          "Auto-detect routes meetings to the right project based on what's said in the transcript. Unrecognized meetings go to an Unassigned inbox with a one-click reassign prompt.",
-          'Per-project auto-push override in the board view header — set a project to Always, Never, or follow the global setting.',
-          'Global auto-push toggle in Settings → General → Meetings for when you prefer to approve items manually.',
-          'Live Mode — a full-screen takeover during recording with the live transcript and an AI assistant chat, so you stay present in the meeting instead of juggling a side panel.',
-          'Ask questions mid-meeting ("What\'s still open?", "Summarize so far") and get answers grounded in what was actually said — no waiting for the meeting to end.',
-          'Proactive proposals — Live Mode surfaces action items, decisions, and questions as they come up during the meeting as one-tap Accept/Dismiss chips. Anything left un-actioned when the meeting ends still shows up afterward in the meeting detail, so nothing gets lost.',
-          'The assistant can act on your board mid-meeting — move cards, check project stats, search cards, and capture notes, all without leaving the conversation.',
-          "Cards created live — ask the Live Assistant to capture an action item and it lands straight in the project's Inbox column while the meeting is still running.",
-          'Fully local by default — Live Mode routes to your configured LM Studio or Ollama model just like the rest of LifeDash, so transcripts stay on your machine unless you choose a cloud provider yourself.',
-        ],
-      },
-      {
-        category: 'internal',
-        label: 'Internal',
-        items: [
-          'Code-quality hardening: broke 4 circular dependencies, promoted no-explicit-any to error, added no-floating-promises + complexity guardrails.',
         ],
       },
     ],

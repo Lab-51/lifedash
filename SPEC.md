@@ -739,6 +739,13 @@ Speech detection SHALL be an additive safeguard: it MUST NOT alter the audio han
 - WHEN the user records
 - THEN recording and transcription proceed under the prior behavior with no error surfaced and no interruption
 
+#### Scenario: Speech detection can never take the app down
+
+- GIVEN any machine, GPU, or platform configuration
+- WHEN speech detection initialises or runs
+- THEN no failure inside it — including one originating in native code — terminates the app or interrupts the recording
+- AND on a platform where its engine cannot run safely, it is not attempted at all
+
 ---
 
 ### Requirement: Previously stored fabricated transcript text is cleaned up exactly once
