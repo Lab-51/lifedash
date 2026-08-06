@@ -77,16 +77,19 @@ const config: ForgeConfig = {
     // THIRD_PARTY_NOTICES.md ships with them because MIT requires the notice to
     // travel with the binaries, not just sit in the repo.
     extraResource: ['./drizzle', './src/assets/icon.png', './resources/llama', './THIRD_PARTY_NOTICES.md'],
-    // macOS code signing — only active when APPLE_IDENTITY env var is set.
-    // Requires Apple Developer account ($99/year) and valid signing certificate.
-    // On macOS: generate .icns from icon.png using `iconutil` or `png2icns`.
-    ...(process.env.APPLE_IDENTITY
-      ? {
-          osxSign: {
-            identity: process.env.APPLE_IDENTITY,
-          },
-        }
-      : {}),
+    // macOS code signing. With APPLE_IDENTITY set, signs with that certificate
+    // (requires Apple Developer account, $99/year). Without it, falls back to
+    // AD-HOC signing (codesign -s -): forge rewrites Info.plist after packaging,
+    // so an unsigned bundle keeps Electron's stock linker signature
+    // (com.github.Electron) with a broken seal — Gatekeeper hard-blocks
+    // quarantined downloads as "damaged" (no Open Anyway offered), and TCC
+    // attributes capture to a mismatched identity, which silences system-audio
+    // capture even after the user grants Screen Recording. Ad-hoc signing seals
+    // the bundle with the real bundle id; identityValidation must be false so
+    // '-' is passed to codesign verbatim instead of searched in the keychain.
+    osxSign: process.env.APPLE_IDENTITY
+      ? { identity: process.env.APPLE_IDENTITY }
+      : { identity: '-', identityValidation: false },
     // macOS notarization — only active when APPLE_ID env var is set.
     // Required for distributing outside the Mac App Store on Catalina+.
     ...(process.env.APPLE_ID
