@@ -23,6 +23,7 @@ import { settings } from '../db/schema';
 import { createLogger } from './logger';
 import { createWavHeader } from './wavUtils';
 import { setActiveMeetingId } from './recordingState';
+import { pinChatModelForRecording, releaseChatModelPin } from './recordingModelPin';
 
 const log = createLogger('Audio');
 
@@ -112,6 +113,13 @@ export async function startRecording(meetingId: string, language?: string): Prom
   // Start the proactive triage loop for this recording session. Symmetric with
   // stopTriage in stopRecording so its watermark/state is always cleared.
   liveTriageService.startTriage(meetingId);
+
+  // Hold the built-in chat role on this session's model for the whole recording
+  // (AI-RESIL.2): triage and the live assistant fire on cadence, and BETWEEN two calls
+  // another task's model can take the role and make the next call pay a multi-GB cold
+  // reload. Deliberately LAST and non-throwing, so nothing that fails earlier in this
+  // function can leave a pin behind, and an AI-config problem can never fail a recording.
+  await pinChatModelForRecording();
 }
 
 export function addChunk(chunk: Buffer): void {
@@ -128,7 +136,21 @@ export function addChunk(chunk: Buffer): void {
   transcriptionService.addChunk(chunk);
 }
 
+/**
+ * Stop the recording. The chat-model pin is released on EVERY exit path — the
+ * not-recording guard, a transcription flush failure, a WAV failure — because a leaked
+ * pin would starve every other local AI task for the rest of the session, which is
+ * worse than the model thrash the pin exists to prevent.
+ */
 export async function stopRecording(): Promise<string> {
+  try {
+    return await stopRecordingInner();
+  } finally {
+    releaseChatModelPin();
+  }
+}
+
+async function stopRecordingInner(): Promise<string> {
   if (!currentMeetingId) {
     throw new Error('Not currently recording.');
   }

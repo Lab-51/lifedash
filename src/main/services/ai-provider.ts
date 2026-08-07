@@ -25,7 +25,7 @@ import { getDb } from '../db/connection';
 import { aiUsage, aiProviders, settings } from '../db/schema';
 import { decryptString } from './secure-storage';
 import { createLogger } from './logger';
-import { ensureRunning, touch as touchBuiltinRuntime, type LlamaRole } from './llamaRuntimeService';
+import { acquireInFlight, ensureRunning, touch as touchBuiltinRuntime, type LlamaRole } from './llamaRuntimeService';
 import { recordGeneration, type GenerationTiming } from './runtimeTelemetry';
 import type { AIProviderName, AITaskType, TaskModelConfig } from '../../shared/types';
 
@@ -198,18 +198,36 @@ function retargetModelField(body: BodyInit | null | undefined, loadedModelId: st
   }
 }
 
-/** Count every streamed chunk as activity so the sidecar's idle auto-stop can
- *  never terminate a long generation that is still producing tokens. */
-function keepAliveWhileStreaming(role: LlamaRole, response: Response): Response {
-  const isEventStream = response.headers.get('content-type')?.includes('text/event-stream');
-  if (!isEventStream || !response.body) return response;
+/**
+ * Hold the sidecar's in-flight count for the WHOLE life of a response, and count every
+ * streamed chunk as activity. Two guarantees, one wrapper:
+ *
+ *  - the idle auto-stop can never terminate a generation that is still producing
+ *    tokens (the per-chunk touch — event streams only);
+ *  - a model swap can never kill the process serving this request (the release
+ *    deferred to body end). Releasing when fetch() resolves would be far too early:
+ *    body consumption OUTLIVES the fetch promise, so an early release re-opens the
+ *    kill window at the TAIL of every generation — the longest and most expensive
+ *    moment to lose one.
+ *
+ * pipeTo's promise is the single settle point covering every terminal outcome — normal
+ * end, source error, and consumer cancel (which errors the destination) — and `release`
+ * is idempotent, so the count moves exactly once per request either way.
+ */
+function trackResponseLifetime(role: LlamaRole, response: Response, release: () => void): Response {
+  if (!response.body) {
+    release(); // nothing to consume (204, HEAD, a bodiless error) — already done
+    return response;
+  }
+  const isEventStream = response.headers.get('content-type')?.includes('text/event-stream') ?? false;
   const tap = new TransformStream({
     transform(chunk, controller) {
-      touchBuiltinRuntime(role);
+      if (isEventStream) touchBuiltinRuntime(role);
       controller.enqueue(chunk);
     },
   });
-  return new Response(response.body.pipeThrough(tap), {
+  void response.body.pipeTo(tap.writable).then(release, release);
+  return new Response(tap.readable, {
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
@@ -218,20 +236,33 @@ function keepAliveWhileStreaming(role: LlamaRole, response: Response): Response 
 
 /**
  * Custom fetch for the built-in sidecar: lazily starts the right process, rewrites
- * the placeholder origin to the live one, and injects the per-spawn bearer token.
+ * the placeholder origin to the live one, injects the per-spawn bearer token, and
+ * registers the request as in-flight so no model swap can kill it mid-generation.
  */
 function builtinFetch(role: LlamaRole, modelId: string): typeof globalThis.fetch {
   const requestedModel = modelId === BUILTIN_DEFAULT_MODEL ? undefined : modelId;
   return async (input: RequestInfo | URL, rawInit?: RequestInit): Promise<Response> => {
+    // Acquire AFTER ensureRunning, never before: ensureRunning may itself have to drain
+    // this very role before swapping, and holding the count across it would deadlock
+    // that swap against the request waiting for it.
     const endpoint = await ensureRunning(role, requestedModel);
-    const { url, init } = splitFetchArgs(input, rawInit);
-    const requested = new URL(url);
-    const target = new URL(requested.pathname + requested.search, new URL(endpoint.baseUrl).origin);
-    const headers = new Headers(init.headers);
-    headers.set('authorization', `Bearer ${endpoint.apiKey}`);
-    const body = requestedModel ? init.body : retargetModelField(init.body, endpoint.modelId);
-    const response = await fetch(target, { ...init, headers, body });
-    return keepAliveWhileStreaming(role, response);
+    const release = acquireInFlight(role);
+    try {
+      const { url, init } = splitFetchArgs(input, rawInit);
+      const requested = new URL(url);
+      const target = new URL(requested.pathname + requested.search, new URL(endpoint.baseUrl).origin);
+      const headers = new Headers(init.headers);
+      headers.set('authorization', `Bearer ${endpoint.apiKey}`);
+      const body = requestedModel ? init.body : retargetModelField(init.body, endpoint.modelId);
+      const response = await fetch(target, { ...init, headers, body });
+      return trackResponseLifetime(role, response, release);
+    } catch (err) {
+      // Deliberately catch-and-rethrow rather than finally: a finally would also fire on
+      // the SUCCESS path, releasing before the body has been read — the early release
+      // this whole wrapper exists to avoid.
+      release();
+      throw err;
+    }
   };
 }
 
