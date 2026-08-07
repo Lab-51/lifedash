@@ -21,8 +21,21 @@ import path from 'node:path';
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lifedash-vad-'));
 
+// Every test runs in its OWN fresh root instead of deleting the previous test's
+// files. Deleting between tests is unwinnable on Windows CI runners: Defender
+// scans the freshly written *.downloading file, production's unlink leaves the
+// entry in delete-pending state under the scanner's handle, and from then on ANY
+// touch of that entry — including the recursive walk's classifying lstat — throws
+// EPERM until the handle closes. rmSync's maxRetries did not survive this on real
+// runners (CI run 31210212639), so the hook that "cleaned up" kept failing
+// whichever test ran next. Never revisiting a used dir sidesteps the whole class;
+// the single best-effort delete happens in afterAll and is swallowed if Defender
+// still holds on (residue under os.tmpdir; CI runners are ephemeral anyway).
+let caseRoot = tmpRoot;
+let caseN = 0;
+
 vi.mock('electron', () => ({
-  app: { isPackaged: false, getAppPath: () => tmpRoot, getPath: () => tmpRoot },
+  app: { isPackaged: false, getAppPath: () => caseRoot, getPath: () => caseRoot },
 }));
 
 // Force every https.get() call to fail immediately, simulating "network blocked".
@@ -45,22 +58,22 @@ vi.mock('node:https', () => ({
 type Manager = typeof import('../whisperModelManager');
 let mgr: Manager;
 
-const modelsDir = (): string => path.join(tmpRoot, 'whisper-models');
+const modelsDir = (): string => path.join(caseRoot, 'whisper-models');
 
 beforeEach(async () => {
   vi.resetModules();
+  caseN += 1;
+  caseRoot = path.join(tmpRoot, `case-${caseN}`);
+  fs.mkdirSync(caseRoot, { recursive: true });
   mgr = await import('../whisperModelManager');
-  // maxRetries: on Windows CI runners, Defender briefly holds a handle on the
-  // *.downloading file a previous test wrote, and the recursive walk's lstat
-  // throws EPERM — force:true only swallows ENOENT. Node's rm retries exactly
-  // this family (EPERM/EBUSY/ENOTEMPTY) when maxRetries is set; without it this
-  // hook itself threw and failed whichever test ran next.
-  fs.rmSync(modelsDir(), { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
 afterAll(() => {
-  // Same Defender-lock retry as beforeEach.
-  fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  try {
+    fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  } catch {
+    // Best-effort only — see the caseRoot comment above.
+  }
 });
 
 describe('ensureVadModel — never-throw degradation', () => {
