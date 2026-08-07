@@ -3,6 +3,13 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.9.0 — 2026-08-07
+- release: prep v2.9.0
+- feat(ai): the built-in sidecar can no longer kill a generation to load another model
+- feat(ai): a failed brief is a card, never food for the twin
+- test(macos): pin the VAD-crash and code-signing fixes so they cannot silently regress
+- docs: add full CHANGELOG.md covering all 68 released versions
+
 ## v2.8.0 — 2026-08-06
 - release: prep v2.8.0
 - feat(meetings): deleting a meeting now deletes its influence
