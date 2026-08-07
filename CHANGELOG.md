@@ -3,6 +3,12 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.10.0 — 2026-08-07
+- release: prep v2.10.0
+- feat(ai): a long meeting always gets a brief — context-budgeted prompts with a chunked map-reduce fallback; the first-use model pick now governs every chat task
+- test(ci): whisperModelManager EPERM round 2 — per-test case dirs, a used directory is never revisited
+- test(ci): un-redden six days of CI — three environment-conditioned failures, all test-side
+
 ## v2.9.0 — 2026-08-07
 - release: prep v2.9.0
 - feat(ai): the built-in sidecar can no longer kill a generation to load another model
