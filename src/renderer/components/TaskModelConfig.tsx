@@ -72,6 +72,14 @@ const LOCAL_PROVIDERS: Set<AIProviderName> = new Set(['ollama', 'lmstudio', 'bui
  */
 const TOOL_CALLING_TASKS: Set<AITaskType> = new Set(['live_assistant', 'card_agent', 'project_agent']);
 
+/**
+ * Tasks the local-chat resource guard (AI-RESIL.1) never counts. `embedding` is a
+ * different, tiny model class that MUST coexist with a chat model — the built-in
+ * runtime runs both roles by design. `transcription` is whisper, not an LLM, so it
+ * can never contend for the same resident chat-model budget.
+ */
+const CONSOLIDATION_EXEMPT_TASKS: Set<AITaskType> = new Set(['embedding', 'transcription']);
+
 // Known models per provider (v1 — hardcoded, expandable later)
 const KNOWN_MODELS: Record<AIProviderName, { id: string; label: string }[]> = {
   openai: [
@@ -398,6 +406,171 @@ function BuiltinToolCallingWarning({
   );
 }
 
+/** One task's local chat-model assignment, as counted by the resource guard below. */
+interface LocalChatAssignment {
+  type: AITaskType;
+  providerId: string;
+  /** `provider.displayName || provider.name` — display only, not part of the pair identity. */
+  providerLabel: string;
+  /** The provider FAMILY (not the label): the two local families overcommit differently. */
+  providerName: AIProviderName;
+  model: string;
+}
+
+/** A distinct `(providerId, model)` pair among the detected local-chat assignments. */
+interface LocalChatPair {
+  providerId: string;
+  providerLabel: string;
+  providerName: AIProviderName;
+  model: string;
+}
+
+/**
+ * Every EXPLICITLY configured task (excluding embedding/transcription — see
+ * CONSOLIDATION_EXEMPT_TASKS) whose provider is LOCAL (lmstudio | ollama |
+ * builtin), in TASK_TYPE_INFO order.
+ *
+ * Unset tasks are deliberately excluded: they inherit a model via
+ * TASK_MODEL_FALLBACKS / first-enabled-provider (see resolveTaskModel in
+ * ai-provider.ts) rather than adding a NEW resident model, so counting them would
+ * produce false warnings for a task the user never touched.
+ */
+function getLocalChatAssignments(draft: DraftConfig, providers: AIProvider[]): LocalChatAssignment[] {
+  const assignments: LocalChatAssignment[] = [];
+  for (const { type } of TASK_TYPE_INFO) {
+    if (CONSOLIDATION_EXEMPT_TASKS.has(type)) continue;
+    const entry = draft[type];
+    if (!entry?.providerId || !entry.model) continue;
+    // A disabled provider's config never resolves at runtime (resolveTaskModel
+    // skips it and falls through to the default), so it cannot actually hold a
+    // model resident — it must not count toward the warning.
+    const provider = providers.find((p) => p.id === entry.providerId && p.enabled);
+    if (!provider || !LOCAL_PROVIDERS.has(provider.name)) continue;
+    assignments.push({
+      type,
+      providerId: entry.providerId,
+      providerLabel: provider.displayName || provider.name,
+      providerName: provider.name,
+      model: entry.model,
+    });
+  }
+  return assignments;
+}
+
+/** Distinct `(providerId, model)` pairs among `assignments`, in first-seen (TASK_TYPE_INFO) order. */
+function dedupeLocalChatPairs(assignments: LocalChatAssignment[]): LocalChatPair[] {
+  const seen = new Set<string>();
+  const pairs: LocalChatPair[] = [];
+  for (const { providerId, providerLabel, providerName, model } of assignments) {
+    const key = `${providerId}:${model}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ providerId, providerLabel, providerName, model });
+  }
+  return pairs;
+}
+
+/**
+ * The pair every detected local-chat task is rewritten to on one-click
+ * consolidation: `live_assistant`'s pair when it is among the detected assignments
+ * (i.e. already local — see the 2026-07-06 "chat priority" decision, DECISIONS.md),
+ * else the pair assigned to the MOST tasks. Ties break on task-list order:
+ * `assignments` already walks TASK_TYPE_INFO in order, and only a strictly-higher
+ * count replaces the running winner, so the first pair to reach the max count keeps
+ * it — a tie-break on object/Map iteration order would be untestable and could
+ * flake.
+ */
+function pickConsolidationAnchor(assignments: LocalChatAssignment[]): { providerId: string; model: string } | null {
+  const liveAssistant = assignments.find((a) => a.type === 'live_assistant');
+  if (liveAssistant) return { providerId: liveAssistant.providerId, model: liveAssistant.model };
+
+  const counts = new Map<string, number>();
+  for (const { providerId, model } of assignments) {
+    const key = `${providerId}:${model}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  let winner: LocalChatAssignment | null = null;
+  let winnerCount = 0;
+  for (const a of assignments) {
+    const count = counts.get(`${a.providerId}:${a.model}`)!;
+    if (count > winnerCount) {
+      winner = a;
+      winnerCount = count;
+    }
+  }
+  return winner ? { providerId: winner.providerId, model: winner.model } : null;
+}
+
+/**
+ * Copy for the guardrail below. The two local provider families overcommit this
+ * machine in DIFFERENT ways, and saying the wrong one is worse than saying nothing:
+ *
+ * - `lmstudio` / `ollama`: requesting different model ids JIT-loads EACH one and
+ *   keeps it RESIDENT. Nothing in the app serializes or unloads them, so N models
+ *   occupy memory simultaneously.
+ * - `builtin`: there is no co-residency to warn about — `LlamaRole` is only
+ *   `chat | embedding`, so every chat task shares ONE process. Asking that role for
+ *   a different model STOPS the running sidecar and cold-starts the other
+ *   (llamaRuntimeService `ensureRunning`). Two chat tasks on different models
+ *   therefore THRASH: each alternation pays a multi-GB unload+reload behind
+ *   /health gating, which is long enough to time out the request that triggered it.
+ *
+ * Corrected 2026-08-07 after the original copy asserted co-residency for every
+ * local provider — false for `builtin`, which is the family the reporting user
+ * actually runs. See DECISIONS.md.
+ */
+function buildLocalChatWarningMessage(pairs: LocalChatPair[], modelList: string): string {
+  const hasBuiltin = pairs.some((p) => p.providerName === 'builtin');
+  const hasExternal = pairs.some((p) => p.providerName !== 'builtin');
+  const head = `${pairs.length} different local chat models are configured`;
+  const tail = `One local chat model at a time is recommended on this hardware. Configured: ${modelList}.`;
+
+  if (hasBuiltin && hasExternal) {
+    return `${head}. The external ones each stay loaded in memory at the same time, while the built-in runtime unloads and reloads a multi-GB model on every switch between its tasks. ${tail}`;
+  }
+  if (hasBuiltin) {
+    return `${head}. The built-in runtime runs one chat model at a time, so switching between these tasks unloads one model and reloads the other every time — a multi-GB reload that can time out the request that triggered it. ${tail}`;
+  }
+  return `${head}, and each one stays loaded in memory at the same time. ${tail}`;
+}
+
+/**
+ * Resource guardrail for local per-task model routing (AI-RESIL.1). This class of
+ * machine budgets roughly ONE resident 14B-class chat model, with whisper sharing
+ * the same GPU — and BOTH local provider families break that budget when several
+ * chat tasks name different models, just by different mechanisms (see
+ * buildLocalChatWarningMessage). A warning with an escape hatch, never a
+ * restriction — cloud mixing and the embedding model are untouched (see
+ * CONSOLIDATION_EXEMPT_TASKS; the built-in runtime runs chat and embedding as two
+ * independent processes by design, so an embedding model never competes here).
+ */
+function LocalChatConsolidationWarning({
+  pairs,
+  onConsolidate,
+}: {
+  pairs: LocalChatPair[];
+  onConsolidate: () => void;
+}) {
+  if (pairs.length < 2) return null;
+  const modelList = pairs.map((p) => `${p.providerLabel}: ${p.model}`).join(', ');
+  const message = buildLocalChatWarningMessage(pairs, modelList);
+  return (
+    <div className="p-3 hud-panel clip-corner-cut-sm">
+      <p className="flex items-start gap-1.5 text-xs text-amber-400 overflow-hidden break-words">
+        <AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+        <span className="break-words">{message}</span>
+      </p>
+      <button
+        type="button"
+        onClick={onConsolidate}
+        className="mt-2 flex items-center gap-1.5 border border-amber-400/40 hover:border-amber-400 text-amber-300 hover:text-amber-200 px-3 py-1.5 text-xs transition-all"
+      >
+        Use one model for all local chat tasks
+      </button>
+    </div>
+  );
+}
+
 export interface TaskModelConfigHandle {
   autoAssign: (provider: AIProvider) => void;
 }
@@ -450,6 +623,13 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
     () => (builtinEnabled ? builtinOptionsFromView(localModelsView) : []),
     [builtinEnabled, localModelsView],
   );
+
+  // Local-chat resource guard (AI-RESIL.1): pure derivation from draft + providers,
+  // re-evaluated every render so the banner tracks the draft live, at the point of
+  // configuration — it does not wait for a Save click to appear or disappear.
+  const localChatAssignments = getLocalChatAssignments(draft, providers);
+  const localChatPairs = dedupeLocalChatPairs(localChatAssignments);
+  const consolidationAnchor = pickConsolidationAnchor(localChatAssignments);
 
   // Load saved config when settings become available (after async loadSettings)
   useEffect(() => {
@@ -520,6 +700,22 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
     }
     setDirty(true);
     setSaved(false);
+  };
+
+  /**
+   * One-click consolidation (AI-RESIL.1): rewrite every detected local-chat task to
+   * the anchor pair through the SAME per-task path each row's own dropdown already
+   * uses — `updateDraft` — so there is no parallel write path, no new IPC and no
+   * new store API. This only stages the change into `draft`, exactly like
+   * Auto-assign; the user still confirms with the existing "Save Assignments"
+   * button.
+   */
+  const handleConsolidateLocalChat = () => {
+    if (!consolidationAnchor) return;
+    for (const { type } of localChatAssignments) {
+      updateDraft(type, 'providerId', consolidationAnchor.providerId);
+      updateDraft(type, 'model', consolidationAnchor.model);
+    }
   };
 
   const getProviderName = (providerId: string): AIProviderName | null => {
@@ -662,6 +858,8 @@ const TaskModelConfig = forwardRef<TaskModelConfigHandle, TaskModelConfigProps>(
 
   return (
     <div className="space-y-3">
+      <LocalChatConsolidationWarning pairs={localChatPairs} onConsolidate={handleConsolidateLocalChat} />
+
       {TASK_TYPE_INFO.map(({ type, label, description }) => {
         const entry = draft[type] || { providerId: '', model: '' };
         const models = getModelsForProvider(entry.providerId, type);

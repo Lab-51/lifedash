@@ -20,7 +20,7 @@ import { eq, desc, asc, count, and, ne, isNotNull, inArray } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { meetingBriefs, actionItems, cards, meetings, projects, liveSuggestions, calendarEvents } from '../db/schema';
 import { isForeignKeyViolation } from '../db/errors';
-import { generate, resolveTaskModel } from './ai-provider';
+import { generate, resolveTaskModel, type ResolvedProvider } from './ai-provider';
 import { getMeeting, updateMeeting } from './meetingService';
 import { createLogger } from './logger';
 import { autoPushActionItems, readAutoPushSetting } from './autoPushService';
@@ -31,6 +31,7 @@ import { dispatchPostSession } from './postSessionDispatcher';
 import type { MeetingBrief, ActionItem, ActionItemStatus, MeetingTemplateType } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import { parseActionItems } from '../../shared/utils/action-item-parser';
+import { BRIEF_FAILURE_SENTINEL } from '../../shared/briefSentinel';
 
 const log = createLogger('MeetingIntelligence');
 
@@ -489,10 +490,10 @@ export async function injectTwinProfileContext(systemPrompt: string): Promise<st
 // ---------------------------------------------------------------------------
 
 /**
- * Persist the generated brief and fire the post-session dispatch — or discard
- * as a benign no-op if the meeting was deleted first. Extracted from
- * generateBrief to keep its complexity bounded (same precedent as
- * injectConfirmedLiveContext above).
+ * Persist the generated brief and — when `opts.dispatch` is true — fire the
+ * post-session dispatch, or discard as a benign no-op if the meeting was
+ * deleted first. Extracted from generateBrief to keep its complexity bounded
+ * (same precedent as injectConfirmedLiveContext above).
  *
  * Guarded by TWO independent signals, closing the race window opened by
  * generateBrief's long-running generate() call: a fresh existence recheck
@@ -501,8 +502,20 @@ export async function injectTwinProfileContext(systemPrompt: string): Promise<st
  * info and returns null — never a raw SQL error carrying the generated
  * summary text, never a throw into IPC. A genuine (non-FK) insert failure
  * still propagates, unchanged from before this extraction.
+ *
+ * AI-RESIL.1: `opts.dispatch` is false on every generateBrief failure path
+ * (thrown error or empty response) — the brief itself is still persisted (as
+ * a classified failure card, see generateBriefText) so Regenerate and manual
+ * review both work, but the post-session hooks (fact extraction, embedding,
+ * entity extraction) never run against failure text. fact extraction reads
+ * ONLY the brief text by contract, so dispatching on failure is exactly how
+ * the twin's memory previously went dark for these sessions.
  */
-async function persistBriefAndDispatch(meetingId: string, summaryText: string): Promise<MeetingBrief | null> {
+async function persistBriefAndDispatch(
+  meetingId: string,
+  summaryText: string,
+  opts: { dispatch: boolean },
+): Promise<MeetingBrief | null> {
   if (!(await getMeeting(meetingId))) {
     log.info(`Meeting ${meetingId} deleted before brief generation completed — discarded`);
     return null;
@@ -535,10 +548,113 @@ async function persistBriefAndDispatch(meetingId: string, summaryText: string): 
   // living-memory modules (fact extraction, embedding, entity extraction)
   // register hooks with the dispatcher; a failing/slow hook can never affect
   // this brief. This is the ONE call site for the phase — new post-session work
-  // registers a hook, it does NOT edit generateBrief.
-  dispatchPostSession({ meetingId, brief });
+  // registers a hook, it does NOT edit generateBrief. Skipped on a failure card
+  // (opts.dispatch false) — see the AI-RESIL.1 note above.
+  if (opts.dispatch) {
+    dispatchPostSession({ meetingId, brief });
+  }
 
   return brief;
+}
+
+// ---------------------------------------------------------------------------
+// AI-RESIL.1: failure-aware brief generation
+// ---------------------------------------------------------------------------
+// The user-reported bug (2026-08-07): generateBrief's catch persisted a bare
+// BRIEF_FAILURE_SENTINEL with the real reason (timeout / connection refused /
+// context overflow) going only to the log, so a repeat failure card looked
+// random with zero diagnostic; a resolved-but-EMPTY generation was treated as
+// success and persisted/dispatched unchanged. Both paths are classified into
+// ONE failure shape below and kept out of generateBrief's own branching
+// entirely — see the complexity ceiling note on generateBrief.
+
+/** Recognizable prefix of the context-overflow message generate() already
+ *  rethrows for local providers (see ai-provider.ts's LOCAL_CONTEXT_HINTS
+ *  path) — passed through unchanged rather than reclassified below, since it
+ *  is already a specific, actionable message naming the exact setting to
+ *  change. */
+const CONTEXT_OVERFLOW_PREFIX = 'Request too large for the local model.';
+
+/** Char cap for the catch-all classification bucket only — mirrors
+ *  ai-provider.ts's friendlyConnectionError truncation so a pathological
+ *  error message can never blow up the persisted brief. */
+const FAILURE_REASON_CHAR_CAP = 200;
+
+/**
+ * Classify a generateBrief() failure into a short, human-readable reason for
+ * the persisted failure card (see BRIEF_FAILURE_SENTINEL in
+ * src/shared/briefSentinel.ts). Extracted as a private helper so this
+ * branching never lands inline in generateBrief.
+ */
+function classifyBriefFailure(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (message.startsWith(CONTEXT_OVERFLOW_PREFIX)) return message;
+
+  const lower = message.toLowerCase();
+  if (lower.includes('econnrefused') || lower.includes('connection refused') || lower.includes('fetch failed')) {
+    return 'the local AI server is not reachable';
+  }
+  if (lower.includes('timeout') || lower.includes('timed out') || lower.includes('abort')) {
+    return 'the model did not respond in time';
+  }
+  // The BUILT-IN runtime's own startup failures (llamaRuntimeService.waitForHealth)
+  // say neither "timeout" nor "refused", so without these they fall through to the
+  // raw catch-all — and a missed health deadline is the likeliest built-in failure
+  // in practice. LlamaRole is only `chat | embedding`, so every chat task shares ONE
+  // sidecar: routing two tasks to different models makes each alternation stop and
+  // cold-start a multi-GB model. Naming that on the card is the whole point of this
+  // classifier (see the AI-RESIL.1 correction in DECISIONS.md).
+  if (lower.includes('did not become healthy')) {
+    return 'the built-in model did not finish loading in time (switching models between tasks forces a full reload)';
+  }
+  if (lower.includes('exited during startup')) {
+    return 'the built-in AI runtime failed to start';
+  }
+  return message.length > FAILURE_REASON_CHAR_CAP ? `${message.slice(0, FAILURE_REASON_CHAR_CAP - 3)}...` : message;
+}
+
+/** Build the persisted failure-card text: the sentinel plus a classified
+ *  provider/model/reason paragraph. */
+function buildBriefFailureText(provider: ResolvedProvider, reason: string): string {
+  return `${BRIEF_FAILURE_SENTINEL}\n\nReason: ${provider.providerName}/${provider.model} — ${reason}`;
+}
+
+/**
+ * Run the summarization call for a brief and classify the outcome. Treats a
+ * resolved-but-EMPTY response (ai-provider.ts already logs this case and
+ * returns `text: ''`) the same as a thrown error — previously an empty brief
+ * was persisted AND dispatched to the post-session hooks unchanged, and
+ * fact extraction reads ONLY the brief text by contract, so this is exactly
+ * how the twin's memory went dark for these sessions. Extracted so the
+ * empty-text check lives beside the `generate` call instead of adding a new
+ * inline branch to generateBrief (complexity ceiling).
+ */
+async function generateBriefText(
+  provider: ResolvedProvider,
+  userPrompt: string,
+  systemPrompt: string,
+): Promise<{ summaryText: string; failed: boolean }> {
+  try {
+    const result = await generate({
+      providerId: provider.providerId,
+      providerName: provider.providerName,
+      apiKeyEncrypted: provider.apiKeyEncrypted,
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+      taskType: 'summarization',
+      prompt: userPrompt,
+      system: systemPrompt,
+      temperature: provider.temperature,
+      maxTokens: provider.maxTokens,
+    });
+    if (!result.text) {
+      return { summaryText: buildBriefFailureText(provider, 'the model returned an empty response'), failed: true };
+    }
+    return { summaryText: result.text, failed: false };
+  } catch (err) {
+    log.error('Brief generation failed:', err);
+    return { summaryText: buildBriefFailureText(provider, classifyBriefFailure(err)), failed: true };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -565,6 +681,12 @@ async function persistBriefAndDispatch(meetingId: string, summaryText: string): 
  * existence recheck immediately before the write, and by catching the insert's
  * own FK violation as a second, closing signal. Mirrors this file's own
  * `getBrief`, which already returns `MeetingBrief | null` for "no brief exists".
+ *
+ * AI-RESIL.1: a thrown generation error OR a resolved-but-empty response
+ * persists a classified failure card (the sentinel from
+ * src/shared/briefSentinel.ts plus a "Reason: provider/model — ..." paragraph)
+ * instead of the bare sentinel, and skips the post-session dispatch — see
+ * generateBriefText / classifyBriefFailure / persistBriefAndDispatch.
  */
 export async function generateBrief(meetingId: string): Promise<MeetingBrief | null> {
   const meeting = await getMeeting(meetingId);
@@ -642,31 +764,17 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief | n
   //    to the system prompt so the brief reads like it knows the professional.
   systemPrompt = await injectTwinProfileContext(systemPrompt);
 
-  let summaryText: string;
-  try {
-    const result = await generate({
-      providerId: provider.providerId,
-      providerName: provider.providerName,
-      apiKeyEncrypted: provider.apiKeyEncrypted,
-      baseUrl: provider.baseUrl,
-      model: provider.model,
-      taskType: 'summarization',
-      prompt: userPrompt,
-      system: systemPrompt,
-      temperature: provider.temperature,
-      maxTokens: provider.maxTokens,
-    });
-    summaryText = result.text;
-  } catch (err) {
-    log.error('Brief generation failed:', err);
-    summaryText = 'AI brief generation failed. The transcript is available for manual review.';
-  }
+  // 5. Generate the summary. A thrown error or an empty response both
+  //    classify as a failure card (see generateBriefText) so Regenerate has a
+  //    real diagnostic instead of a silent repeat (AI-RESIL.1).
+  const { summaryText, failed } = await generateBriefText(provider, userPrompt, systemPrompt);
 
   // 6. Persist + dispatch, or discard as a benign no-op if the meeting was
   //    deleted while generate() above was in flight — see
   //    persistBriefAndDispatch (extracted to keep this function's complexity
-  //    bounded; MEET-DEL.1).
-  return persistBriefAndDispatch(meetingId, summaryText);
+  //    bounded; MEET-DEL.1). Dispatch is skipped on a failure card so the
+  //    post-session hooks never learn from failure text (AI-RESIL.1).
+  return persistBriefAndDispatch(meetingId, summaryText, { dispatch: !failed });
 }
 
 /**

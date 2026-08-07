@@ -45,6 +45,7 @@ import { embed, resolveTaskModel } from './ai-provider';
 import { registerPostSessionHook, type PostSessionContext } from './postSessionDispatcher';
 import { getIsRecording } from './recordingState';
 import { createLogger } from './logger';
+import { BRIEF_FAILURE_SENTINEL, isFailedBriefText } from '../../shared/briefSentinel';
 
 const log = createLogger('Embedding');
 
@@ -402,7 +403,15 @@ async function buildSessionJobs(ctx: PostSessionContext): Promise<EmbedJob[]> {
   const jobs: EmbedJob[] = [];
   const summary = ctx.brief?.summary?.trim();
   if (ctx.brief?.id && summary) {
-    jobs.push({ entityType: 'brief', entityId: ctx.brief.id, chunkIndex: 0, content: summary, meetingId, projectId });
+    if (isFailedBriefText(summary)) {
+      // AI-RESIL.1: a failure-sentinel brief (Task 1) must never enter the
+      // index — it would pollute semantic search with error text instead of
+      // real content. A later successful Regenerate re-indexes normally
+      // (content-idempotent), so skipping it here loses nothing permanently.
+      log.info(`Skipping embed for failed-brief content (meeting ${meetingId})`);
+    } else {
+      jobs.push({ entityType: 'brief', entityId: ctx.brief.id, chunkIndex: 0, content: summary, meetingId, projectId });
+    }
   }
 
   const segs = await db
@@ -449,15 +458,22 @@ async function collectBackfillJobs(db: DB): Promise<EmbedJob[]> {
     if (seenMeeting.has(r.meetingId)) continue;
     seenMeeting.add(r.meetingId);
     const summary = r.summary?.trim();
-    if (summary)
-      jobs.push({
-        entityType: 'brief',
-        entityId: r.id,
-        chunkIndex: 0,
-        content: summary,
-        meetingId: r.meetingId,
-        projectId: r.projectId ?? null,
-      });
+    if (!summary) continue;
+    if (isFailedBriefText(summary)) {
+      // Same guard as buildSessionJobs above — a historical sentinel row
+      // (pre Task 1, or a brief that is still in a failed state) must not be
+      // picked up by the backfill either.
+      log.info(`Skipping backfill embed for failed-brief content (meeting ${r.meetingId})`);
+      continue;
+    }
+    jobs.push({
+      entityType: 'brief',
+      entityId: r.id,
+      chunkIndex: 0,
+      content: summary,
+      meetingId: r.meetingId,
+      projectId: r.projectId ?? null,
+    });
   }
 
   // Cards — title + description, with the owning project. meetingId is null: a card
@@ -596,6 +612,56 @@ export async function getEmbeddingStatus(): Promise<EmbeddingStatus> {
   }
   const backfillDismissed = (await readSetting(db, BACKFILL_DISMISSED_KEY)) === 'true';
   return { indexed, total, running: queue.length > 0 || drainPromise !== null, route, mismatch, backfillDismissed };
+}
+
+// ---------------------------------------------------------------------------
+// AI-RESIL.1 Task 2: one-shot startup sweep for already-indexed sentinel rows
+// ---------------------------------------------------------------------------
+// Task 1's failure-aware brief persistence, plus the write-side guards above,
+// stop NEW sentinel content from being indexed — but the user's index may
+// already hold error-text vectors from before that fix existed. Mirrors the
+// one-shot pattern established by transcriptCleanupService.ts /
+// recordingSweepService.ts: a settings-key completion flag, an "already
+// completed — skipping" no-op on every later run, and the flag written ONLY
+// after a successful delete so a thrown error always retries next launch.
+// This function never swallows its own errors — same contract as both
+// precedents; the caller (main.ts) is responsible for catching and logging,
+// mirroring sweepTranscriptHallucinations there.
+
+/** Settings key gating the one-shot sweep — written only after a successful run. */
+export const SENTINEL_EMBEDDING_SWEEP_FLAG_KEY = 'maintenance:sentinel-embedding-sweep:v1';
+
+/**
+ * One-shot startup sweep: permanently deletes `embeddings` rows for meeting
+ * briefs that were indexed as a failure sentinel before this task's
+ * write-side guards existed. Returns the number of rows deleted — 0 is a
+ * valid, logged outcome (nothing to sweep, or the flag was already set).
+ */
+export async function sweepFailedBriefEmbeddings(): Promise<number> {
+  const db = getDb();
+  const alreadyRun = (await readSetting(db, SENTINEL_EMBEDDING_SWEEP_FLAG_KEY)) === 'true';
+  if (alreadyRun) {
+    log.info('Sentinel-embedding sweep already completed — skipping');
+    return 0;
+  }
+
+  // Parameter-bound via drizzle `sql` — built from BRIEF_FAILURE_SENTINEL (the
+  // single source of truth from Task 1), never string-concatenated into raw
+  // SQL text. entityType is scoped with the typed eq() operator, matching
+  // this file's existing convention.
+  const sentinelLikePattern = `${BRIEF_FAILURE_SENTINEL}%`;
+  const deletedRows = await db
+    .delete(embeddings)
+    .where(and(eq(embeddings.entityType, 'brief'), sql`${embeddings.content} LIKE ${sentinelLikePattern}`))
+    .returning({ id: embeddings.id });
+
+  await db
+    .insert(settings)
+    .values({ key: SENTINEL_EMBEDDING_SWEEP_FLAG_KEY, value: 'true' })
+    .onConflictDoUpdate({ target: settings.key, set: { value: 'true', updatedAt: new Date() } });
+
+  log.info(`Sentinel-embedding sweep: deleted ${deletedRows.length} failed-brief embedding row(s)`);
+  return deletedRows.length;
 }
 
 // ---------------------------------------------------------------------------

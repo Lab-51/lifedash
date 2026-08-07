@@ -574,3 +574,203 @@ describe('TaskModelConfig — built-in runtime provider (LOCAL-RT.1 Task 4)', ()
     expect(await screen.findByRole('status')).toHaveTextContent(/No built-in models are downloaded yet/i);
   });
 });
+
+describe('TaskModelConfig — local-chat consolidation guard (AI-RESIL.1 Task 3)', () => {
+  // Bundled-catalog shape from useLocalModels, kept EMPTY (nothing downloaded) so a
+  // built-in row's own dropdown never renders the raw model id strings these tests
+  // configure directly via saved settings — proving any match comes from the banner.
+  const EMPTY_BUILTIN_VIEW = {
+    catalog: { catalogVersion: 1, updatedAt: '2026-01-01T00:00:00.000Z', models: [] },
+    source: 'bundled',
+    fetchedAt: '2026-01-01T00:00:00.000Z',
+    tier: { totalRamGB: 16, platform: 'win32', gpuSignal: 'cpu', recommendedModelIds: [] },
+    statuses: [],
+    downloads: [],
+    modelsDir: 'C:/models',
+    pinnedRuntimeTag: 'b10219',
+  };
+
+  const getLocalModelsView = vi.fn();
+
+  // Shared across positive AND negative cases (2026-08-05 learning): a typo here
+  // would fail the positive "banner" tests too, so the "no banner" tests can never
+  // pass vacuously.
+  const CONSOLIDATION_BANNER_TEXT = /different local chat models are configured/;
+  const CONSOLIDATE_BUTTON_NAME = /Use one model for all local chat tasks/;
+
+  // The two local families overcommit DIFFERENTLY, and the banner must not claim the
+  // wrong mechanism (corrected 2026-08-07). Shared across positive and negative
+  // assertions for the same reason as the constants above: a typo would break the
+  // positive case too, so "does not say X" can never pass vacuously.
+  const CORESIDENCY_TEXT = /stay(?:s)? loaded in memory at the same time/;
+  const THRASH_TEXT = /unloads? .*and reloads?/;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('electronAPI', {
+      getAIProviders: vi.fn().mockResolvedValue([]),
+      setSetting: vi.fn().mockResolvedValue(undefined),
+      checkLmStudio: vi.fn().mockResolvedValue({ running: false, models: [] }),
+      checkOllama: vi.fn().mockResolvedValue({ running: false, models: [] }),
+      getLocalModelsView,
+    });
+    getLocalModelsView.mockResolvedValue(EMPTY_BUILTIN_VIEW);
+  });
+
+  function renderWithSaved(providers: AIProvider[], saved: Record<string, { providerId: string; model: string }>) {
+    const setTaskModels = vi.fn().mockResolvedValue(undefined);
+    useSettingsStore.setState({
+      settings: { 'ai.taskModels': JSON.stringify(saved) },
+      getTaskModels: vi.fn().mockReturnValue(saved),
+      setTaskModels,
+    } as never);
+    const utils = render(<TaskModelConfig providers={providers} />);
+    return { ...utils, setTaskModels };
+  }
+
+  it('shows no banner when zero or one local chat task is configured', () => {
+    const lmstudio = makeProvider({ id: 'lmstudio-1', name: 'lmstudio' });
+    renderWithSaved([lmstudio], { live_assistant: { providerId: 'lmstudio-1', model: 'llama-3.1-8b-instruct' } });
+
+    expect(screen.queryByText(CONSOLIDATION_BANNER_TEXT)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: CONSOLIDATE_BUTTON_NAME })).not.toBeInTheDocument();
+  });
+
+  it('does not warn when only the embedding task uses a different local model', () => {
+    const lmstudio = makeProvider({ id: 'lmstudio-1', name: 'lmstudio' });
+    renderWithSaved([lmstudio], {
+      embedding: { providerId: 'lmstudio-1', model: 'text-embedding-bge-m3' },
+      live_assistant: { providerId: 'lmstudio-1', model: 'llama-3.1-8b-instruct' },
+    });
+
+    expect(screen.queryByText(CONSOLIDATION_BANNER_TEXT)).not.toBeInTheDocument();
+  });
+
+  it('warns and names the models when two distinct LM Studio models are configured', () => {
+    const lmstudio = makeProvider({ id: 'lmstudio-1', name: 'lmstudio' });
+    renderWithSaved([lmstudio], {
+      live_assistant: { providerId: 'lmstudio-1', model: 'llama-3.1-8b-instruct' },
+      card_agent: { providerId: 'lmstudio-1', model: 'mistral-nemo-instruct' },
+    });
+
+    expect(screen.getByText(CONSOLIDATION_BANNER_TEXT)).toBeInTheDocument();
+    expect(screen.getByText(/2 different local chat models are configured/)).toBeInTheDocument();
+    expect(screen.getByText(/llama-3.1-8b-instruct/)).toBeInTheDocument();
+    expect(screen.getByText(/mistral-nemo-instruct/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: CONSOLIDATE_BUTTON_NAME })).toBeInTheDocument();
+  });
+
+  it('warns when local chat tasks are split across LM Studio and the built-in runtime', async () => {
+    const lmstudio = makeProvider({ id: 'lmstudio-1', name: 'lmstudio' });
+    const builtin = makeProvider({ id: 'builtin-1', name: 'builtin', hasApiKey: false });
+    renderWithSaved([lmstudio, builtin], {
+      live_assistant: { providerId: 'lmstudio-1', model: 'llama-3.1-8b-instruct' },
+      standup: { providerId: 'builtin-1', model: 'Qwen3-4B-Q4_K_M' },
+    });
+    await waitFor(() => expect(getLocalModelsView).toHaveBeenCalled());
+
+    expect(screen.getByText(/2 different local chat models are configured/)).toBeInTheDocument();
+    expect(screen.getByText(/llama-3.1-8b-instruct/)).toBeInTheDocument();
+    expect(screen.getByText(/Qwen3-4B-Q4_K_M/)).toBeInTheDocument();
+    // Mixed set: BOTH mechanisms are named, because both are actually happening.
+    expect(screen.getByText(CORESIDENCY_TEXT)).toBeInTheDocument();
+    expect(screen.getByText(THRASH_TEXT)).toBeInTheDocument();
+  });
+
+  // --- Mechanism-accurate copy (AI-RESIL.1 correction, 2026-08-07) -------------------
+  // The built-in runtime's LlamaRole is only `chat | embedding`, so every chat task
+  // shares ONE sidecar: asking it for a different model STOPS the running process and
+  // cold-starts the other (llamaRuntimeService.ensureRunning). Two built-in chat models
+  // therefore never co-reside — they thrash. Claiming co-residency there is simply
+  // false, and it is the family the reporting user actually runs.
+
+  it('describes THRASHING, not co-residency, when both models are built-in', async () => {
+    const builtin = makeProvider({ id: 'builtin-1', name: 'builtin', hasApiKey: false });
+    renderWithSaved([builtin], {
+      live_assistant: { providerId: 'builtin-1', model: 'Qwen3-4B-Q4_K_M' },
+      summarization: { providerId: 'builtin-1', model: 'gemma-3-12b-it-Q4_K_M' },
+    });
+    await waitFor(() => expect(getLocalModelsView).toHaveBeenCalled());
+
+    expect(screen.getByText(CONSOLIDATION_BANNER_TEXT)).toBeInTheDocument();
+    expect(screen.getByText(THRASH_TEXT)).toBeInTheDocument();
+    expect(screen.queryByText(CORESIDENCY_TEXT)).not.toBeInTheDocument();
+  });
+
+  it('describes CO-RESIDENCY, not thrashing, when both models are external (LM Studio)', () => {
+    const lmstudio = makeProvider({ id: 'lmstudio-1', name: 'lmstudio' });
+    renderWithSaved([lmstudio], {
+      live_assistant: { providerId: 'lmstudio-1', model: 'llama-3.1-8b-instruct' },
+      summarization: { providerId: 'lmstudio-1', model: 'mistral-nemo-instruct' },
+    });
+
+    expect(screen.getByText(CONSOLIDATION_BANNER_TEXT)).toBeInTheDocument();
+    expect(screen.getByText(CORESIDENCY_TEXT)).toBeInTheDocument();
+    expect(screen.queryByText(THRASH_TEXT)).not.toBeInTheDocument();
+  });
+
+  it('never warns for a cloud-only configuration, however many distinct models', () => {
+    const openai = makeProvider({ id: 'openai-1', name: 'openai' });
+    const anthropic = makeProvider({ id: 'anthropic-1', name: 'anthropic' });
+    renderWithSaved([openai, anthropic], {
+      summarization: { providerId: 'openai-1', model: 'gpt-5.2' },
+      brainstorming: { providerId: 'anthropic-1', model: 'claude-opus-4-6' },
+      live_assistant: { providerId: 'openai-1', model: 'gpt-5-mini' },
+    });
+
+    expect(screen.queryByText(CONSOLIDATION_BANNER_TEXT)).not.toBeInTheDocument();
+  });
+
+  it('consolidation rewrites every local chat task to the Live Assistant pair and the banner disappears', async () => {
+    const lmstudio = makeProvider({ id: 'lmstudio-1', name: 'lmstudio' });
+    const builtin = makeProvider({ id: 'builtin-1', name: 'builtin', hasApiKey: false });
+    const { setTaskModels } = renderWithSaved([lmstudio, builtin], {
+      live_assistant: { providerId: 'lmstudio-1', model: 'qwen3-14b-instruct' },
+      card_agent: { providerId: 'lmstudio-1', model: 'mistral-nemo-instruct' },
+      standup: { providerId: 'builtin-1', model: 'Qwen3-4B-Q4_K_M' },
+    });
+    await waitFor(() => expect(getLocalModelsView).toHaveBeenCalled());
+    expect(screen.getByText(/3 different local chat models are configured/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: CONSOLIDATE_BUTTON_NAME }));
+
+    // Rendered content: the banner re-derives from the same draft state and vanishes
+    // — there is no separate "dismissed" flag to fake this.
+    expect(screen.queryByText(CONSOLIDATION_BANNER_TEXT)).not.toBeInTheDocument();
+
+    // Save calls: the real "Save Assignments" path, proving exactly which tasks were
+    // written and with what pair — the Live Assistant anchor, for all three.
+    fireEvent.click(screen.getByText('Save Assignments'));
+    await waitFor(() => expect(setTaskModels).toHaveBeenCalledTimes(1));
+    expect(setTaskModels).toHaveBeenCalledWith({
+      live_assistant: { providerId: 'lmstudio-1', model: 'qwen3-14b-instruct' },
+      card_agent: { providerId: 'lmstudio-1', model: 'qwen3-14b-instruct' },
+      standup: { providerId: 'lmstudio-1', model: 'qwen3-14b-instruct' },
+    });
+  });
+
+  it('falls back to the most-assigned pair, tie-broken by task-list order, when Live Assistant is not local', async () => {
+    const lmstudio = makeProvider({ id: 'lmstudio-1', name: 'lmstudio' });
+    const openai = makeProvider({ id: 'openai-1', name: 'openai' });
+    // card_agent and standup share modelA (count 2); background_agent alone has
+    // modelB (count 1) — modelA must win. live_assistant is cloud, so it is excluded
+    // from the count entirely and cannot be the anchor.
+    const { setTaskModels } = renderWithSaved([lmstudio, openai], {
+      live_assistant: { providerId: 'openai-1', model: 'gpt-5-mini' },
+      card_agent: { providerId: 'lmstudio-1', model: 'modelA' },
+      standup: { providerId: 'lmstudio-1', model: 'modelA' },
+      background_agent: { providerId: 'lmstudio-1', model: 'modelB' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: CONSOLIDATE_BUTTON_NAME }));
+    fireEvent.click(screen.getByText('Save Assignments'));
+
+    await waitFor(() => expect(setTaskModels).toHaveBeenCalledTimes(1));
+    expect(setTaskModels).toHaveBeenCalledWith({
+      live_assistant: { providerId: 'openai-1', model: 'gpt-5-mini' },
+      card_agent: { providerId: 'lmstudio-1', model: 'modelA' },
+      standup: { providerId: 'lmstudio-1', model: 'modelA' },
+      background_agent: { providerId: 'lmstudio-1', model: 'modelA' },
+    });
+  });
+});

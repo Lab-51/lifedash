@@ -43,6 +43,7 @@ import { reconcileBuiltinFromDisk } from './services/builtinProviderSetup';
 import { emitRuntimeStatus } from './services/runtimeTelemetry';
 import { sweepHallucinatedTranscripts } from './services/transcriptCleanupService';
 import { sweepOrphanedRecordings } from './services/recordingSweepService';
+import { sweepFailedBriefEmbeddings } from './services/embeddingService';
 
 const log = createLogger('App');
 
@@ -117,6 +118,24 @@ async function sweepTranscriptHallucinations(): Promise<void> {
     await sweepHallucinatedTranscripts();
   } catch (err) {
     log.warn('Transcript hallucination cleanup skipped (will retry next launch):', err);
+  }
+}
+
+/**
+ * AI-RESIL.1 Task 2: one-shot cleanup of `embeddings` rows that were indexed
+ * from a failure-sentinel brief before Task 1's write-side guards existed.
+ * Gated by a settings flag (see embeddingService.sweepFailedBriefEmbeddings)
+ * so it runs exactly once. Non-fatal: any error is logged and skipped here —
+ * because the service only writes its flag after a successful delete, a
+ * failed run always retries on the next launch. A single bounded SQL delete,
+ * so awaited like sweepTranscriptHallucinations above rather than
+ * fire-and-forget like the filesystem-scanning recording sweep below.
+ */
+async function sweepFailedBriefEmbeddingsOnStartup(): Promise<void> {
+  try {
+    await sweepFailedBriefEmbeddings();
+  } catch (err) {
+    log.warn('Sentinel-embedding sweep skipped (will retry next launch):', err);
   }
 }
 
@@ -266,6 +285,10 @@ const createWindow = async () => {
     // Must run AFTER migrations — the transcripts table (and the settings flag
     // row it gates on) must exist first.
     await sweepTranscriptHallucinations();
+
+    // Must run AFTER migrations too (the embeddings table + settings flag row
+    // it gates on).
+    await sweepFailedBriefEmbeddingsOnStartup();
 
     // Must run AFTER migrations too (the meetings table + settings flag row it
     // gates on). Fire-and-forget — does not block the rest of startup below.
