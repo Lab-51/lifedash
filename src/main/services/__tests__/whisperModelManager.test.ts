@@ -50,11 +50,17 @@ const modelsDir = (): string => path.join(tmpRoot, 'whisper-models');
 beforeEach(async () => {
   vi.resetModules();
   mgr = await import('../whisperModelManager');
-  fs.rmSync(modelsDir(), { recursive: true, force: true });
+  // maxRetries: on Windows CI runners, Defender briefly holds a handle on the
+  // *.downloading file a previous test wrote, and the recursive walk's lstat
+  // throws EPERM — force:true only swallows ENOENT. Node's rm retries exactly
+  // this family (EPERM/EBUSY/ENOTEMPTY) when maxRetries is set; without it this
+  // hook itself threw and failed whichever test ran next.
+  fs.rmSync(modelsDir(), { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
 afterAll(() => {
-  fs.rmSync(tmpRoot, { recursive: true, force: true });
+  // Same Defender-lock retry as beforeEach.
+  fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
 describe('ensureVadModel — never-throw degradation', () => {

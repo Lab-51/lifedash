@@ -125,7 +125,10 @@ const POST: RequestInit = { method: 'POST', body: JSON.stringify({ model: CHAT_M
 
 function writeFixtures(): void {
   fs.rmSync(binDir, { recursive: true, force: true });
-  for (const backend of ['vulkan', 'cpu']) {
+  // 'metal' included so the platform-derived chain (backendChain(): metal on
+  // darwin, vulkan -> cpu elsewhere) finds a binary on macOS CI runners too;
+  // dirs outside the current platform's chain are inert.
+  for (const backend of ['vulkan', 'cpu', 'metal']) {
     fs.mkdirSync(path.join(binDir, backend), { recursive: true });
     fs.writeFileSync(path.join(binDir, backend, exe), '');
   }

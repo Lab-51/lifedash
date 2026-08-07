@@ -119,6 +119,11 @@ const ISOLATED_FLOOR_MS = 2_500;
 const WARMUP_TICKS = 50;
 
 describe('ForceLayout perf (800 nodes / 1600 edges)', () => {
+  // Explicit 60s timeout: the budget below is self-calibrating, but vitest's
+  // DEFAULT 5s testTimeout killed this test on 2-core CI runners before the
+  // budget assertion ever ran — warmup + full settle is pure wall-clock there.
+  // The timeout is only the "did it run at all" ceiling; the perf guard itself
+  // remains the calibrated budget assertion, which scales with machine load.
   it('settles the heavy fixture within budget, finite and non-degenerate', () => {
     const { nodes, edges } = buildHeavyFixture();
     expect(nodes).toHaveLength(800);
@@ -160,5 +165,5 @@ describe('ForceLayout perf (800 nodes / 1600 edges)', () => {
       spread = Math.max(spread, Math.hypot(node.x, node.y));
     }
     expect(spread).toBeGreaterThan(100);
-  });
+  }, 60_000);
 });

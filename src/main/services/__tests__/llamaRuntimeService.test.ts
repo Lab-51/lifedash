@@ -80,6 +80,13 @@ const EMBED_MODEL = 'embeddinggemma-test-Q8_0';
 const ALT_CHAT_MODEL = 'qwen-test-Q4_K_M';
 const exe = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server';
 
+// Fixtures mirror the service's platform-derived chain (backendChain(): metal on
+// darwin, vulkan -> cpu elsewhere) so this suite exercises the REAL chain of the
+// platform it runs on. Hardcoded ['vulkan','cpu'] fixtures left every test here
+// failing on macOS CI runners ("runtime is not installed"), 2026-08-02 -> 08-07.
+const CHAIN = process.platform === 'darwin' ? ['metal'] : ['vulkan', 'cpu'];
+const PRIMARY = CHAIN[0];
+
 function writeFixtures(backends: string[]): void {
   fs.rmSync(binDir, { recursive: true, force: true });
   for (const backend of backends) {
@@ -113,7 +120,7 @@ beforeEach(() => {
   h.spawnCalls.length = 0;
   h.children.length = 0;
   h.onSpawn = null;
-  writeFixtures(['vulkan', 'cpu']);
+  writeFixtures(CHAIN);
   process.env.LIFEDASH_LLAMA_BIN_DIR = binDir;
   process.env.LIFEDASH_LLAMA_MODELS_DIR = modelsDir;
   process.env.LIFEDASH_LLAMA_IDLE_MINUTES = '0'; // disabled unless a test opts in
@@ -171,13 +178,13 @@ describe('lazy start, port probe and flags', () => {
 
     expect(h.spawnCalls).toHaveLength(1);
     const { bin, args } = h.spawnCalls[0];
-    expect(bin).toBe(path.join(binDir, 'vulkan', exe));
+    expect(bin).toBe(path.join(binDir, PRIMARY, exe));
 
     const port = Number(argValue(args, '--port'));
     expect(port).toBeGreaterThan(1024);
     expect(endpoint.baseUrl).toBe(`http://127.0.0.1:${port}/v1`);
     expect(endpoint.modelId).toBe(CHAT_MODEL);
-    expect(endpoint.backend).toBe('vulkan');
+    expect(endpoint.backend).toBe(PRIMARY);
     expect(endpoint.apiKey).toMatch(/^[0-9a-f-]{36}$/);
     expect(svc.status().running).toBe(true);
   });
@@ -291,27 +298,43 @@ describe('health gating and backend fallback', () => {
     expect(svc.status().running).toBe(false);
   });
 
-  it('falls back vulkan -> cpu when the GPU build exits during startup, and remembers it', async () => {
-    h.onSpawn = (child, index) => {
-      if (index === 0) child.simulateExit(1); // vulkan build dies before ever reporting healthy
-    };
+  // win/linux-only by design: darwin's chain is metal-only, so no fallback exists
+  // there — the single-backend death shape is covered for every platform by the
+  // exhaustion test below.
+  it.skipIf(process.platform === 'darwin')(
+    'falls back vulkan -> cpu when the GPU build exits during startup, and remembers it',
+    async () => {
+      h.onSpawn = (child, index) => {
+        if (index === 0) child.simulateExit(1); // vulkan build dies before ever reporting healthy
+      };
+      const svc = await loadService();
+      const endpoint = await svc.ensureRunning('chat');
+
+      expect(h.spawnCalls[0].bin).toBe(path.join(binDir, 'vulkan', exe));
+      expect(h.spawnCalls[1].bin).toBe(path.join(binDir, 'cpu', exe));
+      expect(endpoint.backend).toBe('cpu');
+      expect(svc.status().backend).toBe('cpu');
+
+      // Remembered: the next role does not retry the known-bad vulkan build.
+      h.onSpawn = null;
+      await svc.ensureRunning('embedding');
+      expect(h.spawnCalls).toHaveLength(3);
+      expect(h.spawnCalls[2].bin).toBe(path.join(binDir, 'cpu', exe));
+    },
+  );
+
+  it('rejects and does not respawn when the only installed backend dies during startup', async () => {
+    // A single-backend install is the shape darwin always has (metal-only chain);
+    // running this everywhere keeps that failure path covered by Windows CI too.
+    writeFixtures([PRIMARY]);
+    h.onSpawn = (child) => child.simulateExit(1);
     const svc = await loadService();
-    const endpoint = await svc.ensureRunning('chat');
-
-    expect(h.spawnCalls[0].bin).toBe(path.join(binDir, 'vulkan', exe));
-    expect(h.spawnCalls[1].bin).toBe(path.join(binDir, 'cpu', exe));
-    expect(endpoint.backend).toBe('cpu');
-    expect(svc.status().backend).toBe('cpu');
-
-    // Remembered: the next role does not retry the known-bad vulkan build.
-    h.onSpawn = null;
-    await svc.ensureRunning('embedding');
-    expect(h.spawnCalls).toHaveLength(3);
-    expect(h.spawnCalls[2].bin).toBe(path.join(binDir, 'cpu', exe));
+    await expect(svc.ensureRunning('chat')).rejects.toThrow(/exited during startup/i);
+    expect(h.spawnCalls).toHaveLength(1); // nothing left to fall back to — no second spawn
   });
 
   it('uses the LIFEDASH_LLAMA_BIN override when set', async () => {
-    const pinned = path.join(binDir, 'cpu', exe);
+    const pinned = path.join(binDir, CHAIN[CHAIN.length - 1], exe);
     process.env.LIFEDASH_LLAMA_BIN = pinned;
     const svc = await loadService();
     await svc.ensureRunning('chat');
