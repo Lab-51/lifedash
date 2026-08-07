@@ -802,5 +802,44 @@ Deleting a meeting SHALL remove its influence, not merely its own rows. By defau
 
 ---
 
+### Requirement: A long meeting still gets a brief
+
+A meeting MUST NOT fail to produce a brief or action items merely because its transcript is long. Before sending anything, the assembled prompt SHALL be measured against the configured model's context window, including the room reserved for the model's own output. When it does not fit, the transcript MUST be summarized part by part and the parts combined into the final brief, and action items MUST be extracted per part and merged with cross-part repeats removed. The combining pass MUST carry the same context the single pass carries — meeting template, project continuity, items confirmed live, pre-meeting prep, and the twin's voice — so a long meeting's brief is not a lesser brief; the per-part passes MUST NOT carry any of it, so that they stay small and factual. A brief built this way MUST say so. A context-overflow failure MUST NEVER be persisted for length alone, and if one ever is, it MUST name the size estimate as the cause rather than reporting an anonymous error.
+
+The elasticity MUST be bounded and honest. If even the combined part summaries do not fit, the same collapsing MAY be repeated only a fixed, small number of times before stopping. Any part that fails or comes back empty MUST stop the whole attempt: the existing classified failure card is persisted and nothing is learned from it. A partial brief or a partial action-item list MUST NEVER be presented as a complete one.
+
+#### Scenario: A transcript that fits is untouched
+
+- GIVEN a transcript whose assembled prompt fits the model's context window
+- WHEN a brief or action items are generated
+- THEN exactly one request is made and its prompt is byte-for-byte the prompt the single-pass behavior always produced
+
+#### Scenario: A transcript that overflows still produces a real brief
+
+- GIVEN a transcript whose assembled prompt exceeds the model's context window
+- WHEN a brief is generated
+- THEN each part is summarized, the parts are combined into one brief carrying the project continuity, confirmed-live and prep context, and the stored brief states how many passes built it
+- AND no context-overflow failure card is persisted for length alone
+
+#### Scenario: Action items from an overflowing transcript are merged, not duplicated
+
+- GIVEN a transcript too long for one extraction pass
+- WHEN action items are extracted
+- THEN items from every part are kept in order and an item restated across a part boundary appears exactly once
+
+#### Scenario: A failing part is a failure, not a half brief
+
+- GIVEN one part of a long transcript fails or returns nothing
+- WHEN the brief is generated
+- THEN the classified failure card is stored, nothing is dispatched to the twin, and no partial brief is presented
+
+#### Scenario: The collapsing stops
+
+- GIVEN a transcript so long that even its part summaries do not fit
+- WHEN the brief is generated
+- THEN the attempt stops after a fixed number of rounds with a classified failure card, never looping
+
+---
+
 <!-- Add further requirements following the same pattern, one `### Requirement:` block per behavior/domain. -->
 <!-- When this project graduates Tier 1 → Tier 2, each `### Requirement:` block can move into its own `specs/<domain>/spec.md` unchanged. -->

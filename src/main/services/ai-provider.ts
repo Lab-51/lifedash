@@ -551,21 +551,58 @@ const DEFAULT_MODELS: Record<AIProviderName, string> = {
 };
 
 /**
- * Task types that inherit another task's config when unset. `live_triage`
- * (the proactive in-meeting proposal loop) shares the single local model with
- * `live_assistant` chat by default, so it falls back to the assistant's config
- * until the user splits them in Settings. `twin_interview` (the V3.3 Digital
- * Twin profile interview's AI-assist) follows the same pattern — it inherits the
- * assistant's local model until split in Settings. See resolveTaskModel step 1.
+ * Runtime enumeration of every `AITaskType` member, kept in sync with the union
+ * by construction: TypeScript errors on this object literal if a member is ever
+ * added to or removed from the union in `src/shared/types/ai.ts` without a
+ * matching update here, so `TASK_MODEL_FALLBACKS` below can never silently drift
+ * out of step with the type it is derived from (types themselves erase at
+ * runtime, so this Record is the closest a TS program gets to "reading" one).
  */
-const TASK_MODEL_FALLBACKS: Record<string, string> = {
-  live_triage: 'live_assistant',
-  twin_interview: 'live_assistant',
-  // V3.4 living-memory tasks inherit the assistant's local model until split in
-  // Settings, exactly like twin_interview.
-  twin_learning: 'live_assistant',
-  knowledge_qa: 'live_assistant',
+const ALL_TASK_TYPES: Record<AITaskType, true> = {
+  summarization: true,
+  brainstorming: true,
+  idea_analysis: true,
+  task_structuring: true,
+  transcription: true,
+  card_agent: true,
+  meeting_prep: true,
+  standup: true,
+  'card-description': true,
+  background_agent: true,
+  project_agent: true,
+  live_assistant: true,
+  live_triage: true,
+  twin_interview: true,
+  embedding: true,
+  twin_learning: true,
+  knowledge_qa: true,
 };
+
+/**
+ * Task types that never inherit `live_assistant`'s config: `live_assistant`
+ * itself (the anchor — nothing to inherit from), `embedding` (a different,
+ * tiny model class with its own unconfigured⇒null privacy guard a few lines
+ * below in resolveTaskModel — it must never resolve to a chat model), and
+ * `transcription` (whisper, not an LLM chat task).
+ */
+const CHAT_INHERITANCE_EXCLUDED: ReadonlySet<AITaskType> = new Set(['live_assistant', 'embedding', 'transcription']);
+
+/**
+ * Every chat-class `AITaskType` inherits `live_assistant`'s config when its own
+ * is unset, so ONE local model download (or Settings assignment) routes every
+ * chat task — `live_triage`, `twin_interview`, `twin_learning`, `knowledge_qa`,
+ * `summarization` (the brief), and the rest. Derived from `ALL_TASK_TYPES`
+ * (minus `CHAT_INHERITANCE_EXCLUDED`) rather than hand-listed, so a task type
+ * added to the union inherits by default instead of silently falling through to
+ * first-enabled-provider. See resolveTaskModel step 1, and the AI-CTX.1 /
+ * 2026-08-07 "one local chat model for all chat tasks" decisions in
+ * DECISIONS.md.
+ */
+const TASK_MODEL_FALLBACKS: Record<string, string> = Object.fromEntries(
+  (Object.keys(ALL_TASK_TYPES) as AITaskType[])
+    .filter((task) => !CHAT_INHERITANCE_EXCLUDED.has(task))
+    .map((task) => [task, 'live_assistant']),
+);
 
 /**
  * Per-task MINIMUM output-token budget (a floor, never a cap). The V3.3.5 lesson:

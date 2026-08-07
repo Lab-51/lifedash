@@ -113,10 +113,12 @@ export interface BuiltinAssignment {
  * already stored, never replacing it.
  *
  * Only `live_assistant` and `embedding` are set on purpose: resolveTaskModel
- * inherits `live_assistant` for live_triage / twin_interview / twin_learning /
- * knowledge_qa and falls back to the first enabled provider for everything else,
- * so writing all fifteen rows would add no routing while silently overwriting
- * assignments a returning user may have made themselves.
+ * (ai-provider.ts) inherits `live_assistant`'s config for EVERY other chat-class
+ * task — live_triage, twin_interview, twin_learning, knowledge_qa, summarization,
+ * and the rest of AITaskType, excluding only `embedding` (its own row, set above)
+ * and `transcription` (not an LLM task) — so writing all fifteen rows here would
+ * add no routing while silently overwriting assignments a returning user may
+ * have made themselves.
  */
 export function builtinTaskModelPatch(
   providerId: string,

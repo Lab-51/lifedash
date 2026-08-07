@@ -130,7 +130,10 @@ export function resolveModel(role: LlamaRole, modelId?: string): { modelId: stri
 
 // --- Spawn arguments -------------------------------------------------------------------
 
-function chatCtxSize(): number {
+/** Exported (AI-CTX.1) so promptBudget.ts can size the builtin prompt budget off the
+ *  REAL spawn value, including the env override, instead of a second constant that
+ *  could drift from what actually gets passed to `--ctx-size`. */
+export function chatCtxSize(): number {
   const override = Number(process.env.LIFEDASH_LLAMA_CTX);
   return Number.isFinite(override) && override > 0 ? override : CHAT_CTX_SIZE;
 }
