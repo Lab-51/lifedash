@@ -8,16 +8,24 @@ import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema, actionItemStatusSchema } from '../../shared/validation/schemas';
 
 export function registerMeetingIntelligenceHandlers(): void {
-  // Generate AI brief for a completed meeting
+  // Generate AI brief for a completed meeting. Routed through the shared
+  // single-flight map (TWIN-LEARN.1) so that when the session page opens while
+  // the main-process auto-run is still generating, this JOINS that run instead of
+  // starting a second one. With nothing in flight it proceeds unconditionally —
+  // this is also the explicit Regenerate button.
   ipcMain.handle('meetings:generate-brief', async (_event, meetingId: unknown) => {
     const validId = validateInput(idParamSchema, meetingId);
-    return intelligence.generateBrief(validId);
+    return intelligence.generateBriefShared(validId);
   });
 
-  // Generate AI-extracted action items from transcript
+  // Generate AI-extracted action items from transcript. Same single-flight join:
+  // the renderer fires this the moment a brief lands, which is exactly when the
+  // auto-run starts its own extraction — and a second extraction would DUPLICATE
+  // every item (there is no "already extracted" guard, by design: this is also
+  // the explicit Regenerate path).
   ipcMain.handle('meetings:generate-actions', async (_event, meetingId: unknown) => {
     const validId = validateInput(idParamSchema, meetingId);
-    return intelligence.generateActionItems(validId);
+    return intelligence.generateActionItemsShared(validId);
   });
 
   // Get existing brief for a meeting

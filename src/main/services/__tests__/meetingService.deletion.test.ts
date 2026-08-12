@@ -39,6 +39,12 @@ vi.mock('../../db/connection', () => ({ getDb: () => holder.db }));
 
 import { deleteMeeting, getMeetingDeleteImpact, ActiveRecordingDeleteError } from '../meetingService';
 import { setActiveMeetingId } from '../recordingState';
+// The READ path for the label the write-path test below stamps: real
+// twinMemoryService, unmocked, against the SAME real PGlite instance (mocked
+// only via ../../db/connection, exactly like meetingService above) — proves
+// rowToFact/listFacts actually surface sourceMeetingLabel, not just that the
+// column holds it.
+import { listFacts } from '../twinMemoryService';
 
 type Db = typeof holder.db;
 
@@ -184,6 +190,26 @@ describe('deleteMeeting — keep path (keepLearnedFacts: true)', () => {
 
     const remainingMeetings = await db.select().from(meetings).where(eq(meetings.id, meeting.id));
     expect(remainingMeetings).toHaveLength(0);
+  });
+
+  it('surfaces the stamped label through the READ path (twinMemoryService.listFacts / rowToFact), for both active and forgotten facts', async () => {
+    const meeting = await insertMeeting({ title: 'Roadmap review — read path' });
+    const factA = await insertFact(meeting.id, { status: 'active', fact: 'Ships Friday.' });
+    const factB = await insertFact(meeting.id, { status: 'forgotten', fact: 'Old note.' });
+
+    await deleteMeeting(meeting.id, { keepLearnedFacts: true });
+
+    // listFacts() with no filter returns every status — the memory-management UI
+    // relies on exactly that to offer a restore.
+    const facts = await listFacts();
+    const keptA = facts.find((f) => f.id === factA.id);
+    const keptB = facts.find((f) => f.id === factB.id);
+    expect(keptA).toBeDefined();
+    expect(keptB).toBeDefined();
+    for (const kept of [keptA, keptB]) {
+      expect(kept?.sourceMeetingId).toBeNull();
+      expect(kept?.sourceMeetingLabel).toMatch(/^Roadmap review — read path — deleted \d{4}-\d{2}-\d{2}$/);
+    }
   });
 });
 

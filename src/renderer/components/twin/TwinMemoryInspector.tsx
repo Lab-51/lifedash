@@ -5,9 +5,11 @@
 //
 //   * PROVENANCE. A fact always states where it was learned. The title arrives
 //     inline on the graph payload (Task 1 joined it), so there is no second round
-//     trip and no id lookup: `sourceMeetingTitle` when the session still exists,
-//     the honest "a past session" fallback when it does not. NEVER a raw id,
-//     NEVER a fabricated title. The link is offered whenever a real
+//     trip and no id lookup: `sourceMeetingTitle` when the session still exists;
+//     when it does not, MEET-DEL.1's `sourceMeetingLabel` snapshot (TWIN-LEARN.1
+//     Task 2) if the session was deleted via "keep what the twin learned"; the
+//     honest "a past session" fallback only when neither is available. NEVER a
+//     raw id, NEVER a fabricated title. The link is offered whenever a real
 //     `sourceMeetingId` survives, even if the title could not be resolved.
 //   * ONE-TAP FORGET. A real <button> in the card — not a hover-only affordance —
 //     so it is reachable by keyboard from the node that opened this card. The
@@ -125,8 +127,11 @@ export default function TwinMemoryInspector({
 function FactBody({ node, onOpenSession }: { node: TwinGraphNode; onOpenSession: (meetingId: string) => void }) {
   const meetingId = node.sourceMeetingId ?? null;
   // The title is only ever the one the payload joined in — never invented, and
-  // never the id as a stand-in for a name.
-  const label = node.sourceMeetingTitle?.trim() || FALLBACK_SESSION_LABEL;
+  // never the id as a stand-in for a name. When the source session is gone but
+  // MEET-DEL.1's "keep what the twin learned" path stamped a snapshot label,
+  // that label is the ONLY surviving provenance — show it before falling back
+  // to the generic "a past session".
+  const label = node.sourceMeetingTitle?.trim() || node.sourceMeetingLabel?.trim() || FALLBACK_SESSION_LABEL;
 
   return (
     <>

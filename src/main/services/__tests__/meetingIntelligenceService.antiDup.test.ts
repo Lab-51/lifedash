@@ -59,6 +59,7 @@ vi.mock('../../db/schema', () => ({
 }));
 
 vi.mock('../meetingService', () => ({
+  registerMeetingCompletedHook: vi.fn(), // module-scope self-registration (TWIN-LEARN.1)
   getMeeting: vi.fn(),
   updateMeeting: vi.fn().mockResolvedValue({}),
 }));

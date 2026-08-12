@@ -177,6 +177,10 @@ function rowToFact(row: typeof twinFacts.$inferSelect): TwinFact {
     label: row.label ?? null,
     category: row.category,
     sourceMeetingId: row.sourceMeetingId,
+    // MEET-DEL.1's kept-fact snapshot provenance — read straight through, same
+    // as sourceMeetingId (never re-derived here; the column already is the
+    // single source of truth for this value).
+    sourceMeetingLabel: row.sourceMeetingLabel,
     status: row.status,
     createdAt: (row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt)).toISOString(),
   };

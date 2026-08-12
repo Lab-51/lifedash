@@ -41,6 +41,7 @@ async function seedTwinFact(
     category?: TwinFactCategory;
     label?: string | null;
     sourceMeetingId?: string | null;
+    sourceMeetingLabel?: string | null;
     status?: 'active' | 'forgotten';
     createdAt?: Date;
   } = {},
@@ -52,6 +53,7 @@ async function seedTwinFact(
       category: opts.category ?? 'domain',
       label: opts.label ?? null,
       sourceMeetingId: opts.sourceMeetingId ?? null,
+      sourceMeetingLabel: opts.sourceMeetingLabel ?? null,
       status: opts.status ?? 'active',
       ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
     })
@@ -242,6 +244,31 @@ describe('buildTwinMemoryGraph — provenance', () => {
     const node = findNode(graph, `fact:${factId}`);
     expect(node).toBeDefined(); // the fact itself survives the deletion
     expect(node).toMatchObject({ sourceMeetingId: null, sourceMeetingTitle: null }); // never a raw stale id
+  });
+
+  it('carries the MEET-DEL.1 snapshot label onto the fact node when the source meeting is gone but was kept', async () => {
+    const factId = await seedTwinFact('Kept after its session was deleted', {
+      category: 'commitment',
+      sourceMeetingId: null,
+      sourceMeetingLabel: 'Roadmap review — deleted 2026-08-06',
+    });
+
+    const graph = await buildTwinMemoryGraph();
+
+    const node = findNode(graph, `fact:${factId}`);
+    expect(node).toMatchObject({
+      sourceMeetingId: null,
+      sourceMeetingTitle: null,
+      sourceMeetingLabel: 'Roadmap review — deleted 2026-08-06',
+    });
+  });
+
+  it('yields sourceMeetingLabel=null for an ordinary fact that never went through the keep-path', async () => {
+    const factId = await seedTwinFact('Ordinary fact, never deleted', { category: 'domain' });
+
+    const graph = await buildTwinMemoryGraph();
+
+    expect(findNode(graph, `fact:${factId}`)).toMatchObject({ sourceMeetingLabel: null });
   });
 });
 

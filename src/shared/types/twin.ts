@@ -298,6 +298,16 @@ export interface TwinFact {
   category: TwinFactCategory;
   /** The session this was learned from, or null if that session was deleted. */
   sourceMeetingId: string | null;
+  /** MEET-DEL.1 snapshot provenance for a fact whose source meeting was deleted
+   *  via "keep what the twin learned" — e.g. "Roadmap review — deleted
+   *  2026-08-06". Null for every other fact, including one whose source
+   *  meeting is still live and one that never had a source meeting at all —
+   *  `sourceMeetingId === null` alone cannot tell those apart, so this is the
+   *  only surviving signal. Written once, at delete time, never touched again.
+   *  Optional so a payload/fixture from before this field existed still
+   *  type-checks — a reader treats absent the same as null (never a stored
+   *  label). */
+  sourceMeetingLabel?: string | null;
   status: TwinFactStatus;
   createdAt: string;
 }
@@ -448,6 +458,15 @@ export interface TwinGraphNode {
    *  `sourceMeetingId` is null (never a guessed title) — render "a past
    *  session" instead. Absent (not even null) on twin/category nodes. */
   sourceMeetingTitle?: string | null;
+  /** Fact nodes only. MEET-DEL.1's snapshot provenance for a fact whose source
+   *  meeting was deleted via "keep what the twin learned" — e.g. "Roadmap
+   *  review — deleted 2026-08-06". Null whenever the fact never went through
+   *  that path (a live source — `sourceMeetingTitle` covers that case — or no
+   *  source at all). This is the ONLY surviving provenance once the source
+   *  session is gone, so a reader shows it in place of the generic "a past
+   *  session" fallback when present. Absent (not even null) on twin/category
+   *  nodes. */
+  sourceMeetingLabel?: string | null;
 }
 
 export type TwinGraphEdgeKind = 'twin-hub' | 'hub-fact';

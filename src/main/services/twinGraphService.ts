@@ -84,6 +84,8 @@ interface FactRow {
   category: TwinFactCategory;
   sourceMeetingId: string | null;
   sourceMeetingTitle: string | null;
+  /** MEET-DEL.1 kept-fact snapshot provenance — see TwinGraphNode.sourceMeetingLabel. */
+  sourceMeetingLabel: string | null;
   createdAt: Date;
 }
 
@@ -101,6 +103,7 @@ interface BuiltNode {
   newestTimestamp: string | null;
   sourceMeetingId?: string | null;
   sourceMeetingTitle?: string | null;
+  sourceMeetingLabel?: string | null;
 }
 
 /** Every ACTIVE fact, with its source meeting's title joined in (LEFT JOIN —
@@ -116,6 +119,7 @@ async function loadActiveFacts(db: DB): Promise<FactRow[]> {
       category: twinFacts.category,
       sourceMeetingId: twinFacts.sourceMeetingId,
       sourceMeetingTitle: meetings.title,
+      sourceMeetingLabel: twinFacts.sourceMeetingLabel,
       createdAt: twinFacts.createdAt,
     })
     .from(twinFacts)
@@ -177,6 +181,7 @@ function capAndFinalize(nodes: BuiltNode[], edges: TwinGraphEdge[]): TwinMemoryG
           text: n.text ?? n.label,
           sourceMeetingId: n.sourceMeetingId ?? null,
           sourceMeetingTitle: n.sourceMeetingTitle ?? null,
+          sourceMeetingLabel: n.sourceMeetingLabel ?? null,
         }
       : {}),
   }));
@@ -260,6 +265,7 @@ export async function buildTwinMemoryGraph(): Promise<TwinMemoryGraph> {
         newestTimestamp: f.createdAt.toISOString(),
         sourceMeetingId: f.sourceMeetingId,
         sourceMeetingTitle: f.sourceMeetingTitle,
+        sourceMeetingLabel: f.sourceMeetingLabel,
       });
     }
   }

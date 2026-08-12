@@ -22,7 +22,7 @@ import { getDb } from '../db/connection';
 import { meetingBriefs, actionItems, cards, meetings, projects, liveSuggestions, calendarEvents } from '../db/schema';
 import { isForeignKeyViolation } from '../db/errors';
 import { generate, resolveTaskModel, type ResolvedProvider } from './ai-provider';
-import { getMeeting, updateMeeting } from './meetingService';
+import { getMeeting, updateMeeting, registerMeetingCompletedHook } from './meetingService';
 import { createLogger } from './logger';
 import { autoPushActionItems, readAutoPushSetting } from './autoPushService';
 import { ensureUnassignedProject } from './unassignedProjectService';
@@ -33,7 +33,7 @@ import { chunkSegments, contextWindowTokens, estimateTokens, promptCharBudget } 
 import type { MeetingBrief, ActionItem, ActionItemStatus, MeetingTemplateType } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import { parseActionItems } from '../../shared/utils/action-item-parser';
-import { BRIEF_FAILURE_SENTINEL } from '../../shared/briefSentinel';
+import { BRIEF_FAILURE_SENTINEL, isFailedBriefText } from '../../shared/briefSentinel';
 
 const log = createLogger('MeetingIntelligence');
 
@@ -1386,3 +1386,116 @@ export async function deleteActionItem(id: string): Promise<void> {
   const db = getDb();
   await db.delete(actionItems).where(eq(actionItems.id, id));
 }
+
+// ---------------------------------------------------------------------------
+// TWIN-LEARN.1: auto-generation when a meeting completes
+// ---------------------------------------------------------------------------
+// A session that was recorded but never opened used to get NOTHING — no brief,
+// no action items, and therefore no twin learning at all (the post-session
+// dispatcher only runs off a SUCCESSFUL brief). The renderer's autoGenerate
+// effect was the sole trigger. Main now drives the same chain off the
+// status→'completed' transition, and absorbs the resulting double-fire: main is
+// the only layer that can see both callers.
+
+/** Single-flight brief generations, keyed by meetingId — same idiom as
+ *  embeddingService.kickDrain, keyed. stopRecording navigates straight to the
+ *  session page, so the renderer's own generateBrief lands moments after the
+ *  auto-run starts; joining the in-flight promise makes that ONE generation
+ *  instead of two racing writes. Entries are removed in `finally`, so a failed
+ *  run never wedges the meeting. */
+const inFlightBriefs = new Map<string, Promise<MeetingBrief | null>>();
+
+/** Same, for action-item extraction, and needed for the same reason: the
+ *  renderer fires generateActionItems the moment the brief resolves — which is
+ *  exactly when the auto-run is starting its own. generateActionItems has no
+ *  "already extracted" guard (it is also the explicit Regenerate path), so a
+ *  second run would duplicate every item rather than skip. */
+const inFlightActions = new Map<string, Promise<ActionItem[]>>();
+
+function joinInFlight<T>(map: Map<string, Promise<T>>, meetingId: string, run: () => Promise<T>): Promise<T> {
+  const existing = map.get(meetingId);
+  if (existing) return existing;
+  const started = run().finally(() => map.delete(meetingId));
+  map.set(meetingId, started);
+  return started;
+}
+
+/**
+ * generateBrief, joined with any generation already in flight for this meeting.
+ * When nothing is in flight it proceeds UNCONDITIONALLY — this is also the
+ * explicit Regenerate path, so the skip conditions live ONLY in
+ * ensurePostSessionGeneration below.
+ */
+export function generateBriefShared(meetingId: string): Promise<MeetingBrief | null> {
+  return joinInFlight(inFlightBriefs, meetingId, () => generateBrief(meetingId));
+}
+
+/** generateActionItems, joined with any extraction already in flight for this
+ *  meeting. Unconditional when idle, for the same reason as above. */
+export function generateActionItemsShared(meetingId: string): Promise<ActionItem[]> {
+  return joinInFlight(inFlightActions, meetingId, () => generateActionItems(meetingId));
+}
+
+/**
+ * Generate the brief + action items for a meeting that just reached 'completed',
+ * so the twin learns from every session instead of only the ones whose page the
+ * user happened to open.
+ *
+ * Every guard is a SILENT log.debug skip: "no AI configured" and "empty
+ * recording" are normal states, not errors, and AI-RESIL.1 reserves failure
+ * cards for real failures the user actually asked for. Nothing here may surface
+ * in the UI when it doesn't apply.
+ */
+export async function ensurePostSessionGeneration(meetingId: string): Promise<void> {
+  const meeting = await getMeeting(meetingId);
+
+  // (a) Mirrors the renderer's own guard (SessionWorkspace's autoGenerate
+  //     effect): an empty recording must never produce a failure card. Also
+  //     covers a meeting deleted between the status write and this read.
+  if (!meeting || meeting.segments.length === 0) {
+    log.debug(`Auto-generation skipped for meeting ${meetingId}: no transcript segments`);
+    return;
+  }
+
+  // (b) Regeneration stays MANUAL. Deliberately includes a failure card — per
+  //     AI-RESIL.1 a failed brief is retried by the user's Regenerate button, it
+  //     is never auto-retried in a loop.
+  if (meeting.brief) {
+    log.debug(`Auto-generation skipped for meeting ${meetingId}: a brief already exists`);
+    return;
+  }
+
+  // (c) Availability check before any work: users with no AI configured get no
+  //     cards today because they never click Generate, and auto-firing must
+  //     preserve that. So a missing model is a silent skip here, NOT the "No AI
+  //     provider available" throw generateBrief would raise.
+  if (!(await resolveTaskModel('summarization'))) {
+    log.debug(`Auto-generation skipped for meeting ${meetingId}: no model resolves for summarization`);
+    return;
+  }
+
+  log.info(`Meeting ${meetingId} completed — generating brief and action items`);
+  const brief = await generateBriefShared(meetingId);
+
+  // Parity with the renderer flow, minus the failure case. A null brief means
+  // the meeting was deleted mid-generation (MEET-DEL.1); a failure card means
+  // generation failed or came back empty (AI-RESIL.1) — and AI-CTX.1(e) makes a
+  // failed generation abort the WHOLE run, never a partial one. Extracting
+  // action items from failure text would be garbage the twin already refuses to
+  // learn from (the brief dispatched with dispatch:false).
+  if (!brief || isFailedBriefText(brief.summary)) {
+    log.debug(`Auto action items skipped for meeting ${meetingId}: the brief did not generate successfully`);
+    return;
+  }
+
+  await generateActionItemsShared(meetingId);
+}
+
+// Self-register on module import. Only pushes a function reference — no DB/AI
+// work at import time — and ES-module caching guarantees exactly ONE
+// registration no matter how many importers, the same reasoning entityFactService
+// documents for its post-session hook. Boot-reached via ipc/meeting-intelligence.ts,
+// which the IPC registry already imports for the meetings:* channels. This
+// direction is the only possible one: meetingService cannot import this module
+// (this module imports IT), which is precisely why the seam is a registry.
+registerMeetingCompletedHook(ensurePostSessionGeneration);

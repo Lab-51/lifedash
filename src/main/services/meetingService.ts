@@ -20,6 +20,7 @@ import { getActiveMeetingId } from './recordingState';
 import { labelFor } from '../../shared/twin/factLabel';
 import type {
   Meeting,
+  MeetingStatus,
   MeetingBrief,
   ActionItem,
   MeetingWithTranscript,
@@ -35,6 +36,54 @@ const log = createLogger('MeetingService');
 
 /** Max fact labels returned by getMeetingDeleteImpact's preview. */
 const IMPACT_FACT_LABEL_PREVIEW_COUNT = 8;
+
+// ---------------------------------------------------------------------------
+// Meeting-completed hook seam (TWIN-LEARN.1)
+// ---------------------------------------------------------------------------
+// A recording that reaches 'completed' must ALWAYS get its post-session work
+// (brief, action items, twin learning) — whether or not the session page is ever
+// opened. The status transition inside updateMeeting is the one main-side seam
+// every completion path funnels through, but meetingIntelligenceService already
+// imports THIS module, so calling it directly would be a cycle. Same fix the
+// V3.4 learning modules use for the same problem: a tiny registry the consumer
+// self-registers with (see postSessionDispatcher + entityFactService).
+//
+// Contract, mirroring postSessionDispatcher's:
+//  - FIRE-AND-FORGET: updateMeeting never waits on a hook.
+//  - ERROR-ISOLATED: a hook that throws or rejects can NEVER fail or delay
+//    updateMeeting, and one failing hook never stops the others.
+//  - TRANSITION-ONLY: fires on prev !== 'completed' → 'completed', so a repeat
+//    write of the same status is a no-op at the seam itself.
+
+/** A meeting-completed hook, receiving the id of the meeting that just reached
+ *  'completed'. May be sync or async, and may throw/reject freely — the runner
+ *  below isolates it. */
+export type MeetingCompletedHook = (meetingId: string) => void | Promise<void>;
+
+const meetingCompletedHooks: MeetingCompletedHook[] = [];
+
+/** Register a hook to run when a meeting first reaches status 'completed'.
+ *  Registration order is the run order. */
+export function registerMeetingCompletedHook(hook: MeetingCompletedHook): void {
+  meetingCompletedHooks.push(hook);
+}
+
+/** Clear all registered meeting-completed hooks. Test-only — keeps suites isolated. */
+export function _resetMeetingCompletedHooks(): void {
+  meetingCompletedHooks.length = 0;
+}
+
+/** Runs every hook, isolating each one. NEVER rejects — which is what makes the
+ *  detached (un-awaited) call in updateMeeting safe. */
+async function runMeetingCompletedHooks(meetingId: string): Promise<void> {
+  for (const hook of meetingCompletedHooks) {
+    try {
+      await hook(meetingId);
+    } catch (err) {
+      log.error(`Meeting-completed hook failed for meeting ${meetingId}:`, err);
+    }
+  }
+}
 
 /** Thrown by deleteMeeting when the target meeting is the one currently being
  *  recorded — deleting it out from under an in-progress recording would pull the
@@ -198,18 +247,43 @@ function buildMeetingUpdateData(data: UpdateMeetingInput): Record<string, unknow
   return updateData;
 }
 
+/** The row values as they were BEFORE an update — the UPDATE's own `returning`
+ *  yields the new row only, so anything transition-shaped has to be read first.
+ *  Two consumers:
+ *   - projectId: detect a REAL project change (link / switch / unlink), which
+ *     drives link-time auto-push and a refresh broadcast (the Brain and
+ *     project-keyed boards only update on a data:changed event — a relink is
+ *     otherwise invisible to them).
+ *   - status: detect the transition into 'completed' that fires the
+ *     meeting-completed hooks (TWIN-LEARN.1).
+ *  Returns undefined without querying when the write touches neither field, so a
+ *  plain title/endedAt edit still costs exactly one statement, as before. */
+async function readPreviousMeetingState(
+  id: string,
+  data: UpdateMeetingInput,
+): Promise<{ projectId: string | null; status: MeetingStatus } | undefined> {
+  if (data.projectId === undefined && data.status === undefined) return undefined;
+  const db = getDb();
+  const [current] = await db
+    .select({ projectId: meetings.projectId, status: meetings.status })
+    .from(meetings)
+    .where(eq(meetings.id, id));
+  return current;
+}
+
+/** True only when this write is the moment the meeting FINISHED, never for a
+ *  repeat write of a status it already had (TWIN-LEARN.1). `previous` is
+ *  undefined when the update didn't read it, which is never a transition. */
+function isCompletionTransition(previous: { status: MeetingStatus } | undefined, nextStatus: MeetingStatus): boolean {
+  if (!previous) return false;
+  return previous.status !== 'completed' && nextStatus === 'completed';
+}
+
 export async function updateMeeting(id: string, data: UpdateMeetingInput): Promise<Meeting> {
   const db = getDb();
 
-  // Capture the current projectId BEFORE the update so we can detect a REAL
-  // project change (link / switch / unlink) and both drive link-time auto-push
-  // and broadcast a refresh (the Brain + project-keyed boards only update on a
-  // data:changed event — a relink is otherwise invisible to them).
-  let oldProjectId: string | null | undefined;
-  if (data.projectId !== undefined) {
-    const [current] = await db.select({ projectId: meetings.projectId }).from(meetings).where(eq(meetings.id, id));
-    oldProjectId = current?.projectId ?? null;
-  }
+  const previous = await readPreviousMeetingState(id, data);
+  const oldProjectId = data.projectId !== undefined ? (previous?.projectId ?? null) : undefined;
   const newlyLinked = data.projectId != null && oldProjectId === null;
 
   const updateData = buildMeetingUpdateData(data);
@@ -255,6 +329,15 @@ export async function updateMeeting(id: string, data: UpdateMeetingInput): Promi
   // accept-chip, agent tool, and Unassigned reassignment — they all funnel here.
   if (data.projectId !== undefined && data.projectId !== oldProjectId) {
     notifyDataChanged({ scope: 'projects', projectId: data.projectId ?? oldProjectId ?? undefined });
+  }
+
+  // TWIN-LEARN.1: the meeting just FINISHED. Fires only on the transition, and
+  // only after the row is persisted (a hook's first read must see 'completed').
+  // Detached on purpose — `void` marks it intentionally un-awaited, and
+  // runMeetingCompletedHooks never rejects, so stopRecording can neither be
+  // delayed nor failed by post-session generation.
+  if (isCompletionTransition(previous, row.status)) {
+    void runMeetingCompletedHooks(id);
   }
 
   return toMeeting(row);
