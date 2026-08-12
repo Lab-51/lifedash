@@ -1325,16 +1325,19 @@ textarea:focus {
    graph. Nothing above it is redefined or restyled, because this file is shared
    with the session Brain canvas, which must stay byte-identical this phase. */
 
-/* The graph's own ALWAYS-DARK surface, in BOTH app themes (explicit user
-   decision: glow and gradients only read on dark, and maintaining two visual
-   languages would be twice the surface to get wrong).
+/* The graph's own surface, now THEME-ADAPTIVE (TWIN-LIGHT.1, [2026-08-12] —
+   supersedes the single-theme [2026-08-05] TWIN-READ.1 decision to pin this
+   surface dark under both app themes; see DECISIONS.md). This block still
+   pins the DARK value set only, byte-identical to the declarations it
+   carried under that superseded decision.
 
    The palette variables are RE-PINNED FOR THIS SUBTREE ONLY — the same
-   mechanism `.on-accent-surface` above uses. That is what makes the decision
-   affordable: every var(--color-*) the canvas already referenced keeps
-   resolving, so in light theme the captions, the paint-order halo and the lane
-   borders take the dark-theme values that are legible on this surface instead
-   of inheriting the page's light ones. No component needs a theme branch. */
+   mechanism `.on-accent-surface` above uses, now with one value set per
+   theme instead of a single set applied unconditionally. That is what keeps
+   this a CSS-only change: every var(--color-*) the canvas already
+   references keeps resolving, so dark theme takes the values below and
+   light theme takes the additive `html.light .twin-graph-surface` block
+   immediately after this one. No component needs a theme branch. */
 .twin-graph-surface {
   color-scheme: dark;
   background: radial-gradient(115% 85% at 50% 0%, #101a2b 0%, #090e18 55%, #05070c 100%);
@@ -1354,6 +1357,52 @@ textarea:focus {
   --color-accent-subtle: #0a2d2d;
   --color-warm: #e8a33e;
   --color-primary-300: #6bfbf7;
+}
+
+/* Light theme's value set for the SAME subtree (TWIN-LIGHT.1, 2026-08-12) —
+   see the comment above this rule for the supersession and the mechanism.
+   `html.light .twin-graph-surface` (specificity 0,2,1) beats the bare
+   `.twin-graph-surface` above (0,1,0) on the same element, so every
+   variable listed below re-pins for light theme; properties this rule does
+   NOT list (border-width/style, border-radius) still fall through to the
+   dark rule's declarations, which is why only `border-color` is set here
+   rather than the full `border` shorthand.
+
+   All 13 variables are the app's OWN light palette, copied from
+   `html.design-modern.light` above (~119-159) — the canvas should read as
+   the SAME light theme, not a third one — with two deliberate,
+   canvas-tuned exceptions:
+     - the background is a WHITE-ANCHORED radial gradient (the user asked
+       for a white surface), keeping the dark rule's own gradient geometry
+       so depth-by-attenuation still has something to sit on; and
+     - `--color-primary-300` is `#0d9e9b` — this palette's own
+       `--color-primary-500`, the most saturated light-theme teal — rather
+       than a literal carry-over: on dark, `--color-primary-300` is the
+       BRIGHTEST cyan (`#6bfbf7`), the hub hue for the gradient start-stop
+       and the closed-hub dot fill (TwinMemoryRiverStructure.tsx), which
+       would all but vanish against white.
+
+   `--color-chrome: #ffffff` also flips the paint-order text halo (the
+   caption's knockout stroke) to match this surface's own chrome — correct
+   and deliberate, not an oversight. */
+html.light .twin-graph-surface {
+  color-scheme: light;
+  background: radial-gradient(115% 85% at 50% 0%, #ffffff 0%, #f8fafb 55%, #f0f4f8 100%);
+  border-color: #d1dce5;
+
+  --color-chrome: #ffffff;
+  --color-text-primary: #0a1628;
+  --color-text-secondary: #4a5568;
+  --color-text-muted: #94a3b8;
+  --color-border: #d1dce5;
+  --color-border-accent: #8ecfce;
+  --color-border-bright: #0d969433;
+  --color-accent: #0d9694;
+  --color-accent-dim: #5eadab;
+  --color-accent-muted: #b8e0df;
+  --color-accent-subtle: #e6f5f5;
+  --color-warm: #c47a1a;
+  --color-primary-300: #0d9e9b;
 }
 
 /* THE ONE SANCTIONED IDLE ANIMATION — a slow breath on the TWIN CORE node's

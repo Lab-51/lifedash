@@ -932,16 +932,20 @@ describe('TwinMemoryGraph — row titles', () => {
 // matters is that the renderer and globals.css agree on the same string.
 // ---------------------------------------------------------------------------
 describe('TwinMemoryGraph — synaptic visual language', () => {
-  it('gives the graph its own DARK surface — in the light theme exactly as in the dark one', () => {
+  it('carries its own scoped surface class in both themes — the per-theme palette lives in globals.css', () => {
     seedOpen();
     const { unmount } = renderGraph();
     expect(screen.getByTestId('twin-memory-graph-canvas')).toHaveClass('twin-graph-surface');
     unmount();
 
-    // The app's light theme is html.light (+ design-modern for the palette). The
-    // canvas keeps its own surface either way — glow and gradients only read on
-    // dark, and the class re-pins the dark palette for its whole subtree so the
-    // captions inside stay legible rather than inheriting the page's light ink.
+    // The app's light theme is html.light (+ design-modern for the palette).
+    // The canvas keeps the SAME scoped class in both themes (THEME-ADAPTIVE
+    // since TWIN-LIGHT.1, 2026-08-12) — only the VALUES that class re-pins
+    // differ per theme now, via the additive `html.light
+    // .twin-graph-surface` block in globals.css. Pinning the class-name
+    // literal here (see this describe block's own philosophy above) is
+    // still the right-sized assertion for a renderer test; the per-theme
+    // values are globals.css's own claim to keep, not this file's.
     document.documentElement.classList.add('light', 'design-modern');
     try {
       seedOpen();

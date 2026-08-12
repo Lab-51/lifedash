@@ -85,8 +85,9 @@
 // The canvas COMPOSES it and owns its gates; none of the geometry lives here
 // (synapticVisuals.ts, TwinMemoryDendrite.tsx, TwinMemorySoma.tsx). What this
 // file owns is the wiring the visuals cannot own themselves:
-//   * THE ALWAYS-DARK SURFACE, in both app themes — one class that re-pins the
-//     dark palette for this subtree, so nothing below needs a theme branch.
+//   * THE SURFACE, theme-adaptive since TWIN-LIGHT.1 — one class that
+//     re-pins the palette (one value set per theme, in globals.css) for
+//     this subtree, so nothing below needs a theme branch.
 //   * THE PER-FRAME PAINT of the dendrite ribbons AND their terminal dots. The
 //     terminal is a second element per edge, so it joins the same hot loop
 //     rather than being left to lag a whole settle behind its ribbon.
@@ -693,9 +694,10 @@ export default function TwinMemoryGraphCanvas({
       data-testid="twin-memory-graph-canvas"
       data-reduced-motion={reducedMotion}
       data-settled={settled}
-      // The graph's own ALWAYS-DARK surface, under both app themes. The class
-      // re-pins the dark palette for this subtree (see globals.css), which is
-      // what lets every var(--color-*) below stay theme-agnostic.
+      // The graph's own surface, theme-adaptive since TWIN-LIGHT.1. The
+      // class re-pins the palette for this subtree per app theme (see
+      // globals.css), which is what lets every var(--color-*) below stay
+      // theme-agnostic.
       className={`relative flex-1 min-h-0 overflow-hidden ${GRAPH_SURFACE_CLASS}`}
     >
       {hasNodes && (

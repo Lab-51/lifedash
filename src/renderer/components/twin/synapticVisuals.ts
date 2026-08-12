@@ -44,12 +44,16 @@ import type { TwinGraphEdgeKind } from '../../../shared/types';
 // SURFACE
 // ---------------------------------------------------------------------------
 
-/** The graph's own ALWAYS-DARK surface, in both app themes (explicit user
- *  decision). The class re-pins the dark palette for its whole subtree — the
- *  `.on-accent-surface` idiom already in globals.css — so every `var(--color-*)`
- *  the canvas already used keeps working and no component needs a light/dark
- *  branch. Glow and gradients only read on dark, and maintaining two visual
- *  languages would be twice the surface to get wrong. */
+/** The graph's own surface class — THEME-ADAPTIVE since TWIN-LIGHT.1
+ *  [2026-08-12] (supersedes the single-theme [2026-08-05] TWIN-READ.1
+ *  decision; see DECISIONS.md). The class re-pins the palette for its whole
+ *  subtree — the `.on-accent-surface` idiom already in globals.css — so
+ *  every `var(--color-*)` the canvas already used keeps working and no
+ *  component needs a light/dark branch. globals.css now carries ONE value
+ *  set per theme under this same class name (`.twin-graph-surface` for
+ *  dark, `html.light .twin-graph-surface` for light) rather than a single
+ *  set applied unconditionally, so this constant and its consumers are
+ *  unchanged. */
 export const GRAPH_SURFACE_CLASS = 'twin-graph-surface';
 
 // ---------------------------------------------------------------------------
