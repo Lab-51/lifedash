@@ -229,7 +229,51 @@ function checkCleanTree() {
 }
 
 /**
- * 8. Remote detection — identify owner/repo from origin URL.
+ * 8. package-lock.json version agrees with package.json.
+ *    The release flow bumps package.json (and CHANGELOG.md) and nothing bumps
+ *    the lockfile, so it silently falls behind by one every single release --
+ *    it had drifted two versions stale by v2.11.0 before anyone noticed.
+ *    This never corrupts a shipped artifact (electron-forge and the release
+ *    scripts read package.json), which is exactly why it goes unnoticed: the
+ *    only symptom is the repo quietly lying about what version it is, to
+ *    `npm ci` consumers and to anyone reading the lockfile.
+ *    Bump BOTH files in one step with:
+ *      npm version <new> --no-git-tag-version
+ *    which writes package.json and package-lock.json and does no git work.
+ */
+function checkLockfileVersion() {
+  const lockPath = path.join(ROOT, 'package-lock.json');
+  if (!fs.existsSync(lockPath)) {
+    skip('package-lock.json version (no lockfile)');
+    return;
+  }
+
+  const pkgVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8')).version;
+  const lock = JSON.parse(fs.readFileSync(lockPath, 'utf-8'));
+
+  // Both self-describing fields must agree; npm writes the second one too, and
+  // a hand-edit that fixes only the root leaves the lockfile internally split.
+  const selfEntry = lock.packages && lock.packages[''];
+  const fields = [
+    ['root .version', lock.version],
+    ["packages[''].version", selfEntry ? selfEntry.version : undefined],
+  ];
+  const stale = fields.filter(([, value]) => value !== pkgVersion);
+
+  if (stale.length === 0) {
+    pass(`package-lock.json version matches package.json (${pkgVersion})`);
+    return;
+  }
+
+  fail(`package-lock.json is out of sync with package.json (${pkgVersion})`);
+  for (const [field, value] of stale) {
+    console.log(`       ${field}: ${value === undefined ? '(missing)' : value}`);
+  }
+  console.log(`       fix: npm version ${pkgVersion} --no-git-tag-version --allow-same-version`);
+}
+
+/**
+ * 9. Remote detection — identify owner/repo from origin URL.
  */
 function checkRemote() {
   const result = tryExec('git remote get-url origin');
@@ -287,6 +331,7 @@ const ghPath = checkGhInstalled();
 checkGhAuth(ghPath);
 checkInnoSetup();
 checkCleanTree();
+checkLockfileVersion();
 checkRemote();
 
 // ---------------------------------------------------------------------------
