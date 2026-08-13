@@ -3,6 +3,13 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.11.0 — 2026-08-13
+- release: prep v2.11.0
+- feat(twin): a session is learned from even if its page is never opened — main-process auto-generation at the completion transition, plus the kept-fact provenance label nothing was reading
+- feat(twin): the memory graph surface follows the app theme — one additive html.light block, dark values byte-identical
+- docs(readme): current screenshot instead of the stale demo video, facts re-verified against v2.10.0
+- chore(repo): untrack internal PLAN-*.md planning docs from the public repo
+
 ## v2.10.0 — 2026-08-07
 - release: prep v2.10.0
 - feat(ai): a long meeting always gets a brief — context-budgeted prompts with a chunked map-reduce fallback; the first-use model pick now governs every chat task
