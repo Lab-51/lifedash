@@ -132,6 +132,7 @@ vi.mock('../briefLanguageSettings', () => ({ readBriefLanguageSetting: vi.fn(asy
 // ---------------------------------------------------------------------------
 
 import {
+  BRIEF_WRITER_PROMPT,
   ensurePostSessionGeneration,
   generateBriefShared,
   generateActionItemsShared,
@@ -286,15 +287,18 @@ function buildDb(opts: { previousStatus?: string; nextStatus?: string } = {}) {
   return { db, briefValues, actionValues };
 }
 
-/** The two system prompts are distinguishable by their opening line, so the
- *  provider spy can be counted per KIND of call — which is what "exactly one
- *  brief generation" has to mean when action extraction uses the same provider. */
+/** The two system prompts are distinguishable by their text, so the provider spy
+ *  can be counted per KIND of call — which is what "exactly one brief generation"
+ *  has to mean when action extraction uses the same provider. The brief marker is
+ *  the exported BRIEF_WRITER_PROMPT itself rather than a copied fragment of it, so
+ *  a rewrite of that prompt can never again silently blind this filter and turn a
+ *  passing suite red with an unexplained empty list (BRIEF-QUAL.2). */
 function generateCallsMatching(marker: string) {
   return vi
     .mocked(generate)
     .mock.calls.filter(([args]) => String((args as { system?: string } | undefined)?.system ?? '').includes(marker));
 }
-const briefCalls = () => generateCallsMatching('the meeting brief from authoritative structured notes');
+const briefCalls = () => generateCallsMatching(BRIEF_WRITER_PROMPT);
 const actionCalls = () => generateCallsMatching('meeting action item extractor');
 
 function deferred<T>() {

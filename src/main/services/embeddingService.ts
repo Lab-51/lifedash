@@ -46,6 +46,9 @@ import { registerPostSessionHook, type PostSessionContext } from './postSessionD
 import { getIsRecording } from './recordingState';
 import { createLogger } from './logger';
 import { BRIEF_FAILURE_SENTINEL, isFailedBriefText } from '../../shared/briefSentinel';
+import { structureToText } from '../../shared/utils/briefRecordText';
+import { parseStructureValue } from './briefRecordService';
+import type { MeetingStructure } from '../../shared/types/briefStructure';
 
 const log = createLogger('Embedding');
 
@@ -129,6 +132,30 @@ export function chunkTranscript(
       chunks.push(cur);
       cur = piece;
     } else cur += ' ' + piece;
+  }
+  if (cur) chunks.push(cur);
+  return chunks;
+}
+
+/**
+ * Group a structured, multi-line text (the brief's rendered notes — see
+ * `structureToText`) into ~`target`-char chunks WITHOUT ever splitting a LINE —
+ * chunk boundaries always fall on a line boundary. Lines are joined with `'\n'`,
+ * unlike {@link chunkTranscript} (which joins with a space and would weld the
+ * notes' markdown structure into an unreadable blob). Blank lines are dropped;
+ * an all-blank input yields `[]`. A single oversized line becomes its own chunk
+ * (still whole, never mid-line).
+ */
+export function chunkLines(text: string, target = TARGET_CHUNK_CHARS): string[] {
+  const lines = text.split('\n').filter((line) => line.trim().length > 0);
+  const chunks: string[] = [];
+  let cur = '';
+  for (const line of lines) {
+    if (cur === '') cur = line;
+    else if (cur.length + 1 + line.length > target) {
+      chunks.push(cur);
+      cur = line;
+    } else cur += '\n' + line;
   }
   if (cur) chunks.push(cur);
   return chunks;
@@ -389,7 +416,33 @@ export function enqueueCardEmbed(
   }
 }
 
-/** Build brief + transcript-chunk jobs for a finished session. */
+/**
+ * BRIEF-QUAL.2 Task 4: the record's rendered structure as `brief` notes chunks
+ * (chunkIndex 1..n), riding the SAME `entityId` as chunk 0's summary job — the
+ * multi-chunk `transcript_chunk` precedent, no schema change. `chunkLines`
+ * (never `chunkTranscript`, which joins with a space and would weld the notes'
+ * line structure into a blob) keeps each chunk a whole-line contiguous slice.
+ * A null structure, or one that renders to no content, naturally yields `[]`.
+ */
+function buildNotesJobs(
+  structure: MeetingStructure | null,
+  entityId: string,
+  meetingId: string,
+  projectId: string | null,
+): EmbedJob[] {
+  if (!structure) return [];
+  const notesJobs: EmbedJob[] = chunkLines(structureToText(structure)).map((content, i) => ({
+    entityType: 'brief',
+    entityId,
+    chunkIndex: i + 1,
+    content,
+    meetingId,
+    projectId,
+  }));
+  return notesJobs;
+}
+
+/** Build brief + notes-chunk + transcript-chunk jobs for a finished session. */
 async function buildSessionJobs(ctx: PostSessionContext): Promise<EmbedJob[]> {
   const db = getDb();
   const meetingId = ctx.meetingId;
@@ -408,9 +461,11 @@ async function buildSessionJobs(ctx: PostSessionContext): Promise<EmbedJob[]> {
       // index — it would pollute semantic search with error text instead of
       // real content. A later successful Regenerate re-indexes normally
       // (content-idempotent), so skipping it here loses nothing permanently.
+      // The notes chunks below are skipped too — a sentinel skips EVERYTHING.
       log.info(`Skipping embed for failed-brief content (meeting ${meetingId})`);
     } else {
       jobs.push({ entityType: 'brief', entityId: ctx.brief.id, chunkIndex: 0, content: summary, meetingId, projectId });
+      jobs.push(...buildNotesJobs(ctx.brief.structure, ctx.brief.id, meetingId, projectId));
     }
   }
 
@@ -447,6 +502,7 @@ async function collectBackfillJobs(db: DB): Promise<EmbedJob[]> {
     .select({
       id: meetingBriefs.id,
       summary: meetingBriefs.summary,
+      structure: meetingBriefs.structure,
       meetingId: meetingBriefs.meetingId,
       projectId: meetings.projectId,
     })
@@ -462,18 +518,20 @@ async function collectBackfillJobs(db: DB): Promise<EmbedJob[]> {
     if (isFailedBriefText(summary)) {
       // Same guard as buildSessionJobs above — a historical sentinel row
       // (pre Task 1, or a brief that is still in a failed state) must not be
-      // picked up by the backfill either.
+      // picked up by the backfill either (notes chunks skip with it).
       log.info(`Skipping backfill embed for failed-brief content (meeting ${r.meetingId})`);
       continue;
     }
+    const projectId = r.projectId ?? null;
     jobs.push({
       entityType: 'brief',
       entityId: r.id,
       chunkIndex: 0,
       content: summary,
       meetingId: r.meetingId,
-      projectId: r.projectId ?? null,
+      projectId,
     });
+    jobs.push(...buildNotesJobs(parseStructureValue(r.structure), r.id, r.meetingId, projectId));
   }
 
   // Cards — title + description, with the owning project. meetingId is null: a card

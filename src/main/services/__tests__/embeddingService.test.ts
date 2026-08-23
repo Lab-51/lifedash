@@ -7,6 +7,10 @@
 //   - content-hash idempotency: a re-run embeds nothing new,
 //   - model mismatch surfaces a non-blocking rebuild affordance (never mixes spaces),
 //   - a cloud route is used only on an explicit choice; unconfigured ⇒ graceful no-op.
+//   - BRIEF-QUAL.2 Task 4: a brief carrying a structure indexes chunk 0 (the
+//     summary, byte-identical to today) PLUS notes chunks 1..n (chunkLines over
+//     the rendered record), on the SAME entityId, on both the post-session and
+//     backfill paths — and the AI-RESIL.1 sentinel guard still skips everything.
 
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
@@ -16,6 +20,9 @@ import { vector } from '@electric-sql/pglite/vector';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { eq, and } from 'drizzle-orm';
+import { structureToText } from '../../../shared/utils/briefRecordText';
+import type { MeetingStructure } from '../../../shared/types/briefStructure';
+import { BRIEF_FAILURE_SENTINEL } from '../../../shared/briefSentinel';
 
 // ---------------------------------------------------------------------------
 // Mocks (declared before importing the module under test)
@@ -92,6 +99,50 @@ function embedEchoing(model: string) {
   }));
 }
 
+/**
+ * A validated (BRIEF-QUAL.1) structure fixture — all invented fixture text, no
+ * real meeting content. Large enough (several hundred chars per section) that
+ * its rendered notes comfortably exceed TARGET_CHUNK_CHARS (1000), so the
+ * wiring tests below exercise real multi-chunk packing, not just a single
+ * pass-through chunk.
+ */
+const SAMPLE_STRUCTURE: MeetingStructure = {
+  topics: [
+    {
+      title: 'Pricing tiers',
+      detail: 'Discussed the packaging change and how it affects the enterprise tier rollout timeline for next quarter',
+    },
+    {
+      title: 'Renewal timeline',
+      detail: 'Reviewed the Q4 renewal schedule and the risk of slipping past the fiscal year boundary this cycle',
+    },
+    {
+      title: 'Support escalation',
+      detail:
+        'Walked through the on-call rotation changes and the new escalation policy for the highest-severity issues',
+    },
+    {
+      title: 'Onboarding flow',
+      detail:
+        'Covered the revised onboarding checklist and the removal of the redundant welcome email step in the flow',
+    },
+  ],
+  decisions: [
+    {
+      statement: 'Adopt the new tier structure',
+      rationale: 'It better matches the usage patterns observed across the last two quarters of account activity',
+    },
+    {
+      statement: 'Delay the renewal reminder change',
+      rationale: 'The team wants more data before committing to the new cadence for outbound renewal notices',
+    },
+  ],
+  commitments: [{ owner: 'Priya', task: 'Draft the updated pricing page copy', due: 'Friday', explicit: true }],
+  openQuestions: ['Should the legacy tier be sunset entirely or grandfathered for existing accounts?'],
+  terms: ['ARR', 'sev-1'],
+  provenance: { provider: 'openai', model: 'gpt-x', passes: 1, extractedAt: '2026-08-01T00:00:00Z', schemaVersion: 1 },
+};
+
 async function seedProject(name = 'Proj'): Promise<string> {
   const [p] = await db.insert(projects).values({ name, sortOrder: 0 }).returning();
   return p.id;
@@ -121,8 +172,9 @@ async function seedTranscript(meetingId: string, content: string, startTime: num
   await db.insert(transcripts).values({ meetingId, content, startTime, endTime: startTime + 1000 });
 }
 
-async function seedBrief(meetingId: string, summary: string): Promise<string> {
-  const [b] = await db.insert(meetingBriefs).values({ meetingId, summary }).returning();
+/** `structure` is optional — omitted keeps every pre-Task-4 call site unchanged. */
+async function seedBrief(meetingId: string, summary: string, structure?: unknown): Promise<string> {
+  const [b] = await db.insert(meetingBriefs).values({ meetingId, summary, structure }).returning();
   return b.id;
 }
 
@@ -205,6 +257,55 @@ describe('chunkTranscript', () => {
 });
 
 // ---------------------------------------------------------------------------
+// chunkLines — BRIEF-QUAL.2 Task 4: line-structured notes, never chunkTranscript
+// ---------------------------------------------------------------------------
+
+describe('chunkLines', () => {
+  it('never splits a line — chunk boundaries fall on line boundaries', () => {
+    const a = 'A'.repeat(600);
+    const b = 'B'.repeat(600);
+    const c = 'C'.repeat(600);
+    const chunks = service.chunkLines(`${a}\n${b}\n${c}`, 1000);
+    // Each 600-char line can't share a 1000-char chunk with another → 3 chunks,
+    // each exactly one whole line, in input order.
+    expect(chunks).toEqual([a, b, c]);
+  });
+
+  it('packs multiple short lines into one chunk under the target, joined with \\n (not a space)', () => {
+    const chunks = service.chunkLines('hello\nworld', 1000);
+    expect(chunks).toEqual(['hello\nworld']); // '\n' join, NOT chunkTranscript's ' ' join
+  });
+
+  it('drops blank lines (including the blank line between structureToText sections)', () => {
+    const chunks = service.chunkLines('### Topics\n- one\n\n### Decisions\n- two', 1000);
+    expect(chunks).toEqual(['### Topics\n- one\n### Decisions\n- two']);
+  });
+
+  it('a single line longer than target becomes its own chunk (never split mid-line)', () => {
+    const short = 'short line';
+    const long = 'L'.repeat(1500); // longer than the 1000-char target
+    const chunks = service.chunkLines(`${short}\n${long}`, 1000);
+    expect(chunks).toEqual([short, long]); // long line is whole, never truncated or split
+    expect(chunks[1]).toHaveLength(1500);
+  });
+
+  it('an all-blank input yields no chunks', () => {
+    expect(service.chunkLines('', 1000)).toEqual([]);
+    expect(service.chunkLines('   \n\n  \n', 1000)).toEqual([]);
+  });
+
+  it('every chunk is a contiguous, whole-line sub-sequence of the input lines (no fragment, no loss, no reorder)', () => {
+    const lines = ['alpha', 'B'.repeat(700), 'C'.repeat(700), 'delta', 'epsilon'];
+    const chunks = service.chunkLines(lines.join('\n'), 1000);
+    // Reassembling every chunk's lines, in chunk order, must reproduce the exact
+    // input line sequence — proves no line was dropped, duplicated, or reordered,
+    // and (combined with the two tests above) that no line was ever fragmented.
+    const reassembled = chunks.flatMap((chunk) => chunk.split('\n'));
+    expect(reassembled).toEqual(lines);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Post-session hook — brief + transcript chunks
 // ---------------------------------------------------------------------------
 
@@ -236,6 +337,55 @@ describe('handlePostSession', () => {
       expect(r.entityId).toBe(meetingId);
       expect(r.embedding).toHaveLength(768);
     }
+  });
+
+  it('BRIEF-QUAL.2: a structure appends notes chunks 1..n on the SAME entityId, chunk 0 unchanged (byte-identical)', async () => {
+    const projectId = await seedProject();
+    const meetingId = await seedMeeting(projectId);
+    const briefId = randomUUID();
+    const summary = 'Acme is migrating billing to Stripe.';
+
+    await service.handlePostSession({
+      meetingId,
+      brief: { id: briefId, meetingId, summary, structure: SAMPLE_STRUCTURE, createdAt: '' },
+    });
+    await service.flushQueue();
+
+    const briefRows = await db.select().from(embeddings).where(eq(embeddings.entityType, 'brief'));
+    const chunk0 = briefRows.find((r) => r.chunkIndex === 0);
+    expect(chunk0).toBeDefined();
+    expect(chunk0!.content).toBe(summary); // byte-identical to today's summary job
+    expect(chunk0!.entityId).toBe(briefId);
+
+    const notesRows = briefRows.filter((r) => r.chunkIndex > 0).sort((a, b) => a.chunkIndex - b.chunkIndex);
+    expect(notesRows.length).toBeGreaterThanOrEqual(1); // n ≥ 1 notes chunks
+    // Exactly what chunkLines(structureToText(...)) produces — ties the wiring to
+    // the already-proven pure function instead of re-deriving packing here, and
+    // (by construction of chunkLines) proves every chunk is a contiguous,
+    // whole-line sub-sequence of the rendered record with nothing dropped.
+    expect(notesRows.map((r) => r.content)).toEqual(service.chunkLines(structureToText(SAMPLE_STRUCTURE)));
+    expect(notesRows.map((r) => r.chunkIndex)).toEqual(notesRows.map((_, i) => i + 1)); // 1..n, contiguous
+    for (const r of notesRows) {
+      expect(r.entityId).toBe(briefId); // the SAME entityId as chunk 0
+      expect(r.meetingId).toBe(meetingId);
+      expect(r.projectId).toBe(projectId);
+      expect(r.embedding).toHaveLength(768);
+    }
+  });
+
+  it('AI-RESIL.1: a failed-brief sentinel WITH a structure still skips everything (chunk 0 AND every notes chunk)', async () => {
+    const projectId = await seedProject();
+    const meetingId = await seedMeeting(projectId);
+    const briefId = randomUUID();
+
+    await service.handlePostSession({
+      meetingId,
+      brief: { id: briefId, meetingId, summary: BRIEF_FAILURE_SENTINEL, structure: SAMPLE_STRUCTURE, createdAt: '' },
+    });
+    await service.flushQueue();
+
+    expect(embed).not.toHaveBeenCalled();
+    expect(await countRows('brief')).toBe(0);
   });
 });
 
@@ -472,5 +622,58 @@ describe('backfill progress', () => {
     expect((await service.getEmbeddingStatus()).backfillDismissed).toBe(false);
     await service.dismissBackfill();
     expect((await service.getEmbeddingStatus()).backfillDismissed).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BRIEF-QUAL.2 Task 4 — the backfill mirrors the post-session notes-chunk expansion
+// ---------------------------------------------------------------------------
+
+describe('backfill mirrors the notes-chunk expansion', () => {
+  it('embeds brief chunk 0 + notes chunks 1..n for a historical brief that carries a structure', async () => {
+    const projectId = await seedProject();
+    const meetingId = await seedMeeting(projectId);
+    const summary = 'Acme is migrating billing to Stripe.';
+    const briefId = await seedBrief(meetingId, summary, SAMPLE_STRUCTURE);
+
+    await service.runBackfill();
+
+    const briefRows = await db.select().from(embeddings).where(eq(embeddings.entityType, 'brief'));
+    const chunk0 = briefRows.find((r) => r.chunkIndex === 0);
+    expect(chunk0).toBeDefined();
+    expect(chunk0!.content).toBe(summary); // byte-identical to today's summary job
+    expect(chunk0!.entityId).toBe(briefId);
+
+    const notesRows = briefRows.filter((r) => r.chunkIndex > 0).sort((a, b) => a.chunkIndex - b.chunkIndex);
+    expect(notesRows.length).toBeGreaterThanOrEqual(1);
+    expect(notesRows.map((r) => r.content)).toEqual(service.chunkLines(structureToText(SAMPLE_STRUCTURE)));
+    for (const r of notesRows) {
+      expect(r.entityId).toBe(briefId); // the SAME entityId as chunk 0
+      expect(r.meetingId).toBe(meetingId);
+      expect(r.projectId).toBe(projectId);
+    }
+  });
+
+  it('a historical brief with NO structure backfills to EXACTLY chunk 0 (mirrors the null-structure session path)', async () => {
+    const projectId = await seedProject();
+    const meetingId = await seedMeeting(projectId);
+    await seedBrief(meetingId, 'plain brief, no structure');
+
+    await service.runBackfill();
+
+    const briefRows = await db.select().from(embeddings).where(eq(embeddings.entityType, 'brief'));
+    expect(briefRows).toHaveLength(1);
+    expect(briefRows[0].chunkIndex).toBe(0);
+    expect(briefRows[0].content).toBe('plain brief, no structure');
+  });
+
+  it('a sentinel-prefixed historical brief WITH a structure is still skipped entirely by the backfill', async () => {
+    const projectId = await seedProject();
+    const meetingId = await seedMeeting(projectId);
+    await seedBrief(meetingId, BRIEF_FAILURE_SENTINEL, SAMPLE_STRUCTURE);
+
+    await service.runBackfill();
+
+    expect(await countRows('brief')).toBe(0);
   });
 });

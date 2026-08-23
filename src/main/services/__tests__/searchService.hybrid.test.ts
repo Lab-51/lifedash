@@ -16,6 +16,7 @@
 
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -175,6 +176,32 @@ async function seedCardEmbedding(
   });
 }
 
+/**
+ * Seed one `brief` embedding row directly (bypassing meetingBriefs — entityId
+ * has no FK, see schema). `entityId` is the brief's own id, shared across
+ * chunkIndex 0 (summary) and every notes chunk (chunkIndex 1..n — BRIEF-QUAL.2
+ * Task 4), so callers seeding a "chatty" meeting's multi-chunk brief pass the
+ * SAME entityId for every chunkIndex.
+ */
+async function seedBriefEmbedding(
+  entityId: string,
+  meetingId: string,
+  projectId: string | null,
+  chunkIndex: number,
+  content: string,
+  vec: number[],
+): Promise<void> {
+  await db.insert(embeddings).values({
+    entityType: 'brief',
+    entityId,
+    chunkIndex,
+    content,
+    embedding: vec,
+    meetingId,
+    projectId,
+  });
+}
+
 async function setIndexModel(model: string): Promise<void> {
   await db
     .insert(embeddingIndexMeta)
@@ -291,6 +318,44 @@ describe('search — hybrid RRF fusion', () => {
     expect(result.projects.some((p) => p.title === 'Roadmap Initiative')).toBe(true);
     // Projects have no embeddings → never semantic.
     expect(result.projects.every((p) => !p.semantic)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BRIEF-QUAL.2 Task 4 — brief-channel per-entity collapse, real cosine wiring.
+// The pure collapseByEntity contract (collapse-then-cut, k honoured after the
+// collapse) is unit-tested in searchService.test.ts; this proves the SQL
+// wiring (over-fetch + collapse) actually prevents the crowd-out against real
+// pgvector cosine distances, and that a multi-chunk brief never double-surfaces.
+// ---------------------------------------------------------------------------
+
+describe('search — brief channel: chatty-meeting crowd-out prevention (real cosine wiring)', () => {
+  it('a brief never appears more than once, and a chatty meeting cannot crowd a second meeting out of the channel', async () => {
+    const projectId = await seedProject('Notes-heavy');
+    const mChatty = await seedMeeting('Weekly sync one', projectId);
+    const mQuiet = await seedMeeting('Weekly sync two', projectId);
+    const chattyBriefId = randomUUID();
+    const quietBriefId = randomUUID();
+
+    // The chatty meeting's brief: chunk 0 (summary) + 9 notes chunks (Task 4),
+    // ALL at cosine distance 0 from the query — simulates one long meeting's
+    // fully-indexed record, every chunk sharing the SAME entity_id.
+    for (let i = 0; i < 10; i++) {
+      await seedBriefEmbedding(chattyBriefId, mChatty, projectId, i, `chatty chunk ${i}`, VEC_EXACT);
+    }
+    // A second, quiet meeting's brief: ONE chunk, strictly farther but still
+    // genuinely relevant. Under the pre-fix flat top-k LIMIT this row would
+    // never even be fetched — the chatty meeting's 10 exact-distance rows
+    // alone already fill (and exceed) the old k=8 limit before this one is seen.
+    await seedBriefEmbedding(quietBriefId, mQuiet, projectId, 0, 'quiet brief summary', VEC_NEAR);
+    await setIndexModel(INDEX_MODEL);
+
+    const result = await search('status update');
+
+    const chattyHits = result.sessions.filter((s) => s.id === mChatty);
+    const quietHits = result.sessions.filter((s) => s.id === mQuiet);
+    expect(chattyHits).toHaveLength(1); // 10 chunks of one brief never appear more than once
+    expect(quietHits).toHaveLength(1); // NOT crowded out by the chatty meeting's notes chunks
   });
 });
 

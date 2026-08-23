@@ -6,6 +6,12 @@
 // ALWAYS a bound parameter to websearch_to_tsquery, never string-concatenated
 // into the SQL text (checked against drizzle-orm's actual sql`` queryChunks
 // shape, not a guess).
+//
+// Also covers collapseByEntity (BRIEF-QUAL.2 Task 4) as a plain, DB-free unit:
+// the `brief` vector channel's per-entity collapse (best chunk per entity_id,
+// cut to k AFTER collapsing) that stops one chatty meeting's notes chunks from
+// crowding every other meeting's brief out of the top-k fetch. The REAL cosine
+// wiring (real PGlite) is proved in searchService.hybrid.test.ts.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
@@ -20,7 +26,7 @@ vi.mock('../../db/connection', () => ({ getDb: vi.fn() }));
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { search } from '../searchService';
+import { search, collapseByEntity } from '../searchService';
 import { getDb } from '../../db/connection';
 import { SNIPPET_HIGHLIGHT_START, SNIPPET_HIGHLIGHT_END } from '../../../shared/types/search';
 
@@ -220,5 +226,70 @@ describe('search', () => {
 
     expect(result.sessions[0].rank).toBe(0.42);
     expect(typeof result.sessions[0].rank).toBe('number');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// collapseByEntity (BRIEF-QUAL.2 Task 4) — brief-channel per-entity collapse
+// ---------------------------------------------------------------------------
+
+describe('collapseByEntity — brief-channel per-entity collapse before the top-k cut', () => {
+  /** A minimal distance-ascending vector row, shaped like the `brief` channel's
+   *  over-fetched SQL rows (entity_id present — only that channel selects it). */
+  function row(entityId: string, distance: number, meetingId = 'm1') {
+    return {
+      id: meetingId,
+      title: 'T',
+      project_id: null,
+      meeting_id: meetingId,
+      entity_id: entityId,
+      content: 'c',
+      distance,
+    };
+  }
+
+  it('collapses three rows sharing one entityId to ONE hit carrying the smallest distance', () => {
+    // Same entity three times — e.g. chunk 0's summary plus two notes chunks of
+    // one chatty meeting's brief. Rows arrive distance-ascending (the real SQL's
+    // ORDER BY distance), so the kept (first-seen) row is also the closest.
+    const rows = [row('brief-1', 0.1), row('brief-1', 0.2), row('brief-1', 0.3)];
+
+    const result = collapseByEntity(rows, 8);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].entity_id).toBe('brief-1');
+    expect(result[0].distance).toBe(0.1); // the smallest — first-seen under ascending input
+  });
+
+  it('a second entityId is still present alongside the first', () => {
+    const rows = [row('brief-1', 0.1), row('brief-1', 0.15), row('brief-2', 0.2)];
+
+    const result = collapseByEntity(rows, 8);
+
+    expect(result.map((r) => r.entity_id).sort()).toEqual(['brief-1', 'brief-2']);
+  });
+
+  it('honours k AFTER the collapse — an over-represented entity cannot crowd a second entity out before the cut', () => {
+    // Three rows for brief-1 occupy the closest three distances; a naive
+    // "cut to k first, collapse after" implementation would return ONLY
+    // brief-1 for k=2 (all three of its rows fall inside the top 2) — exactly
+    // the crowd-out bug this collapse exists to prevent.
+    const rows = [row('brief-1', 0.1), row('brief-1', 0.11), row('brief-1', 0.12), row('brief-2', 0.13)];
+
+    const result = collapseByEntity(rows, 2);
+
+    expect(result.map((r) => r.entity_id)).toEqual(['brief-1', 'brief-2']);
+  });
+
+  it('k still caps the collapsed result when more than k distinct entities remain', () => {
+    const rows = [row('brief-1', 0.1), row('brief-2', 0.2), row('brief-3', 0.3), row('brief-4', 0.4)];
+
+    const result = collapseByEntity(rows, 2);
+
+    expect(result.map((r) => r.entity_id)).toEqual(['brief-1', 'brief-2']);
+  });
+
+  it('an empty input yields an empty result', () => {
+    expect(collapseByEntity([], 8)).toEqual([]);
   });
 });

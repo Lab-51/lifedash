@@ -228,6 +228,31 @@ interface VecRow {
   distance: number | string;
 }
 
+/** A brief-channel row also carries its source `entity_id` (the brief row's own
+ *  id, shared by chunk 0's summary and every notes chunk — BRIEF-QUAL.2 Task 4)
+ *  so multiple chunks of the same brief can be collapsed before the top-k cut. */
+type BriefVecRow = VecRow & { entity_id: string };
+
+/**
+ * Keep the best-scoring (first, since `rows` arrive distance-ascending) row per
+ * source `entity_id`, then cut to `k`. Used ONLY for the `brief` channel: a
+ * single chatty meeting's notes chunks (chunkIndex 1..n, same `entity_id` as
+ * chunk 0's summary) must never fill the whole top-k fetch and crowd every
+ * other meeting's brief out before the downstream by-meeting merge ever runs.
+ * Exported for direct unit testing — no DB required. The `transcript_chunk` and
+ * `card` channels never call this (they have no multi-row-per-entity notes).
+ */
+export function collapseByEntity(rows: BriefVecRow[], k: number): VecRow[] {
+  const seen = new Set<string>();
+  const collapsed: BriefVecRow[] = [];
+  for (const row of rows) {
+    if (seen.has(row.entity_id)) continue;
+    seen.add(row.entity_id);
+    collapsed.push(row);
+  }
+  return collapsed.slice(0, k);
+}
+
 /** Read the model the index was built with (null when the index is empty). */
 async function readIndexModel(db: DB): Promise<string | null> {
   const res = await db.execute<{ model: string }>(sql`SELECT model FROM embedding_index_meta LIMIT 1`);
@@ -241,7 +266,10 @@ function toVectorLiteral(vec: number[]): string {
 
 /** Cosine top-`k` rows for one embedding entity type, joined to the owning
  *  meeting (brief/transcript) or card so each hit carries a display title. Card
- *  rows for archived cards are excluded, mirroring the FTS card query. */
+ *  rows for archived cards are excluded, mirroring the FTS card query. The
+ *  `brief` channel over-fetches (3×k) and collapses to the best chunk per
+ *  source entity before cutting to k (see {@link collapseByEntity}); the
+ *  `transcript_chunk` and card queries are unchanged. */
 async function cosineEntityRows(
   db: DB,
   lit: string,
@@ -259,6 +287,18 @@ async function cosineEntityRows(
       LIMIT ${k}
     `);
     return res.rows;
+  }
+  if (entityType === 'brief') {
+    const res = await db.execute<BriefVecRow>(sql`
+      SELECT e.meeting_id AS id, m.title AS title, NULL AS project_id, e.meeting_id AS meeting_id,
+        e.entity_id AS entity_id, e.content AS content, e.embedding <=> ${lit}::vector AS distance
+      FROM embeddings e
+      JOIN meetings m ON m.id = e.meeting_id
+      WHERE e.entity_type = 'brief'
+      ORDER BY distance
+      LIMIT ${k * 3}
+    `);
+    return collapseByEntity(res.rows, k);
   }
   const res = await db.execute<VecRow>(sql`
     SELECT e.meeting_id AS id, m.title AS title, NULL AS project_id, e.meeting_id AS meeting_id,

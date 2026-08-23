@@ -32,6 +32,42 @@
 // Neither pin can therefore be passing vacuously. Do NOT edit FITS_SEGMENTS,
 // makeMeeting or EXTRACTED_STRUCTURE without repeating that procedure.
 //
+// PIN RE-CAPTURE (BRIEF-QUAL.2, 2026-08-23). BRIEF_FINGERPRINT_PIN moved again,
+// and it was the ONLY pin that moved: BRIEF_WRITER_PROMPT was rewritten from a
+// shape mandate into a judgment pass, while the USER prompt this file pins
+// literally did not change one byte. That asymmetry is itself evidence —
+// BRIEF_PROMPT_PIN, ACTION_PROMPT_PIN and ACTION_FINGERPRINT_PIN all passed with
+// no edit, so nothing outside the writer's system prompt moved. Re-captured by
+// RUNNING the new prompt over this same fixture, then PROVEN non-vacuous:
+//
+//   * production `You write` -> `You writes` (the first two words of
+//     BRIEF_WRITER_PROMPT) => BRIEF_FINGERPRINT_PIN failed on the digest while
+//     BRIEF_PROMPT_PIN (a user-prompt literal, correctly blind to a system-prompt
+//     edit) passed; reverted => the fingerprint passes again.
+//
+// PIN RE-CAPTURE (BRIEF-QUAL.2 Task 1b, 2026-08-23). BRIEF_PROMPT_PIN moved for
+// the first time since BRIEF-QUAL.1, and BRIEF_FINGERPRINT_PIN moved with it,
+// because the notes LABEL in the writer's USER prompt dropped its completeness
+// mandate: `Structured notes (authoritative — every item must appear):` became
+// `Structured notes (authoritative — the complete record of the meeting):`. The
+// mandate was the one instruction still fighting the judgment pass the system
+// prompt had just become, and it sat in the half of the request Task 1 could not
+// touch without moving this pin.
+//
+// That pair also settled EMPIRICALLY what Task 1 left open — whether this digest
+// covers the USER prompt or only the system prompt. It covers BOTH: with
+// BRIEF_PROMPT_PIN alone re-captured and BRIEF_WRITER_PROMPT byte-identical, the
+// fingerprint STILL failed (6d55875c -> afebe7da), so the only changed input was
+// the user prompt. Fresh mutation proofs, run after the re-capture:
+//
+//   * production `the complete record of the meeting` -> `the complete records of
+//     the meeting` (the notes label) => BRIEF_PROMPT_PIN failed on the literal;
+//     reverted => it passes again.
+//   * production `You write` -> `You writes` (BRIEF_WRITER_PROMPT) => the digest
+//     failed while BRIEF_PROMPT_PIN passed, the system half of the same
+//     fingerprint; reverted => it passes again.
+//
+// ACTION_PROMPT_PIN and ACTION_FINGERPRINT_PIN did not move in either task.
 // Mocking style follows meetingIntelligenceService.briefFailure.test.ts (same
 // file under test); 'electron' is mocked only because promptBudget.ts reaches
 // llamaRuntimeConfig.ts for the REAL builtin --ctx-size, and that module imports
@@ -381,7 +417,7 @@ describe('BRIEF-QUAL.1 — a transcript that fits is assembled byte-identically'
     '\n' +
     'Meeting: Quarterly Planning\n' +
     '\n' +
-    'Structured notes (authoritative — every item must appear):\n' +
+    'Structured notes (authoritative — the complete record of the meeting):\n' +
     '{\n' +
     '  "topics": [\n' +
     '    {\n' +
@@ -430,7 +466,7 @@ describe('BRIEF-QUAL.1 — a transcript that fits is assembled byte-identically'
   /** sha256 of `system + '\0' + prompt`, same fixture. Covers the WRITER system
    *  prompt too, which is far too long to pin inline without burying the test —
    *  the twin-baseline assertion below states what that system prompt IS. */
-  const BRIEF_FINGERPRINT_PIN = '38b6778f8f6dc0182f670dad3c75f63f817ba16eb5b032bcff2dbe899cbb5b57';
+  const BRIEF_FINGERPRINT_PIN = 'afebe7dab9ec9707fb79ae98b92a91a33a772144d207be4522021a08e1f100ae';
 
   const ACTION_PROMPT_PIN =
     'Meeting: Quarterly Planning\n' +
@@ -528,7 +564,7 @@ describe('BRIEF-QUAL.1 — a transcript that overflows the window is extracted i
 
     // The writer works from the notes, and — because this transcript cannot fit
     // the built-in window — from the notes ALONE.
-    expect(calls[0].prompt).toContain('Structured notes (authoritative — every item must appear):');
+    expect(calls[0].prompt).toContain('Structured notes (authoritative — the complete record of the meeting):');
     expect(calls[0].prompt).toContain('Push the beta to April');
     expect(calls[0].prompt).not.toContain('Transcript:');
     expect(calls[0].prompt).not.toContain('lorem ipsum');

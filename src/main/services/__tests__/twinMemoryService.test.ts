@@ -64,6 +64,7 @@ import {
   restoreFact,
   backfillFactLabels,
   learningPostSessionHook,
+  buildExtractionContext,
 } from '../twinMemoryService';
 import { resolveTaskModel } from '../ai-provider';
 import { generateValidated } from '../twinResearchService';
@@ -333,6 +334,95 @@ describe('extractFacts — extraction routing + inputs', () => {
     expect(opts.context).toContain('Q3 billing migration brief.'); // the brief
     expect(opts.context).toContain('Adopt Stripe'); // accepted live suggestion
     expect(opts.context).toContain('Sarah leads billing'); // exclusion list of existing active facts
+  });
+
+  it('BRIEF-QUAL.2: threads the record structure into the context as a Full notes block', async () => {
+    setDb({
+      settings: [],
+      meetingBriefs: [
+        {
+          summary: 'Acme is migrating billing to Stripe.',
+          structure: {
+            topics: [{ title: 'Pricing tiers', detail: 'Discussed the new packaging' }],
+            decisions: [],
+            commitments: [],
+            openQuestions: [],
+            terms: [],
+            provenance: { provider: 'openai', model: 'gpt-x', passes: 1, extractedAt: 'x', schemaVersion: 1 },
+          },
+        },
+      ],
+      liveSuggestions: [],
+      twinFacts: [],
+    });
+
+    await extractFacts(MEETING_ID);
+
+    const opts = vi.mocked(generateValidated).mock.calls[0][0];
+    expect(opts.context).toContain('Full notes (the complete record behind the brief):');
+    expect(opts.context).toContain('Pricing tiers'); // a topic the narrative summary never mentioned
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildExtractionContext (BRIEF-QUAL.2 Task 3) — brief-first, full notes fill
+// only the remaining room. The null-structure case must stay byte-identical to
+// the function's shape from before this task, forever.
+// ---------------------------------------------------------------------------
+
+describe('buildExtractionContext — BRIEF-QUAL.2 full notes', () => {
+  const briefSummary = 'Acme is migrating billing to Stripe.';
+  const accepted = [{ type: 'decision', title: 'Adopt Stripe', description: 'Team agreed' }];
+  const knownFacts = ['Sarah leads billing'];
+
+  it('is byte-identical to the pre-Task-3 shape when there is no structure (notes empty)', () => {
+    // Reproduced verbatim from this function's pre-BRIEF-QUAL.2 body (the exact
+    // three-block shape it had before this task touched it) — the frozen
+    // baseline the new `notes` parameter must never disturb when empty.
+    const pinnedPreChangeOutput = [
+      `Meeting brief:\n${briefSummary}`,
+      'Confirmed live during the meeting:\n- [decision] Adopt Stripe: Team agreed',
+      'Already known (do NOT repeat these):\n- Sarah leads billing',
+    ].join('\n\n');
+
+    expect(buildExtractionContext(briefSummary, accepted, knownFacts)).toBe(pinnedPreChangeOutput);
+    expect(buildExtractionContext(briefSummary, accepted, knownFacts, '')).toBe(pinnedPreChangeOutput);
+  });
+
+  it('inserts the Full notes block AFTER "Meeting brief:" and BEFORE "Confirmed live…" when a structure exists', () => {
+    const notes = '### Topics\n- Pricing tiers — discussed the new packaging';
+    const context = buildExtractionContext(briefSummary, accepted, knownFacts, notes);
+
+    const briefIdx = context.indexOf('Meeting brief:');
+    const notesIdx = context.indexOf('Full notes (the complete record behind the brief):');
+    const confirmedIdx = context.indexOf('Confirmed live during the meeting:');
+
+    expect(briefIdx).toBeGreaterThanOrEqual(0);
+    expect(notesIdx).toBeGreaterThan(briefIdx);
+    expect(confirmedIdx).toBeGreaterThan(notesIdx);
+    expect(context).toContain(notes);
+  });
+
+  it('trims an oversized record at a line boundary with the marker, keeps "Already known" complete, and stays ≤ 6000 total', () => {
+    // A huge topic list — comfortably larger than the whole 6000-char budget on its own.
+    const hugeNotes = Array.from({ length: 400 }, (_, i) => `- Topic number ${i} with some detail text`).join('\n');
+    const context = buildExtractionContext(briefSummary, accepted, knownFacts, hugeNotes);
+
+    expect(context).toContain('[full notes truncated]');
+    expect(context).toContain('Already known (do NOT repeat these):\n- Sarah leads billing'); // still complete, never cut
+    // MAX_EXTRACTION_CONTEXT_CHARS (6000) — the trailing .slice() backstop in
+    // extractFacts is a NO-OP here: fitNotesWithinBudget already self-limited.
+    expect(context.length).toBeLessThanOrEqual(6000);
+  });
+
+  it('drops the Full notes block entirely when nothing of the record fits (never a bare fragment)', () => {
+    // "Today" content alone is already within a hair of the budget, so there is
+    // no room left for even one notes line plus the marker.
+    const hugeBrief = 'x'.repeat(5990);
+    const context = buildExtractionContext(hugeBrief, [], [], 'one line of notes that will not fit');
+
+    expect(context).not.toContain('Full notes');
+    expect(context).not.toContain('[full notes truncated]');
   });
 });
 

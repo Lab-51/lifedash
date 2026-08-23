@@ -114,6 +114,7 @@ import { ensureUnassignedProject } from '../unassignedProjectService';
 import { resolvePrimaryBoardId } from '../autoPushService';
 import { notifyDataChanged } from '../dataChangeNotifier';
 import { buildProfileContext } from '../twinProfileService';
+import type { MeetingStructure } from '../../../shared/types/briefStructure';
 
 // ---------------------------------------------------------------------------
 // buildTranscriptWindow
@@ -321,6 +322,18 @@ function makeMeeting(projectId: string | null) {
     endedAt: null,
   };
 }
+
+/** A small validated structure (BRIEF-QUAL.2) — shared by the grounding tests
+ *  below that prove the record's Full notes surface a topic the narrative
+ *  summary never mentioned. */
+const STRUCTURE: MeetingStructure = {
+  topics: [{ title: 'Pricing tiers', detail: 'Discussed the new packaging' }],
+  decisions: [],
+  commitments: [],
+  openQuestions: [],
+  terms: [],
+  provenance: { provider: 'openai', model: 'gpt-x', passes: 1, extractedAt: 'x', schemaVersion: 1 },
+};
 
 const BOARD_TOOL_NAMES = ['listBoards', 'listColumnCards', 'moveCard', 'getProjectStats', 'searchProjectCards'];
 
@@ -568,6 +581,25 @@ describe('getMeetingContext — own brief vs other meetings briefs', () => {
     expect(result).not.toHaveProperty('priorBriefs');
   });
 
+  it("BRIEF-QUAL.2: returns the record (brief + Full notes) when this meeting's brief carries a structure", async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting('proj-1') as never);
+    mockProjectName('Platform');
+    vi.mocked(getBrief).mockResolvedValue({
+      id: 'b1',
+      meetingId: 'm1',
+      summary: 'We set Q3 hiring goals.',
+      structure: STRUCTURE,
+      createdAt: new Date().toISOString(),
+    });
+    vi.mocked(fetchPriorBriefs).mockResolvedValue([]);
+
+    const result = (await runContextTool()) as Record<string, unknown>;
+
+    expect(result.brief).toContain('We set Q3 hiring goals.');
+    expect(result.brief).toContain('## Full notes');
+    expect(result.brief).toContain('Pricing tiers'); // demoted from the narrative, still present in the record
+  });
+
   it('returns brief: null cleanly when this meeting has no brief yet', async () => {
     vi.mocked(getMeeting).mockResolvedValue(makeMeeting('proj-1') as never);
     mockProjectName('Platform');
@@ -611,7 +643,11 @@ describe('getMeetingContext — own brief vs other meetings briefs', () => {
 describe('buildMeetingGroundingBlock', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  function mockMeetingWithBrief(summary: string | null, projectName: string | null = 'Platform') {
+  function mockMeetingWithBrief(
+    summary: string | null,
+    projectName: string | null = 'Platform',
+    structure: MeetingStructure | null = null,
+  ) {
     vi.mocked(getMeeting).mockResolvedValue(makeMeeting(projectName ? 'proj-1' : null) as never);
     vi.mocked(getDb).mockReturnValue({
       select: vi.fn(() => ({
@@ -619,9 +655,7 @@ describe('buildMeetingGroundingBlock', () => {
       })),
     } as never);
     vi.mocked(getBrief).mockResolvedValue(
-      summary === null
-        ? null
-        : { id: 'b1', meetingId: 'm1', summary, structure: null, createdAt: new Date().toISOString() },
+      summary === null ? null : { id: 'b1', meetingId: 'm1', summary, structure, createdAt: new Date().toISOString() },
     );
   }
 
@@ -668,6 +702,25 @@ describe('buildMeetingGroundingBlock', () => {
 
     expect(block).toContain(BRIEF_TRUNCATION_MARKER);
     expect(block.length).toBeLessThan(long.length);
+    expect(block).toContain(`Brief:\n${'x'.repeat(MEETING_BRIEF_INJECTION_CHAR_CAP)}\n${BRIEF_TRUNCATION_MARKER}`);
+  });
+
+  it('BRIEF-QUAL.2: includes the Full notes record and a topic the summary omitted when the brief carries a structure', async () => {
+    mockMeetingWithBrief('We set Q3 hiring goals.', 'Platform', STRUCTURE);
+
+    const block = (await buildMeetingGroundingBlock('m1'))!;
+
+    expect(block).toContain('## Full notes');
+    expect(block).toContain('Pricing tiers'); // demoted from the narrative, still present in the record
+  });
+
+  it('BRIEF-QUAL.2: the cap still truncates with the marker when the combined brief + notes record exceeds it', async () => {
+    const long = 'x'.repeat(MEETING_BRIEF_INJECTION_CHAR_CAP + 500);
+    mockMeetingWithBrief(long, 'Platform', STRUCTURE);
+
+    const block = (await buildMeetingGroundingBlock('m1'))!;
+
+    expect(block).toContain(BRIEF_TRUNCATION_MARKER);
     expect(block).toContain(`Brief:\n${'x'.repeat(MEETING_BRIEF_INJECTION_CHAR_CAP)}\n${BRIEF_TRUNCATION_MARKER}`);
   });
 

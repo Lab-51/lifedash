@@ -48,47 +48,56 @@ const log = createLogger('MeetingIntelligence');
 // Prompt Templates
 // ---------------------------------------------------------------------------
 
-// BRIEF-QUAL.1: the brief is WRITTEN from briefExtractionService's validated
-// structure, not summarized from the transcript. Everything the old
-// BASE_SUMMARIZATION_PROMPT had to defend against — omitted topics, merged
-// bullets, invented owners — is now the extraction pass's problem, so this prompt
-// only has to render. Deliberately carries NO few-shot example: the old
-// 30-minute-meeting sample was an implicit length anchor that shrank real
-// (longer) meetings toward its own size. The structured notes ARE the example.
+// BRIEF-QUAL.2: the writer is a JUDGMENT pass, not a renderer. Completeness
+// belongs to the RECORD — briefExtractionService's validated structure, persisted
+// on meeting_briefs.structure and shown beside the brief as full notes — so the
+// writer may now leave a topic or a detail out. BRIEF-QUAL.1 dictated how many
+// bullets, in what order and in what shape, and that everything had to appear;
+// the model obeyed, so every side topic got a padded bullet — the same defect as
+// the caps it replaced, sign flipped, because both dictated SHAPE over PURPOSE.
+// Rule-based "Also discussed" tiering and "earned detail" rules were proposed and
+// REJECTED — do not reintroduce them.
 //
-// Written for the WEAKEST tier LifeDash ships with (the built-in Qwen3-4B at
-// --ctx-size 16384): short, imperative, no reliance on long reasoning, and NO
-// bullet or word caps anywhere — a cap is an instruction to drop something the
-// extraction pass was explicitly told to keep.
+// What is NOT judgment: every decision and every commitment still appears, and
+// the truth constraints stay hard rules — never invent an owner, a date or a
+// number, keep names and terms exactly, an owner only where the record marks it
+// explicit. Judgment is about what to INCLUDE, never about what is TRUE.
+//
+// Still NO few-shot (the old 30-minute sample was an implicit length anchor), NO
+// cap of any kind, and still ONE prompt for every tier down to the built-in
+// Qwen3-4B at --ctx-size 16384, where it is expected to degrade flatter — never
+// dishonestly, because the truth constraints and the complete record both stay.
 //
 // Exported for direct assertion (the same reason mergeActionDescriptions and
 // buildSuppressionInstruction are): SPEC 255's twin baseline says that with no
 // profile the system prompt must BE this string, and only an equality check can
 // say that.
-export const BRIEF_WRITER_PROMPT = `You write the meeting brief from authoritative structured notes. The notes are the complete record of the meeting: everything in them was said, and anything missing from them was not.
+export const BRIEF_WRITER_PROMPT = `You write the meeting brief from structured notes. The notes are the complete record of the meeting: everything in them was said, and anything missing from them was not. The full notes are kept and shown next to the brief, so leaving something out of the brief loses nothing.
 
-Write these sections, in this order:
+Write for someone who was not in the meeting and has two minutes: what the meeting was for, what changed, what was decided, who owes what by when, and what is still unresolved. You decide what matters. A detail — a condition, a rationale, a number — belongs in the brief only when it changes what the reader should expect or do. Small talk, logistics and passing mentions do not belong in the brief. When a reader profile precedes these instructions, weigh relevance to that reader.
+
+Sections, in this order (omit a section that would be empty):
 
 ## Summary
-2-4 sentences: what the meeting was for and where it landed.
+A short paragraph: what the meeting was for and where it landed.
 
 ## Key Points
-One bullet per topic in the notes, in the order the notes list them. Each bullet carries its own detail — the condition, the rationale or the number. The shape is "X — because/so that Y".
+What mattered, in the order that reads best. Write each point as one clear sentence; add its condition, rationale or number only when it matters.
 
 ## Decisions
-One bullet per decision: the statement, then its rationale when the notes give one.
+Every decision in the notes, with its rationale when the notes give one.
 
 ## Follow-ups
-Group the commitments by owner. Write one "### <Owner>" heading per person, in the order the participants are listed, followed by that person's commitments. Commitments with no owner, or whose owner the notes do not mark as explicit, go under a "### Unassigned" heading placed LAST. Write each commitment as "- task (due)" when a due is known, otherwise "- task".
+Every commitment in the notes, grouped by owner: one "### <Owner>" heading per person, in the order the participants are listed. Commitments with no owner, or whose owner the notes do not mark as explicit, go under a "### Unassigned" heading placed LAST. Write each as "- task (due)" when a due is known, otherwise "- task".
 
 ## Open Questions
-One bullet per open question.
+The questions that still need an answer.
 
 Rules:
-- Every topic, decision, commitment and question in the notes MUST appear in the brief. Never merge two distinct items into one bullet.
+- Every decision and every commitment in the notes appears in the brief. Never merge two decisions or two commitments into one.
+- A condition on a decision or a commitment ("only if", "unless", a deadline) is never a detail to drop — keep it.
 - Never invent an owner, a date or a number. If the notes do not say it, do not write it.
 - Keep names, terms, numbers and dates exactly as they appear in the notes.
-- Omit a section entirely when the notes have nothing for it — except ## Key Points, which is always written.
 - Output markdown only. No preamble, no closing remarks, no code fence.`;
 
 /** The meeting template's own hint, for ALL SIX templates — MEETING_TEMPLATES is
@@ -865,9 +874,9 @@ function formatStructureNotes(structure: MeetingStructure): string {
  * via the unchanged assembleBriefUserPrompt.
  *
  * WHY send the transcript at all when the notes are authoritative: it lets a
- * strong model recover nuance and exact wording. Completeness does not depend on
- * it — the structure guarantees that on either path — so it is the FIRST thing
- * dropped when the window is tight.
+ * strong model recover nuance and exact wording. The RECORD's completeness does
+ * not depend on it — the extraction pass guarantees that on either path — so the
+ * transcript is the FIRST thing dropped when the window is tight.
  *
  * The fit gate is applied to the ASSEMBLED prompt rather than to the core alone,
  * which is strictly stronger: the prep briefing and the confirmed-live preamble
@@ -888,7 +897,7 @@ async function buildWriterUserPrompt(
   structure: MeetingStructure,
 ): Promise<string> {
   const budget = promptCharBudget(provider);
-  const notesCore = `Meeting: ${meeting.title}\n\nStructured notes (authoritative — every item must appear):\n${formatStructureNotes(structure)}`;
+  const notesCore = `Meeting: ${meeting.title}\n\nStructured notes (authoritative — the complete record of the meeting):\n${formatStructureNotes(structure)}`;
   const withTranscript = `${notesCore}\n\nTranscript:\n${formatTranscript(meeting.segments)}`;
 
   const full = await assembleBriefUserPrompt(meeting, projectId, withTranscript, budget, systemPrompt.length);

@@ -352,7 +352,7 @@ describe('generateBrief — the writer works from the structure', () => {
 
     const [call] = generateCalls();
     expect(generateCalls()).toHaveLength(1); // extraction is mocked: ONE writer call
-    const notesAt = call.prompt.indexOf('Structured notes (authoritative — every item must appear):');
+    const notesAt = call.prompt.indexOf('Structured notes (authoritative — the complete record of the meeting):');
     const transcriptAt = call.prompt.indexOf('Transcript:');
     expect(notesAt).toBeGreaterThanOrEqual(0);
     expect(transcriptAt).toBeGreaterThan(notesAt); // notes FIRST, transcript after
@@ -368,7 +368,7 @@ describe('generateBrief — the writer works from the structure', () => {
     await generateBrief(MEETING_ID);
 
     const [call] = generateCalls();
-    expect(call.prompt).toContain('Structured notes (authoritative — every item must appear):');
+    expect(call.prompt).toContain('Structured notes (authoritative — the complete record of the meeting):');
     expect(call.prompt).toContain('"Push the beta to April"');
     expect(call.prompt).not.toContain('Transcript:');
     expect(call.prompt).not.toContain('lorem ipsum');
@@ -404,7 +404,27 @@ describe('generateBrief — follow-ups are grouped by owner', () => {
     expect(BRIEF_WRITER_PROMPT).not.toMatch(/maximum/i);
     expect(BRIEF_WRITER_PROMPT).not.toMatch(/at most/i);
     expect(BRIEF_WRITER_PROMPT).not.toMatch(/\bno more than\b/i);
-    expect(BRIEF_WRITER_PROMPT).toContain('MUST appear in the brief');
+    // BRIEF-QUAL.2: and no SHAPE mandate either. Dictating how many bullets, in
+    // what order and in what shape is the same defect as a cap with the sign
+    // flipped — the model obeys, so every side topic earns a padded bullet.
+    expect(BRIEF_WRITER_PROMPT).not.toContain('MUST appear in the brief');
+    expect(BRIEF_WRITER_PROMPT).not.toContain('One bullet per topic');
+    expect(BRIEF_WRITER_PROMPT).not.toContain('in the order the notes list them');
+    expect(BRIEF_WRITER_PROMPT).not.toMatch(/because\/so that/);
+  });
+
+  it('states the reader, the judgment and what to leave out', () => {
+    expect(BRIEF_WRITER_PROMPT).toContain('has two minutes');
+    expect(BRIEF_WRITER_PROMPT).toContain('You decide what matters');
+    expect(BRIEF_WRITER_PROMPT).toContain('only when it changes what the reader should expect or do');
+    expect(BRIEF_WRITER_PROMPT).toContain('Small talk, logistics and passing mentions do not belong in the brief');
+  });
+
+  it('decisions and commitments are the one completeness rule left', () => {
+    expect(BRIEF_WRITER_PROMPT).toContain('Every decision and every commitment in the notes appears in the brief');
+    expect(BRIEF_WRITER_PROMPT).toContain('Never merge two decisions or two commitments into one');
+    // A condition is never "detail" the judgment pass may drop.
+    expect(BRIEF_WRITER_PROMPT).toContain('is never a detail to drop');
   });
 
   it('passes the roster to the model in roster order, spelling included', async () => {

@@ -11,6 +11,7 @@ import '@testing-library/jest-dom';
 import BriefSection from '../BriefSection';
 import { useMeetingStore } from '../../stores/meetingStore';
 import type { MeetingBrief } from '../../../shared/types';
+import type { MeetingStructure } from '../../../shared/types/briefStructure';
 
 function makeBrief(summary: string): MeetingBrief {
   return { id: 'brief-1', meetingId: 'meeting-1', summary, structure: null, createdAt: new Date().toISOString() };
@@ -118,5 +119,111 @@ describe('BriefSection — participants-edited Regenerate hint', () => {
       <BriefSection meetingId="meeting-1" brief={brief} isCompleted generatingBrief={false} onGenerate={() => {}} />,
     );
     expect(screen.queryByText(/participants changed/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('Full notes (BRIEF-QUAL.2)', () => {
+  beforeEach(() => {
+    useMeetingStore.setState({ briefErrors: {}, participantsEditedAfterBrief: {} });
+  });
+
+  // Invented content only — no real meeting text (memory feedback_no_real_meeting_data).
+  const PROVENANCE = {
+    provider: 'lmstudio',
+    model: 'qwen3-4b-instruct',
+    passes: 1,
+    extractedAt: '2026-02-14T09:30:00.000Z',
+    schemaVersion: 1 as const,
+  };
+
+  function makeStructuredBrief(overrides: Partial<MeetingStructure> = {}): MeetingBrief {
+    const structure: MeetingStructure = {
+      topics: [{ title: 'Greenhouse irrigation retrofit', detail: 'Drip lines swap to the north field first.' }],
+      decisions: [{ statement: 'Push the retrofit to next quarter', rationale: 'Parts are back-ordered' }],
+      commitments: [{ owner: 'Talia Osei', task: 'Confirm the parts delivery window', due: 'Monday', explicit: true }],
+      openQuestions: ['Who approves the vendor change?'],
+      terms: ['drip line'],
+      provenance: PROVENANCE,
+      ...overrides,
+    };
+    return {
+      id: 'brief-structured',
+      meetingId: 'meeting-1',
+      summary: '## Summary\nRetrofit timeline discussed.',
+      structure,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  it('renders a collapsed details element with the counts label when the brief carries a structure', () => {
+    const { container } = render(
+      <BriefSection
+        meetingId="meeting-1"
+        brief={makeStructuredBrief()}
+        isCompleted
+        generatingBrief={false}
+        onGenerate={() => {}}
+      />,
+    );
+    const details = container.querySelector('details');
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute('open');
+    expect(screen.getByText('Full notes · 1 topic · 1 decision · 1 commitment · 1 question')).toBeInTheDocument();
+  });
+
+  it('lists every topic title, decision statement and commitment task of the fixture', () => {
+    render(
+      <BriefSection
+        meetingId="meeting-1"
+        brief={makeStructuredBrief()}
+        isCompleted
+        generatingBrief={false}
+        onGenerate={() => {}}
+      />,
+    );
+    expect(screen.getByText(/Greenhouse irrigation retrofit/)).toBeInTheDocument();
+    expect(screen.getByText(/Push the retrofit to next quarter/)).toBeInTheDocument();
+    expect(screen.getByText(/Confirm the parts delivery window/)).toBeInTheDocument();
+  });
+
+  it('renders an explicit: false commitment owner as unassigned', () => {
+    const brief = makeStructuredBrief({
+      commitments: [{ owner: 'Talia Osei', task: 'Confirm the parts delivery window', due: null, explicit: false }],
+    });
+    render(
+      <BriefSection meetingId="meeting-1" brief={brief} isCompleted generatingBrief={false} onGenerate={() => {}} />,
+    );
+    expect(screen.getByText(/Confirm the parts delivery window — unassigned/)).toBeInTheDocument();
+  });
+
+  it('does not leak the extraction provenance into the rendered text', () => {
+    const { container } = render(
+      <BriefSection
+        meetingId="meeting-1"
+        brief={makeStructuredBrief()}
+        isCompleted
+        generatingBrief={false}
+        onGenerate={() => {}}
+      />,
+    );
+    expect(container.textContent).not.toContain(PROVENANCE.provider);
+    expect(container.textContent).not.toContain(PROVENANCE.model);
+    expect(container.textContent).not.toContain(PROVENANCE.extractedAt);
+  });
+
+  it('renders no details element at all when structure is null', () => {
+    const legacy = makeBrief('## Summary\nNo structure on this legacy brief.');
+    const { container } = render(
+      <BriefSection meetingId="meeting-1" brief={legacy} isCompleted generatingBrief={false} onGenerate={() => {}} />,
+    );
+    expect(container.querySelector('details')).toBeNull();
+  });
+
+  it('renders no details element when the structure is all-empty', () => {
+    const empty = makeStructuredBrief({ topics: [], decisions: [], commitments: [], openQuestions: [], terms: [] });
+    const { container } = render(
+      <BriefSection meetingId="meeting-1" brief={empty} isCompleted generatingBrief={false} onGenerate={() => {}} />,
+    );
+    expect(container.querySelector('details')).toBeNull();
   });
 });

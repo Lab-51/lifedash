@@ -4,10 +4,14 @@
 // or a generate button for completed meetings without a brief.
 //
 // === DEPENDENCIES ===
-// react, lucide-react (Loader2, Sparkles), MeetingBrief type
+// react, lucide-react (Loader2, Sparkles), MeetingBrief type, ./briefLines (the
+// shared line renderer, BRIEF-QUAL.2), ./BriefFullNotes (the "Full notes"
+// disclosure, BRIEF-QUAL.2)
 
 import { AlertTriangle, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
+import { renderLine } from './briefLines';
+import BriefFullNotes from './BriefFullNotes';
 import type { MeetingBrief } from '../../shared/types';
 
 interface BriefSectionProps {
@@ -38,62 +42,6 @@ function formatBriefDate(dateStr: string): string {
   })}`;
 }
 
-/** Exact-prefix match for the chunked-extraction footer line (BRIEF-QUAL.1
- *  Task 3 emits it only when the transcript needed multiple summarization
- *  passes) — anything else stays a regular paragraph. */
-function isSummarizedFooter(trimmed: string): boolean {
-  return trimmed.startsWith('_Summarized in ') && trimmed.endsWith('_');
-}
-
-/** Render a single line of the brief summary based on its prefix. Stays
- *  heading-agnostic by design (BRIEF-QUAL.1 Task 4) — every existing `## ` /
- *  `- ` / plain-text brief in the DB must render byte-for-byte identically, so
- *  those three branches are untouched; only `### ` (owner sub-headings) and the
- *  footer line are new. */
-function renderLine(line: string, idx: number) {
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-
-  if (trimmed.startsWith('### ')) {
-    return (
-      <h5 key={idx} className="font-medium text-xs text-surface-600 dark:text-surface-400 mt-2 mb-0.5">
-        {trimmed.slice(4)}
-      </h5>
-    );
-  }
-
-  if (trimmed.startsWith('## ')) {
-    return (
-      <h4 key={idx} className="font-semibold text-surface-800 dark:text-surface-200 mt-3 mb-1">
-        {trimmed.slice(3)}
-      </h4>
-    );
-  }
-
-  if (trimmed.startsWith('- ')) {
-    return (
-      <p key={idx} className="ml-4 text-surface-700 dark:text-surface-300 text-sm">
-        <span className="mr-1.5">&bull;</span>
-        {trimmed.slice(2)}
-      </p>
-    );
-  }
-
-  if (isSummarizedFooter(trimmed)) {
-    return (
-      <p key={idx} className="text-xs text-surface-500 mt-2 italic">
-        {trimmed.slice(1, -1)}
-      </p>
-    );
-  }
-
-  return (
-    <p key={idx} className="text-surface-700 dark:text-surface-300 text-sm">
-      {trimmed}
-    </p>
-  );
-}
-
 /** The rendered brief body once one exists — summary lines, generated-at date,
  *  and the Regenerate control (with the participants-edited hint, BRIEF-QUAL.1
  *  Task 4). Split out purely to keep BriefSection's own cyclomatic complexity
@@ -110,6 +58,7 @@ function BriefContent({
   return (
     <div className="hud-panel rounded-lg p-3">
       <div className="overflow-hidden break-words">{brief.summary.split('\n').map(renderLine)}</div>
+      {brief.structure && <BriefFullNotes structure={brief.structure} />}
       <div className="flex items-center justify-between mt-3 gap-2">
         <p className="text-xs text-surface-500">{formatBriefDate(brief.createdAt)}</p>
         <div className="flex items-center gap-2">

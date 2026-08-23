@@ -78,6 +78,7 @@ import {
   mineFactsForSession,
   entityFactPostSessionHook,
   buildTranscriptExcerpt,
+  buildBriefBlockText,
   NO_MODEL_ERROR_MESSAGE,
 } from '../entityFactService';
 import { getDb } from '../../db/connection';
@@ -86,6 +87,7 @@ import { generateValidated } from '../twinResearchService';
 import { getMeeting } from '../meetingService';
 import { dispatchPostSession } from '../postSessionDispatcher';
 import type { MeetingBrief } from '../../../shared/types';
+import type { MeetingStructure } from '../../../shared/types/briefStructure';
 
 const ENTITY_ID = 'e1';
 const MEETING_ID = 'm1';
@@ -542,6 +544,30 @@ describe('mineFactsForMeeting', () => {
     expect(context).toContain('Speaker 1: We agreed Dana owns pricing.');
     expect(context).not.toContain('TRUNCATED');
   });
+
+  it('BRIEF-QUAL.2: threads the record structure into the brief block as Full notes', async () => {
+    fx.briefsByMeeting = {
+      [MEETING_ID]: [
+        {
+          summary: 'Dana Lee owns the pricing decision.',
+          structure: {
+            topics: [{ title: 'Pricing tiers', detail: 'Discussed the new packaging' }],
+            decisions: [],
+            commitments: [],
+            openQuestions: [],
+            terms: [],
+            provenance: { provider: 'openai', model: 'gpt-x', passes: 1, extractedAt: 'x', schemaVersion: 1 },
+          },
+        },
+      ],
+    };
+
+    await mineFactsForMeeting(MEETING_ID, [DANA], PROVIDER as never);
+
+    const { context } = vi.mocked(generateValidated).mock.calls[0][0];
+    expect(context).toContain('## Full notes');
+    expect(context).toContain('Pricing tiers'); // a topic the narrative summary never mentioned
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -620,6 +646,51 @@ describe('buildTranscriptExcerpt', () => {
 
   it('still returns the newest portion when a single line exceeds the whole budget', () => {
     expect(buildTranscriptExcerpt(['short', 'x'.repeat(50)], 10)).toEqual({ text: 'x'.repeat(10), truncated: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildBriefBlockText (BRIEF-QUAL.2 Task 3) — the "Meeting brief:" block text.
+// The null-structure case must stay byte-identical to the pre-Task-3 slice
+// forever; notes are a bounded second input that never crowds out the
+// transcript (BRIEF_CHAR_BUDGET = 2000 rarely admits them for a long meeting —
+// see the HONEST NOTE in this task's report).
+// ---------------------------------------------------------------------------
+
+describe('buildBriefBlockText', () => {
+  const SMALL_STRUCTURE: MeetingStructure = {
+    topics: [{ title: 'Pricing tiers', detail: 'Discussed the new packaging' }],
+    decisions: [],
+    commitments: [],
+    openQuestions: [],
+    terms: [],
+    provenance: { provider: 'openai', model: 'gpt-x', passes: 1, extractedAt: 'x', schemaVersion: 1 },
+  };
+
+  it('is byte-identical to the pre-Task-3 shape when there is no structure', () => {
+    const summary = 'Dana Lee owns the pricing decision.';
+    expect(buildBriefBlockText(summary, null)).toBe(summary);
+  });
+
+  it('appends a "## Full notes" sub-block when the brief is short and the structure is small', () => {
+    const summary = 'Dana Lee owns the pricing decision.';
+
+    const result = buildBriefBlockText(summary, SMALL_STRUCTURE);
+
+    expect(result).toContain(summary);
+    expect(result).toContain('## Full notes');
+    expect(result).toContain('Pricing tiers'); // a topic the narrative summary never mentioned
+  });
+
+  it('drops the notes and slices EXACTLY as before when the summary alone already fills the budget', () => {
+    const BUDGET = 2000; // mirrors entityFactService's BRIEF_CHAR_BUDGET (frozen this phase)
+    const longSummary = 'x'.repeat(BUDGET + 500);
+
+    const result = buildBriefBlockText(longSummary, SMALL_STRUCTURE);
+
+    expect(result).toBe(longSummary.slice(0, BUDGET));
+    expect(result).not.toContain('## Full notes');
+    expect(result.length).toBe(BUDGET);
   });
 });
 

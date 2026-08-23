@@ -29,12 +29,15 @@
 // point refetching.
 //
 // === DEPENDENCIES ===
-// drizzle-orm, db/connection (getDb), db/schema (settings/twinFacts/meetingBriefs/
+// drizzle-orm, db/connection (getDb), db/schema (settings/twinFacts/
 // liveSuggestions), ai-provider (resolveTaskModel), twinResearchService
 // (generateValidated — the shared extraction helper), dataChangeNotifier
 // (notifyDataChanged), postSessionDispatcher (registerPostSessionHook), shared
 // twin types, meetingService (getMeeting — MEET-DEL.1 existence recheck),
-// db/errors (isForeignKeyViolation — MEET-DEL.1 FK-violation classification).
+// db/errors (isForeignKeyViolation — MEET-DEL.1 FK-violation classification),
+// briefRecordService (loadLatestBriefRecord/fitNotesWithinBudget — BRIEF-QUAL.2
+// Task 3, the shared "brief + full notes" read path), shared briefRecordText
+// (structureToText — renders the record's structure into the notes block).
 //
 // === MEET-DEL.1: deleted-meeting race absorption ===
 // extractFacts's own insert is guarded twice: a fresh getMeeting() check right
@@ -48,7 +51,7 @@
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db/connection';
-import { settings, twinFacts, meetingBriefs, liveSuggestions } from '../db/schema';
+import { settings, twinFacts, liveSuggestions } from '../db/schema';
 import { createLogger } from './logger';
 import { resolveTaskModel, type ResolvedProvider } from './ai-provider';
 import { generateValidated } from './twinResearchService';
@@ -56,6 +59,8 @@ import { notifyDataChanged } from './dataChangeNotifier';
 import { registerPostSessionHook, type PostSessionHook } from './postSessionDispatcher';
 import { getMeeting } from './meetingService';
 import { isForeignKeyViolation } from '../db/errors';
+import { loadLatestBriefRecord, fitNotesWithinBudget } from './briefRecordService';
+import { structureToText } from '../../shared/utils/briefRecordText';
 import { TWIN_LEARNING_PAUSED_SETTING_KEY } from '../../shared/types/twin';
 import type {
   TwinFact,
@@ -224,17 +229,6 @@ function dedupeFacts(candidates: ExtractedFact[], existingKnown: string[]): Dedu
 // Source-material loaders (pure DB reads — the distilled inputs to extraction)
 // ---------------------------------------------------------------------------
 
-/** The most recent brief summary for the session (the distilled input). */
-async function loadBriefSummary(db: Db, meetingId: string): Promise<string> {
-  const [row] = await db
-    .select({ summary: meetingBriefs.summary })
-    .from(meetingBriefs)
-    .where(eq(meetingBriefs.meetingId, meetingId))
-    .orderBy(desc(meetingBriefs.createdAt))
-    .limit(1);
-  return row?.summary ?? '';
-}
-
 /** Suggestions the user ACCEPTED live during the meeting (already model-routed —
  *  the consent-consistent, distilled second input; NOT the raw transcript). */
 async function loadAcceptedSuggestions(db: Db, meetingId: string): Promise<AcceptedItem[]> {
@@ -260,9 +254,33 @@ async function loadForgottenFactStrings(db: Db): Promise<string[]> {
   return rows.map((r) => r.fact);
 }
 
-/** Assemble the bounded extraction context from the distilled inputs + the
- *  do-not-repeat exclusion list. Returns '' when there is no source material. */
-function buildExtractionContext(briefSummary: string, accepted: AcceptedItem[], knownFacts: string[]): string {
+/** Header for the record's rendered structure (BRIEF-QUAL.2) — the block label
+ *  carries the meaning, so EXTRACTION_SYSTEM above needs no wording change. */
+const FULL_NOTES_BLOCK_HEADER = 'Full notes (the complete record behind the brief):\n';
+const BLOCK_SEPARATOR = '\n\n';
+
+/**
+ * Assemble the bounded extraction context from the distilled inputs + the
+ * do-not-repeat exclusion list. Exported for direct unit testing — the
+ * null-structure (`notes: ''`) case must stay byte-identical to before
+ * BRIEF-QUAL.2 Task 3 forever.
+ *
+ * `notes` (BRIEF-QUAL.2 — the brief's record, rendered via
+ * briefRecordText.structureToText; '' when the brief has no structure) is
+ * inserted as its own block right after "Meeting brief:" and before "Confirmed
+ * live…", so the record's completeness survives even where the writer judged a
+ * minor topic out of the narrative. It is fitted to whatever room remains
+ * after today's other blocks (fitNotesWithinBudget, cut only at a `\n`
+ * boundary) and dropped entirely when nothing fits — the brief's own synthesis
+ * always wins the budget first. Returns '' when there is no source material at
+ * all.
+ */
+export function buildExtractionContext(
+  briefSummary: string,
+  accepted: AcceptedItem[],
+  knownFacts: string[],
+  notes = '',
+): string {
   const blocks: string[] = [];
   const brief = briefSummary.trim();
   if (brief) blocks.push(`Meeting brief:\n${brief}`);
@@ -275,7 +293,15 @@ function buildExtractionContext(briefSummary: string, accepted: AcceptedItem[], 
   if (knownFacts.length > 0) {
     blocks.push(`Already known (do NOT repeat these):\n${knownFacts.map((f) => `- ${f}`).join('\n')}`);
   }
-  return blocks.join('\n\n');
+
+  if (notes) {
+    const todayLength = blocks.join(BLOCK_SEPARATOR).length;
+    const reserved = FULL_NOTES_BLOCK_HEADER.length + 2 * BLOCK_SEPARATOR.length;
+    const fitted = fitNotesWithinBudget(notes, MAX_EXTRACTION_CONTEXT_CHARS - todayLength - reserved);
+    if (fitted) blocks.splice(brief ? 1 : 0, 0, `${FULL_NOTES_BLOCK_HEADER}${fitted}`);
+  }
+
+  return blocks.join(BLOCK_SEPARATOR);
 }
 
 // ---------------------------------------------------------------------------
@@ -301,12 +327,14 @@ export async function extractFacts(meetingId: string): Promise<ExtractFactsResul
     if (!provider) return { status: 'skipped', reason: 'no-model', facts: [] };
 
     const db = getDb();
-    const [briefSummary, accepted] = await Promise.all([
-      loadBriefSummary(db, meetingId),
+    const [briefRecord, accepted] = await Promise.all([
+      loadLatestBriefRecord(db, meetingId),
       loadAcceptedSuggestions(db, meetingId),
     ]);
-    if (!briefSummary.trim() && accepted.length === 0) {
-      // Nothing distilled to learn from (no brief, nothing accepted live).
+    if (!briefRecord.summary.trim() && accepted.length === 0) {
+      // Nothing distilled to learn from (no brief, nothing accepted live). A
+      // record cannot exist without a successful brief, so this check alone
+      // still covers the "no material at all" case.
       return { status: 'skipped', reason: 'failed', facts: [] };
     }
 
@@ -314,7 +342,10 @@ export async function extractFacts(meetingId: string): Promise<ExtractFactsResul
     // dedupe. Forgotten facts feed the dedupe ONLY — so a Forgotten fact is neither
     // re-learned nor re-disclosed to the model.
     const [existingActive, forgotten] = await Promise.all([loadActiveFactStrings(db), loadForgottenFactStrings(db)]);
-    const context = buildExtractionContext(briefSummary, accepted, existingActive).slice(
+    // BRIEF-QUAL.2: the record's rendered structure, brief-first — see
+    // buildExtractionContext's own doc comment for the budget/placement rules.
+    const notes = briefRecord.structure ? structureToText(briefRecord.structure) : '';
+    const context = buildExtractionContext(briefRecord.summary, accepted, existingActive, notes).slice(
       0,
       MAX_EXTRACTION_CONTEXT_CHARS,
     );

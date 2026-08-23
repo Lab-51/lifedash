@@ -34,12 +34,14 @@
 //
 // === DEPENDENCIES ===
 // drizzle-orm, zod, db/connection (getDb), db/schema (entities/entityLinks/
-// entityFacts/meetings/meetingBriefs/transcripts), ai-provider (resolveTaskModel),
+// entityFacts/meetings/transcripts), ai-provider (resolveTaskModel),
 // twinResearchService (generateValidated), twinMemoryService (isLearningPaused),
 // entityService (listMeetingEntities/normalizeEntityName), postSessionDispatcher,
 // shared twin types (EntityFact, AnalyzeEntityHistoryResult), meetingService
 // (getMeeting — MEET-DEL.1 existence recheck), db/errors (isForeignKeyViolation —
-// MEET-DEL.1 FK-violation classification).
+// MEET-DEL.1 FK-violation classification), briefRecordService
+// (loadLatestBriefRecord/fitNotesWithinBudget — BRIEF-QUAL.2 Task 3), shared
+// briefRecordText (structureToText — renders the record's structure).
 //
 // === MEET-DEL.1: deleted-meeting race absorption ===
 // mineFactsForMeeting's own insert is guarded twice: a fresh getMeeting() check
@@ -53,7 +55,7 @@
 import { asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db/connection';
-import { entities, entityFacts, entityLinks, meetingBriefs, meetings, transcripts } from '../db/schema';
+import { entities, entityFacts, entityLinks, meetings, transcripts } from '../db/schema';
 import { createLogger } from './logger';
 import { resolveTaskModel, type ResolvedProvider } from './ai-provider';
 import { generateValidated } from './twinResearchService';
@@ -62,7 +64,10 @@ import { listMeetingEntities, normalizeEntityName, type LinkedEntity } from './e
 import { registerPostSessionHook, type PostSessionHook } from './postSessionDispatcher';
 import { getMeeting } from './meetingService';
 import { isForeignKeyViolation } from '../db/errors';
+import { loadLatestBriefRecord, fitNotesWithinBudget } from './briefRecordService';
+import { structureToText } from '../../shared/utils/briefRecordText';
 import type { EntityFact, AnalyzeEntityHistoryResult } from '../../shared/types/twin';
+import type { MeetingStructure } from '../../shared/types/briefStructure';
 
 const log = createLogger('EntityFacts');
 
@@ -132,17 +137,6 @@ interface MinedFact {
 // ---------------------------------------------------------------------------
 // Source-material loaders (pure DB reads)
 // ---------------------------------------------------------------------------
-
-/** The most recent brief summary for the session (the distilled second input). */
-async function loadBriefSummary(db: Db, meetingId: string): Promise<string> {
-  const [row] = await db
-    .select({ summary: meetingBriefs.summary })
-    .from(meetingBriefs)
-    .where(eq(meetingBriefs.meetingId, meetingId))
-    .orderBy(desc(meetingBriefs.createdAt))
-    .limit(1);
-  return row?.summary ?? '';
-}
 
 /** The session's transcript as chronological "Speaker: text" lines. */
 async function loadTranscriptLines(db: Db, meetingId: string): Promise<string[]> {
@@ -230,16 +224,43 @@ async function loadEntityMeetingIds(db: Db, entityId: string): Promise<string[]>
 // Context building + candidate selection
 // ---------------------------------------------------------------------------
 
-/** The bounded mining context: who to look for, the brief, the newest transcript. */
+/** Header for the "## Full notes" sub-block appended to the brief when its
+ *  record's structure fits the remaining room (BRIEF-QUAL.2). */
+const FULL_NOTES_HEADER = '\n\n## Full notes\n';
+
+/**
+ * The "Meeting brief:" block text — exported for direct unit testing (the
+ * null-structure case must stay byte-identical to before BRIEF-QUAL.2 Task 3
+ * forever). Null structure, OR a summary that alone already fills
+ * `BRIEF_CHAR_BUDGET`: the summary sliced to budget, EXACTLY as before — no
+ * notes appended, since none would fit anyway. Otherwise: the summary plus a
+ * "## Full notes" sub-block fitted to whatever budget room is left, dropped
+ * entirely when nothing of the record fits. `''` when even the summary is
+ * empty (today's block-omission behavior, preserved).
+ */
+export function buildBriefBlockText(summary: string, structure: MeetingStructure | null): string {
+  const trimmed = summary.trim();
+  if (!structure || trimmed.length > BRIEF_CHAR_BUDGET) {
+    return trimmed.slice(0, BRIEF_CHAR_BUDGET);
+  }
+  const notesBudget = BRIEF_CHAR_BUDGET - trimmed.length - FULL_NOTES_HEADER.length;
+  const fitted = fitNotesWithinBudget(structureToText(structure), notesBudget);
+  return fitted ? `${trimmed}${FULL_NOTES_HEADER}${fitted}` : trimmed;
+}
+
+/** The bounded mining context: who to look for, the brief (+ full notes when
+ *  they fit), the newest transcript. The brief is a bounded second input — it
+ *  never crowds out the transcript, which stays this extractor's main input. */
 function buildMiningContext(
   targets: LinkedEntity[],
-  briefSummary: string,
+  summary: string,
+  structure: MeetingStructure | null,
   excerpt: { text: string; truncated: boolean },
 ): string {
   const blocks: string[] = [
     `Entities to extract facts about (use these exact names):\n${targets.map((e) => `- ${e.name} (${e.kind})`).join('\n')}`,
   ];
-  const brief = briefSummary.trim().slice(0, BRIEF_CHAR_BUDGET);
+  const brief = buildBriefBlockText(summary, structure);
   if (brief) blocks.push(`Meeting brief:\n${brief}`);
   if (excerpt.text) {
     const header = excerpt.truncated
@@ -304,13 +325,18 @@ export async function mineFactsForMeeting(
   const db = getDb();
   // Sequential DB reads (no Promise.all anywhere in this service — the history path
   // must never run model calls concurrently, and one rule is easier to verify).
-  const briefSummary = await loadBriefSummary(db, meetingId);
+  const briefRecord = await loadLatestBriefRecord(db, meetingId);
   const lines = await loadTranscriptLines(db, meetingId);
-  if (!briefSummary.trim() && lines.length === 0) {
+  if (!briefRecord.summary.trim() && lines.length === 0) {
     return { status: 'skipped', reason: 'no-material', newFacts: 0 };
   }
 
-  const context = buildMiningContext(targets, briefSummary, buildTranscriptExcerpt(lines));
+  const context = buildMiningContext(
+    targets,
+    briefRecord.summary,
+    briefRecord.structure,
+    buildTranscriptExcerpt(lines),
+  );
   const parsed = await generateValidated({
     provider,
     taskType: 'twin_learning',

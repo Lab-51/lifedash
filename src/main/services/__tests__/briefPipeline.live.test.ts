@@ -46,6 +46,14 @@
 // wrongOwners === 0 on EVERY tier. Writer recall is REPORTED only — the plan's
 // acceptance gate is on the structure (AI-CTX.1 (h): the live suite measures
 // models, it does not get to grade itself down to whatever a weak tier produces).
+//
+// Since BRIEF-QUAL.2 the writer's reported recall is EXPECTED to sit below 1.0 by
+// design: the writer judges which topics and which details are worth the reader's
+// two minutes, and the record it left out is kept and shown as full notes. Read
+// the two numbers separately — writerRecall(topics) below 1.0 is the feature
+// working, while writerRecall(decisions) and writerRecall(commitments) should
+// still be ≈ 1.0, because completeness for those two never moved. A low
+// decisions/commitments recall is a real regression; a low topics recall is not.
 
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import type { Mock } from 'vitest';
@@ -209,7 +217,7 @@ describe.runIf(LIVE)('brief pipeline — LIVE eval against a real model', () => 
         openQuestions: structure.openQuestions,
         terms: structure.terms,
       };
-      const writerPrompt = `Meeting: ${MEETING_TITLE}\n\nStructured notes (authoritative — every item must appear):\n${JSON.stringify(notes)}`;
+      const writerPrompt = `Meeting: ${MEETING_TITLE}\n\nStructured notes (authoritative — the complete record of the meeting):\n${JSON.stringify(notes)}`;
 
       const writerStart = Date.now();
       const writerResult = await generate({

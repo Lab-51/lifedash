@@ -55,6 +55,7 @@ import { cards, meetings, projects, meetingAgentThreads, meetingAgentMessages, l
 import { getMeeting, getTranscripts, updateMeeting } from './meetingService';
 import { createProjectRecord } from './projectService';
 import { fetchPriorBriefs, getBrief } from './meetingIntelligenceService';
+import { briefRecordText } from '../../shared/utils/briefRecordText';
 import { ensureInboxColumn } from './inboxColumnService';
 import { ensureUnassignedProject } from './unassignedProjectService';
 import { resolvePrimaryBoardId } from './autoPushService';
@@ -121,9 +122,10 @@ You can only read and answer — you have no tools to create cards, notes, or pr
   is your main tool, since the meeting is over and the answer may be at any point in it.
 - Use getTranscriptWindow to read the transcript around the END of the meeting (it returns
   the most recent minutes, which for a finished meeting means how it wrapped up).
-- Use getMeetingContext for THIS meeting's own brief (a summary of this meeting itself),
-  plus its title, project and duration. It also returns briefs from OTHER meetings in the
-  same project — treat those as background only, never as what happened in this meeting.
+- Use getMeetingContext for THIS meeting's own brief and its full notes (a summary of this
+  meeting itself), plus its title, project and duration. It also returns briefs from OTHER
+  meetings in the same project — treat those as background only, never as what happened in
+  this meeting.
 - Ground every answer in what the tools return — never invent meeting content.
 
 ## Answering
@@ -225,10 +227,13 @@ export async function getMeetingGroundingFacts(meetingId: string): Promise<Meeti
   const end = meeting.endedAt ? new Date(meeting.endedAt).getTime() : Date.now();
   const elapsedMinutes = Math.max(0, Math.round((end - started) / 60_000));
 
+  // BRIEF-QUAL.2: brief-first, then the record's full notes when the brief
+  // carries a structure — briefRecordText returns `summary` UNCHANGED when
+  // structure is null, so this stays byte-identical to the pre-Task-3 read.
   const ownBrief = await getBrief(meetingId);
-  const summary = ownBrief?.summary?.trim() ? ownBrief.summary : null;
+  const brief = ownBrief?.summary?.trim() ? briefRecordText(ownBrief.summary, ownBrief.structure) : null;
 
-  return { title: meeting.title, project, projectId: meeting.projectId, elapsedMinutes, brief: summary };
+  return { title: meeting.title, project, projectId: meeting.projectId, elapsedMinutes, brief };
 }
 
 /**
