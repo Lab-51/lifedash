@@ -18,6 +18,8 @@ export const meetingsBridge = {
   getMeeting: (id: string) => ipcRenderer.invoke('meetings:get', id),
   createMeeting: (data: CreateMeetingInput) => ipcRenderer.invoke('meetings:create', data),
   updateMeeting: (id: string, data: UpdateMeetingInput) => ipcRenderer.invoke('meetings:update', id, data),
+  updateMeetingParticipants: (meetingId: string, participants: string[]) =>
+    ipcRenderer.invoke('meetings:update-participants', { meetingId, participants }),
   deleteMeeting: (id: string, opts?: DeleteMeetingOptions) => ipcRenderer.invoke('meetings:delete', id, opts),
   getMeetingDeleteImpact: (id: string) =>
     ipcRenderer.invoke('meetings:get-delete-impact', id) as Promise<MeetingDeleteImpact>,

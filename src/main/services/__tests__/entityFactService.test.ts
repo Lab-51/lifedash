@@ -91,7 +91,13 @@ const ENTITY_ID = 'e1';
 const MEETING_ID = 'm1';
 const PROVIDER = { providerId: 'p1', providerName: 'lmstudio', apiKeyEncrypted: null, baseUrl: null, model: 'local' };
 const DANA = { id: ENTITY_ID, name: 'Dana Lee', kind: 'person' as const };
-const BRIEF: MeetingBrief = { id: 'b1', meetingId: MEETING_ID, summary: 'Discussed billing.', createdAt: 'x' };
+const BRIEF: MeetingBrief = {
+  id: 'b1',
+  meetingId: MEETING_ID,
+  summary: 'Discussed billing.',
+  structure: null,
+  createdAt: 'x',
+};
 
 // ---------------------------------------------------------------------------
 // A table-routed Drizzle mock. select().from(table) routes by the table marker and

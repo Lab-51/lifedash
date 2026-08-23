@@ -12,7 +12,8 @@
 // - Flags verified against `llama-server.exe --help` (llama.cpp b10219) AND by
 //   running the binary: -m, --host, --port, --alias, --embeddings, --ctx-size,
 //   --parallel, --ubatch-size, --api-key, --cors-origins, --no-webui, --jinja,
-//   --fit-target. No flag here is assumed.
+//   --fit-target, --reasoning. No flag here is assumed. (`-rea, --reasoning
+//   [on|off|auto]` re-verified against b10219 `--help` on 2026-08-21.)
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -177,6 +178,15 @@ export function buildArgs(role: LlamaRole, modelPath: string, modelId: string, p
     '--fit-target',
     String(CHAT_FIT_TARGET_MIB),
     '--jinja', // already the b10219 default; explicit so a future default flip can't break tool calling
+    // Reasoning OFF for the chat sidecar. Qwen3 (and every hybrid-reasoning model)
+    // spends the whole output budget on hidden thinking and returns EMPTY content:
+    // measured 2026-08-21 on Qwen3-4B-Q4_K_M with the default flags — finish=length,
+    // 48/48 tokens in reasoning_content, content ''. With `--reasoning off` the same
+    // prompt answered in 7 tokens. Empty text is a hard failure everywhere in this app
+    // (AI-RESIL.1), and the structured extraction pass needs the budget for JSON, not
+    // for deliberation. Embedding role never sees this flag.
+    '--reasoning',
+    'off',
   ];
 }
 

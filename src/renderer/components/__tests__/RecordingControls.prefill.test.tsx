@@ -71,6 +71,7 @@ describe('RecordingControls — calendar prefill (Phase G Task 4)', () => {
       'en',
       'google:evt-1',
       'series-9',
+      undefined,
     );
   });
 
@@ -90,7 +91,87 @@ describe('RecordingControls — calendar prefill (Phase G Task 4)', () => {
 
     await user.click(screen.getByRole('button', { name: /Start Recording/i }));
 
-    expect(startRecording).toHaveBeenCalledWith('Ad-hoc chat', undefined, 'none', 'en', undefined, undefined);
+    expect(startRecording).toHaveBeenCalledWith(
+      'Ad-hoc chat',
+      undefined,
+      'none',
+      'en',
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(suggestCalendarProject).not.toHaveBeenCalled();
+  });
+});
+
+// -----------------------------------------------------------------------------
+// BRIEF-QUAL.1 Task 4: participants prefill from calendar attendee NAMES only —
+// an attendee with no name (email-only) is skipped entirely, never falling back
+// to the email local-part the way EventDetailsModal's attendeeLabel does.
+// -----------------------------------------------------------------------------
+describe('RecordingControls — participants prefill (BRIEF-QUAL.1 Task 4)', () => {
+  let startRecording: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    startRecording = vi.fn().mockResolvedValue(undefined);
+    useMeetingStore.setState({ meetings: [] } as never);
+    useRecordingStore.setState({
+      isRecording: false,
+      isProcessing: false,
+      starting: false,
+      error: null,
+      includeMic: true,
+      startRecording,
+    } as never);
+  });
+
+  const eventWithAttendees: CalendarEvent = {
+    ...event,
+    attendees: [{ name: 'Alex Chen' }, { email: 'jordan@example.com' }, { name: '   ' }, { name: 'Sam Rivera' }],
+  };
+
+  it('shows only named attendees as chips, skipping the nameless one — never an email', async () => {
+    render(<RecordingControls initialCalendarEvent={eventWithAttendees} />);
+    await waitFor(() => expect(screen.getByText('Alex Chen')).toBeInTheDocument());
+    expect(screen.getByText('Sam Rivera')).toBeInTheDocument();
+    expect(screen.queryByText(/jordan/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/@/)).not.toBeInTheDocument();
+  });
+
+  it('threads the prefilled participant names through startRecording', async () => {
+    const user = userEvent.setup();
+    render(<RecordingControls initialCalendarEvent={eventWithAttendees} />);
+    await waitFor(() => expect(screen.getByText('Alex Chen')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /Start Recording/i }));
+
+    expect(startRecording).toHaveBeenCalledWith(
+      'Quarterly Review',
+      undefined,
+      'none',
+      'en',
+      'google:evt-1',
+      'series-9',
+      ['Alex Chen', 'Sam Rivera'],
+    );
+  });
+
+  it('an event with no named attendees passes no participants (regression)', async () => {
+    const user = userEvent.setup();
+    render(<RecordingControls initialCalendarEvent={event} />);
+    await waitFor(() => expect(screen.getByPlaceholderText('Meeting title...')).toHaveValue('Quarterly Review'));
+
+    await user.click(screen.getByRole('button', { name: /Start Recording/i }));
+
+    expect(startRecording).toHaveBeenCalledWith(
+      'Quarterly Review',
+      undefined,
+      'none',
+      'en',
+      'google:evt-1',
+      'series-9',
+      undefined,
+    );
   });
 });

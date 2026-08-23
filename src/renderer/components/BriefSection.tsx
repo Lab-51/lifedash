@@ -38,10 +38,29 @@ function formatBriefDate(dateStr: string): string {
   })}`;
 }
 
-/** Render a single line of the brief summary based on its prefix. */
+/** Exact-prefix match for the chunked-extraction footer line (BRIEF-QUAL.1
+ *  Task 3 emits it only when the transcript needed multiple summarization
+ *  passes) — anything else stays a regular paragraph. */
+function isSummarizedFooter(trimmed: string): boolean {
+  return trimmed.startsWith('_Summarized in ') && trimmed.endsWith('_');
+}
+
+/** Render a single line of the brief summary based on its prefix. Stays
+ *  heading-agnostic by design (BRIEF-QUAL.1 Task 4) — every existing `## ` /
+ *  `- ` / plain-text brief in the DB must render byte-for-byte identically, so
+ *  those three branches are untouched; only `### ` (owner sub-headings) and the
+ *  footer line are new. */
 function renderLine(line: string, idx: number) {
   const trimmed = line.trim();
   if (!trimmed) return null;
+
+  if (trimmed.startsWith('### ')) {
+    return (
+      <h5 key={idx} className="font-medium text-xs text-surface-600 dark:text-surface-400 mt-2 mb-0.5">
+        {trimmed.slice(4)}
+      </h5>
+    );
+  }
 
   if (trimmed.startsWith('## ')) {
     return (
@@ -60,10 +79,52 @@ function renderLine(line: string, idx: number) {
     );
   }
 
+  if (isSummarizedFooter(trimmed)) {
+    return (
+      <p key={idx} className="text-xs text-surface-500 mt-2 italic">
+        {trimmed.slice(1, -1)}
+      </p>
+    );
+  }
+
   return (
     <p key={idx} className="text-surface-700 dark:text-surface-300 text-sm">
       {trimmed}
     </p>
+  );
+}
+
+/** The rendered brief body once one exists — summary lines, generated-at date,
+ *  and the Regenerate control (with the participants-edited hint, BRIEF-QUAL.1
+ *  Task 4). Split out purely to keep BriefSection's own cyclomatic complexity
+ *  under the project's lint ceiling (CODE-Q.1b). */
+function BriefContent({
+  brief,
+  participantsEdited,
+  onGenerate,
+}: {
+  brief: MeetingBrief;
+  participantsEdited: boolean;
+  onGenerate: () => void;
+}) {
+  return (
+    <div className="hud-panel rounded-lg p-3">
+      <div className="overflow-hidden break-words">{brief.summary.split('\n').map(renderLine)}</div>
+      <div className="flex items-center justify-between mt-3 gap-2">
+        <p className="text-xs text-surface-500">{formatBriefDate(brief.createdAt)}</p>
+        <div className="flex items-center gap-2">
+          {participantsEdited && <span className="text-xs text-amber-400">Participants changed</span>}
+          <button
+            onClick={onGenerate}
+            className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1 px-2 py-1 rounded hover:bg-primary-500/10 transition-colors shrink-0"
+            title="Regenerate brief"
+          >
+            <RefreshCw size={12} />
+            Regenerate
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -76,6 +137,7 @@ export default function BriefSection({
 }: BriefSectionProps) {
   const briefError = useMeetingStore((s) => s.briefErrors[meetingId]);
   const clearBriefError = useMeetingStore((s) => s.clearBriefError);
+  const participantsEdited = useMeetingStore((s) => s.participantsEditedAfterBrief[meetingId]);
 
   return (
     <div>
@@ -89,20 +151,7 @@ export default function BriefSection({
       )}
 
       {brief && !generatingBrief && (
-        <div className="hud-panel rounded-lg p-3">
-          <div>{brief.summary.split('\n').map(renderLine)}</div>
-          <div className="flex items-center justify-between mt-3">
-            <p className="text-xs text-surface-500">{formatBriefDate(brief.createdAt)}</p>
-            <button
-              onClick={onGenerate}
-              className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1 px-2 py-1 rounded hover:bg-primary-500/10 transition-colors"
-              title="Regenerate brief"
-            >
-              <RefreshCw size={12} />
-              Regenerate
-            </button>
-          </div>
-        </div>
+        <BriefContent brief={brief} participantsEdited={!!participantsEdited} onGenerate={onGenerate} />
       )}
 
       {briefError && !generatingBrief && !brief && (

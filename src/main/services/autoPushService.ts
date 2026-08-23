@@ -81,7 +81,7 @@ export async function autoPushActionItems(args: {
         .where(eq(cards.columnId, inbox.id));
 
       const title = buildCardTitle(item.description);
-      const description = buildCardDescription(item.description, meetingId);
+      const description = buildCardDescription(item, meetingId);
 
       const [card] = await tx
         .insert(cards)
@@ -182,10 +182,33 @@ function buildCardTitle(description: string): string {
 }
 
 /**
- * Full description + a back-reference line to the source meeting.
+ * The "Owner: ..." / "Due: ..." header lines a card carries for an action item
+ * that named one (BRIEF-QUAL.1). Cards deliberately gain NO assignee field and NO
+ * parsed `dueDate`: the owner is a free-text name exactly as the meeting said it,
+ * and the due is whatever was said ("Friday", "end of Q3") — resolving either
+ * into a real reference or a real date would mean guessing.
+ *
+ * Returns '' when neither is known, which keeps every pre-BRIEF-QUAL.1 card
+ * description byte-identical.
+ *
+ * Exported so meetingIntelligenceService's manual convert-to-card path renders
+ * the same two lines the auto-push path does, from one piece of wording.
  */
-function buildCardDescription(description: string, meetingId: string): string {
-  return `${description}\n\n_From meeting: ${meetingId}_`;
+export function formatOwnerDueLines(owner: string | null, dueText: string | null): string {
+  const lines: string[] = [];
+  if (owner) lines.push(`Owner: ${owner}`);
+  if (dueText) lines.push(`Due: ${dueText}`);
+  return lines.length > 0 ? `${lines.join('\n')}\n\n` : '';
+}
+
+/**
+ * The owner/due header (when known), the full description, and a back-reference
+ * line to the source meeting. The TITLE is untouched — it stays the first
+ * sentence of the task itself (see buildCardTitle), so a board still reads as a
+ * list of things to do rather than a list of names.
+ */
+function buildCardDescription(item: ActionItem, meetingId: string): string {
+  return `${formatOwnerDueLines(item.owner, item.dueText)}${item.description}\n\n_From meeting: ${meetingId}_`;
 }
 
 /**

@@ -166,7 +166,7 @@ describe('write-side guard — post-session hook path (handlePostSession)', () =
 
     await service.handlePostSession({
       meetingId,
-      brief: { id: briefId, meetingId, summary: failureText, createdAt: '' },
+      brief: { id: briefId, meetingId, summary: failureText, structure: null, createdAt: '' },
     });
     await service.flushQueue();
 
@@ -207,7 +207,7 @@ describe('write-side guard — prefix semantics (isFailedBriefText, not includes
 
     await service.handlePostSession({
       meetingId,
-      brief: { id: briefId, meetingId, summary: mentionsFailureText, createdAt: '' },
+      brief: { id: briefId, meetingId, summary: mentionsFailureText, structure: null, createdAt: '' },
     });
     await service.flushQueue();
 

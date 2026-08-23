@@ -21,7 +21,13 @@ import {
 } from '../postSessionDispatcher';
 import type { MeetingBrief } from '../../../shared/types';
 
-const brief: MeetingBrief = { id: 'b1', meetingId: 'm1', summary: 's', createdAt: new Date().toISOString() };
+const brief: MeetingBrief = {
+  id: 'b1',
+  meetingId: 'm1',
+  summary: 's',
+  structure: null,
+  createdAt: new Date().toISOString(),
+};
 const ctx: PostSessionContext = { meetingId: 'm1', brief };
 
 /** Let the detached hook chain (a microtask queue) drain. */

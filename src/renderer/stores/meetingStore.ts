@@ -27,6 +27,12 @@ interface MeetingStore {
   pendingActionCount: number;
   /** Count of auto-pushed cards with no reviewedAt — drives the Sessions nav badge. */
   unreviewedAutoPushedCount: number;
+  /** Meeting ids whose participants were edited AFTER the current brief was
+   *  generated (BRIEF-QUAL.1). Meeting has no updatedAt column, so this is
+   *  tracked purely as session-scoped store state — no new IPC, no new columns.
+   *  Drives the "Regenerate to include them" hint next to BriefSection's
+   *  Regenerate button; cleared on the next successful generateBrief. */
+  participantsEditedAfterBrief: Record<string, boolean>;
 
   // Intelligence generation state
   generatingBrief: boolean;
@@ -48,6 +54,11 @@ interface MeetingStore {
   refreshUnreviewedCount: () => Promise<void>;
   reassignFromUnassigned: (meetingId: string, newProjectId: string) => Promise<void>;
   updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<void>;
+  /** Dedicated participant-roster write (BRIEF-QUAL.1 Task 4) — a separate IPC
+   *  channel from updateMeeting so a participant edit never passes through the
+   *  project-link/completion-transition logic there. Marks the meeting as
+   *  edited-since-brief. */
+  updateParticipants: (meetingId: string, participants: string[]) => Promise<void>;
   /** opts is additive — omitted (default) preserves the existing forget-by-default
    *  behavior for every pre-existing caller (RecordingControls discard, recordingStore
    *  failure cleanups, SessionWorkspace delete). Only the impact-aware confirm in
@@ -78,6 +89,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   actionItemCounts: {},
   pendingActionCount: 0,
   unreviewedAutoPushedCount: 0,
+  participantsEditedAfterBrief: {},
   generatingBrief: false,
   generatingActions: false,
   briefErrors: {},
@@ -175,6 +187,15 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
     }
   },
 
+  updateParticipants: async (meetingId, participants) => {
+    const updated = await window.electronAPI.updateMeetingParticipants(meetingId, participants);
+    set((s) => ({
+      meetings: s.meetings.map((m) => (m.id === meetingId ? updated : m)),
+      selectedMeeting: s.selectedMeeting?.id === meetingId ? { ...s.selectedMeeting!, ...updated } : s.selectedMeeting,
+      participantsEditedAfterBrief: { ...s.participantsEditedAfterBrief, [meetingId]: true },
+    }));
+  },
+
   deleteMeeting: async (id, opts) => {
     await window.electronAPI.deleteMeeting(id, opts);
     set({
@@ -221,6 +242,14 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       if (selected && selected.id === meetingId) {
         set({ selectedMeeting: { ...selected, brief } });
       }
+      // A fresh brief reflects the current roster — clear the "edited since
+      // brief" flag (Task 4's Regenerate hint) if it was set.
+      set((s) => {
+        if (!(meetingId in s.participantsEditedAfterBrief)) return {};
+        const next = { ...s.participantsEditedAfterBrief };
+        delete next[meetingId];
+        return { participantsEditedAfterBrief: next };
+      });
       useGamificationStore.getState().awardXP('meeting_brief', meetingId);
       get().clearBriefError(meetingId);
       // Brief generation may have auto-pushed action items to Inbox cards.

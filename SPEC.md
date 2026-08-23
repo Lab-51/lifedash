@@ -9,7 +9,7 @@
 
 ## Purpose
 
-LifeDash is a session-centric, local-first meeting-intelligence app. This register holds behavior contracts per domain. It covers the **Digital Twin** domain (V3.3 + V3.3.5 "Deep Creation"): the user profile that personalizes every AI surface, how it is authored — manually or via the deep-creation paths (deep interview, history mining, web enrichment) — and how the app behaves with and without it. It also covers the **V3.4 living layer**: the twin that keeps learning from finished sessions (auditable memory with a safety triad), semantic search with a grounded "Ask", the embedding index (local-by-default, no silent cloud), and the Brain's first flat person/topic entities. It also covers the **Recording Guard** domain (GUARD.1): the inactivity auto-stop safeguard for forgotten recordings, and the transcription-provider privacy controls (local-only enforcement, cloud-switch consent).
+LifeDash is a session-centric, local-first meeting-intelligence app. This register holds behavior contracts per domain. It covers the **Digital Twin** domain (V3.3 + V3.3.5 "Deep Creation"): the user profile that personalizes every AI surface, how it is authored — manually or via the deep-creation paths (deep interview, history mining, web enrichment) — and how the app behaves with and without it. It also covers the **V3.4 living layer**: the twin that keeps learning from finished sessions (auditable memory with a safety triad), semantic search with a grounded "Ask", the embedding index (local-by-default, no silent cloud), and the Brain's first flat person/topic entities. It also covers the **Recording Guard** domain (GUARD.1): the inactivity auto-stop safeguard for forgotten recordings, and the transcription-provider privacy controls (local-only enforcement, cloud-switch consent). It also covers the **Meeting Brief** domain (BRIEF-QUAL.1): how a finished session's brief and action items are produced from a complete structured record of what was said, who they name, in which language, and how a long meeting stays complete on any model.
 
 ## Requirements
 
@@ -490,13 +490,19 @@ Calendar authorization SHALL run in the user's system browser (never an embedded
 
 ### Requirement: Attendee emails never enter AI prompts
 
-Attendee email addresses MUST NOT be included in any AI prompt. Where attendee information is used to hint project auto-detection, only attendee names SHALL be passed to the model.
+Attendee email addresses MUST NOT be included in any AI prompt. Where attendee information is used to hint project auto-detection, or to build the participant roster that briefs and action items name people from, only attendee names SHALL be passed to the model.
 
 #### Scenario: Only names reach the classifier
 
 - GIVEN an event whose attendees have both names and email addresses
 - WHEN attendee information is woven into the project auto-detect prompt
 - THEN only the names are included and no email address appears in the prompt
+
+#### Scenario: Only names reach the brief
+
+- GIVEN a session linked to an event whose attendees have both names and email addresses
+- WHEN the brief or action items are generated
+- THEN the participant roster in the prompt carries the names only and no email address appears anywhere in it
 
 ### Requirement: The agenda stays visible whenever a calendar is connected
 
@@ -804,40 +810,124 @@ Deleting a meeting SHALL remove its influence, not merely its own rows. By defau
 
 ### Requirement: A long meeting still gets a brief
 
-A meeting MUST NOT fail to produce a brief or action items merely because its transcript is long. Before sending anything, the assembled prompt SHALL be measured against the configured model's context window, including the room reserved for the model's own output. When it does not fit, the transcript MUST be summarized part by part and the parts combined into the final brief, and action items MUST be extracted per part and merged with cross-part repeats removed. The combining pass MUST carry the same context the single pass carries — meeting template, project continuity, items confirmed live, pre-meeting prep, and the twin's voice — so a long meeting's brief is not a lesser brief; the per-part passes MUST NOT carry any of it, so that they stay small and factual. A brief built this way MUST say so. A context-overflow failure MUST NEVER be persisted for length alone, and if one ever is, it MUST name the size estimate as the cause rather than reporting an anonymous error.
+A meeting MUST NOT fail to produce a brief or action items merely because its transcript is long. Before sending anything, the assembled prompt SHALL be measured against the configured model's context window, including the room reserved for the model's own output, using a per-token size estimate calibrated against the densest tokenization the app supports (Czech on a small local model) — never an optimistic average. When a transcript does not fit, its structured record (see "A brief is written from a complete structured record and never capped") MUST be extracted part by part and the parts MERGED BY RULE — never by another model call — so that no topic, decision, commitment or question from any part can be dropped; the writer pass then receives the merged record, and the transcript alongside it only when the whole request still fits. The writer pass MUST carry the same context a short meeting's brief carries — meeting template, project continuity, items confirmed live, pre-meeting prep, the twin's voice, the participant roster and the brief language — so a long meeting's brief is not a lesser brief; the per-part extraction passes MUST NOT carry project continuity, prep or the twin's voice, so that they stay small and factual. A brief built from more than one part MUST say so, naming how many passes built it.
 
-The elasticity MUST be bounded and honest. If even the combined part summaries do not fit, the same collapsing MAY be repeated only a fixed, small number of times before stopping. Any part that fails or comes back empty MUST stop the whole attempt: the existing classified failure card is persisted and nothing is learned from it. A partial brief or a partial action-item list MUST NEVER be presented as a complete one.
+The elasticity MUST be self-healing and bounded. If the model rejects a part as larger than its window — the size estimate having been wrong for that model — that part MUST be split and its halves extracted instead, at most a fixed small number of times, and the event MUST be logged with the model's own reported size so the estimate can be corrected; only a part that cannot be split further MAY fail, and that failure MUST name the size estimate as the cause rather than reporting an anonymous error. Any part that fails for another reason, or comes back empty or unreadable after one retry, MUST stop the whole attempt: the classified failure card is persisted, nothing is learned from it, and no action items are produced. A partial brief or a partial action-item list MUST NEVER be presented as a complete one.
 
-#### Scenario: A transcript that fits is untouched
+#### Scenario: A transcript that fits is extracted and written in two requests
 
-- GIVEN a transcript whose assembled prompt fits the model's context window
-- WHEN a brief or action items are generated
-- THEN exactly one request is made and its prompt is byte-for-byte the prompt the single-pass behavior always produced
-
-#### Scenario: A transcript that overflows still produces a real brief
-
-- GIVEN a transcript whose assembled prompt exceeds the model's context window
+- GIVEN a transcript whose assembled prompts fit the model's context window
 - WHEN a brief is generated
-- THEN each part is summarized, the parts are combined into one brief carrying the project continuity, confirmed-live and prep context, and the stored brief states how many passes built it
+- THEN exactly one extraction request and one writer request are made, the writer sees the transcript alongside the structured record, and the stored brief carries no passes note
+
+#### Scenario: A transcript that overflows still produces a complete brief
+
+- GIVEN a transcript whose extraction prompt exceeds the model's context window
+- WHEN a brief is generated
+- THEN each part is extracted, the parts are merged by rule with cross-part repeats collapsed, the writer receives the merged record with the project-continuity, confirmed-live, prep, roster and language context, and the stored brief states how many passes built it
 - AND no context-overflow failure card is persisted for length alone
+
+#### Scenario: A wrong size estimate splits a part instead of failing the meeting
+
+- GIVEN a part the model rejects as larger than its context window despite the estimate
+- WHEN extraction runs
+- THEN that part is split and its halves extracted, the split is logged with the model's reported size, and the brief completes with every item retained
 
 #### Scenario: Action items from an overflowing transcript are merged, not duplicated
 
 - GIVEN a transcript too long for one extraction pass
-- WHEN action items are extracted
-- THEN items from every part are kept in order and an item restated across a part boundary appears exactly once
+- WHEN action items are produced
+- THEN commitments from every part are kept in order and a commitment restated across a part boundary appears exactly once
 
 #### Scenario: A failing part is a failure, not a half brief
 
-- GIVEN one part of a long transcript fails or returns nothing
+- GIVEN one part of a long transcript fails for a reason other than size, or returns nothing usable after one retry
 - WHEN the brief is generated
-- THEN the classified failure card is stored, nothing is dispatched to the twin, and no partial brief is presented
+- THEN the classified failure card is stored, nothing is dispatched to the twin, no action items are produced, and no partial brief is presented
 
-#### Scenario: The collapsing stops
+#### Scenario: The splitting stops
 
-- GIVEN a transcript so long that even its part summaries do not fit
-- WHEN the brief is generated
-- THEN the attempt stops after a fixed number of rounds with a classified failure card, never looping
+- GIVEN a single stretch of transcript that the model cannot accept even on its own
+- WHEN extraction runs
+- THEN the attempt stops with a classified failure card that names the size estimate as the cause, never looping
+
+---
+
+### Requirement: A brief is written from a complete structured record and never capped
+
+Generating a meeting brief SHALL be two steps: first the transcript is EXTRACTED into a structured record of what was said — every topic with its detail, every decision with its rationale when one was given, every commitment with its owner (or none), its task and its due time as spoken, every open question, and the exact terms, numbers and priorities used — and only then is the brief WRITTEN from that record. The extraction MUST favour completeness over brevity: nothing may be summarised away. The brief MUST NOT be limited by any count of bullets, words or items; every topic, decision, commitment and question in the record MUST appear in it, and two distinct items MUST NEVER be merged into one. The brief SHALL be organised as a short summary, one point per topic carrying its detail, the decisions, the follow-ups GROUPED BY OWNER with unowned follow-ups last, and the open questions; an empty section MAY be omitted. The brief MUST NEVER invent an owner, a date or a number, and MUST keep names and terms exactly as they appear in the record. The structured record MUST be stored with the brief, together with which model produced it and in how many passes, so later features can use it without re-reading the transcript; the twin's learning continues to read only the brief itself. The same contract MUST hold on every model the user routes the task to — a small local model, a locally served model, or a cloud model — with one prompt set; a model reply that cannot be read as the record MUST be retried once with the reason attached before being treated as a failure.
+
+#### Scenario: Nothing said is summarised away
+
+- GIVEN a 90-minute meeting with many topics, decisions and commitments
+- WHEN a brief is generated
+- THEN every topic, decision, commitment and open question from the record appears in the brief with its detail, regardless of how many there are
+
+#### Scenario: Follow-ups are grouped by owner and unowned ones are last
+
+- GIVEN commitments with several named owners and some with no explicit owner
+- WHEN the brief is written
+- THEN the follow-ups are grouped under each owner in participant order and the unowned ones form the last group
+
+#### Scenario: An unreadable model reply is retried once, then honest
+
+- GIVEN the model returns a reply that cannot be read as the structured record
+- WHEN extraction runs
+- THEN exactly one retry is made carrying the reason, and a second failure produces the classified failure card rather than a brief built from nothing
+
+---
+
+### Requirement: Action items are the meeting's commitments
+
+Action items SHALL be derived from the commitments in the meeting's structured record, with no further model call: each carries the task, the owner ONLY when the transcript made that person explicitly responsible, and the due time exactly as spoken — never a date the model constructed. A commitment with no explicit owner MUST be an unowned action item, not one attributed to whoever was mentioned last. A card created from an action item MUST show the owner and due time when known and MUST NOT turn the spoken due time into a calendar date. Items the user already accepted live during the meeting MUST NOT be created again. A meeting whose brief predates this contract, or whose record is missing, MAY fall back to extracting action items from the transcript text, and that fallback MUST likewise be uncapped.
+
+#### Scenario: Owner only when explicit
+
+- GIVEN a first-person commitment ("I'll block two hours daily") and a commitment explicitly assigned to a named participant
+- WHEN action items are produced
+- THEN the first has no owner and the second carries the participant's name exactly as in the roster
+
+#### Scenario: Cards carry owner and due time as spoken
+
+- GIVEN an action item with an owner and a due time "by end of September"
+- WHEN it becomes a card
+- THEN the card shows the owner and the due phrase verbatim and no calendar date is set from it
+
+---
+
+### Requirement: Participants are names only, editable before and after, and shape the brief
+
+A meeting MAY carry a list of participant names. The list SHALL be pre-filled from the linked calendar event's attendee NAMES when one exists, MAY be typed at recording start, and MUST remain editable on the finished session. An email address MUST be rejected from the list and MUST NEVER enter any AI prompt. The names the brief and action items use MUST be drawn from the participants, the calendar attendees' names, and people already known from the same project's past sessions — in that order, deduplicated, spelled exactly as recorded. Editing the participants after a brief exists MUST NOT change that brief on its own; the user MUST be told that regenerating applies the change.
+
+#### Scenario: Calendar attendees pre-fill names, never emails
+
+- GIVEN a recording started from a calendar event whose attendees have names and email addresses
+- WHEN the recording controls open
+- THEN the participant list is pre-filled with the names only, and an attendee with no name is skipped
+
+#### Scenario: A forgotten participant is added afterwards
+
+- GIVEN a finished session with a brief
+- WHEN the user adds a participant name
+- THEN the name is saved, the existing brief is unchanged, and the session shows that regenerating will apply the change
+
+---
+
+### Requirement: The brief language is a user setting
+
+The language a brief and its action items are written in SHALL be a user setting: English by default, the transcript's own language on request (including the base language of a mixed-language transcription preset), or an explicit language. Choosing English MUST leave the prompts exactly as they were before the setting existed. The setting applies to the next generation; it MUST NOT rewrite briefs that already exist.
+
+#### Scenario: Default English on a Czech meeting
+
+- GIVEN a meeting transcribed under the Czech mixed-language preset and no brief-language choice
+- WHEN a brief is generated
+- THEN it is written in English
+
+#### Scenario: "Same as transcript" follows the preset's base language
+
+- GIVEN the brief language set to "same as transcript" and a Czech mixed-language preset
+- WHEN a brief is generated
+- THEN it is written in Czech
 
 ---
 

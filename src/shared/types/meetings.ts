@@ -1,5 +1,11 @@
 // === Meeting, transcript, template, and recording types ===
 
+// TYPE-ONLY import on purpose: ./briefStructure imports zod, and this module IS
+// re-exported from the types barrel the renderer bundles. `import type` is erased
+// at compile time, so the structure's shape reaches the renderer while zod does
+// not — which is why briefStructure.ts stays out of the barrel (BRIEF-QUAL.1).
+import type { MeetingStructure } from './briefStructure';
+
 export type MeetingStatus = 'recording' | 'processing' | 'completed';
 
 export type MeetingTemplateType = 'none' | 'standup' | 'retro' | 'planning' | 'brainstorm' | 'one_on_one';
@@ -102,6 +108,10 @@ export interface Meeting {
   calendarEventId?: string | null;
   /** Prefixed calendar series id, if the linked event belongs to a series (Phase G). */
   calendarSeriesId?: string | null;
+  /** Display names as the user typed them, in entry order (BRIEF-QUAL.1). Null
+   *  when never set — participantRosterService is the merge point that also
+   *  brings in calendar attendees and known project people. */
+  participants: string[] | null;
   createdAt: string;
 }
 
@@ -119,6 +129,10 @@ export interface MeetingBrief {
   id: string;
   meetingId: string;
   summary: string;
+  /** The validated extraction the brief was WRITTEN from (BRIEF-QUAL.1). Null on
+   *  a failure card, and on every brief generated before this phase — readers
+   *  must treat it as optional context, never as a precondition. */
+  structure: MeetingStructure | null;
   createdAt: string;
 }
 
@@ -131,6 +145,8 @@ export interface CreateMeetingInput {
   /** Optional calendar linkage (Phase G) — prefixed ids, persisted as-is. */
   calendarEventId?: string;
   calendarSeriesId?: string;
+  /** Display names as the user typed them (BRIEF-QUAL.1). */
+  participants?: string[];
 }
 
 export interface UpdateMeetingInput {

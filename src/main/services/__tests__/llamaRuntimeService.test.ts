@@ -197,7 +197,7 @@ describe('lazy start, port probe and flags', () => {
     expect(chat.apiKey).not.toBe(embed.apiKey);
   });
 
-  it('passes the chat flag set: bounded context, one slot, jinja, no --device', async () => {
+  it('passes the chat flag set: bounded context, one slot, jinja, reasoning off, no --device', async () => {
     const svc = await loadService();
     await svc.ensureRunning('chat');
     const { args } = h.spawnCalls[0];
@@ -208,6 +208,9 @@ describe('lazy start, port probe and flags', () => {
     expect(Number(argValue(args, '--ctx-size'))).toBeGreaterThan(0);
     expect(argValue(args, '--parallel')).toBe('1');
     expect(args).toContain('--jinja');
+    // Reasoning OFF (BRIEF-QUAL.1) — asserted as the PAIR, since a bare '--reasoning'
+    // with a missing/!off value is exactly the regression that returns empty content.
+    expect(argValue(args, '--reasoning')).toBe('off');
     expect(args).toContain('--no-webui');
     expect(argValue(args, '--cors-origins')).toBe('localhost');
     expect(argValue(args, '--api-key')).toBeTruthy();
@@ -228,6 +231,8 @@ describe('lazy start, port probe and flags', () => {
     expect(Number(argValue(args, '--ubatch-size'))).toBeGreaterThanOrEqual(2048);
     // Context sizing is a chat-only concern; the embedding model's own limit applies.
     expect(args).not.toContain('--ctx-size');
+    // Reasoning is a chat-only concern too — an embedding server has no completions.
+    expect(args).not.toContain('--reasoning');
   });
 
   it('honours the LIFEDASH_LLAMA_CTX override', async () => {

@@ -111,6 +111,7 @@ function toMeeting(row: typeof meetings.$inferSelect): Meeting {
     unassignedPending: row.unassignedPending,
     calendarEventId: row.calendarEventId ?? null,
     calendarSeriesId: row.calendarSeriesId ?? null,
+    participants: row.participants ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -133,6 +134,11 @@ function toBrief(row: typeof meetingBriefs.$inferSelect): MeetingBrief {
     id: row.id,
     meetingId: row.meetingId,
     summary: row.summary,
+    // The `structure` jsonb column is validated on the way out by the service
+    // that writes it (meetingIntelligenceService.parseBriefStructure). Here it is
+    // passed through as-is: this mapper feeds the detail view, and a brief whose
+    // structure failed validation must still render its summary.
+    structure: (row.structure as MeetingBrief['structure']) ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -143,6 +149,8 @@ function toActionItem(row: typeof actionItems.$inferSelect): ActionItem {
     meetingId: row.meetingId,
     cardId: row.cardId,
     description: row.description,
+    owner: row.owner ?? null,
+    dueText: row.dueText ?? null,
     status: row.status,
     createdAt: row.createdAt.toISOString(),
   };
@@ -228,10 +236,22 @@ export async function createMeeting(data: CreateMeetingInput): Promise<Meeting> 
       transcriptionLanguage: data.transcriptionLanguage ?? null,
       calendarEventId: data.calendarEventId ?? null,
       calendarSeriesId: data.calendarSeriesId ?? null,
+      participants: data.participants ?? null,
       startedAt: new Date(),
       status: 'recording',
     })
     .returning();
+  return toMeeting(row);
+}
+
+/**
+ * Update a meeting's participant list (BRIEF-QUAL.1) — a dedicated write, kept
+ * separate from updateMeeting so a roster edit never touches the project-link /
+ * completion-transition logic that guards that function.
+ */
+export async function updateMeetingParticipants(meetingId: string, participants: string[]): Promise<Meeting> {
+  const db = getDb();
+  const [row] = await db.update(meetings).set({ participants }).where(eq(meetings.id, meetingId)).returning();
   return toMeeting(row);
 }
 
@@ -303,14 +323,7 @@ export async function updateMeeting(id: string, data: UpdateMeetingInput): Promi
           db,
           meetingId: id,
           projectId: data.projectId,
-          actionItems: pendingItems.map((r) => ({
-            id: r.id,
-            meetingId: r.meetingId,
-            cardId: r.cardId,
-            description: r.description,
-            status: r.status,
-            createdAt: r.createdAt.toISOString(),
-          })),
+          actionItems: pendingItems.map(toActionItem),
           userSettings: { autoPushEnabled },
         });
       } catch (err) {

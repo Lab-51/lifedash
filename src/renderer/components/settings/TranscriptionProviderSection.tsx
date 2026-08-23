@@ -10,6 +10,11 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Mic, Loader2, Check, Eye, EyeOff, Globe, Download, HardDrive, ShieldCheck } from 'lucide-react';
 import type { TranscriptionProviderStatus, TranscriptionProviderType, WhisperModel } from '../../../shared/types';
 import { TRANSCRIPTION_LANGUAGES, DEFAULT_MIXED_PROMPTS } from '../../../shared/types';
+import {
+  BRIEF_LANGUAGE_OPTIONS,
+  BRIEF_LANGUAGE_SETTING_KEY,
+  DEFAULT_BRIEF_LANGUAGE_SETTING,
+} from '../../../shared/brief/briefLanguage';
 import HudSelect from '../HudSelect';
 import CloudTranscriptionConsentDialog from './CloudTranscriptionConsentDialog';
 
@@ -81,6 +86,7 @@ export default function TranscriptionProviderSection() {
   const [whisperBackend, setWhisperBackend] = useState<string>('unknown');
   const [speedPreset, setSpeedPreset] = useState<string>('balanced');
   const [mixedPrompt, setMixedPrompt] = useState<string>('');
+  const [briefLanguage, setBriefLanguage] = useState<string>(DEFAULT_BRIEF_LANGUAGE_SETTING);
   // Local-only privacy control (GUARD.1 Task 4). null while loading; the main
   // process is the real enforcer — this is the UI mirror + consent gate.
   const [localOnly, setLocalOnly] = useState<boolean | null>(null);
@@ -157,20 +163,22 @@ export default function TranscriptionProviderSection() {
     })();
   }, [config?.type]);
 
-  // Load saved language, speed preset, and active model on mount
+  // Load saved language, speed preset, active model, and brief language on mount
   useEffect(() => {
     (async () => {
       try {
-        const [savedLang, savedPreset, model] = await Promise.all([
+        const [savedLang, savedPreset, model, savedBriefLang] = await Promise.all([
           window.electronAPI.getSetting('transcription:language'),
           window.electronAPI.getSetting('transcription:speed-preset'),
           window.electronAPI.whisperGetActiveModel(),
+          window.electronAPI.getSetting(BRIEF_LANGUAGE_SETTING_KEY),
         ]);
         if (savedLang) setSelectedLanguage(savedLang);
         if (savedPreset && ['fast', 'balanced', 'accurate'].includes(savedPreset)) {
           setSpeedPreset(savedPreset);
         }
         setActiveModelName(model);
+        if (savedBriefLang) setBriefLanguage(savedBriefLang);
       } catch {
         // Non-critical — keep defaults
       }
@@ -209,6 +217,15 @@ export default function TranscriptionProviderSection() {
     setSelectedLanguage(value);
     try {
       await window.electronAPI.setSetting('transcription:language', value);
+    } catch {
+      // Settings save failed — non-critical
+    }
+  };
+
+  const handleBriefLanguageChange = async (value: string) => {
+    setBriefLanguage(value);
+    try {
+      await window.electronAPI.setSetting(BRIEF_LANGUAGE_SETTING_KEY, value);
     } catch {
       // Settings save failed — non-critical
     }
@@ -815,6 +832,23 @@ export default function TranscriptionProviderSection() {
             For non-English or mixed-language meetings, select &ldquo;Multilingual&rdquo; and use a multilingual Whisper
             model.
           </p>
+
+          {/* Brief language (BRIEF-QUAL.1 Task 4) — separate from the transcription
+              language above, since a meeting can be transcribed in one language and
+              summarized in another. */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">Brief Language</label>
+            <HudSelect
+              value={briefLanguage}
+              onChange={(v) => handleBriefLanguageChange(v)}
+              icon={Globe}
+              options={BRIEF_LANGUAGE_OPTIONS}
+            />
+            <p className="mt-1 text-xs text-surface-500">
+              Briefs and action items are written in this language. &ldquo;Same as transcript&rdquo; follows the
+              transcription preset above.
+            </p>
+          </div>
 
           {/* Mixed-language initial prompt editor */}
           {(selectedLanguage === 'cs-mix' || selectedLanguage === 'sk-mix' || selectedLanguage === 'en-mix') && (

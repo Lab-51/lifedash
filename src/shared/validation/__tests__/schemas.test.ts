@@ -12,6 +12,7 @@ import {
   updateCardInputSchema,
   createIdeaInputSchema,
   createMeetingInputSchema,
+  updateMeetingParticipantsSchema,
   exportOptionsSchema,
   taskStructuringNameSchema,
   taskStructuringDescriptionSchema,
@@ -281,6 +282,77 @@ describe('createMeetingInputSchema', () => {
 
   it('rejects missing title', () => {
     const result = createMeetingInputSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts and trims a valid participants list', () => {
+    const result = createMeetingInputSchema.safeParse({ title: 'Standup', participants: ['  Alice  ', 'Bob'] });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.participants).toEqual(['Alice', 'Bob']);
+  });
+
+  it('rejects a participants list containing an email', () => {
+    const result = createMeetingInputSchema.safeParse({ title: 'Standup', participants: ['alice@example.com'] });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('updateMeetingParticipantsSchema', () => {
+  it('accepts and trims a valid payload', () => {
+    const result = updateMeetingParticipantsSchema.safeParse({
+      meetingId: VALID_UUID,
+      participants: ['  Alice  ', 'Bob'],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.participants).toEqual(['Alice', 'Bob']);
+  });
+
+  it('rejects a name containing "@" — an email pasted here must be rejected, not stored', () => {
+    const result = updateMeetingParticipantsSchema.safeParse({
+      meetingId: VALID_UUID,
+      participants: ['alice@example.com'],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an empty-string name', () => {
+    const result = updateMeetingParticipantsSchema.safeParse({ meetingId: VALID_UUID, participants: [''] });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a whitespace-only name (trims to empty)', () => {
+    const result = updateMeetingParticipantsSchema.safeParse({ meetingId: VALID_UUID, participants: ['   '] });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a name over 80 characters', () => {
+    const result = updateMeetingParticipantsSchema.safeParse({ meetingId: VALID_UUID, participants: ['x'.repeat(81)] });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts a name of exactly 80 characters', () => {
+    const result = updateMeetingParticipantsSchema.safeParse({ meetingId: VALID_UUID, participants: ['x'.repeat(80)] });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects more than 24 participants', () => {
+    const result = updateMeetingParticipantsSchema.safeParse({
+      meetingId: VALID_UUID,
+      participants: Array.from({ length: 25 }, (_, i) => `Name ${i}`),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts exactly 24 participants', () => {
+    const result = updateMeetingParticipantsSchema.safeParse({
+      meetingId: VALID_UUID,
+      participants: Array.from({ length: 24 }, (_, i) => `Name ${i}`),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a non-uuid meetingId', () => {
+    const result = updateMeetingParticipantsSchema.safeParse({ meetingId: 'not-a-uuid', participants: ['Alice'] });
     expect(result.success).toBe(false);
   });
 });

@@ -523,6 +523,12 @@ export async function generate(options: {
   return {
     text,
     usage: result.usage,
+    // BRIEF-QUAL.1: surfaced so a caller can tell "the model stopped" from "the model
+    // was CUT OFF at its output limit" — a truncated JSON document is unparseable and
+    // must be answered by sending less, never by retrying the identical request. The
+    // empty-response diagnostic above already read this field; it is now returned
+    // instead of only being logged. Additive: no existing field changed.
+    finishReason: result.finishReason,
   };
 }
 
@@ -617,6 +623,78 @@ const TASK_MIN_OUTPUT_TOKENS: Partial<Record<AITaskType, number>> = {
   knowledge_qa: 4096,
 };
 
+/**
+ * Output-token floor for `summarization` — RAISE-ONLY, and deliberately NOT part of
+ * TASK_MIN_OUTPUT_TOKENS above.
+ *
+ * The field failure that produced this rule (2026-08-22): an earlier version of this
+ * change put `summarization: 4096` in the table above, whose `withFloor` turns an
+ * ABSENT cap into an explicit one. A user with no configured maxTokens therefore
+ * started sending `max_output_tokens: 4096` to gpt-5.2, where hidden reasoning is
+ * charged against that cap — an 88-minute meeting's extraction hit exactly 4,096
+ * completion tokens twice and came back as truncated JSON, i.e. a failure card on the
+ * tier the user actually uses. Fabricating a cap from nothing is never safe: the
+ * provider's own default is always better informed than a number we invented.
+ *
+ * So: an absent value stays absent wherever the adapter can omit the field, an
+ * explicitly configured value is only ever RAISED, and 16384 is high enough that a
+ * 90-minute meeting's JSON fits with reasoning overhead.
+ */
+const SUMMARIZATION_OUTPUT_FLOOR = 16_384;
+
+/**
+ * Providers where leaving the cap ABSENT does NOT reach the model as absent, so the
+ * floor must be supplied here instead:
+ *   - 'anthropic' — its adapter always sends a max_tokens and falls back to 4096 for
+ *     an unrecognised model id (see the adapter notes below);
+ *   - 'kimi' — OUR OWN sanitizeMaxTokens raises an absent value to REASONING_MIN_TOKENS
+ *     (4096) further down this file, which is exactly the fabricated small cap that
+ *     truncated the extraction. Returning undefined here would be ineffective, not
+ *     safe. sanitizeMaxTokens itself is deliberately untouched: it protects every
+ *     other kimi task, and 16384 passes through its Math.max unchanged.
+ */
+const ABSENT_IS_UNSAFE: Set<AIProviderName> = new Set(['anthropic', 'kimi']);
+
+/** Providers whose output cap must never be fabricated OR raised by us: their
+ *  ceiling is the local context window, which the user sized themselves, and
+ *  llama-server/Ollama treat an absent value as "as much as the context allows". */
+const LOCAL_OUTPUT_PROVIDERS: Set<AIProviderName> = new Set(['builtin', 'lmstudio', 'ollama']);
+
+/**
+ * What `maxOutputTokens: undefined` means for each adapter, READ FROM THE INSTALLED
+ * SDK (not assumed), because the whole rule below depends on it:
+ *   - @ai-sdk/openai 3.0.28 (also lmstudio/builtin/kimi, which reuse createOpenAI):
+ *     `max_tokens: maxOutputTokens` (index.mjs:697) — undefined is dropped by JSON
+ *     serialization, so nothing is sent and the model's own default applies;
+ *   - @ai-sdk/google 3.0.90: `generationConfig.maxOutputTokens` (index.mjs:1569) —
+ *     same, dropped when undefined;
+ *   - ollama-ai-provider 1.2.0: `num_predict: maxTokens` (index.mjs:406) — same;
+ *   - @ai-sdk/anthropic 3.0.43 is the EXCEPTION: `max_tokens` is required by the
+ *     Anthropic API, so the adapter always sends one — the model's own ceiling for a
+ *     recognised id (index.mjs:2652 + getModelCapabilities:4105; 64k for
+ *     claude-*-4-5, 8192 for 3-5-haiku) but **4096 for an unrecognised id** (the
+ *     `else` branch). An absent value on anthropic is therefore NOT safe, and is the
+ *     one case where we supply the floor ourselves.
+ */
+function summarizationOutputTokens(providerName: AIProviderName, configured?: number): number | undefined {
+  if (LOCAL_OUTPUT_PROVIDERS.has(providerName)) return configured; // never fabricate, never raise
+  if (configured === undefined) return ABSENT_IS_UNSAFE.has(providerName) ? SUMMARIZATION_OUTPUT_FLOOR : undefined;
+  return Math.max(configured, SUMMARIZATION_OUTPUT_FLOOR);
+}
+
+/**
+ * The per-task output-token policy applied at resolution. `summarization` takes the
+ * raise-only rule above; every other task keeps TASK_MIN_OUTPUT_TOKENS' original
+ * behaviour byte-for-byte (a floor that DOES materialise from an absent value —
+ * correct there, because those tasks are short one-shot JSON calls whose failure mode
+ * at a low cap is an empty reply, not a truncated document).
+ */
+function applyOutputPolicy(taskType: string, providerName: AIProviderName, configured?: number): number | undefined {
+  if (taskType === 'summarization') return summarizationOutputTokens(providerName, configured);
+  const minTokens = TASK_MIN_OUTPUT_TOKENS[taskType as AITaskType];
+  return minTokens ? Math.max(configured ?? minTokens, minTokens) : configured;
+}
+
 /** Max texts per embedMany call (LM Studio / OpenAI-compatible batch ceiling). */
 const EMBED_BATCH_SIZE = 64;
 
@@ -631,10 +709,9 @@ const EMBED_BATCH_SIZE = 64;
 export async function resolveTaskModel(taskType: string): Promise<ResolvedProvider | null> {
   const db = getDb();
 
-  // Per-task output-token floor (see TASK_MIN_OUTPUT_TOKENS). A floor, not a cap:
-  // an explicit larger budget is kept; a smaller/absent one is raised.
-  const minTokens = TASK_MIN_OUTPUT_TOKENS[taskType as AITaskType];
-  const withFloor = (t?: number) => (minTokens ? Math.max(t ?? minTokens, minTokens) : t);
+  // Per-task output-token policy (see applyOutputPolicy): a floor, never a cap, and
+  // for `summarization` never a value fabricated out of an absent one.
+  const withFloor = (providerName: AIProviderName, t?: number) => applyOutputPolicy(taskType, providerName, t);
 
   // 1. Try ai.taskModels setting (matches the key used by the renderer settingsStore)
   const [settingRow] = await db.select().from(settings).where(eq(settings.key, 'ai.taskModels'));
@@ -654,7 +731,7 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
             baseUrl: provider.baseUrl,
             model: config.model,
             temperature: config.temperature,
-            maxTokens: withFloor(config.maxTokens),
+            maxTokens: withFloor(provider.name as AIProviderName, config.maxTokens),
           };
         }
       }
@@ -681,7 +758,7 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
     apiKeyEncrypted: fallbackProvider.apiKeyEncrypted,
     baseUrl: fallbackProvider.baseUrl,
     model: DEFAULT_MODELS[fallbackProvider.name as AIProviderName] ?? 'gpt-5-mini',
-    maxTokens: withFloor(undefined),
+    maxTokens: withFloor(fallbackProvider.name as AIProviderName, undefined),
   };
 }
 

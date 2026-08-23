@@ -31,6 +31,7 @@ function makeMeeting(overrides: Partial<Meeting> = {}): Meeting {
     prepBriefing: null,
     transcriptionLanguage: null,
     unassignedPending: false,
+    participants: null,
     createdAt: new Date('2026-05-01T10:00:00Z').toISOString(),
     ...overrides,
   };

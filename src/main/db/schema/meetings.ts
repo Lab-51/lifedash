@@ -5,7 +5,7 @@
 // Meeting briefs store AI-generated summaries.
 // Action items can be converted to cards on a board.
 
-import { pgTable, uuid, varchar, text, integer, timestamp, pgEnum, index, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, timestamp, pgEnum, index, boolean, jsonb } from 'drizzle-orm/pg-core';
 import { projects } from './projects';
 import { cards } from './cards';
 
@@ -38,6 +38,10 @@ export const meetings = pgTable('meetings', {
   // Both are prefixed ids (varchar, not uuid) — the external provider's event/series id.
   calendarEventId: varchar('calendar_event_id', { length: 512 }),
   calendarSeriesId: varchar('calendar_series_id', { length: 512 }),
+  // Display names as the user typed them, in entry order (BRIEF-QUAL.1). Free text,
+  // not an identity source — participantRosterService merges this with calendar
+  // attendees and known project people into the brief prompt's roster block.
+  participants: text('participants').array(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -63,6 +67,11 @@ export const meetingBriefs = pgTable('meeting_briefs', {
     .notNull()
     .references(() => meetings.id, { onDelete: 'cascade' }),
   summary: text('summary').notNull(),
+  // Structured brief fields (BRIEF-QUAL.1 Task 3) — decisions/risks/etc. Typed
+  // `unknown` at the schema layer; validated by the zod schema Task 2 defines
+  // (src/shared/types/briefStructure.ts). Nullable: every brief predating Task 3,
+  // and any brief a future failure path still writes text-only, has none.
+  structure: jsonb('structure').$type<unknown>(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -78,6 +87,12 @@ export const actionItems = pgTable(
     cardId: uuid('card_id').references(() => cards.id, { onDelete: 'set null' }),
     description: text('description').notNull(),
     status: actionItemStatusEnum('status').default('pending').notNull(),
+    // Free-text owner name as spoken/written (BRIEF-QUAL.1) — never validated
+    // against the roster, so the model's naming stays exactly what was said.
+    owner: varchar('owner', { length: 120 }),
+    // Free-text due date AS SPOKEN ("by Friday", "end of September") — deliberately
+    // NOT a date column. The model must never be asked to invent an ISO date.
+    dueText: varchar('due_text', { length: 120 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [

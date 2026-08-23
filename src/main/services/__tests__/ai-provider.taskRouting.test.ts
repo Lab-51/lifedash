@@ -118,7 +118,7 @@ describe('resolveTaskModel — chat-class inheritance covers every AITaskType (A
       makeDb(
         [
           taskModelsRow({
-            live_assistant: { providerId: 'local-1', model: 'qwen3-4b', temperature: 0.4, maxTokens: 800 },
+            live_assistant: { providerId: 'local-1', model: 'qwen3-4b', temperature: 0.4, maxTokens: 6000 },
           }),
         ],
         [{ id: 'local-1', name: 'builtin', apiKeyEncrypted: null, baseUrl: null, enabled: true }],
@@ -131,11 +131,101 @@ describe('resolveTaskModel — chat-class inheritance covers every AITaskType (A
     expect(resolved!.providerName).toBe('builtin');
     expect(resolved!.model).toBe('qwen3-4b');
     expect(resolved!.temperature).toBe(0.4);
-    // summarization has no TASK_MIN_OUTPUT_TOKENS floor, so the inherited 800
-    // flows through unmodified — floors are keyed to the REQUESTED task, and
-    // summarization isn't one of the floored tasks.
-    expect(resolved!.maxTokens).toBe(800);
+    // Flows through unmodified: `builtin` is a local provider, where summarization's
+    // floor never applies (the local ceiling is the context window, which the user
+    // sized themselves). This test is about inheritance, not about the floor.
+    expect(resolved!.maxTokens).toBe(6000);
   });
+
+  // -------------------------------------------------------------------------
+  // summarization's output-token policy (BRIEF-QUAL.1, corrected 2026-08-22)
+  // -------------------------------------------------------------------------
+  // The bug this replaces: a floor in TASK_MIN_OUTPUT_TOKENS materialises a cap out
+  // of an ABSENT one, so an unconfigured user started sending max_output_tokens 4096
+  // to a reasoning model, whose hidden thinking is charged against it — an 88-minute
+  // extraction was cut off at exactly 4096 completion tokens, twice, and became a
+  // failure card. The rule is now RAISE-ONLY, and absent stays absent wherever the
+  // adapter can omit the field.
+
+  function summarizationWith(providerName: string, maxTokens?: number) {
+    const config: Record<string, unknown> = { providerId: 'p-1', model: 'm-1' };
+    if (maxTokens !== undefined) config.maxTokens = maxTokens;
+    (getDb as Mock).mockReturnValue(
+      makeDb(
+        [taskModelsRow({ summarization: config as never })],
+        [{ id: 'p-1', name: providerName, apiKeyEncrypted: 'blob', baseUrl: null, enabled: true }],
+      ),
+    );
+    return resolveTaskModel('summarization');
+  }
+
+  it.each(['openai', 'google', 'builtin', 'lmstudio', 'ollama'])(
+    'sends NO cap for %s when the user configured none — the provider default wins',
+    async (providerName) => {
+      const resolved = await summarizationWith(providerName);
+      // undefined reaches generate() as `maxOutputTokens: undefined`, which every one
+      // of these adapters omits from the request body (verified in node_modules).
+      expect(resolved!.maxTokens).toBeUndefined();
+    },
+  );
+
+  it('supplies 16384 for anthropic when none is configured — its adapter always sends a max_tokens', async () => {
+    // @ai-sdk/anthropic falls back to the model's own ceiling, but to 4096 for an
+    // UNRECOGNISED model id — an absent value there is not safe.
+    const resolved = await summarizationWith('anthropic');
+    expect(resolved!.maxTokens).toBe(16_384);
+  });
+
+  it('supplies 16384 for kimi too — sanitizeMaxTokens would otherwise fabricate 4096', async () => {
+    // Absent does not stay absent for kimi: REASONING_MIN_TOKENS raises it downstream
+    // in generate(), which is the very cap that truncated the extraction. Returning
+    // undefined here would be ineffective rather than safe.
+    const resolved = await summarizationWith('kimi');
+    expect(resolved!.maxTokens).toBe(16_384);
+  });
+
+  it.each(['openai', 'anthropic', 'google', 'kimi'])(
+    'raises an explicitly configured cap below the floor to 16384 on %s',
+    async (providerName) => {
+      const resolved = await summarizationWith(providerName, 2_000);
+      expect(resolved!.maxTokens).toBe(16_384);
+    },
+  );
+
+  it('keeps an explicitly configured cap ABOVE the floor untouched', async () => {
+    const resolved = await summarizationWith('openai', 32_000);
+    expect(resolved!.maxTokens).toBe(32_000);
+  });
+
+  it.each(['builtin', 'lmstudio', 'ollama'])(
+    "passes an explicit cap through UNCHANGED on %s — a local ceiling is the user's own",
+    async (providerName) => {
+      const resolved = await summarizationWith(providerName, 2_000);
+      expect(resolved!.maxTokens).toBe(2_000);
+    },
+  );
+
+  it('applies the same policy on the first-enabled-provider fallback path', async () => {
+    (getDb as Mock).mockReturnValue(
+      makeDb([], [{ id: 'cloud-1', name: 'openai', apiKeyEncrypted: 'blob', baseUrl: null, enabled: true }]),
+    );
+    const resolved = await resolveTaskModel('summarization');
+    expect(resolved!.maxTokens).toBeUndefined(); // NOT a fabricated 4096
+  });
+
+  it.each(['twin_learning', 'knowledge_qa'])(
+    '%s keeps its ORIGINAL floor semantics — an absent value still materialises 4096',
+    async (taskType) => {
+      (getDb as Mock).mockReturnValue(
+        makeDb(
+          [taskModelsRow({ [taskType]: { providerId: 'p-1', model: 'm-1' } } as never)],
+          [{ id: 'p-1', name: 'openai', apiKeyEncrypted: 'blob', baseUrl: null, enabled: true }],
+        ),
+      );
+      const resolved = await resolveTaskModel(taskType);
+      expect(resolved!.maxTokens).toBe(4096);
+    },
+  );
 
   // Every one of these was NOT in the original four-entry TASK_MODEL_FALLBACKS —
   // this is the actual breadth extension AI-CTX.1 Task 2 makes.
@@ -173,6 +263,8 @@ describe('resolveTaskModel — chat-class inheritance covers every AITaskType (A
     expect(resolved!.providerId).toBe('cloud-1');
     expect(resolved!.model).toBe('gpt-5-mini'); // DEFAULT_MODELS.openai, not an inherited model
     expect(resolved!.temperature).toBeUndefined();
+    // No cap is fabricated for summarization from an absent value (BRIEF-QUAL.1).
+    expect(resolved!.maxTokens).toBeUndefined();
   });
 
   it('embedding never inherits live_assistant — stays the unconfigured⇒null privacy guard', async () => {

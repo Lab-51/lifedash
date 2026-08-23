@@ -17,6 +17,7 @@ import {
   updateMeetingInputSchema,
   reassignFromUnassignedSchema,
   deleteMeetingOptsSchema,
+  updateMeetingParticipantsSchema,
 } from '../../shared/validation/schemas';
 
 const meetingIdsSchema = z.array(z.string().uuid());
@@ -40,6 +41,12 @@ export function registerMeetingHandlers(): void {
     const validId = validateInput(idParamSchema, id);
     const input = validateInput(updateMeetingInputSchema, data);
     return meetingService.updateMeeting(validId, input);
+  });
+
+  /** Dedicated participant-roster write (BRIEF-QUAL.1) — see updateMeetingParticipantsSchema. */
+  ipcMain.handle('meetings:update-participants', async (_event, payload: unknown) => {
+    const valid = validateInput(updateMeetingParticipantsSchema, payload);
+    return meetingService.updateMeetingParticipants(valid.meetingId, valid.participants);
   });
 
   ipcMain.handle('meetings:delete', async (_event, id: unknown, opts?: unknown) => {

@@ -37,6 +37,7 @@ function makeMeeting(segments: TranscriptSegment[]): MeetingWithTranscript {
     prepBriefing: null,
     transcriptionLanguage: null,
     unassignedPending: false,
+    participants: null,
     createdAt: '2026-03-10T10:00:00Z',
     segments,
     brief: null,

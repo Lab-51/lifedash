@@ -9,6 +9,13 @@ export interface ActionItem {
   meetingId: string;
   cardId: string | null;
   description: string;
+  /** Free-text owner name exactly as the meeting said it (BRIEF-QUAL.1), or null
+   *  when the transcript never made anyone explicitly responsible. Never a user
+   *  id — action items have no assignee relation. */
+  owner: string | null;
+  /** Due date as it was SAID ("Friday", "end of Q3") — never parsed into a real
+   *  date, because normalizing it would mean guessing (BRIEF-QUAL.1). */
+  dueText: string | null;
   status: ActionItemStatus;
   createdAt: string;
 }

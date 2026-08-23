@@ -90,6 +90,44 @@ vi.mock('../../../shared/types', () => ({
 vi.mock('../twinProfileService', () => ({ buildProfileContext: vi.fn().mockResolvedValue('') }));
 
 // ---------------------------------------------------------------------------
+// BRIEF-QUAL.1 seams — generateBrief is extract-then-write now
+// ---------------------------------------------------------------------------
+// The extraction pass is a separate service with its own suite
+// (briefExtractionService.test.ts). Mocking it here keeps this file testing
+// exactly what it always tested — the WRITER call and everything wrapped around
+// it — and keeps generate() at ONE call per brief. The roster is empty and the
+// brief language is English, so the writer system prompt is BRIEF_WRITER_PROMPT
+// with nothing appended (formatRosterBlock's own empty-input contract is covered
+// by participantRosterService.test.ts).
+const { EXTRACTED_STRUCTURE } = vi.hoisted(() => ({
+  EXTRACTED_STRUCTURE: {
+    topics: [{ title: 'Launch timeline', detail: 'The beta slips to April so the blocking bugs can land first.' }],
+    decisions: [{ statement: 'Push the beta to April', rationale: 'Three blocking bugs are still open' }],
+    commitments: [{ owner: 'Alex', task: 'Send the updated timeline', due: 'Friday', explicit: true }],
+    openQuestions: ['Who signs off on QA?'],
+    terms: ['beta'],
+    provenance: {
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      passes: 1,
+      extractedAt: '2026-01-01T00:00:00.000Z',
+      schemaVersion: 1,
+    },
+  },
+}));
+
+vi.mock('../briefExtractionService', () => ({
+  extractMeetingStructure: vi.fn(async () => ({ structure: EXTRACTED_STRUCTURE })),
+}));
+
+vi.mock('../participantRosterService', () => ({
+  buildRoster: vi.fn(async () => []),
+  formatRosterBlock: vi.fn(() => ''),
+}));
+
+vi.mock('../briefLanguageSettings', () => ({ readBriefLanguageSetting: vi.fn(async () => 'en') }));
+
+// ---------------------------------------------------------------------------
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
@@ -223,9 +261,18 @@ function buildDb(opts: { previousStatus?: string; nextStatus?: string } = {}) {
     meetings: [{ projectId: 'proj-1', status: opts.previousStatus ?? 'recording' }],
     projects: [{ system: true }],
   };
+  // `where()` is awaitable AND chainable: BRIEF-QUAL.1's structure read goes
+  // through getBrief, which adds .orderBy().limit(). [] there is "no brief yet",
+  // keeping generateActionItems on the legacy text-extraction path.
   const selectFn = vi.fn(() => ({
     from: (table: { __table?: string }) => ({
-      where: () => Promise.resolve(rowsFor[table.__table ?? ''] ?? []),
+      where: () => {
+        const rows = rowsFor[table.__table ?? ''] ?? [];
+        return {
+          orderBy: () => ({ limit: () => Promise.resolve([]) }),
+          then: (resolve: (v: unknown) => void) => resolve(rows),
+        };
+      },
     }),
   }));
 
@@ -247,7 +294,7 @@ function generateCallsMatching(marker: string) {
     .mocked(generate)
     .mock.calls.filter(([args]) => String((args as { system?: string } | undefined)?.system ?? '').includes(marker));
 }
-const briefCalls = () => generateCallsMatching('meeting summarization assistant');
+const briefCalls = () => generateCallsMatching('the meeting brief from authoritative structured notes');
 const actionCalls = () => generateCallsMatching('meeting action item extractor');
 
 function deferred<T>() {
@@ -545,7 +592,14 @@ describe('single-flight dedup with the IPC path', () => {
   it('releases the slot when a run FAILS, so a failed meeting is never wedged', async () => {
     // A non-FK insert failure is generateBrief's one genuine throw path.
     vi.mocked(getDb).mockReturnValue({
-      select: vi.fn(() => ({ from: () => ({ where: () => Promise.resolve([{ system: true }]) }) })),
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            orderBy: () => ({ limit: () => Promise.resolve([]) }),
+            then: (resolve: (v: unknown) => void) => resolve([{ system: true }]),
+          }),
+        }),
+      })),
       insert: vi.fn(() => ({ values: () => ({ returning: vi.fn().mockRejectedValue(new Error('disk on fire')) }) })),
     } as never);
 

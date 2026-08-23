@@ -108,3 +108,7 @@ docs/palette.png
 docs/reddit-post.md
 
 graphify-out/
+
+# Local-only rubric notes and eval outputs for REAL meetings (BRIEF-QUAL.1) —
+# nothing under here may ever be committed.
+.eval/

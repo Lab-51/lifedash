@@ -81,11 +81,20 @@ const ActionItemRow = memo(function ActionItemRow({
 
       {/* Description */}
       <div className="flex-1 min-w-0">
-        <p
-          className={`text-sm ${isDismissed ? 'text-surface-500 line-through' : 'text-surface-800 dark:text-surface-200'}`}
-        >
-          {item.description}
-        </p>
+        <div className="flex items-start gap-1.5 flex-wrap">
+          {/* Owner chip — absent when unknown; never the word "Unassigned" (BRIEF-QUAL.1) */}
+          {item.owner && (
+            <span className="shrink-0 max-w-[45%] truncate text-[0.625rem] font-medium px-1.5 py-0.5 rounded-full bg-[var(--color-accent-muted)] text-[var(--color-accent)]">
+              {item.owner}
+            </span>
+          )}
+          <p
+            className={`min-w-0 break-words text-sm ${isDismissed ? 'text-surface-500 line-through' : 'text-surface-800 dark:text-surface-200'}`}
+          >
+            {item.description}
+          </p>
+        </div>
+        {item.dueText && <p className="text-xs text-surface-500 mt-0.5 break-words">Due {item.dueText}</p>}
         {/* Converted items: show confirmation text, hide all action buttons (including "Push to Column") */}
         {item.status === 'converted' && item.cardId && (
           <p className="text-xs text-primary-400 mt-0.5">Pushed to board as a card</p>

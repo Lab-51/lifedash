@@ -9,12 +9,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Square, X, Loader2, Trash2, FolderOpen, FileText, Globe } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
+import ParticipantsInput from './ParticipantsInput';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../shared/types';
 import type { MeetingTemplateType } from '../../shared/types';
-import type { CalendarEvent } from '../../shared/types/calendar';
+import type { CalendarEvent, CalendarEventAttendee } from '../../shared/types/calendar';
 import HudSelect from './HudSelect';
 import AudioLevelMeter from './AudioLevelMeter';
 import { suggestMeetingTitle } from '../../shared/utils/meetingTitle';
@@ -56,6 +57,14 @@ function shortRelativeTime(iso: string | null): string | null {
   const months = Math.floor(days / 30);
   if (months < 12) return `${months}mo ago`;
   return `${Math.floor(days / 365)}y ago`;
+}
+
+/** Calendar attendee -> participant name (Phase G prefill, BRIEF-QUAL.1). NAMES
+ *  ONLY: an attendee with no name is skipped entirely — this field never falls
+ *  back to an email local-part the way EventDetailsModal's attendeeLabel does,
+ *  because it is the one place an email must never even briefly appear. */
+function attendeeNamesOnly(attendees: CalendarEventAttendee[]): string[] {
+  return attendees.map((a) => a.name?.trim()).filter((name): name is string => !!name);
 }
 
 /** Returns a short label for the transcription backend. */
@@ -202,6 +211,10 @@ export default function RecordingControls({ hasModel, initialCalendarEvent }: Re
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
   const [activeModelName, setActiveModelName] = useState<string | null>(null);
   const [transcriptionProvider, setTranscriptionProvider] = useState<string>('local');
+  const [participants, setParticipants] = useState<string[]>([]);
+  // Collapsed by default (zero-friction when skipped); auto-opens once a calendar
+  // event prefills at least one participant so the roster isn't hidden behind a click.
+  const [participantsExpanded, setParticipantsExpanded] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   // Tracks a MANUAL project choice so a calendar suggestion never overrides the user.
@@ -261,6 +274,11 @@ export default function RecordingControls({ hasModel, initialCalendarEvent }: Re
   useEffect(() => {
     if (!initialCalendarEvent) return;
     setTitle(initialCalendarEvent.title);
+    const names = attendeeNamesOnly(initialCalendarEvent.attendees);
+    if (names.length > 0) {
+      setParticipants(names);
+      setParticipantsExpanded(true);
+    }
     let cancelled = false;
     void (async () => {
       try {
@@ -367,10 +385,13 @@ export default function RecordingControls({ hasModel, initialCalendarEvent }: Re
       selectedLanguage,
       initialCalendarEvent?.id,
       initialCalendarEvent?.seriesId,
+      participants.length > 0 ? participants : undefined,
     );
     setTitle(suggestMeetingTitle());
     setSelectedTemplate('none');
     setSelectedProjectId('');
+    setParticipants([]);
+    setParticipantsExpanded(false);
     userChoseProjectRef.current = false;
   };
 
@@ -485,6 +506,22 @@ export default function RecordingControls({ hasModel, initialCalendarEvent }: Re
                 ))}
               </div>
             )}
+
+            {/* Participants — visually secondary and collapsed by default (zero-
+                friction when skipped); auto-opens when a calendar event prefills
+                a roster above. */}
+            <details
+              open={participantsExpanded}
+              onToggle={(e) => setParticipantsExpanded(e.currentTarget.open)}
+              className="group"
+            >
+              <summary className="cursor-pointer text-xs text-surface-500 hover:text-surface-400 select-none">
+                Participants{participants.length > 0 ? ` (${participants.length})` : ''}
+              </summary>
+              <div className="mt-2">
+                <ParticipantsInput value={participants} onChange={setParticipants} disabled={starting} />
+              </div>
+            </details>
 
             <button
               type="button"

@@ -4,11 +4,13 @@
 import { useState } from 'react';
 import { X, Clock, Download, ArrowRight, FolderOpen } from 'lucide-react';
 import HudSelect from '../HudSelect';
+import ParticipantsInput from '../ParticipantsInput';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../../shared/types';
 import type { MeetingWithTranscript } from '../../../shared/types';
 import type { Project } from '../../../shared/types';
 import { STATUS_STYLES, formatDuration, formatDate, formatTime } from './utils';
 import { useProjectStore } from '../../stores/projectStore';
+import { useMeetingStore } from '../../stores/meetingStore';
 
 interface MeetingHeaderProps {
   meeting: MeetingWithTranscript;
@@ -33,6 +35,11 @@ export default function MeetingHeader({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const createProject = useProjectStore((s) => s.createProject);
+  const updateParticipants = useMeetingStore((s) => s.updateParticipants);
+
+  const handleParticipantsChange = (names: string[]) => {
+    void updateParticipants(meeting.id, names);
+  };
 
   const status = STATUS_STYLES[meeting.status] || STATUS_STYLES.completed;
 
@@ -176,6 +183,13 @@ export default function MeetingHeader({
             <ArrowRight size={12} />
           </button>
         )}
+      </div>
+
+      {/* Participants (BRIEF-QUAL.1 Task 4) — editing after generation is the
+          common path ("I forgot Peťa"); BriefSection's Regenerate hint picks up
+          the edited-since-brief flag this write sets. */}
+      <div className="mb-8 max-w-md">
+        <ParticipantsInput value={meeting.participants ?? []} onChange={handleParticipantsChange} />
       </div>
     </>
   );

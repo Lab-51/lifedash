@@ -246,6 +246,17 @@ export const convertIdeaToCardInputSchema = z.object({
 // Meetings
 // ============================================================================
 
+// A single participant display name (BRIEF-QUAL.1): trimmed, 1-80 chars, never
+// an email — a pasted email must be rejected, not stored.
+export const participantNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .refine((v) => !v.includes('@'), { message: 'Participant name must not be an email address' });
+
+export const participantsArraySchema = z.array(participantNameSchema).max(24);
+
 export const createMeetingInputSchema = z.object({
   title: z.string().min(1).max(500),
   projectId: uuid.optional(),
@@ -256,6 +267,7 @@ export const createMeetingInputSchema = z.object({
   // Prefixed ids (`${provider}:${eventId}` / series id), not uuids.
   calendarEventId: z.string().max(512).optional(),
   calendarSeriesId: z.string().max(512).optional(),
+  participants: participantsArraySchema.optional(),
 });
 
 export const updateMeetingInputSchema = z.object({
@@ -269,6 +281,14 @@ export const updateMeetingInputSchema = z.object({
 export const reassignFromUnassignedSchema = z.object({
   meetingId: uuid,
   newProjectId: uuid,
+});
+
+/** For meetings:update-participants (BRIEF-QUAL.1) — a dedicated channel, kept
+ *  separate from the general meetings:update so a participant-list edit never
+ *  has to pass through updateMeeting's project-link/completion-transition logic. */
+export const updateMeetingParticipantsSchema = z.object({
+  meetingId: uuid,
+  participants: participantsArraySchema,
 });
 
 /** For meetings:delete — the optional second arg. Renderer call sites that omit

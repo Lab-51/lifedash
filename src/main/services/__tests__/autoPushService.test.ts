@@ -63,7 +63,12 @@ vi.mock('../dataChangeNotifier', () => ({ notifyDataChanged: vi.fn() }));
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { autoPushActionItems, readAutoPushSetting, SETTINGS_KEY_AUTO_PUSH } from '../autoPushService';
+import {
+  autoPushActionItems,
+  formatOwnerDueLines,
+  readAutoPushSetting,
+  SETTINGS_KEY_AUTO_PUSH,
+} from '../autoPushService';
 import { ensureInboxColumn } from '../inboxColumnService';
 import { notifyDataChanged } from '../dataChangeNotifier';
 import type { ActionItem } from '../../../shared/types/intelligence';
@@ -101,6 +106,8 @@ function makeActionItem(overrides: Partial<ActionItem> = {}): ActionItem {
     meetingId: 'meeting-1',
     cardId: null,
     description: 'Do the thing. More context here.',
+    owner: null,
+    dueText: null,
     status: 'pending',
     createdAt: new Date().toISOString(),
     ...overrides,
@@ -521,5 +528,96 @@ describe('readAutoPushSetting', () => {
     });
     const result = await readAutoPushSetting(db as never, 'proj-missing');
     expect(result).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BRIEF-QUAL.1 — the owner and due the meeting actually said reach the card
+// ---------------------------------------------------------------------------
+// Cards have no assignee field and no parsed due date, and this phase does NOT
+// add either: the owner is a free-text name and the due is whatever was said
+// ("Friday"), so both ride as description header lines instead of being resolved
+// into a reference or a Date. The TITLE stays the task itself.
+
+describe('formatOwnerDueLines', () => {
+  it('is empty when neither is known — a pre-BRIEF-QUAL.1 description is byte-identical', () => {
+    expect(formatOwnerDueLines(null, null)).toBe('');
+  });
+
+  it('renders owner first, then due, then a blank line', () => {
+    expect(formatOwnerDueLines('Rina', 'Friday')).toBe('Owner: Rina\nDue: Friday\n\n');
+  });
+
+  it('renders each half alone', () => {
+    expect(formatOwnerDueLines('Rina', null)).toBe('Owner: Rina\n\n');
+    expect(formatOwnerDueLines(null, 'end of Q3')).toBe('Due: end of Q3\n\n');
+  });
+});
+
+describe('autoPushActionItems — owner/due on the pushed card', () => {
+  beforeEach(() => {
+    vi.mocked(ensureInboxColumn).mockResolvedValue({
+      id: 'inbox-col-1',
+      boardId: 'board-1',
+      name: 'Inbox',
+      position: 0,
+      color: null,
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  it('prefixes the description with Owner/Due and leaves the title alone', async () => {
+    const item = makeActionItem({
+      id: 'a-1',
+      description: 'Send the updated timeline. Include the QA dates.',
+      owner: 'Rina',
+      dueText: 'Friday',
+    });
+    const db = buildDb({
+      selectResponses: [[{ id: 'board-1', projectId: 'proj-1', position: 0 }]],
+      txCardResults: [[makeCardRow({ id: 'card-1' })]],
+      txCountValues: [0],
+    });
+
+    await autoPushActionItems({
+      db: db as never,
+      meetingId: 'meeting-1',
+      projectId: 'proj-1',
+      actionItems: [item],
+      userSettings: { autoPushEnabled: true },
+    });
+
+    const values = (db._txInsertValues.mock.calls[0] as unknown[])[0] as {
+      title: string;
+      description: string;
+      dueDate?: unknown;
+    };
+    expect(values.description).toBe(
+      'Owner: Rina\nDue: Friday\n\nSend the updated timeline. Include the QA dates.\n\n_From meeting: meeting-1_',
+    );
+    // The title is still the task, not the person.
+    expect(values.title).toBe('Send the updated timeline');
+    // The due was NEVER parsed into a real date.
+    expect(values.dueDate).toBeUndefined();
+  });
+
+  it('an item with no owner and no due produces exactly the pre-BRIEF-QUAL.1 description', async () => {
+    const item = makeActionItem({ id: 'a-1', description: 'Book the venue' });
+    const db = buildDb({
+      selectResponses: [[{ id: 'board-1', projectId: 'proj-1', position: 0 }]],
+      txCardResults: [[makeCardRow({ id: 'card-1' })]],
+      txCountValues: [0],
+    });
+
+    await autoPushActionItems({
+      db: db as never,
+      meetingId: 'meeting-1',
+      projectId: 'proj-1',
+      actionItems: [item],
+      userSettings: { autoPushEnabled: true },
+    });
+
+    const values = (db._txInsertValues.mock.calls[0] as unknown[])[0] as { description: string };
+    expect(values.description).toBe('Book the venue\n\n_From meeting: meeting-1_');
   });
 });

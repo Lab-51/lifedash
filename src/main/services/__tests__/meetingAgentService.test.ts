@@ -549,6 +549,7 @@ describe('getMeetingContext — own brief vs other meetings briefs', () => {
       id: 'b1',
       meetingId: 'm1',
       summary: 'We set Q3 hiring goals.',
+      structure: null,
       createdAt: new Date().toISOString(),
     });
     vi.mocked(fetchPriorBriefs).mockResolvedValue(['An earlier meeting about pricing.']);
@@ -618,7 +619,9 @@ describe('buildMeetingGroundingBlock', () => {
       })),
     } as never);
     vi.mocked(getBrief).mockResolvedValue(
-      summary === null ? null : { id: 'b1', meetingId: 'm1', summary, createdAt: new Date().toISOString() },
+      summary === null
+        ? null
+        : { id: 'b1', meetingId: 'm1', summary, structure: null, createdAt: new Date().toISOString() },
     );
   }
 

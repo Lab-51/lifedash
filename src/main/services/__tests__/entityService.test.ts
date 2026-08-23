@@ -143,7 +143,13 @@ function setDb(cfg: DbConfig) {
 
 const PROVIDER = { providerId: 'p1', providerName: 'lmstudio', apiKeyEncrypted: null, baseUrl: null, model: 'local' };
 const MEETING_ID = 'meeting-1';
-const BRIEF: MeetingBrief = { id: 'b1', meetingId: MEETING_ID, summary: 'Discussed billing.', createdAt: 'x' };
+const BRIEF: MeetingBrief = {
+  id: 'b1',
+  meetingId: MEETING_ID,
+  summary: 'Discussed billing.',
+  structure: null,
+  createdAt: 'x',
+};
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 

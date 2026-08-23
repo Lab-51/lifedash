@@ -322,6 +322,7 @@ export interface ElectronAPI {
   getMeeting: (id: string) => Promise<MeetingWithTranscript | null>;
   createMeeting: (data: CreateMeetingInput) => Promise<Meeting>;
   updateMeeting: (id: string, data: UpdateMeetingInput) => Promise<Meeting>;
+  updateMeetingParticipants: (meetingId: string, participants: string[]) => Promise<Meeting>;
   deleteMeeting: (id: string, opts?: DeleteMeetingOptions) => Promise<void>;
   getMeetingDeleteImpact: (id: string) => Promise<MeetingDeleteImpact>;
   getActionItemCounts: (meetingIds: string[]) => Promise<Record<string, number>>;

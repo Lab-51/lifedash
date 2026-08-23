@@ -12,6 +12,7 @@ vi.stubGlobal('electronAPI', {
   getMeeting: vi.fn().mockResolvedValue(null),
   getActionItemCounts: vi.fn().mockResolvedValue({}),
   meetingsGetPendingActionCount: vi.fn().mockResolvedValue(0),
+  updateMeetingParticipants: vi.fn(),
 });
 vi.stubGlobal('window', globalThis);
 
@@ -28,6 +29,7 @@ const resetState = () =>
     generatingBrief: false,
     generatingActions: false,
     briefErrors: {},
+    participantsEditedAfterBrief: {},
     diarizing: false,
     diarizationError: null,
     analytics: null,
@@ -101,5 +103,46 @@ describe('meetingStore — diarizeMeeting selectedMeeting guard', () => {
     await useMeetingStore.getState().diarizeMeeting('meeting-OWN');
 
     expect(useMeetingStore.getState().selectedMeeting).toBe(updated);
+  });
+});
+
+describe('meetingStore — updateParticipants (BRIEF-QUAL.1 Task 4)', () => {
+  beforeEach(() => {
+    resetState();
+    vi.clearAllMocks();
+  });
+
+  it('calls the preload method and updates both meetings and selectedMeeting', async () => {
+    const updated = { id: 'meeting-A', participants: ['Alex Chen'] } as any;
+    vi.mocked(window.electronAPI.updateMeetingParticipants).mockResolvedValueOnce(updated);
+    useMeetingStore.setState({
+      meetings: [{ id: 'meeting-A', participants: null } as any],
+      selectedMeeting: { id: 'meeting-A', segments: [], actionItems: [], brief: null, participants: null } as any,
+    });
+
+    await useMeetingStore.getState().updateParticipants('meeting-A', ['Alex Chen']);
+
+    expect(window.electronAPI.updateMeetingParticipants).toHaveBeenCalledWith('meeting-A', ['Alex Chen']);
+    expect(useMeetingStore.getState().meetings[0]).toBe(updated);
+    expect(useMeetingStore.getState().selectedMeeting?.participants).toEqual(['Alex Chen']);
+  });
+
+  it('marks the meeting as edited-since-brief', async () => {
+    const updated = { id: 'meeting-A', participants: ['Alex Chen'] } as any;
+    vi.mocked(window.electronAPI.updateMeetingParticipants).mockResolvedValueOnce(updated);
+
+    await useMeetingStore.getState().updateParticipants('meeting-A', ['Alex Chen']);
+
+    expect(useMeetingStore.getState().participantsEditedAfterBrief['meeting-A']).toBe(true);
+  });
+
+  it('generateBrief clears the edited-since-brief flag on success', async () => {
+    useMeetingStore.setState({ participantsEditedAfterBrief: { 'meeting-A': true } });
+    const mockBrief = { id: 'b1', meetingId: 'meeting-A', summary: 'Summary', createdAt: new Date().toISOString() };
+    vi.mocked(window.electronAPI.generateBrief).mockResolvedValueOnce(mockBrief as any);
+
+    await useMeetingStore.getState().generateBrief('meeting-A');
+
+    expect(useMeetingStore.getState().participantsEditedAfterBrief['meeting-A']).toBeUndefined();
   });
 });

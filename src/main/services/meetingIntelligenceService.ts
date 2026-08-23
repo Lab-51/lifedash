@@ -10,7 +10,9 @@
 // === LIMITATIONS ===
 // - Prompt templates are hardcoded (no user customization yet)
 // - No streaming support for AI generation (uses full generateText)
-// - The chunked map-reduce path (AI-CTX.1) labels its output in English only
+// - The long-meeting passes footer (BRIEF-QUAL.1) is English only
+// - A brief is written from the structure briefExtractionService produced; the
+//   raw transcript rides along ONLY when it still fits the window
 //
 // === VERIFICATION STATUS ===
 // - generate() API: verified from ai-provider.ts source
@@ -24,12 +26,17 @@ import { isForeignKeyViolation } from '../db/errors';
 import { generate, resolveTaskModel, type ResolvedProvider } from './ai-provider';
 import { getMeeting, updateMeeting, registerMeetingCompletedHook } from './meetingService';
 import { createLogger } from './logger';
-import { autoPushActionItems, readAutoPushSetting } from './autoPushService';
+import { autoPushActionItems, formatOwnerDueLines, readAutoPushSetting } from './autoPushService';
 import { ensureUnassignedProject } from './unassignedProjectService';
 import { detectProjectFromTranscript } from './projectDetectionService';
 import { buildProfileContext } from './twinProfileService';
 import { dispatchPostSession } from './postSessionDispatcher';
-import { chunkSegments, contextWindowTokens, estimateTokens, promptCharBudget } from './promptBudget';
+import { chunkBudget, chunkSegments, fitsWindow, promptCharBudget } from './promptBudget';
+import { extractMeetingStructure } from './briefExtractionService';
+import { buildRoster, formatRosterBlock, type RosterEntry } from './participantRosterService';
+import { readBriefLanguageSetting } from './briefLanguageSettings';
+import { resolveBriefLanguage } from '../../shared/brief/briefLanguage';
+import { MeetingStructureSchema, type Commitment, type MeetingStructure } from '../../shared/types/briefStructure';
 import type { MeetingBrief, ActionItem, ActionItemStatus, MeetingTemplateType } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import { parseActionItems } from '../../shared/utils/action-item-parser';
@@ -41,52 +48,55 @@ const log = createLogger('MeetingIntelligence');
 // Prompt Templates
 // ---------------------------------------------------------------------------
 
-const BASE_SUMMARIZATION_PROMPT = `You are a meeting summarization assistant. Summarize the transcript into three sections. Cover every distinct topic, decision, and follow-up mentioned — do not omit topics for the sake of brevity. Each bullet must be one short sentence (max 25 words).
+// BRIEF-QUAL.1: the brief is WRITTEN from briefExtractionService's validated
+// structure, not summarized from the transcript. Everything the old
+// BASE_SUMMARIZATION_PROMPT had to defend against — omitted topics, merged
+// bullets, invented owners — is now the extraction pass's problem, so this prompt
+// only has to render. Deliberately carries NO few-shot example: the old
+// 30-minute-meeting sample was an implicit length anchor that shrank real
+// (longer) meetings toward its own size. The structured notes ARE the example.
+//
+// Written for the WEAKEST tier LifeDash ships with (the built-in Qwen3-4B at
+// --ctx-size 16384): short, imperative, no reliance on long reasoning, and NO
+// bullet or word caps anywhere — a cap is an instruction to drop something the
+// extraction pass was explicitly told to keep.
+//
+// Exported for direct assertion (the same reason mergeActionDescriptions and
+// buildSuppressionInstruction are): SPEC 255's twin baseline says that with no
+// profile the system prompt must BE this string, and only an equality check can
+// say that.
+export const BRIEF_WRITER_PROMPT = `You write the meeting brief from authoritative structured notes. The notes are the complete record of the meeting: everything in them was said, and anything missing from them was not.
 
-Format:
+Write these sections, in this order:
+
+## Summary
+2-4 sentences: what the meeting was for and where it landed.
 
 ## Key Points
-- [One-sentence summary of a main topic discussed]
+One bullet per topic in the notes, in the order the notes list them. Each bullet carries its own detail — the condition, the rationale or the number. The shape is "X — because/so that Y".
 
-## Decisions Made
-- [One-sentence decision, or "None" if no decisions were made]
-
-## Follow-ups
-- [One-sentence follow-up task with owner if mentioned]
-
-Example output for a 30-minute product meeting:
-
-## Key Points
-- Team agreed to launch the beta in Q2 instead of Q1
-- Mobile app has 3 critical bugs blocking release
-- Design team presented new onboarding flow, well received
-- Customer support requests doubled — need dedicated triage process
-- API rate limits causing issues for enterprise clients
-
-## Decisions Made
-- Push beta launch to April 15 to fix critical bugs
-- Hire one more QA engineer for the mobile team
-- Adopt weekly bug triage meetings starting next sprint
+## Decisions
+One bullet per decision: the statement, then its rationale when the notes give one.
 
 ## Follow-ups
-- Sarah: share updated timeline with stakeholders by Friday
-- Dev team: fix the 3 critical bugs before next sprint
-- PM: draft proposal for enterprise rate limit increase
+Group the commitments by owner. Write one "### <Owner>" heading per person, in the order the participants are listed, followed by that person's commitments. Commitments with no owner, or whose owner the notes do not mark as explicit, go under a "### Unassigned" heading placed LAST. Write each commitment as "- task (due)" when a due is known, otherwise "- task".
+
+## Open Questions
+One bullet per open question.
 
 Rules:
-- Aim for 4-10 bullets in Key Points — one bullet per distinct topic discussed
-- Maximum 10 bullets per section
-- No filler phrases ("The team discussed...", "It was mentioned that...")
-- Start Key Points with the topic, not "Discussion about..."
-- Start Follow-ups with the person responsible if known
-- If a section has nothing, write "- None"`;
+- Every topic, decision, commitment and question in the notes MUST appear in the brief. Never merge two distinct items into one bullet.
+- Never invent an owner, a date or a number. If the notes do not say it, do not write it.
+- Keep names, terms, numbers and dates exactly as they appear in the notes.
+- Omit a section entirely when the notes have nothing for it — except ## Key Points, which is always written.
+- Output markdown only. No preamble, no closing remarks, no code fence.`;
 
-function getSummarizationPrompt(template: MeetingTemplateType): string {
-  const templateInfo = MEETING_TEMPLATES.find((t) => t.type === template);
-  if (!templateInfo || !templateInfo.aiPromptHint) {
-    return BASE_SUMMARIZATION_PROMPT;
-  }
-  return `${BASE_SUMMARIZATION_PROMPT}\n\nIMPORTANT CONTEXT: ${templateInfo.aiPromptHint}`;
+/** The meeting template's own hint, for ALL SIX templates — MEETING_TEMPLATES is
+ *  the source of truth. Returns '' for a template with no hint (including
+ *  'none'), keeping the default prompt free of an empty context paragraph. */
+function templateHintBlock(template: MeetingTemplateType): string {
+  const hint = MEETING_TEMPLATES.find((t) => t.type === template)?.aiPromptHint;
+  return hint ? `IMPORTANT CONTEXT: ${hint}` : '';
 }
 
 const BASE_ACTION_EXTRACTION_PROMPT = `You are a meeting action item extractor. Given a meeting transcript, identify concrete action items — tasks, assignments, and follow-ups.
@@ -101,20 +111,23 @@ Rules:
 - Start each item with a verb (Schedule, Update, Review, Create, Send, etc.)
 - One item per line, prefixed with "- "
 - If no clear action items exist, respond with: No action items.
-- Maximum 10 items
+- List every concrete action — there is no maximum
 - Do NOT include observations, summaries, or commentary — only actionable tasks`;
 
+/**
+ * Action-extraction prompt for a template. BRIEF-QUAL.1: reads the hint from
+ * MEETING_TEMPLATES for ALL SIX templates — this used to hardcode bespoke
+ * sentences for exactly three (standup/retro/planning), so brainstorm, 1-on-1
+ * and general silently got no template context at all while the brief prompt
+ * did. One source of truth, same block shape as {@link templateHintBlock}.
+ *
+ * Only reachable on the LEGACY fallback path now: a brief carrying a persisted
+ * structure derives its action items from the structure's commitments with no
+ * model call at all (see generateActionItems).
+ */
 function getActionExtractionPrompt(template: MeetingTemplateType): string {
-  if (template === 'standup') {
-    return `${BASE_ACTION_EXTRACTION_PROMPT}\n\nThis is a standup — prioritize extracting blocker-resolution tasks and follow-up items.`;
-  }
-  if (template === 'retro') {
-    return `${BASE_ACTION_EXTRACTION_PROMPT}\n\nThis is a retrospective — focus on improvement action items the team agreed to pursue.`;
-  }
-  if (template === 'planning') {
-    return `${BASE_ACTION_EXTRACTION_PROMPT}\n\nThis is a planning meeting — extract task assignments and commitments with owners when mentioned.`;
-  }
-  return BASE_ACTION_EXTRACTION_PROMPT;
+  const hint = templateHintBlock(template);
+  return hint ? `${BASE_ACTION_EXTRACTION_PROMPT}\n\n${hint}` : BASE_ACTION_EXTRACTION_PROMPT;
 }
 
 /**
@@ -155,11 +168,23 @@ const SUPPRESSION_CHAR_BUDGET = 4000;
 // Row Mappers
 // ---------------------------------------------------------------------------
 
+/** The `structure` jsonb column is typed `unknown` on the row (it is written by
+ *  this service and read by anything), so it is VALIDATED on the way out rather
+ *  than cast. A legacy brief (null), a failure card (null) and a row written by a
+ *  future incompatible schemaVersion all resolve to null — readers must already
+ *  treat `structure` as optional context, never as a precondition. */
+function parseBriefStructure(value: unknown): MeetingStructure | null {
+  if (!value) return null;
+  const parsed = MeetingStructureSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
 function toBrief(row: typeof meetingBriefs.$inferSelect): MeetingBrief {
   return {
     id: row.id,
     meetingId: row.meetingId,
     summary: row.summary,
+    structure: parseBriefStructure(row.structure),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -170,6 +195,8 @@ function toActionItem(row: typeof actionItems.$inferSelect): ActionItem {
     meetingId: row.meetingId,
     cardId: row.cardId,
     description: row.description,
+    owner: row.owner ?? null,
+    dueText: row.dueText ?? null,
     status: row.status,
     createdAt: row.createdAt.toISOString(),
   };
@@ -516,7 +543,7 @@ export async function injectTwinProfileContext(systemPrompt: string): Promise<st
 async function persistBriefAndDispatch(
   meetingId: string,
   summaryText: string,
-  opts: { dispatch: boolean },
+  opts: { dispatch: boolean; structure?: MeetingStructure },
 ): Promise<MeetingBrief | null> {
   if (!(await getMeeting(meetingId))) {
     log.info(`Meeting ${meetingId} deleted before brief generation completed — discarded`);
@@ -531,6 +558,11 @@ async function persistBriefAndDispatch(
       .values({
         meetingId,
         summary: summaryText,
+        // BRIEF-QUAL.1: the structure is persisted ONLY alongside a real brief.
+        // A failure card carries none on purpose — generateActionItems reads the
+        // latest row's structure, and deriving commitments from a run that
+        // failed would resurrect exactly the garbage AI-RESIL.1 keeps out.
+        structure: opts.structure ?? null,
       })
       .returning();
   } catch (err) {
@@ -612,7 +644,7 @@ function classifyBriefFailure(err: unknown): string {
   if (lower.includes('exited during startup')) {
     return 'the built-in AI runtime failed to start';
   }
-  // AI-CTX.1 belt-and-braces. The budget gate (fitsContextWindow) is supposed to
+  // AI-CTX.1 belt-and-braces. The budget gate (promptBudget.fitsWindow) is supposed to
   // make this unreachable: a prompt too large for the window takes the chunked
   // map-reduce path instead of being sent. So if this card is ever seen in the
   // field, the char->token estimate was wrong for that model — a diagnosable
@@ -702,18 +734,25 @@ async function resolveBriefProjectId(meeting: {
   }
 }
 
-/** Summarization system prompt: template-aware, language-aware, then the V3.3
- *  digital-twin profile block prepended. Built BEFORE the user prompt so its
- *  length can be charged against the context budget (AI-CTX.1). */
-async function buildBriefSystemPrompt(meeting: {
-  template: MeetingTemplateType;
-  transcriptionLanguage: string | null;
-}): Promise<string> {
-  let systemPrompt = getSummarizationPrompt(meeting.template);
-  const briefLangName = getLanguageName(meeting.transcriptionLanguage);
-  if (briefLangName) {
-    systemPrompt += `\n\nIMPORTANT: The meeting transcript is in ${briefLangName}. Write the entire summary in ${briefLangName}.`;
-  }
+/**
+ * The WRITER system prompt: the writer role, the template hint, then the roster +
+ * brief-language block (participantRosterService owns that wording, so there is
+ * exactly one place either sentence lives), and finally the V3.3 digital-twin
+ * profile block prepended. Built BEFORE the user prompt so its length can be
+ * charged against the context budget (AI-CTX.1).
+ *
+ * With no roster, no template hint and English (`langName` null) this returns
+ * BRIEF_WRITER_PROMPT byte-for-byte, which is what keeps SPEC 255's twin
+ * baseline ("no profile => the system prompt IS the base prompt") checkable.
+ */
+async function buildBriefSystemPrompt(
+  meeting: { template: MeetingTemplateType },
+  roster: RosterEntry[],
+  langName: string | null,
+): Promise<string> {
+  const systemPrompt = [BRIEF_WRITER_PROMPT, templateHintBlock(meeting.template), formatRosterBlock(roster, langName)]
+    .filter((block) => block.length > 0)
+    .join('\n\n');
   return injectTwinProfileContext(systemPrompt);
 }
 
@@ -774,140 +813,20 @@ async function assembleBriefUserPrompt(
 }
 
 // ---------------------------------------------------------------------------
-// AI-CTX.1: context-budget gate + bounded chunked map-reduce
+// BRIEF-QUAL.1: the writer pass
 // ---------------------------------------------------------------------------
-// The field failure (2026-08-07): a long meeting on the built-in 16k-context
-// sidecar produced "request (22202 tokens) exceeds the available context size
-// (16384 tokens)" deterministically on every Regenerate. Raising --ctx-size is
-// NOT the fix — it is a deliberate VRAM bound (whisper shares the GPU) and no
-// fixed number survives the next longer meeting. The PROMPT becomes elastic
-// instead: a transcript that does not fit is summarized part-by-part and the
-// parts are reduced into the real brief. Never silently — the brief prompt's own
-// contract says "cover every distinct topic", so the persisted brief carries an
-// honest "Summarized in N passes" note.
+// AI-CTX.1's bounded map-reduce over CHUNK SUMMARIES is gone: summarizing a
+// summary is the compression step this phase exists to remove, and
+// briefExtractionService is the elastic path now (it extracts part-by-part and
+// merges DETERMINISTICALLY in code, so nothing can be summarized away). What
+// survives unchanged is every rule AI-CTX.1 established: the window never moves,
+// a failing part aborts the whole run, promptBudget.ts owns the arithmetic, and
+// a long meeting still says so in the persisted brief.
 
 /** The only two segment fields prompt assembly in this file reads. */
 type PromptSegment = { startTime: number; content: string };
 
-/** Output-token reserve assumed by the fit check when a task has no configured
- *  maxTokens. Mirrors promptBudget.ts's DEFAULT_OUTPUT_RESERVE_TOKENS (private
- *  there) — the same reservation carved out of the same window. */
-const DEFAULT_OUTPUT_RESERVE_TOKENS = 4096;
-
-/** Chat-template / message-framing overhead the char measurement cannot see.
- *  Mirrors promptBudget.ts's FRAMING_OVERHEAD_TOKENS. */
-const FRAMING_OVERHEAD_TOKENS = 1024;
-
-/** Headroom reserved inside a chunk's char budget for the "Part i of N" header
- *  and the `Transcript:` framing wrapped around the segments themselves. */
-const CHUNK_HEADROOM_CHARS = 512;
-
-/** Floor for a chunk's char budget — a starved window must still make progress
- *  (same rationale as promptBudget.ts's MIN_PROMPT_CHAR_BUDGET). */
-const MIN_CHUNK_CHAR_BUDGET = 1000;
-
-/** Extra map-reduce levels allowed when the reduce prompt ITSELF overflows.
- *  Explicitly bounded: a pathological many-hour meeting must terminate with a
- *  classified failure card, never loop or recurse unbounded. */
-const MAX_REDUCE_LEVELS = 2;
-
-/**
- * True when the system + user prompt, plus the task's output reserve and the
- * chat-template framing overhead, fit the provider's context window. This is
- * the single gate deciding single-pass vs chunked for BOTH generateBrief and
- * generateActionItems — one estimate, one place to be wrong.
- */
-function fitsContextWindow(provider: ResolvedProvider, systemPrompt: string, userPrompt: string): boolean {
-  const needed =
-    estimateTokens(systemPrompt + userPrompt) +
-    (provider.maxTokens ?? DEFAULT_OUTPUT_RESERVE_TOKENS) +
-    FRAMING_OVERHEAD_TOKENS;
-  return needed <= contextWindowTokens(provider.providerName);
-}
-
-/** Char budget for one chunk of transcript: the provider's prompt budget minus
- *  the system prompt that rides along with every chunk, minus header headroom. */
-function chunkCharBudget(budget: number, systemPrompt: string): number {
-  return Math.max(MIN_CHUNK_CHAR_BUDGET, budget - systemPrompt.length - CHUNK_HEADROOM_CHARS);
-}
-
-/**
- * System prompt for a single map (part-summary) pass. Deliberately compact and
- * factual: the chunk pass gets NO twin profile, NO threading, NO live-item
- * suppression and NO prep briefing. Those belong to the final reduce pass — the
- * one that actually writes the brief — and keeping them out here is what keeps
- * each chunk prompt small enough to be worth chunking for.
- */
-const CHUNK_SUMMARY_PROMPT = `You are summarizing ONE PART of a long meeting transcript. A later pass merges all part summaries into the final brief, so nothing may be lost here.
-
-Rules:
-- Preserve EVERY distinct topic discussed, decision made, action item (with its owner and date when stated), and open question.
-- Use terse bullets, one fact per line. No preamble, no closing remarks.
-- Never invent content. Omit a category entirely if this part contains none.
-- Keep names, numbers, and dates exactly as they were said.`;
-
-function buildChunkSystemPrompt(langName: string | null): string {
-  if (!langName) return CHUNK_SUMMARY_PROMPT;
-  return `${CHUNK_SUMMARY_PROMPT}\n\nIMPORTANT: The meeting transcript is in ${langName}. Write the part summary in ${langName}.`;
-}
-
-/** User prompt for one map pass — the part header plus that part's transcript. */
-function buildChunkPrompt(chunk: PromptSegment[], index: number, total: number, title: string): string {
-  return `Part ${index + 1} of ${total} of meeting "${title}"\n\nTranscript:\n${formatTranscript(chunk)}`;
-}
-
-/**
- * One map level: summarize every chunk SEQUENTIALLY. Sequential on purpose —
- * the built-in sidecar runs with `--parallel 1` (llamaRuntimeConfig), so
- * concurrent chunk requests would queue anyway while making failure attribution
- * harder (AI-RESIL.2).
- *
- * Returns a failure reason instead of a partial result on the FIRST chunk that
- * throws or resolves empty: a brief silently built from half a meeting is worse
- * than an honest failure card, and AI-RESIL.1's contract forbids dispatching
- * either to the twin.
- */
-async function summarizeChunks(
-  provider: ResolvedProvider,
-  chunks: PromptSegment[][],
-  title: string,
-  systemPrompt: string,
-): Promise<{ summaries: string[] } | { failureReason: string }> {
-  const summaries: string[] = [];
-  for (let i = 0; i < chunks.length; i++) {
-    const where = `part ${i + 1} of ${chunks.length}`;
-    try {
-      const result = await generate({
-        providerId: provider.providerId,
-        providerName: provider.providerName,
-        apiKeyEncrypted: provider.apiKeyEncrypted,
-        baseUrl: provider.baseUrl,
-        model: provider.model,
-        taskType: 'summarization',
-        prompt: buildChunkPrompt(chunks[i], i, chunks.length, title),
-        system: systemPrompt,
-        temperature: provider.temperature,
-        maxTokens: provider.maxTokens,
-      });
-      if (!result.text) return { failureReason: `${where} of the transcript returned an empty response` };
-      summaries.push(result.text);
-    } catch (err) {
-      log.error(`Chunked brief: ${where} failed:`, err);
-      return { failureReason: `${where} of the transcript failed — ${classifyBriefFailure(err)}` };
-    }
-  }
-  return { summaries };
-}
-
-/** The reduce pass's core user-prompt block — it fills exactly the slot the
- *  single pass fills with the raw transcript, so every preamble
- *  assembleBriefUserPrompt adds lands identically on both paths. */
-function buildReduceCore(title: string, summaries: string[]): string {
-  const parts = summaries.map((summary, i) => `--- Part ${i + 1} ---\n${summary}`).join('\n\n');
-  return `Meeting: ${title}\n\nPart summaries (${summaries.length} parts):\n${parts}`;
-}
-
-/** The brief-prompt fields both paths read off a meeting row. */
+/** The brief-prompt fields the writer reads off a meeting row. */
 interface BriefMeetingFields {
   id: string;
   title: string;
@@ -915,80 +834,82 @@ interface BriefMeetingFields {
   segments: PromptSegment[];
 }
 
-interface ChunkedBriefContext {
-  provider: ResolvedProvider;
-  meeting: BriefMeetingFields;
-  projectId: string | null;
-  systemPrompt: string;
-  budget: number;
-  langName: string | null;
-}
-
-/** Persist a classified failure card for a chunked-path exit. Never dispatches
- *  (AI-RESIL.1): the post-session hooks must never learn from failure text. */
-function persistChunkedFailure(ctx: ChunkedBriefContext, reason: string): Promise<MeetingBrief | null> {
-  log.error(`Chunked brief for meeting ${ctx.meeting.id} failed: ${reason}`);
-  return persistBriefAndDispatch(ctx.meeting.id, buildBriefFailureText(ctx.provider, reason), { dispatch: false });
-}
-
-/** Final reduce pass — writes the real brief from the part summaries, with the
- *  honest long-meeting note appended (English only; see LIMITATIONS). */
-async function reduceChunkSummaries(
-  ctx: ChunkedBriefContext,
-  userPrompt: string,
-  passes: number,
-): Promise<MeetingBrief | null> {
-  const { summaryText, failed } = await generateBriefText(ctx.provider, userPrompt, ctx.systemPrompt);
-  if (failed) return persistBriefAndDispatch(ctx.meeting.id, summaryText, { dispatch: false });
-  return persistBriefAndDispatch(ctx.meeting.id, `${summaryText}\n\n_Summarized in ${passes} passes (long meeting)._`, {
-    dispatch: true,
-  });
+/**
+ * The structured notes as the writer sees them: the draft sections only. The
+ * provenance block is stamped by the service, never written by a model, and is
+ * of no use to the writer — putting it in the prompt would just be four more
+ * fields for a 4B model to try to render.
+ *
+ * Indented JSON on purpose: the notes are a small fraction of the prompt next to
+ * a transcript, and the weakest tier reads an indented object far more reliably
+ * than a single dense line.
+ */
+function formatStructureNotes(structure: MeetingStructure): string {
+  return JSON.stringify(
+    {
+      topics: structure.topics,
+      decisions: structure.decisions,
+      commitments: structure.commitments,
+      openQuestions: structure.openQuestions,
+      terms: structure.terms,
+    },
+    null,
+    2,
+  );
 }
 
 /**
- * Map-reduce a transcript that does not fit the provider's context window.
+ * The writer's user prompt: the structured notes first (authoritative), then the
+ * raw transcript when it still fits, then every preamble the brief prompt has
+ * always carried (prep reference, project threading, LIVE.2 confirmed context)
+ * via the unchanged assembleBriefUserPrompt.
  *
- * Bounded explicitly: one map level always runs, and a reduce prompt that
- * ITSELF still overflows re-maps the part summaries as pseudo-segments at most
- * MAX_REDUCE_LEVELS more times before giving up with a classified failure card.
- * A loop, not recursion, so the bound is visible at the call site.
+ * WHY send the transcript at all when the notes are authoritative: it lets a
+ * strong model recover nuance and exact wording. Completeness does not depend on
+ * it — the structure guarantees that on either path — so it is the FIRST thing
+ * dropped when the window is tight.
+ *
+ * The fit gate is applied to the ASSEMBLED prompt rather than to the core alone,
+ * which is strictly stronger: the prep briefing and the confirmed-live preamble
+ * are added AFTER the core and are not bounded by the provider's window, so
+ * gating on the core could still hand the model a request it must reject. The
+ * second assembly costs two cheap DB reads and only ever runs on the path that
+ * used to cost N+1 model calls.
+ *
+ * There is no third fallback: the notes are the irreducible content of the
+ * meeting. Notes that alone outgrow the window surface as AI-RESIL.1's
+ * classified overflow card, which is the honest answer.
  */
-async function generateBriefChunked(ctx: ChunkedBriefContext): Promise<MeetingBrief | null> {
-  const chunkSystemPrompt = buildChunkSystemPrompt(ctx.langName);
-  const budgetPerChunk = chunkCharBudget(ctx.budget, chunkSystemPrompt);
-  let segments: PromptSegment[] = ctx.meeting.segments;
-  let passes = 0;
+async function buildWriterUserPrompt(
+  provider: ResolvedProvider,
+  meeting: BriefMeetingFields,
+  projectId: string | null,
+  systemPrompt: string,
+  structure: MeetingStructure,
+): Promise<string> {
+  const budget = promptCharBudget(provider);
+  const notesCore = `Meeting: ${meeting.title}\n\nStructured notes (authoritative — every item must appear):\n${formatStructureNotes(structure)}`;
+  const withTranscript = `${notesCore}\n\nTranscript:\n${formatTranscript(meeting.segments)}`;
 
-  for (let level = 0; level <= MAX_REDUCE_LEVELS; level++) {
-    const chunks = chunkSegments(segments, budgetPerChunk);
-    log.info(`Chunked brief for meeting ${ctx.meeting.id}: level ${level}, ${chunks.length} part(s)`);
+  const full = await assembleBriefUserPrompt(meeting, projectId, withTranscript, budget, systemPrompt.length);
+  if (fitsWindow(provider, systemPrompt, full)) return full;
 
-    const mapped = await summarizeChunks(ctx.provider, chunks, ctx.meeting.title, chunkSystemPrompt);
-    if ('failureReason' in mapped) return persistChunkedFailure(ctx, mapped.failureReason);
-    passes += chunks.length;
-
-    // The reduce prompt carries every preamble the single pass carries, so the
-    // final brief keeps template-awareness, threading continuity and twin voice.
-    const userPrompt = await assembleBriefUserPrompt(
-      ctx.meeting,
-      ctx.projectId,
-      buildReduceCore(ctx.meeting.title, mapped.summaries),
-      ctx.budget,
-      ctx.systemPrompt.length,
-    );
-    if (fitsContextWindow(ctx.provider, ctx.systemPrompt, userPrompt)) {
-      return reduceChunkSummaries(ctx, userPrompt, passes + 1);
-    }
-
-    // Pathological: even the part summaries overflow. Treat them as pseudo-
-    // segments and run the same map again (startTime is just the ordering key).
-    segments = mapped.summaries.map((content, i) => ({ startTime: i, content }));
-  }
-
-  return persistChunkedFailure(
-    ctx,
-    `the transcript is still too large for this model after ${MAX_REDUCE_LEVELS + 1} rounds of summarization`,
+  log.info(
+    `Writer prompt for meeting ${meeting.id} exceeds ${provider.providerName}'s context window — writing from the structured notes alone`,
   );
+  return assembleBriefUserPrompt(meeting, projectId, notesCore, budget, systemPrompt.length);
+}
+
+/**
+ * The honest long-meeting note. `extractionPasses` is the number of transcript
+ * PARTS the extraction pass ran (1 when the transcript fit), and the writer is
+ * one more pass on top — so a 3-part extraction reports 4 passes. A transcript
+ * that fit gets NO footer at all, which is what keeps the fits-path assertion
+ * `not.toContain('Summarized in')` meaningful.
+ */
+function withPassesFooter(summaryText: string, extractionPasses: number): string {
+  if (extractionPasses <= 1) return summaryText;
+  return `${summaryText}\n\n_Summarized in ${extractionPasses + 1} passes (long meeting)._`;
 }
 
 // ---------------------------------------------------------------------------
@@ -996,37 +917,39 @@ async function generateBriefChunked(ctx: ChunkedBriefContext): Promise<MeetingBr
 // ---------------------------------------------------------------------------
 
 /**
- * Generate an AI-powered meeting brief (structured summary) from the transcript.
- * Stores the result in `meeting_briefs` and returns the mapped object.
+ * Generate an AI-powered meeting brief from the transcript, in TWO passes:
+ * EXTRACT (briefExtractionService turns the transcript of any length into one
+ * validated MeetingStructure) then WRITE (this file renders that structure into
+ * the markdown brief). Stores summary + structure in `meeting_briefs` and
+ * returns the mapped object.
  *
- * Flow (added in MEET-INTEL.1-3, extended in LIVE.2 Task 2 and V3.3 Task 2):
- *   1. If meeting has no projectId, run project auto-detect classifier.
- *      High confidence → assign via updateMeeting (triggers link-time auto-push hook).
- *      Low confidence → route to system Unassigned + set unassignedPending=true.
- *   2. Fetch up to 3 prior briefs from the same project (skipped for Unassigned)
- *      and inject as a continuity preamble in the brief prompt.
- *   3. Inject accepted live decisions/questions (LIVE.2) as a "confirmed during
- *      the meeting" preamble.
- *   4. Inject the digital-twin profile context (V3.3) into the system prompt.
- *   5. Generate the brief and persist it.
+ * Flow (MEET-INTEL.1-3, LIVE.2 Task 2, V3.3 Task 2, BRIEF-QUAL.1):
+ *   1. If the meeting has no projectId, run the project auto-detect classifier.
+ *      High confidence -> assign via updateMeeting (fires the link-time auto-push
+ *      hook). Low confidence -> system Unassigned + unassignedPending=true.
+ *   2. Build the participant roster (WHO was in the room, names only) and resolve
+ *      the brief language from the `brief:language` setting.
+ *   3. Extract the meeting structure. A failure here is a failure of the whole
+ *      brief — see AI-RESIL.1 below.
+ *   4. Write the brief from the structure, with the transcript included only
+ *      when it still fits (see buildWriterUserPrompt), the prior-brief threading
+ *      preamble, the LIVE.2 confirmed-live context and the V3.3 twin profile.
+ *   5. Persist the summary AND the structure, and dispatch the post-session hooks.
  *
  * MEET-DEL.1: returns `null` (never throws) when the meeting was deleted while
- * the (long-running) generate() call above was in flight — detected by a fresh
- * existence recheck immediately before the write, and by catching the insert's
- * own FK violation as a second, closing signal. Mirrors this file's own
- * `getBrief`, which already returns `MeetingBrief | null` for "no brief exists".
+ * one of the long-running generate() calls was in flight — detected by a fresh
+ * existence recheck immediately before the write and by catching the insert's own
+ * FK violation as a second, closing signal.
  *
- * AI-RESIL.1: a thrown generation error OR a resolved-but-empty response
- * persists a classified failure card (the sentinel from
+ * AI-RESIL.1: an extraction failure, a thrown writer error and a resolved-but-
+ * empty writer response ALL persist a classified failure card (the sentinel from
  * src/shared/briefSentinel.ts plus a "Reason: provider/model — ..." paragraph)
- * instead of the bare sentinel, and skips the post-session dispatch — see
- * generateBriefText / classifyBriefFailure / persistBriefAndDispatch.
+ * with the post-session dispatch skipped and NO structure on the row.
  *
- * AI-CTX.1: when the assembled prompt does not fit the provider's context
- * window, the transcript is summarized part-by-part and the parts reduced into
- * the brief (see generateBriefChunked), with an honest "Summarized in N passes"
- * note appended. A fitting transcript takes exactly the single call it always
- * did, with a byte-identical prompt.
+ * AI-CTX.1: the window never moves. A transcript too large for it is extracted
+ * part-by-part (briefExtractionService) and the brief carries an honest
+ * "Summarized in N passes" note; a transcript that fits costs exactly one
+ * extraction call plus one writer call.
  */
 export async function generateBrief(meetingId: string): Promise<MeetingBrief | null> {
   const meeting = await getMeeting(meetingId);
@@ -1043,49 +966,36 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief | n
   const provider = await resolveTaskModel('summarization');
   if (!provider) throw new Error('No AI provider available for summarization');
 
-  // 2. System prompt (template + language + V3.3 twin profile). Built before the
-  //    user prompt so its length can be charged against the context budget.
-  const systemPrompt = await buildBriefSystemPrompt(meeting);
+  // 2. Roster + brief language. Both feed BOTH passes: the extraction pass gets
+  //    them as inputs (it builds its own extraction-specific wording from them),
+  //    the writer gets them as the rendered roster/language block.
+  const roster = await buildRoster(meeting.id);
+  const { name: langName } = resolveBriefLanguage(await readBriefLanguageSetting(), meeting.transcriptionLanguage);
+  const systemPrompt = await buildBriefSystemPrompt(meeting, roster, langName);
 
-  // 3. User prompt: the transcript plus every preamble (prep / threading /
-  //    LIVE.2 confirmed context) — see assembleBriefUserPrompt.
-  const budget = promptCharBudget(provider);
-  const userPrompt = await assembleBriefUserPrompt(
-    meeting,
-    resolvedProjectId,
-    `Meeting: ${meeting.title}\n\nTranscript:\n${formatTranscript(meeting.segments)}`,
-    budget,
-    systemPrompt.length,
-  );
-
-  // 4. AI-CTX.1 budget gate. Over the window → bounded map-reduce instead of a
-  //    request the model is guaranteed to reject (the field failure this exists
-  //    for). Under it → exactly the single call this function always made.
-  if (!fitsContextWindow(provider, systemPrompt, userPrompt)) {
-    log.info(
-      `Brief prompt for meeting ${meetingId} exceeds ${provider.providerName}'s context window — summarizing in parts`,
-    );
-    return generateBriefChunked({
-      provider,
-      meeting,
-      projectId: resolvedProjectId,
-      systemPrompt,
-      budget,
-      langName: getLanguageName(meeting.transcriptionLanguage),
+  // 3. EXTRACT. Never throws — an honest reason comes back instead, and it is a
+  //    failure of the brief, not a reason to write one from nothing (AI-RESIL.1).
+  const extracted = await extractMeetingStructure({ provider, meeting, roster, langName });
+  if ('failureReason' in extracted) {
+    log.error(`Brief extraction failed for meeting ${meetingId}: ${extracted.failureReason}`);
+    return persistBriefAndDispatch(meetingId, buildBriefFailureText(provider, extracted.failureReason), {
+      dispatch: false,
     });
   }
+  const { structure } = extracted;
 
-  // 5. Generate the summary. A thrown error or an empty response both
-  //    classify as a failure card (see generateBriefText) so Regenerate has a
-  //    real diagnostic instead of a silent repeat (AI-RESIL.1).
+  // 4. WRITE. A thrown error or an empty response both classify as a failure
+  //    card (see generateBriefText) so Regenerate has a real diagnostic.
+  const userPrompt = await buildWriterUserPrompt(provider, meeting, resolvedProjectId, systemPrompt, structure);
   const { summaryText, failed } = await generateBriefText(provider, userPrompt, systemPrompt);
+  if (failed) return persistBriefAndDispatch(meetingId, summaryText, { dispatch: false });
 
-  // 6. Persist + dispatch, or discard as a benign no-op if the meeting was
-  //    deleted while generate() above was in flight — see
-  //    persistBriefAndDispatch (extracted to keep this function's complexity
-  //    bounded; MEET-DEL.1). Dispatch is skipped on a failure card so the
-  //    post-session hooks never learn from failure text (AI-RESIL.1).
-  return persistBriefAndDispatch(meetingId, summaryText, { dispatch: !failed });
+  // 5. Persist + dispatch, or discard as a benign no-op if the meeting was
+  //    deleted while the calls above were in flight — see persistBriefAndDispatch.
+  return persistBriefAndDispatch(meetingId, withPassesFooter(summaryText, structure.provenance.passes), {
+    dispatch: true,
+    structure,
+  });
 }
 
 /**
@@ -1108,22 +1018,38 @@ async function buildActionSystemPrompt(meeting: {
   // the meeting so MEET-INTEL.1's auto-push never creates a duplicate card.
   // Already char-capped at SUPPRESSION_CHAR_BUDGET, so it rides along with every
   // chunk on the chunked path without threatening the window.
-  try {
-    const acceptedTitles = await getAcceptedLiveActionItemTitles(meeting.id);
-    actionSystemPrompt += buildSuppressionInstruction(acceptedTitles);
-  } catch (err) {
-    // Suppression is a safety net, not core extraction — never block on its failure
-    log.error('Live-suggestion suppression lookup failed for meeting', meeting.id, ':', err);
-  }
+  actionSystemPrompt += buildSuppressionInstruction(await readAcceptedLiveActionTitles(meeting.id));
 
   // Digital-twin profile context (V3.3 Task 2) — who the user is, prepended to
   // the system prompt so extracted action items read like they know the professional.
   return injectTwinProfileContext(actionSystemPrompt);
 }
 
+/**
+ * Accepted live action item titles, or [] when the lookup fails. Suppression is a
+ * safety net, not core extraction — it must never block either source of action
+ * items (the legacy prompt path, which embeds the titles, or the commitments
+ * path, which filters on them).
+ */
+async function readAcceptedLiveActionTitles(meetingId: string): Promise<string[]> {
+  try {
+    return await getAcceptedLiveActionItemTitles(meetingId);
+  } catch (err) {
+    log.error('Live-suggestion suppression lookup failed for meeting', meetingId, ':', err);
+    return [];
+  }
+}
+
 /** The action-extraction user prompt for a whole transcript or one chunk of it. */
 function buildActionPrompt(title: string, segments: PromptSegment[]): string {
   return `Meeting: ${title}\n\nTranscript:\n${formatTranscript(segments)}`;
+}
+
+/** The match key both action-item sources dedupe and suppress on: case-,
+ *  whitespace-insensitive. Shared so a commitment and a parsed bullet with the
+ *  same text can never both survive. */
+function normalizeActionKey(description: string): string {
+  return description.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 /**
@@ -1137,7 +1063,7 @@ export function mergeActionDescriptions(lists: string[][]): string[] {
   const merged: string[] = [];
   for (const list of lists) {
     for (const description of list) {
-      const key = description.trim().replace(/\s+/g, ' ').toLowerCase();
+      const key = normalizeActionKey(description);
       if (!key || seen.has(key)) continue;
       seen.add(key);
       merged.push(description);
@@ -1177,14 +1103,13 @@ async function extractActionDescriptions(
   provider: ResolvedProvider,
   meeting: { title: string; segments: PromptSegment[] },
   systemPrompt: string,
-  budget: number,
 ): Promise<string[] | null> {
   const singlePassPrompt = buildActionPrompt(meeting.title, meeting.segments);
   try {
-    if (fitsContextWindow(provider, systemPrompt, singlePassPrompt)) {
+    if (fitsWindow(provider, systemPrompt, singlePassPrompt)) {
       return await runActionPass(provider, singlePassPrompt, systemPrompt);
     }
-    const chunks = chunkSegments(meeting.segments, chunkCharBudget(budget, systemPrompt));
+    const chunks = chunkSegments(meeting.segments, chunkBudget(provider, systemPrompt));
     log.info(`Action extraction: transcript exceeds ${provider.providerName}'s window — ${chunks.length} part(s)`);
     const lists: string[][] = [];
     for (const chunk of chunks) {
@@ -1197,15 +1122,96 @@ async function extractActionDescriptions(
   }
 }
 
+/** What one action item is built from, whichever source produced it. */
+interface ActionItemDraft {
+  description: string;
+  owner: string | null;
+  dueText: string | null;
+}
+
 /**
- * Extract action items from a meeting transcript using AI.
- * Parses the AI response as JSON (with a bullet-point fallback),
- * inserts each item into `action_items`, and returns the mapped array.
+ * The structure persisted on the meeting's current brief, read through `getBrief`
+ * so "the latest brief row" has exactly ONE definition (and one validation pass —
+ * see parseBriefStructure). Null when there is none: a legacy brief written before
+ * BRIEF-QUAL.1, a failure card (which never carries one), or a payload that no
+ * longer validates. Null is not an error — it is the signal to fall back to the
+ * legacy text extractor.
+ */
+async function readPersistedStructure(meetingId: string): Promise<MeetingStructure | null> {
+  const brief = await getBrief(meetingId);
+  return brief?.structure ?? null;
+}
+
+/**
+ * Commitments -> action item drafts. THE contract of this phase: the structure's
+ * commitments ARE the action items, so nothing is re-extracted and nothing can
+ * drift between the brief's Follow-ups and the user's task list.
  *
- * AI-CTX.1: a transcript too large for the provider's context window is
- * extracted part-by-part and the parts merged (deduped) before the insert path
- * below — which is unchanged. A fitting transcript takes exactly the single
- * call it always did, with a byte-identical prompt.
+ * `owner` is trusted ONLY when the extraction marked it `explicit` — that flag is
+ * the whole defence against a model attributing a task to whoever spoke last, so
+ * a non-explicit owner is dropped rather than shown.
+ *
+ * Applies LIVE.2 suppression (an item the user already accepted live must not be
+ * re-created) and the same dedupe key mergeActionDescriptions uses, in one pass.
+ */
+function commitmentsToDrafts(commitments: Commitment[], acceptedLiveTitles: string[]): ActionItemDraft[] {
+  const seen = new Set(acceptedLiveTitles.map(normalizeActionKey).filter((key) => key.length > 0));
+  const drafts: ActionItemDraft[] = [];
+  for (const commitment of commitments) {
+    const key = normalizeActionKey(commitment.task);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    drafts.push({
+      description: commitment.task,
+      owner: commitment.explicit ? commitment.owner : null,
+      dueText: commitment.due,
+    });
+  }
+  return drafts;
+}
+
+/**
+ * The action items to write, from whichever source applies:
+ *   - the persisted structure's commitments (no model call at all), or
+ *   - the legacy text extractor, unchanged, for a meeting whose brief predates
+ *     this phase, failed, or carries an unreadable structure.
+ *
+ * Returns null when the legacy extraction failed — the caller's pre-existing
+ * "degrade to an empty array" contract.
+ */
+async function resolveActionItemDrafts(
+  meetingId: string,
+  meeting: {
+    id: string;
+    title: string;
+    template: MeetingTemplateType;
+    transcriptionLanguage: string | null;
+    segments: PromptSegment[];
+  },
+): Promise<ActionItemDraft[] | null> {
+  const structure = await readPersistedStructure(meetingId);
+  if (structure) {
+    return commitmentsToDrafts(structure.commitments, await readAcceptedLiveActionTitles(meeting.id));
+  }
+
+  const provider = await resolveTaskModel('summarization');
+  if (!provider) throw new Error('No AI provider available for action extraction');
+  const descriptions = await extractActionDescriptions(provider, meeting, await buildActionSystemPrompt(meeting));
+  if (descriptions === null) return null;
+  return descriptions.map((description) => ({ description, owner: null, dueText: null }));
+}
+
+/**
+ * Extract a meeting's action items and persist them to `action_items`.
+ *
+ * BRIEF-QUAL.1: the commitments on the brief's persisted structure ARE the action
+ * items — same wording, same owner, same due, no second model call and no second
+ * chance to disagree with the brief. Only a meeting without a usable structure
+ * still runs the AI text extractor (see resolveActionItemDrafts).
+ *
+ * AI-CTX.1: on that legacy path a transcript too large for the provider's context
+ * window is extracted part-by-part and the parts merged (deduped) before the
+ * insert path below — which is unchanged.
  */
 export async function generateActionItems(meetingId: string): Promise<ActionItem[]> {
   const meeting = await getMeeting(meetingId);
@@ -1214,26 +1220,14 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
     throw new Error(`Meeting ${meetingId} has no transcript segments`);
   }
 
-  // Resolve AI provider
-  const provider = await resolveTaskModel('summarization');
-  if (!provider) throw new Error('No AI provider available for action extraction');
+  const drafts = await resolveActionItemDrafts(meetingId, meeting);
+  if (drafts === null) return [];
 
-  const actionSystemPrompt = await buildActionSystemPrompt(meeting);
-
-  const descriptions = await extractActionDescriptions(
-    provider,
-    meeting,
-    actionSystemPrompt,
-    promptCharBudget(provider),
-  );
-  if (descriptions === null) return [];
-
-  // MEET-DEL.1: re-check existence immediately before the write — extraction
-  // above is a long-running LLM call (or several, on the chunked path), which is
-  // exactly the window a delete can land in. This alone cannot close the race
-  // (see the FK catch below); it just closes most of it cheaply, before spending
-  // writes on a meeting that is already gone. Mirrors this function's own
-  // degrade-gracefully convention (an empty array — see the null branch above).
+  // MEET-DEL.1: re-check existence immediately before the write — resolving the
+  // drafts above can be a long-running LLM call (or several, on the legacy
+  // chunked path), which is exactly the window a delete can land in. This alone
+  // cannot close the race (see the FK catch below); it just closes most of it
+  // cheaply, before spending writes on a meeting that is already gone.
   if (!(await getMeeting(meetingId))) {
     log.info(`Meeting ${meetingId} deleted before action items completed — discarded`);
     return [];
@@ -1244,12 +1238,14 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
   const items: ActionItem[] = [];
 
   try {
-    for (const description of descriptions) {
+    for (const draft of drafts) {
       const [row] = await db
         .insert(actionItems)
         .values({
           meetingId,
-          description,
+          description: draft.description,
+          owner: draft.owner,
+          dueText: draft.dueText,
           status: 'pending',
         })
         .returning();
@@ -1279,14 +1275,7 @@ export async function generateActionItems(meetingId: string): Promise<ActionItem
       });
       // Re-query so returned items reflect the converted status set by auto-push
       const refreshed = await db.select().from(actionItems).where(eq(actionItems.meetingId, meetingId));
-      return refreshed.map((row) => ({
-        id: row.id,
-        meetingId: row.meetingId,
-        cardId: row.cardId,
-        description: row.description,
-        status: row.status,
-        createdAt: row.createdAt.toISOString(),
-      }));
+      return refreshed.map(toActionItem);
     } catch (err) {
       // Auto-push failure must not prevent action items from being returned
       log.error('Auto-push failed for meeting', meetingId, ':', err);
@@ -1360,7 +1349,10 @@ export async function convertActionToCard(
     .values({
       columnId,
       title: item.description.slice(0, 100),
-      description: item.description,
+      // BRIEF-QUAL.1: the owner/due the meeting actually said, as header lines.
+      // Cards have no assignee and the due is never parsed into cards.dueDate —
+      // both would mean guessing (see formatOwnerDueLines).
+      description: `${formatOwnerDueLines(item.owner, item.dueText)}${item.description}`,
       priority: 'medium',
       position: cardCount,
     })

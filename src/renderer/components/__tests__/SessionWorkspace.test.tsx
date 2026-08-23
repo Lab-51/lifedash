@@ -410,3 +410,72 @@ describe('SessionWorkspace — routed session page', () => {
     expect(screen.getByText('Second meeting transcript')).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// BRIEF-QUAL.1 Task 4: copyActionItems includes "Owner — task (due)" when
+// owner/dueText are known, and stays plain otherwise.
+// ---------------------------------------------------------------------------
+describe('SessionWorkspace — copy action items (BRIEF-QUAL.1 Task 4)', () => {
+  const writeText = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // jsdom's real Clipboard object resists a plain Object.defineProperty
+    // override (its own accessor keeps winning for callers outside this file's
+    // module scope) — a Proxy over the real `navigator` that intercepts only
+    // `clipboard` sidesteps that reliably, matching the app's real one-liner
+    // `navigator.clipboard.writeText(text)` call site exactly.
+    const realNavigator = navigator;
+    vi.stubGlobal(
+      'navigator',
+      new Proxy(realNavigator, {
+        get(target, prop, receiver) {
+          if (prop === 'clipboard') return { writeText };
+          return Reflect.get(target, prop, receiver);
+        },
+      }),
+    );
+    useMeetingStore.setState({
+      selectedMeeting: makeMeeting({
+        actionItems: [
+          {
+            id: 'a1',
+            meetingId: 'meet-1',
+            cardId: null,
+            description: 'Send the doc',
+            owner: 'Alex Chen',
+            dueText: 'Friday',
+            status: 'approved',
+            createdAt: '2026-03-10T10:00:00Z',
+          },
+          {
+            id: 'a2',
+            meetingId: 'meet-1',
+            cardId: null,
+            description: 'Book the room',
+            owner: null,
+            dueText: null,
+            status: 'pending',
+            createdAt: '2026-03-10T10:00:00Z',
+          },
+        ],
+      }) as any,
+      loadMeeting: vi.fn().mockResolvedValue(undefined),
+      clearSelectedMeeting: vi.fn(),
+      clearAnalytics: vi.fn(),
+      analytics: null,
+      analyticsLoading: false,
+    } as any);
+    useProjectStore.setState({ projects: [], loadProjects: vi.fn().mockResolvedValue(undefined) } as any);
+    useSettingsStore.setState({ providers: [{ id: 'p1', enabled: true }] } as any);
+  });
+
+  it('copies "Owner — task (due)" when owner/dueText are known, plain when not', () => {
+    renderWorkspace();
+    expandTranscript();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+
+    expect(writeText).toHaveBeenCalledWith('- [x] Alex Chen — Send the doc (Friday)\n- [ ] Book the room');
+  });
+});

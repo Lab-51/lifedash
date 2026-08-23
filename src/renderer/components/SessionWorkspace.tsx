@@ -628,7 +628,13 @@ export default function SessionWorkspace() {
 
   const copyActionItems = () => {
     const text = meeting.actionItems
-      .map((item) => `- ${item.status === 'approved' ? '[x]' : '[ ]'} ${item.description}`)
+      .map((item) => {
+        const checkbox = item.status === 'approved' ? '[x]' : '[ ]';
+        // "Owner — task (due)" — owner prefix only when known, due suffix only when said (BRIEF-QUAL.1).
+        const body = item.owner ? `${item.owner} — ${item.description}` : item.description;
+        const due = item.dueText ? ` (${item.dueText})` : '';
+        return `- ${checkbox} ${body}${due}`;
+      })
       .join('\n');
     handleCopy('actions', text);
   };

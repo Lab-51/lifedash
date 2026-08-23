@@ -20,6 +20,7 @@ function meeting(overrides: Partial<Meeting> & { id: string }): Meeting {
     prepBriefing: null,
     transcriptionLanguage: null,
     unassignedPending: false,
+    participants: null,
     createdAt: '2026-01-01T00:00:00Z',
     ...overrides,
   };

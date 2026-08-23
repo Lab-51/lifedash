@@ -76,6 +76,44 @@ vi.mock('../../../shared/types', () => ({
 
 vi.mock('../twinProfileService', () => ({ buildProfileContext: vi.fn().mockResolvedValue('') }));
 
+// ---------------------------------------------------------------------------
+// BRIEF-QUAL.1 seams — generateBrief is extract-then-write now
+// ---------------------------------------------------------------------------
+// The extraction pass is a separate service with its own suite
+// (briefExtractionService.test.ts). Mocking it here keeps this file testing
+// exactly what it always tested — the WRITER call and everything wrapped around
+// it — and keeps generate() at ONE call per brief. The roster is empty and the
+// brief language is English, so the writer system prompt is BRIEF_WRITER_PROMPT
+// with nothing appended (formatRosterBlock's own empty-input contract is covered
+// by participantRosterService.test.ts).
+const { EXTRACTED_STRUCTURE } = vi.hoisted(() => ({
+  EXTRACTED_STRUCTURE: {
+    topics: [{ title: 'Launch timeline', detail: 'The beta slips to April so the blocking bugs can land first.' }],
+    decisions: [{ statement: 'Push the beta to April', rationale: 'Three blocking bugs are still open' }],
+    commitments: [{ owner: 'Alex', task: 'Send the updated timeline', due: 'Friday', explicit: true }],
+    openQuestions: ['Who signs off on QA?'],
+    terms: ['beta'],
+    provenance: {
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      passes: 1,
+      extractedAt: '2026-01-01T00:00:00.000Z',
+      schemaVersion: 1,
+    },
+  },
+}));
+
+vi.mock('../briefExtractionService', () => ({
+  extractMeetingStructure: vi.fn(async () => ({ structure: EXTRACTED_STRUCTURE })),
+}));
+
+vi.mock('../participantRosterService', () => ({
+  buildRoster: vi.fn(async () => []),
+  formatRosterBlock: vi.fn(() => ''),
+}));
+
+vi.mock('../briefLanguageSettings', () => ({ readBriefLanguageSetting: vi.fn(async () => 'en') }));
+
 // NEW for AI-RESIL.1 (unlike the raceAbsorption/twinProfile siblings, which
 // leave the real fire-and-forget dispatcher in place): these tests must PROVE
 // dispatch happened exactly once on success and never on any failure path, so
@@ -87,6 +125,7 @@ vi.mock('../postSessionDispatcher', () => ({ dispatchPostSession: vi.fn() }));
 // ---------------------------------------------------------------------------
 
 import { generateBrief } from '../meetingIntelligenceService';
+import { extractMeetingStructure } from '../briefExtractionService';
 import { getMeeting } from '../meetingService';
 import { generate, resolveTaskModel } from '../ai-provider';
 import { getDb } from '../../db/connection';
@@ -196,10 +235,21 @@ function persistedSummary(briefValues: ReturnType<typeof vi.fn>): string {
   return call?.summary ?? '';
 }
 
+/** The `structure` payload a generateBrief run tried to persist on the brief row
+ *  (BRIEF-QUAL.1) — null on every failure path. */
+function persistedStructure(briefValues: ReturnType<typeof vi.fn>): unknown {
+  const call = briefValues.mock.calls[0]?.[0] as { structure?: unknown } | undefined;
+  return call?.structure ?? null;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(resolveTaskModel).mockResolvedValue(DEFAULT_PROVIDER as never);
   vi.mocked(generate).mockResolvedValue({ text: 'Generated content' } as never);
+  // vi.clearAllMocks() does NOT undo an implementation, so the extraction seam is
+  // re-pointed at the success fixture here: without it, one test's failureReason
+  // would leak into every later test in the file.
+  vi.mocked(extractMeetingStructure).mockResolvedValue({ structure: EXTRACTED_STRUCTURE } as never);
   buildDb();
 });
 
@@ -312,6 +362,64 @@ describe('generateBrief — AI-RESIL.1 failure-aware persistence', () => {
         brief: expect.objectContaining({ id: DEFAULT_BRIEF_ROW.id }),
       }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BRIEF-QUAL.1 added a THIRD source of failure ahead of the two above: the
+// extraction pass, which runs before the writer and never throws — it returns an
+// honest reason instead. It must land in exactly the same shape: one classified
+// card, no dispatch, and no structure for anything downstream to derive from.
+// ---------------------------------------------------------------------------
+
+describe('generateBrief — the extraction pass is the third failure source (BRIEF-QUAL.1)', () => {
+  it('an extraction failure persists the classified card and never dispatches', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting() as never);
+    vi.mocked(extractMeetingStructure).mockResolvedValue({
+      failureReason: 'part 2 of 5 failed — the local AI server is not reachable',
+    } as never);
+    const { briefValues } = buildDb();
+
+    const result = await generateBrief(MEETING_ID);
+
+    // The writer never ran: a brief written from half a meeting is worse than an
+    // honest failure card (AI-CTX.1 (e)).
+    expect(generate).not.toHaveBeenCalled();
+    expect(result).not.toBeNull();
+    expect(briefValues).toHaveBeenCalledTimes(1);
+    const summary = persistedSummary(briefValues);
+    expect(summary.startsWith(BRIEF_FAILURE_SENTINEL)).toBe(true);
+    expect(isFailedBriefText(summary)).toBe(true);
+    expect(summary).toContain(
+      `Reason: ${DEFAULT_PROVIDER.providerName}/${DEFAULT_PROVIDER.model} — part 2 of 5 failed — the local AI server is not reachable`,
+    );
+    expect(dispatchPostSession).not.toHaveBeenCalled();
+  });
+
+  it('and stores no structure, so the failure card can never become action items', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting() as never);
+    vi.mocked(extractMeetingStructure).mockResolvedValue({
+      failureReason: 'part 1 of 1 returned invalid JSON — topics: expected array',
+    } as never);
+    const { briefValues } = buildDb();
+
+    await generateBrief(MEETING_ID);
+
+    expect(persistedStructure(briefValues)).toBeNull();
+  });
+
+  it('a writer failure AFTER a successful extraction still stores no structure', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting() as never);
+    vi.mocked(generate).mockResolvedValue({ text: '' } as never);
+    const { briefValues } = buildDb();
+
+    await generateBrief(MEETING_ID);
+
+    const summary = persistedSummary(briefValues);
+    expect(isFailedBriefText(summary)).toBe(true);
+    expect(summary).toContain('the model returned an empty response');
+    expect(persistedStructure(briefValues)).toBeNull();
+    expect(dispatchPostSession).not.toHaveBeenCalled();
   });
 });
 

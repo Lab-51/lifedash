@@ -25,7 +25,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../db/connection', () => ({ getDb: vi.fn() }));
 
 vi.mock('../../db/schema', () => ({
-  meetingBriefs: {},
+  meetingBriefs: {
+    id: 'id',
+    meetingId: 'meetingId',
+    summary: 'summary',
+    structure: 'structure',
+    createdAt: 'createdAt',
+  },
   actionItems: {
     id: 'id',
     meetingId: 'meetingId',
@@ -102,6 +108,44 @@ vi.mock('../../../shared/types', () => ({
 
 vi.mock('../twinProfileService', () => ({ buildProfileContext: vi.fn().mockResolvedValue('') }));
 
+// ---------------------------------------------------------------------------
+// BRIEF-QUAL.1 seams — generateBrief is extract-then-write now
+// ---------------------------------------------------------------------------
+// The extraction pass is a separate service with its own suite
+// (briefExtractionService.test.ts). Mocking it here keeps this file testing
+// exactly what it always tested — the WRITER call and everything wrapped around
+// it — and keeps generate() at ONE call per brief. The roster is empty and the
+// brief language is English, so the writer system prompt is BRIEF_WRITER_PROMPT
+// with nothing appended (formatRosterBlock's own empty-input contract is covered
+// by participantRosterService.test.ts).
+const { EXTRACTED_STRUCTURE } = vi.hoisted(() => ({
+  EXTRACTED_STRUCTURE: {
+    topics: [{ title: 'Launch timeline', detail: 'The beta slips to April so the blocking bugs can land first.' }],
+    decisions: [{ statement: 'Push the beta to April', rationale: 'Three blocking bugs are still open' }],
+    commitments: [{ owner: 'Alex', task: 'Send the updated timeline', due: 'Friday', explicit: true }],
+    openQuestions: ['Who signs off on QA?'],
+    terms: ['beta'],
+    provenance: {
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      passes: 1,
+      extractedAt: '2026-01-01T00:00:00.000Z',
+      schemaVersion: 1,
+    },
+  },
+}));
+
+vi.mock('../briefExtractionService', () => ({
+  extractMeetingStructure: vi.fn(async () => ({ structure: EXTRACTED_STRUCTURE })),
+}));
+
+vi.mock('../participantRosterService', () => ({
+  buildRoster: vi.fn(async () => []),
+  formatRosterBlock: vi.fn(() => ''),
+}));
+
+vi.mock('../briefLanguageSettings', () => ({ readBriefLanguageSetting: vi.fn(async () => 'en') }));
+
 // Note: ../autoPushService is intentionally NOT mocked — this test runs the real
 // generateActionItems -> autoPushActionItems -> cards-insert pipeline.
 
@@ -114,7 +158,7 @@ import { getMeeting } from '../meetingService';
 import { generate, resolveTaskModel } from '../ai-provider';
 import { getDb } from '../../db/connection';
 import { parseActionItems } from '../../../shared/utils/action-item-parser';
-import { actionItems, cards, boards, settings, liveSuggestions } from '../../db/schema';
+import { actionItems, cards, boards, settings, liveSuggestions, meetingBriefs } from '../../db/schema';
 
 const MEETING_ID = 'meeting-1';
 const PROJECT_ID = 'proj-1';
@@ -179,6 +223,17 @@ function buildDb(opts: { acceptedTitles: string[] }) {
       }
       if (table === settings) {
         return { where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) };
+      }
+      if (table === meetingBriefs) {
+        // BRIEF-QUAL.1: generateActionItems reads the meeting's latest brief for
+        // a persisted structure (getBrief). No brief here → the legacy text
+        // extraction path this suite was written for, which is what makes the
+        // LIVE.2 suppression it asserts on prompt-level in the first place.
+        return {
+          where: vi
+            .fn()
+            .mockReturnValue({ orderBy: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }),
+        };
       }
       if (table === boards) {
         return {

@@ -344,6 +344,13 @@
       "when": 1786025936814,
       "tag": "0048_third_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1787330662846,
+      "tag": "0049_brief_quality",
+      "breakpoints": true
     }
   ]
 }

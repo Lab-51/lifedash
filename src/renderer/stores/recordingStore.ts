@@ -67,6 +67,8 @@ interface RecordingStore {
     transcriptionLanguage?: string,
     calendarEventId?: string,
     calendarSeriesId?: string,
+    /** Display names as the user typed/prefilled them (BRIEF-QUAL.1). */
+    participants?: string[],
   ) => Promise<void>;
   stopRecording: () => Promise<void>;
   cancelRecording: () => Promise<void>;
@@ -105,6 +107,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     transcriptionLanguage?: string,
     calendarEventId?: string,
     calendarSeriesId?: string,
+    participants?: string[],
   ) => {
     set({ starting: true, error: null });
     try {
@@ -117,6 +120,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         transcriptionLanguage,
         calendarEventId,
         calendarSeriesId,
+        participants,
       });
 
       // Step 2: Tell main process to start recording

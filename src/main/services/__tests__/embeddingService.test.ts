@@ -218,7 +218,7 @@ describe('handlePostSession', () => {
     const briefId = randomUUID();
     await service.handlePostSession({
       meetingId,
-      brief: { id: briefId, meetingId, summary: 'the brief', createdAt: '' },
+      brief: { id: briefId, meetingId, summary: 'the brief', structure: null, createdAt: '' },
     });
     await service.flushQueue();
 
