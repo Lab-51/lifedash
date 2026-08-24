@@ -98,11 +98,25 @@ type Db = ReturnType<typeof getDb>;
 // Normalization + dedupe
 // ---------------------------------------------------------------------------
 
-/** Case/whitespace-insensitive dedupe + lookup key (the entities.normalized_name
- *  UNIQUE column), so spelling variants ("Acme Corp" / "acme corp") resolve to ONE
- *  entity row. */
+// The Unicode "Combining Diacritical Marks" block (hex code points 0x0300 through
+// 0x036f) — the marks NFD decomposition splits an accented letter into (e.g. a
+// plain base letter followed by a combining acute or combining caron mark). Built
+// from String.fromCharCode(hex) rather than a literal backslash-u escape range so
+// this source file stays plain ASCII: writing that kind of escape range through
+// tool-call parameters has, in a sibling task, been observed to get corrupted into
+// a literal (invisible) Unicode character instead of staying a 6-character escape
+// sequence per code point.
+const COMBINING_MARKS_RE = new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g');
+
+/** Case/whitespace/diacritic-insensitive dedupe + lookup key (the
+ *  entities.normalized_name UNIQUE column): lowercases, then folds accented
+ *  letters to their unaccented base via Unicode NFD decomposition + a
+ *  combining-mark strip, then collapses whitespace — so spelling variants
+ *  ("Acme Corp" / "acme corp") AND accented/unaccented spellings of the same
+ *  name or topic resolve to ONE entity row. NFD is a no-op on ASCII input, so
+ *  ASCII keys are unchanged from the prior case/whitespace-only behaviour. */
 export function normalizeEntityName(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, ' ').trim();
+  return name.toLowerCase().normalize('NFD').replace(COMBINING_MARKS_RE, '').replace(/\s+/g, ' ').trim();
 }
 
 /**

@@ -362,6 +362,35 @@ export interface AnalyzeEntityHistoryResult {
   error?: string;
 }
 
+// --- entity merge (ENTITY-NAME.1 Task 3) — user-driven "Merge into…" ---
+
+/**
+ * One row of `entity:merge-candidates` — every OTHER entity of the SAME kind as
+ * the source, alphabetical by name, with its own current fact count. The source
+ * itself and any other-kind entity are excluded SERVER-SIDE, never filtered by
+ * the renderer — this list IS the picker's entire cross-kind/self safety
+ * guarantee, alongside `mergeEntityInto`'s own guards on the actual merge call.
+ */
+export interface EntityMergeCandidate {
+  id: string;
+  name: string;
+  factCount: number;
+}
+
+/**
+ * Result of `entity:merge` — collapses `sourceId` into `targetId` via the
+ * same-kind-only `mergeEntityInto` primitive (ENTITY-NAME.1 Task 2). Mirrors
+ * that primitive's `MergeCounts` shape (factsRepointed/linksMerged) rather than
+ * importing it — this file is shared with the renderer; `mergeEntityInto` lives
+ * main-side only. Never throws across IPC: a guard failure (self-merge, missing
+ * row, cross-kind) surfaces as a typed `error` status with a message instead of
+ * a rejected promise, so the confirm/picker flow never has to parse an error
+ * string off a rejected promise.
+ */
+export type MergeEntityResult =
+  | { status: 'ok'; survivorId: string; factsRepointed: number; linksMerged: number }
+  | { status: 'error'; message: string };
+
 // --- memory-management IPC payloads (twin:memory-list / -forget / -restore) ---
 
 /** Optional filter for `twin:memory-list`. Omitted ⇒ the service returns all

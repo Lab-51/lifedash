@@ -5,13 +5,21 @@
 // brain:build-tree is a structural DB read only (no AI); entity:* facts are a
 // separate auditable-memory store from brain:build-tree's tree payload.
 //
-// === entity:* CONTRACT (BRAIN-UX.1 Tasks 1 + 3) ===
-// All three entity:* channels are thin delegations to entityFactService (simple
+// === entity:* CONTRACT (BRAIN-UX.1 Tasks 1 + 3, ENTITY-NAME.1 Task 3) ===
+// All five entity:* channels are thin delegations to entityFactService (simple
 // queries, matching brain:build-tree's thinness). entity:analyze-history now runs
 // the REAL sequential history mining (Task 3): it resolves with honest counts
 // (`status: 'ok'`) or REJECTS with a user-facing message when no model is
 // configured — never a fabricated success. The handler shape is unchanged from
 // Task 1's freeze.
+//
+// entity:merge-candidates + entity:merge (ENTITY-NAME.1 Task 3) back the
+// Inspector's user-driven "Merge into…" action — the sanctioned alternative to
+// automatic nickname merging (which was rejected: a wrong automatic merge would
+// silently corrupt fact attribution with no undo). entity:merge is the ONE
+// entity:* channel whose zod-valid input can still fail — mergeEntityInto's own
+// guards (self-merge/missing-row/cross-kind) — and that failure is surfaced as a
+// typed `MergeEntityResult.error`, never a rejected promise.
 //
 // Importing entityFactService also wires its post-session ENTITY-FACT mining hook
 // onto the dispatcher (that module imports entityService, so the run order is
@@ -34,7 +42,7 @@ import * as brainTreeService from '../services/brainTreeService';
 import * as brainGraphService from '../services/brainGraphService';
 import * as entityFactService from '../services/entityFactService';
 import { validateInput } from '../../shared/validation/ipc-validator';
-import { entityIdSchema, entityFactIdSchema } from '../../shared/validation/schemas';
+import { entityIdSchema, entityFactIdSchema, mergeEntityPayloadSchema } from '../../shared/validation/schemas';
 // Side-effect import: wires entityService's post-session ENTITY-extraction hook
 // onto the dispatcher at boot. entityService imports twinMemoryService, so the
 // FACTS hook self-registers first — entities always run AFTER facts.
@@ -74,5 +82,17 @@ export function registerBrainHandlers(): void {
   ipcMain.handle('entity:analyze-history', async (_event, entityId: unknown) => {
     const id = validateInput(entityIdSchema, entityId);
     return entityFactService.analyzeHistory(id);
+  });
+
+  // --- User-driven "Merge into…" (ENTITY-NAME.1 Task 3) ---
+
+  ipcMain.handle('entity:merge-candidates', async (_event, entityId: unknown) => {
+    const id = validateInput(entityIdSchema, entityId);
+    return entityFactService.listMergeCandidates(id);
+  });
+
+  ipcMain.handle('entity:merge', async (_event, payload: unknown) => {
+    const { sourceId, targetId } = validateInput(mergeEntityPayloadSchema, payload);
+    return entityFactService.mergeEntity(sourceId, targetId);
   });
 }

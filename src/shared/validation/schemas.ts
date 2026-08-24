@@ -575,3 +575,11 @@ export const entityIdSchema = uuid;
 
 /** For entity:forget-fact — the entity_facts.id parameter. */
 export const entityFactIdSchema = uuid;
+
+/** For entity:merge (ENTITY-NAME.1 Task 3) — structural validation only (two
+ *  well-formed entity ids). Self-merge/missing-row/cross-kind are
+ *  `mergeEntityInto`'s OWN guards and are deliberately NOT duplicated here. */
+export const mergeEntityPayloadSchema = z.object({
+  sourceId: uuid,
+  targetId: uuid,
+});

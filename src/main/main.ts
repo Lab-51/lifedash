@@ -43,6 +43,7 @@ import { reconcileBuiltinFromDisk } from './services/builtinProviderSetup';
 import { emitRuntimeStatus } from './services/runtimeTelemetry';
 import { sweepHallucinatedTranscripts } from './services/transcriptCleanupService';
 import { sweepOrphanedRecordings } from './services/recordingSweepService';
+import { sweepEntityNameFolds } from './services/entityNameFoldSweep';
 import { sweepFailedBriefEmbeddings } from './services/embeddingService';
 
 const log = createLogger('App');
@@ -151,6 +152,22 @@ async function sweepFailedBriefEmbeddingsOnStartup(): Promise<void> {
 function sweepOrphanedRecordingsOnStartup(): void {
   sweepOrphanedRecordings().catch((err) => {
     log.warn('Recording orphan sweep skipped (will retry next launch):', err);
+  });
+}
+
+/**
+ * ENTITY-NAME.1 Task 2: one-shot startup sweep that re-keys every entity row
+ * through the current name normalizer and merges the rows that now fold to the
+ * same key (see entityNameFoldSweep.ts — it DELETES the merged-away rows, in a
+ * per-group transaction, only after their facts and links have been re-pointed).
+ * Same shape as the recording sweep above: fire-and-forget so it can never delay
+ * or block startup, and error-isolated here rather than inside the service, which
+ * writes its completion flag only after a failure-free pass and therefore retries
+ * on the next launch after any failure.
+ */
+function sweepEntityNameFoldsOnStartup(): void {
+  sweepEntityNameFolds().catch((err) => {
+    log.error('Entity name-fold sweep skipped (will retry next launch):', err);
   });
 }
 
@@ -293,6 +310,10 @@ const createWindow = async () => {
     // Must run AFTER migrations too (the meetings table + settings flag row it
     // gates on). Fire-and-forget — does not block the rest of startup below.
     sweepOrphanedRecordingsOnStartup();
+
+    // Must run AFTER migrations too (the entities/entity_facts/entity_links tables
+    // + settings flag row it gates on). Fire-and-forget for the same reason.
+    sweepEntityNameFoldsOnStartup();
 
     const integrity = await checkDatabaseIntegrity();
     if (!integrity.healthy) {

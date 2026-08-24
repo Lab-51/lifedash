@@ -1,7 +1,9 @@
 // === Preload bridge: Brain (V3.2 Task 1) — hierarchical mind-map data for the
 // whole workspace or a single session — PLUS per-entity learned facts
 // (BRAIN-UX.1 Task 1): list/forget are real; analyze-history is an honest
-// not-implemented stub until Task 3 lands. ===
+// not-implemented stub until Task 3 lands. PLUS user-driven "Merge into…"
+// (ENTITY-NAME.1 Task 3): entityMergeCandidates lists same-kind targets;
+// entityMerge never rejects on a guard failure — see MergeEntityResult. ===
 import { ipcRenderer } from 'electron';
 import type {
   BrainScope,
@@ -10,6 +12,8 @@ import type {
   BrainGraph,
   EntityFact,
   AnalyzeEntityHistoryResult,
+  EntityMergeCandidate,
+  MergeEntityResult,
 } from '../../shared/types';
 
 export const brainBridge = {
@@ -23,4 +27,9 @@ export const brainBridge = {
   entityForgetFact: (factId: string): Promise<void> => ipcRenderer.invoke('entity:forget-fact', factId),
   entityAnalyzeHistory: (entityId: string): Promise<AnalyzeEntityHistoryResult> =>
     ipcRenderer.invoke('entity:analyze-history', entityId),
+
+  entityMergeCandidates: (entityId: string): Promise<EntityMergeCandidate[]> =>
+    ipcRenderer.invoke('entity:merge-candidates', entityId),
+  entityMerge: (payload: { sourceId: string; targetId: string }): Promise<MergeEntityResult> =>
+    ipcRenderer.invoke('entity:merge', payload),
 };

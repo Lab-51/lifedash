@@ -129,6 +129,8 @@ import type {
   BackfillFactLabelsResult,
   EntityFact,
   AnalyzeEntityHistoryResult,
+  EntityMergeCandidate,
+  MergeEntityResult,
 } from './twin';
 import type {
   CalendarProvider,
@@ -667,6 +669,13 @@ export interface ElectronAPI {
   entityListFacts: (entityId: string) => Promise<EntityFact[]>;
   entityForgetFact: (factId: string) => Promise<void>;
   entityAnalyzeHistory: (entityId: string) => Promise<AnalyzeEntityHistoryResult>;
+
+  // User-driven "Merge into…" (ENTITY-NAME.1 Task 3) — a same-kind-only,
+  // explicitly-confirmed merge via mergeEntityInto (Task 2). entity:merge never
+  // throws across IPC; a guard failure surfaces as MergeEntityResult's typed
+  // `error` status instead of a rejection.
+  entityMergeCandidates: (entityId: string) => Promise<EntityMergeCandidate[]>;
+  entityMerge: (payload: { sourceId: string; targetId: string }) => Promise<MergeEntityResult>;
 
   // Digital Twin profile (V3.3 Tasks 3-4) — singleton profile read, section-level
   // patch (incl. the `brief` section), and the Quick-form "Interview me" draft.

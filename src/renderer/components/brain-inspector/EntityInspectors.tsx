@@ -13,20 +13,35 @@
 //     one-tap entityForgetFact, optimistic-removed and restored on error), a
 //     user-initiated "Analyze past sessions" button (entityAnalyzeHistory,
 //     handles the Task-1 not-implemented stub AND a rejected/typed no-model
-//     failure from Task 3 with actionable copy), and the sessions it is linked
-//     to (from the payload node's session children). Each session NAVIGATES via
-//     the host's onOpenEntity ("this person/topic showed up across these
-//     sessions" / "learn more about this fact").
+//     failure from Task 3 with actionable copy), the sessions it is linked to
+//     (payload children), and a user-driven "Merge into…" action (ENTITY-NAME.1
+//     Task 3, via MergeEntityPicker) that RE-POINTS this card to the survivor via
+//     local state and refreshes every cached Brain scope on success. Each session
+//     NAVIGATES via the host's onOpenEntity.
 //
 // === DEPENDENCIES ===
-// react, projectStore, listLiveSuggestions IPC, entityListFacts/entityForgetFact/
-// entityAnalyzeHistory IPC (window.electronAPI), shared brain + live-suggestion +
-// twin (EntityFact) types
+// react, projectStore, brainStore (merge refresh), listLiveSuggestions IPC,
+// entityListFacts/entityForgetFact/entityAnalyzeHistory/entityMergeCandidates/
+// entityMerge IPC, MergeEntityPicker, shared brain + twin types
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronRight, Loader2, X } from 'lucide-react';
+import { ChevronRight, Loader2, Merge, X } from 'lucide-react';
 import { useProjectStore } from '../../stores/projectStore';
-import type { BrainNode, BrainNodeType, EntityFact, LiveSuggestion } from '../../../shared/types';
+import { useBrainStore } from '../../stores/brainStore';
+import MergeEntityPicker from './MergeEntityPicker';
+import type { BrainNode, BrainNodeType, BrainScope, EntityFact, LiveSuggestion } from '../../../shared/types';
+
+/** Refresh every cached Brain scope so a merge's deleted source / moved counts
+ *  show in the canvas OUTSIDE this card (re-pointing THIS card is separate local
+ *  state below). Inverts brainStore's own scopeKeyFor; never throws — refresh
+ *  already swallows. */
+function refreshAllBrainScopes(): void {
+  const { scopes, refresh } = useBrainStore.getState();
+  for (const scopeKey of Object.keys(scopes)) {
+    const scope: BrainScope = scopeKey === 'workspace' ? 'workspace' : { meetingId: scopeKey.slice('session:'.length) };
+    void refresh(scope);
+  }
+}
 
 // --- Project ---------------------------------------------------------------
 export function ProjectInspector({ node }: { node: BrainNode }) {
@@ -233,14 +248,30 @@ export function EntityInspector({
   node: BrainNode;
   onOpenEntity: (arg: { type: BrainNodeType; entityId: string }) => void;
 }) {
-  // The entity node branches to the sessions it is linked to (payload children).
-  const sessions = node.children.filter((c) => c.type === 'session');
   const kindLabel = node.type === 'person' ? 'Person' : 'Topic';
   const entityId = node.entityId!; // BrainMindMap only fires onInspect for openable (non-null) nodes.
+
+  // The entity actually displayed — starts as the pinned node but SWAPS to the
+  // survivor on a successful merge (Task 3), no host re-pin needed. Reset DURING
+  // RENDER (mirrors BrainTabPanel's own prop-vs-local-state pattern) so a
+  // genuinely different entity clicked from outside still wins over a stale swap.
+  const [prevEntityId, setPrevEntityId] = useState(entityId);
+  const [activeEntityId, setActiveEntityId] = useState(entityId);
+  const [activeLabel, setActiveLabel] = useState(node.label);
+  if (entityId !== prevEntityId) {
+    setPrevEntityId(entityId);
+    setActiveEntityId(entityId);
+    setActiveLabel(node.label);
+  }
+  // The PAYLOAD node's own session children — real only for that exact node.
+  // Hidden (never stale) after a merge swap; this component fetches no fresh
+  // tree data, so it never fabricates the survivor's session list.
+  const sessions = activeEntityId === entityId ? node.children.filter((c) => c.type === 'session') : [];
 
   const [factsState, setFactsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [facts, setFacts] = useState<EntityFact[]>([]);
   const [analyzeState, setAnalyzeState] = useState<AnalyzeState>({ kind: 'idle' });
+  const [mergeOpen, setMergeOpen] = useState(false);
 
   // Cancelled-flag pattern (mirrors SuggestionInspector below) — guards setState
   // after unmount for both the mount-time load and the button-triggered refresh.
@@ -250,19 +281,19 @@ export function EntityInspector({
     return () => {
       cancelledRef.current = true;
     };
-  }, [entityId]);
+  }, [activeEntityId]);
 
   const loadFacts = useCallback(async () => {
     setFactsState('loading');
     try {
-      const list = await window.electronAPI.entityListFacts(entityId);
+      const list = await window.electronAPI.entityListFacts(activeEntityId);
       if (cancelledRef.current) return;
       setFacts(list);
       setFactsState('ready');
     } catch {
       if (!cancelledRef.current) setFactsState('error');
     }
-  }, [entityId]);
+  }, [activeEntityId]);
 
   useEffect(() => {
     void loadFacts(); // eslint-disable-line react-hooks/set-state-in-effect -- mount-time load, same pattern as useDatabaseStatus
@@ -281,7 +312,7 @@ export function EntityInspector({
   const handleAnalyze = async () => {
     setAnalyzeState({ kind: 'loading' });
     try {
-      const result = await window.electronAPI.entityAnalyzeHistory(entityId);
+      const result = await window.electronAPI.entityAnalyzeHistory(activeEntityId);
       if (cancelledRef.current) return;
       if (result.status === 'not-implemented') {
         setAnalyzeState({ kind: 'error', message: result.error ?? 'Analyze past sessions is not implemented yet.' });
@@ -294,13 +325,24 @@ export function EntityInspector({
     }
   };
 
+  // On success: swap to the survivor (loadFacts re-fires on its own, keyed off
+  // activeEntityId) and refresh every cached Brain scope — the two halves of
+  // "refresh the tree and re-open the inspector on the survivor".
+  const handleMerged = (result: { survivorId: string; survivorName: string }) => {
+    setMergeOpen(false);
+    setActiveEntityId(result.survivorId);
+    setActiveLabel(result.survivorName);
+    setAnalyzeState({ kind: 'idle' });
+    refreshAllBrainScopes();
+  };
+
   return (
     <div data-testid="brain-inspector-entity" className="flex flex-col gap-3">
       <div>
         <span className="text-[0.625rem] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--color-accent-subtle)] text-[var(--color-accent)]">
           {kindLabel}
         </span>
-        <h3 className="text-base font-semibold text-[var(--color-text-primary)] mt-1 break-words">{node.label}</h3>
+        <h3 className="text-base font-semibold text-[var(--color-text-primary)] mt-1 break-words">{activeLabel}</h3>
         <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
           Linked to {sessions.length} session{sessions.length === 1 ? '' : 's'}
         </p>
@@ -314,6 +356,30 @@ export function EntityInspector({
       />
 
       <AnalyzeHistorySection analyzeState={analyzeState} onAnalyze={() => void handleAnalyze()} />
+
+      <div className="flex flex-col gap-1.5 pt-1 border-t border-[var(--color-border)]">
+        {!mergeOpen && (
+          <button
+            type="button"
+            onClick={() => setMergeOpen(true)}
+            disabled={factsState !== 'ready'}
+            className="self-start inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-accent)] hover:underline disabled:opacity-60 disabled:cursor-not-allowed disabled:no-underline"
+          >
+            <Merge size={13} />
+            Merge into…
+          </button>
+        )}
+        {mergeOpen && (
+          <MergeEntityPicker
+            sourceId={activeEntityId}
+            sourceName={activeLabel}
+            factCount={facts.length}
+            linkCount={sessions.length}
+            onCancel={() => setMergeOpen(false)}
+            onMerged={handleMerged}
+          />
+        )}
+      </div>
 
       {sessions.length > 0 && (
         <div className="flex flex-col gap-1.5">

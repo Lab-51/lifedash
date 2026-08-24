@@ -4,6 +4,13 @@
 // twin_facts triad (list/forget/provenance) but scoped to a Brain entity
 // (person or topic) instead of the user's own twin profile.
 //
+// === USER-DRIVEN MERGE (ENTITY-NAME.1 Task 3) ===
+// listMergeCandidates + mergeEntity back the Inspector's "Merge into…" action —
+// both are THIN wrappers, matching every other entity:* channel's delegation
+// shape. mergeEntity never re-implements mergeEntityInto's guards (self-merge/
+// missing-row/cross-kind); it only converts a thrown guard failure into a typed
+// `MergeEntityResult` so the IPC channel never rejects across the boundary.
+//
 // === HOW FACTS ARE LEARNED (Task 3) ===
 // ONE core routine, mineFactsForMeeting(meetingId, entities, provider), with two
 // entry points:
@@ -52,7 +59,7 @@
 // free. Either signal resolves to the same typed no-op this module already used
 // for every other skip: {status:'skipped', reason:'meeting-deleted', newFacts:0}.
 
-import { asc, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db/connection';
 import { entities, entityFacts, entityLinks, meetings, transcripts } from '../db/schema';
@@ -66,7 +73,16 @@ import { getMeeting } from './meetingService';
 import { isForeignKeyViolation } from '../db/errors';
 import { loadLatestBriefRecord, fitNotesWithinBudget } from './briefRecordService';
 import { structureToText } from '../../shared/utils/briefRecordText';
-import type { EntityFact, AnalyzeEntityHistoryResult } from '../../shared/types/twin';
+// ENTITY-NAME.1 Task 3 — mergeEntityInto is Task 2's frozen, tested primitive
+// (self-merge/missing-row/cross-kind guards live there and ONLY there; this file
+// never re-implements them, only calls it).
+import { mergeEntityInto } from './entityNameFoldSweep';
+import type {
+  EntityFact,
+  AnalyzeEntityHistoryResult,
+  EntityMergeCandidate,
+  MergeEntityResult,
+} from '../../shared/types/twin';
 import type { MeetingStructure } from '../../shared/types/briefStructure';
 
 const log = createLogger('EntityFacts');
@@ -473,6 +489,52 @@ export async function analyzeHistory(entityId: string): Promise<AnalyzeEntityHis
     `analyzeHistory(${entity.name}) — mined ${minedMeetings} session(s), ${newFacts} new fact(s), ${skippedMeetings} skipped`,
   );
   return { status: 'ok', minedMeetings, newFacts, skippedMeetings };
+}
+
+/**
+ * Candidates for `entity:merge-candidates` — every OTHER entity of the SAME
+ * kind as `entityId`, alphabetical by name, each with its own current fact
+ * count (a plain LEFT JOIN count, zero for a candidate with none). Empty array
+ * when the entity itself no longer exists — never fabricates candidates for a
+ * vanished source. This query is the picker's cross-kind/self exclusion: it
+ * structurally cannot return the source or a different kind, which is why
+ * mergeEntity below never needs to re-check either.
+ */
+export async function listMergeCandidates(entityId: string): Promise<EntityMergeCandidate[]> {
+  const db = getDb();
+  const [source] = await db.select({ kind: entities.kind }).from(entities).where(eq(entities.id, entityId)).limit(1);
+  if (!source) return [];
+
+  const rows = await db
+    .select({ id: entities.id, name: entities.name, factCount: count(entityFacts.id) })
+    .from(entities)
+    .leftJoin(entityFacts, eq(entityFacts.entityId, entities.id))
+    .where(and(eq(entities.kind, source.kind), ne(entities.id, entityId)))
+    .groupBy(entities.id, entities.name)
+    .orderBy(asc(entities.name));
+
+  return rows.map((row) => ({ id: row.id, name: row.name, factCount: Number(row.factCount) }));
+}
+
+/**
+ * `entity:merge` — collapses `sourceId` into `targetId` via Task 2's
+ * `mergeEntityInto`, converting its thrown guard failures (self-merge, missing
+ * row, cross-kind) into a typed `MergeEntityResult` so the channel never
+ * rejects across IPC. Not re-validated here — `mergeEntityInto` is the ONLY
+ * place these guards live.
+ */
+export async function mergeEntity(sourceId: string, targetId: string): Promise<MergeEntityResult> {
+  try {
+    const counts = await mergeEntityInto(getDb(), sourceId, targetId);
+    return {
+      status: 'ok',
+      survivorId: targetId,
+      factsRepointed: counts.factsRepointed,
+      linksMerged: counts.linksMerged,
+    };
+  } catch (err) {
+    return { status: 'error', message: err instanceof Error ? err.message : 'Merge failed.' };
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -291,6 +291,21 @@ describe('extractEntities — dedupe, cap, insert-or-get, provenance', () => {
     expect(insertedLinks).toHaveLength(2);
   });
 
+  it('dedupeEntities collapses an accented + accent-less spelling within one batch (first spelling wins)', async () => {
+    vi.mocked(generateValidated).mockResolvedValue([
+      { name: 'Petra Dvořáková', kind: 'person' },
+      { name: 'Petra Dvorakova', kind: 'person' }, // accent-less dup of the first (same normalized key)
+      { name: 'Bob', kind: 'person' },
+    ]);
+
+    const result = await extractEntities(MEETING_ID);
+
+    expect(result.status).toBe('ok');
+    expect(result.entities.map((e) => e.name)).toEqual(['Petra Dvořáková', 'Bob']);
+    expect(insertedEntities).toHaveLength(2);
+    expect(insertedLinks).toHaveLength(2);
+  });
+
   it('caps a session at 8 entities', async () => {
     vi.mocked(generateValidated).mockResolvedValue(
       Array.from({ length: 12 }, (_, i) => ({ name: `Topic ${i}`, kind: 'topic' as const })),
@@ -341,5 +356,21 @@ describe('normalizeEntityName', () => {
   it('lowercases, collapses whitespace, and trims', () => {
     expect(normalizeEntityName('  Acme   Corp ')).toBe('acme corp');
     expect(normalizeEntityName('DANA lee')).toBe('dana lee');
+  });
+
+  it('folds Czech háček and čárka diacritics to their unaccented base letters', () => {
+    expect(normalizeEntityName('Petra Dvořáková')).toBe('petra dvorakova');
+    expect(normalizeEntityName('Petra Dvorakova')).toBe('petra dvorakova');
+  });
+
+  it('folds non-Czech diacritics too — proves NFD generality, not a Czech-specific hack', () => {
+    expect(normalizeEntityName('Zürich Office')).toBe('zurich office');
+    expect(normalizeEntityName('Zurich Office')).toBe('zurich office');
+  });
+
+  it('is idempotent: re-normalizing an already-normalized (folded) name is a no-op', () => {
+    const folded = normalizeEntityName('Petra Dvořáková');
+    expect(normalizeEntityName(folded)).toBe(folded);
+    expect(folded).toBe('petra dvorakova');
   });
 });
