@@ -64,6 +64,7 @@
 
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import type { Mock } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 vi.mock('../secure-storage', () => ({ decryptString: vi.fn((b: string) => b) }));
 vi.mock('../logger', () => ({
@@ -98,14 +99,18 @@ type Tier = 'builtin' | 'lmstudio' | 'openai' | 'anthropic' | 'google';
  *    one target): 0.90, a CALIBRATION TARGET. Unmeasured: no real cloud run's
  *    numbers have been captured against this bar yet.
  *  - `lmstudio`: 0.80, a CALIBRATION TARGET. Unmeasured for the same reason.
- *  - `builtin`: 0.70 — TO BE SET from Task 5's measured baseline (LOCAL-QUAL.1).
- *    Left at 0.70 here deliberately; Task 5 changes this value once, from an
- *    actual measurement, with that measurement in the commit trail. Do not
- *    change it from any other task. */
+ *  - `builtin`: 0.40 — SET FROM MEASUREMENT (LOCAL-QUAL.1 Task 5, 2026-08-24):
+ *    Qwen3-14B-Q4_K_M via the Vulkan sidecar, 4 passes, BRIEF_EVAL_BAR=0
+ *    measurement run → extractRecall topics/decisions/commitments
+ *    0.57/0.71/0.50, inventedOwners 0, wrongOwners 0 (full record incl. missed
+ *    lists: .eval/live-builtin-Qwen3-14B-Q4_K_M-2026-08-24T07-44-11-473Z.json).
+ *    Floor 0.50 minus a run-variance margin → 0.40: a bar the installed model
+ *    actually passes while a real regression still fails. Single-run baseline —
+ *    re-set only from a new measurement, never by hand. */
 const TIER_BARS = {
   openai: 0.9,
   lmstudio: 0.8,
-  builtin: 0.7,
+  builtin: 0.4,
 } as const;
 
 /** `anthropic`/`google` share `TIER_BARS.openai` — the same cloud calibration
@@ -290,6 +295,40 @@ describe.runIf(LIVE)('brief pipeline — LIVE eval against a real model', () => 
           `missedDecisions=${score.missed.decisions.join('; ') || '(none)'}`,
           `missedCommitments=${score.missed.commitments.join('; ') || '(none)'}`,
         ].join(' | '),
+      );
+
+      // Reporter-proof record (LOCAL-QUAL.1 Task 5): vitest can swallow console
+      // output from a PASSING test, and a measurement is worthless if only a
+      // failure leaves a trace — so the same record is ALSO written as JSON into
+      // gitignored .eval/, keyed by tier, model and timestamp.
+      mkdirSync('.eval', { recursive: true });
+      writeFileSync(
+        `.eval/live-${tier}-${provider.model}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
+        JSON.stringify(
+          {
+            tier,
+            model: provider.model,
+            passes: structure.provenance.passes,
+            extractRecall: {
+              topics: score.topicsRecall,
+              decisions: score.decisionsRecall,
+              commitments: score.commitmentsRecall,
+            },
+            writerRecall: {
+              topics: writerTopicsRecall,
+              decisions: writerDecisionsRecall,
+              commitments: writerCommitmentsRecall,
+            },
+            inventedOwners: score.inventedOwners,
+            wrongOwners: score.wrongOwners,
+            extractWallMs,
+            writerWallMs,
+            missed: score.missed,
+            matched: score.matched,
+          },
+          null,
+          2,
+        ),
       );
 
       const threshold = resolveBar(tier);
