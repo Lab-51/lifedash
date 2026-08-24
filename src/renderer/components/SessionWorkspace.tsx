@@ -10,9 +10,10 @@
 // of the ActivityFeed from persisted data only (agent messages' tool_calls +
 // this meeting's live-suggestions) — it does not read the live activityFeedStore,
 // which is session-scoped to the current recording and long gone by the time
-// this page is viewed. POST-FLOW.1: a COMPLETED session now LEADS with the
-// wrap-up hero (SessionWrapUpHero) in the center canvas — Brief + Action items
-// moved out of the rail for that case; live/processing sessions keep the rail.
+// this page is viewed. POST-FLOW.1: a COMPLETED session gains a first "Summary"
+// tab (SessionSummaryTab) holding Brief + Action items, selected by default when
+// the session opens — those moved out of the rail for that case; live/processing
+// sessions keep the rail and never see the tab.
 //
 // === DEPENDENCIES ===
 // react-router-dom (useParams/useNavigate/useSearchParams), meetingStore,
@@ -31,7 +32,7 @@ import EmbeddedBoard from './EmbeddedBoard';
 import ViewingProjectBanner from './ViewingProjectBanner';
 import LiveCanvasTabs, { type CanvasTabId, type CanvasTabDef } from './LiveCanvasTabs';
 import BrainTabPanel, { resolveBrainOpenTarget } from './BrainTabPanel';
-import SessionWrapUpHero, { SessionIntelligence } from './SessionWrapUpHero';
+import SessionSummaryTab, { SessionIntelligence } from './SessionSummaryTab';
 import ConvertActionModal from './ConvertActionModal';
 import MeetingAnalyticsSection from './MeetingAnalyticsSection';
 import SessionRail from './SessionRail';
@@ -281,10 +282,16 @@ const TABS: CanvasTabDef[] = [
   { id: 'brain', label: 'Brain' },
 ];
 
-// Completed meetings: the first tab hosts prep + collapsed transcript + the
-// Meeting Assistant chat (the primary post-meeting surface), so "Transcript"
-// would under-sell it. Same id — expansion/routing state is unaffected.
-const COMPLETED_TABS: CanvasTabDef[] = [{ id: 'transcript', label: 'Meeting' }, ...TABS.slice(1)];
+// Completed meetings get an extra FIRST tab: the brief (POST-FLOW.1's follow-up
+// — it shipped as a hero stacked above the strip, which pushed these tabs down
+// and cost them their visibility; as a peer tab it leads without burying).
+// The second tab hosts prep + collapsed transcript + the Meeting Assistant chat,
+// so "Transcript" would under-sell it. Same ids — routing state is unaffected.
+const COMPLETED_TABS: CanvasTabDef[] = [
+  { id: 'summary', label: 'Summary' },
+  { id: 'transcript', label: 'Meeting' },
+  ...TABS.slice(1),
+];
 
 type SessionLoadState = 'loading' | 'ready' | 'missing';
 
@@ -335,6 +342,8 @@ function useSessionLoad(id: string | undefined, initialTab: CanvasTabId) {
   const [activeTab, setActiveTab] = useState<CanvasTabId>(initialTab);
   const [loadState, setLoadState] = useState<SessionLoadState>('loading');
   const [prevId, setPrevId] = useState(id);
+  const [defaultedId, setDefaultedId] = useState<string | undefined>(undefined);
+  const selectedMeeting = useMeetingStore((s) => s.selectedMeeting);
 
   // A freshly-routed session lands on its transcript UNLESS the URL asks for the
   // board (a viewProject/openCard deep link — e.g. a caught /projects redirect or a
@@ -344,6 +353,22 @@ function useSessionLoad(id: string | undefined, initialTab: CanvasTabId) {
     setPrevId(id);
     setActiveTab(initialTab);
     setLoadState('loading');
+    setDefaultedId(undefined);
+  }
+
+  // A FINISHED session opens ON its Summary tab — the brief is the reason for
+  // coming back, and this is what makes it "the first thing" now that it is a
+  // peer tab rather than a hero stacked above the strip. Status is unknown until
+  // the meeting resolves, so this runs as the SAME render-time adjustment the id
+  // reset above uses — not in the load effect, where the update would land in a
+  // microtask (one frame of the wrong tab, and an act()-less update under test).
+  // Skipped when the URL named a tab (a deep link outranks a default) and for
+  // live/processing sessions, which have no Summary tab at all. `defaultedId`
+  // makes it once-per-session, so a later manual tab click is never overridden.
+  const resolved = id && selectedMeeting?.id === id ? selectedMeeting : null;
+  if (resolved && defaultedId !== id) {
+    setDefaultedId(id);
+    if (resolved.status === 'completed' && initialTab === 'transcript') setActiveTab('summary');
   }
 
   useEffect(() => {
@@ -534,6 +559,10 @@ export default function SessionWorkspace() {
   };
 
   const renderPanel = () => {
+    // Summary tab — completed sessions only (the tab is not offered otherwise,
+    // and the component self-gates besides).
+    if (activeTab === 'summary')
+      return <SessionSummaryTab meeting={meeting} autoGenerate={autoGenerate} onConvert={setConvertingAction} />;
     if (activeTab === 'board')
       return (
         <BoardTabPanel
@@ -599,9 +628,6 @@ export default function SessionWorkspace() {
       <div className="flex-1 flex min-h-0">
         {/* Center canvas */}
         <section className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-          {/* POST-FLOW.1: the wrap-up leads a COMPLETED session — brief first, tabs
-              below. Self-gating: renders nothing for a live/processing one. */}
-          <SessionWrapUpHero meeting={meeting} autoGenerate={autoGenerate} onConvert={setConvertingAction} />
           <div className="px-6 pt-4 shrink-0">
             <LiveCanvasTabs
               tabs={meeting.status === 'completed' ? COMPLETED_TABS : TABS}
@@ -618,7 +644,7 @@ export default function SessionWorkspace() {
         <SessionRail>
           <MeetingAnalyticsSection meetingId={meeting.id} isCompleted={meeting.status === 'completed'} />
           {/* Live/processing sessions keep the rail block; a completed one moved it
-              into the hero above, so this self-gating placement renders nothing. */}
+              into the Summary tab, so this self-gating placement renders nothing. */}
           <SessionIntelligence meeting={meeting} autoGenerate={autoGenerate} onConvert={setConvertingAction} />
           {meeting.status === 'completed' && (
             <LiveProposalsSection meetingId={meeting.id} projectName={linkedProjectName ?? 'Unassigned'} />

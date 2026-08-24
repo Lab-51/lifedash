@@ -157,7 +157,7 @@ describe('LiveModeOverlay', () => {
     });
     // canvasBadgeStore/activityFeedStore are module-level singletons — reset so
     // state set in one test can't leak into the next.
-    useCanvasBadgeStore.setState({ counts: { transcript: 0, board: 0, brain: 0 } });
+    useCanvasBadgeStore.setState({ counts: { summary: 0, transcript: 0, board: 0, brain: 0 } });
     useActivityFeedStore.setState({ entries: [], viewedTab: 'transcript', pendingToolCalls: [] });
     // meetingStore/boardStore are also module-level singletons — reset so the
     // Brain-tab routing tests (Task 3) can't leak seeded meetings/cards/project
@@ -378,7 +378,7 @@ describe('LiveModeOverlay', () => {
 
     it('renders a per-tab badge and clears it when that tab is viewed (no auto-flip)', () => {
       useRecordingStore.setState({ isRecording: true });
-      useCanvasBadgeStore.setState({ counts: { transcript: 0, board: 2, brain: 0 } });
+      useCanvasBadgeStore.setState({ counts: { summary: 0, transcript: 0, board: 2, brain: 0 } });
       renderOverlay();
 
       const tablist = screen.getByRole('tablist');

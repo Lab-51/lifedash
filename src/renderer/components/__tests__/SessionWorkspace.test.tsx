@@ -107,6 +107,15 @@ function expandTranscript() {
   fireEvent.click(toggle!);
 }
 
+/**
+ * A COMPLETED session now opens on its Summary tab (POST-FLOW.1 follow-up), so
+ * anything asserting the transcript/assistant surface has to switch to Meeting
+ * first. Live sessions have no Summary tab and need no switch.
+ */
+function openMeetingTab() {
+  fireEvent.click(screen.getByRole('tab', { name: 'Meeting' }));
+}
+
 function renderWorkspace(meetingId = 'meet-1') {
   return render(
     <MemoryRouter initialEntries={[`/session/${meetingId}`]}>
@@ -156,42 +165,55 @@ describe('SessionWorkspace — routed session page', () => {
     useSettingsStore.setState({ providers: [{ id: 'p1', enabled: true }] } as any);
   });
 
-  it('renders header, transcript, and action-items sections from the loaded meeting', () => {
+  it('renders header, the Summary tab by default, and the transcript on the Meeting tab', () => {
     renderWorkspace();
     // Header title
     expect(screen.getByText('Weekly Standup')).toBeInTheDocument();
-    // Transcript tab is active by default — its segment content shows once the
-    // (collapsed-by-default) transcript section is opened
+    // A completed session opens on Summary — Brief + Action Items live there.
+    expect(screen.getByText('Action Items')).toBeInTheDocument();
+    // The transcript is one click away: its segment content shows once the
+    // Meeting tab is open and the (collapsed-by-default) section is expanded.
+    openMeetingTab();
     expandTranscript();
     expect(screen.getByText('Hello from the transcript')).toBeInTheDocument();
-    // Right-rail action-items section
-    expect(screen.getByText('Action Items')).toBeInTheDocument();
   });
 
-  // POST-FLOW.1 Task 2 — the wrap-up leads a completed session.
-  it('leads a COMPLETED session with the wrap-up hero, above the tab strip and the transcript panel', () => {
+  // POST-FLOW.1 follow-up — the brief is a first-class TAB, selected by default.
+  // It first shipped as a hero stacked above the strip, which pushed Meeting /
+  // Board / Brain down the page; the whole point of this shape is that the brief
+  // leads WITHOUT costing the other surfaces their place.
+  it('gives a COMPLETED session a Summary tab that comes first and is selected by default', () => {
     renderWorkspace();
 
-    const hero = screen.getByTestId('session-wrapup-hero');
-    const tabs = screen.getByRole('tab', { name: 'Meeting' });
-    const panel = document.getElementById('panel-transcript')!;
+    const summaryTab = screen.getByRole('tab', { name: 'Summary' });
+    const meetingTab = screen.getByRole('tab', { name: 'Meeting' });
 
-    // DOCUMENT_POSITION_FOLLOWING (4) — the hero comes FIRST in DOM order.
-    expect(hero.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(hero.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // DOCUMENT_POSITION_FOLLOWING (4) — Summary is FIRST in the strip.
+    expect(summaryTab.compareDocumentPosition(meetingTab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // ...and active on arrival, with no click.
+    expect(summaryTab).toHaveAttribute('aria-selected', 'true');
+    expect(meetingTab).toHaveAttribute('aria-selected', 'false');
 
-    // The brief moved INTO the hero — it is not also left in the rail.
-    expect(within(hero).getByText('Brief')).toBeInTheDocument();
+    // The other tabs are PEERS, not pushed below a hero: same tablist parent.
+    expect(summaryTab.parentElement).toBe(meetingTab.parentElement);
+    expect(document.getElementById('panel-transcript')).toBeNull();
+
+    // The brief lives in that panel — it is not also left in the rail.
+    const panel = screen.getByTestId('session-summary-tab');
+    expect(within(panel).getByText('Brief')).toBeInTheDocument();
     expect(screen.getAllByText('Brief')).toHaveLength(1);
-    expect(within(hero).getByText('Action Items')).toBeInTheDocument();
+    expect(within(panel).getByText('Action Items')).toBeInTheDocument();
     expect(screen.getAllByText('Action Items')).toHaveLength(1);
   });
 
-  it('leaves a LIVE session composed exactly as before — no hero, intelligence still in the rail', () => {
+  it('leaves a LIVE session composed exactly as before — no Summary tab, intelligence still in the rail', () => {
     useMeetingStore.setState({ selectedMeeting: makeMeeting({ status: 'recording', endedAt: null }) as any });
     renderWorkspace();
 
-    expect(screen.queryByTestId('session-wrapup-hero')).toBeNull();
+    expect(screen.queryByTestId('session-summary-tab')).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Summary' })).toBeNull();
+    // The live strip still leads with Transcript, and it is the active tab.
+    expect(screen.getByRole('tab', { name: 'Transcript' })).toHaveAttribute('aria-selected', 'true');
     // Still present, and still OUTSIDE the center canvas (the rail).
     const brief = screen.getByText('Brief');
     expect(brief).toBeInTheDocument();
@@ -199,15 +221,14 @@ describe('SessionWorkspace — routed session page', () => {
     expect(screen.getByText('Action Items').closest('section')).toBeNull();
   });
 
-  it('shows the three canvas tabs (Meeting | Board | Brain — completed meetings relabel the first tab)', () => {
+  it('shows four canvas tabs for a completed meeting (Summary | Meeting | Board | Brain)', () => {
     renderWorkspace();
-    expect(screen.getByRole('tab', { name: 'Meeting' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Board' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Brain' })).toBeInTheDocument();
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Summary', 'Meeting', 'Board', 'Brain']);
   });
 
   it('hosts the Meeting Assistant chat in the center canvas (not the rail) for completed meetings', () => {
     renderWorkspace();
+    openMeetingTab();
     // The chat lives inside the transcript/meeting tabpanel — the primary surface.
     const panel = document.getElementById('panel-transcript')!;
     expect(within(panel as HTMLElement).getByText('Meeting Assistant')).toBeInTheDocument();
@@ -393,7 +414,7 @@ describe('SessionWorkspace — routed session page', () => {
     expect(backLink).toHaveAttribute('href', '/');
   });
 
-  it('resets the active tab to Transcript when the routed id changes on the same mounted instance', async () => {
+  it('resets the active tab to the new default when the routed id changes on the same mounted instance', async () => {
     const user = userEvent.setup();
     const meetingOne = makeMeeting({ id: 'meet-1', title: 'Meeting One' });
     const meetingTwo = makeMeeting({
@@ -436,7 +457,11 @@ describe('SessionWorkspace — routed session page', () => {
     await user.click(screen.getByText('go-to-/session/meet-2'));
 
     expect(await screen.findByText('Meeting Two')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Meeting' })).toHaveAttribute('aria-selected', 'true');
+    // The Board tab does NOT carry over: a newly-routed COMPLETED session lands
+    // on its own Summary tab (POST-FLOW.1 follow-up), not on the previous tab.
+    expect(screen.getByRole('tab', { name: 'Summary' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Board' })).toHaveAttribute('aria-selected', 'false');
+    openMeetingTab();
     expandTranscript();
     expect(screen.getByText('Second meeting transcript')).toBeInTheDocument();
   });
@@ -503,6 +528,7 @@ describe('SessionWorkspace — copy action items (BRIEF-QUAL.1 Task 4)', () => {
 
   it('copies "Owner — task (due)" when owner/dueText are known, plain when not', () => {
     renderWorkspace();
+    openMeetingTab();
     expandTranscript();
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions' }));

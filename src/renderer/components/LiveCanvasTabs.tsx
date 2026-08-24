@@ -9,8 +9,10 @@
 // === DEPENDENCIES ===
 // react
 
-/** The three canvas surfaces every session (live or post-hoc) can switch between. */
-export type CanvasTabId = 'transcript' | 'board' | 'brain';
+/** The canvas surfaces a session can switch between. `summary` is POST-FLOW.1's
+ *  brief tab and exists for COMPLETED sessions only — a live session never
+ *  offers it (there is no brief yet), so LiveModeOverlay's tab set is unchanged. */
+export type CanvasTabId = 'summary' | 'transcript' | 'board' | 'brain';
 
 export interface CanvasTabDef {
   id: CanvasTabId;

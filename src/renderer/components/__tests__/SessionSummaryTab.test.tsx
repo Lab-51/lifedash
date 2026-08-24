@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// POST-FLOW.1 Task 2 — the wrap-up hero. Covers the three states that sit above
+// POST-FLOW.1 (reshaped by its follow-up) — the Summary TAB. Covers the three states that sit above
 // the (REUSED, never forked) BriefSection, the honest-in-flight rule that keeps a
 // no-AI install and an old brief-less session from ever showing a spinner, and
 // the fill-in-place swap once a brief lands.
@@ -18,9 +18,9 @@ vi.stubGlobal('electronAPI', {
 
 const { useMeetingStore } = await import('../../stores/meetingStore');
 const { useSettingsStore } = await import('../../stores/settingsStore');
-const { default: SessionWrapUpHero, SessionIntelligence } = await import('../SessionWrapUpHero');
+const { default: SessionSummaryTab, SessionIntelligence } = await import('../SessionSummaryTab');
 // The banner's routing rule is a pure module; its unit tests live here so the
-// hero and the rule that decides its content stay verified together.
+// tab and the rule that decides its content stay verified together.
 const { resolveSummarizationRoute } = await import('../../lib/summarizationRoute');
 
 // ---------------------------------------------------------------------------
@@ -69,7 +69,7 @@ const BUILTIN_PROVIDER = { id: 'p-builtin', name: 'builtin', displayName: 'Built
 function renderHero(meeting = makeMeeting()) {
   return render(
     <MemoryRouter>
-      <SessionWrapUpHero meeting={meeting} autoGenerate={false} onConvert={() => {}} />
+      <SessionSummaryTab meeting={meeting} autoGenerate={false} onConvert={() => {}} />
     </MemoryRouter>,
   );
 }
@@ -77,7 +77,7 @@ function renderHero(meeting = makeMeeting()) {
 const banner = () => screen.queryByTestId('brief-writing-banner');
 
 // ---------------------------------------------------------------------------
-describe('SessionWrapUpHero — the three states above BriefSection', () => {
+describe('SessionSummaryTab — the three states above BriefSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useMeetingStore.setState({
@@ -184,7 +184,7 @@ describe('SessionWrapUpHero — the three states above BriefSection', () => {
     useMeetingStore.setState({ generatingBrief: false } as never);
     rerender(
       <MemoryRouter>
-        <SessionWrapUpHero
+        <SessionSummaryTab
           meeting={makeMeeting({ brief: makeBrief('Two decisions, one open question.') })}
           autoGenerate={false}
           onConvert={() => {}}
@@ -199,7 +199,7 @@ describe('SessionWrapUpHero — the three states above BriefSection', () => {
   it('renders NOTHING for a live session — the host mounts it unconditionally', () => {
     const { container } = renderHero(makeMeeting({ status: 'recording', endedAt: null }));
 
-    expect(screen.queryByTestId('session-wrapup-hero')).toBeNull();
+    expect(screen.queryByTestId('session-summary-tab')).toBeNull();
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -226,8 +226,8 @@ describe('SessionWrapUpHero — the three states above BriefSection', () => {
   it('reuses BriefSection and puts ActionItemList directly beneath it', () => {
     renderHero(makeMeeting({ brief: makeBrief('Invented summary line.') }));
 
-    const hero = screen.getByTestId('session-wrapup-hero');
-    const headings = Array.from(hero.querySelectorAll('h3')).map((h) => h.textContent);
+    const panel = screen.getByTestId('session-summary-tab');
+    const headings = Array.from(panel.querySelectorAll('h3')).map((h) => h.textContent);
     expect(headings).toEqual(['Brief', 'Action Items']);
   });
 });

@@ -24,7 +24,7 @@ function makeSuggestion(overrides: Partial<LiveSuggestion> = {}): LiveSuggestion
 describe('activityFeedStore', () => {
   beforeEach(() => {
     useActivityFeedStore.setState({ entries: [], viewedTab: 'transcript', pendingToolCalls: [] });
-    useCanvasBadgeStore.setState({ counts: { transcript: 0, board: 0, brain: 0 } });
+    useCanvasBadgeStore.setState({ counts: { summary: 0, transcript: 0, board: 0, brain: 0 } });
     useRecordingStore.setState({ meetingId: null });
   });
 

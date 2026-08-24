@@ -182,7 +182,7 @@ describe('brainStore — refresh live-growth diff (Task 4)', () => {
     vi.clearAllMocks();
     useBrainStore.setState({ scopes: {}, activeScopeKey: null });
     useActivityFeedStore.setState({ viewedTab: 'transcript' });
-    useCanvasBadgeStore.setState({ counts: { transcript: 0, board: 0, brain: 0 } });
+    useCanvasBadgeStore.setState({ counts: { summary: 0, transcript: 0, board: 0, brain: 0 } });
   });
 
   it('marks a newly-entering node "entering" when its whole ancestor path is expanded', async () => {

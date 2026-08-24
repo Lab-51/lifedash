@@ -1,10 +1,16 @@
 // === FILE PURPOSE ===
-// SessionWrapUpHero (POST-FLOW.1 Task 2) — the wrap-up lead region for a
-// COMPLETED session. The brief used to sit in the ~380px right rail; the user's
-// design call was "after the meeting ends the summary should pop as the first
-// thing — having it on the side could be missed by users most of the time". It
-// now leads the wide center column, and it leads EVERY completed session (not
-// only the one just recorded) so the placement is learnable.
+// SessionSummaryTab (POST-FLOW.1, reshaped by its follow-up) — the Summary tab
+// for a COMPLETED session. The brief used to sit in the ~380px right rail; the
+// user's design call was "after the meeting ends the summary should pop as the
+// first thing — having it on the side could be missed by users most of the time".
+//
+// POST-FLOW.1 first shipped this as a full-width hero stacked ABOVE the tab
+// strip. That was the wrong shape and the user said so: it pushed Meeting /
+// Board / Brain down the page, so making the brief prominent cost every OTHER
+// surface its visibility. It is now a first-class TAB instead — peer to the
+// others, selected by default when a finished session opens (see
+// useSessionLoad in SessionWorkspace), which delivers "first thing" without
+// burying anything. The tab exists for completed sessions only.
 //
 // The block itself is NOT new: SessionIntelligence moved here verbatim from
 // SessionWorkspace (which still renders it in the rail for LIVE sessions) and
@@ -83,7 +89,7 @@ interface IntelligenceProps {
 // Intelligence block — provider-gated Brief + Action items, plus the auto-push
 // column picker and the autoGenerate-on-open behavior carried over from the
 // pre-V3.1 meeting detail dialog. Owns its own push-column state so both hosts
-// (the hero below for completed sessions, SessionWorkspace's rail for live ones)
+// (the Summary tab below for completed sessions, SessionWorkspace's rail for live ones)
 // stay thin layouts. MOVED HERE VERBATIM from SessionWorkspace by POST-FLOW.1
 // Task 2 — one block, two placements, never two brief renderers.
 // ---------------------------------------------------------------------------
@@ -209,7 +215,7 @@ function IntelligenceBlock({ meeting, autoGenerate, onConvert }: IntelligencePro
 
 /**
  * RAIL placement — live/processing sessions only. A completed session's block
- * moved into the hero below, so this renders nothing for it.
+ * moved into the Summary tab below, so this renders nothing for it.
  *
  * Both placements are SELF-GATING (the UpcomingEventBanner idiom: "renders
  * nothing when nothing qualifies, so the host mounts it always") rather than
@@ -223,10 +229,10 @@ export function SessionIntelligence(props: IntelligenceProps) {
 }
 
 // ---------------------------------------------------------------------------
-// HERO placement — completed sessions only (see SessionIntelligence above for
-// why the gate lives here rather than at the call site).
+// SUMMARY TAB placement — completed sessions only (see SessionIntelligence
+// above for why the gate lives here rather than at the call site).
 // ---------------------------------------------------------------------------
-export default function SessionWrapUpHero(props: IntelligenceProps) {
+export default function SessionSummaryTab(props: IntelligenceProps) {
   const { meeting } = props;
   const generatingBrief = useMeetingStore((s) => s.generatingBrief);
   const route = useSummarizationRoute();
@@ -243,11 +249,15 @@ export default function SessionWrapUpHero(props: IntelligenceProps) {
   const writing = !meeting.brief && generatingBrief && route !== null;
 
   return (
-    <div className="px-6 pt-4 shrink-0">
-      <div data-testid="session-wrapup-hero" className="hud-panel clip-corner-cut-sm rounded-xl p-5 space-y-4">
-        {writing && <WritingBriefBanner route={route} />}
-        <IntelligenceBlock {...props} />
-      </div>
+    <div
+      data-testid="session-summary-tab"
+      role="tabpanel"
+      id="panel-summary"
+      aria-labelledby="tab-summary"
+      className="p-6 space-y-4"
+    >
+      {writing && <WritingBriefBanner route={route} />}
+      <IntelligenceBlock {...props} />
     </div>
   );
 }

@@ -12,7 +12,7 @@
 import { create } from 'zustand';
 import type { CanvasTabId } from '../components/LiveCanvasTabs';
 
-const EMPTY_COUNTS: Record<CanvasTabId, number> = { transcript: 0, board: 0, brain: 0 };
+const EMPTY_COUNTS: Record<CanvasTabId, number> = { summary: 0, transcript: 0, board: 0, brain: 0 };
 
 interface CanvasBadgeStore {
   counts: Record<CanvasTabId, number>;
