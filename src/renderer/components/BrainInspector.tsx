@@ -8,9 +8,12 @@
 // subview REUSING the existing detail components (session → meeting-detail stack;
 // card → card-detail sub-sections; project/column/decision/question → lightweight
 // real detail). It does NOT position itself (no drawer/bottom-sheet) — the parent
-// PinnedCard wrapper sets left/top/width; this fills that width and caps its own
-// height (max-h) with internal scroll for rich content. Full navigation is the
-// explicit "Open full page →" button, wired to the host's onOpenEntity.
+// PinnedCard wrapper sets left/top/width AND a maxHeight derived from the container;
+// this fills that width, shrinks to that cap (`min-h-0`) under its own vh ceiling,
+// and scrolls internally for rich content. The container-derived cap is what keeps a
+// tall card's bottom — and its ✕ — reachable; the vh ceiling alone could not, because
+// it says nothing about the container the card is clamped inside. Full navigation is
+// the explicit "Open full page →" button, wired to the host's onOpenEntity.
 //
 // ACCESSIBILITY: labelled region, focus moves in on open and restores on close, Esc
 // / close button dismiss (Esc ignored while typing in an input, matching
@@ -142,7 +145,7 @@ export default function BrainInspector({ node, meetingId, onOpenEntity, onInspec
       role="region"
       aria-label={`${TYPE_LABEL[node.type]} details`}
       tabIndex={-1}
-      className="flex flex-col w-full max-h-[60vh] rounded-xl bg-[var(--color-chrome)] border border-[var(--color-border)] shadow-2xl outline-none overflow-hidden"
+      className="flex flex-col w-full min-h-0 max-h-[60vh] rounded-xl bg-[var(--color-chrome)] border border-[var(--color-border)] shadow-2xl outline-none overflow-hidden"
     >
       <div className="shrink-0 flex items-start justify-between gap-2 px-4 pt-3.5 pb-3 border-b border-[var(--color-border)]">
         <div className="min-w-0">

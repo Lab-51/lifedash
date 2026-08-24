@@ -429,6 +429,36 @@ describe('BrainMindMap — node-anchored inspector card', () => {
     expect(connector.getAttribute('y1')).not.toBeNull();
   });
 
+  // Regression: the card capped itself in VIEWPORT units (max-h-[60vh]) while being
+  // positioned and clamped inside the CONTAINER. Whenever that resolved taller than
+  // the container, computeCardPlacement's `top` clamp degenerated to CARD_MARGIN and
+  // the card ran off the bottom edge — its overflow unreachable (no scroll), and on a
+  // short container its ✕ too. The cap must come from the container.
+  it('caps the card to the container so it can never overflow the bottom edge', () => {
+    useBrainStore.getState().setTree(KEY, workspaceFixture());
+    const { container } = render(
+      <BrainMindMap scopeKey={KEY} onOpenEntity={noop} pinnedId="project:p1" pinnedPanel={panel} />,
+    );
+
+    const card = container.querySelector('[data-testid="brain-pinned-card"]') as HTMLElement;
+    const maxHeight = parseFloat(card.style.maxHeight);
+    const top = parseFloat(card.style.top);
+
+    // A real px cap is set (not left to the vh ceiling, which knows nothing about
+    // this container). jsdom reports clientHeight 0, so the measured container falls
+    // back to 600 and the cap is 600 - 2*12.
+    expect(card.style.maxHeight).not.toBe('');
+    expect(maxHeight).toBe(576);
+
+    // THE INVARIANT: the card's furthest possible bottom stays inside the container.
+    expect(top + maxHeight).toBeLessThanOrEqual(600 - 12);
+
+    // The wrapper is a flex column — that plus the card's own `min-h-0` is what
+    // lets the card actually SHRINK to the cap instead of overflowing it.
+    expect(card.className).toContain('flex');
+    expect(card.className).toContain('flex-col');
+  });
+
   it('hides the card + connector when the pinned node is not in the current layout (no crash)', () => {
     // card:card1 lives under the collapsed-by-default column, so it is NOT laid out.
     useBrainStore.getState().setTree(KEY, workspaceFixture());

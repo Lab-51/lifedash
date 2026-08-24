@@ -81,7 +81,7 @@ export default function TwinMemoryInspector({
       role="region"
       aria-label={`${TWIN_GRAPH_TYPE_LABEL[node.type]} details`}
       tabIndex={-1}
-      className="flex flex-col w-full max-h-[60vh] rounded-xl bg-[var(--color-chrome)] border border-[var(--color-border)] shadow-2xl outline-none overflow-hidden"
+      className="flex flex-col w-full min-h-0 max-h-[60vh] rounded-xl bg-[var(--color-chrome)] border border-[var(--color-border)] shadow-2xl outline-none overflow-hidden"
     >
       <div className="shrink-0 flex items-start justify-between gap-2 px-4 pt-3.5 pb-3 border-b border-[var(--color-border)]">
         <span className="font-hud text-[0.625rem] tracking-widest uppercase text-[var(--color-accent-dim)] mt-0.5">

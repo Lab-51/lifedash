@@ -43,6 +43,9 @@ const CARD_W = 320; // fixed inspector-card width (px)
 const CARD_GAP = 16; // gap between the node edge and the card's near edge
 const CARD_MARGIN = 12; // keep the whole card this far from the container edges
 const CARD_EST_H = 360; // height guess used until the card measures itself (px)
+// Floor for the container-derived cap, so a very short container yields a
+// small-but-usable card (header + a little body) rather than a degenerate sliver.
+const CARD_MIN_H = 180;
 const FALLBACK_W = 900;
 const FALLBACK_H = 600;
 
@@ -174,11 +177,17 @@ function PinnedCard({ panel, rightX, leftX, sy, svgRef, animateConnector }: Pinn
           style={animateConnector ? { animation: 'brain-link-enter 220ms ease-out' } : undefined}
         />
       </svg>
+      {/* maxHeight is derived from the CONTAINER, not the viewport — see the same
+          fix in BrainMindMap's PinnedCard. The card's own cap is in vh, which says
+          nothing about this container; whenever it resolved taller, the `top` clamp
+          above degenerated to CARD_MARGIN and the card ran off the bottom with its
+          overflow (and sometimes its ✕) unreachable. `flex flex-col` + the card's
+          own `min-h-0` let it shrink to this cap rather than overflow it. */}
       <div
         ref={cardRef}
         data-testid="memory-graph-pinned-card"
-        style={{ left, top, width: CARD_W }}
-        className="absolute z-20 overflow-hidden break-words"
+        style={{ left, top, width: CARD_W, maxHeight: Math.max(CARD_MIN_H, container.h - CARD_MARGIN * 2) }}
+        className="absolute z-20 flex flex-col overflow-hidden break-words"
       >
         {panel}
       </div>

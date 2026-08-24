@@ -67,6 +67,9 @@ const CARD_W = 320; // fixed inspector-card width (px)
 const CARD_GAP = 16; // gap between the node edge and the card's near edge
 const CARD_MARGIN = 12; // keep the whole card this far from the container edges
 const CARD_EST_H = 360; // height guess used until the card measures itself (px)
+// Floor for the container-derived cap below, so a very short container yields a
+// small-but-usable card (header + a little body) rather than a degenerate sliver.
+const CARD_MIN_H = 180;
 /** Task 5 huge-expansion guard: expanding a node with more DIRECT children than
  *  this (e.g. a column with hundreds of cards) asks via an inline confirm chip
  *  instead of laying out — and freezing on — an enormous subtree in one click. */
@@ -351,7 +354,21 @@ function PinnedCard({ panel, rightX, leftX, sy, svgRef }: PinnedCardProps) {
         />
         <circle cx={connectorX} cy={sy} r={3} fill="var(--color-accent)" />
       </svg>
-      <div ref={cardRef} data-testid="brain-pinned-card" style={{ left, top, width: CARD_W }} className="absolute z-20">
+      {/* maxHeight is derived from the CONTAINER, not the viewport. The card's own
+          cap is in vh, which says nothing about this container — whenever it
+          resolved taller than the container, computeCardPlacement's clamp
+          degenerated (`Math.max(CARD_MARGIN, <negative>)`) and the card ran off the
+          bottom edge with its overflow unreachable: no scroll, and on a short
+          container not even the close button. Capping here keeps the whole card —
+          header, ✕ and all — inside the container, and the card scrolls internally.
+          `flex flex-col` + the card's own `min-h-0` are what let it actually shrink
+          to this cap instead of overflowing it. */}
+      <div
+        ref={cardRef}
+        data-testid="brain-pinned-card"
+        style={{ left, top, width: CARD_W, maxHeight: Math.max(CARD_MIN_H, container.h - CARD_MARGIN * 2) }}
+        className="absolute z-20 flex flex-col"
+      >
         {panel}
       </div>
     </>
