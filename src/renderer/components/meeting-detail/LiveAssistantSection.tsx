@@ -217,13 +217,13 @@ const VARIANT_UI = {
  * answer, so the first click needs no typing. Deliberately static: a generated
  * set would cost a model call before the user has asked for anything, on a
  * surface whose whole promise is that nothing runs unless you ask.
+ *
+ * No summarize-style chip (POST-FLOW.1): this section only ever renders for a
+ * completed meeting, right below the brief hero, which already IS the summary —
+ * a "Summarize this meeting" chip here invited a second, competing one and was
+ * the proven source of a paraphrase being mistaken for the actual brief.
  */
-const STARTER_PROMPTS = [
-  'What tasks do I need to do?',
-  'What was decided?',
-  'What was left unresolved?',
-  'Summarize this meeting',
-] as const;
+const STARTER_PROMPTS = ['What tasks do I need to do?', 'What was decided?', 'What was left unresolved?'] as const;
 
 /** Empty-thread invitation — vertically centered when the chat owns the canvas. */
 function EmptyThreadState({ variant, onPick }: { variant: 'rail' | 'canvas'; onPick: (prompt: string) => void }) {

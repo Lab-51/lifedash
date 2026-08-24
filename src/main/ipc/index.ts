@@ -75,12 +75,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerMeetingHandlers();
   registerRecordingHandlers(mainWindow);
   registerWhisperHandlers(mainWindow);
-  registerMeetingIntelligenceHandlers();
+  registerMeetingIntelligenceHandlers(mainWindow);
   registerIdeaHandlers();
   registerBrainstormHandlers();
   registerBackupHandlers(mainWindow);
   registerTaskStructuringHandlers();
-  registerNotificationHandlers();
+  registerNotificationHandlers(mainWindow);
   registerTranscriptionProviderHandlers();
   registerDiarizationHandlers();
   registerDashboardHandlers();

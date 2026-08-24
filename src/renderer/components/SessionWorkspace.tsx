@@ -10,7 +10,9 @@
 // of the ActivityFeed from persisted data only (agent messages' tool_calls +
 // this meeting's live-suggestions) — it does not read the live activityFeedStore,
 // which is session-scoped to the current recording and long gone by the time
-// this page is viewed.
+// this page is viewed. POST-FLOW.1: a COMPLETED session now LEADS with the
+// wrap-up hero (SessionWrapUpHero) in the center canvas — Brief + Action items
+// moved out of the rail for that case; live/processing sessions keep the rail.
 //
 // === DEPENDENCIES ===
 // react-router-dom (useParams/useNavigate/useSearchParams), meetingStore,
@@ -19,10 +21,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Info, AlertCircle, LayoutGrid } from 'lucide-react';
+import { AlertCircle, LayoutGrid } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
 import { useProjectStore } from '../stores/projectStore';
-import { useSettingsStore } from '../stores/settingsStore';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useBoardStore } from '../stores/boardStore';
 import { toast } from '../hooks/useToast';
@@ -30,12 +31,10 @@ import EmbeddedBoard from './EmbeddedBoard';
 import ViewingProjectBanner from './ViewingProjectBanner';
 import LiveCanvasTabs, { type CanvasTabId, type CanvasTabDef } from './LiveCanvasTabs';
 import BrainTabPanel, { resolveBrainOpenTarget } from './BrainTabPanel';
-import BriefSection from './BriefSection';
-import ActionItemList from './ActionItemList';
+import SessionWrapUpHero, { SessionIntelligence } from './SessionWrapUpHero';
 import ConvertActionModal from './ConvertActionModal';
 import MeetingAnalyticsSection from './MeetingAnalyticsSection';
 import SessionRail from './SessionRail';
-import EmptyAIState from './EmptyAIState';
 import LoadingSpinner from './LoadingSpinner';
 import ActivityFeed from './ActivityFeed';
 import { describeToolCall } from '../utils/toolCallLabels';
@@ -48,7 +47,6 @@ import {
 import type {
   ActionItem,
   BrainNodeType,
-  Column,
   LiveSuggestion,
   MeetingAgentMessage,
   MeetingWithTranscript,
@@ -274,139 +272,6 @@ function SessionActivityFeed({
 
   return (
     <ActivityFeed entries={entries} onSelectTab={onSelectTab} title="Session activity" maxHeightClassName="max-h-64" />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Intelligence block — provider-gated Brief + Action items, plus the auto-push
-// column picker and the autoGenerate-on-open behavior carried over from the modal.
-// Owns its own push-column state so the page shell stays a thin layout.
-// ---------------------------------------------------------------------------
-function SessionIntelligence({
-  meeting,
-  autoGenerate,
-  onConvert,
-}: {
-  meeting: MeetingWithTranscript;
-  autoGenerate: boolean;
-  onConvert: (item: ActionItem) => void;
-}) {
-  const generateBrief = useMeetingStore((s) => s.generateBrief);
-  const generateActionItems = useMeetingStore((s) => s.generateActionItems);
-  const generatingBrief = useMeetingStore((s) => s.generatingBrief);
-  const generatingActions = useMeetingStore((s) => s.generatingActions);
-  const error = useMeetingStore((s) => s.error);
-  const updateActionItemStatus = useMeetingStore((s) => s.updateActionItemStatus);
-  const convertActionToCard = useMeetingStore((s) => s.convertActionToCard);
-  const hasAnyEnabledProvider = useSettingsStore((s) => s.hasAnyEnabledProvider);
-
-  const [pushColumns, setPushColumns] = useState<Column[]>([]);
-  const [selectedPushColumnId, setSelectedPushColumnId] = useState<string | undefined>(undefined);
-  const [pushing, setPushing] = useState(false);
-  const autoBriefTriggered = useRef(false);
-  const autoActionsTriggered = useRef(false);
-
-  // Auto-generate brief when the page opens post-recording.
-  useEffect(() => {
-    if (!autoGenerate || autoBriefTriggered.current) return;
-    if (meeting.status !== 'completed' || meeting.segments.length === 0) return;
-    if (meeting.brief || generatingBrief || generatingActions) return;
-    autoBriefTriggered.current = true;
-    void generateBrief(meeting.id);
-  }, [autoGenerate, meeting, generatingBrief, generatingActions, generateBrief]);
-
-  // Auto-generate action items once the brief completes.
-  useEffect(() => {
-    if (!autoGenerate || autoActionsTriggered.current) return;
-    if (!meeting.brief || meeting.actionItems.length > 0 || generatingActions) return;
-    autoActionsTriggered.current = true;
-    void generateActionItems(meeting.id);
-  }, [autoGenerate, meeting, generatingActions, generateActionItems]);
-
-  // Load columns for inline push when the meeting has a linked project.
-  useEffect(() => {
-    if (!meeting.projectId) {
-      setPushColumns([]);
-      setSelectedPushColumnId(undefined);
-      return;
-    }
-    let cancelled = false;
-    void window.electronAPI
-      .getBoards(meeting.projectId)
-      .then((boards) => {
-        if (cancelled || boards.length === 0) {
-          if (!cancelled) setPushColumns([]);
-          return;
-        }
-        return window.electronAPI.getColumns(boards[0].id);
-      })
-      .then((cols) => {
-        if (cancelled || !cols) return;
-        const sorted = [...cols].sort((a, b) => a.position - b.position);
-        setPushColumns(sorted);
-        if (sorted.length > 0) setSelectedPushColumnId(sorted[0].id);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [meeting.projectId]);
-
-  const handlePushToColumn = async (items: Array<{ id: string; text: string }>, columnId: string) => {
-    setPushing(true);
-    try {
-      for (const item of items) {
-        await convertActionToCard(item.id, columnId);
-      }
-      const colName = pushColumns.find((c) => c.id === columnId)?.name ?? 'column';
-      toast(`Pushed ${items.length} item${items.length !== 1 ? 's' : ''} to ${colName}`, 'success');
-    } catch {
-      toast('Failed to push items', 'error');
-    } finally {
-      setPushing(false);
-    }
-  };
-
-  if (!hasAnyEnabledProvider()) {
-    return <EmptyAIState featureName="meeting intelligence" />;
-  }
-
-  return (
-    <>
-      {autoGenerate && error && !meeting.brief && !generatingBrief && (
-        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-          <div className="flex items-start gap-2">
-            <Info size={14} className="text-amber-400 mt-0.5 shrink-0" />
-            <p className="text-sm text-amber-300">
-              Configure an AI provider in Settings to generate meeting intelligence.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <BriefSection
-        meetingId={meeting.id}
-        brief={meeting.brief}
-        isCompleted={meeting.status === 'completed'}
-        generatingBrief={generatingBrief}
-        onGenerate={() => generateBrief(meeting.id)}
-      />
-
-      <ActionItemList
-        meetingId={meeting.id}
-        actionItems={meeting.actionItems}
-        isCompleted={meeting.status === 'completed'}
-        generatingActions={generatingActions}
-        onGenerate={() => generateActionItems(meeting.id)}
-        onUpdateStatus={updateActionItemStatus}
-        onConvert={onConvert}
-        meetingProjectId={meeting.projectId ?? undefined}
-        columns={meeting.projectId ? pushColumns : undefined}
-        selectedColumnId={selectedPushColumnId}
-        onColumnChange={setSelectedPushColumnId}
-        onPushToColumn={meeting.projectId ? handlePushToColumn : undefined}
-        pushing={pushing}
-      />
-    </>
   );
 }
 
@@ -734,6 +599,9 @@ export default function SessionWorkspace() {
       <div className="flex-1 flex min-h-0">
         {/* Center canvas */}
         <section className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+          {/* POST-FLOW.1: the wrap-up leads a COMPLETED session — brief first, tabs
+              below. Self-gating: renders nothing for a live/processing one. */}
+          <SessionWrapUpHero meeting={meeting} autoGenerate={autoGenerate} onConvert={setConvertingAction} />
           <div className="px-6 pt-4 shrink-0">
             <LiveCanvasTabs
               tabs={meeting.status === 'completed' ? COMPLETED_TABS : TABS}
@@ -749,6 +617,8 @@ export default function SessionWorkspace() {
             ultrawide, and 380px squeezed every section inside it. */}
         <SessionRail>
           <MeetingAnalyticsSection meetingId={meeting.id} isCompleted={meeting.status === 'completed'} />
+          {/* Live/processing sessions keep the rail block; a completed one moved it
+              into the hero above, so this self-gating placement renders nothing. */}
           <SessionIntelligence meeting={meeting} autoGenerate={autoGenerate} onConvert={setConvertingAction} />
           {meeting.status === 'completed' && (
             <LiveProposalsSection meetingId={meeting.id} projectName={linkedProjectName ?? 'Unassigned'} />

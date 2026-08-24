@@ -6,6 +6,7 @@ export interface NotificationPreferences {
   dailyDigest: boolean; // Morning summary of tasks/meetings
   dailyDigestHour: number; // Hour (0-23) to send daily digest (default: 9)
   recordingReminders: boolean; // Remind to record upcoming meetings
+  briefReady: boolean; // Notify when an auto-generated meeting brief is ready (POST-FLOW.1)
 }
 
 export interface DailyDigestData {

@@ -166,6 +166,21 @@ export default function NotificationSection() {
               </label>
               <p className="text-xs text-surface-500 mt-1 ml-6">Remind to start recording for upcoming meetings</p>
             </div>
+
+            {/* Meeting brief ready */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={preferences.briefReady}
+                  onChange={(e) => updatePreference({ briefReady: e.target.checked })}
+                  aria-label="Meeting brief ready"
+                  className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
+                />
+                <span className="text-sm text-[var(--color-text-secondary)]">Meeting brief ready</span>
+              </label>
+              <p className="text-xs text-surface-500 mt-1 ml-6">Notify when an auto-generated meeting brief is ready</p>
+            </div>
           </div>
         )}
 

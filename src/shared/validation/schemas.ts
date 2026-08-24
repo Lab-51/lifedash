@@ -356,6 +356,7 @@ export const notificationPreferencesUpdateSchema = z.object({
   dailyDigest: z.boolean().optional(),
   dailyDigestHour: z.number().int().min(0).max(23).optional(),
   recordingReminders: z.boolean().optional(),
+  briefReady: z.boolean().optional(),
 });
 
 // ============================================================================

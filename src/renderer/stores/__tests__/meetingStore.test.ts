@@ -13,6 +13,7 @@ vi.stubGlobal('electronAPI', {
   getActionItemCounts: vi.fn().mockResolvedValue({}),
   meetingsGetPendingActionCount: vi.fn().mockResolvedValue(0),
   updateMeetingParticipants: vi.fn(),
+  onBriefReady: vi.fn(),
 });
 vi.stubGlobal('window', globalThis);
 
@@ -144,5 +145,95 @@ describe('meetingStore — updateParticipants (BRIEF-QUAL.1 Task 4)', () => {
     await useMeetingStore.getState().generateBrief('meeting-A');
 
     expect(useMeetingStore.getState().participantsEditedAfterBrief['meeting-A']).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST-FLOW.1 Task 2: fill-in-place. Main pushes `meeting:brief-ready` after
+// EVERY brief persist (success and AI-RESIL.1 failure card alike); the store
+// refetches the SELECTED meeting so the wrap-up hero swaps its "Writing your
+// brief…" banner for the real thing with no user action.
+// ---------------------------------------------------------------------------
+describe('meetingStore — initBriefReadyListener', () => {
+  /** Hands back the callback the store registered, plus the unsubscribe spy. */
+  function armListener() {
+    const unsubscribe = vi.fn();
+    let captured: ((data: { meetingId: string; failed: boolean }) => void) | undefined;
+    vi.mocked(window.electronAPI.onBriefReady).mockImplementation((cb) => {
+      captured = cb;
+      return unsubscribe;
+    });
+    const returned = useMeetingStore.getState().initBriefReadyListener();
+    return { fire: (meetingId: string, failed = false) => captured!({ meetingId, failed }), unsubscribe, returned };
+  }
+
+  beforeEach(() => {
+    resetState();
+    vi.clearAllMocks();
+  });
+
+  it('refetches the SELECTED meeting and swaps it into the store', async () => {
+    useMeetingStore.setState({
+      selectedMeeting: { id: 'meeting-A', segments: [], actionItems: [], brief: null } as any,
+    });
+    const withBrief = { id: 'meeting-A', segments: [], actionItems: [], brief: { summary: 'Landed' } } as any;
+    vi.mocked(window.electronAPI.getMeeting).mockResolvedValueOnce(withBrief);
+
+    const { fire } = armListener();
+    fire('meeting-A');
+    await vi.waitFor(() => expect(useMeetingStore.getState().selectedMeeting).toBe(withBrief));
+
+    expect(window.electronAPI.getMeeting).toHaveBeenCalledWith('meeting-A');
+  });
+
+  it('refetches for a FAILURE card too — the card renders through BriefSection', async () => {
+    useMeetingStore.setState({
+      selectedMeeting: { id: 'meeting-A', segments: [], actionItems: [], brief: null } as any,
+    });
+    const failed = { id: 'meeting-A', segments: [], actionItems: [], brief: { summary: 'failed' } } as any;
+    vi.mocked(window.electronAPI.getMeeting).mockResolvedValueOnce(failed);
+
+    const { fire } = armListener();
+    fire('meeting-A', true);
+    await vi.waitFor(() => expect(useMeetingStore.getState().selectedMeeting).toBe(failed));
+  });
+
+  it('does NOTHING for ANOTHER meeting — the desktop notification covers that one', () => {
+    const host = { id: 'meeting-HOST', segments: [], actionItems: [], brief: null } as any;
+    useMeetingStore.setState({ selectedMeeting: host });
+
+    const { fire } = armListener();
+    fire('meeting-OTHER');
+
+    expect(window.electronAPI.getMeeting).not.toHaveBeenCalled();
+    expect(useMeetingStore.getState().selectedMeeting).toBe(host);
+  });
+
+  it('does not stomp selectedMeeting when the user switches sessions mid-fetch', async () => {
+    useMeetingStore.setState({
+      selectedMeeting: { id: 'meeting-A', segments: [], actionItems: [], brief: null } as any,
+    });
+    let resolveFetch: ((m: unknown) => void) | undefined;
+    vi.mocked(window.electronAPI.getMeeting).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFetch = resolve;
+      }) as any,
+    );
+
+    const { fire } = armListener();
+    fire('meeting-A');
+
+    const other = { id: 'meeting-B', segments: [], actionItems: [], brief: null } as any;
+    useMeetingStore.setState({ selectedMeeting: other });
+    resolveFetch!({ id: 'meeting-A', segments: [], actionItems: [], brief: { summary: 'stale' } });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(useMeetingStore.getState().selectedMeeting).toBe(other);
+  });
+
+  it('returns the preload unsubscribe function so AppShell can tear it down', () => {
+    const { unsubscribe, returned } = armListener();
+    expect(returned).toBe(unsubscribe);
   });
 });

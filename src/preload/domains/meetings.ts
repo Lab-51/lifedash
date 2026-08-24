@@ -98,6 +98,18 @@ export const meetingsBridge = {
   convertActionToCard: (actionItemId: string, columnId: string) =>
     ipcRenderer.invoke('meetings:convert-action-to-card', actionItemId, columnId),
 
+  // POST-FLOW.1: fires after EVERY brief persist (success and failure cards,
+  // auto and manual paths alike) so the renderer can update in place.
+  onBriefReady: (callback: (data: { meetingId: string; failed: boolean }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { meetingId: string; failed: boolean }) => {
+      callback(data);
+    };
+    ipcRenderer.on('meeting:brief-ready', handler);
+    return () => {
+      ipcRenderer.removeListener('meeting:brief-ready', handler);
+    };
+  },
+
   // Diarization
   diarizeMeeting: (meetingId: string) => ipcRenderer.invoke('meeting:diarize', meetingId),
 

@@ -136,6 +136,7 @@ import {
   ensurePostSessionGeneration,
   generateBriefShared,
   generateActionItemsShared,
+  setBriefReadyNotifier,
 } from '../meetingIntelligenceService';
 import {
   getMeeting,
@@ -611,5 +612,59 @@ describe('single-flight dedup with the IPC path', () => {
     await expect(generateBriefShared(MEETING_ID)).rejects.toThrow('disk on fire');
 
     expect(briefCalls()).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST-FLOW.1: the "arrival" OS notification fires ONLY on the auto-success
+// path — never for the manual/IPC path (the user is already watching a
+// Regenerate), and never for a failure card (visible as the failure card
+// itself on arrival). meeting:brief-ready's emit and its `failed` flag are
+// covered in briefFailure.test.ts; this file owns the auto-vs-manual
+// distinction because it already has the auto-run + IPC-path fixtures.
+// ---------------------------------------------------------------------------
+
+describe('POST-FLOW.1 — brief-ready notification: auto-success only', () => {
+  it('notifies on the auto-generation success path, with the meeting title', async () => {
+    const notifier = vi.fn();
+    setBriefReadyNotifier(notifier);
+    buildDb();
+
+    await ensurePostSessionGeneration(MEETING_ID);
+
+    expect(notifier).toHaveBeenCalledTimes(1);
+    expect(notifier).toHaveBeenCalledWith(MEETING_ID, 'Test Meeting');
+  });
+
+  it('does NOT notify when the auto-generation brief comes back as a failure card', async () => {
+    const notifier = vi.fn();
+    setBriefReadyNotifier(notifier);
+    vi.mocked(generate).mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:1234'));
+    buildDb();
+
+    await ensurePostSessionGeneration(MEETING_ID);
+
+    expect(notifier).not.toHaveBeenCalled();
+  });
+
+  it('does NOT notify on the manual/IPC generate-brief path', async () => {
+    const notifier = vi.fn();
+    setBriefReadyNotifier(notifier);
+    buildDb();
+
+    await generateBriefShared(MEETING_ID);
+
+    expect(notifier).not.toHaveBeenCalled();
+  });
+
+  it('a throwing notifier never blocks auto action-item generation', async () => {
+    setBriefReadyNotifier(() => {
+      throw new Error('mainWindow destroyed');
+    });
+    const { actionValues } = buildDb();
+
+    await ensurePostSessionGeneration(MEETING_ID);
+
+    expect(actionValues).toHaveBeenCalled();
   });
 });

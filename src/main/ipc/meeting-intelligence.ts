@@ -2,12 +2,32 @@
 // IPC handlers for AI-powered meeting intelligence — brief generation,
 // action item extraction, and action-to-card conversion.
 
-import { ipcMain } from 'electron';
+import { ipcMain, BrowserWindow } from 'electron';
 import * as intelligence from '../services/meetingIntelligenceService';
+import { notifyBriefReady } from '../services/notificationService';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { idParamSchema, actionItemStatusSchema } from '../../shared/validation/schemas';
 
-export function registerMeetingIntelligenceHandlers(): void {
+export function registerMeetingIntelligenceHandlers(mainWindow: BrowserWindow): void {
+  // POST-FLOW.1: every brief persist announces itself on meeting:brief-ready —
+  // success AND failure cards, auto AND manual paths alike. The service never
+  // imports BrowserWindow itself (see meetingIntelligenceService.ts's own note
+  // on the injected sender); this bridge is wired once here, mirroring the
+  // local-models.ts progress-bridge pattern — the service emits, the IPC layer
+  // (which already holds mainWindow at registration time) sends.
+  intelligence.setBriefReadySender((meetingId, failed) => {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('meeting:brief-ready', { meetingId, failed });
+    }
+  });
+
+  // POST-FLOW.1: the "arrival" OS notification — auto-success only, wired the
+  // same way. notifyBriefReady is itself pref-gated and never throws; voided
+  // here because it is deliberately fire-and-forget.
+  intelligence.setBriefReadyNotifier((meetingId, meetingTitle) => {
+    void notifyBriefReady(meetingId, meetingTitle);
+  });
+
   // Generate AI brief for a completed meeting. Routed through the shared
   // single-flight map (TWIN-LEARN.1) so that when the session page opens while
   // the main-process auto-run is still generating, this JOINS that run instead of

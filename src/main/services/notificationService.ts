@@ -10,7 +10,7 @@
 // - No notification history/log (fire-and-forget)
 // - Daily digest is text-only (no rich HTML in OS notifications)
 
-import { Notification } from 'electron';
+import { Notification, BrowserWindow } from 'electron';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -27,7 +27,17 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   dailyDigest: true,
   dailyDigestHour: 9,
   recordingReminders: true,
+  briefReady: true,
 };
+
+/** The app's main window, injected once at IPC bootstrap (ipc/notifications.ts) —
+ *  same idiom as liveTriageService/transcriptionService/audioProcessor's own
+ *  setMainWindow. Needed only for notifyBriefReady's click-to-focus/navigate. */
+let mainWindow: BrowserWindow | null = null;
+
+export function setMainWindow(win: BrowserWindow): void {
+  mainWindow = win;
+}
 
 /**
  * Load notification preferences from the settings table.
@@ -79,8 +89,10 @@ export async function updateNotificationPreferences(prefs: Partial<NotificationP
 /**
  * Show a native OS notification via Electron's Notification API.
  * Non-fatal: failures are logged but do not throw.
+ * `onClick`, when given, fires when the user clicks the notification — additive
+ * (every pre-existing caller omits it and is unaffected).
  */
-export function showNotification(title: string, body: string): void {
+export function showNotification(title: string, body: string, onClick?: () => void): void {
   try {
     if (!Notification.isSupported()) {
       log.warn('Notifications not supported on this platform');
@@ -88,6 +100,9 @@ export function showNotification(title: string, body: string): void {
     }
 
     const notification = new Notification({ title, body });
+    if (onClick) {
+      notification.on('click', onClick);
+    }
     notification.show();
   } catch (err) {
     log.error('Failed to show notification:', err);
@@ -99,4 +114,32 @@ export function showNotification(title: string, body: string): void {
  */
 export function sendTestNotification(): void {
   showNotification('LifeDash', 'Notifications are working!');
+}
+
+/** Focus the main window and hand the renderer the session route to open — the
+ *  same show()/focus() sequence main.ts's own command-palette hotkey uses. A
+ *  destroyed/missing window is a silent no-op (the app may be closing). */
+function focusAndNavigateToSession(meetingId: string): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send('app:navigate', `/session/${meetingId}`);
+}
+
+/**
+ * POST-FLOW.1: the "arrival" desktop notification for an auto-generated brief.
+ * Pref-gated on BOTH the master toggle and the new `briefReady` toggle (mirrors
+ * every other per-type pref in this file). Never throws — a lookup or send
+ * failure is logged and swallowed, since this must never block the auto-run
+ * that fires it (see meetingIntelligenceService.ensurePostSessionGeneration).
+ */
+export async function notifyBriefReady(meetingId: string, meetingTitle: string): Promise<void> {
+  try {
+    const prefs = await getNotificationPreferences();
+    if (!prefs.enabled || !prefs.briefReady) return;
+    showNotification('LifeDash', `Brief ready — ${meetingTitle}`, () => focusAndNavigateToSession(meetingId));
+  } catch (err) {
+    log.error('Failed to notify brief ready:', err);
+  }
 }

@@ -4,12 +4,13 @@
 // === DEPENDENCIES ===
 // Electron (ipcMain), notificationService
 
-import { ipcMain } from 'electron';
+import { ipcMain, BrowserWindow } from 'electron';
 import {
   getNotificationPreferences,
   updateNotificationPreferences,
   sendTestNotification,
   showNotification,
+  setMainWindow,
 } from '../services/notificationService';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import {
@@ -18,7 +19,12 @@ import {
   notificationShowBodySchema,
 } from '../../shared/validation/schemas';
 
-export function registerNotificationHandlers(): void {
+export function registerNotificationHandlers(mainWindow: BrowserWindow): void {
+  // POST-FLOW.1: notifyBriefReady's click-to-navigate needs to focus the window
+  // and send to the renderer — wired here, mirroring ipc/recording.ts's
+  // audioProcessor.setMainWindow(mainWindow).
+  setMainWindow(mainWindow);
+
   ipcMain.handle('notifications:get-preferences', async () => {
     return getNotificationPreferences();
   });

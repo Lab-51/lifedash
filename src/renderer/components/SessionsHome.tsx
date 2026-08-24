@@ -363,8 +363,6 @@ export default function SessionsHome() {
   const liveMeetingId = useRecordingStore((s) => s.meetingId);
   const liveElapsed = useRecordingStore((s) => s.elapsed);
   const restoreLiveMode = useRecordingStore((s) => s.restoreLiveMode);
-  const completedMeetingId = useRecordingStore((s) => s.completedMeetingId);
-  const clearCompletedMeetingId = useRecordingStore((s) => s.clearCompletedMeetingId);
   const projects = useProjectStore((s) => s.projects);
   const loadProjects = useProjectStore((s) => s.loadProjects);
   const [sortBy, setSortBy] = useState<SortOption>('newest');
@@ -511,15 +509,9 @@ export default function SessionsHome() {
     prevIsRecording.current = isRecording;
   }, [isRecording, loadMeetings]);
 
-  // Auto-open the session page when a recording finishes processing. The
-  // ?autoGenerate=1 flag tells SessionWorkspace to auto-generate brief + actions.
-  useEffect(() => {
-    if (completedMeetingId) {
-      const meetingId = completedMeetingId;
-      clearCompletedMeetingId();
-      navigate(`/session/${meetingId}?autoGenerate=1`);
-    }
-  }, [completedMeetingId, clearCompletedMeetingId, navigate]);
+  // Auto-open-on-completion moved to AppShell (POST-FLOW.1 Task 2,
+  // useCompletedSessionNav): this page is mounted only on "/", so a recording
+  // stopped from any other route never navigated.
 
   // Download whisper model
   const handleDownloadModel = async () => {

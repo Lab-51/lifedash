@@ -12,6 +12,16 @@ export const appBridge = {
     };
   },
 
+  // POST-FLOW.1: main-process-driven navigation (e.g. a brief-ready notification
+  // click) — the renderer listens where the router lives (App.tsx's AppShell).
+  onAppNavigate: (callback: (path: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, path: string) => callback(path);
+    ipcRenderer.on('app:navigate', handler);
+    return () => {
+      ipcRenderer.removeListener('app:navigate', handler);
+    };
+  },
+
   // Live data-change broadcast: main emits after any card/column/project/twin-fact
   // mutation so the visible board (or the twin memory graph) can debounce-refetch.
   // Payload carries the affected scope and (optionally) the project the change

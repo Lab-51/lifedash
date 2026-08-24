@@ -19,6 +19,7 @@ import AppLayout from './components/AppLayout';
 import StatusBar from './components/StatusBar';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { useBoardLiveSync } from './hooks/useBoardLiveSync';
+import { useCompletedSessionNav } from './hooks/useCompletedSessionNav';
 import { useBrainLiveSync } from './hooks/useBrainLiveSync';
 import { useTwinMemoryLiveSync } from './hooks/useTwinMemoryLiveSync';
 import { useTheme } from './hooks/useTheme';
@@ -148,6 +149,14 @@ function AppShell({ children }: { children: ReactNode }) {
   // regardless of whether LiveModeOverlay happened to be mounted at the time.
   useEffect(() => {
     const cleanup = useActivityFeedStore.getState().initListener();
+    return cleanup;
+  }, []);
+
+  // Keep the selected session fresh when a brief lands (POST-FLOW.1 Task 2) —
+  // always active, so the wrap-up hero fills in place whichever route the user is
+  // on when generation finishes.
+  useEffect(() => {
+    const cleanup = useMeetingStore.getState().initBriefReadyListener();
     return cleanup;
   }, []);
 
@@ -315,6 +324,19 @@ function AppShell({ children }: { children: ReactNode }) {
     return cleanup;
   }, []);
 
+  // POST-FLOW.1: main-process-driven navigation (a brief-ready notification
+  // click focuses the window and sends the destination route here).
+  useEffect(() => {
+    if (!window.electronAPI?.onAppNavigate) return;
+    const cleanup = window.electronAPI.onAppNavigate((path) => {
+      // react-router v7's NavigateFunction returns void | Promise<void> (Promise
+      // only under a data router, which this app's <HashRouter> is not) — void
+      // is the rule's own documented escape hatch, not a suppressed real promise.
+      void navigate(path);
+    });
+    return cleanup;
+  }, [navigate]);
+
   // Refresh all stores when pull sync brings in new data from the web
   useEffect(() => {
     if (!window.electronAPI?.onSyncPullComplete) return;
@@ -332,6 +354,11 @@ function AppShell({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Stop → arrival (POST-FLOW.1 Task 2): a finished recording lands on its own
+  // session page so the wrap-up brief is the first thing seen. Registered HERE,
+  // above LiveModeOverlay's mount parent, so the overlay unmounting on stop can
+  // never take the navigation with it — and so it fires from exactly one place.
+  useCompletedSessionNav();
   // Live board sync: debounce-refetch the visible board on any data:changed
   // broadcast so mutations from any source appear without a manual refresh.
   useBoardLiveSync();

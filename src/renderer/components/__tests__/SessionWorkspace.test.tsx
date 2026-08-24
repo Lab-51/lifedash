@@ -168,6 +168,37 @@ describe('SessionWorkspace — routed session page', () => {
     expect(screen.getByText('Action Items')).toBeInTheDocument();
   });
 
+  // POST-FLOW.1 Task 2 — the wrap-up leads a completed session.
+  it('leads a COMPLETED session with the wrap-up hero, above the tab strip and the transcript panel', () => {
+    renderWorkspace();
+
+    const hero = screen.getByTestId('session-wrapup-hero');
+    const tabs = screen.getByRole('tab', { name: 'Meeting' });
+    const panel = document.getElementById('panel-transcript')!;
+
+    // DOCUMENT_POSITION_FOLLOWING (4) — the hero comes FIRST in DOM order.
+    expect(hero.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(hero.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // The brief moved INTO the hero — it is not also left in the rail.
+    expect(within(hero).getByText('Brief')).toBeInTheDocument();
+    expect(screen.getAllByText('Brief')).toHaveLength(1);
+    expect(within(hero).getByText('Action Items')).toBeInTheDocument();
+    expect(screen.getAllByText('Action Items')).toHaveLength(1);
+  });
+
+  it('leaves a LIVE session composed exactly as before — no hero, intelligence still in the rail', () => {
+    useMeetingStore.setState({ selectedMeeting: makeMeeting({ status: 'recording', endedAt: null }) as any });
+    renderWorkspace();
+
+    expect(screen.queryByTestId('session-wrapup-hero')).toBeNull();
+    // Still present, and still OUTSIDE the center canvas (the rail).
+    const brief = screen.getByText('Brief');
+    expect(brief).toBeInTheDocument();
+    expect(brief.closest('section')).toBeNull();
+    expect(screen.getByText('Action Items').closest('section')).toBeNull();
+  });
+
   it('shows the three canvas tabs (Meeting | Board | Brain — completed meetings relabel the first tab)', () => {
     renderWorkspace();
     expect(screen.getByRole('tab', { name: 'Meeting' })).toBeInTheDocument();

@@ -124,7 +124,7 @@ vi.mock('../postSessionDispatcher', () => ({ dispatchPostSession: vi.fn() }));
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { generateBrief } from '../meetingIntelligenceService';
+import { generateBrief, setBriefReadySender } from '../meetingIntelligenceService';
 import { extractMeetingStructure } from '../briefExtractionService';
 import { getMeeting } from '../meetingService';
 import { generate, resolveTaskModel } from '../ai-provider';
@@ -466,5 +466,88 @@ describe('generateBrief — MEET-DEL.1 deleted-meeting race (unchanged by AI-RES
 
     await expect(generateBrief(MEETING_ID)).rejects.toThrow('a real bug, unrelated to any deleted meeting');
     expect(dispatchPostSession).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST-FLOW.1: meeting:brief-ready fires from persistBriefAndDispatch, the ONE
+// choke point every generateBrief return path shares — success and every
+// failure-card path alike. The manual-vs-auto notification distinction lives in
+// ensurePostSessionGeneration and is covered by
+// meetingIntelligenceService.autoGenerate.test.ts; this file only proves the
+// emit itself, its `failed` flag, and that a throwing sender can never touch
+// persistence (AI-RESIL.1 discipline extended to this event).
+// ---------------------------------------------------------------------------
+
+describe('meeting:brief-ready emit (POST-FLOW.1)', () => {
+  it('emits failed:false after a successful persist', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting() as never);
+    vi.mocked(generate).mockResolvedValue({ text: 'A real generated brief' } as never);
+    buildDb();
+    const sender = vi.fn();
+    setBriefReadySender(sender);
+
+    await generateBrief(MEETING_ID);
+
+    expect(sender).toHaveBeenCalledTimes(1);
+    expect(sender).toHaveBeenCalledWith(MEETING_ID, false);
+  });
+
+  it('emits failed:true after a classified failure card (thrown generation error)', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting() as never);
+    vi.mocked(generate).mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:1234'));
+    buildDb();
+    const sender = vi.fn();
+    setBriefReadySender(sender);
+
+    await generateBrief(MEETING_ID);
+
+    expect(sender).toHaveBeenCalledTimes(1);
+    expect(sender).toHaveBeenCalledWith(MEETING_ID, true);
+  });
+
+  it('emits failed:true after an extraction-pass failure card', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting() as never);
+    vi.mocked(extractMeetingStructure).mockResolvedValue({
+      failureReason: 'part 1 of 1 returned invalid JSON — topics: expected array',
+    } as never);
+    buildDb();
+    const sender = vi.fn();
+    setBriefReadySender(sender);
+
+    await generateBrief(MEETING_ID);
+
+    expect(sender).toHaveBeenCalledTimes(1);
+    expect(sender).toHaveBeenCalledWith(MEETING_ID, true);
+  });
+
+  it('does not emit when the meeting was deleted before the write — a discard is not a persist', async () => {
+    vi.mocked(getMeeting)
+      .mockResolvedValueOnce(makeMeeting() as never)
+      .mockResolvedValueOnce(null);
+    vi.mocked(generate).mockResolvedValue({ text: 'Generated content' } as never);
+    buildDb();
+    const sender = vi.fn();
+    setBriefReadySender(sender);
+
+    await generateBrief(MEETING_ID);
+
+    expect(sender).not.toHaveBeenCalled();
+  });
+
+  it('a throwing sender is error-isolated: brief persistence still succeeds (AI-RESIL.1 discipline)', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting() as never);
+    vi.mocked(generate).mockResolvedValue({ text: 'A real generated brief' } as never);
+    const { briefValues } = buildDb();
+    setBriefReadySender(() => {
+      throw new Error('renderer window destroyed mid-send');
+    });
+
+    const result = await generateBrief(MEETING_ID);
+
+    expect(result).not.toBeNull();
+    expect(briefValues).toHaveBeenCalledTimes(1);
+    expect(persistedSummary(briefValues)).toBe('A real generated brief');
+    expect(dispatchPostSession).toHaveBeenCalledTimes(1);
   });
 });

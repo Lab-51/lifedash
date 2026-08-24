@@ -279,4 +279,17 @@ describe('LiveAssistantSection — starter prompts', () => {
     await waitFor(() => expect(meetingAgentSend).toHaveBeenCalledWith('meeting-1', 'What was decided?'));
     expect(input).toHaveValue('half-written question');
   });
+
+  it('does not offer a summarize-style starter — the brief hero above this chat is already the summary (POST-FLOW.1)', async () => {
+    meetingAgentLoad.mockResolvedValue([]);
+    render(<LiveAssistantSection meetingId="meeting-1" />);
+
+    await screen.findByRole('button', { name: 'What tasks do I need to do?' });
+    // Starter chips are the only buttons with no aria-label (Send/Stop always carry one).
+    const starterButtons = screen.getAllByRole('button').filter((btn) => !btn.hasAttribute('aria-label'));
+    expect(starterButtons.length).toBeGreaterThan(0);
+    starterButtons.forEach((btn) => {
+      expect(btn.textContent ?? '').not.toMatch(/summar/i);
+    });
+  });
 });

@@ -524,6 +524,62 @@ export async function injectTwinProfileContext(systemPrompt: string): Promise<st
 }
 
 // ---------------------------------------------------------------------------
+// POST-FLOW.1: renderer/notification hooks, injected at IPC bootstrap
+// ---------------------------------------------------------------------------
+// This service deliberately never imports electron (BrowserWindow/Notification):
+// every generateBrief/ensurePostSessionGeneration test in this file's suites
+// imports it directly without mocking electron, so a transitive electron import
+// here would break all of them — the same reason dataChangeNotifier is mocked
+// out (not imported for real) in meetingIntelligenceService.autoGenerate.test.ts.
+// Both hooks below are wired exactly once, in ipc/meeting-intelligence.ts's
+// registerMeetingIntelligenceHandlers(mainWindow), which already holds the
+// window reference at registration time — mirrors the local-models.ts
+// progress-bridge pattern: the service stays electron-free, the IPC layer sends.
+
+/** Sends `meeting:brief-ready` to the renderer. Wired once at bootstrap. */
+let briefReadySender: ((meetingId: string, failed: boolean) => void) | null = null;
+
+export function setBriefReadySender(sender: (meetingId: string, failed: boolean) => void): void {
+  briefReadySender = sender;
+}
+
+/** Fire-and-forget, error-isolated: a destroyed window or a throwing sender can
+ *  NEVER affect brief persistence — the same discipline AI-RESIL.1 applies to
+ *  the post-session dispatcher below. Called from persistBriefAndDispatch, the
+ *  ONE choke point every generateBrief return path shares (success and every
+ *  failure-card path alike, whether reached from the manual IPC handler or
+ *  ensurePostSessionGeneration's auto-run). */
+function emitBriefReadyEvent(meetingId: string, failed: boolean): void {
+  try {
+    briefReadySender?.(meetingId, failed);
+  } catch (err) {
+    log.error('meeting:brief-ready emit failed (non-fatal):', err);
+  }
+}
+
+/** Raises the "arrival" OS notification (notificationService.notifyBriefReady).
+ *  Wired once at bootstrap. Called ONLY from ensurePostSessionGeneration on a
+ *  SUCCESSFUL auto-generation — the manual IPC path and failure cards do not
+ *  notify (recorded POST-FLOW.1 scope decision: a manual Regenerate means the
+ *  user is already watching, and a failure is visible as the failure card
+ *  itself on arrival). */
+let briefReadyNotifier: ((meetingId: string, meetingTitle: string) => void) | null = null;
+
+export function setBriefReadyNotifier(notifier: (meetingId: string, meetingTitle: string) => void): void {
+  briefReadyNotifier = notifier;
+}
+
+/** Same error-isolation as emitBriefReadyEvent above — a notification failure
+ *  must never block the action-item generation that follows it. */
+function triggerBriefReadyNotification(meetingId: string, meetingTitle: string): void {
+  try {
+    briefReadyNotifier?.(meetingId, meetingTitle);
+  } catch (err) {
+    log.error('Brief-ready notification failed (non-fatal):', err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // MEET-DEL.1: deleted-meeting race absorption
 // ---------------------------------------------------------------------------
 
@@ -586,6 +642,13 @@ async function persistBriefAndDispatch(
   }
 
   const brief = toBrief(insertedRows[0]);
+
+  // POST-FLOW.1: every persist announces itself — success AND failure cards,
+  // auto AND manual paths alike (this function is the one choke point both
+  // share). opts.dispatch is false ONLY on a classified failure card (see the
+  // AI-RESIL.1 note above), so it doubles as the `failed` flag with no second
+  // parameter needed.
+  emitBriefReadyEvent(meetingId, !opts.dispatch);
 
   // Post-session dispatcher seam (V3.4) — fire-and-forget, error-isolated. The
   // living-memory modules (fact extraction, embedding, entity extraction)
@@ -1503,6 +1566,10 @@ export async function ensurePostSessionGeneration(meetingId: string): Promise<vo
     log.debug(`Auto action items skipped for meeting ${meetingId}: the brief did not generate successfully`);
     return;
   }
+
+  // POST-FLOW.1: the "arrival" OS notification — auto-success only, see
+  // triggerBriefReadyNotification above. Never blocks action-item generation.
+  triggerBriefReadyNotification(meetingId, meeting.title);
 
   await generateActionItemsShared(meetingId);
 }

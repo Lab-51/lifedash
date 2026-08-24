@@ -118,3 +118,39 @@ describe('recordingStore — inactivity auto-stop wiring', () => {
     expect(useRecordingStore.getState().inactivitySecondsLeft).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// POST-FLOW.1 Task 2: `completedMeetingId` is the ONLY trigger for the
+// stop → session-page navigation (useCompletedSessionNav), so which paths set it
+// decides which paths navigate.
+// ---------------------------------------------------------------------------
+describe('recordingStore — completedMeetingId is set by stop and by nothing else', () => {
+  beforeEach(() => {
+    settings = {};
+    vi.clearAllMocks();
+    useRecordingStore.setState({
+      isRecording: false,
+      isProcessing: false,
+      meetingId: null,
+      completedMeetingId: null,
+    });
+  });
+
+  it('stopRecording sets it to the finished meeting — this is what navigates', async () => {
+    useRecordingStore.setState({ meetingId: 'meeting-1' });
+    await useRecordingStore.getState().stopRecording();
+    expect(useRecordingStore.getState().completedMeetingId).toBe('meeting-1');
+  });
+
+  it('cancelRecording NEVER sets it — a discarded recording must not navigate', async () => {
+    useRecordingStore.setState({ meetingId: 'meeting-1' });
+    await useRecordingStore.getState().cancelRecording();
+    expect(useRecordingStore.getState().completedMeetingId).toBeNull();
+  });
+
+  it('clearCompletedMeetingId resets it, so the navigation can only fire once', () => {
+    useRecordingStore.setState({ completedMeetingId: 'meeting-1' });
+    useRecordingStore.getState().clearCompletedMeetingId();
+    expect(useRecordingStore.getState().completedMeetingId).toBeNull();
+  });
+});

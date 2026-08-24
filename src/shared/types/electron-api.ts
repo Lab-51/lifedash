@@ -365,6 +365,9 @@ export interface ElectronAPI {
   getMeetingActionItems: (meetingId: string) => Promise<ActionItem[]>;
   updateActionItemStatus: (id: string, status: ActionItemStatus) => Promise<ActionItem>;
   convertActionToCard: (actionItemId: string, columnId: string) => Promise<ConvertActionToCardResult>;
+  // POST-FLOW.1: fires after EVERY brief persist (success and failure cards,
+  // auto and manual paths alike) so the renderer can update in place.
+  onBriefReady: (callback: (data: { meetingId: string; failed: boolean }) => void) => () => void;
 
   // Ideas
   getIdeas: () => Promise<Idea[]>;
@@ -581,6 +584,9 @@ export interface ElectronAPI {
   // App-level
   openExternal: (url: string) => Promise<void>;
   onShowCommandPalette: (callback: () => void) => () => void;
+  // POST-FLOW.1: main-process-driven navigation (e.g. a brief-ready notification
+  // click) — the renderer listens where the router lives (App.tsx's AppShell).
+  onAppNavigate: (callback: (path: string) => void) => () => void;
   onDataChanged: (
     callback: (data: { scope: 'cards' | 'columns' | 'projects' | 'twin-memory'; projectId?: string }) => void,
   ) => () => void;

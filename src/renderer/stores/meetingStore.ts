@@ -66,6 +66,11 @@ interface MeetingStore {
   deleteMeeting: (id: string, opts?: DeleteMeetingOptions) => Promise<void>;
   clearSelectedMeeting: () => void;
   addTranscriptSegment: (segment: TranscriptSegment) => void;
+  /** Subscribe to main's `meeting:brief-ready` push (POST-FLOW.1 Task 1) and
+   *  refetch the SELECTED meeting so its brief — or its AI-RESIL.1 failure card —
+   *  replaces the "Writing your brief…" state with no user action. Returns the
+   *  unsubscribe function; registered once in AppShell. */
+  initBriefReadyListener: () => () => void;
 
   // Intelligence actions
   generateBrief: (meetingId: string) => Promise<void>;
@@ -218,6 +223,28 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
         },
       });
     }
+  },
+
+  initBriefReadyListener: () => {
+    if (!window.electronAPI?.onBriefReady) return () => {};
+    return window.electronAPI.onBriefReady(({ meetingId }) => {
+      // A brief for a session the user is NOT looking at: no-op. The desktop
+      // notification (POST-FLOW.1 Task 1) is what surfaces that one.
+      if (get().selectedMeeting?.id !== meetingId) return;
+      void window.electronAPI
+        .getMeeting(meetingId)
+        .then((meeting) => {
+          // Re-check AFTER the await: switching sessions mid-fetch must not stomp
+          // selectedMeeting with the old one, which would strand the new page on
+          // its load gate (SessionWorkspace only trusts a matching id).
+          if (!meeting || get().selectedMeeting?.id !== meetingId) return;
+          set({ selectedMeeting: meeting });
+        })
+        .catch(() => {
+          // Best-effort refresh — the brief is already persisted, and BriefSection's
+          // own Regenerate/Retry controls remain.
+        });
+    });
   },
 
   setBriefError: (meetingId, message) => {
