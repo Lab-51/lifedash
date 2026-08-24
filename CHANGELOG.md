@@ -3,6 +3,17 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.12.0 — 2026-08-24
+- release: prep v2.12.0
+- fix(brain): the node-anchored inspector card is capped by its container, not the viewport
+- fix(post-meeting): the brief is a peer tab, not a hero above the strip — Summary leads the completed-session tab set and opens selected
+- feat(post-meeting): the brief becomes the destination after a meeting — stop lands on the brief, completion fills in place or reaches an away user as a desktop notification
+- feat(brain): one person, one entity — diacritic-folded dedup key, a version-flagged merge sweep, and a user-confirmed merge for the judgment cases
+- feat(brief): the built-in tier gets its first honest measured baseline and a bar set from it, not hoped
+- feat(brief): attack local-tier brief quality at its measured causes, and fix the ruler first
+- feat(brief): the brief becomes a judgment and the record stays complete
+- feat(brief): the brief is written from a complete extracted record instead of compressed in one capped pass
+
 ## v2.11.0 — 2026-08-13
 - release: prep v2.11.0
 - feat(twin): a session is learned from even if its page is never opened — main-process auto-generation at the completion transition, plus the kept-fact provenance label nothing was reading
