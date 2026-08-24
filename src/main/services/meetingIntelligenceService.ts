@@ -88,7 +88,7 @@ What mattered, in the order that reads best. Write each point as one clear sente
 Every decision in the notes, with its rationale when the notes give one.
 
 ## Follow-ups
-Every commitment in the notes, grouped by owner: one "### <Owner>" heading per person, in the order the participants are listed. Commitments with no owner, or whose owner the notes do not mark as explicit, go under a "### Unassigned" heading placed LAST. Write each as "- task (due)" when a due is known, otherwise "- task".
+Every commitment in the notes, grouped by owner: one "### <Owner>" heading for each person who owns a commitment, in the order the participants are listed — never a heading for a participant who owns none. Commitments with no owner, or whose owner the notes do not mark as explicit, go under a "### Unassigned" heading placed LAST. Write each as "- task (due)" when a due is known, otherwise "- task".
 
 ## Open Questions
 The questions that still need an answer.
@@ -743,6 +743,20 @@ async function resolveBriefProjectId(meeting: {
   }
 }
 
+/** Exact-spelling anchors for extraction: the meeting's project name, never the
+ *  system Unassigned project's. A failed lookup means no anchor, not a failed brief. */
+async function readKnownTerms(projectId: string | null): Promise<string[]> {
+  if (!projectId) return [];
+  try {
+    const named = and(eq(projects.id, projectId), eq(projects.system, false));
+    const [row] = await getDb().select({ name: projects.name }).from(projects).where(named);
+    return row?.name ? [row.name] : [];
+  } catch (err) {
+    log.error('Project name lookup failed for project', projectId, ':', err);
+    return [];
+  }
+}
+
 /**
  * The WRITER system prompt: the writer role, the template hint, then the roster +
  * brief-language block (participantRosterService owns that wording, so there is
@@ -984,7 +998,8 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief | n
 
   // 3. EXTRACT. Never throws — an honest reason comes back instead, and it is a
   //    failure of the brief, not a reason to write one from nothing (AI-RESIL.1).
-  const extracted = await extractMeetingStructure({ provider, meeting, roster, langName });
+  const knownTerms = await readKnownTerms(resolvedProjectId);
+  const extracted = await extractMeetingStructure({ provider, meeting, roster, langName, knownTerms });
   if ('failureReason' in extracted) {
     log.error(`Brief extraction failed for meeting ${meetingId}: ${extracted.failureReason}`);
     return persistBriefAndDispatch(meetingId, buildBriefFailureText(provider, extracted.failureReason), {

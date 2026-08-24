@@ -67,7 +67,31 @@
 //     failed while BRIEF_PROMPT_PIN passed, the system half of the same
 //     fingerprint; reverted => it passes again.
 //
-// ACTION_PROMPT_PIN and ACTION_FINGERPRINT_PIN did not move in either task.
+// PIN RE-CAPTURE (LOCAL-QUAL.1, 2026-08-24). BRIEF_FINGERPRINT_PIN moved a third
+// time, and once again it was the ONLY pin that moved: BRIEF_WRITER_PROMPT's
+// Follow-ups section now writes a "### <Owner>" heading only for a person who owns a
+// commitment, after a real-meeting comparison came back with a heading — and a
+// placeholder line under it — for every roster member, owing work or not. The same
+// task also changed the EXTRACTION system prompt (a known-names spelling anchor, and
+// meeting logistics excluded from decisions), and that is a DIFFERENT call, mocked
+// out in this file: BRIEF_PROMPT_PIN, ACTION_PROMPT_PIN and ACTION_FINGERPRINT_PIN
+// all passing with NO edit is what says nothing leaked out of the extraction half
+// into the pinned writer request. Re-captured (afebe7da -> 1a9ce7e9) by RUNNING the
+// new prompt over this same fixture, then PROVEN non-vacuous by a fresh
+// one-character mutation:
+//
+//   * production `person who owns a commitment,` -> `person who owns a commitments,`
+//     (the new Follow-ups clause) => BRIEF_FINGERPRINT_PIN failed on the digest
+//     (1a9ce7e9 -> c584b000) while BRIEF_PROMPT_PIN, asserted one line earlier on the
+//     user half of that same fingerprint, still passed; reverted => 17/17 green.
+//
+// The wording of that clause is itself a fixed point of a SECOND guard: the phrase
+// tried first, "owns at least one commitment", tripped briefPipeline.fixtures'
+// `not.toContain('at least')` cap check, which reads the writer's whole request. A
+// floor phrased as a cap-word is exactly what that check is for, so the prompt moved,
+// not the check — and its red-then-green is the two-directional proof that it works.
+//
+// ACTION_PROMPT_PIN and ACTION_FINGERPRINT_PIN did not move in any of these tasks.
 // Mocking style follows meetingIntelligenceService.briefFailure.test.ts (same
 // file under test); 'electron' is mocked only because promptBudget.ts reaches
 // llamaRuntimeConfig.ts for the REAL builtin --ctx-size, and that module imports
@@ -466,7 +490,7 @@ describe('BRIEF-QUAL.1 — a transcript that fits is assembled byte-identically'
   /** sha256 of `system + '\0' + prompt`, same fixture. Covers the WRITER system
    *  prompt too, which is far too long to pin inline without burying the test —
    *  the twin-baseline assertion below states what that system prompt IS. */
-  const BRIEF_FINGERPRINT_PIN = 'afebe7dab9ec9707fb79ae98b92a91a33a772144d207be4522021a08e1f100ae';
+  const BRIEF_FINGERPRINT_PIN = '1a9ce7e9cbdec34d7ad15eae1c959b31d862ec7c2d76787a5a56b86019de1335';
 
   const ACTION_PROMPT_PIN =
     'Meeting: Quarterly Planning\n' +

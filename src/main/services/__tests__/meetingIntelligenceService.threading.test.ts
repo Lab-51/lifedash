@@ -179,7 +179,14 @@ function buildDb(opts: {
   const insertFn = vi.fn(() => ({ values: insertValues }));
 
   let selectCallIdx = 0;
-  const selectFn = vi.fn(() => {
+  const selectFn = vi.fn((fields?: Record<string, unknown>) => {
+    // LOCAL-QUAL.1 put a project-NAME lookup in front of extraction (the exact
+    // spelling anchor the extraction prompt now carries). This double is ORDER-
+    // based, so that one query is answered OUT OF BAND — otherwise it would shift
+    // every response below by one and threading would silently read the wrong row.
+    // It is the only single-field { name } select generateBrief makes; project
+    // detection's candidate query asks for { id, name, description }.
+    if (fields && 'name' in fields && !('description' in fields)) return makeChainForCall(-1);
     const idx = selectCallIdx++;
     // Each call returns a new chain that resolves to the appropriate response
     return makeChainForCall(idx);

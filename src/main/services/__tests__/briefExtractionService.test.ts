@@ -35,6 +35,7 @@ import {
   type ExtractionInput,
   type RosterEntry,
 } from '../briefExtractionService';
+import { EXTRACTION_SYSTEM_PROMPT } from '../briefExtractionPrompt';
 import { generate } from '../ai-provider';
 import { MEETING_TEMPLATES, type MeetingTemplateType } from '../../../shared/types/meetings';
 import { MeetingStructureDraftSchema } from '../../../shared/types/briefStructure';
@@ -84,6 +85,7 @@ function input(overrides: Partial<ExtractionInput> = {}): ExtractionInput {
     meeting: overrides.meeting ?? BASE_MEETING,
     roster: overrides.roster ?? ROSTER,
     langName: overrides.langName ?? null,
+    knownTerms: overrides.knownTerms,
   };
 }
 
@@ -166,6 +168,48 @@ describe('extractMeetingStructure — transcript that fits the window', () => {
     expect(callArgs(0).system).not.toContain('Participants (');
   });
 
+  // LOCAL-QUAL.1's byte-identity control. The known-names block is OPTIONAL, and a
+  // meeting with nothing to anchor must get the prompt it got before that block
+  // existed — byte for byte, not merely "containing" the old text. Composed from the
+  // three blocks that predate it, so a leaked empty block, a reordered block or a
+  // changed separator all fail this `toBe`. EXTRACTION_SYSTEM_PROMPT is interpolated
+  // rather than copied ON PURPOSE: its text is reviewed prose that is deliberately
+  // pinned nowhere, and copying it here would turn every wording fix into a
+  // re-capture. What this control owns is the ASSEMBLY.
+  const STANDUP_HINT = MEETING_TEMPLATES.find((t) => t.type === 'standup')?.aiPromptHint ?? '';
+  const CZECH_STANDUP = { ...BASE_MEETING, template: 'standup' as MeetingTemplateType };
+  const ASSEMBLED_WITHOUT_KNOWN_TERMS = `${EXTRACTION_SYSTEM_PROMPT}
+
+Participants (use these exact spellings; a commitment has an owner ONLY when the transcript makes it explicit): Marta Nováková, Dev Raghunathan
+
+IMPORTANT CONTEXT: ${STANDUP_HINT}
+
+IMPORTANT: The transcript is in Czech. Write every string VALUE in Czech. The JSON keys stay exactly as shown above, in English.`;
+
+  it('assembles EXACTLY the pre-known-terms prompt when there is nothing to anchor', async () => {
+    await extractMeetingStructure(input({ meeting: CZECH_STANDUP, langName: 'Czech' }));
+    expect(callArgs(0).system).toBe(ASSEMBLED_WITHOUT_KNOWN_TERMS);
+  });
+
+  it('treats an empty or blank-only term list as nothing to anchor, byte for byte', async () => {
+    await extractMeetingStructure(input({ meeting: CZECH_STANDUP, langName: 'Czech', knownTerms: [] }));
+    await extractMeetingStructure(input({ meeting: CZECH_STANDUP, langName: 'Czech', knownTerms: ['  ', ''] }));
+    expect(callArgs(0).system).toBe(ASSEMBLED_WITHOUT_KNOWN_TERMS);
+    expect(callArgs(1).system).toBe(ASSEMBLED_WITHOUT_KNOWN_TERMS);
+  });
+
+  it('anchors a known name exactly, between the roster and the template hint', async () => {
+    await extractMeetingStructure(
+      input({ meeting: CZECH_STANDUP, langName: 'Czech', knownTerms: [' Kestrel Ledger '] }),
+    );
+    const { system } = callArgs(0);
+    expect(system).toContain(
+      'Known names (use these exact spellings, even where the transcript inflects or declines them): Kestrel Ledger',
+    );
+    expect(system.indexOf('Known names (')).toBeGreaterThan(system.indexOf('Participants ('));
+    expect(system.indexOf('Known names (')).toBeLessThan(system.indexOf('IMPORTANT CONTEXT:'));
+  });
+
   it('states the owner-null rule — the whole defence against invented attribution', async () => {
     await extractMeetingStructure(input());
     const { system } = callArgs(0);
@@ -180,6 +224,16 @@ describe('extractMeetingStructure — transcript that fits the window', () => {
     expect(system).toContain('Output ONE JSON object and nothing else');
     expect(system).toContain('"topics"');
     expect(system).toContain('"openQuestions"');
+  });
+
+  it('excludes meeting logistics even when they sound like a decision (LOCAL-QUAL.1)', async () => {
+    await extractMeetingStructure(input());
+    const { system } = callArgs(0);
+    expect(system).toContain('Running the meeting itself is logistics too, even when it sounds like a decision');
+    expect(system).toContain('turning the recording on');
+    // It is a carve-out of the EXISTING exclusion rule: completeness is untouched.
+    expect(system).toContain('Extract EVERYTHING that was said. Completeness beats brevity.');
+    expect(system).toContain('Completeness applies to the WORK content.');
   });
 
   it.each(MEETING_TEMPLATES)("carries $type's own aiPromptHint", async (template) => {
@@ -466,6 +520,69 @@ describe('mergeDrafts', () => {
 
   it('returns empty sections for no drafts at all', () => {
     expect(mergeDrafts([])).toEqual({ topics: [], decisions: [], commitments: [], openQuestions: [], terms: [] });
+  });
+
+  // -------------------------------------------------------------------------
+  // LOCAL-QUAL.1: the containment second pass — collapses a re-stated
+  // paraphrase the exact-key pass above cannot see, strictly by token subset.
+  // -------------------------------------------------------------------------
+
+  it('collapses a subset-paraphrase pair, keeping the richer title at the first-seen slot', () => {
+    const merged = mergeDrafts([
+      draft({ topics: [{ title: 'Set up the client registry', detail: 'short' }] }),
+      draft({
+        topics: [
+          {
+            title: 'Set up the client registry for the onboarding project',
+            detail: 'A much longer explanation of the registry plan',
+          },
+        ],
+      }),
+    ]);
+    expect(merged.topics).toHaveLength(1);
+    expect(merged.topics[0].title).toBe('Set up the client registry for the onboarding project');
+    expect(merged.topics[0].detail).toBe('A much longer explanation of the registry plan');
+  });
+
+  it('does not collapse a subset with fewer than 4 tokens (the guard)', () => {
+    const merged = mergeDrafts([
+      draft({ decisions: [{ statement: 'Freeze the export schema entirely' }] }),
+      draft({ decisions: [{ statement: 'Freeze the schema' }] }), // 3 tokens — under the guard
+    ]);
+    expect(merged.decisions).toHaveLength(2);
+  });
+
+  it('keeps two distinct decisions that merely share a topic word apart', () => {
+    const merged = mergeDrafts([
+      draft({ decisions: [{ statement: 'Raise the export worker batch limit to five thousand' }] }),
+      draft({ decisions: [{ statement: 'Retire the export worker after the new pipeline ships' }] }),
+    ]);
+    expect(merged.decisions).toHaveLength(2);
+  });
+
+  it('never collapses commitments across different owners, even with an identical task', () => {
+    const merged = mergeDrafts([
+      draft({
+        commitments: [{ owner: 'Marta Nováková', task: 'Review the onboarding documentation draft', explicit: true }],
+      }),
+      draft({
+        commitments: [{ owner: 'Dev Raghunathan', task: 'Review the onboarding documentation draft', explicit: true }],
+      }),
+    ]);
+    expect(merged.commitments).toHaveLength(2);
+  });
+
+  it('collapses a diacritic-variant subset into its accented, richer counterpart', () => {
+    const merged = mergeDrafts([
+      draft({
+        topics: [
+          { title: 'Review the Nováková proposal with the wider team', detail: 'Full context from the planning doc' },
+        ],
+      }),
+      draft({ topics: [{ title: 'Review the Novakova proposal', detail: '' }] }),
+    ]);
+    expect(merged.topics).toHaveLength(1);
+    expect(merged.topics[0].title).toBe('Review the Nováková proposal with the wider team');
   });
 });
 

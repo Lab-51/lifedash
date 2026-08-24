@@ -1,5 +1,5 @@
 // === FILE PURPOSE ===
-// The extraction system prompt and the three context blocks appended to it
+// The extraction system prompt and the four context blocks appended to it
 // (BRIEF-QUAL.1). Split out of briefExtractionService.ts so that file stays under
 // the project's 500-line ceiling and so the prompt TEXT — the part reviewed by a
 // human, and the part a model tier is tuned against — sits in one place with
@@ -29,7 +29,7 @@ export const EXTRACTION_SYSTEM_PROMPT = `You extract the contents of a meeting t
 
 Rules:
 - Extract EVERYTHING that was said. Completeness beats brevity.
-- Social chit-chat, greetings and logistics unrelated to the subject (coffee, weather, pets, "can you hear me", "let's wait for the others") are NOT topics, decisions or commitments — skip them. Completeness applies to the WORK content.
+- Social chit-chat, greetings and logistics unrelated to the subject (coffee, weather, pets, "can you hear me", "let's wait for the others") are NOT topics, decisions or commitments — skip them. Running the meeting itself is logistics too, even when it sounds like a decision — starting without someone who is late, turning the recording on, or moving the meeting to another time are NOT topics, decisions or commitments either. Completeness applies to the WORK content.
 - "detail" is 1-3 sentences and must keep the WHY and any conditions ("only if", "unless", "once X is done").
 - "owner" is null unless the transcript makes a named person responsible. Never guess from who spoke last or who was mentioned last. Set "explicit" to true ONLY when the transcript names that owner; otherwise false.
 - Keep numbers, dates, priorities (P2, P3), policy names, system names and acronyms EXACTLY as they were said. Do not translate them, do not normalize them.
@@ -63,6 +63,20 @@ export function formatRosterBlock(roster: RosterEntry[]): string {
   return `Participants (use these exact spellings; a commitment has an owner ONLY when the transcript makes it explicit): ${names.join(', ')}`;
 }
 
+/**
+ * Exact-spelling anchors for names the transcript will bend: the project name
+ * today (LOCAL-QUAL.1), after a real meeting turned a product name into a
+ * declined form the brief then carried. Rendered ONLY when there is something to
+ * anchor, so a meeting with no project sends byte-identically to before.
+ *
+ * Names ONLY, same as the roster block: an email never enters a prompt.
+ */
+function knownTermsBlock(terms: string[]): string {
+  const names = terms.map((term) => term.trim()).filter((term) => term.length > 0);
+  if (names.length === 0) return '';
+  return `Known names (use these exact spellings, even where the transcript inflects or declines them): ${names.join(', ')}`;
+}
+
 /** The template's own hint, for ALL SIX templates — MEETING_TEMPLATES is the
  *  source of truth (action extraction used to hardcode three of them). */
 function templateHintBlock(template: MeetingTemplateType): string {
@@ -77,13 +91,22 @@ function languageBlock(langName: string | null): string {
 }
 
 /** The full system prompt for one extraction run: the rules, then whichever of the
- *  three context blocks apply. Empty blocks are dropped, never sent as blank lines. */
+ *  four context blocks apply. Empty blocks are dropped, never sent as blank lines —
+ *  so with no known terms this is byte-identical to the three-block prompt that
+ *  preceded them (asserted in briefExtractionService.test.ts). */
 export function buildExtractionSystemPrompt(
   roster: RosterEntry[],
   template: MeetingTemplateType,
   langName: string | null,
+  knownTerms: string[] = [],
 ): string {
-  return [EXTRACTION_SYSTEM_PROMPT, formatRosterBlock(roster), templateHintBlock(template), languageBlock(langName)]
+  return [
+    EXTRACTION_SYSTEM_PROMPT,
+    formatRosterBlock(roster),
+    knownTermsBlock(knownTerms),
+    templateHintBlock(template),
+    languageBlock(langName),
+  ]
     .filter((block) => block.length > 0)
     .join('\n\n');
 }

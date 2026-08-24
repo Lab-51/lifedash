@@ -390,11 +390,17 @@ describe('generateBrief — the writer works from the structure', () => {
 // ---------------------------------------------------------------------------
 
 describe('generateBrief — follow-ups are grouped by owner', () => {
-  it('instructs "### <Owner>" blocks in participant order with "### Unassigned" LAST', () => {
+  it('instructs "### <Owner>" blocks for OWNERS ONLY, in participant order, "### Unassigned" LAST', () => {
     expect(BRIEF_WRITER_PROMPT).toContain('## Follow-ups');
     expect(BRIEF_WRITER_PROMPT).toContain('"### <Owner>"');
     expect(BRIEF_WRITER_PROMPT).toContain('in the order the participants are listed');
     expect(BRIEF_WRITER_PROMPT).toContain('"### Unassigned" heading placed LAST');
+    // LOCAL-QUAL.1: a heading belongs to an OWNER, not to the roster. The prompt
+    // used to say "one heading per person", and the model duly wrote a heading for
+    // every participant with a "no explicit commitments" placeholder underneath.
+    expect(BRIEF_WRITER_PROMPT).toContain('heading for each person who owns a commitment');
+    expect(BRIEF_WRITER_PROMPT).toContain('never a heading for a participant who owns none');
+    expect(BRIEF_WRITER_PROMPT).not.toContain('heading per person');
     // The owner-honesty rule the `explicit` flag exists for.
     expect(BRIEF_WRITER_PROMPT).toContain('whose owner the notes do not mark as explicit');
     expect(BRIEF_WRITER_PROMPT).toContain('Never invent an owner, a date or a number');

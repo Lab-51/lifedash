@@ -49,7 +49,7 @@ vi.mock('drizzle-orm', () => ({ eq: vi.fn(() => ({})) }));
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { resolveTaskModel, clearProviderCache } from '../ai-provider';
+import { resolveTaskModel, clearProviderCache, sanitizeTemperature } from '../ai-provider';
 import { getDb } from '../../db/connection';
 
 interface FakeTable {
@@ -147,9 +147,10 @@ describe('resolveTaskModel — chat-class inheritance covers every AITaskType (A
   // failure card. The rule is now RAISE-ONLY, and absent stays absent wherever the
   // adapter can omit the field.
 
-  function summarizationWith(providerName: string, maxTokens?: number) {
+  function summarizationWith(providerName: string, maxTokens?: number, temperature?: number) {
     const config: Record<string, unknown> = { providerId: 'p-1', model: 'm-1' };
     if (maxTokens !== undefined) config.maxTokens = maxTokens;
+    if (temperature !== undefined) config.temperature = temperature;
     (getDb as Mock).mockReturnValue(
       makeDb(
         [taskModelsRow({ summarization: config as never })],
@@ -317,5 +318,61 @@ describe('resolveTaskModel — chat-class inheritance covers every AITaskType (A
     // Floor applies because the REQUESTED task is twin_learning, even though the
     // inherited config's own maxTokens (200) is lower.
     expect(resolved!.maxTokens).toBe(4096);
+  });
+
+  // -------------------------------------------------------------------------
+  // summarization's local sampling-temperature default (LOCAL-QUAL.1)
+  // -------------------------------------------------------------------------
+  // Local models run brief extraction (and the writer, which shares this task —
+  // BRIEF-QUAL.1) at their chat-default sampling unless a lower value is set here.
+  // Strict JSON extraction wants low temperature, and small local models showed
+  // sampling-sensitive name drift and owner wobble at chat-default sampling on the
+  // built-in tier. Cloud stays untouched: several cloud models reject or ignore the
+  // parameter, and their observed output is the accepted benchmark.
+
+  it.each(['builtin', 'lmstudio', 'ollama'])(
+    'defaults temperature to 0.2 for %s summarization when the user configured none',
+    async (providerName) => {
+      const resolved = await summarizationWith(providerName);
+      expect(resolved!.temperature).toBe(0.2);
+    },
+  );
+
+  it.each(['openai', 'anthropic', 'google', 'kimi'])(
+    'leaves temperature absent for %s summarization when the user configured none — cloud byte-identical',
+    async (providerName) => {
+      const resolved = await summarizationWith(providerName);
+      expect(resolved!.temperature).toBeUndefined();
+    },
+  );
+
+  it('keeps an explicitly configured temperature untouched on a local provider — explicit config always wins', async () => {
+    const resolved = await summarizationWith('builtin', undefined, 0.7);
+    expect(resolved!.temperature).toBe(0.7);
+  });
+
+  it('does not default temperature on a non-summarization task, even on a local provider', async () => {
+    (getDb as Mock).mockReturnValue(
+      makeDb(
+        [taskModelsRow({ twin_learning: { providerId: 'p-1', model: 'm-1' } })],
+        [{ id: 'p-1', name: 'builtin', apiKeyEncrypted: null, baseUrl: null, enabled: true }],
+      ),
+    );
+    const resolved = await resolveTaskModel('twin_learning');
+    expect(resolved!.temperature).toBeUndefined();
+  });
+
+  it('applies the local temperature default on the first-enabled-provider fallback path too — the likely half-ship spot', async () => {
+    (getDb as Mock).mockReturnValue(
+      makeDb([], [{ id: 'local-1', name: 'builtin', apiKeyEncrypted: null, baseUrl: null, enabled: true }]),
+    );
+    const resolved = await resolveTaskModel('summarization');
+    expect(resolved!.temperature).toBe(0.2);
+  });
+
+  it('sanitizeTemperature still strips temperature for providers that require fixed values (e.g. kimi) — unmodified by this task', () => {
+    expect(sanitizeTemperature('kimi', 0.2)).toBeUndefined();
+    expect(sanitizeTemperature('kimi', 0.7)).toBeUndefined();
+    expect(sanitizeTemperature('openai', 0.2)).toBe(0.2); // control: non-fixed provider passes through
   });
 });

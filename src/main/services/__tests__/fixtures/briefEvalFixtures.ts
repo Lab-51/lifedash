@@ -114,6 +114,7 @@ const LONG_TOPICS: TopicRow[] = [
     forms: [
       'noční pipeline Falcon Sync zase padal pro velké zákazníky',
       'Falcon Sync nightly pipeline failures for large tenants',
+      'Falcon Sync nightly failures',
     ],
     lang: 'cs',
     segments: [
@@ -123,7 +124,11 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'chyba v zaokrouhlování Meridian Ledgeru',
-    forms: ['chyba v zaokrouhlování Meridian Ledgeru', 'Meridian Ledger billing rounding bug'],
+    forms: [
+      'chyba v zaokrouhlování Meridian Ledgeru',
+      'Meridian Ledger billing rounding bug',
+      'Meridian Ledger rounding',
+    ],
     lang: 'cs',
     segments: [
       'Další bod - chyba v zaokrouhlování Meridian Ledgeru, na kterou si stěžují dva enterprise zákazníci.',
@@ -132,7 +137,7 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'harmonogram redesignu Atlas Console',
-    forms: ['harmonogram redesignu Atlas Console', 'Atlas Console redesign timeline'],
+    forms: ['harmonogram redesignu Atlas Console', 'Atlas Console redesign timeline', 'Atlas Console redesign'],
     lang: 'cs',
     segments: [
       'Bod tři - harmonogram redesignu Atlas Console, potřebujeme se bavit o možném posunu termínu.',
@@ -141,7 +146,7 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'migrace Compass API v3 na GraphQL',
-    forms: ['migrace Compass API v3 na GraphQL', 'Compass API v3 GraphQL migration'],
+    forms: ['migrace Compass API v3 na GraphQL', 'Compass API v3 GraphQL migration', 'Compass API GraphQL migration'],
     lang: 'cs',
     segments: [
       'Čtvrtý bod - migrace Compass API v3 na GraphQL, jak to vypadá s výkonem resolverů.',
@@ -150,7 +155,7 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'únava z alertů Nightwatch',
-    forms: ['únava z alertů Nightwatch', 'Nightwatch alert fatigue'],
+    forms: ['únava z alertů Nightwatch', 'Nightwatch alert fatigue', 'Nightwatch alerts'],
     lang: 'cs',
     segments: [
       'Pátý bod - únava z alertů Nightwatch, on-call lidi si stěžují, že alertů je zbytečně moc.',
@@ -159,7 +164,7 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'zpoždění notifikací Beacon',
-    forms: ['zpoždění notifikací Beacon', 'Beacon notification delivery delays'],
+    forms: ['zpoždění notifikací Beacon', 'Beacon notification delivery delays', 'Beacon push delays'],
     lang: 'cs',
     segments: [
       'Šestý bod - zpoždění notifikací Beacon, hlavně u evropských zákazníků.',
@@ -168,7 +173,7 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'zjednodušení onboarding flow',
-    forms: ['zjednodušení onboarding flow', 'onboarding flow simplification'],
+    forms: ['zjednodušení onboarding flow', 'onboarding flow simplification', 'onboarding flow'],
     lang: 'cs',
     segments: [
       'Sedmý bod - zjednodušení onboarding flow pro nové zákazníky, teď je moc dlouhý.',
@@ -177,7 +182,7 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'plán náboru na Q3 pro platform tým',
-    forms: ['plán náboru na Q3 pro platform tým', 'Q3 hiring plan for the platform team'],
+    forms: ['plán náboru na Q3 pro platform tým', 'Q3 hiring plan for the platform team', 'Q3 hiring plan'],
     lang: 'cs',
     segments: [
       'Osmý bod - plán náboru na Q3 pro platform tým, potřebujeme posílit kapacitu.',
@@ -186,7 +191,7 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'restrukturalizace on-call rotace',
-    forms: ['restrukturalizace on-call rotace', 'on-call rotation restructuring'],
+    forms: ['restrukturalizace on-call rotace', 'on-call rotation restructuring', 'on-call rotation'],
     lang: 'cs',
     segments: [
       'Devátý bod - restrukturalizace on-call rotace, současný model je podle mě nefér.',
@@ -195,7 +200,11 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'aktualizace politiky uchovávání dat DPA-7',
-    forms: ['aktualizace politiky uchovávání dat DPA-7', 'DPA-7 data retention policy update'],
+    forms: [
+      'aktualizace politiky uchovávání dat DPA-7',
+      'DPA-7 data retention policy update',
+      'DPA-7 retention policy',
+    ],
     lang: 'cs',
     segments: [
       'Desátý bod - aktualizace politiky uchovávání dat DPA-7, právní tým to po nás chce.',
@@ -204,7 +213,7 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'restrukturalizace cenových úrovní',
-    forms: ['restrukturalizace cenových úrovní', 'pricing tier restructuring'],
+    forms: ['restrukturalizace cenových úrovní', 'pricing tier restructuring', 'pricing tiers'],
     lang: 'cs',
     segments: [
       'Jedenáctý bod - restrukturalizace cenových úrovní, chceme přidat čtvrtou úroveň.',
@@ -213,7 +222,11 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'obnovení smlouvy s dodavatelem Stratoform Cloud',
-    forms: ['obnovení smlouvy s dodavatelem Stratoform Cloud', 'Stratoform Cloud vendor contract renewal'],
+    forms: [
+      'obnovení smlouvy s dodavatelem Stratoform Cloud',
+      'Stratoform Cloud vendor contract renewal',
+      'Stratoform Cloud renewal',
+    ],
     lang: 'cs',
     segments: [
       'Dvanáctý bod - obnovení smlouvy s dodavatelem Stratoform Cloud, končí nám za dva měsíce.',
@@ -222,7 +235,7 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'migrace interní wiki na nový nástroj',
-    forms: ['migrace interní wiki na nový nástroj', 'internal wiki migration to a new docs tool'],
+    forms: ['migrace interní wiki na nový nástroj', 'internal wiki migration to a new docs tool', 'wiki migration'],
     lang: 'cs',
     segments: [
       'Třináctý bod - migrace interní wiki na nový nástroj pro dokumentaci.',
@@ -231,7 +244,7 @@ const LONG_TOPICS: TopicRow[] = [
   },
   {
     title: 'roadmap review with a visiting exec',
-    forms: ['roadmap review with a visiting exec', 'Q4 roadmap review with the visiting executive'],
+    forms: ['roadmap review with a visiting exec', 'Q4 roadmap review with the visiting executive', 'visiting exec'],
     lang: 'en',
     segments: [
       'Last topic before we wrap up the local items - the roadmap review with a visiting exec next week.',
@@ -248,6 +261,7 @@ const LONG_DECISIONS: DecisionRow[] = [
     forms: [
       'zvednout batch limit Falcon Syncu na pět tisíc záznamů',
       'raise the Falcon Sync batch limit to 5000 records',
+      '5,000 records',
     ],
     segments: [
       'Rozhodli jsme se zvednout batch limit Falcon Syncu na pět tisíc záznamů.',
@@ -257,7 +271,11 @@ const LONG_DECISIONS: DecisionRow[] = [
   {
     topicIndex: 1,
     statement: 'přepnout Meridian Ledger na bankéřské zaokrouhlování',
-    forms: ['přepnout Meridian Ledger na bankéřské zaokrouhlování', "switch Meridian Ledger to banker's rounding"],
+    forms: [
+      'přepnout Meridian Ledger na bankéřské zaokrouhlování',
+      "switch Meridian Ledger to banker's rounding",
+      "banker's rounding",
+    ],
     segments: [
       'Rozhodli jsme se přepnout Meridian Ledger na bankéřské zaokrouhlování.',
       'Odpovídá to účetnímu standardu a mělo by to zastavit stížnosti na drift o pár centů.',
@@ -269,6 +287,7 @@ const LONG_DECISIONS: DecisionRow[] = [
     forms: [
       'posunout launch redesignu Atlas Console z P2 na P3',
       'push the Atlas Console redesign launch from P2 to P3',
+      'P2 to P3',
     ],
     segments: [
       'Rozhodli jsme se posunout launch redesignu Atlas Console z P2 na P3.',
@@ -281,6 +300,7 @@ const LONG_DECISIONS: DecisionRow[] = [
     forms: [
       'zmrazit Compass API v2 na dalších šest měsíců po vydání v3',
       'freeze Compass API v2 for six more months after v3 ships',
+      'freeze Compass API v2',
     ],
     segments: [
       'Rozhodli jsme se zmrazit Compass API v2 na dalších šest měsíců po vydání v3.',
@@ -290,7 +310,11 @@ const LONG_DECISIONS: DecisionRow[] = [
   {
     topicIndex: 4,
     statement: 'snížit prahové hodnoty alertů Nightwatch na polovinu',
-    forms: ['snížit prahové hodnoty alertů Nightwatch na polovinu', 'cut Nightwatch alert thresholds in half'],
+    forms: [
+      'snížit prahové hodnoty alertů Nightwatch na polovinu',
+      'cut Nightwatch alert thresholds in half',
+      'cut Nightwatch thresholds',
+    ],
     segments: [
       'Rozhodli jsme se snížit prahové hodnoty alertů Nightwatch na polovinu.',
       'Současný šum způsobuje únavu on-call týmu a lidi kvůli tomu přehlíží skutečné incidenty.',
@@ -299,7 +323,11 @@ const LONG_DECISIONS: DecisionRow[] = [
   {
     topicIndex: 10,
     statement: 'přejít na čtyři cenové úrovně místo tří',
-    forms: ['přejít na čtyři cenové úrovně místo tří', 'move pricing to four tiers instead of three'],
+    forms: [
+      'přejít na čtyři cenové úrovně místo tří',
+      'move pricing to four tiers instead of three',
+      'move to four tiers',
+    ],
     segments: [
       'Rozhodli jsme se přejít na čtyři cenové úrovně místo tří.',
       'Zákazníci ze středního segmentu se cítí skokem mezi druhou a třetí úrovní odstrčení.',
@@ -311,6 +339,7 @@ const LONG_DECISIONS: DecisionRow[] = [
     forms: [
       'obnovit smlouvu se Stratoform Cloud na dva roky místo jednoho',
       'renew the Stratoform Cloud contract for two years instead of one',
+      'Stratoform two-year renewal',
     ],
     segments: [
       'Rozhodli jsme se obnovit smlouvu se Stratoform Cloud na dva roky místo jednoho.',
@@ -333,6 +362,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'opravit batch limit Falcon Syncu a znovu nasadit worker',
       'patch the Falcon Sync batch limit and redeploy the worker',
+      'redeploy the worker',
     ],
     segment: 'Jirkovi zůstává úkol opravit batch limit Falcon Syncu a znovu nasadit worker, do pátku. Je to P2.',
   },
@@ -340,7 +370,11 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     topicIndex: 0,
     owner: 'Jirka Novák',
     task: 'napsat postmortem dokument k incidentu Falcon Syncu',
-    forms: ['napsat postmortem dokument k incidentu Falcon Syncu', 'write the Falcon Sync incident postmortem'],
+    forms: [
+      'napsat postmortem dokument k incidentu Falcon Syncu',
+      'write the Falcon Sync incident postmortem',
+      'incident postmortem',
+    ],
     segment: 'Jirka má ještě za úkol napsat postmortem dokument k incidentu Falcon Syncu, do příští středy.',
   },
   {
@@ -350,6 +384,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'spárovat se s Filipem na výkonu resolveru Compass API v3',
       'pair with Filip on the Compass API v3 resolver performance',
+      'pair with Filip',
     ],
     segment:
       'S Jirkou jsme se domluvili na úkolu spárovat se s Filipem na výkonu resolveru Compass API v3, do konce sprintu.',
@@ -362,6 +397,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
       'zablokovat si dvě hodiny denně na ladění Falcon Syncu tento týden',
       'Zablokuju si dvě hodiny denně na ladění Falcon Syncu tento týden',
       "I'll block two hours daily for Falcon Sync debugging this week",
+      'two hours daily',
     ],
     segment:
       'Beru si za úkol zablokovat si dvě hodiny denně na ladění Falcon Syncu tento týden, ať to máme pod kontrolou.',
@@ -373,6 +409,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'nasadit opravu zaokrouhlování Meridian Ledgeru na staging',
       'ship the Meridian Ledger rounding fix to staging',
+      'fix to staging',
     ],
     segment: 'Petra má za úkol nasadit opravu zaokrouhlování Meridian Ledgeru na staging, do pondělí. Je to P2.',
   },
@@ -383,6 +420,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'aktualizovat šablonu reportu pro účetní odsouhlasení',
       'update the billing reconciliation report template',
+      'reconciliation report template',
     ],
     segment: 'Petra má za úkol aktualizovat šablonu reportu pro účetní odsouhlasení, do konce měsíce.',
   },
@@ -390,7 +428,11 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     topicIndex: 10,
     owner: 'Petra Dvořáková',
     task: 'napsat copy pro stránku se čtyřmi cenovými úrovněmi',
-    forms: ['napsat copy pro stránku se čtyřmi cenovými úrovněmi', 'draft the four-tier pricing page copy'],
+    forms: [
+      'napsat copy pro stránku se čtyřmi cenovými úrovněmi',
+      'draft the four-tier pricing page copy',
+      'pricing page copy',
+    ],
     segment: 'Petra má za úkol napsat copy pro stránku se čtyřmi cenovými úrovněmi, do příštího úterý.',
   },
   {
@@ -400,6 +442,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'připravit podklady pro cenovou prezentaci pro obchodní tým',
       'prepare materials for the pricing presentation for the sales team',
+      'sales team presentation',
     ],
     segment: 'Beru si za úkol připravit podklady pro cenovou prezentaci pro obchodní tým, do čtvrtka.',
   },
@@ -407,7 +450,11 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     topicIndex: 2,
     owner: 'Milan Beneš',
     task: 'předělat onboarding checklist v Atlas Console',
-    forms: ['předělat onboarding checklist v Atlas Console', 'redesign the Atlas Console onboarding checklist'],
+    forms: [
+      'předělat onboarding checklist v Atlas Console',
+      'redesign the Atlas Console onboarding checklist',
+      'onboarding checklist',
+    ],
     segment: 'Milan má za úkol předělat onboarding checklist v Atlas Console, do tří týdnů.',
   },
   {
@@ -417,6 +464,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'projít zjištění z accessibility auditu s design týmem',
       'review the accessibility audit findings with the design team',
+      'accessibility audit',
     ],
     segment: 'Milanovi zůstává úkol projít zjištění z accessibility auditu s design týmem, do čtvrtka.',
   },
@@ -424,7 +472,11 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     topicIndex: 8,
     owner: 'Milan Beneš',
     task: 'nastavit nový rozpis on-call rotace v nástroji',
-    forms: ['nastavit nový rozpis on-call rotace v nástroji', 'set up the new on-call rotation schedule in the tool'],
+    forms: [
+      'nastavit nový rozpis on-call rotace v nástroji',
+      'set up the new on-call rotation schedule in the tool',
+      'new rotation schedule',
+    ],
     segment: 'Milan má za úkol nastavit nový rozpis on-call rotace v nástroji, do příštího pátku.',
   },
   {
@@ -434,6 +486,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'snížit prahové hodnoty v konfiguraci Nightwatch a nasadit to',
       'cut the Nightwatch alert thresholds in the config and deploy',
+      'update the Nightwatch config',
     ],
     segment: 'Zuzana má za úkol snížit prahové hodnoty v konfiguraci Nightwatch a nasadit to, do pátku. Je to P3.',
   },
@@ -444,6 +497,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'napsat shrnutí politiky uchovávání dat DPA-7 na wiki',
       'write the DPA-7 data retention policy summary for the wiki',
+      'DPA-7 wiki summary',
     ],
     segment: 'Zuzana má za úkol napsat shrnutí politiky uchovávání dat DPA-7 na wiki, do dvou týdnů.',
   },
@@ -454,6 +508,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'opravit zpoždění doručování notifikací Beacon pro EU zákazníky',
       'fix the Beacon notification delivery delay for EU tenants',
+      'Beacon delay for EU',
     ],
     segment:
       'Filipovi zůstává úkol opravit zpoždění doručování notifikací Beacon pro EU zákazníky, do středy. Je to P2.',
@@ -465,6 +520,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'schválit e-mail s oznámením o zmrazení Compass API v2',
       'sign off on the Compass API v2 freeze announcement email',
+      'freeze announcement email',
     ],
     segment: 'Filip má za úkol schválit e-mail s oznámením o zmrazení Compass API v2, do zítřka.',
   },
@@ -475,6 +531,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'vyjednat podmínky dvouletého obnovení smlouvy se Stratoform Cloud',
       'negotiate the two-year Stratoform Cloud renewal terms',
+      'negotiate Stratoform terms',
     ],
     segment: 'Eva má za úkol vyjednat podmínky dvouletého obnovení smlouvy se Stratoform Cloud, do konce měsíce.',
   },
@@ -485,6 +542,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'přesunout obsah interní wiki do nového nástroje',
       'migrate the internal wiki content to the new docs tool',
+      'migrate wiki content',
     ],
     segment: 'Eva má za úkol přesunout obsah interní wiki do nového nástroje, do měsíce.',
   },
@@ -492,7 +550,7 @@ const LONG_COMMITMENTS: CommitmentRow[] = [
     topicIndex: 13,
     owner: null,
     task: 'draft the roadmap deck for the exec review by next Monday',
-    forms: ['draft the roadmap deck for the exec review by next Monday'],
+    forms: ['draft the roadmap deck for the exec review by next Monday', 'roadmap deck'],
     segment: 'I will draft the roadmap deck for the exec review by next Monday, so we have time to rehearse.',
   },
 ];
@@ -666,7 +724,11 @@ const SHORT_ROSTER: FixtureRosterEntry[] = [
 const SHORT_TOPICS: TopicRow[] = [
   {
     title: 'rychlá kontrola nasazení opravy Meridian Ledgeru',
-    forms: ['rychlá kontrola nasazení opravy Meridian Ledgeru', 'quick check on the Meridian Ledger fix deployment'],
+    forms: [
+      'rychlá kontrola nasazení opravy Meridian Ledgeru',
+      'quick check on the Meridian Ledger fix deployment',
+      'Ledger deployment check',
+    ],
     lang: 'cs',
     segments: [
       'Dobré ráno, dnešní call bude krátký - rychlá kontrola nasazení opravy Meridian Ledgeru.',
@@ -675,7 +737,7 @@ const SHORT_TOPICS: TopicRow[] = [
   },
   {
     title: 'příprava na zítřejší demo pro zákazníka',
-    forms: ['příprava na zítřejší demo pro zákazníka', "prep for tomorrow's customer demo"],
+    forms: ['příprava na zítřejší demo pro zákazníka', "prep for tomorrow's customer demo", 'customer demo prep'],
     lang: 'cs',
     segments: [
       'Druhý bod - příprava na zítřejší demo pro zákazníka, chceme ukázat nový dashboard.',
@@ -688,7 +750,11 @@ const SHORT_DECISIONS: DecisionRow[] = [
   {
     topicIndex: 0,
     statement: 'označit incident s Meridian Ledgerem jako vyřešený',
-    forms: ['označit incident s Meridian Ledgerem jako vyřešený', 'mark the Meridian Ledger incident as resolved'],
+    forms: [
+      'označit incident s Meridian Ledgerem jako vyřešený',
+      'mark the Meridian Ledger incident as resolved',
+      'mark incident resolved',
+    ],
     segments: [
       'Rozhodli jsme se označit incident s Meridian Ledgerem jako vyřešený.',
       'Žádné nové stížnosti čtyřiadvacet hodin po nasazení, takže to už můžeme zavřít.',
@@ -704,6 +770,7 @@ const SHORT_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'zkontrolovat logy po nasazení opravy Meridian Ledgeru',
       'check the logs after the Meridian Ledger fix deployment',
+      'check the logs',
     ],
     segment: 'Jirka má za úkol zkontrolovat logy po nasazení opravy Meridian Ledgeru, ještě dnes.',
   },
@@ -714,6 +781,7 @@ const SHORT_COMMITMENTS: CommitmentRow[] = [
     forms: [
       'připravit demo prostředí pro zítřejší ukázku zákazníkovi',
       "prepare the demo environment for tomorrow's customer walkthrough",
+      'demo environment',
     ],
     segment: 'Petra má za úkol připravit demo prostředí pro zítřejší ukázku zákazníkovi, do večera.',
   },

@@ -54,6 +54,13 @@
 // working, while writerRecall(decisions) and writerRecall(commitments) should
 // still be ≈ 1.0, because completeness for those two never moved. A low
 // decisions/commitments recall is a real regression; a low topics recall is not.
+//
+// Per-tier bars live in ONE table, `TIER_BARS` below (see its own doc comment for
+// each value's provenance). To let a MEASUREMENT run complete and print its
+// numbers regardless of the current bar (e.g. capturing builtin's real baseline
+// for Task 5), override the resolved bar for a single run — this affects only
+// pass/fail, never whether the suite RUNS (only BRIEF_EVAL=1 controls that):
+//   BRIEF_EVAL_BAR=0 BRIEF_EVAL=1 BRIEF_EVAL_TIER=builtin ... npx vitest run briefPipeline.live
 
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import type { Mock } from 'vitest';
@@ -86,13 +93,41 @@ const MEETING_TITLE = 'Kestrel Analytics Quarterly Review';
 
 type Tier = 'builtin' | 'lmstudio' | 'openai' | 'anthropic' | 'google';
 
-const RECALL_THRESHOLDS: Record<Tier, number> = {
+/** Per-tier recall bars (FAIL the test below this) — provenance for each value:
+ *  - `openai` (shared by `anthropic`/`google` — all three are "cloud" tiers with
+ *    one target): 0.90, a CALIBRATION TARGET. Unmeasured: no real cloud run's
+ *    numbers have been captured against this bar yet.
+ *  - `lmstudio`: 0.80, a CALIBRATION TARGET. Unmeasured for the same reason.
+ *  - `builtin`: 0.70 — TO BE SET from Task 5's measured baseline (LOCAL-QUAL.1).
+ *    Left at 0.70 here deliberately; Task 5 changes this value once, from an
+ *    actual measurement, with that measurement in the commit trail. Do not
+ *    change it from any other task. */
+const TIER_BARS = {
   openai: 0.9,
-  anthropic: 0.9,
-  google: 0.9,
   lmstudio: 0.8,
   builtin: 0.7,
-};
+} as const;
+
+/** `anthropic`/`google` share `TIER_BARS.openai` — the same cloud calibration
+ *  target, just two more members of `Tier` than `TIER_BARS` has keys for. */
+function barFor(tier: Tier): number {
+  if (tier === 'lmstudio') return TIER_BARS.lmstudio;
+  if (tier === 'builtin') return TIER_BARS.builtin;
+  return TIER_BARS.openai;
+}
+
+/** `BRIEF_EVAL_BAR` overrides the resolved tier's bar for a single run — lets a
+ *  measurement pass complete and print its numbers without failing on the
+ *  current (possibly aspirational) bar. Only a valid float overrides; unset or
+ *  unparsable falls back to the tier's own bar from `TIER_BARS`. */
+function resolveBar(tier: Tier): number {
+  const raw = process.env.BRIEF_EVAL_BAR;
+  if (raw !== undefined) {
+    const parsed = Number(raw);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return barFor(tier);
+}
 
 function resolveTier(): Tier | null {
   const raw = process.env.BRIEF_EVAL_TIER;
@@ -249,10 +284,15 @@ describe.runIf(LIVE)('brief pipeline — LIVE eval against a real model', () => 
           `wrongOwners=${score.wrongOwners}`,
           `extractWallMs=${extractWallMs}`,
           `writerWallMs=${writerWallMs}`,
+          // Always printed (not just on failure) so a PASSING run still leaves a
+          // reviewable record of exactly what extraction missed, per item.
+          `missedTopics=${score.missed.topics.join('; ') || '(none)'}`,
+          `missedDecisions=${score.missed.decisions.join('; ') || '(none)'}`,
+          `missedCommitments=${score.missed.commitments.join('; ') || '(none)'}`,
         ].join(' | '),
       );
 
-      const threshold = RECALL_THRESHOLDS[tier];
+      const threshold = resolveBar(tier);
       expect(score.topicsRecall, `missed topics: ${score.missed.topics.join('; ')}`).toBeGreaterThanOrEqual(threshold);
       expect(score.decisionsRecall, `missed decisions: ${score.missed.decisions.join('; ')}`).toBeGreaterThanOrEqual(
         threshold,

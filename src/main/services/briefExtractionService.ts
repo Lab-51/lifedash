@@ -76,6 +76,9 @@ export interface ExtractionInput {
   roster: RosterEntry[];
   /** Display name of the transcript language ("Czech"), or null for English/unknown. */
   langName: string | null;
+  /** Names whose spelling the model must not drift from — the project name today.
+   *  Absent or empty leaves the system prompt byte-identical to a three-block one. */
+  knownTerms?: string[];
 }
 
 /** Success or an honest reason — never a partial structure, never a throw. */
@@ -429,7 +432,7 @@ async function extractWithSplit(
  */
 export async function extractMeetingStructure(input: ExtractionInput): Promise<ExtractionOutcome> {
   const { provider, meeting } = input;
-  const systemPrompt = buildExtractionSystemPrompt(input.roster, meeting.template, input.langName);
+  const systemPrompt = buildExtractionSystemPrompt(input.roster, meeting.template, input.langName, input.knownTerms);
   const segments = [...meeting.segments].sort((a, b) => a.startTime - b.startTime);
   const parts = planParts(provider, systemPrompt, meeting.title, segments);
   if (parts.length > 1) {

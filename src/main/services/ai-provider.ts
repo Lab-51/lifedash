@@ -125,8 +125,11 @@ const FIXED_TEMPERATURE_PROVIDERS: Set<AIProviderName> = new Set(['kimi']);
 const REASONING_PROVIDERS: Set<AIProviderName> = new Set(['kimi']);
 const REASONING_MIN_TOKENS = 4096;
 
-/** Strip temperature for providers that only accept fixed values (e.g. Kimi K2.5). */
-function sanitizeTemperature(providerName: AIProviderName, temperature?: number): number | undefined {
+/** Strip temperature for providers that only accept fixed values (e.g. Kimi K2.5).
+ *  Exported for direct unit coverage (LOCAL-QUAL.1) — proves this stripping stays
+ *  intact independent of the new local-extraction temperature default above, which
+ *  never touches `kimi` (it isn't a LOCAL_TEMPERATURE_PROVIDERS member). */
+export function sanitizeTemperature(providerName: AIProviderName, temperature?: number): number | undefined {
   if (FIXED_TEMPERATURE_PROVIDERS.has(providerName)) return undefined;
   return temperature;
 }
@@ -695,6 +698,54 @@ function applyOutputPolicy(taskType: string, providerName: AIProviderName, confi
   return minTokens ? Math.max(configured ?? minTokens, minTokens) : configured;
 }
 
+/**
+ * Sampling temperature for strict local extraction (LOCAL-QUAL.1) — set-when-absent,
+ * never an override. Local models run brief extraction, and the writer that shares
+ * its `summarization` task (BRIEF-QUAL.1 — deliberate: briefs want fidelity, not
+ * creativity), at their chat-default sampling unless a lower value is configured.
+ * Strict JSON extraction wants low temperature, and small local models showed
+ * sampling-sensitive name drift and owner wobble at chat-default sampling — the
+ * observed failure class on the built-in tier was a product name drifting under
+ * Czech declension and one wrong owner. Cloud is untouched: several cloud models
+ * reject or ignore `temperature`, and their observed output is the accepted
+ * benchmark.
+ *
+ * This is the mirror image of SUMMARIZATION_OUTPUT_FLOOR's safety rule above: that
+ * policy never fabricates a value out of an absent one (a floor that did caused a
+ * real production failure — see its comment). This one deliberately does fabricate a
+ * value where none existed, which is exactly why it stays scoped this tightly — one
+ * task type, three local provider classes — rather than applied broadly.
+ */
+const LOCAL_EXTRACTION_TEMPERATURE = 0.2;
+
+/**
+ * Provider classes LOCAL_EXTRACTION_TEMPERATURE applies to. Deliberately its own
+ * constant even though membership currently matches LOCAL_OUTPUT_PROVIDERS above:
+ * that one governs the output-token ceiling, a different policy — compare
+ * FIXED_TEMPERATURE_PROVIDERS vs REASONING_PROVIDERS further up this file, which
+ * both list only `kimi` for the same reason (coincidence of membership is not
+ * identity of policy).
+ */
+const LOCAL_TEMPERATURE_PROVIDERS: Set<AIProviderName> = new Set(['builtin', 'lmstudio', 'ollama']);
+
+/**
+ * Explicit config always wins — this is a default, never an override. Absent only
+ * becomes LOCAL_EXTRACTION_TEMPERATURE when the task is `summarization` and the
+ * provider is a local class; every other absent case passes undefined through
+ * unchanged, so cloud stays byte-identical and every other task type is unaffected.
+ */
+function withLocalExtractionTemperature(
+  providerName: AIProviderName,
+  taskType: string,
+  temperature?: number,
+): number | undefined {
+  if (temperature !== undefined) return temperature;
+  if (taskType === 'summarization' && LOCAL_TEMPERATURE_PROVIDERS.has(providerName)) {
+    return LOCAL_EXTRACTION_TEMPERATURE;
+  }
+  return undefined;
+}
+
 /** Max texts per embedMany call (LM Studio / OpenAI-compatible batch ceiling). */
 const EMBED_BATCH_SIZE = 64;
 
@@ -713,6 +764,11 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
   // for `summarization` never a value fabricated out of an absent one.
   const withFloor = (providerName: AIProviderName, t?: number) => applyOutputPolicy(taskType, providerName, t);
 
+  // Per-task sampling-temperature default (see withLocalExtractionTemperature):
+  // set-when-absent, and only for `summarization` on a local provider class.
+  const withTemperature = (providerName: AIProviderName, t?: number) =>
+    withLocalExtractionTemperature(providerName, taskType, t);
+
   // 1. Try ai.taskModels setting (matches the key used by the renderer settingsStore)
   const [settingRow] = await db.select().from(settings).where(eq(settings.key, 'ai.taskModels'));
 
@@ -730,7 +786,7 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
             apiKeyEncrypted: provider.apiKeyEncrypted,
             baseUrl: provider.baseUrl,
             model: config.model,
-            temperature: config.temperature,
+            temperature: withTemperature(provider.name as AIProviderName, config.temperature),
             maxTokens: withFloor(provider.name as AIProviderName, config.maxTokens),
           };
         }
@@ -758,6 +814,7 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
     apiKeyEncrypted: fallbackProvider.apiKeyEncrypted,
     baseUrl: fallbackProvider.baseUrl,
     model: DEFAULT_MODELS[fallbackProvider.name as AIProviderName] ?? 'gpt-5-mini',
+    temperature: withTemperature(fallbackProvider.name as AIProviderName, undefined),
     maxTokens: withFloor(fallbackProvider.name as AIProviderName, undefined),
   };
 }
