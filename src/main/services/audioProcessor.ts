@@ -15,7 +15,7 @@ import * as fsp from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
-import type { RecordingState, TranscriptionProgress } from '../../shared/types';
+import type { AudioChunkBuffers, RecordingState, TranscriptionProgress } from '../../shared/types';
 import * as transcriptionService from './transcriptionService';
 import * as liveTriageService from './liveTriageService';
 import { getDb } from '../db/connection';
@@ -122,18 +122,26 @@ export async function startRecording(meetingId: string, language?: string): Prom
   await pinChatModelForRecording();
 }
 
-export function addChunk(chunk: Buffer): void {
+/**
+ * Fan one audio callback out to the WAV writer and the transcription pipeline.
+ *
+ * The file on disk is written from `mixed` ONLY — the mono sum, byte-identical
+ * to pre-SPEAKER.1 recordings — because the cloud diarize path and the
+ * `audio:saveRecordings` export both read it. Only transcription sees the
+ * per-channel split.
+ */
+export function addChunk(payload: AudioChunkBuffers): void {
   if (!currentMeetingId) return; // Ignore chunks when not recording
 
   if (wavFd) {
-    wavFd.write(chunk).catch((err) => {
+    wavFd.write(payload.mixed).catch((err) => {
       log.error('WAV write failed, disabling audio save:', err);
       wavFd = null;
     });
-    dataBytes += chunk.byteLength;
+    dataBytes += payload.mixed.byteLength;
   }
 
-  transcriptionService.addChunk(chunk);
+  transcriptionService.addChunk(payload);
 }
 
 /**

@@ -163,7 +163,13 @@ vi.mock('../../../shared/utils/action-item-parser', () => ({ parseActionItems: v
 
 vi.mock('../../../shared/types', () => ({ MEETING_TEMPLATES: [] }));
 
-vi.mock('../twinProfileService', () => ({ buildProfileContext: vi.fn().mockResolvedValue('') }));
+// getProfile is SPEAKER.1's source for the `Me` legend name. generateBrief only
+// reads it when the transcript is actually LABELLED, so every unlabelled fixture
+// in this file never touches it — it is stubbed here for the labelled case below.
+vi.mock('../twinProfileService', () => ({
+  buildProfileContext: vi.fn().mockResolvedValue(''),
+  getProfile: vi.fn().mockResolvedValue(null),
+}));
 
 // ---------------------------------------------------------------------------
 // BRIEF-QUAL.1 seams — generateBrief is extract-then-write now
@@ -216,6 +222,7 @@ import { getDb } from '../../db/connection';
 import { dispatchPostSession } from '../postSessionDispatcher';
 import { extractMeetingStructure } from '../briefExtractionService';
 import { buildProfileContext } from '../twinProfileService';
+import { formatLine } from '../promptBudget';
 import { parseActionItems } from '../../../shared/utils/action-item-parser';
 import { BRIEF_FAILURE_SENTINEL, isFailedBriefText } from '../../../shared/briefSentinel';
 
@@ -539,6 +546,44 @@ describe('BRIEF-QUAL.1 — a transcript that fits is assembled byte-identically'
     expect(fingerprint('S', 'P')).toBe(fingerprint('S', 'P'));
     expect(fingerprint('S', 'P')).not.toBe(fingerprint('S', 'P ')); // one trailing space
     expect(fingerprint('S', 'P')).not.toBe(fingerprint('SP', '')); // same bytes, different split
+  });
+
+  // -------------------------------------------------------------------------
+  // SPEAKER.1 — the line shape moved, and it moved in LOCKSTEP
+  // -------------------------------------------------------------------------
+  // The two halves of the proof, deliberately in the same describe as the pins:
+  //   (a) the pins above still pass on the UNLABELLED fixture (that IS the
+  //       byte-identity claim — nothing here re-states it), and
+  //   (b) a LABELLED fixture changes the prompt, to exactly the bytes
+  //       promptBudget.formatLine produces.
+  // (b) is what proves the lockstep: meetingIntelligenceService's formatTranscript
+  // is not exported, so this asserts on what generateBrief actually SENT against
+  // the function the budget is MEASURED with. The two used to hold separate copies
+  // of the shape; if either moved alone, this equality breaks.
+  const LABELLED_SEGMENTS = FITS_SEGMENTS.map((segment, i) => ({
+    ...segment,
+    speaker: i === 2 ? 'Speaker 2' : 'Me',
+  }));
+
+  it('a labelled transcript renders through formatLine, in lockstep with the budget', async () => {
+    vi.mocked(getMeeting).mockResolvedValue(makeMeeting({ segments: LABELLED_SEGMENTS }) as never);
+    buildDb();
+    vi.mocked(generate).mockResolvedValue({ text: 'A real generated brief' } as never);
+
+    await generateBrief(MEETING_ID);
+
+    const [{ prompt }] = generateCalls();
+    const rendered = LABELLED_SEGMENTS.map(formatLine).join('\n');
+    expect(rendered).toBe(
+      '[00:00] Me: Kickoff and agenda review.\n' +
+        '[01:05] Me: Budget numbers look healthy.\n' +
+        '[02:05] Speaker 2: Sarah will send the timeline.',
+    );
+    expect(prompt).toContain(`Transcript:\n${rendered}`);
+    // ...and the SAME fixture without labels is still the pinned prompt, so the
+    // difference is the labels and nothing else.
+    expect(prompt).not.toBe(BRIEF_PROMPT_PIN);
+    expect(prompt.replace(/^\[(\d\d:\d\d)\] (?:Me|Speaker 2): /gm, '[$1] ')).toBe(BRIEF_PROMPT_PIN);
   });
 });
 

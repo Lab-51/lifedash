@@ -42,6 +42,12 @@ export const meetings = pgTable('meetings', {
   // not an identity source — participantRosterService merges this with calendar
   // attendees and known project people into the brief prompt's roster block.
   participants: text('participants').array(),
+  // Speaker LABEL -> display NAME (SPEAKER.1). The raw labels stay on the
+  // transcript rows untouched; this map is applied at render and at prompt time,
+  // so a wrong resolution is one click to undo and re-running diarization can
+  // never destroy a name the user typed. Nullable: every meeting predating
+  // SPEAKER.1, and every meeting whose speakers were never named, has none.
+  speakerNames: jsonb('speaker_names').$type<Record<string, string>>(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

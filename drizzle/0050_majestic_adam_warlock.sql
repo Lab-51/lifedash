@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" ADD COLUMN "speaker_names" jsonb;

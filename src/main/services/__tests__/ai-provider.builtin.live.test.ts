@@ -5,6 +5,11 @@
 // streamGenerate() — with the AI SDK and the OpenAI adapter fully REAL. Only
 // getDb / secure-storage / logger / electron are mocked.
 //
+// Also guards the `--reasoning off` chat flag (llamaRuntimeConfig.ts, BRIEF-QUAL.1)
+// with a raw /chat/completions call (SPEAKER.1 Task 5) — the AI SDK's chat-completions
+// parser never surfaces `reasoning_content`, so this is the only place a regression
+// in that flag's default would be observable.
+//
 // SKIPPED BY DEFAULT so `npm test` stays green without a binary or models present.
 // Run it explicitly (mirrors ai-provider.embed.live.test.ts):
 //
@@ -36,7 +41,7 @@ vi.mock('../../db/schema', () => ({
 vi.mock('drizzle-orm', () => ({ eq: vi.fn(() => ({})) }));
 
 import { embed, streamGenerate, testConnection, clearProviderCache } from '../ai-provider';
-import { status, stop, listAvailableModels } from '../llamaRuntimeService';
+import { status, stop, listAvailableModels, ensureRunning } from '../llamaRuntimeService';
 import { getDb } from '../../db/connection';
 
 const LIVE = process.env.BUILTIN_LIVE === '1';
@@ -133,6 +138,44 @@ describe.runIf(LIVE)('builtin provider — LIVE sidecar round-trip', () => {
     expect(chunks).toBeGreaterThan(1); // real token-by-token streaming, not one blob
     expect(text.trim().length).toBeGreaterThan(0);
     expect(await stream.finishReason).toBe('stop');
+  }, 300_000);
+
+  it('regression guard: --reasoning off never lets hidden thinking eat the whole token budget (SPEAKER.1 Task 5)', async () => {
+    (getDb as Mock).mockReturnValue(liveDb());
+    const chatModel = listAvailableModels().find((m) => !/embed/i.test(m.id))!;
+    const endpoint = await ensureRunning('chat', chatModel.id);
+
+    // Deliberately a RAW fetch against the sidecar's own /chat/completions, bypassing
+    // the AI SDK: @ai-sdk/openai's chat-completions parser hardcodes `reasoning: void 0`
+    // for every response (verified: no @ai-sdk package in node_modules parses a
+    // `reasoning_content` field at all), so a check through generate()/streamGenerate()
+    // could never observe this regression — it would pass whether the flag is on or off.
+    // A SMALL max_tokens reproduces the exact failure mode measured 2026-08-21 on
+    // Qwen3-4B-Q4_K_M with the default (reasoning-on) flags: finish_reason 'length',
+    // 48/48 tokens spent in reasoning_content, content ''.
+    const resp = await fetch(`${endpoint.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${endpoint.apiKey}` },
+      body: JSON.stringify({
+        model: endpoint.modelId,
+        messages: [{ role: 'user', content: 'Reply with exactly the word OK and nothing else.' }],
+        max_tokens: 32,
+        stream: false,
+      }),
+    });
+    expect(resp.ok).toBe(true);
+    const body = (await resp.json()) as {
+      choices: Array<{ finish_reason: string; message: { content: string; reasoning_content?: string } }>;
+    };
+    const choice = body.choices[0];
+
+    expect(choice.message.content.trim().length).toBeGreaterThan(0);
+    expect(choice.finish_reason).not.toBe('length');
+    // "no reasoning_content in the response": llama-server may omit the field
+    // entirely or emit it empty once reasoning is off; either reads as falsy here.
+    // A future binary bump that flips the flag's default would return real
+    // chain-of-thought text in this field and this line would catch it.
+    expect(choice.message.reasoning_content ?? '').toBe('');
   }, 300_000);
 
   it('stop() terminates every sidecar process', async () => {

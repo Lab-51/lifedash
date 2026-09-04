@@ -291,6 +291,17 @@ export const updateMeetingParticipantsSchema = z.object({
   participants: participantsArraySchema,
 });
 
+/** For meeting:rename-speaker (SPEAKER.1). `label` is the RAW transcript label
+ *  (`Me`, `Speaker 2`) and is capped at the transcripts.speaker column width;
+ *  `name` is the display name, same 80-char cap and same no-email rule as a
+ *  participant name, and `null` CLEARS the entry (that is how a user undoes a
+ *  wrong automatic resolution). */
+export const renameSpeakerSchema = z.object({
+  meetingId: uuid,
+  label: z.string().trim().min(1).max(50),
+  name: participantNameSchema.nullable(),
+});
+
 /** For meetings:delete — the optional second arg. Renderer call sites that omit
  *  it entirely (source-compatible with the pre-MEET-DEL.1 single-arg call) pass
  *  `undefined`, which this schema accepts as-is. */

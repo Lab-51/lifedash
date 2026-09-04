@@ -154,17 +154,52 @@ export function chunkBudget(
   return Math.max(MIN_CHUNK_CHAR_BUDGET, promptCharBudget(provider) - systemPrompt.length - CHUNK_HEADROOM_CHARS);
 }
 
-/** Mirrors formatTranscript's per-line shape in meetingIntelligenceService.ts
- *  (not exported there, so duplicated here) — the measure must match what is
- *  actually sent, not an approximation of it. Keep in sync manually if that
- *  shape ever changes. Exported (BRIEF-QUAL.1) so a new transcript-sending
- *  caller renders the line through the SAME function the budget is measured
- *  with, instead of adding a third copy of the shape. */
-export function formatLine(segment: { startTime: number; content: string }): string {
+/** The only segment fields the transcript line shape reads. `speaker` is optional
+ *  and nullable so every pre-SPEAKER.1 caller type-checks unchanged. */
+export interface PromptLineSegment {
+  startTime: number;
+  content: string;
+  /** Diarization / channel label as STORED (`Me`, `Speaker 2`), or null/absent
+   *  when the segment was never labelled. Callers that want a user-facing NAME
+   *  here must substitute it before formatting — this function never maps. */
+  speaker?: string | null;
+}
+
+/** THE one transcript line shape. meetingIntelligenceService's `formatTranscript`
+ *  and briefExtractionService's both render through this function, so the measure
+ *  is literally what is sent — the two used to hold separate copies of the shape
+ *  and are asserted in lockstep (promptBudget.test.ts) precisely because a
+ *  duplicated shape is what drifted before.
+ *
+ *  SPEAKER.1: `[MM:SS] Label: content` when the segment carries a label,
+ *  `[MM:SS] content` when it does not — so an UNLABELLED transcript is
+ *  byte-identical to the pre-SPEAKER.1 prompt (BRIEF-QUAL.1's pins). */
+export function formatLine(segment: PromptLineSegment): string {
   const minutes = Math.floor(segment.startTime / 60000);
   const seconds = Math.floor((segment.startTime % 60000) / 1000);
   const timestamp = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  return `[${timestamp}] ${segment.content}`;
+  const label = segment.speaker?.trim();
+  return label ? `[${timestamp}] ${label}: ${segment.content}` : `[${timestamp}] ${segment.content}`;
+}
+
+/**
+ * Substitute display NAMES for raw speaker labels at prompt time (SPEAKER.1).
+ * The stored segments are never rewritten — this is a read-time view, which is
+ * what makes a wrong name one click to undo.
+ *
+ * Returns the INPUT ARRAY unchanged when there is nothing to map, so a meeting
+ * with no names (and every unlabelled transcript) is byte-identical, allocation
+ * for allocation, to the pre-SPEAKER.1 path.
+ */
+export function applySpeakerNames<T extends PromptLineSegment>(
+  segments: T[],
+  names: Record<string, string> | null | undefined,
+): T[] {
+  if (!names || Object.keys(names).length === 0) return segments;
+  if (!segments.some((segment) => segment.speaker && names[segment.speaker])) return segments;
+  return segments.map((segment) =>
+    segment.speaker && names[segment.speaker] ? { ...segment, speaker: names[segment.speaker] } : segment,
+  );
 }
 
 /**
@@ -178,13 +213,10 @@ export function formatLine(segment: { startTime: number; content: string }): str
  * every chunk is <= charBudget except the single-oversized-segment case; exactly
  * one chunk is returned when the total fits.
  */
-export function chunkSegments(
-  segments: { startTime: number; content: string }[],
-  charBudget: number,
-): { startTime: number; content: string }[][] {
+export function chunkSegments<T extends PromptLineSegment>(segments: T[], charBudget: number): T[][] {
   const sorted = [...segments].sort((a, b) => a.startTime - b.startTime);
-  const chunks: { startTime: number; content: string }[][] = [];
-  let current: { startTime: number; content: string }[] = [];
+  const chunks: T[][] = [];
+  let current: T[] = [];
   let currentLength = 0;
 
   for (const segment of sorted) {

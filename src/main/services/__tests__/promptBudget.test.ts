@@ -23,6 +23,7 @@ import {
   fitsWindow,
   chunkBudget,
   formatLine,
+  applySpeakerNames,
 } from '../promptBudget';
 import type { AIProviderName } from '../../../shared/types/ai';
 
@@ -256,5 +257,38 @@ describe('formatLine', () => {
   it('renders the [MM:SS] content shape the budget is measured with', () => {
     expect(formatLine({ startTime: 0, content: 'Kickoff' })).toBe('[00:00] Kickoff');
     expect(formatLine({ startTime: 125_000, content: 'Budget' })).toBe('[02:05] Budget');
+  });
+
+  // SPEAKER.1: the label rides in front of the content, and ONLY when there is
+  // one — an absent, null or blank speaker must render the pre-SPEAKER.1 bytes,
+  // because BRIEF-QUAL.1's prompt pins are captured from unlabelled fixtures.
+  it('prefixes the speaker label, and leaves an unlabelled line byte-identical', () => {
+    expect(formatLine({ startTime: 0, content: 'Kickoff', speaker: 'Me' })).toBe('[00:00] Me: Kickoff');
+    expect(formatLine({ startTime: 125_000, content: 'Budget', speaker: 'Speaker 2' })).toBe(
+      '[02:05] Speaker 2: Budget',
+    );
+    expect(formatLine({ startTime: 0, content: 'Kickoff', speaker: null })).toBe('[00:00] Kickoff');
+    expect(formatLine({ startTime: 0, content: 'Kickoff', speaker: '   ' })).toBe('[00:00] Kickoff');
+  });
+});
+
+describe('applySpeakerNames', () => {
+  const SEGMENTS = [
+    { startTime: 0, content: 'Kickoff', speaker: 'Me' },
+    { startTime: 1000, content: 'Budget', speaker: 'Speaker 2' },
+    { startTime: 2000, content: 'Wrap up', speaker: null },
+  ];
+
+  it('substitutes names at prompt time and leaves unmapped labels alone', () => {
+    const mapped = applySpeakerNames(SEGMENTS, { 'Speaker 2': 'Marta Vance' });
+    expect(mapped.map(formatLine)).toEqual(['[00:00] Me: Kickoff', '[00:01] Marta Vance: Budget', '[00:02] Wrap up']);
+    // Non-destructive: the input segments still carry their raw labels.
+    expect(SEGMENTS[1].speaker).toBe('Speaker 2');
+  });
+
+  it('returns the input array itself when there is nothing to map', () => {
+    expect(applySpeakerNames(SEGMENTS, null)).toBe(SEGMENTS);
+    expect(applySpeakerNames(SEGMENTS, {})).toBe(SEGMENTS);
+    expect(applySpeakerNames(SEGMENTS, { 'Speaker 9': 'Nobody' })).toBe(SEGMENTS);
   });
 });

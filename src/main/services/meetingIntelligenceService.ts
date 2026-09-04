@@ -29,9 +29,17 @@ import { createLogger } from './logger';
 import { autoPushActionItems, formatOwnerDueLines, readAutoPushSetting } from './autoPushService';
 import { ensureUnassignedProject } from './unassignedProjectService';
 import { detectProjectFromTranscript } from './projectDetectionService';
-import { buildProfileContext } from './twinProfileService';
+import { buildProfileContext, getProfile } from './twinProfileService';
 import { dispatchPostSession } from './postSessionDispatcher';
-import { chunkBudget, chunkSegments, fitsWindow, promptCharBudget } from './promptBudget';
+import {
+  applySpeakerNames,
+  chunkBudget,
+  chunkSegments,
+  fitsWindow,
+  formatLine,
+  promptCharBudget,
+  type PromptLineSegment,
+} from './promptBudget';
 import { extractMeetingStructure } from './briefExtractionService';
 import { buildRoster, formatRosterBlock, type RosterEntry } from './participantRosterService';
 import { readBriefLanguageSetting } from './briefLanguageSettings';
@@ -215,17 +223,48 @@ function toActionItem(row: typeof actionItems.$inferSelect): ActionItem {
 // Project auto-detect + brief threading helpers
 // ---------------------------------------------------------------------------
 
-/** Format meeting segments into a timestamped transcript string. */
-function formatTranscript(segments: { startTime: number; content: string }[]): string {
+/**
+ * Format meeting segments into a timestamped transcript string.
+ *
+ * SPEAKER.1: renders through promptBudget's `formatLine` rather than holding its
+ * own copy of the line shape. That copy is exactly what drifted from the measured
+ * shape before, and the two must move in LOCKSTEP now that a labelled segment
+ * renders `[MM:SS] Label: content` — delegating makes the lockstep structural,
+ * and promptBudget.test.ts asserts it on top of that.
+ */
+/**
+ * The prompt-time view of a meeting: raw speaker LABELS replaced by the names in
+ * `speakerNames` (SPEAKER.1). The stored segments keep their labels, so this is
+ * the only place the substitution happens for prompts, and a meeting with no
+ * names comes back as the SAME object — the unlabelled/unnamed path is untouched.
+ */
+function withSpeakerNames<T extends { segments: PromptLineSegment[]; speakerNames?: Record<string, string> | null }>(
+  meeting: T,
+): T {
+  const segments = applySpeakerNames(meeting.segments, meeting.speakerNames);
+  return segments === meeting.segments ? meeting : { ...meeting, segments };
+}
+
+/**
+ * The recording user's own name for the SPEAKER.1 `Me` legend, or null when
+ * there is no twin profile (the extraction prompt then says "the user").
+ * Error-isolated: a profile read must never fail a brief.
+ */
+async function readSelfName(): Promise<string | null> {
+  try {
+    const profile = await getProfile();
+    return profile?.identity?.name?.trim() || null;
+  } catch (err) {
+    log.error('Twin profile lookup failed for the speaker legend:', err);
+    return null;
+  }
+}
+
+function formatTranscript(segments: PromptLineSegment[]): string {
   return segments
     .slice()
     .sort((a, b) => a.startTime - b.startTime)
-    .map((segment) => {
-      const minutes = Math.floor(segment.startTime / 60000);
-      const seconds = Math.floor((segment.startTime % 60000) / 1000);
-      const timestamp = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-      return `[${timestamp}] ${segment.content}`;
-    })
+    .map(formatLine)
     .join('\n');
 }
 
@@ -909,8 +948,9 @@ async function assembleBriefUserPrompt(
 // a failing part aborts the whole run, promptBudget.ts owns the arithmetic, and
 // a long meeting still says so in the persisted brief.
 
-/** The only two segment fields prompt assembly in this file reads. */
-type PromptSegment = { startTime: number; content: string };
+/** The segment fields prompt assembly in this file reads — promptBudget owns the
+ *  shape so the measure and the sent bytes cannot diverge (SPEAKER.1). */
+type PromptSegment = PromptLineSegment;
 
 /** The brief-prompt fields the writer reads off a meeting row. */
 interface BriefMeetingFields {
@@ -1038,11 +1078,14 @@ function withPassesFooter(summaryText: string, extractionPasses: number): string
  * extraction call plus one writer call.
  */
 export async function generateBrief(meetingId: string): Promise<MeetingBrief | null> {
-  const meeting = await getMeeting(meetingId);
-  if (!meeting) throw new Error(`Meeting not found: ${meetingId}`);
-  if (!meeting.segments || meeting.segments.length === 0) {
+  const loaded = await getMeeting(meetingId);
+  if (!loaded) throw new Error(`Meeting not found: ${meetingId}`);
+  if (!loaded.segments || loaded.segments.length === 0) {
     throw new Error(`Meeting ${meetingId} has no transcript segments`);
   }
+  // SPEAKER.1: both passes below see NAMES where the user (or resolution) has
+  // provided them; the stored labels are untouched.
+  const meeting = withSpeakerNames(loaded);
 
   // 1. Project auto-detect — only when projectId is not already set. Detection
   //    happens BEFORE brief generation so threading uses the resolved id.
@@ -1062,7 +1105,12 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief | n
   // 3. EXTRACT. Never throws — an honest reason comes back instead, and it is a
   //    failure of the brief, not a reason to write one from nothing (AI-RESIL.1).
   const knownTerms = await readKnownTerms(resolvedProjectId);
-  const extracted = await extractMeetingStructure({ provider, meeting, roster, langName, knownTerms });
+  // The twin lookup is gated on the transcript actually being labelled: with no
+  // labels there is no legend to write, so an unlabelled meeting costs no extra
+  // read AND its prompt is byte-identical to the pre-SPEAKER.1 one.
+  const labelled = meeting.segments.some((segment) => segment.speaker?.trim());
+  const selfName = labelled ? await readSelfName() : null;
+  const extracted = await extractMeetingStructure({ provider, meeting, roster, langName, knownTerms, selfName });
   if ('failureReason' in extracted) {
     log.error(`Brief extraction failed for meeting ${meetingId}: ${extracted.failureReason}`);
     return persistBriefAndDispatch(meetingId, buildBriefFailureText(provider, extracted.failureReason), {
@@ -1301,11 +1349,13 @@ async function resolveActionItemDrafts(
  * insert path below — which is unchanged.
  */
 export async function generateActionItems(meetingId: string): Promise<ActionItem[]> {
-  const meeting = await getMeeting(meetingId);
-  if (!meeting) throw new Error(`Meeting not found: ${meetingId}`);
-  if (!meeting.segments || meeting.segments.length === 0) {
+  const loaded = await getMeeting(meetingId);
+  if (!loaded) throw new Error(`Meeting not found: ${meetingId}`);
+  if (!loaded.segments || loaded.segments.length === 0) {
     throw new Error(`Meeting ${meetingId} has no transcript segments`);
   }
+  // SPEAKER.1: same prompt-time name substitution the brief gets.
+  const meeting = withSpeakerNames(loaded);
 
   const drafts = await resolveActionItemDrafts(meetingId, meeting);
   if (drafts === null) return [];

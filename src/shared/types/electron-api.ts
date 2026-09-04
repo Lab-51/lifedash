@@ -46,6 +46,7 @@ import type {
   UpdateAIProviderInput,
 } from './ai';
 import type {
+  AudioChunkPayload,
   Meeting,
   TranscriptSegment,
   TranscriptSearchResult,
@@ -57,6 +58,7 @@ import type {
   UpdateMeetingInput,
   DeleteMeetingOptions,
   MeetingDeleteImpact,
+  SpeakerNameMap,
 } from './meetings';
 import type { ActionItem, ActionItemStatus, ConvertActionToCardResult, MeetingWithTranscript } from './intelligence';
 import type { WhisperModel, WhisperDownloadProgress } from './whisper';
@@ -339,7 +341,7 @@ export interface ElectronAPI {
   // Recording
   startRecording: (meetingId: string) => Promise<void>;
   stopRecording: () => Promise<string>;
-  sendAudioChunk: (buffer: ArrayBuffer) => void;
+  sendAudioChunk: (payload: AudioChunkPayload) => void;
   enableLoopbackAudio: () => Promise<void>;
   disableLoopbackAudio: () => Promise<void>;
   onRecordingState: (callback: (state: RecordingState) => void) => () => void;
@@ -429,6 +431,10 @@ export interface ElectronAPI {
 
   // Diarization
   diarizeMeeting: (meetingId: string) => Promise<{ success: boolean; speakers: string[]; error?: string }>;
+
+  // Speaker names (SPEAKER.1) — both resolve to the FULL label -> name map as stored.
+  renameSpeaker: (meetingId: string, label: string, name: string | null) => Promise<SpeakerNameMap>;
+  resolveSpeakerNames: (meetingId: string) => Promise<SpeakerNameMap>;
 
   // Meeting Analytics
   getMeetingAnalytics: (meetingId: string) => Promise<MeetingAnalytics>;

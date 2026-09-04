@@ -112,6 +112,7 @@ function toMeeting(row: typeof meetings.$inferSelect): Meeting {
     calendarEventId: row.calendarEventId ?? null,
     calendarSeriesId: row.calendarSeriesId ?? null,
     participants: row.participants ?? null,
+    speakerNames: row.speakerNames ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -462,16 +463,31 @@ export async function deleteMeeting(id: string, opts?: DeleteMeetingOptions): Pr
   }
 }
 
+/**
+ * Persist one transcript segment.
+ *
+ * @param speaker Optional capture-time speaker label. `'Me'` is written for the
+ *   microphone channel (SPEAKER.1); everything else stays null, which is what
+ *   the renderer and the brief prompts already treat as "unlabelled". Omitting
+ *   it is identical to passing null, so existing callers are unaffected.
+ */
 export async function addTranscriptSegment(
   meetingId: string,
   content: string,
   startTime: number,
   endTime: number,
+  speaker?: string | null,
 ): Promise<TranscriptSegment> {
   const db = getDb();
   const [row] = await db
     .insert(transcripts)
-    .values({ meetingId, content, startTime: Math.round(startTime), endTime: Math.round(endTime) })
+    .values({
+      meetingId,
+      content,
+      startTime: Math.round(startTime),
+      endTime: Math.round(endTime),
+      speaker: speaker ?? null,
+    })
     .returning();
   return toTranscriptSegment(row);
 }

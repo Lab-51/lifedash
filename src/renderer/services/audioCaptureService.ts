@@ -1,17 +1,24 @@
 // === FILE PURPOSE ===
 // Audio capture bridge -- thin layer that captures system audio via
-// electron-audio-loopback AND optionally the user's microphone,
-// mixes them via Web Audio API, extracts PCM via ScriptProcessorNode,
-// and streams Int16 chunks to the main process via IPC.
+// electron-audio-loopback AND optionally the user's microphone, keeps the two
+// on SEPARATE channels of one ScriptProcessorNode (via a ChannelMergerNode),
+// extracts Int16 PCM per channel plus their mono sum, and streams all three to
+// the main process via IPC.
 //
 // === DEPENDENCIES ===
-// Web Audio API (AudioContext, ScriptProcessorNode, GainNode), window.electronAPI
+// Web Audio API (AudioContext, ScriptProcessorNode, ChannelMergerNode, GainNode),
+// window.electronAPI
 //
 // === LIMITATIONS ===
 // - Uses deprecated ScriptProcessorNode (migrate to AudioWorklet in v2)
+// - Channel 0 is the mic and channel 1 is system audio ONLY as long as the
+//   merger keeps them apart; a host that downmixed the merger's output would
+//   make both channels identical (see the note on onaudioprocess below)
 // - Single recording at a time
 // - getDisplayMedia shows system picker dialog (user must select screen)
 // - Mic failure is non-fatal (falls back to system-only)
+
+import type { AudioChunkPayload } from '../../shared/types';
 
 /** Minimal info about an audio device for UI display. */
 export interface AudioDeviceInfo {
@@ -22,7 +29,13 @@ export interface AudioDeviceInfo {
 
 const SAMPLE_RATE = 16000; // 16kHz for Whisper
 const BUFFER_SIZE = 4096; // ScriptProcessorNode buffer size (samples per callback)
-const INPUT_CHANNELS = 1; // Mono (browser handles stereo->mono downmix)
+// Two input channels: 0 = microphone, 1 = system audio. The ChannelMergerNode
+// forces each of its inputs to mono (channelCount 1, channelCountMode
+// 'explicit'), which is the same stereo->mono downmix the old single-input
+// graph applied at the processor's input.
+const INPUT_CHANNELS = 2;
+const MIC_CHANNEL = 0;
+const SYSTEM_CHANNEL = 1;
 const OUTPUT_CHANNELS = 1; // Mono output
 
 // System audio resources
@@ -30,6 +43,7 @@ let audioContext: AudioContext | null = null;
 let mediaStream: MediaStream | null = null;
 let sourceNode: MediaStreamAudioSourceNode | null = null;
 let systemGainNode: GainNode | null = null;
+let mergerNode: ChannelMergerNode | null = null;
 let processorNode: ScriptProcessorNode | null = null;
 
 // Microphone resources
@@ -122,12 +136,15 @@ async function acquireMicStream(deviceId?: string): Promise<MediaStream | null> 
 /**
  * Start capturing system audio, optionally mixed with microphone input.
  *
- * Audio graph:
- *   getDisplayMedia (system) → systemSource → systemGain ─┐
- *                                                          ├→ processorNode → IPC
- *   getUserMedia (mic)       → micSource    → micGain    ─┘
+ * Audio graph (SPEAKER.1):
+ *   getUserMedia (mic)       → micSource    → micGain    → merger input 0 ─┐
+ *                                                                          ├→ processorNode(4096, 2, 1) → IPC
+ *   getDisplayMedia (system) → systemSource → systemGain → merger input 1 ─┘
  *
- * Web Audio API automatically sums signals connected to the same input node.
+ * The merger keeps the two sources on separate channels instead of letting Web
+ * Audio sum them at a shared input, so `onaudioprocess` can read each one on its
+ * own. The mono sum every existing consumer expects is computed in JS from those
+ * two channels — one clock, one callback, frame-aligned channels for free.
  *
  * @param includeMic Whether to also capture the user's microphone (default: true)
  * @param micDeviceId Optional specific microphone device ID to use
@@ -189,11 +206,13 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
   systemGainNode = audioContext.createGain();
   systemGainNode.gain.value = 1.0;
 
+  mergerNode = audioContext.createChannelMerger(INPUT_CHANNELS);
   processorNode = audioContext.createScriptProcessor(BUFFER_SIZE, INPUT_CHANNELS, OUTPUT_CHANNELS);
 
-  // Connect system audio: source → gain → processor
+  // Connect system audio: source → gain → merger input 1 (mic takes input 0)
   sourceNode.connect(systemGainNode);
-  systemGainNode.connect(processorNode);
+  systemGainNode.connect(mergerNode, 0, SYSTEM_CHANNEL);
+  mergerNode.connect(processorNode);
 
   // Step 7: Optionally add microphone input
   currentMicDeviceId = micDeviceId;
@@ -203,9 +222,9 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
       micSourceNode = audioContext.createMediaStreamSource(micStream);
       micGainNode = audioContext.createGain();
       micGainNode.gain.value = 1.0;
-      // Connect mic: source → gain → processor (sums with system audio)
+      // Connect mic: source → gain → merger input 0 (its own channel)
       micSourceNode.connect(micGainNode);
-      micGainNode.connect(processorNode);
+      micGainNode.connect(mergerNode, 0, MIC_CHANNEL);
 
       // Watch for mic track ending unexpectedly (e.g., device disconnected)
       const micTrack = micStream.getAudioTracks()[0];
@@ -237,7 +256,7 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
             micGainNode = audioContext.createGain();
             micGainNode.gain.value = 1.0;
             micSourceNode.connect(micGainNode);
-            micGainNode.connect(processorNode!);
+            micGainNode.connect(mergerNode!, 0, MIC_CHANNEL);
             console.info('[audioCaptureService] Mic recovered successfully.');
             if (audioInterruptedCallback) audioInterruptedCallback('mic', true);
           } else {
@@ -249,20 +268,39 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
     }
   }
 
-  // Step 8: Extract PCM, calculate level, and send to main
+  // Step 8: Extract per-channel PCM, calculate level, and send to main.
+  //
+  // SPEAKER.1: channel 0 is the mic and channel 1 is system audio because the
+  // ChannelMergerNode routes them there. `mixed` reproduces exactly what the old
+  // single-input graph produced — Web Audio summed the two gains at the shared
+  // input in Float32, and so do we, before the same float32ToInt16 clamp — so
+  // the WAV file on disk and every other mixed-stream consumer are unchanged.
   processorNode.onaudioprocess = (event: AudioProcessingEvent) => {
-    const float32Data = event.inputBuffer.getChannelData(0);
+    const micSamples = event.inputBuffer.getChannelData(MIC_CHANNEL);
+    const systemSamples = event.inputBuffer.getChannelData(SYSTEM_CHANNEL);
 
-    // Calculate audio level for UI meter (scale RMS to 0-1 range)
-    // Multiply by ~5 to make the meter more visually responsive
-    const rms = calculateRMS(float32Data);
+    const mixedSamples = new Float32Array(micSamples.length);
+    for (let i = 0; i < mixedSamples.length; i++) {
+      mixedSamples[i] = micSamples[i] + systemSamples[i];
+    }
+
+    // Calculate audio level for UI meter from the MIXED sum (scale RMS to 0-1
+    // range). Multiply by ~5 to make the meter more visually responsive.
+    const rms = calculateRMS(mixedSamples);
     currentAudioLevel = Math.min(1, rms * 5);
     if (audioLevelCallback) audioLevelCallback(currentAudioLevel);
 
-    const int16Data = float32ToInt16(float32Data);
-    // Send raw Int16 PCM bytes to main process (one-way, fire-and-forget)
-    // Cast is safe: Int16Array created via `new Int16Array(n)` always uses ArrayBuffer
-    window.electronAPI.sendAudioChunk(int16Data.buffer as ArrayBuffer);
+    // Send raw Int16 PCM bytes to main process (one-way, fire-and-forget).
+    // `micGainNode` is the live "mic is connected" flag: the track-ended handler
+    // above clears it and only restores it on a successful recovery, so a null
+    // `mic` here means the device genuinely produced nothing for this window.
+    // Casts are safe: Int16Array created via `new Int16Array(n)` always uses ArrayBuffer.
+    const payload: AudioChunkPayload = {
+      mixed: float32ToInt16(mixedSamples).buffer as ArrayBuffer,
+      mic: micGainNode ? (float32ToInt16(micSamples).buffer as ArrayBuffer) : null,
+      system: float32ToInt16(systemSamples).buffer as ArrayBuffer,
+    };
+    window.electronAPI.sendAudioChunk(payload);
   };
 
   // Connect to destination to keep the processor running
@@ -340,6 +378,10 @@ function cleanup(): void {
       track.stop();
     });
     micStream = null;
+  }
+  if (mergerNode) {
+    mergerNode.disconnect();
+    mergerNode = null;
   }
   // Clean up system audio resources
   if (systemGainNode) {

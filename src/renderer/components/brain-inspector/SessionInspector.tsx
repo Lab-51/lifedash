@@ -160,6 +160,13 @@ export default function SessionInspector({ meetingId }: { meetingId: string }) {
           onCopyActions={() => handleCopy('actions', meeting.actionItems.map((i) => `- ${i.description}`).join('\n'))}
           copiedField={copiedField}
           onCopy={handleCopy}
+          onRenameSpeaker={async (label, name) => {
+            // Local write + local reload, NOT meetingStore.renameSpeaker: the
+            // inspector owns its own meeting copy, and the store action writes
+            // selectedMeeting, which belongs to the host page.
+            await window.electronAPI.renameSpeaker(meetingId, label, name);
+            await reload();
+          }}
         />
       </div>
 

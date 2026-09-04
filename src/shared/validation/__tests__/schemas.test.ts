@@ -13,6 +13,7 @@ import {
   createIdeaInputSchema,
   createMeetingInputSchema,
   updateMeetingParticipantsSchema,
+  renameSpeakerSchema,
   exportOptionsSchema,
   taskStructuringNameSchema,
   taskStructuringDescriptionSchema,
@@ -354,6 +355,32 @@ describe('updateMeetingParticipantsSchema', () => {
   it('rejects a non-uuid meetingId', () => {
     const result = updateMeetingParticipantsSchema.safeParse({ meetingId: 'not-a-uuid', participants: ['Alice'] });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('renameSpeakerSchema', () => {
+  const ok = (payload: unknown) => renameSpeakerSchema.safeParse(payload);
+
+  it('accepts a trimmed label/name pair, and null to CLEAR the name', () => {
+    const set = ok({ meetingId: VALID_UUID, label: ' Speaker 2 ', name: '  Marta Vance  ' });
+    expect(set.success).toBe(true);
+    if (set.success) expect(set.data).toEqual({ meetingId: VALID_UUID, label: 'Speaker 2', name: 'Marta Vance' });
+    expect(ok({ meetingId: VALID_UUID, label: 'Speaker 2', name: null }).success).toBe(true);
+  });
+
+  it('rejects a bad meetingId, an empty/oversized label, and a missing name field', () => {
+    expect(ok({ meetingId: 'not-a-uuid', label: 'Me', name: 'Marta Vance' }).success).toBe(false);
+    expect(ok({ meetingId: VALID_UUID, label: '   ', name: 'Marta Vance' }).success).toBe(false);
+    expect(ok({ meetingId: VALID_UUID, label: 'x'.repeat(51), name: 'Marta Vance' }).success).toBe(false);
+    // `undefined` is not `null`: clearing has to be explicit.
+    expect(ok({ meetingId: VALID_UUID, label: 'Me' }).success).toBe(false);
+  });
+
+  it('holds the name to the participant rules — 80 chars, never an email', () => {
+    expect(ok({ meetingId: VALID_UUID, label: 'Me', name: 'x'.repeat(80) }).success).toBe(true);
+    expect(ok({ meetingId: VALID_UUID, label: 'Me', name: 'x'.repeat(81) }).success).toBe(false);
+    expect(ok({ meetingId: VALID_UUID, label: 'Me', name: 'alice@example.com' }).success).toBe(false);
+    expect(ok({ meetingId: VALID_UUID, label: 'Me', name: '   ' }).success).toBe(false);
   });
 });
 

@@ -30,6 +30,10 @@ vi.mock('../liveTriageService', () => ({
 vi.mock('../deepgramTranscriber', () => ({ transcribeSegment: vi.fn() }));
 vi.mock('../assemblyaiTranscriber', () => ({ transcribeSegment: vi.fn() }));
 vi.mock('../performanceTracker', () => ({ trackTiming: (_label: string, fn: () => unknown) => fn() }));
+// These tests are about the local-only enforcement, not the whisper glossary
+// (SPEAKER.1 Task 2) — mocked wholesale so its real DB/roster dependency chain
+// never loads here.
+vi.mock('../whisperPromptService', () => ({ buildInitialPrompt: vi.fn().mockResolvedValue('') }));
 vi.mock('../../db/connection', () => ({ getDb: vi.fn() }));
 vi.mock('../../db/schema', () => ({
   settings: { __table: 'settings', key: 'key', value: 'value' },

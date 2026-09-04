@@ -15,6 +15,7 @@ import type {
   ActionItemStatus,
   MeetingAnalytics,
   DeleteMeetingOptions,
+  SpeakerNameMap,
 } from '../../shared/types';
 
 interface MeetingStore {
@@ -82,6 +83,17 @@ interface MeetingStore {
 
   // Diarization + Analytics actions
   diarizeMeeting: (meetingId: string) => Promise<void>;
+  /** Set (or, with `null`, clear) one speaker's display name (SPEAKER.1). Only
+   *  touches selectedMeeting when the page actually owns that meeting — the same
+   *  guard diarizeMeeting keeps. */
+  renameSpeaker: (meetingId: string, label: string, name: string | null) => Promise<void>;
+  /** Resolve the still-unnamed speaker labels from the meeting's own evidence
+   *  (SPEAKER.1) and refresh selectedMeeting so the resolved names render.
+   *  Resolves to the full stored map, or `null` when the call itself failed —
+   *  the caller degrades to "no names resolved" either way, because this must
+   *  never throw into the meeting view (AI-RESIL.1). Non-destructive: the
+   *  service never overwrites an existing entry, so there is nothing to confirm. */
+  resolveSpeakerNames: (meetingId: string) => Promise<SpeakerNameMap | null>;
   loadAnalytics: (meetingId: string) => Promise<void>;
   clearAnalytics: () => void;
 }
@@ -372,6 +384,32 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       }
     } catch (err) {
       set({ diarizing: false, diarizationError: err instanceof Error ? err.message : 'Diarization failed' });
+    }
+  },
+
+  // Rename (or clear the name of) one speaker label
+  renameSpeaker: async (meetingId, label, name) => {
+    try {
+      const speakerNames = await window.electronAPI.renameSpeaker(meetingId, label, name);
+      const selected = get().selectedMeeting;
+      if (selected?.id === meetingId) set({ selectedMeeting: { ...selected, speakerNames } });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to rename speaker' });
+    }
+  },
+
+  // Resolve the unnamed speaker labels (vocatives first, then ONE roster-
+  // constrained model call in main). Deliberately does NOT set the page-level
+  // `error`: this is an optional, non-destructive assist, and a failure is
+  // reported to the user as "no names resolved" next to the trigger.
+  resolveSpeakerNames: async (meetingId) => {
+    try {
+      const speakerNames = await window.electronAPI.resolveSpeakerNames(meetingId);
+      const selected = get().selectedMeeting;
+      if (selected?.id === meetingId) set({ selectedMeeting: { ...selected, speakerNames } });
+      return speakerNames;
+    } catch {
+      return null;
     }
   },
 

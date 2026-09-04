@@ -19,6 +19,9 @@
 // Silence detection is two-stage: a cheap RMS fast path, then a Silero VAD
 // gate (local provider only) that SKIPS whole windows with no detected
 // speech. See the VAD section below — it never trims or remaps audio.
+// Since SPEAKER.1 the mic and system streams are transcribed as separate
+// CHANNELS when both are available (see the capture-channel section), so the
+// user's own lines can be labelled `Me` at capture time with no model at all.
 
 import { BrowserWindow } from 'electron';
 import * as meetingService from './meetingService';
@@ -27,13 +30,14 @@ import * as whisperModelManager from './whisperModelManager';
 import * as transcriptionProviderService from './transcriptionProviderService';
 import * as deepgramTranscriber from './deepgramTranscriber';
 import * as assemblyaiTranscriber from './assemblyaiTranscriber';
+import * as whisperPromptService from './whisperPromptService';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { aiUsage, settings } from '../db/schema';
 import { createLogger } from './logger';
 import { trackTiming } from './performanceTracker';
-import type { TranscriptionProviderType, TranscriptionProgress } from '../../shared/types';
-import { resolveLanguagePreset, DEFAULT_MIXED_PROMPTS } from '../../shared/types/transcription';
+import type { AudioChunkBuffers, TranscriptionProviderType, TranscriptionProgress } from '../../shared/types';
+import { resolveLanguagePreset } from '../../shared/types/transcription';
 import { findMatchedHallucinationPhrase } from '../../shared/transcription/hallucinationFilter';
 
 const log = createLogger('Transcription');
@@ -61,6 +65,46 @@ const OVERLAP_BYTES = SAMPLE_RATE * OVERLAP_SEC * 2; // 32,000
 // which is effectively silence or very faint background noise.
 const SILENCE_RMS_THRESHOLD = 50;
 
+// === Capture channels (SPEAKER.1) =========================================
+// Mic and system audio arrive as separate streams on the same clock. Each is a
+// fully independent transcription channel: its own accumulator, window index and
+// rolling whisper prompt, so one speaker's context never seeds the other's.
+// `mixed` is the pre-SPEAKER.1 mono sum, still used verbatim whenever the split
+// is unavailable (mic off, legacy payload) or inappropriate (cloud providers).
+type AudioChannel = 'mic' | 'system' | 'mixed';
+const AUDIO_CHANNELS: readonly AudioChannel[] = ['mic', 'system', 'mixed'];
+
+/** Speaker label persisted per channel. `Me` is the only capture-time label. */
+const CHANNEL_SPEAKER: Record<AudioChannel, string | null> = { mic: 'Me', system: null, mixed: null };
+
+interface ChannelState {
+  accumulator: Buffer;
+  segmentIndex: number;
+  /** Previous segment text for this channel's whisper context carryover. */
+  lastSegmentPrompt: string;
+}
+
+interface PendingSegment {
+  channel: AudioChannel;
+  segment: Buffer;
+}
+
+function makeChannelStates(): Record<AudioChannel, ChannelState> {
+  return {
+    mic: { accumulator: Buffer.alloc(0), segmentIndex: 0, lastSegmentPrompt: '' },
+    system: { accumulator: Buffer.alloc(0), segmentIndex: 0, lastSegmentPrompt: '' },
+    mixed: { accumulator: Buffer.alloc(0), segmentIndex: 0, lastSegmentPrompt: '' },
+  };
+}
+
+let channels = makeChannelStates();
+
+// Whether this session transcribes mic and system separately. Resolved from the
+// FIRST chunk and never changed afterwards, so a channel's window clock can
+// never restart part-way through a recording.
+let splitChannels = false;
+let channelModeResolved = false;
+
 let whisperContext: WhisperContext | null = null;
 let vadContext: WhisperVadContext | null = null;
 // Single shared init promise: dispatchNext runs up to MAX_CONCURRENT segments,
@@ -72,17 +116,17 @@ let vadInitPromise: Promise<WhisperVadContext | null> | null = null;
 let vadDisabled = false;
 let mainWindow: BrowserWindow | null = null;
 let currentMeetingId: string | null = null;
-let accumulatorBuffer: Buffer = Buffer.alloc(0);
-let segmentIndex = 0;
 let lastTranscriptText = '';
-let pendingSegments: Buffer[] = []; // Queue of segments waiting to be transcribed
+// Shared FIFO of segments waiting to be transcribed. One queue across channels
+// keeps MAX_CONCURRENT a single shared budget and preserves arrival order, so
+// neither channel can starve the other.
+let pendingSegments: PendingSegment[] = [];
 let activeTranscriptions = 0;
 const MAX_CONCURRENT = 2;
 let activeProvider: TranscriptionProviderType = 'local';
 let activeLanguage: string = 'en';
 let activePreset: WhisperPreset = 'balanced';
-let lastSegmentPrompt: string = ''; // Previous segment text for context carryover
-let activeInitialPrompt: string = ''; // Trilingual glossary seed for mixed-language presets
+let activeInitialPrompt: string = ''; // Whisper glossary seed (roster + project terms + preset glossary), all presets
 
 // Progress tracking for the renderer
 let totalSegmentsQueued = 0;
@@ -170,26 +214,21 @@ export async function start(meetingId: string, language?: string): Promise<void>
     activePreset = (preset in WHISPER_PRESETS ? preset : 'balanced') as WhisperPreset;
   }
 
-  // Resolve mixed-language preset: extract base language and seed the initial prompt
+  // Resolve the base language for whisper's `language` option, and build the
+  // glossary (roster + project terms + preset glossary) ONCE for the whole
+  // session — see whisperPromptService for the composition and budget rules.
   {
-    const preset = resolveLanguagePreset(activeLanguage);
-    activeLanguage = preset.baseLanguage;
-    activeInitialPrompt = '';
-    if (preset.mixedCode) {
-      const db = getDb();
-      const promptKey = `transcription:initial-prompt:${preset.mixedCode}`;
-      const promptRows = await db.select().from(settings).where(eq(settings.key, promptKey));
-      activeInitialPrompt =
-        promptRows.length > 0 && promptRows[0].value ? promptRows[0].value : DEFAULT_MIXED_PROMPTS[preset.mixedCode];
-    }
+    const presetCode = activeLanguage;
+    activeLanguage = resolveLanguagePreset(presetCode).baseLanguage;
+    activeInitialPrompt = await whisperPromptService.buildInitialPrompt(meetingId, presetCode);
   }
 
   // Common state reset
   currentMeetingId = meetingId;
-  accumulatorBuffer = Buffer.alloc(0);
-  segmentIndex = 0;
+  channels = makeChannelStates();
+  splitChannels = false;
+  channelModeResolved = false;
   lastTranscriptText = '';
-  lastSegmentPrompt = '';
   pendingSegments = [];
   activeTranscriptions = 0;
   totalSegmentsQueued = 0;
@@ -260,24 +299,54 @@ export async function start(meetingId: string, language?: string): Promise<void>
 }
 
 /**
- * Feed a PCM chunk into the transcription pipeline.
- * Accumulates chunks and dispatches 10-second segments to Whisper or API.
+ * Feed one audio callback into the transcription pipeline.
+ *
+ * When the microphone is available the mic and system channels are transcribed
+ * SEPARATELY and the mixed sum is never transcribed at all — that is what makes
+ * `Me` labelling possible without a diarization model, and it is also why no
+ * line can appear twice. When it is not, the mixed sum is transcribed exactly as
+ * it was before SPEAKER.1.
  */
-export function addChunk(chunk: Buffer): void {
+export function addChunk(payload: AudioChunkBuffers): void {
   if (!currentMeetingId) return;
   if (activeProvider === 'local' && !whisperContext) return;
 
-  accumulatorBuffer = Buffer.concat([accumulatorBuffer, chunk]);
+  if (!channelModeResolved) {
+    channelModeResolved = true;
+    // Cloud providers keep receiving the mono sum: transcribing two channels
+    // through Deepgram/AssemblyAI would double the paid minutes of every
+    // session, which is out of scope for SPEAKER.1.
+    splitChannels = payload.mic !== null && activeProvider === 'local';
+  }
+
+  if (!splitChannels) {
+    feedChannel('mixed', payload.mixed);
+    return;
+  }
+
+  // Once split, the mic channel is fed on EVERY callback so its window clock
+  // stays in lockstep with the system channel's. While the mic track is down the
+  // renderer sends `mic: null` and we feed silence, which the RMS fast path
+  // skips for free — no audio is lost, that device genuinely produced none, and
+  // the mic timestamps stay truthful when it comes back.
+  feedChannel('mic', payload.mic ?? Buffer.alloc(payload.system.byteLength));
+  feedChannel('system', payload.system);
+}
+
+/** Accumulate one channel's chunk and queue any whole 10-second windows it completes. */
+function feedChannel(channel: AudioChannel, chunk: Buffer): void {
+  const state = channels[channel];
+  state.accumulator = Buffer.concat([state.accumulator, chunk]);
 
   // When we have enough for a full segment, queue it.
   // Keep 1s overlap so words at segment boundaries aren't lost.
-  while (accumulatorBuffer.byteLength >= BYTES_PER_SEGMENT) {
-    const segment = accumulatorBuffer.subarray(0, BYTES_PER_SEGMENT);
-    pendingSegments.push(Buffer.from(segment)); // Copy to avoid reference issues
+  while (state.accumulator.byteLength >= BYTES_PER_SEGMENT) {
+    const segment = state.accumulator.subarray(0, BYTES_PER_SEGMENT);
+    pendingSegments.push({ channel, segment: Buffer.from(segment) }); // Copy to avoid reference issues
     totalSegmentsQueued++;
     // Advance by (segment - overlap) so the next segment starts 1s earlier
     const advance = BYTES_PER_SEGMENT - OVERLAP_BYTES;
-    accumulatorBuffer = accumulatorBuffer.subarray(advance);
+    state.accumulator = state.accumulator.subarray(advance);
     dispatchNext();
   }
 }
@@ -290,13 +359,22 @@ export async function stop(): Promise<void> {
   if (activeProvider === 'local' && !whisperContext) return;
   if (activeProvider !== 'local' && !currentMeetingId) return;
 
-  // Transcribe remaining accumulated audio (partial segment)
-  if (accumulatorBuffer.byteLength > 0 && currentMeetingId) {
-    pendingSegments.push(Buffer.from(accumulatorBuffer));
-    totalSegmentsQueued++;
-    accumulatorBuffer = Buffer.alloc(0);
-    emitProgress('finalizing');
-    dispatchNext();
+  // Transcribe remaining accumulated audio (partial segment), per channel.
+  // Channels this session never used hold an empty accumulator and are skipped.
+  if (currentMeetingId) {
+    let flushedAny = false;
+    for (const channel of AUDIO_CHANNELS) {
+      const state = channels[channel];
+      if (state.accumulator.byteLength === 0) continue;
+      pendingSegments.push({ channel, segment: Buffer.from(state.accumulator) });
+      totalSegmentsQueued++;
+      state.accumulator = Buffer.alloc(0);
+      flushedAny = true;
+    }
+    if (flushedAny) {
+      emitProgress('finalizing');
+      dispatchNext();
+    }
   }
 
   // Wait for pending transcriptions to finish
@@ -425,15 +503,20 @@ function dispatchNext(): void {
   // For local mode, need whisper context to be available
   if (activeProvider === 'local' && !whisperContext) return;
 
-  const segment = pendingSegments.shift()!;
-  const startTimeMs = segmentIndex * SEGMENT_DURATION_SEC * 1000;
-  const segmentNumber = segmentIndex;
-  segmentIndex++;
+  const { channel, segment } = pendingSegments.shift()!;
+  // Every channel is fed from the same audio callback, so equal window indices
+  // mean equal wall-clock offsets and the two transcripts interleave correctly.
+  const state = channels[channel];
+  const startTimeMs = state.segmentIndex * SEGMENT_DURATION_SEC * 1000;
+  const segmentNumber = state.segmentIndex;
+  state.segmentIndex++;
 
-  // Skip silent segments to avoid Whisper hallucinations and save CPU
+  // Skip silent segments to avoid Whisper hallucinations and save CPU. Run per
+  // channel, so a channel nobody is speaking on costs one RMS pass and nothing
+  // more — this is what keeps two channels from doubling the whisper load.
   const rms = calculateInt16RMS(segment);
   if (rms < SILENCE_RMS_THRESHOLD) {
-    log.debug(`Skipping silent segment #${segmentNumber} (RMS: ${rms.toFixed(0)})`);
+    log.debug(`Skipping silent ${channel} segment #${segmentNumber} (RMS: ${rms.toFixed(0)})`);
     segmentsCompleted++;
     emitProgress('transcribing');
     dispatchNext(); // Try next segment
@@ -443,7 +526,7 @@ function dispatchNext(): void {
   // Claim the concurrency slot before the (async) VAD check, so an in-flight
   // check keeps stop() waiting instead of releasing contexts underneath it.
   activeTranscriptions++;
-  void gateAndDispatch(segment, startTimeMs, segmentNumber);
+  void gateAndDispatch(channel, segment, startTimeMs, segmentNumber);
 
   // Try to fill the next concurrent slot
   dispatchNext();
@@ -454,9 +537,14 @@ function dispatchNext(): void {
  * A skipped window gets the same bookkeeping as the RMS skip: progress
  * increments, nothing persisted, no triage.
  */
-async function gateAndDispatch(segment: Buffer, startTimeMs: number, segmentNumber: number): Promise<void> {
+async function gateAndDispatch(
+  channel: AudioChannel,
+  segment: Buffer,
+  startTimeMs: number,
+  segmentNumber: number,
+): Promise<void> {
   if (await isWindowSilentByVad(segment)) {
-    log.debug(`Skipping segment #${segmentNumber} — no speech detected (VAD)`);
+    log.debug(`Skipping ${channel} segment #${segmentNumber} — no speech detected (VAD)`);
     activeTranscriptions--;
     segmentsCompleted++;
     emitProgress('transcribing');
@@ -466,15 +554,24 @@ async function gateAndDispatch(segment: Buffer, startTimeMs: number, segmentNumb
 
   if (activeProvider === 'local') {
     // Local Whisper: transcribe directly (non-blocking via native async worker)
-    await dispatchToWhisper(segment, startTimeMs, segmentNumber);
+    await dispatchToWhisper(channel, segment, startTimeMs, segmentNumber);
   } else {
     // Cloud API: dispatch async
-    await dispatchToApi(segment, startTimeMs, segmentNumber);
+    await dispatchToApi(channel, segment, startTimeMs, segmentNumber);
   }
 }
 
 /** Dispatch a segment to the local Whisper context for transcription */
-async function dispatchToWhisper(segment: Buffer, startTimeMs: number, segmentNumber: number): Promise<void> {
+async function dispatchToWhisper(
+  channel: AudioChannel,
+  segment: Buffer,
+  startTimeMs: number,
+  segmentNumber: number,
+): Promise<void> {
+  // Captured up front: `channels` is replaced wholesale by start(), so a segment
+  // still in flight across a restart writes to the old session's state object
+  // and is discarded, rather than seeding the new session's prompt.
+  const state = channels[channel];
   try {
     // Convert Buffer to ArrayBuffer for the native module
     const arrayBuffer = segment.buffer.slice(
@@ -497,13 +594,17 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number, segmentNu
     // Build prompt: glossary (initial prompt) takes priority; recent context fills remaining budget
     {
       let finalPrompt = '';
-      if (activeInitialPrompt && lastSegmentPrompt) {
-        const budget = 250;
+      if (activeInitialPrompt && state.lastSegmentPrompt) {
+        // Same budget whisperPromptService composed the glossary within (see its
+        // GLOSSARY_BUDGET_CHARS comment for the token-vs-char reasoning) — this
+        // slice is a no-op on a glossary it already built, and only trims the
+        // rolling context's SHARE of the remaining room.
+        const budget = whisperPromptService.GLOSSARY_BUDGET_CHARS;
         const glossary = activeInitialPrompt.slice(0, budget);
         const remaining = Math.max(0, budget - glossary.length - 1);
-        finalPrompt = remaining > 0 ? `${glossary} ${lastSegmentPrompt.slice(-remaining)}` : glossary;
+        finalPrompt = remaining > 0 ? `${glossary} ${state.lastSegmentPrompt.slice(-remaining)}` : glossary;
       } else {
-        finalPrompt = activeInitialPrompt || lastSegmentPrompt;
+        finalPrompt = activeInitialPrompt || state.lastSegmentPrompt;
       }
       if (finalPrompt) whisperOpts.prompt = finalPrompt;
     }
@@ -530,7 +631,7 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number, segmentNu
 
         const matchedPhrase = findMatchedHallucinationPhrase(segText);
         if (matchedPhrase) {
-          log.debug(`Dropping hallucinated segment #${segmentNumber} (matched: "${matchedPhrase}")`);
+          log.debug(`Dropping hallucinated ${channel} segment #${segmentNumber} (matched: "${matchedPhrase}")`);
           continue;
         }
 
@@ -543,7 +644,13 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number, segmentNu
         const segEndMs = Math.max(0, Math.round(startTimeMs + t1));
 
         try {
-          const saved = await meetingService.addTranscriptSegment(currentMeetingId, segText, segStartMs, segEndMs);
+          const saved = await meetingService.addTranscriptSegment(
+            currentMeetingId,
+            segText,
+            segStartMs,
+            segEndMs,
+            CHANNEL_SPEAKER[channel],
+          );
 
           // Push segment to renderer
           if (mainWindow && !mainWindow.isDestroyed()) {
@@ -561,7 +668,7 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number, segmentNu
       // segment. If everything in this window was filtered, leave the prior
       // prompt in place rather than feeding a hallucination forward.
       if (survivingTexts.length > 0) {
-        lastSegmentPrompt = survivingTexts.join(' ').slice(-200);
+        state.lastSegmentPrompt = survivingTexts.join(' ').slice(-200);
       }
     }
   } catch (err) {
@@ -580,7 +687,12 @@ async function dispatchToWhisper(segment: Buffer, startTimeMs: number, segmentNu
 }
 
 /** Dispatch a segment to the configured cloud API (Deepgram or AssemblyAI) */
-async function dispatchToApi(segment: Buffer, startTimeMs: number, segmentNumber: number): Promise<void> {
+async function dispatchToApi(
+  channel: AudioChannel,
+  segment: Buffer,
+  startTimeMs: number,
+  segmentNumber: number,
+): Promise<void> {
   try {
     const result = await trackTiming(`Transcription API: ${activeProvider}`, async () => {
       if (activeProvider === 'deepgram') {
@@ -601,6 +713,7 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number, segmentNumber
             seg.text.trim(),
             seg.startMs,
             seg.endMs,
+            CHANNEL_SPEAKER[channel],
           );
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('recording:transcript-segment', saved);
@@ -642,7 +755,7 @@ async function dispatchToApi(segment: Buffer, startTimeMs: number, segmentNumber
           reason: 'API transcription failed, using local Whisper',
         });
       }
-      await dispatchToWhisper(segment, startTimeMs, segmentNumber);
+      await dispatchToWhisper(channel, segment, startTimeMs, segmentNumber);
       return; // dispatchToWhisper handles activeTranscriptions and dispatchNext
     }
 

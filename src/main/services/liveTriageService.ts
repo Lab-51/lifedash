@@ -329,7 +329,12 @@ async function generateDrafts(
         prompt,
         system: systemPrompt,
         temperature: provider.temperature,
-        maxTokens: provider.maxTokens ?? 512,
+        // 1024, not 512: a legitimate JSON array of suggestions for a busy minute can
+        // exceed 512 tokens, and with thinking off (--reasoning off, BRIEF-QUAL.1) the
+        // whole budget is content. Measured 2026-08-21: 314 live_triage calls returned
+        // EMPTY text at the 512 cap because hidden thinking consumed it before --reasoning
+        // off shipped; 1024 gives real proposal JSON headroom on top of that fix.
+        maxTokens: provider.maxTokens ?? 1024,
       });
       text = result.text ?? '';
     } catch (err) {

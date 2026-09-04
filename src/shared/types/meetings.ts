@@ -112,8 +112,16 @@ export interface Meeting {
    *  when never set — participantRosterService is the merge point that also
    *  brings in calendar attendees and known project people. */
   participants: string[] | null;
+  /** Speaker LABEL -> display NAME (SPEAKER.1). The transcript rows keep their
+   *  raw labels; this map is applied at render and at prompt time, so a wrong
+   *  resolution is one click to undo. Optional so every pre-SPEAKER.1 fixture
+   *  and caller stays valid; absent and null both mean "no names". */
+  speakerNames?: SpeakerNameMap | null;
   createdAt: string;
 }
+
+/** Speaker label (`Me`, `Speaker 2`) -> the display name for that speaker. */
+export type SpeakerNameMap = Record<string, string>;
 
 export interface TranscriptSegment {
   id: string;
@@ -179,6 +187,33 @@ export interface MeetingPrepData {
   pendingActions: { description: string; meetingTitle: string }[];
   highPriorityCards: { title: string; column: string; dueDate: string | null }[];
   aiBriefing: string;
+}
+
+/**
+ * One audio-callback's worth of 16 kHz Int16 PCM, split by capture channel
+ * (SPEAKER.1). All three views cover the SAME frames — the merger feeds a single
+ * 2-channel ScriptProcessor, so `mixed[i] === mic[i] + system[i]` sample-wise.
+ *
+ * `mixed` is the mono sum and is the ONLY stream written to the WAV file on
+ * disk, so that file stays byte-identical to pre-SPEAKER.1 recordings.
+ * `mic` is null when the microphone is off for this recording or its track has
+ * ended (the renderer clears it while it tries to re-acquire the device).
+ */
+export interface AudioChunkPayload {
+  mixed: ArrayBuffer;
+  mic: ArrayBuffer | null;
+  system: ArrayBuffer;
+}
+
+/**
+ * The main-process view of {@link AudioChunkPayload} — the same three channels
+ * once the preload bridge has wrapped them as Node buffers. Type-only here so
+ * the IPC boundary, audioProcessor and transcriptionService share one shape.
+ */
+export interface AudioChunkBuffers {
+  mixed: Buffer;
+  mic: Buffer | null;
+  system: Buffer;
 }
 
 /** Recording state pushed from main to renderer via events */

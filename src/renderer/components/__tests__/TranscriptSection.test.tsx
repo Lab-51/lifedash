@@ -6,7 +6,7 @@
 // font-data left on the timestamp column only.
 import { describe, it, expect, vi } from 'vitest';
 import { createRef } from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import TranscriptSection from '../meeting-detail/TranscriptSection';
 import type { MeetingWithTranscript, TranscriptSegment } from '../../../shared/types';
@@ -24,7 +24,7 @@ function makeSegment(overrides: Partial<TranscriptSegment> = {}): TranscriptSegm
   };
 }
 
-function makeMeeting(segments: TranscriptSegment[]): MeetingWithTranscript {
+function makeMeeting(segments: TranscriptSegment[], speakerNames?: Record<string, string>): MeetingWithTranscript {
   return {
     id: 'meet-1',
     projectId: null,
@@ -38,6 +38,7 @@ function makeMeeting(segments: TranscriptSegment[]): MeetingWithTranscript {
     transcriptionLanguage: null,
     unassignedPending: false,
     participants: null,
+    speakerNames: speakerNames ?? null,
     createdAt: '2026-03-10T10:00:00Z',
     segments,
     brief: null,
@@ -50,16 +51,24 @@ const SEGMENTS = [
   makeSegment({ id: 'seg-2', content: 'Pricing is still open', startTime: 65000, endTime: 68000 }),
 ];
 
-function renderSection(props: { initialSearch?: string; segments?: TranscriptSegment[] } = {}) {
+function renderSection(
+  props: {
+    initialSearch?: string;
+    segments?: TranscriptSegment[];
+    speakerNames?: Record<string, string>;
+    onRenameSpeaker?: (label: string, name: string | null) => void;
+  } = {},
+) {
   return render(
     <TranscriptSection
-      meeting={makeMeeting(props.segments ?? SEGMENTS)}
+      meeting={makeMeeting(props.segments ?? SEGMENTS, props.speakerNames)}
       transcriptEndRef={createRef<HTMLDivElement>()}
       initialSearch={props.initialSearch}
       onCopySummary={vi.fn()}
       onCopyActions={vi.fn()}
       copiedField={null}
       onCopy={vi.fn()}
+      onRenameSpeaker={props.onRenameSpeaker}
     />,
   );
 }
@@ -128,5 +137,60 @@ describe('TranscriptSection', () => {
     fireEvent.click(toggle());
 
     expect(screen.getByText('No transcript available')).toBeInTheDocument();
+  });
+});
+
+// === SPEAKER.1 - the speaker chip ===================================================
+
+describe('TranscriptSection - speaker names', () => {
+  const LABELLED = [makeSegment({ id: 'seg-1', speaker: 'Speaker 2' })];
+
+  it('shows the mapped NAME, falling back to the raw label', () => {
+    renderSection({ segments: LABELLED, speakerNames: { 'Speaker 2': 'Marta Vance' } });
+    fireEvent.click(toggle());
+    expect(screen.getByText('[Marta Vance]')).toBeInTheDocument();
+    expect(screen.queryByText('[Speaker 2]')).not.toBeInTheDocument();
+
+    cleanup();
+    renderSection({ segments: LABELLED, speakerNames: { 'Speaker 9': 'Nobody' } });
+    fireEvent.click(toggle());
+    expect(screen.getByText('[Speaker 2]')).toBeInTheDocument();
+  });
+
+  it('renames in place: Enter commits with the RAW label, Escape cancels', () => {
+    const onRenameSpeaker = vi.fn();
+    renderSection({ segments: LABELLED, speakerNames: { 'Speaker 2': 'Marta Vance' }, onRenameSpeaker });
+    fireEvent.click(toggle());
+
+    // Keyboard-reachable: the chip is a real button with an accessible name.
+    const chip = screen.getByRole('button', { name: 'Rename speaker Marta Vance' });
+    fireEvent.click(chip);
+
+    const input = screen.getByLabelText('Name for speaker Speaker 2');
+    fireEvent.change(input, { target: { value: 'Priya Anand' } });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(onRenameSpeaker).not.toHaveBeenCalled();
+    expect(screen.getByText('[Marta Vance]')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename speaker Marta Vance' }));
+    const reopened = screen.getByLabelText('Name for speaker Speaker 2');
+    fireEvent.change(reopened, { target: { value: 'Priya Anand' } });
+    fireEvent.keyDown(reopened, { key: 'Enter' });
+    // The RAW label is what is written, never the display name.
+    expect(onRenameSpeaker).toHaveBeenCalledWith('Speaker 2', 'Priya Anand');
+
+    // An emptied field CLEARS the name rather than storing a blank one.
+    fireEvent.click(screen.getByRole('button', { name: 'Rename speaker Marta Vance' }));
+    const third = screen.getByLabelText('Name for speaker Speaker 2');
+    fireEvent.change(third, { target: { value: '  ' } });
+    fireEvent.keyDown(third, { key: 'Enter' });
+    expect(onRenameSpeaker).toHaveBeenLastCalledWith('Speaker 2', null);
+  });
+
+  it('is read-only when the host passes no rename handler', () => {
+    renderSection({ segments: LABELLED, speakerNames: { 'Speaker 2': 'Marta Vance' } });
+    fireEvent.click(toggle());
+    expect(screen.queryByRole('button', { name: /Rename speaker/ })).not.toBeInTheDocument();
+    expect(screen.getByText('[Marta Vance]')).toBeInTheDocument();
   });
 });

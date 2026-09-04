@@ -438,6 +438,7 @@ export default function SessionWorkspace() {
   const updateMeeting = useMeetingStore((s) => s.updateMeeting);
   const deleteMeeting = useMeetingStore((s) => s.deleteMeeting);
   const convertActionToCard = useMeetingStore((s) => s.convertActionToCard);
+  const renameSpeaker = useMeetingStore((s) => s.renameSpeaker);
   const projects = useProjectStore((s) => s.projects);
   const loadProjects = useProjectStore((s) => s.loadProjects);
   const allCards = useBoardStore((s) => s.allCards);
@@ -599,6 +600,7 @@ export default function SessionWorkspace() {
           onCopyActions={copyActionItems}
           copiedField={copiedField}
           onCopy={handleCopy}
+          onRenameSpeaker={(label, name) => renameSpeaker(meeting.id, label, name)}
         />
         {completed && <LiveAssistantSection meetingId={meeting.id} variant="canvas" />}
       </div>
@@ -642,7 +644,11 @@ export default function SessionWorkspace() {
             (SessionRail): one fixed width could not serve both a laptop and an
             ultrawide, and 380px squeezed every section inside it. */}
         <SessionRail>
-          <MeetingAnalyticsSection meetingId={meeting.id} isCompleted={meeting.status === 'completed'} />
+          <MeetingAnalyticsSection
+            meetingId={meeting.id}
+            isCompleted={meeting.status === 'completed'}
+            speakerNames={meeting.speakerNames}
+          />
           {/* Live/processing sessions keep the rail block; a completed one moved it
               into the Summary tab, so this self-gating placement renders nothing. */}
           <SessionIntelligence meeting={meeting} autoGenerate={autoGenerate} onConvert={setConvertingAction} />

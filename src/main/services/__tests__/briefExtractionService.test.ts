@@ -86,6 +86,7 @@ function input(overrides: Partial<ExtractionInput> = {}): ExtractionInput {
     roster: overrides.roster ?? ROSTER,
     langName: overrides.langName ?? null,
     knownTerms: overrides.knownTerms,
+    selfName: overrides.selfName,
   };
 }
 
@@ -196,6 +197,47 @@ IMPORTANT: The transcript is in Czech. Write every string VALUE in Czech. The JS
     await extractMeetingStructure(input({ meeting: CZECH_STANDUP, langName: 'Czech', knownTerms: ['  ', ''] }));
     expect(callArgs(0).system).toBe(ASSEMBLED_WITHOUT_KNOWN_TERMS);
     expect(callArgs(1).system).toBe(ASSEMBLED_WITHOUT_KNOWN_TERMS);
+  });
+
+  // -------------------------------------------------------------------------
+  // SPEAKER.1 - the speaker legend
+  // -------------------------------------------------------------------------
+  // The legend explains what a label MEANS, so it exists only when the transcript
+  // carries labels. The byte-identity control above is the other half of this
+  // claim: SHORT_SEGMENTS is unlabelled, so if the legend ever leaked into an
+  // unlabelled prompt that `toBe` would fail, not merely these `not.toContain`s.
+  const LABELLED_MEETING = {
+    ...BASE_MEETING,
+    segments: SHORT_SEGMENTS.map((segment, i) => ({ ...segment, speaker: i === 1 ? 'Speaker 2' : 'Me' })),
+  };
+
+  it('adds the speaker legend only when the transcript is actually labelled', async () => {
+    await extractMeetingStructure(input({ meeting: LABELLED_MEETING, selfName: 'Alex Reyes' }));
+    const labelled = callArgs(0).system;
+    expect(labelled).toContain('Speaker labels:');
+    expect(labelled).toContain('"Me" is Alex Reyes, the person recording');
+    expect(labelled).toContain('Attribute a commitment to Alex Reyes when the "Me" line is the one making it');
+    // The owner rule is EXTENDED, never relaxed: an unresolved label is not an owner.
+    expect(labelled).toContain('an unresolved "Speaker N" commitment keeps "owner": null and "explicit": false');
+
+    // Same selfName, UNLABELLED transcript: no legend at all.
+    await extractMeetingStructure(input({ selfName: 'Alex Reyes' }));
+    expect(callArgs(1).system).not.toContain('Speaker labels:');
+    expect(callArgs(1).system).not.toContain('Alex Reyes');
+  });
+
+  it('falls back to "the user" when there is no twin profile name', async () => {
+    await extractMeetingStructure(input({ meeting: LABELLED_MEETING }));
+    await extractMeetingStructure(input({ meeting: LABELLED_MEETING, selfName: '   ' }));
+    expect(callArgs(0).system).toContain('"Me" is the user, the person recording');
+    expect(callArgs(1).system).toContain('"Me" is the user, the person recording');
+  });
+
+  it('sends the label in front of the content, through the shared line shape', async () => {
+    await extractMeetingStructure(input({ meeting: LABELLED_MEETING }));
+    const { prompt } = callArgs(0);
+    expect(prompt).toContain('[00:00] Me: Kickoff and agenda review.');
+    expect(prompt).toContain('[01:05] Speaker 2: The export worker fails for large accounts.');
   });
 
   it('anchors a known name exactly, between the roster and the template hint', async () => {

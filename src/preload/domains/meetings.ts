@@ -1,6 +1,7 @@
 // === Preload bridge: Meetings, recording, whisper, intelligence, diarization, analytics ===
 import { ipcRenderer } from 'electron';
 import type {
+  AudioChunkPayload,
   CreateMeetingInput,
   UpdateMeetingInput,
   RecordingState,
@@ -8,6 +9,7 @@ import type {
   TranscriptionProgress,
   DeleteMeetingOptions,
   MeetingDeleteImpact,
+  SpeakerNameMap,
 } from '../../shared/types';
 import type { ActionItemStatus } from '../../shared/types';
 import type { WhisperDownloadProgress } from '../../shared/types';
@@ -29,7 +31,15 @@ export const meetingsBridge = {
   // Recording
   startRecording: (meetingId: string) => ipcRenderer.invoke('recording:start', meetingId),
   stopRecording: () => ipcRenderer.invoke('recording:stop'),
-  sendAudioChunk: (buffer: ArrayBuffer) => ipcRenderer.send('audio:chunk', Buffer.from(buffer)),
+  // SPEAKER.1: one message per audio callback carrying all three channel views.
+  // Fire-and-forget, as before. Buffer.from COPIES each view, which is required
+  // anyway because the underlying ArrayBuffers are reused by the next callback.
+  sendAudioChunk: (payload: AudioChunkPayload) =>
+    ipcRenderer.send('audio:chunk', {
+      mixed: Buffer.from(payload.mixed),
+      mic: payload.mic ? Buffer.from(payload.mic) : null,
+      system: Buffer.from(payload.system),
+    }),
   enableLoopbackAudio: () => ipcRenderer.invoke('enable-loopback-audio'),
   disableLoopbackAudio: () => ipcRenderer.invoke('disable-loopback-audio'),
   onRecordingState: (callback: (state: RecordingState) => void) => {
@@ -112,6 +122,12 @@ export const meetingsBridge = {
 
   // Diarization
   diarizeMeeting: (meetingId: string) => ipcRenderer.invoke('meeting:diarize', meetingId),
+
+  // Speaker names (SPEAKER.1) — both return the FULL stored label -> name map.
+  renameSpeaker: (meetingId: string, label: string, name: string | null) =>
+    ipcRenderer.invoke('meeting:rename-speaker', { meetingId, label, name }) as Promise<SpeakerNameMap>,
+  resolveSpeakerNames: (meetingId: string) =>
+    ipcRenderer.invoke('meeting:resolve-speaker-names', meetingId) as Promise<SpeakerNameMap>,
 
   // Meeting Analytics
   getMeetingAnalytics: (meetingId: string) => ipcRenderer.invoke('meeting:analytics', meetingId),

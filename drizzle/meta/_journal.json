@@ -351,6 +351,13 @@
       "when": 1787330662846,
       "tag": "0049_brief_quality",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1788530772550,
+      "tag": "0050_majestic_adam_warlock",
+      "breakpoints": true
     }
   ]
 }

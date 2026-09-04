@@ -29,7 +29,7 @@
 // - `roster` is typed locally (RosterEntry) until Task 3 wires participantRosterService in.
 
 import { generate, type ResolvedProvider } from './ai-provider';
-import { chunkBudget, chunkSegments, fitsWindow, formatLine } from './promptBudget';
+import { chunkBudget, chunkSegments, fitsWindow, formatLine, type PromptLineSegment } from './promptBudget';
 import { createLogger } from './logger';
 import { buildExtractionSystemPrompt, type RosterEntry } from './briefExtractionPrompt';
 import { mergeDrafts } from './briefStructureMerge';
@@ -62,8 +62,9 @@ const log = createLogger('BriefExtraction');
 // Contract
 // ---------------------------------------------------------------------------
 
-/** The only segment fields prompt assembly reads. */
-type PromptSegment = { startTime: number; content: string };
+/** The only segment fields prompt assembly reads — promptBudget owns the shape
+ *  (SPEAKER.1), so a labelled segment is measured exactly as it is sent. */
+type PromptSegment = PromptLineSegment;
 
 export interface ExtractionInput {
   provider: ResolvedProvider;
@@ -79,6 +80,11 @@ export interface ExtractionInput {
   /** Names whose spelling the model must not drift from — the project name today.
    *  Absent or empty leaves the system prompt byte-identical to a three-block one. */
   knownTerms?: string[];
+  /** The recording user's own name (twin profile identity), for the SPEAKER.1
+   *  legend that explains the `Me` label. Only used when the transcript is
+   *  actually labelled; absent/blank falls back to "the user" in that case, and
+   *  an UNLABELLED transcript emits no legend at all whatever this holds. */
+  selfName?: string | null;
 }
 
 /** Success or an honest reason — never a partial structure, never a throw. */
@@ -432,7 +438,17 @@ async function extractWithSplit(
  */
 export async function extractMeetingStructure(input: ExtractionInput): Promise<ExtractionOutcome> {
   const { provider, meeting } = input;
-  const systemPrompt = buildExtractionSystemPrompt(input.roster, meeting.template, input.langName, input.knownTerms);
+  // The legend explains labels, so it is emitted only when there ARE labels —
+  // an unlabelled transcript keeps the pre-SPEAKER.1 prompt byte for byte.
+  const labelled = meeting.segments.some((segment) => segment.speaker?.trim());
+  const selfName = labelled ? input.selfName?.trim() || 'the user' : null;
+  const systemPrompt = buildExtractionSystemPrompt(
+    input.roster,
+    meeting.template,
+    input.langName,
+    input.knownTerms,
+    selfName,
+  );
   const segments = [...meeting.segments].sort((a, b) => a.startTime - b.startTime);
   const parts = planParts(provider, systemPrompt, meeting.title, segments);
   if (parts.length > 1) {

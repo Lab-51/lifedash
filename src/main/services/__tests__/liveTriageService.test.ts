@@ -559,6 +559,33 @@ describe('twin profile injection — full triage pipeline (V3.3 Task 2)', () => 
 });
 
 // ---------------------------------------------------------------------------
+// Triage generation token cap (SPEAKER.1 Task 5) — 1024, not 512, so a
+// legitimate proposal-array reply never gets cut short now thinking is off.
+// ---------------------------------------------------------------------------
+
+describe('triage maxTokens cap', () => {
+  it('passes 1024 when the provider has no configured maxTokens', async () => {
+    vi.mocked(resolveTaskModel).mockResolvedValue({ ...PROVIDER, maxTokens: undefined } as never);
+    startTriage(MEETING_ID);
+    emitSegments(CADENCE_SEGMENTS);
+    await flush();
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(generate).mock.calls[0][0].maxTokens).toBe(1024);
+  });
+
+  it('respects a larger configured maxTokens value', async () => {
+    vi.mocked(resolveTaskModel).mockResolvedValue({ ...PROVIDER, maxTokens: 2048 } as never);
+    startTriage(MEETING_ID);
+    emitSegments(CADENCE_SEGMENTS);
+    await flush();
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(generate).mock.calls[0][0].maxTokens).toBe(2048);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Lifecycle stop clears watermark/state
 // ---------------------------------------------------------------------------
 

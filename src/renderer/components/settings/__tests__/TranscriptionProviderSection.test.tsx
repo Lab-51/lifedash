@@ -104,6 +104,14 @@ describe('TranscriptionProviderSection — cloud consent gate', () => {
   });
 });
 
+describe('TranscriptionProviderSection — glossary editor (SPEAKER.1 Task 2)', () => {
+  it('shows the glossary editor for the default (plain) language, not only mixed presets', async () => {
+    await renderLoaded();
+
+    await waitFor(() => expect(screen.getByText(/add products, systems and acronyms here/i)).toBeInTheDocument());
+  });
+});
+
 describe('TranscriptionProviderSection — local-only toggle', () => {
   it('persists the setting and disables the cloud provider rows when enabled', async () => {
     await renderLoaded();

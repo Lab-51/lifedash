@@ -77,6 +77,27 @@ function knownTermsBlock(terms: string[]): string {
   return `Known names (use these exact spellings, even where the transcript inflects or declines them): ${names.join(', ')}`;
 }
 
+/**
+ * The speaker legend (SPEAKER.1). Rendered ONLY when the transcript actually
+ * carries labels — `selfName` is null for an unlabelled transcript, so the
+ * prompt stays byte-identical to the pre-SPEAKER.1 one (BRIEF-QUAL.1's pins).
+ *
+ * This EXTENDS the owner rule, it never relaxes it: a `Me` line making its own
+ * commitment IS the transcript naming that owner, which is why it may be
+ * attributed and marked explicit; an unresolved `Speaker N` is not evidence of
+ * anything, so it must never be guessed onto a roster name.
+ *
+ * `selfName` is a NAME only — the caller resolves it from the twin profile and
+ * falls back to "the user". Emails never enter a prompt.
+ */
+function speakerLegendBlock(selfName: string | null): string {
+  if (!selfName) return '';
+  return [
+    `Speaker labels: each transcript line may start with a speaker label before the colon. "Me" is ${selfName}, the person recording. "Speaker 1", "Speaker 2" and so on are OTHER participants whose identity is unresolved.`,
+    `Attribute a commitment to ${selfName} when the "Me" line is the one making it — that is the transcript naming the owner, so "explicit" is true. Never map a "Speaker N" label to a participant name unless the transcript itself says who that speaker is, and never use a label as an owner: an unresolved "Speaker N" commitment keeps "owner": null and "explicit": false.`,
+  ].join(' ');
+}
+
 /** The template's own hint, for ALL SIX templates — MEETING_TEMPLATES is the
  *  source of truth (action extraction used to hardcode three of them). */
 function templateHintBlock(template: MeetingTemplateType): string {
@@ -91,18 +112,21 @@ function languageBlock(langName: string | null): string {
 }
 
 /** The full system prompt for one extraction run: the rules, then whichever of the
- *  four context blocks apply. Empty blocks are dropped, never sent as blank lines —
- *  so with no known terms this is byte-identical to the three-block prompt that
- *  preceded them (asserted in briefExtractionService.test.ts). */
+ *  five context blocks apply. Empty blocks are dropped, never sent as blank lines —
+ *  so with no known terms and an UNLABELLED transcript this is byte-identical to
+ *  the three-block prompt that preceded them (asserted in
+ *  briefExtractionService.test.ts). */
 export function buildExtractionSystemPrompt(
   roster: RosterEntry[],
   template: MeetingTemplateType,
   langName: string | null,
   knownTerms: string[] = [],
+  selfName: string | null = null,
 ): string {
   return [
     EXTRACTION_SYSTEM_PROMPT,
     formatRosterBlock(roster),
+    speakerLegendBlock(selfName),
     knownTermsBlock(knownTerms),
     templateHintBlock(template),
     languageBlock(langName),

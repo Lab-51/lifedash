@@ -21,6 +21,78 @@ interface TranscriptSectionProps {
   onCopyActions: () => void;
   copiedField: string | null;
   onCopy: (field: string, text: string) => void;
+  /**
+   * Commit a speaker rename (SPEAKER.1); `null` clears the name back to the raw
+   * label. OPTIONAL and passed by the host rather than read from meetingStore on
+   * purpose — the Brain inspector renders this section for a meeting the host
+   * page does not own, and reaching into the global store here would
+   * cross-contaminate it exactly as MeetingAnalyticsSection would. Omitted =
+   * read-only speaker chips.
+   */
+  onRenameSpeaker?: (label: string, name: string | null) => void | Promise<void>;
+}
+
+/**
+ * One speaker chip: the mapped NAME when there is one, the raw label otherwise,
+ * click (or Enter/Space on the button) to rename in place. Colour is keyed on the
+ * LABEL, never the name, so renaming a speaker never recolours them.
+ */
+function SpeakerChip({
+  label,
+  display,
+  className,
+  onRename,
+}: {
+  label: string;
+  display: string;
+  className: string;
+  onRename?: (label: string, name: string | null) => void | Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(display);
+
+  if (!onRename) return <span className={className}>[{display}]</span>;
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="text"
+        value={draft}
+        aria-label={`Name for speaker ${label}`}
+        maxLength={80}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => setEditing(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            setEditing(false);
+            void onRename(label, draft.trim() || null);
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setDraft(display);
+            setEditing(false);
+          }
+        }}
+        className="bg-surface-50 dark:bg-surface-950 border border-[var(--color-border-accent)] rounded text-xs px-1 py-0 mr-1.5 w-28 focus:outline-none"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      title={`Rename speaker ${label}`}
+      aria-label={`Rename speaker ${display}`}
+      onClick={() => {
+        setDraft(display);
+        setEditing(true);
+      }}
+      className={`${className} hover:underline`}
+    >
+      [{display}]
+    </button>
+  );
 }
 
 function highlightText(text: string, query: string): React.ReactNode {
@@ -72,13 +144,16 @@ function TranscriptBody({
   transcriptSearch,
   searchQuery,
   transcriptEndRef,
+  onRenameSpeaker,
 }: {
   meeting: MeetingWithTranscript;
   filteredSegments: MeetingWithTranscript['segments'];
   transcriptSearch: string;
   searchQuery: string;
   transcriptEndRef: RefObject<HTMLDivElement | null>;
+  onRenameSpeaker?: (label: string, name: string | null) => void | Promise<void>;
 }) {
+  const speakerNames = meeting.speakerNames ?? {};
   if (meeting.segments.length === 0) {
     return (
       <div className="text-center py-12 bg-surface-50 dark:bg-surface-800/20 rounded-xl border border-dashed border-surface-200 dark:border-surface-700 text-surface-500 text-sm">
@@ -110,7 +185,12 @@ function TranscriptBody({
             </span>
             <p className="text-surface-800 dark:text-surface-200 flex-1 leading-relaxed">
               {segment.speaker && speakerColor && (
-                <span className={`${speakerColor.text} font-medium text-xs mr-1.5`}>[{segment.speaker}]</span>
+                <SpeakerChip
+                  label={segment.speaker}
+                  display={speakerNames[segment.speaker] ?? segment.speaker}
+                  className={`${speakerColor.text} font-medium text-xs mr-1.5`}
+                  onRename={onRenameSpeaker}
+                />
               )}
               {searchQuery ? highlightText(segment.content, transcriptSearch) : segment.content}
             </p>
@@ -130,6 +210,7 @@ export default function TranscriptSection({
   onCopyActions,
   copiedField,
   onCopy,
+  onRenameSpeaker,
 }: TranscriptSectionProps) {
   const [transcriptSearch, setTranscriptSearch] = useState(initialSearch ?? '');
   // Open only when the host deep-linked into a search — otherwise start collapsed.
@@ -144,7 +225,8 @@ export default function TranscriptSection({
     const text = meeting.segments
       .map((s) => {
         const ts = `[${formatTimestamp(s.startTime)}]`;
-        const speaker = s.speaker ? ` [${s.speaker}]` : '';
+        // The copied transcript reads with NAMES too — same render-time map.
+        const speaker = s.speaker ? ` [${meeting.speakerNames?.[s.speaker] ?? s.speaker}]` : '';
         return `${ts}${speaker} ${s.content}`;
       })
       .join('\n');
@@ -230,6 +312,7 @@ export default function TranscriptSection({
           transcriptSearch={transcriptSearch}
           searchQuery={searchQuery}
           transcriptEndRef={transcriptEndRef}
+          onRenameSpeaker={onRenameSpeaker}
         />
       )}
     </div>

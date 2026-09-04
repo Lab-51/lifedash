@@ -1,18 +1,40 @@
 // === FILE PURPOSE ===
 // Meeting analytics section — shows duration, word count, speaker breakdown,
-// action item summary, and "Identify Speakers" diarization trigger.
+// action item summary, and the two speaker triggers: "Identify Speakers"
+// (diarization — writes labels) and "Resolve Names" (label -> name map).
 //
 // === DEPENDENCIES ===
 // react, lucide-react, meetingStore, MeetingAnalytics type
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { BarChart3, Users, Clock, MessageSquare, Loader2 } from 'lucide-react';
 import { useMeetingStore } from '../stores/meetingStore';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface MeetingAnalyticsSectionProps {
   meetingId: string;
   isCompleted: boolean;
+  /** Speaker LABEL -> display NAME (SPEAKER.1). Analytics is keyed on the raw
+   *  label — this only changes what is SHOWN, never how a speaker is counted or
+   *  coloured, so renaming can never recolour or re-bucket a speaker. */
+  speakerNames?: Record<string, string> | null;
 }
+
+/**
+ * What a RE-run has to be honest about, matched to what the code actually does
+ * (speakerDiarizationService -> meetingService.updateSegmentSpeakers): the
+ * provider's labels are written over the existing ones on every segment it finds
+ * speech in — which includes the `Me` labels a two-channel recording produces —
+ * while a segment it finds no words for keeps whatever label it has.
+ *
+ * The name map is a SEPARATE column and is never touched here. It is keyed by
+ * LABEL, though, so a name stays attached to its label rather than to a person:
+ * if the new pass assigns "Speaker 2" to someone else, the old name rides along
+ * and wants checking. Saying so is the point of the confirm.
+ */
+const REDIARIZE_CONFIRM =
+  'The provider re-labels the transcript: existing speaker labels are overwritten wherever it recognises speech, including the "Me" labels from two-channel recording. Segments it finds no speech in keep their current label.\n\n' +
+  'The names you gave speakers are NOT overwritten. They stay attached to their labels, so check them afterwards in case the new pass numbers the speakers differently.';
 
 // Speaker color palette — consistent between transcript labels and analytics bars
 const SPEAKER_COLORS = [
@@ -78,13 +100,157 @@ function StatTile({
   );
 }
 
-export default function MeetingAnalyticsSection({ meetingId, isCompleted }: MeetingAnalyticsSectionProps) {
+/**
+ * The diarization trigger. Stays available AFTER labels exist (SPEAKER.1) — it
+ * used to vanish the moment any label was written, which left a bad pass with no
+ * way to re-run it. A re-run is confirmed, because it overwrites labels; a first
+ * run has nothing to overwrite and goes straight through.
+ */
+function IdentifySpeakersButton({ meetingId, hasLabels }: { meetingId: string; hasLabels: boolean }) {
+  const diarizing = useMeetingStore((s) => s.diarizing);
+  const diarizeMeeting = useMeetingStore((s) => s.diarizeMeeting);
+  const [confirming, setConfirming] = useState(false);
+
+  const run = () => {
+    setConfirming(false);
+    void diarizeMeeting(meetingId);
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => (hasLabels ? setConfirming(true) : run())}
+        disabled={diarizing}
+        className="bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+      >
+        {diarizing ? (
+          <>
+            <Loader2 size={14} className="animate-spin" />
+            Identifying...
+          </>
+        ) : (
+          'Identify Speakers'
+        )}
+      </button>
+      <ConfirmDialog
+        open={confirming}
+        title="Re-run speaker identification?"
+        message={REDIARIZE_CONFIRM}
+        confirmLabel="Re-identify"
+        onConfirm={run}
+        onCancel={() => setConfirming(false)}
+      />
+    </>
+  );
+}
+
+/**
+ * The name-resolution trigger — the caller for `meeting:resolve-speaker-names`.
+ * Only offered once labels EXIST (there is nothing to resolve otherwise), which
+ * is the same `analytics.hasDiarization` signal the rest of this block reads.
+ *
+ * No confirm, unlike its sibling: resolution never overwrites an existing entry
+ * (speakerNameService keeps the user's name as the last word), so there is
+ * nothing to warn about. Failure and "found nothing" are deliberately the SAME
+ * outcome to the user — AI-RESIL.1's rule is that a failed resolution degrades
+ * to no names, never to a wrong one, and neither case gives the user anything to
+ * act on beyond trying again.
+ */
+function ResolveNamesButton({
+  meetingId,
+  speakerNames,
+}: {
+  meetingId: string;
+  speakerNames?: Record<string, string> | null;
+}) {
+  const resolveSpeakerNames = useMeetingStore((s) => s.resolveSpeakerNames);
+  const diarizing = useMeetingStore((s) => s.diarizing);
+  const [resolving, setResolving] = useState(false);
+  const [noneResolved, setNoneResolved] = useState(false);
+
+  const run = async () => {
+    setResolving(true);
+    setNoneResolved(false);
+    // Counted BEFORE the await: this prop is the map the user is looking at now,
+    // and the store swaps it for the new one while the call is in flight.
+    const before = Object.keys(speakerNames ?? {}).length;
+    const map = await resolveSpeakerNames(meetingId);
+    setResolving(false);
+    setNoneResolved(!map || Object.keys(map).length <= before);
+  };
+
+  return (
+    <>
+      {noneResolved && (
+        <span role="status" className="text-sm font-medium text-surface-500">
+          No names resolved
+        </span>
+      )}
+      <button
+        onClick={() => void run()}
+        // Diarization rewrites the very labels this resolves against.
+        disabled={resolving || diarizing}
+        className="bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+      >
+        {resolving ? (
+          <>
+            <Loader2 size={14} className="animate-spin" />
+            Resolving...
+          </>
+        ) : (
+          'Resolve Names'
+        )}
+      </button>
+    </>
+  );
+}
+
+/** One speaker's row. Colour is keyed on the LABEL (`spkr.speaker`); only the
+ *  text shown is the mapped name, so a rename never recolours the bar. */
+function SpeakerRow({ label, name, talkTimePercent, wordCount, talkTimeMs }: SpeakerRowProps) {
+  const color = getSpeakerColor(label);
+  return (
+    <div className="group">
+      <div className="flex flex-wrap items-end justify-between text-sm mb-2 gap-2">
+        <div className="flex items-center gap-2">
+          <span
+            className={`px-2 py-0.5 rounded text-xs font-bold ${color.bg.replace('bg-', 'bg-').replace('-500', '-500/10')} ${color.text}`}
+          >
+            {name}
+          </span>
+          <span className="text-surface-600 dark:text-surface-300 font-medium">{talkTimePercent}%</span>
+        </div>
+        <span className="text-surface-400 text-xs font-medium">
+          {wordCount.toLocaleString()} words &middot; {formatDurationLong(talkTimeMs)}
+        </span>
+      </div>
+      <div className="h-2.5 bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden border border-surface-200 dark:border-surface-700/50">
+        <div
+          className={`h-full ${color.bg} rounded-full transition-all duration-1000 ease-out`}
+          style={{ width: `${talkTimePercent}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+interface SpeakerRowProps {
+  label: string;
+  name: string;
+  talkTimePercent: number;
+  wordCount: number;
+  talkTimeMs: number;
+}
+
+export default function MeetingAnalyticsSection({
+  meetingId,
+  isCompleted,
+  speakerNames,
+}: MeetingAnalyticsSectionProps) {
   const analytics = useMeetingStore((s) => s.analytics);
   const analyticsLoading = useMeetingStore((s) => s.analyticsLoading);
-  const diarizing = useMeetingStore((s) => s.diarizing);
   const diarizationError = useMeetingStore((s) => s.diarizationError);
   const loadAnalytics = useMeetingStore((s) => s.loadAnalytics);
-  const diarizeMeeting = useMeetingStore((s) => s.diarizeMeeting);
 
   // Load analytics on mount
   useEffect(() => {
@@ -136,76 +302,40 @@ export default function MeetingAnalyticsSection({ meetingId, isCompleted }: Meet
           <StatTile label="WPM" value={String(analytics.wordsPerMinute)} />
         </div>
 
-        {/* Speaker breakdown */}
-        {analytics.hasDiarization ? (
-          <div className="pt-2">
-            <div className="flex items-center gap-2 text-sm font-semibold text-surface-700 dark:text-surface-300 mb-4">
+        {/* Speaker breakdown. The trigger lives OUTSIDE the has/has-not branch
+            (SPEAKER.1) so a re-run is always reachable. */}
+        <div className="pt-2 border-t border-surface-100 dark:border-surface-700/50 mt-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-surface-700 dark:text-surface-300">
               <Users size={16} className="text-surface-400" />
-              Speaker Breakdown
+              {analytics.hasDiarization ? 'Speaker Breakdown' : 'Speaker Data'}
             </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {!analytics.hasDiarization && <span className="text-sm font-medium text-surface-500">Not available</span>}
+              {analytics.hasDiarization && <ResolveNamesButton meetingId={meetingId} speakerNames={speakerNames} />}
+              <IdentifySpeakersButton meetingId={meetingId} hasLabels={analytics.hasDiarization} />
+            </div>
+          </div>
+          {analytics.hasDiarization && (
             <div className="space-y-4">
-              {analytics.speakers.map((spkr) => {
-                const color = getSpeakerColor(spkr.speaker);
-                return (
-                  <div key={spkr.speaker} className="group">
-                    <div className="flex flex-wrap items-end justify-between text-sm mb-2 gap-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`px-2 py-0.5 rounded text-xs font-bold ${color.bg.replace('bg-', 'bg-').replace('-500', '-500/10')} ${color.text}`}
-                        >
-                          {spkr.speaker}
-                        </span>
-                        <span className="text-surface-600 dark:text-surface-300 font-medium">
-                          {spkr.talkTimePercent}%
-                        </span>
-                      </div>
-                      <span className="text-surface-400 text-xs font-medium">
-                        {spkr.wordCount.toLocaleString()} words &middot; {formatDurationLong(spkr.talkTimeMs)}
-                      </span>
-                    </div>
-                    <div className="h-2.5 bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden border border-surface-200 dark:border-surface-700/50">
-                      <div
-                        className={`h-full ${color.bg} rounded-full transition-all duration-1000 ease-out`}
-                        style={{ width: `${spkr.talkTimePercent}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+              {analytics.speakers.map((spkr) => (
+                <SpeakerRow
+                  key={spkr.speaker}
+                  label={spkr.speaker}
+                  name={speakerNames?.[spkr.speaker] ?? spkr.speaker}
+                  talkTimePercent={spkr.talkTimePercent}
+                  wordCount={spkr.wordCount}
+                  talkTimeMs={spkr.talkTimeMs}
+                />
+              ))}
             </div>
-          </div>
-        ) : (
-          <div className="pt-2 border-t border-surface-100 dark:border-surface-700/50 mt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-semibold text-surface-700 dark:text-surface-300">
-                <Users size={16} className="text-surface-400" />
-                Speaker Data
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-surface-500">Not available</span>
-                <button
-                  onClick={() => diarizeMeeting(meetingId)}
-                  disabled={diarizing}
-                  className="bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                >
-                  {diarizing ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" />
-                      Identifying...
-                    </>
-                  ) : (
-                    'Identify Speakers'
-                  )}
-                </button>
-              </div>
-            </div>
-            {diarizationError && (
-              <p className="text-sm text-red-500 dark:text-red-400 mt-2 bg-red-50 dark:bg-red-500/10 p-2 rounded-md">
-                {diarizationError}
-              </p>
-            )}
-          </div>
-        )}
+          )}
+          {diarizationError && (
+            <p className="text-sm text-red-500 dark:text-red-400 mt-2 bg-red-50 dark:bg-red-500/10 p-2 rounded-md">
+              {diarizationError}
+            </p>
+          )}
+        </div>
 
         {/* Action item counts */}
         {analytics.actionItemCounts.total > 0 && (

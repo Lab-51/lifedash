@@ -39,6 +39,9 @@ vi.mock('../liveTriageService', () => ({
 vi.mock('../deepgramTranscriber', () => ({ transcribeSegment: vi.fn() }));
 vi.mock('../assemblyaiTranscriber', () => ({ transcribeSegment: vi.fn() }));
 vi.mock('../performanceTracker', () => ({ trackTiming: (_label: string, fn: () => unknown) => fn() }));
+// These tests are about the VAD gate, not the whisper glossary (SPEAKER.1 Task
+// 2) — mocked wholesale so its real DB/roster dependency chain never loads here.
+vi.mock('../whisperPromptService', () => ({ buildInitialPrompt: vi.fn().mockResolvedValue('') }));
 vi.mock('../../db/connection', () => ({ getDb: vi.fn() }));
 vi.mock('../../db/schema', () => ({
   settings: { __table: 'settings', key: 'key', value: 'value' },
@@ -46,6 +49,7 @@ vi.mock('../../db/schema', () => ({
 }));
 vi.mock('drizzle-orm', () => ({ eq: (...a: unknown[]) => ({ eq: a }) }));
 
+import type { AudioChunkBuffers } from '../../../shared/types';
 import * as transcriptionService from '../transcriptionService';
 import * as providerService from '../transcriptionProviderService';
 import * as whisperModelManager from '../whisperModelManager';
@@ -65,6 +69,31 @@ function makeWindow(amplitude: number): Buffer {
 // RMS 3000 clears the SILENCE_RMS_THRESHOLD of 50; RMS 0 does not.
 const SPEECH_WINDOW = makeWindow(3000);
 const SILENT_WINDOW = makeWindow(0);
+
+/**
+ * The mic-off payload shape (SPEAKER.1): no mic buffer, so the service stays on
+ * the single mixed channel — the exact pipeline these VAD tests were written
+ * against. `system` carries the same bytes because with the mic off the mono
+ * sum IS the system audio.
+ */
+function mixedOnly(window: Buffer): AudioChunkBuffers {
+  return { mixed: window, mic: null, system: window };
+}
+
+/**
+ * A two-channel payload. `mixed` carries a THIRD, distinct amplitude so that a
+ * window wrongly taken from the mixed stream — which must never be transcribed
+ * while both channels are live — is visible in the assertions instead of being
+ * mistaken for one of the real channels.
+ */
+function split(mic: Buffer, system: Buffer): AudioChunkBuffers {
+  return { mixed: makeWindow(5000), mic, system };
+}
+
+/** First Int16 sample of a window that reached the native layer as an ArrayBuffer. */
+function firstSample(pcm: ArrayBuffer): number {
+  return new Int16Array(pcm)[0];
+}
 
 // Declared with the native signature so `mock.calls[0][0]` stays typed as the
 // ArrayBuffer the skip-only assertion inspects.
@@ -128,7 +157,7 @@ describe('transcriptionService — VAD gate', () => {
     vi.mocked(whisperModelManager.createVadContext).mockResolvedValue({ context: vadCtx, backend: 'cpu' } as never);
 
     await transcriptionService.start('meeting-a', 'en');
-    transcriptionService.addChunk(SPEECH_WINDOW);
+    transcriptionService.addChunk(mixedOnly(SPEECH_WINDOW));
 
     // Progress advances for the skipped window exactly as the RMS skip does…
     await vi.waitFor(() => expect(transcriptionService.getProgress().currentSegment).toBe(1));
@@ -147,7 +176,7 @@ describe('transcriptionService — VAD gate', () => {
     vi.mocked(whisperModelManager.createVadContext).mockResolvedValue({ context: vadCtx, backend: 'cpu' } as never);
 
     await transcriptionService.start('meeting-b', 'en');
-    transcriptionService.addChunk(SPEECH_WINDOW);
+    transcriptionService.addChunk(mixedOnly(SPEECH_WINDOW));
 
     await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(1));
 
@@ -166,8 +195,8 @@ describe('transcriptionService — VAD gate', () => {
       vi.mocked(whisperModelManager.createVadContext).mockRejectedValue(new Error('vad init boom'));
 
       await transcriptionService.start('meeting-c', 'en');
-      transcriptionService.addChunk(SPEECH_WINDOW);
-      transcriptionService.addChunk(SPEECH_WINDOW);
+      transcriptionService.addChunk(mixedOnly(SPEECH_WINDOW));
+      transcriptionService.addChunk(mixedOnly(SPEECH_WINDOW));
 
       // Both windows still transcribe — a VAD failure never drops audio.
       await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(2));
@@ -188,7 +217,7 @@ describe('transcriptionService — VAD gate', () => {
     vi.mocked(whisperModelManager.createVadContext).mockResolvedValue({ context: vadCtx, backend: 'cpu' } as never);
 
     await transcriptionService.start('meeting-d', 'en');
-    transcriptionService.addChunk(SPEECH_WINDOW);
+    transcriptionService.addChunk(mixedOnly(SPEECH_WINDOW));
     await vi.waitFor(() => expect(vadCtx.detectSpeechData).toHaveBeenCalled());
 
     await transcriptionService.stop();
@@ -201,7 +230,7 @@ describe('transcriptionService — VAD gate', () => {
     vi.mocked(whisperModelManager.ensureVadModel).mockResolvedValue(null);
 
     await transcriptionService.start('meeting-null-model', 'en');
-    transcriptionService.addChunk(SPEECH_WINDOW);
+    transcriptionService.addChunk(mixedOnly(SPEECH_WINDOW));
 
     await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(1));
     // Presence is not execution: no context is created, and only one warning.
@@ -214,12 +243,41 @@ describe('transcriptionService — VAD gate', () => {
     vi.mocked(whisperModelManager.createVadContext).mockResolvedValue({ context: vadCtx, backend: 'cpu' } as never);
 
     await transcriptionService.start('meeting-rms', 'en');
-    transcriptionService.addChunk(SILENT_WINDOW);
+    transcriptionService.addChunk(mixedOnly(SILENT_WINDOW));
 
     await vi.waitFor(() => expect(transcriptionService.getProgress().currentSegment).toBe(1));
     expect(whisperModelManager.ensureVadModel).not.toHaveBeenCalled();
     expect(vadCtx.detectSpeechData).not.toHaveBeenCalled();
     expect(whisperCtx.transcribeData).not.toHaveBeenCalled();
+  });
+
+  it('gates each capture channel independently, and skip-only still holds per channel', async () => {
+    const MIC_AMPLITUDE = 3000;
+    const SYSTEM_AMPLITUDE = 2000;
+    const micWindow = makeWindow(MIC_AMPLITUDE);
+    const systemWindow = makeWindow(SYSTEM_AMPLITUDE);
+
+    // Both windows clear the RMS fast path, so the decision is the VAD gate's
+    // alone: speech on the mic channel, none on the system channel.
+    const vadCtx = {
+      detectSpeechData: vi.fn(async (pcm: ArrayBuffer) =>
+        firstSample(pcm) === MIC_AMPLITUDE ? [{ t0: 100, t1: 900 }] : [],
+      ),
+      release: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(whisperModelManager.createVadContext).mockResolvedValue({ context: vadCtx, backend: 'cpu' } as never);
+
+    await transcriptionService.start('meeting-channels', 'en');
+    transcriptionService.addChunk(split(micWindow, systemWindow));
+
+    // Both channels are gated…
+    await vi.waitFor(() => expect(vadCtx.detectSpeechData).toHaveBeenCalledTimes(2));
+    // …and only the speaking one is transcribed, with its FULL unmodified window.
+    await vi.waitFor(() => expect(transcriptionService.getProgress().currentSegment).toBe(2));
+    expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(1);
+    const audio = whisperCtx.transcribeData.mock.calls[0][0];
+    expect(audio.byteLength).toBe(BYTES_PER_SEGMENT);
+    expect(Buffer.from(new Uint8Array(audio)).equals(micWindow)).toBe(true);
   });
 
   it('creates the VAD context once when two concurrent windows race on first use', async () => {
@@ -234,8 +292,8 @@ describe('transcriptionService — VAD gate', () => {
 
     await transcriptionService.start('meeting-race', 'en');
     // MAX_CONCURRENT is 2, so both windows are in flight while init is pending.
-    transcriptionService.addChunk(SPEECH_WINDOW);
-    transcriptionService.addChunk(SPEECH_WINDOW);
+    transcriptionService.addChunk(mixedOnly(SPEECH_WINDOW));
+    transcriptionService.addChunk(mixedOnly(SPEECH_WINDOW));
     resolveModelPath('/models/ggml-silero-v5.1.2.bin');
 
     await vi.waitFor(() => expect(vadCtx.detectSpeechData).toHaveBeenCalledTimes(2));
