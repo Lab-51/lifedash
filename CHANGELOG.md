@@ -3,6 +3,11 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.13.0 — 2026-09-04
+- release: prep v2.13.0
+- fix(recording): a meeting interrupted by a crash or a quit no longer says "Running..." forever — every launch now closes the sessions a previous process left open
+- feat(speaker): who said what, locally — the mic becomes "Me" at capture time with no model, whisper is told the roster's names, and speaker labels reach the brief through one line-shape definition
+
 ## v2.12.0 — 2026-08-24
 - release: prep v2.12.0
 - fix(brain): the node-anchored inspector card is capped by its container, not the viewport
