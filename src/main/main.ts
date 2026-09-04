@@ -44,6 +44,7 @@ import { emitRuntimeStatus } from './services/runtimeTelemetry';
 import { sweepHallucinatedTranscripts } from './services/transcriptCleanupService';
 import { sweepOrphanedRecordings } from './services/recordingSweepService';
 import { sweepEntityNameFolds } from './services/entityNameFoldSweep';
+import { recoverStaleRecordings } from './services/staleRecordingRecovery';
 import { sweepFailedBriefEmbeddings } from './services/embeddingService';
 
 const log = createLogger('App');
@@ -153,6 +154,28 @@ function sweepOrphanedRecordingsOnStartup(): void {
   sweepOrphanedRecordings().catch((err) => {
     log.warn('Recording orphan sweep skipped (will retry next launch):', err);
   });
+}
+
+/**
+ * Closes meetings left stuck at status 'recording' because the app was closed
+ * or crashed mid-recording — the renderer owns the ONLY completed-transition,
+ * so nothing else ever reconciles those rows and they render as "Running..."
+ * forever.
+ *
+ * Unlike the three sweeps around it this is deliberately NOT flag-gated: it
+ * repairs an ongoing failure mode rather than a one-time historical defect, so
+ * it must run on every launch (see staleRecordingRecovery.ts).
+ *
+ * AWAITED rather than fire-and-forget, because its safety invariant is that no
+ * recording exists yet in this process — completing it before the app is
+ * interactive keeps that true. The query is a single indexed status filter.
+ */
+async function recoverStaleRecordingsOnStartup(): Promise<void> {
+  try {
+    await recoverStaleRecordings();
+  } catch (err) {
+    log.warn('Stale recording recovery skipped (will retry next launch):', err);
+  }
 }
 
 /**
@@ -310,6 +333,11 @@ const createWindow = async () => {
     // Must run AFTER migrations too (the meetings table + settings flag row it
     // gates on). Fire-and-forget — does not block the rest of startup below.
     sweepOrphanedRecordingsOnStartup();
+
+    // Must run AFTER migrations (reads meetings + transcripts) and BEFORE the
+    // app can start a recording — every 'recording' row is stale only while
+    // that is true. Awaited for exactly that reason.
+    await recoverStaleRecordingsOnStartup();
 
     // Must run AFTER migrations too (the entities/entity_facts/entity_links tables
     // + settings flag row it gates on). Fire-and-forget for the same reason.
