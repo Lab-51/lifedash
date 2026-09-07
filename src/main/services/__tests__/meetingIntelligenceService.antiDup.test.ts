@@ -379,16 +379,17 @@ describe('generateActionItems -> autoPushActionItems — LIVE.2 anti-duplication
     expect(callArg.system).toContain('do NOT re-extract');
     expect(callArg.system).toContain(SUPPRESSED_TITLE);
 
-    // The effect: exactly ONE card was pushed to the Inbox — the new item — and
-    // it is NOT a duplicate of the already-accepted (live-assistant) title.
-    expect(insertedCardCalls).toHaveLength(1);
-    expect(insertedCardCalls.some((c) => new RegExp(SUPPRESSED_TITLE, 'i').test(String(c.values.title)))).toBe(false);
-    expect(String(insertedCardCalls[0].values.title)).toMatch(/draft the beta release notes/i);
-    expect(insertedCardCalls[0].values.source).toBe('auto-from-meeting');
-
-    // The returned action items reflect the single converted (pushed) item only.
+    // The effect: exactly ONE action item exists — the new one — and it is NOT a
+    // duplicate of the already-accepted (live-assistant) title.
     expect(result).toHaveLength(1);
-    expect(result[0].status).toBe('converted');
-    expect(result[0].cardId).toBe('card-1');
+    expect(result[0].description).toMatch(/draft the beta release notes/i);
+    expect(new RegExp(SUPPRESSED_TITLE, 'i').test(result[0].description)).toBe(false);
+
+    // No card, because the legacy text extractor never attributes an owner and
+    // the ownership gate (isAutoPushEligible) pushes only owned items without a
+    // click. The item stays pending for a one-click push from the action list.
+    expect(insertedCardCalls).toHaveLength(0);
+    expect(result[0].status).toBe('pending');
+    expect(result[0].cardId).toBeNull();
   });
 });

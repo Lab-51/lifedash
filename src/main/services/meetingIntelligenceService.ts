@@ -42,6 +42,7 @@ import {
 } from './promptBudget';
 import { extractMeetingStructure } from './briefExtractionService';
 import { buildRoster, formatRosterBlock, type RosterEntry } from './participantRosterService';
+import { buildOwnerVerifier } from './ownerVerificationService';
 import { readBriefLanguageSetting } from './briefLanguageSettings';
 import { resolveBriefLanguage } from '../../shared/brief/briefLanguage';
 import { MeetingStructureSchema, type Commitment, type MeetingStructure } from '../../shared/types/briefStructure';
@@ -1282,14 +1283,21 @@ async function readPersistedStructure(meetingId: string): Promise<MeetingStructu
  * commitments ARE the action items, so nothing is re-extracted and nothing can
  * drift between the brief's Follow-ups and the user's task list.
  *
- * `owner` is trusted ONLY when the extraction marked it `explicit` — that flag is
- * the whole defence against a model attributing a task to whoever spoke last, so
- * a non-explicit owner is dropped rather than shown.
+ * `owner` passes TWO gates, and both must hold. The extraction's own `explicit`
+ * flag is the first, but it is the model judging its own output — an invented
+ * name marked explicit would sail through it. `verifyOwner` is the second and
+ * mechanical one: the name must actually occur in the transcript or the roster
+ * (ownerVerificationService). A name failing either gate becomes null, never a
+ * different name.
  *
  * Applies LIVE.2 suppression (an item the user already accepted live must not be
  * re-created) and the same dedupe key mergeActionDescriptions uses, in one pass.
  */
-function commitmentsToDrafts(commitments: Commitment[], acceptedLiveTitles: string[]): ActionItemDraft[] {
+function commitmentsToDrafts(
+  commitments: Commitment[],
+  acceptedLiveTitles: string[],
+  verifyOwner: (owner: string | null) => string | null,
+): ActionItemDraft[] {
   const seen = new Set(acceptedLiveTitles.map(normalizeActionKey).filter((key) => key.length > 0));
   const drafts: ActionItemDraft[] = [];
   for (const commitment of commitments) {
@@ -1298,7 +1306,7 @@ function commitmentsToDrafts(commitments: Commitment[], acceptedLiveTitles: stri
     seen.add(key);
     drafts.push({
       description: commitment.task,
-      owner: commitment.explicit ? commitment.owner : null,
+      owner: commitment.explicit ? verifyOwner(commitment.owner) : null,
       dueText: commitment.due,
     });
   }
@@ -1326,7 +1334,14 @@ async function resolveActionItemDrafts(
 ): Promise<ActionItemDraft[] | null> {
   const structure = await readPersistedStructure(meetingId);
   if (structure) {
-    return commitmentsToDrafts(structure.commitments, await readAcceptedLiveActionTitles(meeting.id));
+    // The verifier's evidence is this meeting's own transcript (speaker names
+    // already substituted by the caller) plus its participant roster.
+    const verifyOwner = buildOwnerVerifier({
+      segments: meeting.segments,
+      rosterNames: (await buildRoster(meeting.id)).map((entry) => entry.name),
+      selfName: await readSelfName(),
+    });
+    return commitmentsToDrafts(structure.commitments, await readAcceptedLiveActionTitles(meeting.id), verifyOwner);
   }
 
   const provider = await resolveTaskModel('summarization');

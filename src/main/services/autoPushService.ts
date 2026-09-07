@@ -2,6 +2,12 @@
 // Pushes meeting action items as cards into a project's Inbox column automatically
 // (no user approval click required). Called after action-item extraction completes
 // when the meeting has a known projectId and the autoPush setting is enabled.
+//
+// Only OWNED items push themselves — see isAutoPushEligible. A brief lists every
+// commitment the meeting made, including the ones nobody was made responsible
+// for, and pushing all of them is what fills a board with cards the user never
+// asked for. An unowned item is not discarded: it stays 'pending' on the
+// meeting's action list, one approve-and-push click from the board.
 
 import { eq, count, asc } from 'drizzle-orm';
 import { getDb } from '../db/connection';
@@ -38,6 +44,23 @@ export interface AutoPushResult {
  *
  * Wraps inserts in a single transaction — partial failures are rolled back.
  */
+/**
+ * Which items auto-push may create a card from WITHOUT the user clicking.
+ *
+ * An action item carries an owner only when the meeting made a named person
+ * responsible AND that name was verified against the transcript/roster
+ * (ownerVerificationService). Everything else — the "someone should look at
+ * this" half of a long meeting — is what turns a brief into a board full of
+ * cards nobody asked for, so it does not push itself.
+ *
+ * It is NOT discarded: the item stays 'pending', stays on the meeting's action
+ * list, and the existing approve + "Push to column" controls send it to the
+ * board in one click. The rule only decides what happens with no click at all.
+ */
+export function isAutoPushEligible(item: Pick<ActionItem, 'owner'>): boolean {
+  return (item.owner ?? '').trim().length > 0;
+}
+
 export async function autoPushActionItems(args: {
   db: DB;
   meetingId: string;
@@ -65,12 +88,21 @@ export async function autoPushActionItems(args: {
   const inbox = await ensureInboxColumn(db, boardId);
 
   // Push each eligible item inside a transaction
+  let skippedUnowned = 0;
   const pushedCards = await db.transaction(async (tx) => {
     const created: Card[] = [];
 
     for (const item of items) {
       // Idempotency: skip converted or dismissed items
       if (item.status === 'converted' || item.status === 'dismissed') {
+        continue;
+      }
+
+      // Ownership gate: an item nobody was made responsible for is NOT pushed
+      // without a click (see isAutoPushEligible). It stays 'pending' and the
+      // meeting's action list keeps its approve + push controls.
+      if (!isAutoPushEligible(item)) {
+        skippedUnowned += 1;
         continue;
       }
 
@@ -106,7 +138,10 @@ export async function autoPushActionItems(args: {
   });
 
   const skippedCount = items.length - pushedCards.length;
-  log.info(`Auto-pushed ${pushedCards.length} cards for meeting ${meetingId} (${skippedCount} skipped)`);
+  log.info(
+    `Auto-pushed ${pushedCards.length} cards for meeting ${meetingId} ` +
+      `(${skippedCount} skipped, of which ${skippedUnowned} had no verified owner)`,
+  );
 
   // Broadcast so a visible board for this project live-updates with the new cards.
   if (pushedCards.length > 0) {

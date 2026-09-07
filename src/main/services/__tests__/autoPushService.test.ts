@@ -65,6 +65,7 @@ vi.mock('../dataChangeNotifier', () => ({ notifyDataChanged: vi.fn() }));
 
 import {
   autoPushActionItems,
+  isAutoPushEligible,
   formatOwnerDueLines,
   readAutoPushSetting,
   SETTINGS_KEY_AUTO_PUSH,
@@ -106,7 +107,9 @@ function makeActionItem(overrides: Partial<ActionItem> = {}): ActionItem {
     meetingId: 'meeting-1',
     cardId: null,
     description: 'Do the thing. More context here.',
-    owner: null,
+    // Auto-push only creates a card for an OWNED item (isAutoPushEligible), so the
+    // default fixture is owned — the unowned case has its own tests below.
+    owner: 'Marta',
     dueText: null,
     status: 'pending',
     createdAt: new Date().toISOString(),
@@ -601,8 +604,8 @@ describe('autoPushActionItems — owner/due on the pushed card', () => {
     expect(values.dueDate).toBeUndefined();
   });
 
-  it('an item with no owner and no due produces exactly the pre-BRIEF-QUAL.1 description', async () => {
-    const item = makeActionItem({ id: 'a-1', description: 'Book the venue' });
+  it('an item with an owner but no due carries the owner line only', async () => {
+    const item = makeActionItem({ id: 'a-1', description: 'Book the venue', owner: 'Rina', dueText: null });
     const db = buildDb({
       selectResponses: [[{ id: 'board-1', projectId: 'proj-1', position: 0 }]],
       txCardResults: [[makeCardRow({ id: 'card-1' })]],
@@ -618,6 +621,94 @@ describe('autoPushActionItems — owner/due on the pushed card', () => {
     });
 
     const values = (db._txInsertValues.mock.calls[0] as unknown[])[0] as { description: string };
-    expect(values.description).toBe('Book the venue\n\n_From meeting: meeting-1_');
+    expect(values.description).toBe('Owner: Rina\n\nBook the venue\n\n_From meeting: meeting-1_');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The ownership gate: an item nobody owns is not pushed WITHOUT a click.
+// ---------------------------------------------------------------------------
+
+describe('isAutoPushEligible', () => {
+  it('is true for an item with an owner', () => {
+    expect(isAutoPushEligible({ owner: 'Marta' })).toBe(true);
+  });
+
+  it('is false for a null owner — the meeting made nobody responsible', () => {
+    expect(isAutoPushEligible({ owner: null })).toBe(false);
+  });
+
+  it('is false for a whitespace-only owner', () => {
+    expect(isAutoPushEligible({ owner: '   ' })).toBe(false);
+  });
+});
+
+describe('autoPushActionItems — the ownership gate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(ensureInboxColumn).mockResolvedValue({
+      id: 'inbox-col-1',
+      boardId: 'board-1',
+      name: 'Inbox',
+      position: 0,
+      color: null,
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  it('pushes only the owned items and leaves the unowned ones pending', async () => {
+    const owned = makeActionItem({ id: 'a-1', description: 'Send the timeline', owner: 'Rina' });
+    const unowned1 = makeActionItem({ id: 'a-2', description: 'Look into the export', owner: null });
+    const unowned2 = makeActionItem({ id: 'a-3', description: 'Revisit the pricing', owner: null });
+
+    const db = buildDb({
+      selectResponses: [[{ id: 'board-1', projectId: 'proj-1', position: 0 }]],
+      txCardResults: [[makeCardRow({ id: 'card-1' })]],
+      txCountValues: [0],
+    });
+
+    const result = await autoPushActionItems({
+      db: db as never,
+      meetingId: 'meeting-1',
+      projectId: 'proj-1',
+      actionItems: [owned, unowned1, unowned2],
+      userSettings: { autoPushEnabled: true },
+    });
+
+    expect(result.pushedCount).toBe(1);
+    expect(result.skippedCount).toBe(2);
+    // Exactly one card row, and it is the owned one.
+    expect(db._txInsertValues.mock.calls).toHaveLength(1);
+    const values = (db._txInsertValues.mock.calls[0] as unknown[])[0] as { title: string };
+    expect(values.title).toBe('Send the timeline');
+    // The unowned items were never marked converted — they stay pending.
+    expect(db._txUpdateWhere).toHaveBeenCalledTimes(1);
+  });
+
+  it('pushes nothing and broadcasts nothing when no item has an owner', async () => {
+    const items = [
+      makeActionItem({ id: 'a-1', description: 'Look into the export', owner: null }),
+      makeActionItem({ id: 'a-2', description: 'Revisit the pricing', owner: null }),
+    ];
+
+    const db = buildDb({
+      selectResponses: [[{ id: 'board-1', projectId: 'proj-1', position: 0 }]],
+      txCardResults: [],
+      txCountValues: [],
+    });
+
+    const result = await autoPushActionItems({
+      db: db as never,
+      meetingId: 'meeting-1',
+      projectId: 'proj-1',
+      actionItems: items,
+      userSettings: { autoPushEnabled: true },
+    });
+
+    expect(result.pushedCount).toBe(0);
+    expect(result.skippedCount).toBe(2);
+    expect(result.cards).toEqual([]);
+    expect(db._txInsertValues).not.toHaveBeenCalled();
+    expect(notifyDataChanged).not.toHaveBeenCalled();
   });
 });

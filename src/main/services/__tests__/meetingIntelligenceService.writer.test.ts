@@ -597,6 +597,8 @@ describe('generateBrief — an extraction failure is a brief failure', () => {
 
 describe('generateActionItems — derived from the brief structure', () => {
   it('writes one item per commitment with its owner and due, and calls no model at all', async () => {
+    // Rina is a known participant, so the owner verifier has evidence for the name.
+    vi.mocked(buildRoster).mockResolvedValue([{ name: 'Rina', source: 'participants' }]);
     const structure = makeStructure({
       commitments: [
         { owner: 'Rina', task: 'Send the updated timeline', due: 'Friday', explicit: true },
@@ -623,6 +625,26 @@ describe('generateActionItems — derived from the brief structure', () => {
       { description: 'Send the updated timeline', owner: 'Rina', dueText: 'Friday' },
       { description: 'Book the venue', owner: null, dueText: null },
     ]);
+  });
+
+  it('drops an explicit owner the meeting never names — the invented-name guard', async () => {
+    // The extraction claims certainty ("explicit": true) about a person who is in
+    // neither the transcript nor the roster. The verifier is the second gate the
+    // model cannot talk its way past.
+    vi.mocked(buildRoster).mockResolvedValue([{ name: 'Rina', source: 'participants' }]);
+    const structure = makeStructure({
+      commitments: [{ owner: 'Gabriela', task: 'Send the updated timeline', due: 'Friday', explicit: true }],
+    });
+    const { actionValues } = buildDb({ briefRows: briefRowWith(structure) });
+
+    await generateActionItems(MEETING_ID);
+
+    // The task survives; only the unverifiable name is dropped.
+    expect(actionValues.mock.calls[0][0]).toMatchObject({
+      description: 'Send the updated timeline',
+      owner: null,
+      dueText: 'Friday',
+    });
   });
 
   it('drops an owner the extraction did not mark explicit — attribution is never guessed', async () => {
@@ -653,6 +675,7 @@ describe('generateActionItems — derived from the brief structure', () => {
   });
 
   it('dedupes commitments that repeat the same task', async () => {
+    vi.mocked(buildRoster).mockResolvedValue([{ name: 'Rina', source: 'participants' }]);
     const structure = makeStructure({
       commitments: [
         { owner: 'Rina', task: 'Send the timeline', due: 'Friday', explicit: true },
