@@ -3,6 +3,10 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.13.1 — 2026-09-07
+- release: prep v2.13.1
+- fix(cards): a pushed card only names someone the meeting actually named, and only an owned item pushes itself
+
 ## v2.13.0 — 2026-09-04
 - release: prep v2.13.0
 - fix(recording): a meeting interrupted by a crash or a quit no longer says "Running..." forever — every launch now closes the sessions a previous process left open
