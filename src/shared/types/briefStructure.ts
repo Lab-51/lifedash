@@ -14,6 +14,11 @@
 //     defence against a model attributing a task to whoever spoke last.
 //   - The MODEL is asked for everything EXCEPT provenance: it cannot know which
 //     provider ran it or how many passes it took. The service stamps that.
+//   - `evidence` (BRIEF-EVID.1) is the ONE nested object in this schema — a
+//     deliberate exception to "flat and string-typed". It is stamped by CODE
+//     (Task 2's evidenceAnchorService), never asked of the model, so the
+//     constraint this note exists to protect (small models fail on nested
+//     shapes) is never tested against it.
 //
 // === DEPENDENCIES ===
 // zod (already a project dependency; used across main for validation).
@@ -27,7 +32,7 @@ import { z } from 'zod';
 
 /** Bumped when the persisted structure's shape changes incompatibly. Stamped into
  *  every structure so a later reader can tell what it is looking at. */
-export const BRIEF_STRUCTURE_SCHEMA_VERSION = 1;
+export const BRIEF_STRUCTURE_SCHEMA_VERSION = 2;
 
 /** Trim, then treat a blank string as absent. Small models answer "unknown" fields
  *  with `""` about as often as with `null`; both must mean "not stated", never a
@@ -75,9 +80,48 @@ export const TopicSchema = z.object({
     .transform((value) => value?.trim() ?? ''),
 });
 
+/** The three settledness states a decision can render as (BRIEF-EVID.1). Bias
+ *  toward LESS settled: 'proposed' is the fallback, never 'agreed' — the failure
+ *  being fixed is a proposal that read in the brief as an already-agreed decision. */
+export const DECISION_STATUSES = ['agreed', 'proposed', 'objected'] as const;
+export type DecisionStatus = (typeof DECISION_STATUSES)[number];
+
+/** Lenient, case-insensitive status fold. 'Agreed'/'AGREED' -> 'agreed',
+ *  'Objected'/'OBJECTED' -> 'objected'; EVERY other value — a blank string, null,
+ *  an absent field, or anything the model invents ('maybe', 'pending') — folds to
+ *  'proposed'. A v1 structure (no `status` field at all) therefore renders every
+ *  decision as 'proposed' after parsing, and nothing can tell a genuinely legacy
+ *  decision apart from a freshly-extracted 'proposed' one — accepted, and stated
+ *  here rather than left to be rediscovered. */
+const decisionStatus = z
+  .unknown()
+  .nullish()
+  .transform((value): DecisionStatus => {
+    const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    if (normalized === 'agreed' || normalized === 'objected') return normalized;
+    return 'proposed';
+  });
+
+/** `{ startTime, excerpt } | null` — the transcript anchor for a `quote`, stamped
+ *  by CODE (Task 2's evidenceAnchorService), never asked of the model. The schema
+ *  only needs to PARSE it: present on a re-parsed persisted v2 structure, absent
+ *  (-> null) on fresh model output and on every v1 object. */
+export const EvidenceSchema = z.object({
+  startTime: z.number(),
+  excerpt: z.string(),
+});
+const evidence = EvidenceSchema.nullish().transform((value) => value ?? null);
+export type Evidence = z.infer<typeof EvidenceSchema>;
+
 export const DecisionSchema = z.object({
   statement: z.string().trim().min(1),
   rationale: nullableText,
+  status: decisionStatus,
+  /** A short verbatim transcript passage supporting the statement, or null —
+   *  same lenient-text handling as `rationale`. Never paraphrased or corrected;
+   *  the model proposes it, code (Task 2) decides whether it is `evidence`. */
+  quote: nullableText,
+  evidence,
 });
 
 /** `task` is the one strictly required field in the whole schema: a commitment
@@ -87,6 +131,9 @@ export const CommitmentSchema = z.object({
   task: z.string().trim().min(1),
   due: nullableText,
   explicit: lenientBoolean,
+  /** Same contract as `DecisionSchema.quote`/`evidence`. */
+  quote: nullableText,
+  evidence,
 });
 
 /** Stamped by the service, never asked of the model. */
@@ -96,7 +143,11 @@ export const ProvenanceSchema = z.object({
   /** Number of extraction passes = number of transcript parts (1 when it fit). */
   passes: z.number().int().positive(),
   extractedAt: z.string(),
-  schemaVersion: z.literal(BRIEF_STRUCTURE_SCHEMA_VERSION),
+  // BRIEF-EVID.1: v2 adds status/quote/evidence to decisions and commitments.
+  // Every brief persisted before this phase is v1 and MUST keep parsing — a
+  // reader that rejects v1 blanks every existing Full notes panel — so both
+  // versions are accepted here, never just the current one.
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
 });
 
 /** What the MODEL is asked to return. Lenient where it is safe (missing arrays ->

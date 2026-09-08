@@ -55,6 +55,15 @@
 // still be ≈ 1.0, because completeness for those two never moved. A low
 // decisions/commitments recall is a real regression; a low topics recall is not.
 //
+// BRIEF-EVID.1 adds four evidence numbers — quotedRate, anchoredRate,
+// unsupportedCount, anchoredCorrectly — that are REPORTED AND NOT GATED, on
+// purpose. Nothing has measured them yet, and the two constants they exist to
+// tune (evidenceAnchorService's MIN_OVERLAP_SCORE and MIN_OVERLAP_TOKENS) are
+// reasoned rather than measured. LOCAL-QUAL.1 Task 5 is the precedent: set a bar
+// FROM a measurement run, never from a guess. Read them as: quotedRate = is the
+// model quoting at all; anchoredRate = are its quotes real; anchoredCorrectly =
+// when it quotes a known item, does the anchor land on the right line.
+//
 // Per-tier bars live in ONE table, `TIER_BARS` below (see its own doc comment for
 // each value's provenance). To let a MEASUREMENT run complete and print its
 // numbers regardless of the current bar (e.g. capturing builtin's real baseline
@@ -287,6 +296,11 @@ describe.runIf(LIVE)('brief pipeline — LIVE eval against a real model', () => 
           `writerRecall(topics/decisions/commitments)=${writerTopicsRecall.toFixed(2)}/${writerDecisionsRecall.toFixed(2)}/${writerCommitmentsRecall.toFixed(2)}`,
           `inventedOwners=${score.inventedOwners}`,
           `wrongOwners=${score.wrongOwners}`,
+          // BRIEF-EVID.1 — reported, never gated (see the file header).
+          `quotedRate=${score.quotedRate.toFixed(2)}`,
+          `anchoredRate=${score.anchoredRate.toFixed(2)}`,
+          `unsupportedCount=${score.unsupportedCount}`,
+          `anchoredCorrectly=${score.anchoredCorrectly.toFixed(2)}`,
           `extractWallMs=${extractWallMs}`,
           `writerWallMs=${writerWallMs}`,
           // Always printed (not just on failure) so a PASSING run still leaves a
@@ -321,6 +335,12 @@ describe.runIf(LIVE)('brief pipeline — LIVE eval against a real model', () => 
             },
             inventedOwners: score.inventedOwners,
             wrongOwners: score.wrongOwners,
+            evidence: {
+              quotedRate: score.quotedRate,
+              anchoredRate: score.anchoredRate,
+              unsupportedCount: score.unsupportedCount,
+              anchoredCorrectly: score.anchoredCorrectly,
+            },
             extractWallMs,
             writerWallMs,
             missed: score.missed,

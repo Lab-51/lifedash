@@ -29,6 +29,13 @@ vi.mock('../logger', () => ({ createLogger: () => logMock }));
 
 vi.mock('../ai-provider', () => ({ generate: vi.fn() }));
 
+// BRIEF-EVID.1: the glossary reader briefExtractionService now calls. `getDb`
+// itself is mocked too — it is evaluated as `loadPresetGlossary`'s first argument
+// even though the mocked reader below ignores it, and the REAL `../../db/connection`
+// throws synchronously when no database has been connected (never true in this file).
+vi.mock('../../db/connection', () => ({ getDb: () => ({}) }));
+vi.mock('../whisperPromptService', () => ({ loadPresetGlossary: vi.fn() }));
+
 import {
   extractMeetingStructure,
   mergeDrafts,
@@ -37,8 +44,13 @@ import {
 } from '../briefExtractionService';
 import { EXTRACTION_SYSTEM_PROMPT } from '../briefExtractionPrompt';
 import { generate } from '../ai-provider';
+import { loadPresetGlossary } from '../whisperPromptService';
 import { MEETING_TEMPLATES, type MeetingTemplateType } from '../../../shared/types/meetings';
-import { MeetingStructureDraftSchema } from '../../../shared/types/briefStructure';
+import {
+  MeetingStructureDraftSchema,
+  MeetingStructureSchema,
+  DecisionSchema,
+} from '../../../shared/types/briefStructure';
 
 // ---------------------------------------------------------------------------
 // Fixtures — every name here is invented.
@@ -87,6 +99,7 @@ function input(overrides: Partial<ExtractionInput> = {}): ExtractionInput {
     langName: overrides.langName ?? null,
     knownTerms: overrides.knownTerms,
     selfName: overrides.selfName,
+    presetCode: overrides.presetCode,
   };
 }
 
@@ -96,6 +109,7 @@ function reply(draft: Record<string, unknown>): { text: string; usage: undefined
 }
 
 const generateMock = generate as unknown as Mock;
+const loadPresetGlossaryMock = loadPresetGlossary as unknown as Mock;
 
 function callArgs(index: number): { system: string; prompt: string; taskType: string } {
   return generateMock.mock.calls[index][0] as { system: string; prompt: string; taskType: string };
@@ -103,6 +117,7 @@ function callArgs(index: number): { system: string; prompt: string; taskType: st
 
 beforeEach(() => {
   generateMock.mockReset();
+  loadPresetGlossaryMock.mockReset();
   logMock.warn.mockClear();
   logMock.info.mockClear();
   logMock.error.mockClear();
@@ -135,7 +150,7 @@ describe('extractMeetingStructure — transcript that fits the window', () => {
       provider: 'builtin',
       model: 'qwen3-4b',
       passes: 1,
-      schemaVersion: 1,
+      schemaVersion: 2, // BRIEF-EVID.1 — bumped for status/quote/evidence
     });
     expect(Date.parse(result.structure.provenance.extractedAt)).not.toBeNaN();
     expect(result.structure.topics).toHaveLength(1);
@@ -252,6 +267,53 @@ IMPORTANT: The transcript is in Czech. Write every string VALUE in Czech. The JS
     expect(system.indexOf('Known names (')).toBeLessThan(system.indexOf('IMPORTANT CONTEXT:'));
   });
 
+  // -------------------------------------------------------------------------
+  // BRIEF-EVID.1 - the whisper glossary reaches the extraction prompt
+  // -------------------------------------------------------------------------
+  // whisperPromptService's `loadPresetGlossary` is mocked wholesale (module top):
+  // this file tests briefExtractionService's OWN merge/byte-identity behaviour,
+  // not whisperPromptService's DB reads — those are whisperPromptService.test.ts's job.
+
+  it('does not read the glossary at all when no preset is given (byte-identity)', async () => {
+    await extractMeetingStructure(input({ meeting: CZECH_STANDUP, langName: 'Czech' }));
+    expect(loadPresetGlossaryMock).not.toHaveBeenCalled();
+    expect(callArgs(0).system).toBe(ASSEMBLED_WITHOUT_KNOWN_TERMS);
+  });
+
+  it('merges the preset glossary into the Known names block', async () => {
+    loadPresetGlossaryMock.mockResolvedValue('Kestrel Ledger, P2');
+    await extractMeetingStructure(input({ meeting: CZECH_STANDUP, langName: 'Czech', presetCode: 'cs' }));
+    expect(loadPresetGlossaryMock).toHaveBeenCalledWith(expect.anything(), 'cs');
+    expect(callArgs(0).system).toContain(
+      'Known names (use these exact spellings, even where the transcript inflects or declines them): Kestrel Ledger, P2',
+    );
+  });
+
+  it('dedupes the glossary against the caller-supplied knownTerms case-insensitively, keeping the callers spelling', async () => {
+    loadPresetGlossaryMock.mockResolvedValue('kestrel ledger, Extra Term');
+    await extractMeetingStructure(
+      input({ meeting: CZECH_STANDUP, langName: 'Czech', knownTerms: ['Kestrel Ledger'], presetCode: 'cs' }),
+    );
+    expect(callArgs(0).system).toContain(
+      'Known names (use these exact spellings, even where the transcript inflects or declines them): Kestrel Ledger, Extra Term',
+    );
+  });
+
+  it('sends the pre-glossary, byte-identical prompt when the glossary AND the project terms are both empty', async () => {
+    loadPresetGlossaryMock.mockResolvedValue('');
+    await extractMeetingStructure(input({ meeting: CZECH_STANDUP, langName: 'Czech', presetCode: 'cs' }));
+    expect(callArgs(0).system).toBe(ASSEMBLED_WITHOUT_KNOWN_TERMS);
+  });
+
+  it('degrades to no glossary terms — never fails extraction — when the lookup throws', async () => {
+    loadPresetGlossaryMock.mockRejectedValue(new Error('db unavailable'));
+    const result = await extractMeetingStructure(
+      input({ meeting: CZECH_STANDUP, langName: 'Czech', presetCode: 'cs' }),
+    );
+    expect('structure' in result).toBe(true);
+    expect(callArgs(0).system).toBe(ASSEMBLED_WITHOUT_KNOWN_TERMS);
+  });
+
   it('states the owner-null rule — the whole defence against invented attribution', async () => {
     await extractMeetingStructure(input());
     const { system } = callArgs(0);
@@ -317,6 +379,8 @@ IMPORTANT: The transcript is in Czech. Write every string VALUE in Czech. The JS
       task: 'Send the deck',
       due: null,
       explicit: false, // missing flag means "do not trust an owner" — never true
+      quote: null, // BRIEF-EVID.1 — model omitted it, service never guesses
+      evidence: null,
     });
     expect(result.structure.decisions).toEqual([]);
     expect(result.structure.openQuestions).toEqual([]);
@@ -419,6 +483,102 @@ describe('extractMeetingStructure — transcript that does NOT fit', () => {
 
     expect(structure.openQuestions.filter((q) => q === 'Who signs this off?')).toHaveLength(1);
     expect(structure.terms.filter((t) => t === 'Ledgerly')).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Evidence anchoring (BRIEF-EVID.1 Task 2) — wired PER PART, before the merge
+// ---------------------------------------------------------------------------
+
+describe('extractMeetingStructure — evidence anchoring', () => {
+  /** Two distinctive invented sentences, one at each END of the transcript, so
+   *  they land in different PARTS. The filler between them deliberately shares no
+   *  vocabulary with either — a quote that fails to anchor here fails because the
+   *  part does not contain it, not because the words happen to be rare. */
+  const OPENING_LINE = 'Ondřej zvedne batch limit Kestrel Syncu na pět tisíc řádků.';
+  const CLOSING_LINE = 'Petra nasadí opravu zaokrouhlování Meridian Ledgeru na staging.';
+  const LAST_INDEX = 29;
+
+  const ANCHOR_SEGMENTS = Array.from({ length: LAST_INDEX + 1 }, (_, i) => ({
+    startTime: i * 30_000,
+    content:
+      (i === 0 ? `${OPENING_LINE} ` : '') +
+      (i === LAST_INDEX ? `${CLOSING_LINE} ` : '') +
+      `Poznámka ${i}. ${'Obecná diskuse. '.repeat(240)}`.trim(),
+  }));
+
+  /** EVERY part claims BOTH quotes, under a statement unique to that call — so
+   *  the merge cannot collapse them and each part's anchoring is observable on
+   *  its own item. Only the part that actually contains a line may anchor it. */
+  function seedBothQuotes() {
+    let call = 0;
+    generateMock.mockImplementation(() => {
+      const n = ++call;
+      return Promise.resolve(
+        reply({
+          topics: [],
+          decisions: [{ statement: `Opening claim ${n}`, rationale: null, status: 'agreed', quote: OPENING_LINE }],
+          commitments: [{ owner: null, task: `Closing task ${n}`, due: null, explicit: false, quote: CLOSING_LINE }],
+          openQuestions: [],
+          terms: [],
+        }),
+      );
+    });
+  }
+
+  it("anchors each part's quotes ONLY within that part's own segments", async () => {
+    seedBothQuotes();
+
+    const result = await extractMeetingStructure(input({ meeting: { ...BASE_MEETING, segments: ANCHOR_SEGMENTS } }));
+    const parts = generateMock.mock.calls.length;
+    expect(parts).toBeGreaterThan(1);
+
+    expect('structure' in result).toBe(true);
+    if (!('structure' in result)) return;
+    const { decisions, commitments } = result.structure;
+
+    // Nothing collapsed: one claim per part survives on each side.
+    expect(decisions).toHaveLength(parts);
+    expect(commitments).toHaveLength(parts);
+
+    // The opening line lives in segment 0, which is in the FIRST part only.
+    const anchoredDecisions = decisions.filter((d) => d.evidence !== null);
+    expect(anchoredDecisions).toHaveLength(1);
+    expect(anchoredDecisions[0].statement).toBe('Opening claim 1');
+    expect(anchoredDecisions[0].evidence).toEqual({ startTime: 0, excerpt: ANCHOR_SEGMENTS[0].content });
+
+    // The closing line lives in the LAST segment, which is in the LAST part only.
+    const anchoredCommitments = commitments.filter((c) => c.evidence !== null);
+    expect(anchoredCommitments).toHaveLength(1);
+    expect(anchoredCommitments[0].task).toBe(`Closing task ${parts}`);
+    expect(anchoredCommitments[0].evidence).toEqual({
+      startTime: LAST_INDEX * 30_000,
+      excerpt: ANCHOR_SEGMENTS[LAST_INDEX].content,
+    });
+
+    // The quote itself is kept verbatim on every item, anchored or not.
+    for (const decision of decisions) expect(decision.quote).toBe(OPENING_LINE);
+    for (const commitment of commitments) expect(commitment.quote).toBe(CLOSING_LINE);
+  });
+
+  it('passes a draft that carries NO quotes through byte-identical', async () => {
+    const body = {
+      topics: [{ title: 'Export failures', detail: 'The export worker fails for large accounts.' }],
+      decisions: [{ statement: 'Raise the batch limit', rationale: 'Cheaper than a rewrite' }],
+      commitments: [{ owner: 'Marta Nováková', task: 'Patch the batch limit', due: 'Friday', explicit: true }],
+      openQuestions: ['Is the limit ours or the vendor s?'],
+      terms: ['export worker', 'P2'],
+    };
+    generateMock.mockResolvedValue(reply(body));
+
+    const result = await extractMeetingStructure(input());
+
+    expect('structure' in result).toBe(true);
+    if (!('structure' in result)) return;
+    const { topics, decisions, commitments, openQuestions, terms } = result.structure;
+    // Compared against an INDEPENDENT parse of the same reply — so any field the
+    // anchoring stage touched, on any item, shows up as a diff.
+    expect({ topics, decisions, commitments, openQuestions, terms }).toEqual(MeetingStructureDraftSchema.parse(body));
   });
 });
 
@@ -625,6 +785,168 @@ describe('mergeDrafts', () => {
     ]);
     expect(merged.topics).toHaveLength(1);
     expect(merged.topics[0].title).toBe('Review the Nováková proposal with the wider team');
+  });
+
+  // -------------------------------------------------------------------------
+  // BRIEF-EVID.1: status, quote and evidence carried through both merge passes.
+  // -------------------------------------------------------------------------
+
+  it('resolves a status conflict: the later part wins when it settles agreed', () => {
+    const merged = mergeDrafts([
+      draft({ decisions: [{ statement: 'Raise the export batch limit', status: 'proposed' }] }),
+      draft({ decisions: [{ statement: 'Raise the export batch limit', status: 'agreed' }] }),
+    ]);
+    expect(merged.decisions).toHaveLength(1);
+    expect(merged.decisions[0].status).toBe('agreed');
+  });
+
+  it('resolves a status conflict: the later part wins when it settles objected', () => {
+    const merged = mergeDrafts([
+      draft({ decisions: [{ statement: 'Raise the export batch limit', status: 'proposed' }] }),
+      draft({ decisions: [{ statement: 'Raise the export batch limit', status: 'objected' }] }),
+    ]);
+    expect(merged.decisions[0].status).toBe('objected');
+  });
+
+  it('keeps an already-settled status when a later duplicate is merely proposed again', () => {
+    const merged = mergeDrafts([
+      draft({ decisions: [{ statement: 'Raise the export batch limit', status: 'agreed' }] }),
+      draft({ decisions: [{ statement: 'Raise the export batch limit', status: 'proposed' }] }),
+    ]);
+    expect(merged.decisions[0].status).toBe('agreed');
+  });
+
+  it('keeps the first non-null quote across a decision merge', () => {
+    const merged = mergeDrafts([
+      draft({ decisions: [{ statement: 'Raise the export batch limit', quote: "Marta: let's raise it." }] }),
+      draft({ decisions: [{ statement: 'Raise the export batch limit', quote: 'Something else entirely.' }] }),
+    ]);
+    expect(merged.decisions[0].quote).toBe("Marta: let's raise it.");
+  });
+
+  it('takes the later quote when the earlier part left it null', () => {
+    const merged = mergeDrafts([
+      draft({ decisions: [{ statement: 'Raise the export batch limit' }] }), // quote null
+      draft({ decisions: [{ statement: 'Raise the export batch limit', quote: 'Marta: raise it.' }] }),
+    ]);
+    expect(merged.decisions[0].quote).toBe('Marta: raise it.');
+  });
+
+  it('keeps the first non-null evidence across a decision merge', () => {
+    const merged = mergeDrafts([
+      draft({
+        decisions: [
+          { statement: 'Raise the export batch limit', evidence: { startTime: 5000, excerpt: 'Marta: raise it.' } },
+        ],
+      }),
+      draft({
+        decisions: [{ statement: 'Raise the export batch limit', evidence: { startTime: 9000, excerpt: 'unrelated' } }],
+      }),
+    ]);
+    expect(merged.decisions[0].evidence).toEqual({ startTime: 5000, excerpt: 'Marta: raise it.' });
+  });
+
+  it('carries quote and evidence through a commitment merge the same way', () => {
+    const merged = mergeDrafts([
+      draft({
+        commitments: [
+          {
+            task: 'Patch the batch limit',
+            quote: 'Marta: I will patch it.',
+            evidence: { startTime: 1000, excerpt: 'Marta: I will patch it.' },
+          },
+        ],
+      }),
+      draft({ commitments: [{ task: 'Patch the batch limit', quote: 'unused', evidence: null }] }),
+    ]);
+    expect(merged.commitments[0].quote).toBe('Marta: I will patch it.');
+    expect(merged.commitments[0].evidence).toEqual({ startTime: 1000, excerpt: 'Marta: I will patch it.' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BRIEF-EVID.1: MeetingStructure v2 — status fold, quote/evidence, v1 compatibility
+// ---------------------------------------------------------------------------
+
+describe('MeetingStructureSchema / DecisionSchema — v2 status, quote, evidence', () => {
+  it('parses a v1 structure (no status/quote/evidence, schemaVersion 1) and fills the v2 defaults', () => {
+    const v1 = {
+      topics: [{ title: 'Topic', detail: 'd' }],
+      decisions: [{ statement: 'Ship on Friday', rationale: 'Cheaper than a rewrite' }],
+      commitments: [{ owner: 'Marta Nováková', task: 'Patch it', due: 'Friday', explicit: true }],
+      openQuestions: [],
+      terms: [],
+      provenance: {
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        passes: 1,
+        extractedAt: '2026-01-01T00:00:00.000Z',
+        schemaVersion: 1,
+      },
+    };
+
+    const result = MeetingStructureSchema.parse(v1);
+
+    expect(result.provenance.schemaVersion).toBe(1);
+    expect(result.decisions[0].status).toBe('proposed'); // legacy renders as proposed — accepted, stated
+    expect(result.decisions[0].quote).toBeNull();
+    expect(result.decisions[0].evidence).toBeNull();
+    expect(result.commitments[0].quote).toBeNull();
+    expect(result.commitments[0].evidence).toBeNull();
+  });
+
+  it('parses schemaVersion 2 too', () => {
+    const result = MeetingStructureSchema.parse({
+      topics: [],
+      decisions: [],
+      commitments: [],
+      openQuestions: [],
+      terms: [],
+      provenance: {
+        provider: 'builtin',
+        model: 'qwen3-4b',
+        passes: 1,
+        extractedAt: '2026-01-01T00:00:00.000Z',
+        schemaVersion: 2,
+      },
+    });
+    expect(result.provenance.schemaVersion).toBe(2);
+  });
+
+  it.each([
+    ['Agreed', 'agreed'],
+    ['AGREED', 'agreed'],
+    ['agreed', 'agreed'],
+    ['proposed', 'proposed'],
+    ['Objected', 'objected'],
+    ['OBJECTED', 'objected'],
+    ['maybe', 'proposed'], // an unrecognised value is NOT agreed — bias toward less settled
+    ['', 'proposed'],
+    [null, 'proposed'],
+  ])('folds decision status %j to %j', (raw, expected) => {
+    const parsed = DecisionSchema.parse({ statement: 'x', status: raw });
+    expect(parsed.status).toBe(expected);
+  });
+
+  it('folds an entirely absent status to proposed', () => {
+    const parsed = DecisionSchema.parse({ statement: 'x' });
+    expect(parsed.status).toBe('proposed');
+  });
+
+  it('parses a draft with evidence omitted, defaulting to null on every item', () => {
+    const draft = MeetingStructureDraftSchema.parse({
+      decisions: [{ statement: 'Ship on Friday' }],
+      commitments: [{ task: 'Patch it' }],
+    });
+    expect(draft.decisions[0].evidence).toBeNull();
+    expect(draft.commitments[0].evidence).toBeNull();
+  });
+
+  it('parses a real evidence object when the service supplies one', () => {
+    const draft = MeetingStructureDraftSchema.parse({
+      decisions: [{ statement: 'Ship on Friday', evidence: { startTime: 4200, excerpt: 'Marta: ship it Friday.' } }],
+    });
+    expect(draft.decisions[0].evidence).toEqual({ startTime: 4200, excerpt: 'Marta: ship it Friday.' });
   });
 });
 

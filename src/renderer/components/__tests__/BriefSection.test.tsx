@@ -139,8 +139,25 @@ describe('Full notes (BRIEF-QUAL.2)', () => {
   function makeStructuredBrief(overrides: Partial<MeetingStructure> = {}): MeetingBrief {
     const structure: MeetingStructure = {
       topics: [{ title: 'Greenhouse irrigation retrofit', detail: 'Drip lines swap to the north field first.' }],
-      decisions: [{ statement: 'Push the retrofit to next quarter', rationale: 'Parts are back-ordered' }],
-      commitments: [{ owner: 'Talia Osei', task: 'Confirm the parts delivery window', due: 'Monday', explicit: true }],
+      decisions: [
+        {
+          statement: 'Push the retrofit to next quarter',
+          rationale: 'Parts are back-ordered',
+          status: 'agreed',
+          quote: null,
+          evidence: null,
+        },
+      ],
+      commitments: [
+        {
+          owner: 'Talia Osei',
+          task: 'Confirm the parts delivery window',
+          due: 'Monday',
+          explicit: true,
+          quote: null,
+          evidence: null,
+        },
+      ],
       openQuestions: ['Who approves the vendor change?'],
       terms: ['drip line'],
       provenance: PROVENANCE,
@@ -188,7 +205,16 @@ describe('Full notes (BRIEF-QUAL.2)', () => {
 
   it('renders an explicit: false commitment owner as unassigned', () => {
     const brief = makeStructuredBrief({
-      commitments: [{ owner: 'Talia Osei', task: 'Confirm the parts delivery window', due: null, explicit: false }],
+      commitments: [
+        {
+          owner: 'Talia Osei',
+          task: 'Confirm the parts delivery window',
+          due: null,
+          explicit: false,
+          quote: null,
+          evidence: null,
+        },
+      ],
     });
     render(
       <BriefSection meetingId="meeting-1" brief={brief} isCompleted generatingBrief={false} onGenerate={() => {}} />,

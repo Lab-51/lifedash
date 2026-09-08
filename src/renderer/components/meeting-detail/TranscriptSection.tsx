@@ -216,6 +216,24 @@ export default function TranscriptSection({
   // Open only when the host deep-linked into a search — otherwise start collapsed.
   const [open, setOpen] = useState(Boolean(initialSearch));
 
+  // The host can ask for a DIFFERENT passage while this section is already
+  // mounted (BRIEF-EVID.1 Task 5: a Full-notes evidence chip switches the canvas
+  // to this tab and rewrites ?transcriptSearch). Adjust-state-on-prop-change,
+  // DURING RENDER — the same idiom SessionInspector uses, and required here
+  // because react-hooks/set-state-in-effect is an ERROR in this repo. Guarded by
+  // the last-applied prop so it cannot fire on the initial render (nothing has
+  // changed yet) and cannot overwrite a search the user typed while the prop
+  // stood still. An empty/absent prop is never applied: clearing the deep link
+  // must not wipe what the user is reading.
+  const [appliedSearch, setAppliedSearch] = useState(initialSearch);
+  if (initialSearch !== appliedSearch) {
+    setAppliedSearch(initialSearch);
+    if (initialSearch) {
+      setTranscriptSearch(initialSearch);
+      setOpen(true);
+    }
+  }
+
   const searchQuery = transcriptSearch.trim().toLowerCase();
   const filteredSegments = searchQuery
     ? meeting.segments.filter((s) => s.content.toLowerCase().includes(searchQuery))

@@ -20,6 +20,10 @@
 // post-session dispatcher into the import graph, and a name comparison needs
 // none of them. Same semantics as normalizeEntityName (and as
 // briefStructureMerge's own local copy, the existing precedent here).
+//
+// BRIEF-EVID.1: that fold (`foldWords`) is now EXPORTED and shared with
+// evidenceAnchorService rather than copied a third time — importing FROM here is
+// safe precisely because this module's own dependency list is one logger.
 
 import { createLogger } from './logger';
 
@@ -54,10 +58,20 @@ export interface OwnerEvidence {
 /** Combining marks (U+0300-U+036F): what NFD splits an accented letter into. */
 const COMBINING_MARKS_RE = /[\u0300-\u036f]/g;
 
-/** Fold to a space-delimited word bag: lowercased, diacritics stripped,
- *  punctuation turned into gaps, wrapped in spaces so a lookup can require whole
- *  words on both sides (" ana " never matches "banana"). */
-function foldWords(value: string): string {
+/**
+ * Fold to a space-delimited word bag: lowercased, diacritics stripped,
+ * punctuation turned into gaps, wrapped in spaces so a lookup can require whole
+ * words on both sides (" ana " never matches "banana"). An input that folds to
+ * nothing returns `''`, never `' '` — so a caller can treat the empty string as
+ * "there is nothing here to match".
+ *
+ * EXPORTED (BRIEF-EVID.1) because evidenceAnchorService needs exactly this fold
+ * to compare a model's quote against a transcript segment, and a THIRD private
+ * copy is the drift ENTITY-NAME.1's fold sweep exists to repair. This is the one
+ * definition; briefStructureMerge's `normalizeKey` is the pre-existing second and
+ * is deliberately different (it keeps interior punctuation).
+ */
+export function foldWords(value: string): string {
   const folded = value
     .toLowerCase()
     .normalize('NFD')

@@ -83,6 +83,10 @@ interface IntelligenceProps {
   meeting: MeetingWithTranscript;
   autoGenerate: boolean;
   onConvert: (item: ActionItem) => void;
+  /** Jump to the transcript passage behind an anchored Full-notes item
+   *  (BRIEF-EVID.1 Task 5). Passed straight through to BriefSection; optional,
+   *  so a host with no transcript surface simply omits it. */
+  onShowEvidence?: (excerpt: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +97,7 @@ interface IntelligenceProps {
 // stay thin layouts. MOVED HERE VERBATIM from SessionWorkspace by POST-FLOW.1
 // Task 2 — one block, two placements, never two brief renderers.
 // ---------------------------------------------------------------------------
-function IntelligenceBlock({ meeting, autoGenerate, onConvert }: IntelligenceProps) {
+function IntelligenceBlock({ meeting, autoGenerate, onConvert, onShowEvidence }: IntelligenceProps) {
   const generateBrief = useMeetingStore((s) => s.generateBrief);
   const generateActionItems = useMeetingStore((s) => s.generateActionItems);
   const generatingBrief = useMeetingStore((s) => s.generatingBrief);
@@ -192,6 +196,7 @@ function IntelligenceBlock({ meeting, autoGenerate, onConvert }: IntelligencePro
         isCompleted={meeting.status === 'completed'}
         generatingBrief={generatingBrief}
         onGenerate={() => generateBrief(meeting.id)}
+        onShowEvidence={onShowEvidence}
       />
 
       <ActionItemList
@@ -208,6 +213,8 @@ function IntelligenceBlock({ meeting, autoGenerate, onConvert }: IntelligencePro
         onColumnChange={setSelectedPushColumnId}
         onPushToColumn={meeting.projectId ? handlePushToColumn : undefined}
         pushing={pushing}
+        meetingStartedAt={meeting.startedAt}
+        meetingTimezone={meeting.timezone}
       />
     </>
   );

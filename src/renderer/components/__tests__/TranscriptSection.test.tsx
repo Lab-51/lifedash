@@ -194,3 +194,61 @@ describe('TranscriptSection - speaker names', () => {
     expect(screen.getByText('[Marta Vance]')).toBeInTheDocument();
   });
 });
+
+// === BRIEF-EVID.1 Task 5 - the host re-points the search at a live section ======
+//
+// A Full-notes evidence chip switches the canvas to this tab and rewrites
+// ?transcriptSearch while this section is ALREADY mounted, so `initialSearch`
+// stops being init-only. The three properties below are what keep that from
+// breaking the deep-link case or stomping on the reader.
+
+describe('TranscriptSection - initialSearch changing after mount', () => {
+  function element(initialSearch?: string) {
+    return (
+      <TranscriptSection
+        meeting={makeMeeting(SEGMENTS)}
+        transcriptEndRef={createRef<HTMLDivElement>()}
+        initialSearch={initialSearch}
+        onCopySummary={vi.fn()}
+        onCopyActions={vi.fn()}
+        copiedField={null}
+        onCopy={vi.fn()}
+      />
+    );
+  }
+
+  it('applies a NEW passage and opens the section', () => {
+    const { rerender } = render(element('beta'));
+    expect(screen.getByPlaceholderText('Search...')).toHaveValue('beta');
+
+    rerender(element('pricing'));
+
+    expect(toggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByPlaceholderText('Search...')).toHaveValue('pricing');
+    expect(screen.getByText(/1 of 2/)).toBeInTheDocument();
+    expect(screen.queryByText('We agreed to ship the beta on Friday')).not.toBeInTheDocument();
+  });
+
+  it('opens a section that was closed, when the first passage arrives after mount', () => {
+    const { rerender } = render(element(undefined));
+    expect(toggle()).toHaveAttribute('aria-expanded', 'false');
+
+    rerender(element('pricing'));
+
+    expect(toggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByPlaceholderText('Search...')).toHaveValue('pricing');
+  });
+
+  it('leaves a search the user typed alone when the prop did not change', () => {
+    const { rerender } = render(element(undefined));
+    fireEvent.click(toggle());
+    fireEvent.change(screen.getByPlaceholderText('Search...'), { target: { value: 'pricing' } });
+    expect(screen.getByPlaceholderText('Search...')).toHaveValue('pricing');
+
+    // Same prop, new render - nothing the host did should touch the reader.
+    rerender(element(undefined));
+
+    expect(screen.getByPlaceholderText('Search...')).toHaveValue('pricing');
+    expect(toggle()).toHaveAttribute('aria-expanded', 'true');
+  });
+});

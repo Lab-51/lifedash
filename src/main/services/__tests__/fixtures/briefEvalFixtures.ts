@@ -50,6 +50,16 @@ export interface FixtureCommitmentTruth {
   forms: string[];
 }
 
+/** BRIEF-EVID.1: where ONE item is actually supported in the transcript. `forms`
+ *  is the same accepted-form list the recall matcher uses, so an entry is tied to
+ *  its item by the SAME rule that decides whether the item was extracted at all —
+ *  never by array position, which a real model's ordering does not preserve. */
+export interface FixtureEvidenceTruth {
+  forms: string[];
+  /** startTime of the segment that supports the item. */
+  startTime: number;
+}
+
 export interface FixtureTruth {
   roster: FixtureRosterEntry[];
   topics: FixtureTopicTruth[];
@@ -57,6 +67,20 @@ export interface FixtureTruth {
   commitments: FixtureCommitmentTruth[];
   /** Task text of every commitment with `owner: null` — no explicit owner said. */
   firstPersonTasks: string[];
+  /** BRIEF-EVID.1, OPTIONAL — only the LONG fixture carries it, and only for a
+   *  SUBSET of its items. Absent means `anchoredCorrectly` is not measurable and
+   *  scoreStructure reports 1 for it, the same empty-set convention `recallOf`
+   *  and `proseRecall` already use. */
+  evidenceTruth?: {
+    decisions: FixtureEvidenceTruth[];
+    commitments: FixtureEvidenceTruth[];
+    /** How far `evidence.startTime` may sit from the truth and still count as the
+     *  right place: ONE segment spacing. A quote can legitimately anchor to the
+     *  neighbouring window (an item is usually stated across two lines, and the
+     *  overlap pass anchors a straddling quote to the first of a pair), so a
+     *  stricter tolerance would score correct anchors as wrong. */
+    toleranceMs: number;
+  };
 }
 
 /** One segment as extractMeetingStructure's ExtractionInput expects. */
@@ -686,6 +710,40 @@ function buildTruth(
   };
 }
 
+/** BRIEF-EVID.1: which rows carry an evidence ground truth. Three decisions and
+ *  three commitments, per the phase story.
+ *
+ *  Commitment 0 is deliberately EXCLUDED: buildRecapSegments restates its task
+ *  verbatim near the end of the meeting, so TWO transcript positions legitimately
+ *  support it and "the right segment" has no single answer. Scoring it would
+ *  measure the fixture's own ambiguity, not the anchorer. */
+const EVIDENCE_TRUTH_DECISIONS = [0, 1, 2];
+const EVIDENCE_TRUTH_COMMITMENTS = [1, 2, 4];
+
+/** Derive the supporting startTime from the ASSEMBLED transcript rather than
+ *  hard-coding it — the same discipline as the rest of this file, so the truth
+ *  cannot drift from the content. A line that is not in the transcript throws at
+ *  module load: a ground truth that cannot be located would silently score every
+ *  correct anchor as wrong, which is worse than having no ground truth at all. */
+function buildEvidenceTruth(content: string[]): NonNullable<FixtureTruth['evidenceTruth']> {
+  const startTimeOf = (line: string): number => {
+    const index = content.indexOf(line);
+    if (index < 0) throw new Error(`briefEvalFixtures: evidence-truth line is not in the transcript: ${line}`);
+    return index * SEGMENT_SPACING_MS;
+  };
+  return {
+    decisions: EVIDENCE_TRUTH_DECISIONS.map((i) => ({
+      forms: LONG_DECISIONS[i].forms,
+      startTime: startTimeOf(LONG_DECISIONS[i].segments[0]),
+    })),
+    commitments: EVIDENCE_TRUTH_COMMITMENTS.map((i) => ({
+      forms: LONG_COMMITMENTS[i].forms,
+      startTime: startTimeOf(LONG_COMMITMENTS[i].segment),
+    })),
+    toleranceMs: SEGMENT_SPACING_MS,
+  };
+}
+
 /** The long fixture's ground-truth ROWS (not just the trimmed truth shape) —
  *  exported so a test's mocked `generate()` can synthesize a per-part draft by
  *  detecting which rows' anchor text appears in that call's prompt. */
@@ -703,7 +761,10 @@ function buildLongFixture(): LongFixture {
   const segments = content.map((text, i) => ({ startTime: i * SEGMENT_SPACING_MS, content: text }));
   return {
     segments,
-    truth: buildTruth(LONG_ROSTER, LONG_TOPICS, LONG_DECISIONS, LONG_COMMITMENTS),
+    truth: {
+      ...buildTruth(LONG_ROSTER, LONG_TOPICS, LONG_DECISIONS, LONG_COMMITMENTS),
+      evidenceTruth: buildEvidenceTruth(content),
+    },
     topics: LONG_TOPICS,
     decisions: LONG_DECISIONS,
     commitments: LONG_COMMITMENTS,
@@ -815,10 +876,17 @@ export const SHORT_FIXTURE: LongFixture = buildShortFixture();
 // Scoring
 // ---------------------------------------------------------------------------
 
+/** BRIEF-EVID.1's two fields, OPTIONAL so every pre-existing caller (and every
+ *  hand-written structure literal in the tests) still type-checks unchanged. */
+export interface ScorableEvidence {
+  quote?: string | null;
+  evidence?: { startTime: number; excerpt: string } | null;
+}
+
 export interface ScorableStructure {
   topics: { title: string }[];
-  decisions: { statement: string }[];
-  commitments: { owner: string | null; task: string }[];
+  decisions: ({ statement: string } & ScorableEvidence)[];
+  commitments: ({ owner: string | null; task: string } & ScorableEvidence)[];
 }
 
 export interface ScoreResult {
@@ -829,6 +897,26 @@ export interface ScoreResult {
   wrongOwners: number;
   matched: { topics: string[]; decisions: string[]; commitments: string[] };
   missed: { topics: string[]; decisions: string[]; commitments: string[] };
+  // -------------------------------------------------------------------------
+  // BRIEF-EVID.1 — MEASURED, NOT GATED. No bar is set on any of the four below,
+  // deliberately: this phase's own numbers do not exist yet, and LOCAL-QUAL.1
+  // Task 5 is the precedent — a bar set from a single unmeasured guess is worse
+  // than no bar, because it looks like evidence. The first real BRIEF_EVAL run
+  // is what a bar (and the two anchoring constants) should be set from.
+  // -------------------------------------------------------------------------
+  /** Decisions+commitments carrying a non-blank `quote`, over all of them. This
+   *  measures the MODEL: is it quoting at all? */
+  quotedRate: number;
+  /** Quoted items that CODE could anchor to a real segment, over quoted items.
+   *  This measures the model's quoting FIDELITY against the anchorer's bar. */
+  anchoredRate: number;
+  /** Quoted but unanchored — the items a brief must not present as supported. */
+  unsupportedCount: number;
+  /** Of the items with a known supporting segment (`truth.evidenceTruth`), the
+   *  fraction anchored to WITHIN `toleranceMs` of it. This is the only one of the
+   *  four that can catch an anchor that is confidently wrong rather than absent.
+   *  1 when there is no evidence truth to score against. */
+  anchoredCorrectly: number;
 }
 
 /** Lowercase, NFD-strip combining diacritical marks, drop light punctuation,
@@ -877,6 +965,56 @@ function recallOf<T, S>(
   return { recall, matched, missed };
 }
 
+/** An item flattened to the two things evidence scoring needs: the text the
+ *  truth's `forms` are matched against, and the anchor code stamped on it. */
+interface AnchorableItem {
+  text: string;
+  evidence: { startTime: number; excerpt: string } | null;
+}
+
+function anchorableItems<T extends ScorableEvidence>(items: T[], textOf: (item: T) => string): AnchorableItem[] {
+  return items.map((item) => ({ text: textOf(item), evidence: item.evidence ?? null }));
+}
+
+/** How many truth entries were anchored to within `toleranceMs` of their real
+ *  segment. An entry whose item was never extracted, or was extracted without an
+ *  anchor, simply does not count as correct — this is a whole-pipeline number
+ *  (did the model quote it, did code anchor it, and to the right place). */
+function correctAnchors(entries: FixtureEvidenceTruth[], items: AnchorableItem[], toleranceMs: number): number {
+  let correct = 0;
+  for (const entry of entries) {
+    const hit = items.find((item) => item.evidence !== null && matchesAnyForm(item.text, entry.forms));
+    if (hit?.evidence && Math.abs(hit.evidence.startTime - entry.startTime) <= toleranceMs) correct += 1;
+  }
+  return correct;
+}
+
+/** The four BRIEF-EVID.1 numbers. Blank-string quotes count as NOT quoted: the
+ *  extraction schema already folds `""` to null, and a scorer that disagreed with
+ *  the schema would report a rate the pipeline cannot produce. */
+function scoreEvidence(structure: ScorableStructure, truth: FixtureTruth) {
+  const decisions = anchorableItems(structure.decisions, (d) => d.statement);
+  const commitments = anchorableItems(structure.commitments, (c) => c.task);
+  const all = [...structure.decisions, ...structure.commitments];
+
+  const quoted = all.filter((item) => (item.quote ?? '').trim().length > 0);
+  const anchored = quoted.filter((item) => (item.evidence ?? null) !== null);
+
+  const spec = truth.evidenceTruth;
+  const truthCount = spec ? spec.decisions.length + spec.commitments.length : 0;
+  const correct = spec
+    ? correctAnchors(spec.decisions, decisions, spec.toleranceMs) +
+      correctAnchors(spec.commitments, commitments, spec.toleranceMs)
+    : 0;
+
+  return {
+    quotedRate: all.length === 0 ? 0 : quoted.length / all.length,
+    anchoredRate: quoted.length === 0 ? 0 : anchored.length / quoted.length,
+    unsupportedCount: quoted.length - anchored.length,
+    anchoredCorrectly: truthCount === 0 ? 1 : correct / truthCount,
+  };
+}
+
 /**
  * Score an extracted structure against fixture ground truth. Pure and total —
  * safe to call from both the mocked plumbing test and the gated live eval.
@@ -919,6 +1057,7 @@ export function scoreStructure(structure: ScorableStructure, truth: FixtureTruth
     wrongOwners,
     matched: { topics: topics.matched, decisions: decisions.matched, commitments: commitments.matched },
     missed: { topics: topics.missed, decisions: decisions.missed, commitments: commitments.missed },
+    ...scoreEvidence(structure, truth),
   };
 }
 

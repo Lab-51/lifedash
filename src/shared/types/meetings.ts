@@ -117,6 +117,12 @@ export interface Meeting {
    *  resolution is one click to undo. Optional so every pre-SPEAKER.1 fixture
    *  and caller stays valid; absent and null both mean "no names". */
   speakerNames?: SpeakerNameMap | null;
+  /** IANA zone name the recording was STARTED in (e.g. "Europe/Prague"), captured
+   *  renderer-side at record time (BRIEF-EVID.1). Read-only context for reading a
+   *  spoken relative date against the day it was said — NEVER used to resolve or
+   *  convert anything. Optional so every pre-BRIEF-EVID.1 fixture and caller
+   *  stays valid; absent and null both mean "no zone recorded". */
+  timezone?: string | null;
   createdAt: string;
 }
 
@@ -155,6 +161,10 @@ export interface CreateMeetingInput {
   calendarSeriesId?: string;
   /** Display names as the user typed them (BRIEF-QUAL.1). */
   participants?: string[];
+  /** IANA zone name captured at the moment recording started (BRIEF-EVID.1),
+   *  e.g. `Intl.DateTimeFormat().resolvedOptions().timeZone`. Validated on write
+   *  — an unrecognized zone is dropped to null rather than stored. */
+  timezone?: string;
 }
 
 export interface UpdateMeetingInput {

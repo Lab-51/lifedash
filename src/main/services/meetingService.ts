@@ -113,8 +113,24 @@ function toMeeting(row: typeof meetings.$inferSelect): Meeting {
     calendarSeriesId: row.calendarSeriesId ?? null,
     participants: row.participants ?? null,
     speakerNames: row.speakerNames ?? null,
+    timezone: row.timezone ?? null,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+/** Accept only a zone name `Intl` actually resolves — a garbage value must
+ *  never reach the column and later throw at a formatter. Never corrects or
+ *  guesses a spelling (BRIEF-EVID.1 Task 3): on failure, drop to null and log
+ *  once so a bad capture-time zone is visible without ever being persisted. */
+function validateTimezone(timezone: string | undefined): string | null {
+  if (!timezone) return null;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: timezone }).resolvedOptions();
+    return timezone;
+  } catch {
+    log.warn(`Ignoring invalid meeting timezone "${timezone}"`);
+    return null;
+  }
 }
 
 /** Map a DB transcript row to the shared TranscriptSegment type */
@@ -238,6 +254,7 @@ export async function createMeeting(data: CreateMeetingInput): Promise<Meeting> 
       calendarEventId: data.calendarEventId ?? null,
       calendarSeriesId: data.calendarSeriesId ?? null,
       participants: data.participants ?? null,
+      timezone: validateTimezone(data.timezone),
       startedAt: new Date(),
       status: 'recording',
     })

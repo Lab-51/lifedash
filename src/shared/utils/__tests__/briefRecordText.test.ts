@@ -17,9 +17,24 @@ const PROVENANCE = {
 function makeStructure(overrides: Partial<MeetingStructure> = {}): MeetingStructure {
   return {
     topics: [{ title: 'Warehouse routing pilot', detail: 'Pilot expands to the north dock next month.' }],
-    decisions: [{ statement: 'Delay the pilot expansion two weeks', rationale: 'Forklift telemetry is still noisy' }],
+    decisions: [
+      {
+        statement: 'Delay the pilot expansion two weeks',
+        rationale: 'Forklift telemetry is still noisy',
+        status: 'agreed',
+        quote: null,
+        evidence: null,
+      },
+    ],
     commitments: [
-      { owner: 'Priya Nandakumar', task: 'Recalibrate the dock sensors', due: 'next Tuesday', explicit: true },
+      {
+        owner: 'Priya Nandakumar',
+        task: 'Recalibrate the dock sensors',
+        due: 'next Tuesday',
+        explicit: true,
+        quote: null,
+        evidence: null,
+      },
     ],
     openQuestions: ['Who signs off on the telemetry vendor swap?'],
     terms: ['dock telemetry', 'pilot expansion'],
@@ -92,7 +107,7 @@ describe('structureToText', () => {
     const text = structureToText(
       makeStructure({
         topics: [],
-        decisions: [{ statement: 'Ship on Friday', rationale: null }],
+        decisions: [{ statement: 'Ship on Friday', rationale: null, status: 'agreed', quote: null, evidence: null }],
         commitments: [],
         openQuestions: [],
         terms: [],
@@ -106,7 +121,9 @@ describe('structureToText', () => {
       makeStructure({
         topics: [],
         decisions: [],
-        commitments: [{ owner: 'Devon Ashworth', task: 'Send the recap', due: null, explicit: false }],
+        commitments: [
+          { owner: 'Devon Ashworth', task: 'Send the recap', due: null, explicit: false, quote: null, evidence: null },
+        ],
         openQuestions: [],
         terms: [],
       }),
@@ -119,7 +136,9 @@ describe('structureToText', () => {
       makeStructure({
         topics: [],
         decisions: [],
-        commitments: [{ owner: 'Devon Ashworth', task: 'Send the recap', due: null, explicit: true }],
+        commitments: [
+          { owner: 'Devon Ashworth', task: 'Send the recap', due: null, explicit: true, quote: null, evidence: null },
+        ],
         openQuestions: [],
         terms: [],
       }),
@@ -132,7 +151,7 @@ describe('structureToText', () => {
       makeStructure({
         topics: [],
         decisions: [],
-        commitments: [{ owner: null, task: 'Send the recap', due: null, explicit: true }],
+        commitments: [{ owner: null, task: 'Send the recap', due: null, explicit: true, quote: null, evidence: null }],
         openQuestions: [],
         terms: [],
       }),
@@ -145,7 +164,16 @@ describe('structureToText', () => {
       makeStructure({
         topics: [],
         decisions: [],
-        commitments: [{ owner: 'Devon Ashworth', task: 'Send the recap', due: 'Friday', explicit: true }],
+        commitments: [
+          {
+            owner: 'Devon Ashworth',
+            task: 'Send the recap',
+            due: 'Friday',
+            explicit: true,
+            quote: null,
+            evidence: null,
+          },
+        ],
         openQuestions: [],
         terms: [],
       }),
@@ -205,12 +233,12 @@ describe('countsLabel', () => {
         { title: 'Topic two', detail: '' },
       ],
       decisions: [
-        { statement: 'Decision one', rationale: null },
-        { statement: 'Decision two', rationale: null },
+        { statement: 'Decision one', rationale: null, status: 'agreed', quote: null, evidence: null },
+        { statement: 'Decision two', rationale: null, status: 'agreed', quote: null, evidence: null },
       ],
       commitments: [
-        { owner: null, task: 'Task one', due: null, explicit: false },
-        { owner: null, task: 'Task two', due: null, explicit: false },
+        { owner: null, task: 'Task one', due: null, explicit: false, quote: null, evidence: null },
+        { owner: null, task: 'Task two', due: null, explicit: false, quote: null, evidence: null },
       ],
       openQuestions: ['Question one', 'Question two'],
     });

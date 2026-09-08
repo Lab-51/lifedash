@@ -87,3 +87,95 @@ describe('ActionItemList — owner/due rendering (BRIEF-QUAL.1 Task 4)', () => {
     expect(screen.getByText('Due end of Q3')).toBeInTheDocument();
   });
 });
+
+/** Escapes regex metacharacters — an IANA zone can contain `+` (e.g.
+ *  "Etc/GMT+2") which would otherwise be parsed as a quantifier. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// ---------------------------------------------------------------------------
+// "said <date> (<zone>)" suffix (BRIEF-EVID.1 Task 3) — meeting.startedAt/
+// timezone threaded in as props (never read from the global meetingStore, see
+// TranscriptSection's header for why).
+// ---------------------------------------------------------------------------
+describe('ActionItemList — "said <date> (<zone>)" suffix (BRIEF-EVID.1 Task 3)', () => {
+  it('shows the suffix only when dueText is present, never when it is absent', () => {
+    render(
+      <ActionItemList
+        meetingId="meet-1"
+        actionItems={[makeItem({ dueText: null }), makeItem({ id: 'a2', dueText: 'Friday' })]}
+        isCompleted
+        generatingActions={false}
+        onGenerate={noop}
+        onUpdateStatus={vi.fn()}
+        onConvert={vi.fn()}
+        meetingStartedAt="2026-03-10T12:00:00Z"
+        meetingTimezone="Europe/Prague"
+      />,
+    );
+    // Exactly one "said" suffix — for the item WITH dueText, none for the other.
+    expect(screen.getAllByText(/said/)).toHaveLength(1);
+  });
+
+  it("formats the date in the meeting's own timezone, not UTC — fails if the zone is ignored", () => {
+    // Fixed startedAt near midnight UTC + a zone 14h ahead: the local calendar
+    // date genuinely differs from the UTC date, so this is a real control, not
+    // a coincidence of formatting.
+    const startedAt = '2026-03-10T23:30:00Z';
+    const zone = 'Pacific/Kiritimati';
+    const zoneDate = new Intl.DateTimeFormat(undefined, {
+      timeZone: zone,
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }).format(new Date(startedAt));
+    const utcDate = new Intl.DateTimeFormat(undefined, {
+      timeZone: 'UTC',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }).format(new Date(startedAt));
+    expect(zoneDate).not.toBe(utcDate); // sanity: the fixture actually crosses a date line
+
+    render(
+      <ActionItemList
+        meetingId="meet-1"
+        actionItems={[makeItem({ dueText: 'Friday' })]}
+        isCompleted
+        generatingActions={false}
+        onGenerate={noop}
+        onUpdateStatus={vi.fn()}
+        onConvert={vi.fn()}
+        meetingStartedAt={startedAt}
+        meetingTimezone={zone}
+      />,
+    );
+
+    expect(
+      screen.getByText(new RegExp(`said ${escapeRegExp(zoneDate)} \\(${escapeRegExp(zone)}\\)`)),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(`said ${escapeRegExp(utcDate)} `))).not.toBeInTheDocument();
+  });
+
+  it("falls back to the viewer's own zone when the meeting has none", () => {
+    const startedAt = '2026-03-10T12:00:00Z';
+    const viewerZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    render(
+      <ActionItemList
+        meetingId="meet-1"
+        actionItems={[makeItem({ dueText: 'Friday' })]}
+        isCompleted
+        generatingActions={false}
+        onGenerate={noop}
+        onUpdateStatus={vi.fn()}
+        onConvert={vi.fn()}
+        meetingStartedAt={startedAt}
+        meetingTimezone={null}
+      />,
+    );
+
+    expect(screen.getByText(new RegExp(`\\(${escapeRegExp(viewerZone)}\\)$`))).toBeInTheDocument();
+  });
+});

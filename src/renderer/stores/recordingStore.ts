@@ -121,6 +121,10 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         calendarEventId,
         calendarSeriesId,
         participants,
+        // Captured renderer-side on purpose (BRIEF-EVID.1): it is the user's
+        // machine at the moment they pressed record, read-only context for a
+        // spoken relative date — never used to resolve or convert anything.
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
       // Step 2: Tell main process to start recording

@@ -20,17 +20,22 @@
 
 import type { MeetingStructure, Topic, Decision, Commitment } from '../types/briefStructure';
 
-function topicLine(topic: Topic): string {
+// The three per-item line renderers are EXPORTED (BRIEF-EVID.1 Task 5) so the UI
+// can render decisions and commitments as enriched rows — status label, evidence
+// chip — while the LINE TEXT stays the one produced here. structureToText's own
+// output is deliberately untouched: three consumers read it (Full notes, the
+// twin/entity readers, the semantic index) and none of them may ingest a chip.
+export function topicLine(topic: Topic): string {
   return topic.detail ? `- ${topic.title} — ${topic.detail}` : `- ${topic.title}`;
 }
 
-function decisionLine(decision: Decision): string {
+export function decisionLine(decision: Decision): string {
   return decision.rationale ? `- ${decision.statement} — ${decision.rationale}` : `- ${decision.statement}`;
 }
 
 /** Owner is rendered only when the transcript named them explicitly — the same
  *  trust flag the brief writer and action-item extraction honor. */
-function commitmentLine(commitment: Commitment): string {
+export function commitmentLine(commitment: Commitment): string {
   const owner = commitment.explicit && commitment.owner ? commitment.owner : 'unassigned';
   const due = commitment.due ? ` (due ${commitment.due})` : '';
   return `- ${commitment.task} — ${owner}${due}`;

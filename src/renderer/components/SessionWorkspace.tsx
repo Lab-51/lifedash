@@ -412,6 +412,16 @@ function boardSearchParams(
   return next;
 }
 
+/** Next params carrying the transcript search a Full-notes evidence chip asked
+ *  for (BRIEF-EVID.1 Task 5). MERGES into the current params rather than
+ *  replacing them, so the board's `viewProject`/`openCard` state survives a jump
+ *  to the transcript and back. */
+function evidenceSearchParams(current: URLSearchParams, excerpt: string): URLSearchParams {
+  const next = new URLSearchParams(current);
+  next.set('transcriptSearch', excerpt);
+  return next;
+}
+
 /** Next params with the viewed-project override removed (back to the own board). */
 function clearedBoardParams(current: URLSearchParams): URLSearchParams {
   const next = new URLSearchParams(current);
@@ -559,11 +569,26 @@ export default function SessionWorkspace() {
     else if (target.kind === 'board') openProjectInBoard(target.projectId, target.cardId);
   };
 
+  // A Full-notes evidence chip was clicked: show the transcript, filtered to the
+  // anchored passage. The excerpt is stored SEGMENT text and the filter is a
+  // substring match on the segment content, so it always matches its own segment.
+  const showEvidence = (excerpt: string) => {
+    setActiveTab('transcript');
+    setSearchParams(evidenceSearchParams(searchParams, excerpt), { replace: true });
+  };
+
   const renderPanel = () => {
     // Summary tab — completed sessions only (the tab is not offered otherwise,
     // and the component self-gates besides).
     if (activeTab === 'summary')
-      return <SessionSummaryTab meeting={meeting} autoGenerate={autoGenerate} onConvert={setConvertingAction} />;
+      return (
+        <SessionSummaryTab
+          meeting={meeting}
+          autoGenerate={autoGenerate}
+          onConvert={setConvertingAction}
+          onShowEvidence={showEvidence}
+        />
+      );
     if (activeTab === 'board')
       return (
         <BoardTabPanel

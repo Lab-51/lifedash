@@ -91,6 +91,34 @@
 // floor phrased as a cap-word is exactly what that check is for, so the prompt moved,
 // not the check — and its red-then-green is the two-directional proof that it works.
 //
+// PIN RE-CAPTURE (BRIEF-EVID.1 Task 4, 2026-09-08). BRIEF_FINGERPRINT_PIN moved a
+// fourth time, and once again it was the ONLY pin that moved
+// (1a9ce7e9 -> 74472a1e). BRIEF_WRITER_PROMPT gained the settledness rules — a
+// "## Proposed, not agreed" section, "write only the agreed ones as decisions",
+// and three more truth rules (never infer an owner/deadline/completion, keep an
+// unresolved contradiction, shorten only what survives shortening) — after a real
+// brief read a proposal back as a settled decision.
+//
+// The SAME task also changed formatStructureNotes, which builds the USER half of
+// this very request: decisions and commitments are now projected field by field
+// so `status` reaches the writer while `quote` and `evidence` do not. That
+// BRIEF_PROMPT_PIN did NOT move is therefore a finding, not an oversight — this
+// fixture's EXTRACTED_STRUCTURE is a v1 object with no status/quote/evidence on
+// it, so the projection is byte-identical for it, which is exactly the guarantee
+// a legacy persisted brief needs. The v2 behaviour (status present, quote and
+// evidence absent) is asserted directly in
+// meetingIntelligenceService.writer.test.ts, where the fixture carries them.
+// Re-captured by RUNNING the new prompt over this same fixture, then PROVEN
+// non-vacuous by reverting ONLY the prompt text:
+//
+//   * production `## Proposed, not agreed` section + the three new Rules lines
+//     removed from BRIEF_WRITER_PROMPT, formatStructureNotes left changed =>
+//     BRIEF_FINGERPRINT_PIN failed on the digest (74472a1e -> 1a9ce7e9, i.e. all
+//     the way back to the previous pin, which also proves the notes projection
+//     contributed nothing for a v1 fixture) while BRIEF_PROMPT_PIN, asserted one
+//     line earlier on the user half of that same fingerprint, still passed;
+//     restored => 18/18 green.
+//
 // ACTION_PROMPT_PIN and ACTION_FINGERPRINT_PIN did not move in any of these tasks.
 // Mocking style follows meetingIntelligenceService.briefFailure.test.ts (same
 // file under test); 'electron' is mocked only because promptBudget.ts reaches
@@ -497,7 +525,7 @@ describe('BRIEF-QUAL.1 — a transcript that fits is assembled byte-identically'
   /** sha256 of `system + '\0' + prompt`, same fixture. Covers the WRITER system
    *  prompt too, which is far too long to pin inline without burying the test —
    *  the twin-baseline assertion below states what that system prompt IS. */
-  const BRIEF_FINGERPRINT_PIN = '1a9ce7e9cbdec34d7ad15eae1c959b31d862ec7c2d76787a5a56b86019de1335';
+  const BRIEF_FINGERPRINT_PIN = '74472a1eebed51fa399204ae321bf714993c50fa63c7a8dcbdb59faa38f67276';
 
   const ACTION_PROMPT_PIN =
     'Meeting: Quarterly Planning\n' +

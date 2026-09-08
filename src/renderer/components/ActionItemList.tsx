@@ -44,6 +44,33 @@ interface ActionItemListProps {
   onPushToColumn?: (items: Array<{ id: string; text: string }>, columnId: string) => void;
   /** Whether a push is currently in progress */
   pushing?: boolean;
+  /**
+   * Meeting start time (ISO), needed to render "said <date>" beside a spoken
+   * due phrase (BRIEF-EVID.1). Threaded as a prop rather than read from the
+   * global meetingStore — the Brain inspector renders this list for a meeting
+   * the host page does not own (see TranscriptSection's header comment).
+   * Optional: when absent, no "said" suffix is rendered.
+   */
+  meetingStartedAt?: string;
+  /** IANA zone captured at recording start (BRIEF-EVID.1); null/absent falls
+   *  back to the viewer's own zone. Read-only context, never used to resolve
+   *  or convert the spoken due phrase itself. */
+  meetingTimezone?: string | null;
+}
+
+/** "said <date> (<zone>)" beside a spoken due phrase — the date is
+ *  `startedAt` formatted in the meeting's own timezone when known, else the
+ *  viewer's; the zone shown is whichever was actually used. Read-only
+ *  context: never resolves or converts the due phrase itself (BRIEF-EVID.1). */
+function formatSaidDate(startedAt: string, timezone?: string | null): string {
+  const zone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const date = new Intl.DateTimeFormat(undefined, {
+    timeZone: zone,
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(startedAt));
+  return `said ${date} (${zone})`;
 }
 
 /** Status icon mapping — returns the icon component and its Tailwind color class. */
@@ -65,11 +92,15 @@ const ActionItemRow = memo(function ActionItemRow({
   onUpdateStatus,
   onConvert,
   hasLinkedProject,
+  meetingStartedAt,
+  meetingTimezone,
 }: {
   item: ActionItem;
   onUpdateStatus: (id: string, status: ActionItemStatus) => void;
   onConvert: (actionItem: ActionItem) => void;
   hasLinkedProject: boolean;
+  meetingStartedAt?: string;
+  meetingTimezone?: string | null;
 }) {
   const { Icon, className: iconClass } = statusIcon(item.status);
   const isDismissed = item.status === 'dismissed';
@@ -94,7 +125,17 @@ const ActionItemRow = memo(function ActionItemRow({
             {item.description}
           </p>
         </div>
-        {item.dueText && <p className="text-xs text-surface-500 mt-0.5 break-words">Due {item.dueText}</p>}
+        {item.dueText && (
+          <p className="text-xs text-surface-500 mt-0.5 break-words">
+            Due {item.dueText}
+            {meetingStartedAt && (
+              <span className="text-[var(--color-text-muted)]">
+                {' '}
+                · {formatSaidDate(meetingStartedAt, meetingTimezone)}
+              </span>
+            )}
+          </p>
+        )}
         {/* Converted items: show confirmation text, hide all action buttons (including "Push to Column") */}
         {item.status === 'converted' && item.cardId && (
           <p className="text-xs text-primary-400 mt-0.5">Pushed to board as a card</p>
@@ -172,6 +213,8 @@ export default function ActionItemList({
   onColumnChange,
   onPushToColumn,
   pushing,
+  meetingStartedAt,
+  meetingTimezone,
 }: ActionItemListProps) {
   const approvedItems = useMemo(() => actionItems.filter((a) => a.status === 'approved'), [actionItems]);
 
@@ -218,6 +261,8 @@ export default function ActionItemList({
               onUpdateStatus={onUpdateStatus}
               onConvert={onConvert}
               hasLinkedProject={hasLinkedProject}
+              meetingStartedAt={meetingStartedAt}
+              meetingTimezone={meetingTimezone}
             />
           ))}
         </div>

@@ -193,12 +193,20 @@ function mockExtractionDraftsFrom(fixture: LongFixture): void {
 function idealStructure(fixture: LongFixture, passes: number): MeetingStructure {
   return {
     topics: fixture.truth.topics.map((t) => ({ title: t.title, detail: '' })),
-    decisions: fixture.truth.decisions.map((d) => ({ statement: d.statement, rationale: null })),
+    decisions: fixture.truth.decisions.map((d) => ({
+      statement: d.statement,
+      rationale: null,
+      status: 'agreed', // BRIEF-EVID.1 — the "perfect extraction" ground truth is settled
+      quote: null,
+      evidence: null,
+    })),
     commitments: fixture.truth.commitments.map((c) => ({
       owner: c.owner,
       task: c.task,
       due: null,
       explicit: c.owner !== null,
+      quote: null,
+      evidence: null,
     })),
     openQuestions: [],
     terms: [],
@@ -491,5 +499,68 @@ describe('scoreStructure', () => {
     const accented: FixtureTruth = { ...truth, topics: [{ title: 'Nabídka řešení', forms: ['Nabídka řešení'] }] };
     const score = scoreStructure({ topics: [{ title: 'NABIDKA RESENI' }], decisions: [], commitments: [] }, accented);
     expect(score.topicsRecall).toBe(1);
+  });
+
+  // BRIEF-EVID.1 — the evidence numbers are a MEASUREMENT INSTRUMENT, and
+  // LOCAL-QUAL.1 Task 5's lesson is that a broken ruler reports nonsense quietly.
+  // These three prove it can be wrong, not just that it runs.
+
+  it('reports quoted/anchored rates and the unsupported count, with no bar attached', () => {
+    const score = scoreStructure(
+      {
+        topics: [],
+        decisions: [
+          { statement: 'Decision A', quote: 'we agreed on it', evidence: { startTime: 0, excerpt: 'we agreed' } },
+        ],
+        commitments: [
+          { owner: 'Ann Roster', task: 'Do X', quote: 'I will do X', evidence: null },
+          { owner: null, task: 'I will do Y myself', quote: null, evidence: null },
+        ],
+      },
+      truth,
+    );
+
+    expect(score.quotedRate).toBeCloseTo(2 / 3);
+    expect(score.anchoredRate).toBe(0.5);
+    expect(score.unsupportedCount).toBe(1);
+    // This small truth carries no evidenceTruth, so there is nothing to be right
+    // or wrong about — the same empty-set convention as recallOf.
+    expect(score.anchoredCorrectly).toBe(1);
+  });
+
+  it('counts an anchor within one segment spacing as correct and one beyond it as wrong', () => {
+    const spec = LONG_FIXTURE.truth.evidenceTruth;
+    if (!spec) throw new Error('LONG_FIXTURE must carry an evidence truth');
+    const entry = spec.decisions[0];
+    const total = spec.decisions.length + spec.commitments.length;
+
+    const scoreAt = (startTime: number) =>
+      scoreStructure(
+        {
+          topics: [],
+          decisions: [{ statement: entry.forms[0], quote: 'q', evidence: { startTime, excerpt: 'e' } }],
+          commitments: [],
+        },
+        LONG_FIXTURE.truth,
+      ).anchoredCorrectly;
+
+    expect(scoreAt(entry.startTime + spec.toleranceMs)).toBeCloseTo(1 / total);
+    expect(scoreAt(entry.startTime + spec.toleranceMs + 1)).toBe(0);
+  });
+
+  it('derives the long fixture evidence truth from the transcript it actually assembled', () => {
+    const spec = LONG_FIXTURE.truth.evidenceTruth;
+    if (!spec) throw new Error('LONG_FIXTURE must carry an evidence truth');
+
+    expect(spec.decisions).toHaveLength(3);
+    expect(spec.commitments).toHaveLength(3);
+
+    // forms[0] is each row's own verbatim statement/task, which the fixture embeds
+    // literally in the supporting segment — so this proves each derived startTime
+    // really points at a line that contains the item, not at an off-by-N window.
+    for (const entry of [...spec.decisions, ...spec.commitments]) {
+      const segment = LONG_FIXTURE.segments.find((s) => s.startTime === entry.startTime);
+      expect(segment?.content ?? '').toContain(entry.forms[0]);
+    }
   });
 });

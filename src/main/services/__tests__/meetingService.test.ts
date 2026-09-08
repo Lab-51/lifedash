@@ -56,7 +56,7 @@ vi.mock('../dataChangeNotifier', () => ({ notifyDataChanged: vi.fn() }));
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { updateMeeting } from '../meetingService';
+import { updateMeeting, createMeeting } from '../meetingService';
 import { autoPushActionItems, readAutoPushSetting } from '../autoPushService';
 import { notifyDataChanged } from '../dataChangeNotifier';
 import { getDb } from '../../db/connection';
@@ -307,5 +307,52 @@ describe('updateMeeting — data:changed on project link change', () => {
     await updateMeeting('meeting-1', { title: 'Renamed' });
 
     expect(notifyDataChanged).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createMeeting — timezone validation (BRIEF-EVID.1 Task 3)
+// ---------------------------------------------------------------------------
+
+describe('createMeeting — timezone validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /** Insert-path db mock: `.insert(meetings).values(v).returning()`. Returns
+   *  the `values()` call so a test can assert exactly what was persisted. */
+  function buildInsertDb(returning: unknown[]) {
+    const returningFn = vi.fn().mockResolvedValue(returning);
+    const valuesFn = vi.fn(() => ({ returning: returningFn }));
+    const insertFn = vi.fn(() => ({ values: valuesFn }));
+    vi.mocked(getDb).mockReturnValue({ insert: insertFn } as never);
+    return { valuesFn };
+  }
+
+  it('persists a valid IANA zone and exposes it on the mapped Meeting', async () => {
+    const { valuesFn } = buildInsertDb([makeMeetingRow({ timezone: 'Europe/Prague' })]);
+
+    const result = await createMeeting({ title: 'Standup', timezone: 'Europe/Prague' });
+
+    expect(valuesFn).toHaveBeenCalledWith(expect.objectContaining({ timezone: 'Europe/Prague' }));
+    expect(result.timezone).toBe('Europe/Prague');
+  });
+
+  it('persists null for an unresolvable zone instead of throwing', async () => {
+    const { valuesFn } = buildInsertDb([makeMeetingRow({ timezone: null })]);
+
+    const result = await createMeeting({ title: 'Standup', timezone: 'Mars/Olympus' });
+
+    expect(valuesFn).toHaveBeenCalledWith(expect.objectContaining({ timezone: null }));
+    expect(result.timezone).toBeNull();
+  });
+
+  it('persists null when no timezone is supplied at all', async () => {
+    const { valuesFn } = buildInsertDb([makeMeetingRow({ timezone: null })]);
+
+    const result = await createMeeting({ title: 'Standup' });
+
+    expect(valuesFn).toHaveBeenCalledWith(expect.objectContaining({ timezone: null }));
+    expect(result.timezone).toBeNull();
   });
 });

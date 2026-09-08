@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" ADD COLUMN "timezone" varchar(64);

@@ -33,6 +33,9 @@ import { chunkBudget, chunkSegments, fitsWindow, formatLine, type PromptLineSegm
 import { createLogger } from './logger';
 import { buildExtractionSystemPrompt, type RosterEntry } from './briefExtractionPrompt';
 import { mergeDrafts } from './briefStructureMerge';
+import { anchorEvidence } from './evidenceAnchorService';
+import { getDb } from '../db/connection';
+import { loadPresetGlossary } from './whisperPromptService';
 import {
   capped,
   collectErrorText,
@@ -85,6 +88,13 @@ export interface ExtractionInput {
    *  actually labelled; absent/blank falls back to "the user" in that case, and
    *  an UNLABELLED transcript emits no legend at all whatever this holds. */
   selfName?: string | null;
+  /** BRIEF-EVID.1: the RAW transcription-language code (e.g. 'cs', 'auto',
+   *  'cs-mix') whose whisper glossary setting should also anchor spellings here —
+   *  the same `transcription:initial-prompt:<code>` setting whisperPromptService
+   *  feeds whisper at capture time (SPEAKER.1 Task 2). Absent/null reads no
+   *  glossary and leaves `knownTerms` untouched, so the byte-identity guard for
+   *  "nothing to anchor" holds with no caller change. */
+  presetCode?: string | null;
 }
 
 /** Success or an honest reason — never a partial structure, never a throw. */
@@ -137,6 +147,54 @@ type SplitCause = 'overflow' | 'truncation';
  *  was MEASURED (AI-CTX.1: one estimate, one place to be wrong). */
 function formatTranscript(segments: PromptSegment[]): string {
   return segments.map(formatLine).join('\n');
+}
+
+/** BRIEF-EVID.1: the user's whisper glossary for `presetCode`, split into discrete
+ *  terms so it can be deduped against the project's known terms — reusing
+ *  whisperPromptService's OWN settings reader rather than a second copy of the
+ *  read (ISSUES #31-class: a duplicated read drifts). No preset -> no DB call at
+ *  all, which is what keeps the "nothing to anchor" case byte-identical.
+ *  A lookup failure degrades to no glossary terms, never a thrown extraction. */
+async function readGlossaryTerms(presetCode: string | null | undefined): Promise<string[]> {
+  if (!presetCode) return [];
+  try {
+    const glossaryText = await loadPresetGlossary(getDb(), presetCode);
+    return glossaryText
+      .split(',')
+      .map((term) => term.trim())
+      .filter((term) => term.length > 0);
+  } catch (err) {
+    log.error('Glossary lookup failed for brief extraction, preset', presetCode, ':', err);
+    return [];
+  }
+}
+
+/** Case-insensitive dedupe across the two known-term sources, keeping the FIRST
+ *  spelling seen (the caller's own `knownTerms` — project/topic names — take
+ *  priority over the glossary). Only called when the glossary actually has
+ *  something to add; the caller's array passes straight through otherwise, which
+ *  is the other half of the byte-identity guarantee above. */
+function mergeKnownTerms(base: string[], extra: string[]): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const term of [...base, ...extra]) {
+    const trimmed = term.trim();
+    const key = trimmed.toLowerCase();
+    if (!trimmed || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(trimmed);
+  }
+  return merged;
+}
+
+/** `knownTerms`, augmented with the whisper glossary when a preset is given. */
+async function buildKnownTerms(
+  existing: string[] | undefined,
+  presetCode: string | null | undefined,
+): Promise<string[]> {
+  const glossaryTerms = await readGlossaryTerms(presetCode);
+  if (glossaryTerms.length === 0) return existing ?? [];
+  return mergeKnownTerms(existing ?? [], glossaryTerms);
 }
 
 /**
@@ -403,7 +461,11 @@ async function extractWithSplit(
 ): Promise<{ drafts: MeetingStructureDraft[] } | { failureReason: string }> {
   const prompt = buildUserPrompt(ctx.title, part);
   const outcome = await extractPart(ctx.provider, ctx.systemPrompt, prompt, partLabel(part));
-  if ('draft' in outcome) return { drafts: [outcome.draft] };
+  // BRIEF-EVID.1: anchor THIS part's quotes against THIS part's segments, before
+  // the drafts ever meet mergeDrafts. That is the tightest correct haystack — the
+  // quote came out of this exact prompt — so a quote cannot anchor to a passage
+  // the model never saw, and a self-healing SECTION anchors against its own half.
+  if ('draft' in outcome) return { drafts: [anchorEvidence(outcome.draft, part.segments)] };
   if (outcome.splitCause === null) return { failureReason: outcome.failureReason };
   if (depth >= MAX_SPLIT_DEPTH || part.segments.length < 2) {
     const exhausted = outcome.splitCause === 'truncation' ? OUTPUT_STILL_TRUNCATED : SIZE_ESTIMATE_WRONG;
@@ -442,11 +504,12 @@ export async function extractMeetingStructure(input: ExtractionInput): Promise<E
   // an unlabelled transcript keeps the pre-SPEAKER.1 prompt byte for byte.
   const labelled = meeting.segments.some((segment) => segment.speaker?.trim());
   const selfName = labelled ? input.selfName?.trim() || 'the user' : null;
+  const knownTerms = await buildKnownTerms(input.knownTerms, input.presetCode);
   const systemPrompt = buildExtractionSystemPrompt(
     input.roster,
     meeting.template,
     input.langName,
-    input.knownTerms,
+    knownTerms,
     selfName,
   );
   const segments = [...meeting.segments].sort((a, b) => a.startTime - b.startTime);

@@ -20,6 +20,11 @@ interface BriefSectionProps {
   isCompleted: boolean;
   generatingBrief: boolean;
   onGenerate: () => void;
+  /** Jump to the transcript passage behind an anchored Full-notes item
+   *  (BRIEF-EVID.1 Task 5). Threaded from the host, never read from a store:
+   *  the Brain inspector renders this section for a meeting it does not own and
+   *  has no transcript surface to jump to, so it simply omits this. */
+  onShowEvidence?: (excerpt: string) => void;
 }
 
 /** Format a date string into a short relative/absolute label. */
@@ -50,15 +55,17 @@ function BriefContent({
   brief,
   participantsEdited,
   onGenerate,
+  onShowEvidence,
 }: {
   brief: MeetingBrief;
   participantsEdited: boolean;
   onGenerate: () => void;
+  onShowEvidence?: (excerpt: string) => void;
 }) {
   return (
     <div className="hud-panel rounded-lg p-3">
       <div className="overflow-hidden break-words">{brief.summary.split('\n').map(renderLine)}</div>
-      {brief.structure && <BriefFullNotes structure={brief.structure} />}
+      {brief.structure && <BriefFullNotes structure={brief.structure} onShowEvidence={onShowEvidence} />}
       <div className="flex items-center justify-between mt-3 gap-2">
         <p className="text-xs text-surface-500">{formatBriefDate(brief.createdAt)}</p>
         <div className="flex items-center gap-2">
@@ -83,6 +90,7 @@ export default function BriefSection({
   isCompleted,
   generatingBrief,
   onGenerate,
+  onShowEvidence,
 }: BriefSectionProps) {
   const briefError = useMeetingStore((s) => s.briefErrors[meetingId]);
   const clearBriefError = useMeetingStore((s) => s.clearBriefError);
@@ -100,7 +108,12 @@ export default function BriefSection({
       )}
 
       {brief && !generatingBrief && (
-        <BriefContent brief={brief} participantsEdited={!!participantsEdited} onGenerate={onGenerate} />
+        <BriefContent
+          brief={brief}
+          participantsEdited={!!participantsEdited}
+          onGenerate={onGenerate}
+          onShowEvidence={onShowEvidence}
+        />
       )}
 
       {briefError && !generatingBrief && !brief && (

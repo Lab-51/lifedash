@@ -48,6 +48,13 @@ export const meetings = pgTable('meetings', {
   // never destroy a name the user typed. Nullable: every meeting predating
   // SPEAKER.1, and every meeting whose speakers were never named, has none.
   speakerNames: jsonb('speaker_names').$type<Record<string, string>>(),
+  // IANA zone name the recording was STARTED in (e.g. "Europe/Prague"), captured
+  // renderer-side at record time (BRIEF-EVID.1). Read-only context so a spoken
+  // relative date ("by the 21st", "today") can be read against the day it was
+  // said — NEVER used to resolve or convert anything. Nullable: every meeting
+  // predating this phase, and any write whose zone failed Intl validation, has
+  // none.
+  timezone: varchar('timezone', { length: 64 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

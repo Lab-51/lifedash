@@ -72,6 +72,15 @@ const log = createLogger('MeetingIntelligence');
 // number, keep names and terms exactly, an owner only where the record marks it
 // explicit. Judgment is about what to INCLUDE, never about what is TRUE.
 //
+// BRIEF-EVID.1 extends that TRUE half, after a real brief read a proposal back
+// as a settled decision: the notes now mark every decision agreed/proposed/
+// objected, only an agreed one may be written as a decision, and the rest get
+// their own "Proposed, not agreed" section rather than being dropped. Alongside
+// it, three rules the same brief needed — do not infer an owner, a deadline or
+// completion; keep an unresolved contradiction as a contradiction; shorten only
+// what survives being shortened. Still no counts, no ordering, no per-item
+// template: these say what must stay TRUE, never what shape to write it in.
+//
 // Still NO few-shot (the old 30-minute sample was an implicit length anchor), NO
 // cap of any kind, and still ONE prompt for every tier down to the built-in
 // Qwen3-4B at --ctx-size 16384, where it is expected to degrade flatter — never
@@ -94,7 +103,10 @@ A short paragraph: what the meeting was for and where it landed.
 What mattered, in the order that reads best. Write each point as one clear sentence; add its condition, rationale or number only when it matters.
 
 ## Decisions
-Every decision in the notes, with its rationale when the notes give one.
+Every decision the notes mark agreed, with its rationale when the notes give one.
+
+## Proposed, not agreed
+Every decision the notes mark proposed or objected: what was put forward and where it stands. When the notes say who objected, or why, keep that.
 
 ## Follow-ups
 Every commitment in the notes, grouped by owner: one "### <Owner>" heading for each person who owns a commitment, in the order the participants are listed — never a heading for a participant who owns none. Commitments with no owner, or whose owner the notes do not mark as explicit, go under a "### Unassigned" heading placed LAST. Write each as "- task (due)" when a due is known, otherwise "- task".
@@ -104,6 +116,10 @@ The questions that still need an answer.
 
 Rules:
 - Every decision and every commitment in the notes appears in the brief. Never merge two decisions or two commitments into one.
+- The notes mark every decision agreed, proposed or objected. Write only the agreed ones as decisions; the proposed and objected ones go under "Proposed, not agreed", never phrased as settled.
+- Never infer an owner, a deadline or that something is finished. Work nobody took on is unassigned, and work still in progress is unfinished — say so.
+- When the notes leave a contradiction unresolved, keep both sides. An open disagreement is a fact about the meeting, not an error to tidy away.
+- Shorten wording only once the scope, the conditions and the uncertainty of what you are shortening survive it.
 - A condition on a decision or a commitment ("only if", "unless", a deadline) is never a detail to drop — keep it.
 - Never invent an owner, a date or a number. If the notes do not say it, do not write it.
 - Keep names, terms, numbers and dates exactly as they appear in the notes.
@@ -970,13 +986,36 @@ interface BriefMeetingFields {
  * Indented JSON on purpose: the notes are a small fraction of the prompt next to
  * a transcript, and the weakest tier reads an indented object far more reliably
  * than a single dense line.
+ *
+ * BRIEF-EVID.1: decisions and commitments are projected FIELD BY FIELD rather
+ * than passed through, because the v2 schema carries two things the writer must
+ * not see:
+ *   - `quote` — the verbatim passage. The transcript is already sent whenever it
+ *     fits, so the excerpt would double that text inside the same budget.
+ *   - `evidence` — `{ startTime, excerpt }`, a transcript anchor stamped by CODE
+ *     (evidenceAnchorService). Handing a writer a timestamp it cannot verify is
+ *     an invitation to cite it; the anchor exists for the UI, not for the model.
+ * `status` DOES reach the writer — it is the whole point of the classification.
+ * A v1 structure has no status field; the schema's lenient fold makes it
+ * 'proposed' on parse, so a legacy decision is presented as proposed, and a
+ * legacy structure that never went through the parser (an old persisted object)
+ * simply omits the key. Both are honest: nothing in a v1 record says "agreed".
  */
 function formatStructureNotes(structure: MeetingStructure): string {
   return JSON.stringify(
     {
       topics: structure.topics,
-      decisions: structure.decisions,
-      commitments: structure.commitments,
+      decisions: structure.decisions.map((d) => ({
+        statement: d.statement,
+        rationale: d.rationale,
+        status: d.status,
+      })),
+      commitments: structure.commitments.map((c) => ({
+        owner: c.owner,
+        task: c.task,
+        due: c.due,
+        explicit: c.explicit,
+      })),
       openQuestions: structure.openQuestions,
       terms: structure.terms,
     },

@@ -147,6 +147,8 @@ export default function SessionInspector({ meetingId }: { meetingId: string }) {
           await reload();
         }}
         onConvert={setConverting}
+        meetingStartedAt={meeting.startedAt}
+        meetingTimezone={meeting.timezone}
       />
 
       {isCompleted && <LiveProposalsSection meetingId={meeting.id} projectName={projectName ?? 'Unassigned'} />}

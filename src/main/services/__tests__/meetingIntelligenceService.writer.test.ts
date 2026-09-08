@@ -383,6 +383,67 @@ describe('generateBrief — the writer works from the structure', () => {
     expect(call.prompt).not.toContain('provenance');
     expect(call.prompt).not.toContain('schemaVersion');
   });
+
+  // BRIEF-EVID.1 Task 4 — what of the v2 structure the writer is allowed to see.
+  it("carries each decision's status, so a proposal cannot be read back as settled", async () => {
+    vi.mocked(extractMeetingStructure).mockResolvedValue({
+      structure: makeStructure({
+        decisions: [
+          { statement: 'Push the beta to April', rationale: null, status: 'agreed', quote: null, evidence: null },
+          { statement: 'Drop the export tab', rationale: null, status: 'proposed', quote: null, evidence: null },
+        ],
+      }),
+    } as never);
+    buildDb();
+
+    await generateBrief(MEETING_ID);
+
+    const [call] = generateCalls();
+    expect(call.prompt).toContain('"status": "agreed"');
+    expect(call.prompt).toContain('"status": "proposed"');
+  });
+
+  it('omits quote and evidence — the transcript is already sent, and an anchor it cannot verify invites a citation', async () => {
+    // Distinctive strings that appear NOWHERE else in the fixture, so their
+    // absence from the assembled prompt is attributable to the projection and
+    // not to a lucky substring.
+    const QUOTE_TEXT = 'we should hold the export tab until Ines has reviewed it';
+    const EXCERPT_TEXT = 'anchored excerpt Vashti Corrow said out loud';
+    vi.mocked(extractMeetingStructure).mockResolvedValue({
+      structure: makeStructure({
+        decisions: [
+          {
+            statement: 'Hold the export tab',
+            rationale: null,
+            status: 'proposed',
+            quote: QUOTE_TEXT,
+            evidence: { startTime: 65_000, excerpt: EXCERPT_TEXT },
+          },
+        ],
+        commitments: [
+          {
+            owner: 'Rina',
+            task: 'Send the updated timeline',
+            due: 'Friday',
+            explicit: true,
+            quote: QUOTE_TEXT,
+            evidence: { startTime: 0, excerpt: EXCERPT_TEXT },
+          },
+        ],
+      }),
+    } as never);
+    buildDb();
+
+    await generateBrief(MEETING_ID);
+
+    const [call] = generateCalls();
+    expect(call.prompt).toContain('Hold the export tab'); // the item itself DID reach the writer
+    expect(call.prompt).not.toContain(QUOTE_TEXT);
+    expect(call.prompt).not.toContain(EXCERPT_TEXT);
+    expect(call.prompt).not.toContain('"quote"');
+    expect(call.prompt).not.toContain('"evidence"');
+    expect(call.prompt).not.toContain('startTime');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -424,6 +485,23 @@ describe('generateBrief — follow-ups are grouped by owner', () => {
     expect(BRIEF_WRITER_PROMPT).toContain('You decide what matters');
     expect(BRIEF_WRITER_PROMPT).toContain('only when it changes what the reader should expect or do');
     expect(BRIEF_WRITER_PROMPT).toContain('Small talk, logistics and passing mentions do not belong in the brief');
+  });
+
+  // BRIEF-EVID.1 Task 4 — the settledness rules and the three truth rules that
+  // came with them. Prompt-level for the same reason as the grouping rules
+  // above: a unit test can assert what the model was TOLD, never what it wrote.
+  it('tells the writer that only an agreed decision is a decision, and where the rest go', () => {
+    expect(BRIEF_WRITER_PROMPT).toContain('## Proposed, not agreed');
+    expect(BRIEF_WRITER_PROMPT).toContain('Every decision the notes mark agreed');
+    expect(BRIEF_WRITER_PROMPT).toContain('Write only the agreed ones as decisions');
+    expect(BRIEF_WRITER_PROMPT).toContain('never phrased as settled');
+    expect(BRIEF_WRITER_PROMPT).toContain('who objected');
+  });
+
+  it('forbids inferring owners, deadlines and completion, and keeps a contradiction whole', () => {
+    expect(BRIEF_WRITER_PROMPT).toContain('Never infer an owner, a deadline or that something is finished');
+    expect(BRIEF_WRITER_PROMPT).toContain('When the notes leave a contradiction unresolved, keep both sides');
+    expect(BRIEF_WRITER_PROMPT).toContain('Shorten wording only once the scope, the conditions and the uncertainty');
   });
 
   it('decisions and commitments are the one completeness rule left', () => {
@@ -601,8 +679,15 @@ describe('generateActionItems — derived from the brief structure', () => {
     vi.mocked(buildRoster).mockResolvedValue([{ name: 'Rina', source: 'participants' }]);
     const structure = makeStructure({
       commitments: [
-        { owner: 'Rina', task: 'Send the updated timeline', due: 'Friday', explicit: true },
-        { owner: null, task: 'Book the venue', due: null, explicit: false },
+        {
+          owner: 'Rina',
+          task: 'Send the updated timeline',
+          due: 'Friday',
+          explicit: true,
+          quote: null,
+          evidence: null,
+        },
+        { owner: null, task: 'Book the venue', due: null, explicit: false, quote: null, evidence: null },
       ],
     });
     const { actionValues } = buildDb({ briefRows: briefRowWith(structure) });
@@ -633,7 +718,16 @@ describe('generateActionItems — derived from the brief structure', () => {
     // model cannot talk its way past.
     vi.mocked(buildRoster).mockResolvedValue([{ name: 'Rina', source: 'participants' }]);
     const structure = makeStructure({
-      commitments: [{ owner: 'Gabriela', task: 'Send the updated timeline', due: 'Friday', explicit: true }],
+      commitments: [
+        {
+          owner: 'Gabriela',
+          task: 'Send the updated timeline',
+          due: 'Friday',
+          explicit: true,
+          quote: null,
+          evidence: null,
+        },
+      ],
     });
     const { actionValues } = buildDb({ briefRows: briefRowWith(structure) });
 
@@ -649,7 +743,16 @@ describe('generateActionItems — derived from the brief structure', () => {
 
   it('drops an owner the extraction did not mark explicit — attribution is never guessed', async () => {
     const structure = makeStructure({
-      commitments: [{ owner: 'Tomas', task: 'Draft the release notes', due: 'next week', explicit: false }],
+      commitments: [
+        {
+          owner: 'Tomas',
+          task: 'Draft the release notes',
+          due: 'next week',
+          explicit: false,
+          quote: null,
+          evidence: null,
+        },
+      ],
     });
     const { actionValues } = buildDb({ briefRows: briefRowWith(structure) });
 
@@ -661,8 +764,8 @@ describe('generateActionItems — derived from the brief structure', () => {
   it('suppresses a commitment the user already accepted live (LIVE.2)', async () => {
     const structure = makeStructure({
       commitments: [
-        { owner: null, task: 'Ship the beta', due: null, explicit: false },
-        { owner: null, task: 'Book the venue', due: null, explicit: false },
+        { owner: null, task: 'Ship the beta', due: null, explicit: false, quote: null, evidence: null },
+        { owner: null, task: 'Book the venue', due: null, explicit: false, quote: null, evidence: null },
       ],
     });
     const { actionValues } = buildDb({ briefRows: briefRowWith(structure), suppressed: ['  ship   THE beta '] });
@@ -678,8 +781,8 @@ describe('generateActionItems — derived from the brief structure', () => {
     vi.mocked(buildRoster).mockResolvedValue([{ name: 'Rina', source: 'participants' }]);
     const structure = makeStructure({
       commitments: [
-        { owner: 'Rina', task: 'Send the timeline', due: 'Friday', explicit: true },
-        { owner: null, task: 'send the   TIMELINE', due: null, explicit: false },
+        { owner: 'Rina', task: 'Send the timeline', due: 'Friday', explicit: true, quote: null, evidence: null },
+        { owner: null, task: 'send the   TIMELINE', due: null, explicit: false, quote: null, evidence: null },
       ],
     });
     const { actionValues } = buildDb({ briefRows: briefRowWith(structure) });

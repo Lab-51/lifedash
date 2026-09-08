@@ -21,6 +21,11 @@
 // This function returns ONLY the glossary portion. transcriptionService still
 // owns appending the per-segment rolling context after it, unchanged.
 //
+// `loadPresetGlossary` (item 3's reader) is also exported directly: briefExtractionService
+// (BRIEF-EVID.1) reuses it to anchor the same spellings in the extraction prompt's
+// Known-names block, rather than re-reading the `transcription:initial-prompt:*`
+// setting a second time.
+//
 // === DEPENDENCIES ===
 // participantRosterService (buildRoster), entityService (normalizeEntityName),
 // ../db/connection (getDb), ../db/schema (entities, entityLinks, meetings,
@@ -85,8 +90,11 @@ async function loadProjectTopicNames(db: Db, projectId: string): Promise<string[
 
 /** The user's glossary setting for this exact preset code, or the built-in
  *  trilingual default for mixed presets when unset. Plain presets have no
- *  built-in default and resolve to '' when unset. */
-async function loadPresetGlossary(db: Db, presetCode: string): Promise<string> {
+ *  built-in default and resolve to '' when unset.
+ *
+ *  Exported (BRIEF-EVID.1) so briefExtractionService can anchor the same
+ *  spellings in the extraction prompt without a second read of this setting. */
+export async function loadPresetGlossary(db: Db, presetCode: string): Promise<string> {
   const { mixedCode } = resolveLanguagePreset(presetCode);
   const rows = await db
     .select()

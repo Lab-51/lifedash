@@ -105,9 +105,20 @@ const mergeTopic = (kept: Topic, dup: Topic): Topic =>
   dup.detail.length > kept.detail.length ? { ...kept, detail: dup.detail } : kept;
 
 const decisionText = (decision: Decision) => decision.statement;
+// BRIEF-EVID.1: `dup`'s settled status wins over `kept`'s. In the exact-key pass
+// `dup` is always the later-occurring draft (dedupe folds in part order), so this
+// literally is "the later part's status wins" — a decision proposed early and
+// accepted later is the normal flow. In the containment (paraphrase) pass below,
+// the richer-worded item can land as either argument, so the rule there is a
+// reasonable default rather than a guaranteed temporal one — accepted. Either
+// way, a still-'proposed' `dup` carries no new information, so an already-settled
+// `kept` is never downgraded back to 'proposed' by a duplicate mention.
 const mergeDecision = (kept: Decision, dup: Decision): Decision => ({
   ...kept,
   rationale: kept.rationale ?? dup.rationale,
+  status: dup.status === 'agreed' || dup.status === 'objected' ? dup.status : kept.status,
+  quote: kept.quote ?? dup.quote,
+  evidence: kept.evidence ?? dup.evidence,
 });
 
 const commitmentText = (commitment: Commitment) => commitment.task;
@@ -117,6 +128,8 @@ const mergeCommitment = (kept: Commitment, dup: Commitment): Commitment => ({
   owner: kept.owner ?? dup.owner,
   due: kept.due ?? dup.due,
   explicit: kept.explicit || dup.explicit,
+  quote: kept.quote ?? dup.quote,
+  evidence: kept.evidence ?? dup.evidence,
 });
 // Commitments collapse ONLY within the same owner, even for an identical task.
 const sameOwner = (a: Commitment, b: Commitment): boolean =>

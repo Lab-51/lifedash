@@ -131,13 +131,28 @@ const SAMPLE_STRUCTURE: MeetingStructure = {
     {
       statement: 'Adopt the new tier structure',
       rationale: 'It better matches the usage patterns observed across the last two quarters of account activity',
+      status: 'agreed', // BRIEF-EVID.1 — inert here (structureToText doesn't render it)
+      quote: null,
+      evidence: null,
     },
     {
       statement: 'Delay the renewal reminder change',
       rationale: 'The team wants more data before committing to the new cadence for outbound renewal notices',
+      status: 'agreed',
+      quote: null,
+      evidence: null,
     },
   ],
-  commitments: [{ owner: 'Priya', task: 'Draft the updated pricing page copy', due: 'Friday', explicit: true }],
+  commitments: [
+    {
+      owner: 'Priya',
+      task: 'Draft the updated pricing page copy',
+      due: 'Friday',
+      explicit: true,
+      quote: null,
+      evidence: null,
+    },
+  ],
   openQuestions: ['Should the legacy tier be sunset entirely or grandfathered for existing accounts?'],
   terms: ['ARR', 'sev-1'],
   provenance: { provider: 'openai', model: 'gpt-x', passes: 1, extractedAt: '2026-08-01T00:00:00Z', schemaVersion: 1 },
