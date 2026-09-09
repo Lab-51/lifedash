@@ -7,6 +7,9 @@
 //
 // === LIMITATIONS ===
 // - No transcription handlers yet (Plan 4.3)
+// - 'transcript:retranscribe-span' has NO renderer caller yet — by design: the
+//   UI that offers it is TRANS-COV.1 Task 5. The handler, its validation and the
+//   preload method land here so Task 5 is renderer-only work.
 // - 'enable-loopback-audio' and 'disable-loopback-audio' are auto-registered
 //   by electron-audio-loopback's initMain() — NOT registered here.
 //
@@ -17,8 +20,9 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import * as audioProcessor from '../services/audioProcessor';
 import * as meetingService from '../services/meetingService';
+import * as retranscriptionService from '../services/retranscriptionService';
 import { validateInput } from '../../shared/validation/ipc-validator';
-import { idParamSchema } from '../../shared/validation/schemas';
+import { idParamSchema, retranscribeSpanSchema } from '../../shared/validation/schemas';
 import type { AudioChunkBuffers } from '../../shared/types';
 import { createLogger } from '../services/logger';
 
@@ -86,6 +90,15 @@ export function registerRecordingHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('recording:stop', async () => {
     const audioPath = await audioProcessor.stopRecording();
     return audioPath;
+  });
+
+  // Redo one span of a finished recording's transcript from its WAV
+  // (TRANS-COV.1 Task 4). Returns a TYPED result — the service never rejects,
+  // so every refusal reaches the renderer as a named reason rather than as an
+  // IPC error string. The zod schema is the only thing that can throw here, and
+  // only for a malformed call the UI cannot make.
+  ipcMain.handle('transcript:retranscribe-span', async (_event, input: unknown) => {
+    return retranscriptionService.retranscribeSpan(validateInput(retranscribeSpanSchema, input));
   });
 
   // audio:chunk: binary PCM data — normalized structurally, see toAudioChunkBuffers

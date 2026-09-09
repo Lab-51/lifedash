@@ -55,6 +55,14 @@ export const meetings = pgTable('meetings', {
   // predating this phase, and any write whose zone failed Intl validation, has
   // none.
   timezone: varchar('timezone', { length: 64 }),
+  // What the transcription pipeline did with every window it was given
+  // (TRANS-COV.1): per-channel outcome counts plus the spans known to hold no
+  // transcript. Typed `unknown` at the schema layer like `meeting_briefs.structure`
+  // — the shape lives in src/shared/types/transcriptionCoverage.ts and the
+  // service that writes it is the one that guarantees it. Nullable, no backfill:
+  // every meeting predating this phase has none, and absent means "not
+  // recorded", never "nothing was missed".
+  transcriptionCoverage: jsonb('transcription_coverage').$type<unknown>(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

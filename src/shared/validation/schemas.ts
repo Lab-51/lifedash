@@ -394,6 +394,26 @@ export const taskStructuringDescriptionSchema = z.string().max(10000);
 /** For whisper:download-model — model file name */
 export const whisperModelNameSchema = z.string().min(1).max(200);
 
+/** For transcript:retranscribe-span (TRANS-COV.1) — the span to redo, in the
+ *  STAMPED transcript coordinate, plus the downloaded whisper model to redo it
+ *  with. This is the input to an operation that DELETES transcript rows, so the
+ *  bounds are checked here rather than trusted: both are non-negative integer
+ *  milliseconds and the end must be strictly after the start (an inverted or
+ *  empty span would otherwise reach the reader as a nonsense seek). Whether the
+ *  file name names a model that actually exists is the service's check — it is
+ *  the only place that knows what is downloaded. */
+export const retranscribeSpanSchema = z
+  .object({
+    meetingId: uuid,
+    startMs: z.number().int().nonnegative(),
+    endMs: z.number().int().nonnegative(),
+    modelFileName: whisperModelNameSchema,
+  })
+  .refine((span) => span.endMs > span.startMs, {
+    message: 'endMs must be greater than startMs',
+    path: ['endMs'],
+  });
+
 // ============================================================================
 // Card Checklist Items
 // ============================================================================

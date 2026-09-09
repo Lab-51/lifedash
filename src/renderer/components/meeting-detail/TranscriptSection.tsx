@@ -7,11 +7,14 @@
 // exist while open. A deep link that passes `initialSearch` opens the section
 // so search results never land on a closed panel.
 
-import { useState, type RefObject } from 'react';
+import { useMemo, useRef, useState, type RefObject } from 'react';
 import { Search, Copy, Check, X, ChevronRight } from 'lucide-react';
 import { getSpeakerColor } from '../MeetingAnalyticsSection';
 import { formatTimestamp } from './utils';
-import type { MeetingWithTranscript } from '../../../shared/types';
+import { detectSuspectSpans, type SuspectSpan } from '../../../shared/transcription/suspectDetector';
+import { type PendingSpan } from './RetranscribeControl';
+import { useSpanFromProps, SuspectSpansChip, SpanRedoPanel } from './TranscriptSpanControls';
+import type { MeetingWithTranscript, RetranscribedSpan, TranscriptSegment } from '../../../shared/types';
 
 interface TranscriptSectionProps {
   meeting: MeetingWithTranscript;
@@ -30,6 +33,23 @@ interface TranscriptSectionProps {
    * read-only speaker chips.
    */
   onRenameSpeaker?: (label: string, name: string | null) => void | Promise<void>;
+  /**
+   * Seed a pending retranscription span from the host (TRANS-COV.1 Task 5) —
+   * e.g. a coverage-badge gap clicked in the header before this section was
+   * even open. Mirrors `initialSearch`'s deep-link shape/guard exactly, kept
+   * as an INDEPENDENT applied-state pair so the two deep links never interact.
+   */
+  initialSpanStart?: number;
+  initialSpanEnd?: number;
+  /**
+   * Apply a completed retranscription to the host's OWN meeting state
+   * (typically `meetingStore.applyRetranscription`) — this component holds no
+   * meeting state of its own. OPTIONAL, same reasoning as `onRenameSpeaker`:
+   * omitted = no retranscribe control offered (a host with no place to apply
+   * the result, e.g. the Brain inspector's local-state copy, simply doesn't
+   * wire this).
+   */
+  onRetranscribed?: (segments: TranscriptSegment[], note: RetranscribedSpan) => void;
 }
 
 /**
@@ -145,6 +165,8 @@ function TranscriptBody({
   searchQuery,
   transcriptEndRef,
   onRenameSpeaker,
+  reasonsBySegment,
+  registerSegmentRef,
 }: {
   meeting: MeetingWithTranscript;
   filteredSegments: MeetingWithTranscript['segments'];
@@ -152,6 +174,12 @@ function TranscriptBody({
   searchQuery: string;
   transcriptEndRef: RefObject<HTMLDivElement | null>;
   onRenameSpeaker?: (label: string, name: string | null) => void | Promise<void>;
+  /** Segment id -> its suspect reasons (TRANS-COV.1 Task 5), for the left
+   *  border + title a flagged row gets. Empty when nothing was flagged. */
+  reasonsBySegment: ReadonlyMap<string, SuspectSpan['reasons']>;
+  /** So the header's "N suspect spans" chip can scroll a span's first segment
+   *  into view without this component owning any selection state itself. */
+  registerSegmentRef: (id: string, el: HTMLDivElement | null) => void;
 }) {
   const speakerNames = meeting.speakerNames ?? {};
   if (meeting.segments.length === 0) {
@@ -175,10 +203,16 @@ function TranscriptBody({
     <div className="max-h-80 overflow-y-auto rounded-xl bg-surface-100/50 dark:bg-surface-950/50 border border-[var(--color-border)] p-4 space-y-3 font-sans">
       {filteredSegments.map((segment) => {
         const speakerColor = segment.speaker ? getSpeakerColor(segment.speaker) : null;
+        const reasons = reasonsBySegment.get(segment.id);
+        const rowClassName = `flex gap-4 text-sm hover:bg-[var(--color-border)]/30 p-2 -mx-2 rounded-lg transition-colors ${
+          reasons ? 'border-l-2 border-amber-500/50' : ''
+        }`;
         return (
           <div
             key={segment.id}
-            className="flex gap-4 text-sm hover:bg-[var(--color-border)]/30 p-2 -mx-2 rounded-lg transition-colors"
+            ref={(el) => registerSegmentRef(segment.id, el)}
+            title={reasons ? `Possible ${reasons.join(', ')}` : undefined}
+            className={rowClassName}
           >
             <span className="font-data text-xs text-[var(--color-accent-dim)] pt-0.5 shrink-0 w-12 text-right">
               {formatTimestamp(segment.startTime)}
@@ -211,6 +245,9 @@ export default function TranscriptSection({
   copiedField,
   onCopy,
   onRenameSpeaker,
+  initialSpanStart,
+  initialSpanEnd,
+  onRetranscribed,
 }: TranscriptSectionProps) {
   const [transcriptSearch, setTranscriptSearch] = useState(initialSearch ?? '');
   // Open only when the host deep-linked into a search — otherwise start collapsed.
@@ -238,6 +275,37 @@ export default function TranscriptSection({
   const filteredSegments = searchQuery
     ? meeting.segments.filter((s) => s.content.toLowerCase().includes(searchQuery))
     : meeting.segments;
+
+  // TRANS-COV.1 Task 5 — suspect-span highlighting + the redo-a-span flow.
+  const [pendingSpan, setPendingSpan] = useState<PendingSpan | null>(null);
+  const [spanCycleIndex, setSpanCycleIndex] = useState(0);
+  const segmentRefs = useRef(new Map<string, HTMLDivElement>());
+  const registerSegmentRef = (id: string, el: HTMLDivElement | null) => {
+    if (el) segmentRefs.current.set(id, el);
+    else segmentRefs.current.delete(id);
+  };
+
+  const suspectSpans = useMemo(() => detectSuspectSpans(meeting.segments), [meeting.segments]);
+  const reasonsBySegment = useMemo(() => {
+    const map = new Map<string, SuspectSpan['reasons']>();
+    for (const span of suspectSpans) {
+      for (const id of span.segmentIds) map.set(id, span.reasons);
+    }
+    return map;
+  }, [suspectSpans]);
+
+  const selectSuspectSpan = (span: SuspectSpan) => {
+    setSpanCycleIndex((i) => i + 1);
+    setPendingSpan({ startMs: span.startMs, endMs: span.endMs });
+    segmentRefs.current.get(span.segmentIds[0])?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+  };
+
+  // Same "during render" idiom as the search deep-link above, factored into
+  // its own function so it doesn't add to this component's own complexity.
+  useSpanFromProps(initialSpanStart, initialSpanEnd, (span) => {
+    setPendingSpan(span);
+    setOpen(true);
+  });
 
   const copyTranscript = () => {
     const text = meeting.segments
@@ -276,6 +344,7 @@ export default function TranscriptSection({
           </button>
         </h3>
         <div className="flex items-center gap-3">
+          <SuspectSpansChip open={open} spans={suspectSpans} cycleIndex={spanCycleIndex} onSelect={selectSuspectSpan} />
           {/* Copy buttons */}
           {open && meeting.segments.length > 0 && (
             <div className="flex items-center gap-2">
@@ -331,8 +400,17 @@ export default function TranscriptSection({
           searchQuery={searchQuery}
           transcriptEndRef={transcriptEndRef}
           onRenameSpeaker={onRenameSpeaker}
+          reasonsBySegment={reasonsBySegment}
+          registerSegmentRef={registerSegmentRef}
         />
       )}
+      <SpanRedoPanel
+        open={open}
+        meeting={meeting}
+        pendingSpan={pendingSpan}
+        onSelectSpan={setPendingSpan}
+        onRetranscribed={onRetranscribed}
+      />
     </div>
   );
 }

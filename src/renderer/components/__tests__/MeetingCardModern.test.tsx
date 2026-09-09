@@ -53,3 +53,65 @@ describe('MeetingCardModern — unassigned-pending pill', () => {
     expect(screen.queryByTestId('meeting-unassigned-pill')).toBeNull();
   });
 });
+
+// === TRANS-COV.1 Task 5 — the coverage marker beside the duration ===========
+
+describe('MeetingCardModern — coverage marker', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows no marker at all when the meeting has no coverage record (unknown)', () => {
+    render(<MeetingCardModern meeting={makeMeeting()} onClick={vi.fn()} />);
+    expect(screen.queryByText('Partial')).toBeNull();
+    expect(screen.queryByText('Recovered')).toBeNull();
+  });
+
+  it('shows "Partial" for a meeting with a failed or unresolved window', () => {
+    const meeting = makeMeeting({
+      transcriptionCoverage: {
+        version: 1,
+        endedBy: 'stop',
+        audioMs: 60000,
+        provider: 'local',
+        model: 'ggml-base.bin',
+        windowStampMs: 10000,
+        windowAdvanceMs: 9000,
+        retranscribed: [],
+        channels: {
+          mic: { windows: 1, saved: 0, silentRms: 0, silentVad: 0, droppedHallucination: 0, failed: 1 },
+          system: { windows: 0, saved: 0, silentRms: 0, silentVad: 0, droppedHallucination: 0, failed: 0 },
+          mixed: { windows: 0, saved: 0, silentRms: 0, silentVad: 0, droppedHallucination: 0, failed: 0 },
+        },
+        gaps: [{ startMs: 0, endMs: 10000, channel: 'mic', reason: 'failed' }],
+      },
+    });
+    render(<MeetingCardModern meeting={meeting} onClick={vi.fn()} />);
+    expect(screen.getByText('Partial')).toBeInTheDocument();
+    expect(screen.queryByText('Complete')).toBeNull();
+  });
+
+  it('shows "Recovered" for a session closed by crash recovery, never the word "complete"', () => {
+    const meeting = makeMeeting({
+      transcriptionCoverage: {
+        version: 1,
+        endedBy: 'recovered',
+        audioMs: 30000,
+        provider: 'local',
+        model: null,
+        windowStampMs: 10000,
+        windowAdvanceMs: 9000,
+        retranscribed: [],
+        channels: {
+          mic: { windows: 0, saved: 0, silentRms: 0, silentVad: 0, droppedHallucination: 0, failed: 0 },
+          system: { windows: 0, saved: 0, silentRms: 0, silentVad: 0, droppedHallucination: 0, failed: 0 },
+          mixed: { windows: 0, saved: 0, silentRms: 0, silentVad: 0, droppedHallucination: 0, failed: 0 },
+        },
+        gaps: [{ startMs: 20000, endMs: 30000, channel: 'mixed', reason: 'unknown' }],
+      },
+    });
+    render(<MeetingCardModern meeting={meeting} onClick={vi.fn()} />);
+    expect(screen.getByText('Recovered')).toBeInTheDocument();
+    expect(screen.queryByText(/complete/i)).toBeNull();
+  });
+});

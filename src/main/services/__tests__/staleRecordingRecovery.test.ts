@@ -34,6 +34,8 @@ vi.mock('../../db/connection', () => ({ getDb: () => holder.db }));
 
 import * as fsp from 'node:fs/promises';
 import { recoverStaleRecordings } from '../staleRecordingRecovery';
+import { emptyCoverageTally } from '../../../shared/types/transcriptionCoverage';
+import { WINDOW_STAMP_MS, WINDOW_ADVANCE_MS, audioMsToStampedMs } from '../../../shared/transcription/timeCoordinates';
 
 const STARTED = new Date('2026-09-04T07:34:00Z');
 
@@ -61,7 +63,11 @@ async function seedSegments(meetingId: string, lastEndMs: number): Promise<void>
 
 async function readMeeting(id: string) {
   const [row] = await holder.db
-    .select({ status: meetings.status, endedAt: meetings.endedAt })
+    .select({
+      status: meetings.status,
+      endedAt: meetings.endedAt,
+      transcriptionCoverage: meetings.transcriptionCoverage,
+    })
     .from(meetings)
     .where(eq(meetings.id, id));
   return row;
@@ -185,5 +191,61 @@ describe('recoverStaleRecordings', () => {
     // Both still close: an unreadable WAV degrades to the transcript/zero
     // fallback rather than aborting the pass.
     expect(await recoverStaleRecordings()).toBe(2);
+  });
+});
+
+describe('recoverStaleRecordings — transcription coverage (TRANS-COV.1)', () => {
+  it('writes an honest recovered coverage record with the untranscribed tail as an unknown gap', async () => {
+    const id = await seedMeeting('recording');
+    await seedSegments(id, 40_000); // last persisted segment ends at stamped 40,000
+    audioOfSeconds(100); // 100 s of real audio on disk
+
+    await recoverStaleRecordings();
+
+    const row = await readMeeting(id);
+    expect(row.transcriptionCoverage).toEqual({
+      version: 1,
+      endedBy: 'recovered',
+      audioMs: 100_000,
+      provider: 'unknown',
+      model: null,
+      windowStampMs: WINDOW_STAMP_MS,
+      windowAdvanceMs: WINDOW_ADVANCE_MS,
+      channels: emptyCoverageTally().channels,
+      gaps: [{ startMs: 40_000, endMs: audioMsToStampedMs(100_000), channel: 'mixed', reason: 'unknown' }],
+      retranscribed: [],
+    });
+  });
+
+  it('records audioMs null and no gap when there is no WAV to measure', async () => {
+    const id = await seedMeeting('recording');
+    noAudio();
+
+    await recoverStaleRecordings();
+
+    const row = await readMeeting(id);
+    expect(row.transcriptionCoverage).toMatchObject({ endedBy: 'recovered', audioMs: null, gaps: [] });
+  });
+
+  it('still closes the row when the coverage write itself fails', async () => {
+    const id = await seedMeeting('recording');
+    audioOfSeconds(60);
+
+    // Let the status-closing update go through for real, then fail only the
+    // SECOND db.update call (the coverage write) -- proves un-sticking the row
+    // survives a coverage write that blows up.
+    const realUpdate = holder.db.update.bind(holder.db);
+    const updateSpy = vi.spyOn(holder.db, 'update');
+    updateSpy.mockImplementationOnce(realUpdate as never);
+    updateSpy.mockImplementationOnce(() => {
+      throw new Error('simulated coverage write failure');
+    });
+
+    const recovered = await recoverStaleRecordings();
+
+    expect(recovered).toBe(1);
+    expect((await readMeeting(id)).status).toBe('completed');
+
+    updateSpy.mockRestore();
   });
 });

@@ -1,16 +1,18 @@
 // Meeting header — title (editable), close/export buttons, metadata row,
 // template info, and project linking dropdown.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { X, Clock, Download, ArrowRight, FolderOpen } from 'lucide-react';
 import HudSelect from '../HudSelect';
 import ParticipantsInput from '../ParticipantsInput';
+import CoverageBadge from './CoverageBadge';
 import { MEETING_TEMPLATES, TRANSCRIPTION_LANGUAGES } from '../../../shared/types';
 import type { MeetingWithTranscript } from '../../../shared/types';
 import type { Project } from '../../../shared/types';
 import { STATUS_STYLES, formatDuration, formatDate, formatTime } from './utils';
 import { useProjectStore } from '../../stores/projectStore';
 import { useMeetingStore } from '../../stores/meetingStore';
+import { detectSuspectSpans } from '../../../shared/transcription/suspectDetector';
 
 interface MeetingHeaderProps {
   meeting: MeetingWithTranscript;
@@ -22,6 +24,9 @@ interface MeetingHeaderProps {
    *  (SessionWorkspace / LiveModeOverlay) — the board now lives IN the session, so
    *  "Open Board" is an in-canvas tab switch, never a /projects navigation. */
   onOpenBoard?: () => void;
+  /** A coverage-badge gap (or a "show me" affordance in general) was clicked —
+   *  jump to the transcript at this span (TRANS-COV.1 Task 5). */
+  onShowSpan: (startMs: number, endMs: number) => void;
 }
 
 export default function MeetingHeader({
@@ -31,11 +36,15 @@ export default function MeetingHeader({
   onExport,
   onClose,
   onOpenBoard,
+  onShowSpan,
 }: MeetingHeaderProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const createProject = useProjectStore((s) => s.createProject);
   const updateParticipants = useMeetingStore((s) => s.updateParticipants);
+  // Cheap enough for a header (rule-based, no model call) — memoized so
+  // typing in the title/participants fields doesn't recompute it every keystroke.
+  const suspectCount = useMemo(() => detectSuspectSpans(meeting.segments).length, [meeting.segments]);
 
   const handleParticipantsChange = (names: string[]) => {
     void updateParticipants(meeting.id, names);
@@ -118,6 +127,13 @@ export default function MeetingHeader({
           <Clock size={14} className="text-[var(--color-accent-dim)]" />
           {formatDuration(meeting.startedAt, meeting.endedAt)}
         </span>
+        {meeting.status === 'completed' && (
+          <CoverageBadge
+            coverage={meeting.transcriptionCoverage ?? null}
+            suspectCount={suspectCount}
+            onShowSpan={onShowSpan}
+          />
+        )}
         <span className="node-point-sm" />
         <span className="font-data text-[var(--color-text-secondary)]">
           {formatDate(meeting.startedAt)} at {formatTime(meeting.startedAt)}

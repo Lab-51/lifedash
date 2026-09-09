@@ -39,14 +39,20 @@ import { trackTiming } from './performanceTracker';
 import type { AudioChunkBuffers, TranscriptionProviderType, TranscriptionProgress } from '../../shared/types';
 import { resolveLanguagePreset } from '../../shared/types/transcription';
 import { findMatchedHallucinationPhrase } from '../../shared/transcription/hallucinationFilter';
+import { WINDOW_STAMP_MS } from '../../shared/transcription/timeCoordinates';
+import { emptyCoverageTally } from '../../shared/types/transcriptionCoverage';
+import type { ChannelCoverage, CoverageGap, CoverageTally } from '../../shared/types/transcriptionCoverage';
 
 const log = createLogger('Transcription');
 
 // Whisper context types — imported as type-only to avoid eager native module loading
 import type { WhisperContext, WhisperVadContext } from '@fugood/whisper.node';
 
-// Whisper speed presets — trade accuracy for speed via beam search parameters
-const WHISPER_PRESETS = {
+// Whisper speed presets — trade accuracy for speed via beam search parameters.
+// Exported since TRANS-COV.1 Task 4: retranscriptionService redoes a chosen span
+// with `accurate` regardless of the session preset, and must use THESE numbers
+// rather than keep a second copy of them.
+export const WHISPER_PRESETS = {
   fast: { beamSize: 1, bestOf: 1 },
   balanced: { beamSize: 3, bestOf: 3 },
   accurate: { beamSize: 5, bestOf: 5 },
@@ -116,6 +122,10 @@ let vadInitPromise: Promise<WhisperVadContext | null> | null = null;
 let vadDisabled = false;
 let mainWindow: BrowserWindow | null = null;
 let currentMeetingId: string | null = null;
+// True from the first line of start() until stop() settles — see isActive().
+// Deliberately NOT derived from `currentMeetingId`, which start() only assigns
+// after several awaits and clears again on its own failure paths.
+let recordingActive = false;
 let lastTranscriptText = '';
 // Shared FIFO of segments waiting to be transcribed. One queue across channels
 // keeps MAX_CONCURRENT a single shared budget and preserves arrival order, so
@@ -127,6 +137,27 @@ let activeProvider: TranscriptionProviderType = 'local';
 let activeLanguage: string = 'en';
 let activePreset: WhisperPreset = 'balanced';
 let activeInitialPrompt: string = ''; // Whisper glossary seed (roster + project terms + preset glossary), all presets
+let activeModelName: string | null = null; // Whisper model file in use; null on every cloud provider
+
+// === Coverage accounting (TRANS-COV.1) ====================================
+// What happened to every window this session dispatched, per channel, plus the
+// spans known to hold no transcript. Pure BOOKKEEPING: nothing below reads it,
+// so it can never change what is dispatched, gated or persisted. Reset in
+// start(); read by audioProcessor at stop and written onto the meeting row.
+let coverageTally: CoverageTally = emptyCoverageTally();
+
+/** Record one window outcome for a channel. */
+function countWindow(channel: AudioChannel, outcome: keyof ChannelCoverage): void {
+  coverageTally.channels[channel][outcome]++;
+}
+
+/** Record a window that produced no transcript, in the STAMPED coordinate --
+ *  the same timeline the segment's own start time is written in, which runs
+ *  ahead of the real audio (see timeCoordinates.ts / ISSUES #40). */
+function recordGap(channel: AudioChannel, segmentNumber: number, reason: CoverageGap['reason']): void {
+  const startMs = segmentNumber * WINDOW_STAMP_MS;
+  coverageTally.gaps.push({ startMs, endMs: startMs + WINDOW_STAMP_MS, channel, reason });
+}
 
 // Progress tracking for the renderer
 let totalSegmentsQueued = 0;
@@ -149,6 +180,36 @@ export function setMainWindow(win: BrowserWindow): void {
 
 export function getLastTranscript(): string {
   return lastTranscriptText;
+}
+
+/** This session's window accounting. The returned object is the live tally --
+ *  safe to hold, because start() installs a FRESH one rather than clearing
+ *  this one, so a previous session's record can never be mutated afterwards. */
+export function getCoverageTally(): CoverageTally {
+  return coverageTally;
+}
+
+/** The transcription provider this session actually ran on (after the
+ *  local-only downgrade), for the coverage record. */
+export function getActiveProvider(): TranscriptionProviderType {
+  return activeProvider;
+}
+
+/** The whisper model file this session ran on; null on a cloud provider. */
+export function getActiveModelName(): string | null {
+  return activeModelName;
+}
+
+/**
+ * True while a recording session owns this module: from the first line of
+ * start() until stop() settles, INCLUDING the failure paths of both.
+ *
+ * The guard retranscriptionService checks before it deletes anything
+ * (TRANS-COV.1 Task 4): the live loop is writing transcript rows and holds the
+ * whisper context, so a span replacement must never run alongside it.
+ */
+export function isActive(): boolean {
+  return recordingActive;
 }
 
 /** Emit a progress event to the renderer */
@@ -180,6 +241,10 @@ export function getProgress(): TranscriptionProgress {
  * or prepares for cloud API dispatching.
  */
 export async function start(meetingId: string, language?: string): Promise<void> {
+  // Claimed BEFORE the first await: every early return below still leaves the
+  // session owned by this module until stop() releases it (see isActive()).
+  recordingActive = true;
+
   // Resolve which provider to use from saved config
   const config = await transcriptionProviderService.getConfig();
   activeProvider = config.type;
@@ -234,6 +299,8 @@ export async function start(meetingId: string, language?: string): Promise<void>
   totalSegmentsQueued = 0;
   segmentsCompleted = 0;
   whisperBackend = 'cpu';
+  coverageTally = emptyCoverageTally();
+  activeModelName = null;
 
   // Fresh VAD gate per session: a previous session's failure must not disable
   // this one, and a leaked context must not outlive it.
@@ -273,6 +340,7 @@ export async function start(meetingId: string, language?: string): Promise<void>
       whisperContext = context;
       whisperBackend = backend;
       const modelName = modelPath.split(/[\\/]/).pop() ?? modelPath;
+      activeModelName = modelName;
       log.info(`Started (local) with model: ${modelName} [${backend}], speed preset: ${activePreset}`);
     } catch (err) {
       log.error('Failed to initialize Whisper:', err);
@@ -355,6 +423,18 @@ function feedChannel(channel: AudioChannel, chunk: Buffer): void {
  * Stop the transcription pipeline. Transcribes any remaining audio, then terminates.
  */
 export async function stop(): Promise<void> {
+  // The flag is cleared in a `finally` around the WHOLE body, because stop() has
+  // two early returns and can throw from the flush — and a flag left set by any
+  // of those would block every later retranscription for the life of the process
+  // (isActive()).
+  try {
+    await stopInternal();
+  } finally {
+    recordingActive = false;
+  }
+}
+
+async function stopInternal(): Promise<void> {
   // Allow stop for both local and API modes
   if (activeProvider === 'local' && !whisperContext) return;
   if (activeProvider !== 'local' && !currentMeetingId) return;
@@ -510,6 +590,7 @@ function dispatchNext(): void {
   const startTimeMs = state.segmentIndex * SEGMENT_DURATION_SEC * 1000;
   const segmentNumber = state.segmentIndex;
   state.segmentIndex++;
+  countWindow(channel, 'windows');
 
   // Skip silent segments to avoid Whisper hallucinations and save CPU. Run per
   // channel, so a channel nobody is speaking on costs one RMS pass and nothing
@@ -517,6 +598,7 @@ function dispatchNext(): void {
   const rms = calculateInt16RMS(segment);
   if (rms < SILENCE_RMS_THRESHOLD) {
     log.debug(`Skipping silent ${channel} segment #${segmentNumber} (RMS: ${rms.toFixed(0)})`);
+    countWindow(channel, 'silentRms');
     segmentsCompleted++;
     emitProgress('transcribing');
     dispatchNext(); // Try next segment
@@ -545,6 +627,7 @@ async function gateAndDispatch(
 ): Promise<void> {
   if (await isWindowSilentByVad(segment)) {
     log.debug(`Skipping ${channel} segment #${segmentNumber} — no speech detected (VAD)`);
+    countWindow(channel, 'silentVad');
     activeTranscriptions--;
     segmentsCompleted++;
     emitProgress('transcribing');
@@ -624,6 +707,8 @@ async function dispatchToWhisper(
       // the hallucination filter — a dropped hallucination must never feed
       // back into the next window's Whisper prompt (self-reinforcement loop).
       const survivingTexts: string[] = [];
+      let savedAny = false;
+      let droppedHallucinated = false;
 
       for (const seg of result.segments) {
         const segText = seg.text.trim();
@@ -632,6 +717,7 @@ async function dispatchToWhisper(
         const matchedPhrase = findMatchedHallucinationPhrase(segText);
         if (matchedPhrase) {
           log.debug(`Dropping hallucinated ${channel} segment #${segmentNumber} (matched: "${matchedPhrase}")`);
+          droppedHallucinated = true;
           continue;
         }
 
@@ -651,6 +737,7 @@ async function dispatchToWhisper(
             segEndMs,
             CHANNEL_SPEAKER[channel],
           );
+          savedAny = true;
 
           // Push segment to renderer
           if (mainWindow && !mainWindow.isDestroyed()) {
@@ -664,6 +751,11 @@ async function dispatchToWhisper(
         }
       }
 
+      // Window-level outcomes. Deliberately NOT exclusive: a window can persist
+      // one segment and drop another as a hallucination, and both are true of it.
+      if (savedAny) countWindow(channel, 'saved');
+      if (droppedHallucinated) countWindow(channel, 'droppedHallucination');
+
       // Keep last ~200 chars of surviving text as context prompt for the next
       // segment. If everything in this window was filtered, leave the prior
       // prompt in place rather than feeding a hallucination forward.
@@ -673,6 +765,8 @@ async function dispatchToWhisper(
     }
   } catch (err) {
     log.error('Whisper transcription failed:', err);
+    countWindow(channel, 'failed');
+    recordGap(channel, segmentNumber, 'failed');
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('transcription:status-changed', {
         status: 'error',
@@ -704,6 +798,7 @@ async function dispatchToApi(
     // Process result — save to DB and push to renderer
     if (result.text && result.text.trim() && currentMeetingId) {
       lastTranscriptText = result.text.trim();
+      let savedAny = false;
 
       for (const seg of result.segments) {
         if (!seg.text.trim()) continue;
@@ -715,6 +810,7 @@ async function dispatchToApi(
             seg.endMs,
             CHANNEL_SPEAKER[channel],
           );
+          savedAny = true;
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('recording:transcript-segment', saved);
           }
@@ -725,6 +821,8 @@ async function dispatchToApi(
           log.error('Failed to save segment:', err);
         }
       }
+
+      if (savedAny) countWindow(channel, 'saved');
 
       // Log API usage (fire-and-forget)
       try {
@@ -759,7 +857,11 @@ async function dispatchToApi(
       return; // dispatchToWhisper handles activeTranscriptions and dispatchNext
     }
 
+    // Only reached when there is no local fallback: with one, the window's
+    // outcome is decided by dispatchToWhisper above and counted exactly once.
     log.error('No fallback available. Skipping segment.');
+    countWindow(channel, 'failed');
+    recordGap(channel, segmentNumber, 'failed');
   }
 
   activeTranscriptions--;

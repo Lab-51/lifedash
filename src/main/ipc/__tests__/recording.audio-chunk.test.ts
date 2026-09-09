@@ -33,6 +33,12 @@ vi.mock('../../services/audioProcessor', () => ({
   addChunk: vi.fn(),
 }));
 vi.mock('../../services/meetingService', () => ({ getMeeting: vi.fn() }));
+// Mocked for its IMPORT GRAPH, not its behaviour: registerRecordingHandlers now
+// also registers 'transcript:retranscribe-span' (TRANS-COV.1 Task 4), and the
+// real retranscriptionService reaches entityService -> ai-provider / twin memory /
+// postSessionDispatcher, whose import-time hook registration explodes against
+// this file's deliberately minimal meetingService double.
+vi.mock('../../services/retranscriptionService', () => ({ retranscribeSpan: vi.fn() }));
 
 // ---------------------------------------------------------------------------
 // Imports (after mocks)

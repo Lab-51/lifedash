@@ -54,55 +54,24 @@
 // Non-fatal by design: a failure here must never block startup, and a row that
 // cannot be closed this launch is simply retried next launch — there is no
 // flag to get wedged.
+//
+// === RECOVERY ALSO WRITES AN HONEST COVERAGE RECORD (TRANS-COV.1) ===
+// The live per-window tally (transcriptionService.getCoverageTally()) lives in
+// the process that crashed — it died with it, so a recovered row can never
+// report real channel counters. What it CAN report is the untranscribed tail:
+// from the last transcript segment this meeting actually persisted to the end
+// of the recorded audio, as a single `unknown` gap. See buildRecoveredCoverage.
 
-import * as fsp from 'node:fs/promises';
-import path from 'node:path';
-import { app } from 'electron';
 import { eq, isNull, max, and } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import { meetings, transcripts, settings } from '../db/schema';
+import { meetings, transcripts } from '../db/schema';
 import { createLogger } from './logger';
+import { resolveRecordingWav, durationFromFileMs } from './wavSpanReader';
+import { emptyCoverageTally } from '../../shared/types/transcriptionCoverage';
+import type { CoverageGap, TranscriptionCoverage } from '../../shared/types/transcriptionCoverage';
+import { WINDOW_STAMP_MS, WINDOW_ADVANCE_MS, audioMsToStampedMs } from '../../shared/transcription/timeCoordinates';
 
 const log = createLogger('StaleRecordingRecovery');
-
-/** 16 kHz, mono, Int16 — the format audioProcessor writes. */
-const WAV_BYTES_PER_SECOND = 16000 * 2;
-/** Canonical RIFF/WAVE header length written by audioProcessor. */
-const WAV_HEADER_BYTES = 44;
-
-/**
- * Mirrors audioProcessor/recordingSweepService: the user-configurable
- * `recordings:savePath` when set, else <userData>/recordings. Duplicated
- * rather than imported for the same reason recordingSweepService duplicates
- * it — this is a side-effect-free read that must not couple to the
- * live-recording module's mutable state.
- */
-async function getRecordingsDir(): Promise<string> {
-  try {
-    const db = getDb();
-    const rows = await db.select().from(settings).where(eq(settings.key, 'recordings:savePath')).limit(1);
-    if (rows.length > 0 && rows[0].value) return rows[0].value;
-  } catch (err) {
-    log.error('Failed to read recordings:savePath, using default:', err);
-  }
-  return path.join(app.getPath('userData'), 'recordings');
-}
-
-/**
- * Duration in ms from the recording's WAV, or null when there is no readable
- * file. Exact by construction (see the header note) and immune to the
- * transcript timestamp drift of ISSUES #40.
- */
-async function durationFromWav(recordingsDir: string, meetingId: string): Promise<number | null> {
-  try {
-    const st = await fsp.stat(path.join(recordingsDir, `${meetingId}.wav`));
-    const audioBytes = st.size - WAV_HEADER_BYTES;
-    if (audioBytes <= 0) return null;
-    return Math.round((audioBytes / WAV_BYTES_PER_SECOND) * 1000);
-  } catch {
-    return null; // No saved audio (saving disabled, or the file never landed) — fall back.
-  }
-}
 
 /**
  * Closes every meeting still marked as recording. Returns how many rows were
@@ -115,30 +84,34 @@ export async function recoverStaleRecordings(): Promise<number> {
   const db = getDb();
 
   const stale = await db
-    .select({ id: meetings.id, startedAt: meetings.startedAt })
+    .select({ id: meetings.id, startedAt: meetings.startedAt, audioPath: meetings.audioPath })
     .from(meetings)
     .where(and(eq(meetings.status, 'recording'), isNull(meetings.endedAt)));
 
   if (stale.length === 0) return 0;
 
-  const recordingsDir = path.resolve(await getRecordingsDir());
   let recovered = 0;
 
   for (const row of stale) {
     try {
-      let durationMs = await durationFromWav(recordingsDir, row.id);
+      // The furthest transcript segment actually persisted — the floor for
+      // ended_at's transcript fallback below, and (independent of which source
+      // wins) the start of the coverage gap the crash left behind.
+      const [agg] = await db
+        .select({ lastEnd: max(transcripts.endTime) })
+        .from(transcripts)
+        .where(eq(transcripts.meetingId, row.id));
+      const lastSegmentEndMs = agg?.lastEnd ?? null;
+
+      const wavPath = await resolveRecordingWav({ id: row.id, audioPath: row.audioPath });
+      const audioMs = wavPath ? await durationFromFileMs(wavPath) : null;
+
+      let durationMs = audioMs;
       let source = 'wav';
 
-      if (durationMs === null) {
-        // Fallback: the furthest transcript segment we actually persisted.
-        const [agg] = await db
-          .select({ lastEnd: max(transcripts.endTime) })
-          .from(transcripts)
-          .where(eq(transcripts.meetingId, row.id));
-        if (agg?.lastEnd != null) {
-          durationMs = agg.lastEnd;
-          source = 'transcript';
-        }
+      if (durationMs === null && lastSegmentEndMs != null) {
+        durationMs = lastSegmentEndMs;
+        source = 'transcript';
       }
 
       // Floor: a recording that produced neither audio nor transcript ends
@@ -156,6 +129,8 @@ export async function recoverStaleRecordings(): Promise<number> {
       log.info(
         `Recovered stuck recording ${row.id}: ended_at derived from ${source}, duration ${(durationMs / 1000).toFixed(1)}s`,
       );
+
+      await persistRecoveredCoverage(db, row.id, audioMs, lastSegmentEndMs);
     } catch (err) {
       // One bad row must not strand the others, and there is no flag to wedge —
       // whatever fails here is simply retried on the next launch.
@@ -165,4 +140,57 @@ export async function recoverStaleRecordings(): Promise<number> {
 
   log.info(`Stale recording recovery: closed ${recovered} of ${stale.length} stuck session(s)`);
   return recovered;
+}
+
+/**
+ * An honest 'recovered' coverage record (TRANS-COV.1) for a session closed by
+ * crash recovery. The live per-window tally died with the process that would
+ * have counted it, so every channel counter is zero (emptyCoverageTally()) and
+ * the record's only signal is a single gap: from the last persisted segment's
+ * stamped endTime (0 when there is none) to the WAV's own length converted to
+ * the stamped coordinate — the span the user should retranscribe. Reported
+ * only when that span outlasts one window; a shorter tail is not worth flagging.
+ */
+function buildRecoveredCoverage(audioMs: number | null, lastSegmentEndMs: number | null): TranscriptionCoverage {
+  const gaps: CoverageGap[] = [];
+  if (audioMs != null) {
+    const gapStartMs = lastSegmentEndMs ?? 0;
+    const gapEndMs = audioMsToStampedMs(audioMs);
+    if (gapEndMs - gapStartMs > WINDOW_STAMP_MS) {
+      gaps.push({ startMs: gapStartMs, endMs: gapEndMs, channel: 'mixed', reason: 'unknown' });
+    }
+  }
+
+  return {
+    version: 1,
+    endedBy: 'recovered',
+    audioMs,
+    provider: 'unknown',
+    model: null,
+    windowStampMs: WINDOW_STAMP_MS,
+    windowAdvanceMs: WINDOW_ADVANCE_MS,
+    channels: emptyCoverageTally().channels,
+    gaps,
+    retranscribed: [],
+  };
+}
+
+/**
+ * Writes the coverage record for a just-recovered row. NEVER throws — mirrors
+ * audioProcessor's persistCoverage: the row is already closed by the time this
+ * runs, and un-sticking it beats accounting for it, so a write failure here is
+ * logged and otherwise ignored.
+ */
+async function persistRecoveredCoverage(
+  db: ReturnType<typeof getDb>,
+  meetingId: string,
+  audioMs: number | null,
+  lastSegmentEndMs: number | null,
+): Promise<void> {
+  try {
+    const coverage = buildRecoveredCoverage(audioMs, lastSegmentEndMs);
+    await db.update(meetings).set({ transcriptionCoverage: coverage }).where(eq(meetings.id, meetingId));
+  } catch (err) {
+    log.error(`Failed to persist recovered-coverage record for ${meetingId}:`, err);
+  }
 }

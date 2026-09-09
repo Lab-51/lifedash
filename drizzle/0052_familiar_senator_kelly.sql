@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" ADD COLUMN "transcription_coverage" jsonb;

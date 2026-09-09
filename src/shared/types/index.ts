@@ -13,6 +13,8 @@ export * from './backup';
 export * from './tasks';
 export * from './notifications';
 export * from './transcription';
+export * from './transcriptionCoverage';
+export * from './retranscription';
 export * from './diarization';
 export * from './analytics';
 export * from './focus';

@@ -16,6 +16,7 @@ import type {
   MeetingAnalytics,
   DeleteMeetingOptions,
   SpeakerNameMap,
+  RetranscribedSpan,
 } from '../../shared/types';
 
 interface MeetingStore {
@@ -67,6 +68,13 @@ interface MeetingStore {
   deleteMeeting: (id: string, opts?: DeleteMeetingOptions) => Promise<void>;
   clearSelectedMeeting: () => void;
   addTranscriptSegment: (segment: TranscriptSegment) => void;
+  /** Apply a completed retranscription (TRANS-COV.1 Task 5) to the SELECTED
+   *  meeting's local state — segments AND the coverage record's own run log —
+   *  through the SAME in-place-update path addTranscriptSegment uses for a
+   *  live arrival, never a full reload. Rows overlapping `note`'s span are
+   *  replaced by `newSegments`; a no-op when a different meeting is now
+   *  selected (the user navigated away mid-run). */
+  applyRetranscription: (meetingId: string, newSegments: TranscriptSegment[], note: RetranscribedSpan) => void;
   /** Subscribe to main's `meeting:brief-ready` push (POST-FLOW.1 Task 1) and
    *  refetch the SELECTED meeting so its brief — or its AI-RESIL.1 failure card —
    *  replaces the "Writing your brief…" state with no user action. Returns the
@@ -235,6 +243,24 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
         },
       });
     }
+  },
+
+  applyRetranscription: (meetingId, newSegments, note) => {
+    const selected = get().selectedMeeting;
+    if (!selected || selected.id !== meetingId) return;
+    // Same overlap predicate the service deletes by, so the local view matches
+    // what the database now holds: [startMs, endMs) is what the run actually
+    // covered (note.endMs is the server's clampedEndMs, not the raw request).
+    const kept = selected.segments.filter((s) => !(s.startTime < note.endMs && s.endTime > note.startMs));
+    const segments = [...kept, ...newSegments].sort((a, b) => a.startTime - b.startTime);
+    const coverage = selected.transcriptionCoverage;
+    set({
+      selectedMeeting: {
+        ...selected,
+        segments,
+        transcriptionCoverage: coverage ? { ...coverage, retranscribed: [...coverage.retranscribed, note] } : coverage,
+      },
+    });
   },
 
   initBriefReadyListener: () => {

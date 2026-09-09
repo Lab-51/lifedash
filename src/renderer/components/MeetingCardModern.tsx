@@ -3,12 +3,24 @@
 // Uses HUD design system tokens and patterns consistent with KanbanCard and Ideas cards.
 
 import { memo, useState, useEffect, useRef } from 'react';
-import { Mic, Clock, CheckCircle2, Loader2, ListChecks, Trash2, Calendar, FileText, AlertCircle } from 'lucide-react';
+import {
+  Mic,
+  Clock,
+  CheckCircle2,
+  Loader2,
+  ListChecks,
+  Trash2,
+  Calendar,
+  FileText,
+  AlertCircle,
+  AlertTriangle,
+} from 'lucide-react';
 import type { Meeting, Project } from '../../shared/types';
 import { MEETING_TEMPLATES } from '../../shared/types';
 import { useProjectStore } from '../stores/projectStore';
 import { useMeetingStore } from '../stores/meetingStore';
 import { toast } from '../hooks/useToast';
+import { coverageVerdict } from '../../shared/transcription/coverageVerdict';
 
 interface MeetingCardModernProps {
   meeting: Meeting;
@@ -53,6 +65,21 @@ function formatDuration(startedAt: string, endedAt: string | null): string {
   return `${min}m`;
 }
 
+/**
+ * The card's own small coverage tell (TRANS-COV.1 Task 5) — "partial" /
+ * "recovered" only. `null` for "complete" (the absence of a marker IS the
+ * complete state) and for "unknown" (most existing meetings predate coverage
+ * tracking; a marker on nearly every card would be noise, not a signal).
+ * `suspectCount` is fixed at 0 — cards don't load segments, and it can only
+ * ever ADD a reason string, never change the verdict this reads.
+ */
+function coverageMarker(meeting: Meeting): string | null {
+  const { verdict } = coverageVerdict(meeting.transcriptionCoverage ?? null, 0);
+  if (verdict === 'recovered') return 'Recovered';
+  if (verdict === 'partial') return 'Partial';
+  return null;
+}
+
 const MeetingCardModern = memo(function MeetingCardModern({
   meeting,
   projectName,
@@ -64,6 +91,7 @@ const MeetingCardModern = memo(function MeetingCardModern({
   const status = STATUS_STYLES[meeting.status] || STATUS_STYLES.completed;
   const StatusIcon = status.icon;
   const hasActions = actionItemCount != null && actionItemCount > 0;
+  const coverageLabel = coverageMarker(meeting);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [reassigning, setReassigning] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -121,6 +149,13 @@ const MeetingCardModern = memo(function MeetingCardModern({
           <span className="node-point-sm" />
           <Clock size={12} />
           {formatDuration(meeting.startedAt, meeting.endedAt)}
+          {coverageLabel && (
+            <span className="flex items-center gap-1 text-amber-400" title="Some of this recording has no transcript">
+              <span className="node-point-sm" />
+              <AlertTriangle size={11} />
+              {coverageLabel}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           {hasActions && (

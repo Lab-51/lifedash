@@ -81,6 +81,7 @@ import type { BackupInfo, BackupProgress, ExportOptions, ExportResult, AutoBacku
 import type { ProjectPlan, TaskBreakdown } from './tasks';
 import type { NotificationPreferences } from './notifications';
 import type { TranscriptionProviderType, TranscriptionProviderStatus } from './transcription';
+import type { RetranscribeResult, RetranscribeSpanInput } from './retranscription';
 import type { MeetingAnalytics } from './analytics';
 import type { FocusSession, FocusDailyData, FocusSessionWithCard, FocusPeriodStats, FocusTimeReport } from './focus';
 import type { GamificationStats, Achievement, XpEventType, XpDailyData } from './gamification';
@@ -425,6 +426,12 @@ export interface ElectronAPI {
   transcriptionTestProvider: (
     type: TranscriptionProviderType,
   ) => Promise<{ success: boolean; error?: string; latencyMs?: number }>;
+  /** Redo one span of a finished recording's transcript from its WAV with a
+   *  downloaded whisper model (TRANS-COV.1). REPLACES every overlapping row.
+   *  Resolves to a typed result and never rejects on a refusal — the caller
+   *  checks `ok`. Models to offer come from the existing `getWhisperModels()`,
+   *  filtered to `available === true`. */
+  retranscribeSpan: (input: RetranscribeSpanInput) => Promise<RetranscribeResult>;
 
   // Voice Input
   voiceTranscribe: (audioBuffer: ArrayBuffer) => Promise<{ text: string }>;

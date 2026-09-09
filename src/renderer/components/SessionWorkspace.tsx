@@ -430,6 +430,26 @@ function clearedBoardParams(current: URLSearchParams): URLSearchParams {
   return next;
 }
 
+/** Next params carrying a span to jump to (TRANS-COV.1 Task 5 — a coverage-
+ *  badge gap clicked in the header before the Transcript tab is even open).
+ *  MERGES, same reasoning as `evidenceSearchParams`. */
+function spanSearchParams(current: URLSearchParams, startMs: number, endMs: number): URLSearchParams {
+  const next = new URLSearchParams(current);
+  next.set('spanStart', String(startMs));
+  next.set('spanEnd', String(endMs));
+  return next;
+}
+
+/** A numeric search param, or undefined when absent/unparseable. Its own
+ *  function so the ternary/branch doesn't count against SessionWorkspace's
+ *  own complexity budget (ceiling 15, this file is not baselined). */
+function numberParam(params: URLSearchParams, key: string): number | undefined {
+  const raw = params.get(key);
+  if (raw === null) return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
+
 // ---------------------------------------------------------------------------
 // SessionWorkspace page shell
 // ---------------------------------------------------------------------------
@@ -439,6 +459,8 @@ export default function SessionWorkspace() {
   const [searchParams, setSearchParams] = useSearchParams();
   const autoGenerate = searchParams.get('autoGenerate') === '1';
   const initialTranscriptSearch = searchParams.get('transcriptSearch') ?? undefined;
+  const initialSpanStart = numberParam(searchParams, 'spanStart');
+  const initialSpanEnd = numberParam(searchParams, 'spanEnd');
   const viewProjectParam = searchParams.get('viewProject');
   const initialTab = initialBoardTab(searchParams);
 
@@ -449,6 +471,7 @@ export default function SessionWorkspace() {
   const deleteMeeting = useMeetingStore((s) => s.deleteMeeting);
   const convertActionToCard = useMeetingStore((s) => s.convertActionToCard);
   const renameSpeaker = useMeetingStore((s) => s.renameSpeaker);
+  const applyRetranscription = useMeetingStore((s) => s.applyRetranscription);
   const projects = useProjectStore((s) => s.projects);
   const loadProjects = useProjectStore((s) => s.loadProjects);
   const allCards = useBoardStore((s) => s.allCards);
@@ -577,6 +600,13 @@ export default function SessionWorkspace() {
     setSearchParams(evidenceSearchParams(searchParams, excerpt), { replace: true });
   };
 
+  // A coverage-badge gap in the header was clicked (TRANS-COV.1 Task 5): show
+  // the transcript, seeded with this span as the pending retranscription target.
+  const showSpan = (startMs: number, endMs: number) => {
+    setActiveTab('transcript');
+    setSearchParams(spanSearchParams(searchParams, startMs, endMs), { replace: true });
+  };
+
   const renderPanel = () => {
     // Summary tab — completed sessions only (the tab is not offered otherwise,
     // and the component self-gates besides).
@@ -626,6 +656,9 @@ export default function SessionWorkspace() {
           copiedField={copiedField}
           onCopy={handleCopy}
           onRenameSpeaker={(label, name) => renameSpeaker(meeting.id, label, name)}
+          initialSpanStart={initialSpanStart}
+          initialSpanEnd={initialSpanEnd}
+          onRetranscribed={(segments, note) => applyRetranscription(meeting.id, segments, note)}
         />
         {completed && <LiveAssistantSection meetingId={meeting.id} variant="canvas" />}
       </div>
@@ -643,6 +676,7 @@ export default function SessionWorkspace() {
           onExport={handleExport}
           onClose={handleBack}
           onOpenBoard={() => returnToOwnBoard(true)}
+          onShowSpan={showSpan}
         />
         {meeting.unassignedPending && (
           <div className="-mt-4 mb-2">

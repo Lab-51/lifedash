@@ -5,6 +5,7 @@
 // at compile time, so the structure's shape reaches the renderer while zod does
 // not — which is why briefStructure.ts stays out of the barrel (BRIEF-QUAL.1).
 import type { MeetingStructure } from './briefStructure';
+import type { TranscriptionCoverage } from './transcriptionCoverage';
 
 export type MeetingStatus = 'recording' | 'processing' | 'completed';
 
@@ -123,6 +124,12 @@ export interface Meeting {
    *  convert anything. Optional so every pre-BRIEF-EVID.1 fixture and caller
    *  stays valid; absent and null both mean "no zone recorded". */
   timezone?: string | null;
+  /** What the transcription pipeline did with every window of this session
+   *  (TRANS-COV.1) — the outcomes the transcript itself cannot show, because a
+   *  skipped, filtered or failed window leaves no row. Optional so every
+   *  pre-TRANS-COV.1 fixture and caller stays valid; absent and null both mean
+   *  "never recorded", which is NOT the same as "nothing was missed". */
+  transcriptionCoverage?: TranscriptionCoverage | null;
   createdAt: string;
 }
 

@@ -30,6 +30,7 @@ import type {
   UpdateMeetingInput,
   DeleteMeetingOptions,
   MeetingDeleteImpact,
+  TranscriptionCoverage,
 } from '../../shared/types';
 
 const log = createLogger('MeetingService');
@@ -114,6 +115,10 @@ function toMeeting(row: typeof meetings.$inferSelect): Meeting {
     participants: row.participants ?? null,
     speakerNames: row.speakerNames ?? null,
     timezone: row.timezone ?? null,
+    // Same pass-through contract as `meeting_briefs.structure` above: the
+    // service that WRITES the column owns its shape, and a meeting whose
+    // coverage record is missing or unreadable must still render.
+    transcriptionCoverage: (row.transcriptionCoverage as TranscriptionCoverage) ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -271,6 +276,20 @@ export async function updateMeetingParticipants(meetingId: string, participants:
   const db = getDb();
   const [row] = await db.update(meetings).set({ participants }).where(eq(meetings.id, meetingId)).returning();
   return toMeeting(row);
+}
+
+/**
+ * Store the transcription coverage record for a meeting (TRANS-COV.1).
+ *
+ * A dedicated write, kept out of updateMeeting on purpose: coverage is
+ * written at STOP, immediately before the renderer flips the meeting to
+ * `completed`, and must never touch the project-link / completion-transition
+ * logic that guards that function (a coverage write firing the completed
+ * hooks would kick off a second brief generation).
+ */
+export async function setTranscriptionCoverage(meetingId: string, coverage: TranscriptionCoverage): Promise<void> {
+  const db = getDb();
+  await db.update(meetings).set({ transcriptionCoverage: coverage }).where(eq(meetings.id, meetingId));
 }
 
 /** Map the partial update input to the DB column set (only provided fields). */

@@ -15,8 +15,15 @@ import * as fsp from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
-import type { AudioChunkBuffers, RecordingState, TranscriptionProgress } from '../../shared/types';
+import type {
+  AudioChunkBuffers,
+  RecordingState,
+  TranscriptionCoverage,
+  TranscriptionProgress,
+} from '../../shared/types';
+import { WINDOW_ADVANCE_MS, WINDOW_STAMP_MS } from '../../shared/transcription/timeCoordinates';
 import * as transcriptionService from './transcriptionService';
+import * as meetingService from './meetingService';
 import * as liveTriageService from './liveTriageService';
 import { getDb } from '../db/connection';
 import { settings } from '../db/schema';
@@ -26,6 +33,9 @@ import { setActiveMeetingId } from './recordingState';
 import { pinChatModelForRecording, releaseChatModelPin } from './recordingModelPin';
 
 const log = createLogger('Audio');
+
+/** WAV bytes per millisecond: 16 kHz mono Int16 = 32,000 bytes/s. */
+const WAV_BYTES_PER_MS = 32;
 
 let wavFd: FileHandle | null = null;
 let wavPath = '';
@@ -190,8 +200,16 @@ async function stopRecordingInner(): Promise<string> {
     } satisfies TranscriptionProgress);
   }
 
+  // Read the session's provider/model BEFORE the flush: stop() resets them for
+  // the next recording, and the coverage record has to name the one that ran.
+  const provider = transcriptionService.getActiveProvider();
+  const model = transcriptionService.getActiveModelName();
+
   // Flush transcription and finalize WAV in parallel
   const [, audioPath] = await Promise.all([transcriptionService.stop(), finalizeWav()]);
+
+  // After the flush, so the windows stop() itself dispatched are counted.
+  await persistCoverage(stoppedMeetingId, provider, model, audioPath);
 
   // Emit finalizing at 100% before returning
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -209,6 +227,45 @@ async function stopRecordingInner(): Promise<string> {
   pushState();
 
   return audioPath;
+}
+
+/**
+ * Store what the transcription pipeline did with every window of this session
+ * (TRANS-COV.1), while the meeting is still `recording` -- the renderer flips it
+ * to `completed` only after stopRecording returns, so the record is on the row
+ * BEFORE the completed hooks (brief generation) can read it.
+ *
+ * `audioMs` is the REAL recorded length, arithmetic on the finalized WAV's data
+ * bytes, never the transcript's own timeline (which runs 1 s per window fast --
+ * ISSUES #40). With no WAV to measure it is null rather than a guess.
+ *
+ * NEVER fails the stop: a recording that was made and saved must not be
+ * reported as failed because its bookkeeping could not be written.
+ */
+async function persistCoverage(
+  meetingId: string,
+  provider: string,
+  model: string | null,
+  audioPath: string,
+): Promise<void> {
+  try {
+    const tally = transcriptionService.getCoverageTally();
+    const coverage: TranscriptionCoverage = {
+      version: 1,
+      endedBy: 'stop',
+      audioMs: audioPath ? Math.round(dataBytes / WAV_BYTES_PER_MS) : null,
+      provider,
+      model,
+      windowStampMs: WINDOW_STAMP_MS,
+      windowAdvanceMs: WINDOW_ADVANCE_MS,
+      channels: tally.channels,
+      gaps: tally.gaps,
+      retranscribed: [],
+    };
+    await meetingService.setTranscriptionCoverage(meetingId, coverage);
+  } catch (err) {
+    log.error('Failed to persist transcription coverage:', err);
+  }
 }
 
 async function finalizeWav(): Promise<string> {

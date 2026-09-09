@@ -125,7 +125,13 @@ vi.mock('../transcriptionService', () => ({
   }),
   getProgress: () => ({ currentSegment: 0, totalSegments: 0, backendUsed: 'test' }),
   getLastTranscript: () => '',
+  // Coverage accounting (TRANS-COV.1) — stopRecording reads these to build the
+  // record it writes onto the meeting. Nothing here is about the pin.
+  getCoverageTally: () => ({ channels: {}, gaps: [] }),
+  getActiveProvider: () => 'local',
+  getActiveModelName: () => null,
 }));
+vi.mock('../meetingService', () => ({ setTranscriptionCoverage: vi.fn(async () => undefined) }));
 vi.mock('../liveTriageService', () => ({
   setMainWindow: vi.fn(),
   startTriage: vi.fn(),
