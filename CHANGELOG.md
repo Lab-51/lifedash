@@ -3,6 +3,11 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.14.0 — 2026-09-09
+- release: prep v2.14.0
+- feat(transcript): the transcript accounts for what it missed, and lets you redo the parts it got wrong
+- feat(brief): the brief says only what the meeting said, and shows where
+
 ## v2.13.1 — 2026-09-07
 - release: prep v2.13.1
 - fix(cards): a pushed card only names someone the meeting actually named, and only an owned item pushes itself
