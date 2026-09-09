@@ -31,6 +31,9 @@ const tally = vi.hoisted(() => {
       mixed: { ...zero },
     },
     gaps: [{ startMs: 10_000, endMs: 20_000, channel: 'mic', reason: 'failed' }],
+    // Whisper decoded three saved windows as Czech and one as English: the
+    // record must name Czech as the language the transcript is in.
+    languages: { cs: 3, en: 1 },
   };
 });
 
@@ -130,6 +133,8 @@ describe('audioProcessor.stopRecording — transcription coverage', () => {
       channels: tally.channels,
       gaps: tally.gaps,
       retranscribed: [],
+      languages: { cs: 3, en: 1 },
+      detectedLanguage: 'cs',
     });
   });
 

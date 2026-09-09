@@ -38,6 +38,33 @@ describe('BriefSection — legacy rendering stays byte-identical', () => {
 
     // No new heading level or footer styling leaks into a legacy brief.
     expect(container.querySelectorAll('h5')).toHaveLength(0);
+    // No inline emphasis is manufactured for a line that carries no `**` pair.
+    expect(container.querySelectorAll('strong')).toHaveLength(0);
+  });
+
+  it('renders a **bold** run inside a bullet or paragraph as <strong>, and leaves the rest as text', () => {
+    const styled = makeBrief(
+      '## Access\n- **Onboarding:** Service Desk sends the invite by **Friday**.\nPlain **note** here.',
+    );
+    const { container } = render(
+      <BriefSection meetingId="meeting-1" brief={styled} isCompleted generatingBrief={false} onGenerate={() => {}} />,
+    );
+
+    const strongs = Array.from(container.querySelectorAll('strong')).map((el) => el.textContent);
+    expect(strongs).toEqual(['Onboarding:', 'Friday', 'note']);
+    // The markers themselves never reach the screen.
+    expect(container.textContent).not.toContain('**');
+    // The bullet's plain text survives around the bold runs.
+    expect(container.textContent).toContain('Service Desk sends the invite by');
+  });
+
+  it('leaves an unclosed ** exactly as typed', () => {
+    const odd = makeBrief('- Price is **not final');
+    const { container } = render(
+      <BriefSection meetingId="meeting-1" brief={odd} isCompleted generatingBrief={false} onGenerate={() => {}} />,
+    );
+    expect(container.querySelectorAll('strong')).toHaveLength(0);
+    expect(screen.getByText('Price is **not final')).toBeInTheDocument();
   });
 
   it('skips blank lines exactly as before', () => {

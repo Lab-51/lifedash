@@ -9,6 +9,8 @@
 // === DEPENDENCIES ===
 // None beyond React/JSX.
 
+import type { ReactNode } from 'react';
+
 /** Exact-prefix match for the chunked-extraction footer line (BRIEF-QUAL.1
  *  Task 3 emits it only when the transcript needed multiple summarization
  *  passes) — anything else stays a regular paragraph. */
@@ -45,7 +47,7 @@ export function renderLine(line: string, idx: number) {
     return (
       <p key={idx} className="ml-4 text-surface-700 dark:text-surface-300 text-sm">
         <span className="mr-1.5">&bull;</span>
-        {trimmed.slice(2)}
+        {renderInline(trimmed.slice(2))}
       </p>
     );
   }
@@ -60,7 +62,39 @@ export function renderLine(line: string, idx: number) {
 
   return (
     <p key={idx} className="text-surface-700 dark:text-surface-300 text-sm">
-      {trimmed}
+      {renderInline(trimmed)}
     </p>
   );
+}
+
+/** `**text**` pairs, and nothing else. Matches non-greedily so two bold runs on
+ *  one line stay two runs. */
+const BOLD_RUN = /\*\*(.+?)\*\*/g;
+
+/**
+ * Inline bold for bullet and paragraph lines (the writer marks a bullet's lead
+ * label bold, and a date or a role the reader must not miss). A line with no
+ * `**` pair returns the original string unchanged, so every brief written
+ * before this existed renders byte-identically — that is what keeps the
+ * "legacy rendering stays byte-identical" tests honest. Only `**...**` is
+ * recognised; a lone `*` or `**` with no closing pair is left as typed.
+ */
+export function renderInline(text: string): ReactNode {
+  if (!text.includes('**')) return text;
+  const parts: ReactNode[] = [];
+  let last = 0;
+  let key = 0;
+  for (const match of text.matchAll(BOLD_RUN)) {
+    const start = match.index ?? 0;
+    if (start > last) parts.push(text.slice(last, start));
+    parts.push(
+      <strong key={key++} className="font-semibold text-surface-800 dark:text-surface-200">
+        {match[1]}
+      </strong>,
+    );
+    last = start + match[0].length;
+  }
+  if (parts.length === 0) return text;
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
 }

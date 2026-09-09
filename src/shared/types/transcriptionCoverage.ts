@@ -75,6 +75,34 @@ export interface RetranscribedSpan {
 export interface CoverageTally {
   channels: Record<CoverageChannel, ChannelCoverage>;
   gaps: CoverageGap[];
+  /**
+   * Whisper language code -> number of saved windows decoded in it. Whisper
+   * reports the language it decoded each window in (`whisper_full_lang_id`);
+   * on the "auto" preset that is a real detection, on a fixed preset it is the
+   * forced language — either way it is the language the transcript IS in,
+   * which is what the brief needs. Empty for a cloud provider and for records
+   * written before this field existed (readers treat absence as empty).
+   */
+  languages: Record<string, number>;
+}
+
+/**
+ * The single language a transcript was decoded in, by window majority, or
+ * null when nothing was tallied. Ties go to the code that reached the count
+ * first in insertion order — deterministic, and a tie on a real meeting means
+ * the setting's own fallback is the honest answer anyway.
+ */
+export function dominantLanguage(languages: Record<string, number> | undefined): string | null {
+  if (!languages) return null;
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [code, count] of Object.entries(languages)) {
+    if (count > bestCount) {
+      best = code;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 /**
@@ -84,9 +112,12 @@ export interface CoverageTally {
  * whose coverage write failed, has none — readers must treat its absence as
  * "not recorded", never as "nothing was missed".
  */
-export interface TranscriptionCoverage extends CoverageTally {
+export interface TranscriptionCoverage extends Omit<CoverageTally, 'languages'> {
   /** Schema version of this record. Bump when a field's meaning changes. */
   version: 1;
+  /** See CoverageTally.languages. OPTIONAL here because records persisted
+   *  before 2026-09-09 carry no such field — absence means "not tallied". */
+  languages?: Record<string, number>;
   /**
    * How the session ended: the normal stop, or startup recovery of a crash.
    * A `recovered` record's `channels` counters are always zero — the live
@@ -113,6 +144,14 @@ export interface TranscriptionCoverage extends CoverageTally {
   windowAdvanceMs: number;
   /** Spans redone from the WAV since the recording ended. */
   retranscribed: RetranscribedSpan[];
+  /**
+   * `dominantLanguage(languages)` at write time — the language the transcript
+   * was decoded in. The brief's "Same as transcript" setting reads THIS first,
+   * so a meeting recorded on the "auto" preset gets a brief in the language
+   * that was actually spoken. Null for cloud providers, recovered sessions and
+   * records written before this field existed (readers treat absence as null).
+   */
+  detectedLanguage?: string | null;
 }
 
 /** A zeroed tally — one entry per channel, no gaps. */
@@ -125,5 +164,5 @@ export function emptyCoverageTally(): CoverageTally {
     droppedHallucination: 0,
     failed: 0,
   });
-  return { channels: { mic: channel(), system: channel(), mixed: channel() }, gaps: [] };
+  return { channels: { mic: channel(), system: channel(), mixed: channel() }, gaps: [], languages: {} };
 }

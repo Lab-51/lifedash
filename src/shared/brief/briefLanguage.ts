@@ -22,8 +22,10 @@ import { resolveLanguagePreset } from '../types/transcription';
 /** Settings-table key this preference lives under (mirrors 'transcription:language'). */
 export const BRIEF_LANGUAGE_SETTING_KEY = 'brief:language';
 
-/** Default when the setting has never been written. */
-export const DEFAULT_BRIEF_LANGUAGE_SETTING = 'en';
+/** Default when the setting has never been written. 'transcript' since
+ *  2026-09-09 (was 'en'): the brief follows the language actually spoken, as
+ *  detected by whisper per window, unless the user pins a language. */
+export const DEFAULT_BRIEF_LANGUAGE_SETTING = 'transcript';
 
 /** Options surfaced by the Settings control (Task 4). Values are exactly what
  *  gets stored under {@link BRIEF_LANGUAGE_SETTING_KEY} and passed into
@@ -73,12 +75,18 @@ function resolveTranscriptCode(transcriptionLanguage: string | null): string {
 export function resolveBriefLanguage(
   setting: string,
   transcriptionLanguage: string | null,
+  detectedLanguage: string | null = null,
 ): { code: string; name: string | null } {
   let code: string;
-  if (!setting || setting === 'en') {
+  if (setting === 'en') {
     code = 'en';
-  } else if (setting === 'transcript') {
-    code = resolveTranscriptCode(transcriptionLanguage);
+  } else if (!setting || setting === 'transcript') {
+    // What whisper actually decoded wins over what the preset was set to: a
+    // meeting recorded on "auto" carries no usable transcriptionLanguage, and
+    // this is the only way its brief comes out in the language spoken. An
+    // empty setting means "never written" and takes the default ('transcript').
+    code =
+      detectedLanguage && detectedLanguage !== 'auto' ? detectedLanguage : resolveTranscriptCode(transcriptionLanguage);
   } else {
     code = setting;
   }

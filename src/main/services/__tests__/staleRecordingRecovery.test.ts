@@ -214,6 +214,9 @@ describe('recoverStaleRecordings — transcription coverage (TRANS-COV.1)', () =
       channels: emptyCoverageTally().channels,
       gaps: [{ startMs: 40_000, endMs: audioMsToStampedMs(100_000), channel: 'mixed', reason: 'unknown' }],
       retranscribed: [],
+      // The language tally died with the crashed process — nothing to reconstruct.
+      languages: {},
+      detectedLanguage: null,
     });
   });
 

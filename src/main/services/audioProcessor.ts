@@ -22,6 +22,7 @@ import type {
   TranscriptionProgress,
 } from '../../shared/types';
 import { WINDOW_ADVANCE_MS, WINDOW_STAMP_MS } from '../../shared/transcription/timeCoordinates';
+import { dominantLanguage } from '../../shared/types/transcriptionCoverage';
 import * as transcriptionService from './transcriptionService';
 import * as meetingService from './meetingService';
 import * as liveTriageService from './liveTriageService';
@@ -261,6 +262,8 @@ async function persistCoverage(
       channels: tally.channels,
       gaps: tally.gaps,
       retranscribed: [],
+      languages: tally.languages,
+      detectedLanguage: dominantLanguage(tally.languages),
     };
     await meetingService.setTranscriptionCoverage(meetingId, coverage);
   } catch (err) {

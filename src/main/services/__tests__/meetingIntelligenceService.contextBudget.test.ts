@@ -119,6 +119,28 @@
 //     line earlier on the user half of that same fingerprint, still passed;
 //     restored => 18/18 green.
 //
+// PIN RE-CAPTURE (brief restyle, 2026-09-09). BRIEF_FINGERPRINT_PIN moved a fifth
+// time (74472a1e -> f4595ed3), again the ONLY pin that moved. BRIEF_WRITER_PROMPT
+// replaced its fixed "Key Points / Decisions / Proposed, not agreed" buckets with
+// theme sections the writer names itself, bold-label bullets that state outcomes
+// rather than narrate the conversation, an inline "(proposed)"/"(objected)" tag
+// in place of the separate unsettled section, and a ban on empty-section notes —
+// after a real brief split one topic across three sections and hedged nearly
+// every line with quotation marks. Nothing on the user half changed, and the
+// run proved it: BRIEF_PROMPT_PIN (line 549) passed while the fingerprint on
+// line 550 failed. Control: ONLY meetingIntelligenceService.ts checked out from
+// HEAD with the new pin in place => the digest went back to 74472a1e exactly
+// (1 failed / 17 passed); file restored and md5-verified identical (ee42e064…).
+//
+// Same day, second move (f4595ed3 -> 7b95cd2d) after the first real Czech brief
+// on the restyled prompt: the model copied the English example tag "(proposed)"
+// verbatim into a Czech brief, and one theme per bullet appeared on gpt-5-mini.
+// The example tag is gone (described, not shown), the tag and every label must
+// be in the brief's language, a single-bullet theme is named as too narrow, and
+// a phrase the notes carry in another language is translated unless it is a
+// name, a system name or a coined term. Only the writer's system text changed;
+// the user-half pin on line 549 passed unchanged in the capturing run.
+//
 // ACTION_PROMPT_PIN and ACTION_FINGERPRINT_PIN did not move in any of these tasks.
 // Mocking style follows meetingIntelligenceService.briefFailure.test.ts (same
 // file under test); 'electron' is mocked only because promptBudget.ts reaches
@@ -525,7 +547,7 @@ describe('BRIEF-QUAL.1 — a transcript that fits is assembled byte-identically'
   /** sha256 of `system + '\0' + prompt`, same fixture. Covers the WRITER system
    *  prompt too, which is far too long to pin inline without burying the test —
    *  the twin-baseline assertion below states what that system prompt IS. */
-  const BRIEF_FINGERPRINT_PIN = '74472a1eebed51fa399204ae321bf714993c50fa63c7a8dcbdb59faa38f67276';
+  const BRIEF_FINGERPRINT_PIN = '7b95cd2dbdae10f19e10e5af0b90f873033a8faec7bfb3d99ebb561471332ac6';
 
   const ACTION_PROMPT_PIN =
     'Meeting: Quarterly Planning\n' +

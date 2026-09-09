@@ -122,7 +122,12 @@ function makeWhisperContext() {
     transcribeData: vi.fn<TranscribeData>((audio: ArrayBuffer) => {
       const text = `${windowName(audio)} speech`;
       return {
-        promise: Promise.resolve({ result: text, segments: [{ text, t0: 0, t1: 1000 }], isAborted: false }),
+        promise: Promise.resolve({
+          result: text,
+          segments: [{ text, t0: 0, t1: 1000 }],
+          isAborted: false,
+          language: 'cs', // whisper_full_lang_id — the language the window was decoded in
+        }),
         stop: vi.fn(),
       };
     }),
@@ -171,6 +176,18 @@ describe('transcriptionService — two-channel capture', () => {
 
     await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(2));
     expect(transcribedWindows().sort()).toEqual(['mic', 'system']);
+  });
+
+  it('tallies the language whisper decoded each SAVED window in (2026-09-09), and resets it on start', async () => {
+    await transcriptionService.start('meeting-lang', 'auto');
+    transcriptionService.addChunk(split(MIC_WINDOW, SYSTEM_WINDOW));
+
+    await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(transcriptionService.getCoverageTally().languages).toEqual({ cs: 2 }));
+
+    await transcriptionService.stop();
+    await transcriptionService.start('meeting-lang-2', 'auto');
+    expect(transcriptionService.getCoverageTally().languages).toEqual({});
   });
 
   it('costs one whisper call, not two, when only one channel has speech', async () => {

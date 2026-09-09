@@ -172,6 +172,9 @@ function buildRecoveredCoverage(audioMs: number | null, lastSegmentEndMs: number
     channels: emptyCoverageTally().channels,
     gaps,
     retranscribed: [],
+    // The language tally lived in the crashed process; nothing to reconstruct.
+    languages: {},
+    detectedLanguage: null,
   };
 }
 

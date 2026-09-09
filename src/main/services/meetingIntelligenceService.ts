@@ -86,6 +86,16 @@ const log = createLogger('MeetingIntelligence');
 // Qwen3-4B at --ctx-size 16384, where it is expected to degrade flatter — never
 // dishonestly, because the truth constraints and the complete record both stay.
 //
+// 2026-09-09 restyle (user request, against a real brief): the fixed
+// "Key Points / Decisions / Proposed, not agreed" buckets split one topic across
+// three sections and the "one clear sentence" instruction produced long
+// narrated bullets full of hedging quotes. The writer now names its own theme
+// sections, writes each point as a bold label plus one outcome clause, marks an
+// unsettled decision with an inline tag instead of a separate section, and may
+// not explain an empty section. The single "- **Onboarding:** …" line is a
+// SHAPE example of one bullet, not a sample brief — it anchors no length.
+// Settledness, owner honesty and the complete record are unchanged.
+//
 // Exported for direct assertion (the same reason mergeActionDescriptions and
 // buildSuppressionInstruction are): SPEC 255's twin baseline says that with no
 // profile the system prompt must BE this string, and only an equality check can
@@ -94,35 +104,33 @@ export const BRIEF_WRITER_PROMPT = `You write the meeting brief from structured 
 
 Write for someone who was not in the meeting and has two minutes: what the meeting was for, what changed, what was decided, who owes what by when, and what is still unresolved. You decide what matters. A detail — a condition, a rationale, a number — belongs in the brief only when it changes what the reader should expect or do. Small talk, logistics and passing mentions do not belong in the brief. When a reader profile precedes these instructions, weigh relevance to that reader.
 
-Sections, in this order (omit a section that would be empty):
+Shape:
 
 ## Summary
 A short paragraph: what the meeting was for and where it landed.
 
-## Key Points
-What mattered, in the order that reads best. Write each point as one clear sentence; add its condition, rationale or number only when it matters.
-
-## Decisions
-Every decision the notes mark agreed, with its rationale when the notes give one.
-
-## Proposed, not agreed
-Every decision the notes mark proposed or objected: what was put forward and where it stands. When the notes say who objected, or why, keep that.
+Then the substance, grouped by theme. You name the themes from what the meeting was actually about — one "## <Theme>" heading each, in the order that reads best. Under a theme, each point is one bullet: a short bold label, a colon, then one compressed clause that states the outcome. Like this: "- **Onboarding:** Service Desk sends the team invite; the user confirms it." Every decision the notes mark agreed is written as a settled statement. A decision the notes mark proposed or objected is never phrased as settled: its clause ends with a one-word tag in parentheses meaning proposed or objected, written in the brief's language (never left in English when the brief is not English), keeping who objected, or why, when the notes say. A theme holds the points that belong together; a heading with a single bullet under it is a sign the theme is too narrow. Commitments belong under Follow-ups and questions under Open Questions, not inside a theme.
 
 ## Follow-ups
 Every commitment in the notes, grouped by owner: one "### <Owner>" heading for each person who owns a commitment, in the order the participants are listed — never a heading for a participant who owns none. Commitments with no owner, or whose owner the notes do not mark as explicit, go under a "### Unassigned" heading placed LAST. Write each as "- task (due)" when a due is known, otherwise "- task".
 
 ## Open Questions
-The questions that still need an answer.
+The questions that still need an answer, one short line each.
+
+Omit a section that would be empty. Never write a line explaining that a section is empty or that the notes hold nothing for it.
 
 Rules:
-- Every decision and every commitment in the notes appears in the brief. Never merge two decisions or two commitments into one.
-- The notes mark every decision agreed, proposed or objected. Write only the agreed ones as decisions; the proposed and objected ones go under "Proposed, not agreed", never phrased as settled.
+- Every decision and every commitment in the notes appears in the brief, once. Never merge two decisions or two commitments into one, and never write the same item twice: when a commitment restates a decision, the theme bullet carries the substance and the Follow-ups line carries only the task.
+- The notes mark every decision agreed, proposed or objected. Write only the agreed ones as settled; a proposed or objected one carries its tag and is never phrased as settled.
+- State outcomes, not the conversation. Write what was decided, proposed or owed — never that something was said, discussed, mentioned or came up. Quotation marks belong only around a term the meeting coined, never around a claim to soften it.
+- Bold is for the label at the start of a bullet, and for a date, a role or a number the reader must not miss. Nothing else.
 - Never infer an owner, a deadline or that something is finished. Work nobody took on is unassigned, and work still in progress is unfinished — say so.
 - When the notes leave a contradiction unresolved, keep both sides. An open disagreement is a fact about the meeting, not an error to tidy away.
 - Shorten wording only once the scope, the conditions and the uncertainty of what you are shortening survive it.
 - A condition on a decision or a commitment ("only if", "unless", a deadline) is never a detail to drop — keep it.
 - Never invent an owner, a date or a number. If the notes do not say it, do not write it.
 - Keep names, terms, numbers and dates exactly as they appear in the notes.
+- Write the whole brief, labels and tags included, in the brief's language. A phrase the notes carry in another language is translated, unless it is a name, a system name or a term the meeting coined.
 - Output markdown only. No preamble, no closing remarks, no code fence.`;
 
 /** The meeting template's own hint, for ALL SIX templates — MEETING_TEMPLATES is
@@ -169,11 +177,6 @@ function getActionExtractionPrompt(template: MeetingTemplateType): string {
  * Returns null for English, auto-detect, null, or unknown codes — these need no
  * special instruction since prompts are already in English.
  */
-function getLanguageName(code: string | null | undefined): string | null {
-  const names: Record<string, string> = { cs: 'Czech', fr: 'French' };
-  return code ? (names[code] ?? null) : null;
-}
-
 // ---------------------------------------------------------------------------
 // Project auto-detect + brief threading constants
 // ---------------------------------------------------------------------------
@@ -1139,7 +1142,11 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief | n
   //    them as inputs (it builds its own extraction-specific wording from them),
   //    the writer gets them as the rendered roster/language block.
   const roster = await buildRoster(meeting.id);
-  const { name: langName } = resolveBriefLanguage(await readBriefLanguageSetting(), meeting.transcriptionLanguage);
+  const { name: langName } = resolveBriefLanguage(
+    await readBriefLanguageSetting(),
+    meeting.transcriptionLanguage,
+    loaded.transcriptionCoverage?.detectedLanguage ?? null,
+  );
   const systemPrompt = await buildBriefSystemPrompt(meeting, roster, langName);
 
   // 3. EXTRACT. Never throws — an honest reason comes back instead, and it is a
@@ -1182,9 +1189,17 @@ async function buildActionSystemPrompt(meeting: {
   id: string;
   template: MeetingTemplateType;
   transcriptionLanguage: string | null;
+  transcriptionCoverage?: { detectedLanguage?: string | null } | null;
 }): Promise<string> {
   let actionSystemPrompt = getActionExtractionPrompt(meeting.template);
-  const actionLangName = getLanguageName(meeting.transcriptionLanguage);
+  // The language the transcript was decoded in wins over the preset (same
+  // resolution the brief uses), so a meeting recorded on "auto" gets action
+  // items in the language spoken rather than in English.
+  const actionLangName = resolveBriefLanguage(
+    'transcript',
+    meeting.transcriptionLanguage,
+    meeting.transcriptionCoverage?.detectedLanguage ?? null,
+  ).name;
   if (actionLangName) {
     actionSystemPrompt += `\n\nIMPORTANT: The meeting transcript is in ${actionLangName}. Write action item descriptions in ${actionLangName}.`;
   }

@@ -490,12 +490,34 @@ describe('generateBrief — follow-ups are grouped by owner', () => {
   // BRIEF-EVID.1 Task 4 — the settledness rules and the three truth rules that
   // came with them. Prompt-level for the same reason as the grouping rules
   // above: a unit test can assert what the model was TOLD, never what it wrote.
-  it('tells the writer that only an agreed decision is a decision, and where the rest go', () => {
-    expect(BRIEF_WRITER_PROMPT).toContain('## Proposed, not agreed');
+  it('tells the writer that only an agreed decision is settled, and how an unsettled one is marked', () => {
+    // 2026-09-09 restyle: the separate "## Proposed, not agreed" section became an
+    // inline tag on the item, inside its theme, so a topic is no longer split
+    // across three sections. The settledness contract itself is unchanged.
+    expect(BRIEF_WRITER_PROMPT).not.toContain('## Proposed, not agreed');
     expect(BRIEF_WRITER_PROMPT).toContain('Every decision the notes mark agreed');
-    expect(BRIEF_WRITER_PROMPT).toContain('Write only the agreed ones as decisions');
+    expect(BRIEF_WRITER_PROMPT).toContain('Write only the agreed ones as settled');
+    // No English example tag: a real Czech brief copied "(proposed)" verbatim.
+    expect(BRIEF_WRITER_PROMPT).not.toContain('"(proposed)"');
+    expect(BRIEF_WRITER_PROMPT).toContain('one-word tag in parentheses meaning proposed or objected');
+    expect(BRIEF_WRITER_PROMPT).toContain('never left in English when the brief is not English');
+    expect(BRIEF_WRITER_PROMPT).toContain('a heading with a single bullet under it is a sign the theme is too narrow');
+    expect(BRIEF_WRITER_PROMPT).toContain('Write the whole brief, labels and tags included');
     expect(BRIEF_WRITER_PROMPT).toContain('never phrased as settled');
     expect(BRIEF_WRITER_PROMPT).toContain('who objected');
+  });
+
+  it('asks for theme sections with bold-label bullets, outcomes not narration, and no empty-section notes', () => {
+    expect(BRIEF_WRITER_PROMPT).toContain('grouped by theme');
+    expect(BRIEF_WRITER_PROMPT).toContain('You name the themes');
+    expect(BRIEF_WRITER_PROMPT).toContain('a short bold label, a colon, then one compressed clause');
+    expect(BRIEF_WRITER_PROMPT).toContain('State outcomes, not the conversation');
+    expect(BRIEF_WRITER_PROMPT).toContain('never around a claim to soften it');
+    expect(BRIEF_WRITER_PROMPT).toContain('Never write a line explaining that a section is empty');
+    expect(BRIEF_WRITER_PROMPT).toContain('never write the same item twice');
+    // The fixed buckets a topic used to be split across are gone.
+    expect(BRIEF_WRITER_PROMPT).not.toContain('## Key Points');
+    expect(BRIEF_WRITER_PROMPT).not.toContain('## Decisions');
   });
 
   it('forbids inferring owners, deadlines and completion, and keeps a contradiction whole', () => {

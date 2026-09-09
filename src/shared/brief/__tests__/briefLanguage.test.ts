@@ -40,6 +40,32 @@ describe('resolveBriefLanguage — "transcript" setting', () => {
   });
 });
 
+describe('resolveBriefLanguage — the language whisper actually decoded wins (2026-09-09)', () => {
+  it('a meeting recorded on "auto" follows the detected language, not English', () => {
+    expect(resolveBriefLanguage('transcript', 'auto', 'cs')).toEqual({ code: 'cs', name: 'Czech' });
+  });
+
+  it('a detected language beats the configured preset base', () => {
+    // Recorded on the cs-mix preset, but whisper decoded Slovak all meeting.
+    expect(resolveBriefLanguage('transcript', 'cs-mix', 'sk')).toEqual({ code: 'sk', name: 'Slovak' });
+  });
+
+  it('a detected "auto" or null falls back to the preset base, then English', () => {
+    expect(resolveBriefLanguage('transcript', 'cs-mix', 'auto')).toEqual({ code: 'cs', name: 'Czech' });
+    expect(resolveBriefLanguage('transcript', 'cs-mix', null)).toEqual({ code: 'cs', name: 'Czech' });
+    expect(resolveBriefLanguage('transcript', null, null)).toEqual({ code: 'en', name: null });
+  });
+
+  it('a pinned language ignores the detection entirely', () => {
+    expect(resolveBriefLanguage('en', 'cs-mix', 'cs')).toEqual({ code: 'en', name: null });
+    expect(resolveBriefLanguage('de', 'cs-mix', 'cs')).toEqual({ code: 'de', name: 'German' });
+  });
+
+  it('a detected English resolves to name: null like every other English path', () => {
+    expect(resolveBriefLanguage('transcript', 'auto', 'en')).toEqual({ code: 'en', name: null });
+  });
+});
+
 describe('resolveBriefLanguage — an explicit ISO code setting ("de")', () => {
   it.each(['cs-mix', 'cs', 'en', 'auto', null])(
     'always resolves to German regardless of transcriptionLanguage (%s)',
@@ -50,8 +76,9 @@ describe('resolveBriefLanguage — an explicit ISO code setting ("de")', () => {
 });
 
 describe('resolveBriefLanguage — defensive defaults', () => {
-  it('treats an empty setting as English (defends against a corrupted stored value)', () => {
+  it('treats an empty setting as the default ("transcript"): English with nothing known, the detected language otherwise', () => {
     expect(resolveBriefLanguage('', null)).toEqual({ code: 'en', name: null });
+    expect(resolveBriefLanguage('', 'auto', 'cs')).toEqual({ code: 'cs', name: 'Czech' });
   });
 
   it('falls back to the raw code when Intl.DisplayNames has no localized name for it', () => {
@@ -64,7 +91,8 @@ describe('resolveBriefLanguage — defensive defaults', () => {
 describe('module constants', () => {
   it('exposes the settings key and default used by readBriefLanguageSetting', () => {
     expect(BRIEF_LANGUAGE_SETTING_KEY).toBe('brief:language');
-    expect(DEFAULT_BRIEF_LANGUAGE_SETTING).toBe('en');
+    // 'transcript' since 2026-09-09: the brief follows the spoken language by default.
+    expect(DEFAULT_BRIEF_LANGUAGE_SETTING).toBe('transcript');
   });
 
   it('the Settings option list includes English and "same as transcript"', () => {

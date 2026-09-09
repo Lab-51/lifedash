@@ -151,6 +151,15 @@ function countWindow(channel: AudioChannel, outcome: keyof ChannelCoverage): voi
   coverageTally.channels[channel][outcome]++;
 }
 
+/** Record the language whisper decoded a SAVED window in (`result.language`,
+ *  from whisper_full_lang_id). Bookkeeping only; the brief reads the majority
+ *  at generation time so it comes out in the language actually spoken. */
+function tallyLanguage(code: string | undefined): void {
+  const lang = code?.trim();
+  if (!lang) return;
+  coverageTally.languages[lang] = (coverageTally.languages[lang] ?? 0) + 1;
+}
+
 /** Record a window that produced no transcript, in the STAMPED coordinate --
  *  the same timeline the segment's own start time is written in, which runs
  *  ahead of the real audio (see timeCoordinates.ts / ISSUES #40). */
@@ -753,7 +762,10 @@ async function dispatchToWhisper(
 
       // Window-level outcomes. Deliberately NOT exclusive: a window can persist
       // one segment and drop another as a hallucination, and both are true of it.
-      if (savedAny) countWindow(channel, 'saved');
+      if (savedAny) {
+        countWindow(channel, 'saved');
+        tallyLanguage(result.language);
+      }
       if (droppedHallucinated) countWindow(channel, 'droppedHallucination');
 
       // Keep last ~200 chars of surviving text as context prompt for the next
