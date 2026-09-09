@@ -3,6 +3,10 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.15.0 — 2026-09-09
+- release: prep v2.15.0
+- feat(brief): the brief reads like a set of notes and comes out in the language spoken
+
 ## v2.14.0 — 2026-09-09
 - release: prep v2.14.0
 - feat(transcript): the transcript accounts for what it missed, and lets you redo the parts it got wrong
