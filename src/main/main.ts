@@ -24,6 +24,13 @@ import { createLogger, initFileLogging } from './services/logger';
 import { getIsRecording, setIsRecording } from './services/recordingState';
 import { applyGlobalProxy } from './services/proxyService';
 import { initAutoUpdater } from './autoUpdater';
+import { createQuitHandler, createShutdown } from './shutdown';
+import {
+  blockNewRecordings,
+  isRecording as isAudioRecording,
+  stopRecording,
+  waitForStopToFinish,
+} from './services/audioProcessor';
 import {
   writeCrashMarker,
   startPeriodicSnapshot,
@@ -282,7 +289,7 @@ const createWindow = async () => {
   }, 300_000);
 
   // Auto-updater: check GitHub Releases for new versions (production only)
-  initAutoUpdater(mainWindow);
+  initAutoUpdater(mainWindow, shutdownServices);
 
   // Let electron-window-state track position/size changes
   mainWindowState.manage(mainWindow);
@@ -402,22 +409,7 @@ const createWindow = async () => {
   mainWindow.on('close', async (event) => {
     if (getIsRecording()) {
       event.preventDefault();
-      const { response } = await dialog.showMessageBox(mainWindow!, {
-        type: 'warning',
-        buttons: ['Keep Recording', 'Stop & Close'],
-        defaultId: 0,
-        cancelId: 0,
-        title: 'Recording in Progress',
-        message: 'A meeting recording is currently active.',
-        detail: 'Closing the app will stop the recording. The recorded audio up to this point will be saved.',
-      });
-      if (response === 1) {
-        mainWindow?.webContents.send('recording:force-stop');
-        setTimeout(() => {
-          setIsRecording(false);
-          mainWindow?.close();
-        }, 2000);
-      }
+      if (await confirmStopRecording()) mainWindow?.close();
     } else if (process.platform === 'darwin' && !(app as unknown as { isQuitting: boolean }).isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
@@ -449,22 +441,76 @@ const createWindow = async () => {
   });
 };
 
-// Ensure the isQuitting flag is set when the app is about to quit
-// (e.g. via Cmd+Q on macOS or when the OS requests termination).
-// Also gracefully close the database connection pool.
-app.on('before-quit', async () => {
+/**
+ * The recording dialog shared by window close and app quit. Resolves true once the
+ * user chose Stop & Close and the renderer has been told to stop; false to keep going.
+ */
+async function confirmStopRecording(): Promise<boolean> {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  mainWindow.show();
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['Keep Recording', 'Stop & Close'],
+    defaultId: 0,
+    cancelId: 0,
+    title: 'Recording in Progress',
+    message: 'A meeting recording is currently active.',
+    detail: 'Closing the app will stop the recording. The recorded audio up to this point will be saved.',
+  });
+  if (response !== 1) return false;
+  mainWindow?.webContents.send('recording:force-stop');
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  setIsRecording(false);
+  return true;
+}
+
+// Every quit path (and the update installer) awaits this: the recording is saved,
+// services stop, llama-server stops, and the database closes before the process exits.
+const SHUTDOWN_TIMEOUT_MS = 15_000;
+const shutdownServices = createShutdown(
+  [
+    {
+      // A quit that could not ask (no window, SIGTERM) still saves the audio; a stop the
+      // UI already started is waited for so its transcript rows land before the DB closes.
+      name: 'recording',
+      run: async () => {
+        blockNewRecordings();
+        if (isAudioRecording()) await stopRecording();
+        else await waitForStopToFinish();
+      },
+    },
+    { name: 'shortcuts', run: () => globalShortcut.unregisterAll() },
+    { name: 'memory monitor', run: () => (memoryMonitorId ? clearInterval(memoryMonitorId) : undefined) },
+    { name: 'recovery snapshot', run: stopPeriodicSnapshot },
+    { name: 'recovery state', run: clearRecoveryState },
+    { name: 'auto backup', run: stopAutoBackup },
+    { name: 'notifications', run: stopNotificationScheduler },
+    { name: 'background agent', run: stopBackgroundAgentScheduler },
+    { name: 'calendar poll', run: stopCalendarPollScheduler },
+    { name: 'sync', run: stopSyncService },
+    { name: 'llama runtime', run: stopLlamaRuntime },
+    { name: 'database', run: disconnectDatabase },
+  ],
+  log,
+  SHUTDOWN_TIMEOUT_MS,
+);
+
+// Every quit (tray, Cmd+Q, SIGTERM, window close, update install) passes here. During
+// a recording it asks first, exactly like closing the window. Electron does not await
+// async listeners, so the quit is held until shutdown finishes, then re-issued and let
+// through so windows close and will-quit fires normally.
+const onBeforeQuit = createQuitHandler({
+  shutdown: shutdownServices,
+  isRecording: getIsRecording,
+  confirmQuitWhileRecording: () => (mainWindow && !mainWindow.isDestroyed() ? confirmStopRecording() : null),
+  quit: () => app.quit(),
+  onCancelled: () => {
+    (app as unknown as { isQuitting: boolean }).isQuitting = false;
+  },
+});
+app.on('before-quit', (event) => {
   (app as unknown as { isQuitting: boolean }).isQuitting = true;
-  globalShortcut.unregisterAll();
-  if (memoryMonitorId) clearInterval(memoryMonitorId);
-  stopPeriodicSnapshot();
-  clearRecoveryState();
-  stopAutoBackup();
-  stopNotificationScheduler();
-  stopBackgroundAgentScheduler();
-  stopCalendarPollScheduler();
-  stopSyncService();
-  await stopLlamaRuntime();
-  await disconnectDatabase();
+  onBeforeQuit(event);
 });
 
 // Ensure global shortcuts are cleaned up when the app quits

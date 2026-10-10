@@ -167,3 +167,57 @@ describe('audioProcessor.stopRecording — transcription coverage', () => {
     expect(audioPath).toContain('meeting-writefail.wav');
   });
 });
+
+describe('audioProcessor.waitForStopToFinish (UPDATER-SAFE.1)', () => {
+  it('resolves only after an in-flight stop has finished flushing, so shutdown closes the DB after it', async () => {
+    await audioProcessor.startRecording('meeting-flush');
+    let releaseFlush!: () => void;
+    vi.mocked(transcriptionService.stop).mockImplementationOnce(
+      () => new Promise<void>((resolve) => (releaseFlush = resolve)),
+    );
+
+    const stopping = audioProcessor.stopRecording();
+    let waited = false;
+    const waiting = audioProcessor.waitForStopToFinish().then(() => (waited = true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(audioProcessor.isRecording()).toBe(false); // the stop has begun...
+    expect(waited).toBe(false); // ...but the flush is still running
+
+    releaseFlush();
+    await stopping;
+    await waiting;
+    expect(waited).toBe(true);
+  });
+
+  it('resolves at once when nothing is stopping', async () => {
+    await expect(audioProcessor.waitForStopToFinish()).resolves.toBeUndefined();
+  });
+});
+
+describe('audioProcessor during shutdown (UPDATER-SAFE.1 review round 2)', () => {
+  it('a rejected second stop does not hide the first, still-flushing stop', async () => {
+    await audioProcessor.startRecording('meeting-double-stop');
+    let releaseFlush!: () => void;
+    vi.mocked(transcriptionService.stop).mockImplementationOnce(
+      () => new Promise<void>((resolve) => (releaseFlush = resolve)),
+    );
+    const first = audioProcessor.stopRecording();
+    await expect(audioProcessor.stopRecording()).rejects.toThrow(/Not currently recording/);
+
+    let waited = false;
+    const waiting = audioProcessor.waitForStopToFinish().then(() => (waited = true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(waited).toBe(false); // still waiting on the FIRST stop
+
+    releaseFlush();
+    await first;
+    await waiting;
+    expect(waited).toBe(true);
+  });
+
+  it('refuses to start a recording once shutdown has begun', async () => {
+    audioProcessor.blockNewRecordings();
+    await expect(audioProcessor.startRecording('meeting-too-late')).rejects.toThrow(/shutting down/);
+    expect(audioProcessor.isRecording()).toBe(false);
+  });
+});

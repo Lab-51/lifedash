@@ -1,12 +1,24 @@
 // === FILE PURPOSE ===
-// Custom auto-updater that checks lifedash.space for new versions.
-// Downloads the Inno Setup installer and installs silently in-place.
+// Custom auto-updater (UPDATER-SAFE.1). Finds the latest release through GitHub's
+// public API (updateSource.ts), downloads the Windows installer and proves it matches
+// GitHub's sha256 (updateDownload.ts), and installs it silently in place — never
+// during a recording, and only after the app has shut its services down cleanly.
+// macOS only notifies and links to the releases page.
 
 import { app, BrowserWindow, ipcMain, net, Notification, shell } from 'electron';
-import { createWriteStream } from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createLogger } from './services/logger';
+import { getIsRecording } from './services/recordingState';
+import { isRecording as isAudioRecording } from './services/audioProcessor';
+import {
+  fetchLatestRelease,
+  isNewerVersion,
+  parseInstaller,
+  parseReleaseVersion,
+  type VerifiedInstaller,
+} from './updateSource';
+import { downloadVerified, removeOtherDownloads, sha256File } from './updateDownload';
 
 const log = createLogger('AutoUpdater');
 
@@ -14,44 +26,24 @@ const log = createLogger('AutoUpdater');
 
 export interface UpdateInfo {
   version: string;
-  assetUrl: string;
   releaseName: string;
-}
-
-interface LatestVersionResponse {
-  version: string;
-  releaseName: string;
-  setupUrl: string | null;
+  /** Windows only: the installer the release record names, with its GitHub digest. */
+  installer: VerifiedInstaller | null;
 }
 
 type UpdateStatus = 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error';
 
 // --- Module state ---
 
-let downloadedInstallerPath: string | null = null;
+let downloaded: { path: string; sha256: string; version: string; releaseName: string } | null = null;
 let checkInterval: ReturnType<typeof setInterval> | null = null;
 
-const VERSION_API = 'https://lifedash.space/api/latest-version';
 const RELEASES_URL = 'https://github.com/Lab-51/lifedash/releases/latest';
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const STARTUP_DELAY_MS = 10_000; // 10 seconds after startup
 const IS_MAC = process.platform === 'darwin';
 
-// --- Semver comparison ---
-
-/**
- * Compare two semver strings (major.minor.patch).
- * Returns true if `remote` is newer than `current`.
- */
-function isNewerVersion(current: string, remote: string): boolean {
-  const parse = (v: string) => v.replace(/^v/, '').split('.').map(Number);
-  const [cMajor, cMinor, cPatch] = parse(current);
-  const [rMajor, rMinor, rPatch] = parse(remote);
-
-  if (rMajor !== cMajor) return rMajor > cMajor;
-  if (rMinor !== cMinor) return rMinor > cMinor;
-  return rPatch > cPatch;
-}
+const fetchViaElectron = (url: string, init?: { headers?: Record<string, string> }) => net.fetch(url, init);
 
 // --- macOS notification ---
 
@@ -75,120 +67,94 @@ function showMacUpdateNotification(version: string): void {
 // --- Core functions ---
 
 /**
- * Check lifedash.space for a newer version.
- * The website proxies the private GitHub repo with server-side auth.
- * Returns UpdateInfo if a newer version is found, null otherwise.
+ * Ask GitHub for the latest release. Returns the update when it is newer and (on
+ * Windows) names a verifiable installer; `'rate-limited'` when GitHub refused the
+ * unauthenticated request; null otherwise.
  */
-export async function checkForUpdates(currentVersion: string): Promise<UpdateInfo | null> {
-  const response = await net.fetch(VERSION_API, {
-    headers: { 'User-Agent': `LifeDash/${currentVersion}` },
-  });
+export async function checkForUpdates(currentVersion: string): Promise<UpdateInfo | 'rate-limited' | null> {
+  const latest = await fetchLatestRelease(fetchViaElectron, currentVersion);
+  if (latest.kind === 'rate-limited') return 'rate-limited';
+  if (latest.kind === 'error') throw new Error(latest.message);
 
-  if (!response.ok) {
-    throw new Error(`Version API returned ${response.status}: ${response.statusText}`);
-  }
-
-  const data = (await response.json()) as LatestVersionResponse;
-
-  if (!isNewerVersion(currentVersion, data.version)) {
-    log.info(`Up to date (current: ${currentVersion}, latest: ${data.version})`);
+  const release = parseReleaseVersion(latest.json);
+  if (!release.ok) {
+    log.warn(`Ignoring latest release: ${release.reason}`);
     return null;
   }
-
-  if (!data.setupUrl && !IS_MAC) {
-    log.warn(`New version ${data.version} found but no Setup.exe download URL`);
+  const { version, releaseName } = release.value;
+  if (!isNewerVersion(currentVersion, version)) {
+    log.info(`Up to date (current: ${currentVersion}, latest: ${version})`);
     return null;
   }
+  if (IS_MAC) return { version, releaseName, installer: null };
 
-  log.info(`Update available: ${currentVersion} -> ${data.version}`);
-  return {
-    version: data.version,
-    assetUrl: data.setupUrl ?? '',
-    releaseName: data.releaseName,
-  };
+  const installer = parseInstaller(latest.json, version);
+  if (!installer.ok) {
+    log.warn(`New version ${version} found but not installable: ${installer.reason}`);
+    return null;
+  }
+  log.info(`Update available: ${currentVersion} -> ${version} (sha256 ${installer.value.sha256})`);
+  return { version, releaseName, installer: installer.value };
 }
 
-/**
- * Download an update asset to a temp directory.
- * Uses Electron net.request() to track download progress.
- */
-export function downloadUpdate(assetUrl: string, onProgress: (percent: number) => void): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const destPath = path.join(app.getPath('temp'), 'LifeDash-Update-Setup.exe');
+export type InstallRefusal = { reason: string; discardDownload: boolean };
 
-    const request = net.request({
-      url: assetUrl,
-      redirect: 'follow',
-    });
+let installInProgress = false;
 
-    request.setHeader('Accept', 'application/octet-stream');
-    request.setHeader('User-Agent', `LifeDash/${app.getVersion()}`);
-
-    request.on('response', (response) => {
-      if (response.statusCode !== 200) {
-        reject(new Error(`Download failed with status ${response.statusCode}`));
-        return;
-      }
-
-      const contentLength = parseInt(response.headers['content-length'] as string, 10) || 0;
-      let receivedBytes = 0;
-
-      const fileStream = createWriteStream(destPath);
-
-      response.on('data', (chunk: Buffer) => {
-        fileStream.write(chunk);
-        receivedBytes += chunk.length;
-        if (contentLength > 0) {
-          const percent = Math.round((receivedBytes / contentLength) * 100);
-          onProgress(percent);
-        }
-      });
-
-      response.on('end', () => {
-        fileStream.end(() => {
-          log.info(`Download complete: ${destPath} (${receivedBytes} bytes)`);
-          resolve(destPath);
-        });
-      });
-
-      response.on('error', (error: Error) => {
-        fileStream.destroy();
-        reject(error);
-      });
-    });
-
-    request.on('error', (error: Error) => {
-      reject(error);
-    });
-
-    request.end();
-  });
-}
+const matchesDigest = async (download: { path: string; sha256: string }) =>
+  (await sha256File(download.path).catch(() => null)) === download.sha256;
 
 /**
- * Launch the Inno Setup installer in silent mode and exit the app.
- * The installer will close the running app, install to the SAME directory
- * (via /DIR=), and relaunch. This ensures ZIP-extracted installs get
- * updated in-place rather than creating a second copy in the default dir.
+ * Re-verify the downloaded installer, shut the app's services down, launch the Inno
+ * Setup installer silently into the SAME directory (so ZIP-extracted installs update
+ * in place), and exit. Refuses during a recording or when the file no longer matches
+ * the digest it was verified against; returns the refusal, or never returns.
  */
-export function installUpdate(installerPath: string): void {
+export async function installUpdate(
+  download: { path: string; sha256: string } | null,
+  shutdown: () => Promise<void>,
+): Promise<InstallRefusal> {
+  if (installInProgress) return { reason: 'The update is already being installed', discardDownload: false };
+  if (!download) return { reason: 'No update has been downloaded', discardDownload: false };
+  if (getIsRecording() || isAudioRecording()) {
+    return { reason: 'Stop the recording before installing the update', discardDownload: false };
+  }
+  // Claimed before the first await: a second click arriving during the hash must be refused.
+  installInProgress = true;
+  if (!(await matchesDigest(download))) {
+    installInProgress = false;
+    log.error(`Installer no longer matches sha256 ${download.sha256} — not installing`);
+    return { reason: 'The downloaded update failed verification and was discarded', discardDownload: true };
+  }
+
   const appDir = path.dirname(process.execPath);
-  log.info(`Installing update from: ${installerPath} to: ${appDir}`);
-  spawn(
-    installerPath,
-    [`/DIR=${appDir}`, '/VERYSILENT', '/SUPPRESSMSGBOXES', '/CLOSEAPPLICATIONS', '/RESTARTAPPLICATIONS'],
-    { detached: true, stdio: 'ignore' },
-  );
-  process.exit(0);
+  log.info(`Installing verified update from: ${download.path} to: ${appDir}`);
+  await shutdown();
+
+  // Hash once more right before running it: shutdown can take seconds.
+  if (await matchesDigest(download)) {
+    const child = spawn(
+      download.path,
+      [`/DIR=${appDir}`, '/VERYSILENT', '/SUPPRESSMSGBOXES', '/CLOSEAPPLICATIONS', '/RESTARTAPPLICATIONS'],
+      { detached: true, stdio: 'ignore' },
+    );
+    child.on('error', (err) => log.error('Installer failed to start:', err));
+    child.unref();
+  } else {
+    log.error('Installer changed during shutdown — not running it; quitting without updating');
+  }
+  // Services are already down either way: quit through the normal path (will-quit runs).
+  app.quit();
+  return new Promise<never>(() => undefined); // the app is quitting
 }
 
 // --- Init ---
 
 /**
  * Initialize the auto-updater. Only runs in packaged builds.
- * Periodically checks for updates and sends IPC status events to the renderer.
+ * `shutdown` is main.ts's service cleanup, awaited before the installer runs.
  */
-export function initAutoUpdater(mainWindow: BrowserWindow): void {
+export function initAutoUpdater(mainWindow: BrowserWindow, shutdown: () => Promise<void>): void {
   if (!app.isPackaged) {
     log.info('Skipping auto-updater in development');
     return;
@@ -205,18 +171,30 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
   };
 
   // --- Check + download cycle ---
-  const runUpdateCheck = async () => {
+  let checkRunning = false;
+  const runUpdateCheck = async (manual: boolean) => {
+    if (checkRunning) return; // an hourly check must not start a second download into the same file
+    checkRunning = true;
     try {
       log.info(`Checking for updates (current: v${currentVersion})`);
       sendStatus('checking');
 
       const update = await checkForUpdates(currentVersion);
+      if (update === 'rate-limited') {
+        log.info('GitHub rate limit reached — will check again later');
+        if (downloaded)
+          sendStatus('ready', downloaded.releaseName); // keep Restart & Install available
+        else if (manual)
+          sendStatus('error', undefined, undefined, 'GitHub is limiting update checks — try again later');
+        else sendStatus('up-to-date');
+        return;
+      }
       if (!update) {
         sendStatus('up-to-date');
         return;
       }
 
-      if (IS_MAC) {
+      if (IS_MAC || !update.installer) {
         // macOS: notify user and link to GitHub releases -- no download/install
         log.info(`Update available for macOS: ${update.releaseName} -- showing notification`);
         showMacUpdateNotification(update.version);
@@ -224,19 +202,42 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
         return;
       }
 
-      // Windows: download the .exe installer and prepare for silent install
-      sendStatus('downloading', update.releaseName);
-      const installerPath = await downloadUpdate(update.assetUrl, (percent) => {
-        sendStatus('downloading', update.releaseName, percent);
-      });
+      if (downloaded?.version === update.version) {
+        sendStatus('ready', update.releaseName); // already downloaded and verified
+        return;
+      }
 
-      downloadedInstallerPath = installerPath;
+      // Windows: download and verify the installer against GitHub's digest
+      const { installer } = update;
+      sendStatus('downloading', update.releaseName);
+      const destDir = path.join(app.getPath('userData'), 'updates');
+      const installerPath = await downloadVerified(
+        {
+          url: installer.downloadUrl,
+          sha256: installer.sha256,
+          size: installer.size,
+          destDir,
+          fileName: installer.assetName,
+          onProgress: (percent) => sendStatus('downloading', update.releaseName, percent),
+        },
+        fetchViaElectron,
+      );
+      await removeOtherDownloads(destDir, installerPath);
+
+      downloaded = {
+        path: installerPath,
+        sha256: installer.sha256,
+        version: update.version,
+        releaseName: update.releaseName,
+      };
       sendStatus('ready', update.releaseName);
-      log.info(`Update ready to install: ${update.releaseName}`);
+      log.info(`Update ready to install: ${update.releaseName} (sha256 verified)`);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       log.error('Update check failed:', msg);
       sendStatus('error', undefined, undefined, msg);
+    } finally {
+      checkRunning = false;
     }
   };
 
@@ -244,19 +245,18 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
   // never gets an unhandled invoke error, even in unofficial builds.
 
   // --- IPC handler: install downloaded update ---
-  ipcMain.handle('app:install-update', () => {
+  ipcMain.handle('app:install-update', async () => {
     if (!process.env.OFFICIAL_BUILD) return;
     if (IS_MAC) {
       log.info('Opening releases page (macOS does not support in-app install)');
       shell.openExternal(RELEASES_URL);
       return;
     }
-    if (downloadedInstallerPath) {
-      log.info('User accepted update -- quitting and installing');
-      installUpdate(downloadedInstallerPath);
-    } else {
-      log.warn('Install requested but no update has been downloaded');
-    }
+    log.info('User accepted update -- verifying and installing');
+    const refused = await installUpdate(downloaded, shutdown);
+    log.warn(`Install refused: ${refused.reason}`);
+    if (refused.discardDownload) downloaded = null;
+    sendStatus('error', undefined, undefined, refused.reason);
   });
 
   // --- IPC handler: manual "Check for Updates" ---
@@ -266,7 +266,7 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
       return;
     }
     log.info('Manual update check triggered');
-    await runUpdateCheck();
+    await runUpdateCheck(true);
   });
 
   // Gate the automatic update loop on OFFICIAL_BUILD so forks don't
@@ -278,12 +278,12 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
 
   // Check after startup delay
   setTimeout(() => {
-    runUpdateCheck();
+    void runUpdateCheck(false);
   }, STARTUP_DELAY_MS);
 
   // Periodic check
   checkInterval = setInterval(() => {
-    runUpdateCheck();
+    void runUpdateCheck(false);
   }, CHECK_INTERVAL_MS);
 
   // Cleanup on app quit

@@ -73,7 +73,17 @@ export function isRecording(): boolean {
   return currentMeetingId !== null;
 }
 
+let shuttingDown = false;
+
+/** Called by app shutdown: no recording may start once services are being stopped. */
+export function blockNewRecordings(): void {
+  shuttingDown = true;
+}
+
 export async function startRecording(meetingId: string, language?: string): Promise<void> {
+  if (shuttingDown) {
+    throw new Error('LifeDash is shutting down — the recording was not started.');
+  }
   if (currentMeetingId) {
     throw new Error('Already recording. Stop current recording first.');
   }
@@ -162,11 +172,36 @@ export function addChunk(payload: AudioChunkBuffers): void {
  * worse than the model thrash the pin exists to prevent.
  */
 export async function stopRecording(): Promise<string> {
-  try {
-    return await stopRecordingInner();
-  } finally {
-    releaseChatModelPin();
+  // A second stop while the first is flushing just fails: it must not replace the
+  // in-flight promise that shutdown waits on.
+  if (!currentMeetingId) {
+    releaseChatModelPin(); // same as before: the not-recording guard still releases the pin
+    throw new Error('Not currently recording.');
   }
+  const run = (async () => {
+    try {
+      return await stopRecordingInner();
+    } finally {
+      releaseChatModelPin();
+    }
+  })();
+  stopInFlight = run;
+  try {
+    return await run;
+  } finally {
+    if (stopInFlight === run) stopInFlight = null;
+  }
+}
+
+let stopInFlight: Promise<string> | null = null;
+
+/**
+ * Resolves once no stop is flushing. App shutdown awaits this before closing the
+ * database: a stop started from the UI can still be writing transcript rows (measured
+ * up to ~7 s) when the quit proceeds.
+ */
+export async function waitForStopToFinish(): Promise<void> {
+  await stopInFlight?.catch(() => undefined);
 }
 
 async function stopRecordingInner(): Promise<string> {
