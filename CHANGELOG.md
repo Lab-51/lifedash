@@ -3,6 +3,10 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.15.6 — 2026-10-11
+- release: prep v2.15.6
+- fix(updater): the updater only ever runs the exact installer GitHub published, and no quit or update can cut a recording or skip the database close (UPDATER-SAFE.1)
+
 ## v2.15.5 — 2026-10-10
 - release: prep v2.15.5
 - fix(backup): restore replaces what the backup holds and never destroys what it does not (BACKUP-SAFE.1)
