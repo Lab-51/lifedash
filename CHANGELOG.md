@@ -3,6 +3,10 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.15.3 — 2026-10-10
+- release: prep v2.15.3
+- fix: intel article scoring and the intel brief parse unfenced JSON replies
+
 ## v2.15.2 — 2026-10-10
 - release: prep v2.15.2
 - fix: intel article scoring, meeting prep and the background agent return text on gpt-5-mini
