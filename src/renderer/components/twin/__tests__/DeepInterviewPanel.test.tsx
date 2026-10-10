@@ -288,12 +288,14 @@ describe('DeepInterviewPanel — the gap interview (step 3)', () => {
     expect(q1).toHaveAttribute('aria-live', 'polite');
     const box = screen.getByRole('textbox');
     expect(box).toHaveAttribute('aria-describedby', q1.getAttribute('id'));
-    expect(box).toHaveFocus();
+    // Focus lands a tick after the question renders; under full-suite load that can
+    // trail the text, so wait for it rather than sample once.
+    await waitFor(() => expect(box).toHaveFocus());
 
     fireEvent.change(box, { target: { value: 'a' } });
     fireEvent.click(screen.getByRole('button', { name: /next question/i }));
     await screen.findByText('Q2?');
-    expect(screen.getByRole('textbox')).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveFocus());
   });
 
   it('shows a non-blocking notice offering the form when the interview has no model', async () => {
