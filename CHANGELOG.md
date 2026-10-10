@@ -3,6 +3,11 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.15.5 — 2026-10-10
+- release: prep v2.15.5
+- fix(backup): restore replaces what the backup holds and never destroys what it does not (BACKUP-SAFE.1)
+- test(twin): DeepInterviewPanel waits for focus instead of sampling it once
+
 ## v2.15.4 — 2026-10-10
 - release: prep v2.15.4
 - feat(intel): articles whose scoring failed get re-scored at startup
