@@ -264,8 +264,8 @@ async function buildOptions(
     temperature: 0,
     temperatureInc: 0.2,
   };
-  const language = resolveLanguagePreset(presetCode).baseLanguage;
-  if (language !== 'auto') opts.language = language;
+  // 'auto' is passed explicitly: an omitted language keeps whisper's default 'en'.
+  opts.language = resolveLanguagePreset(presetCode).baseLanguage;
 
   const prompt = await whisperPromptService.buildInitialPrompt(meetingId, presetCode);
   if (prompt) opts.prompt = prompt;

@@ -209,6 +209,7 @@ describe('cadence gating', () => {
     await flush();
 
     expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ minimalReasoning: true }));
     expect(send).toHaveBeenCalledWith('live-triage:suggestion', expect.objectContaining({ title: 'Ship the beta' }));
   });
 

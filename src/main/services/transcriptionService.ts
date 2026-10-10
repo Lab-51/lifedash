@@ -680,9 +680,10 @@ async function dispatchToWhisper(
       temperature: 0, // Deterministic, less hallucination
       temperatureInc: 0.2, // Fallback temperature if decoding fails
     };
-    if (activeLanguage !== 'auto') {
-      whisperOpts.language = activeLanguage;
-    }
+    // Always pass the language, including 'auto': whisper.node only overrides
+    // params.language when the string is non-empty, so an omitted language keeps
+    // whisper's default 'en' and auto-detect never runs.
+    whisperOpts.language = activeLanguage;
     // Build prompt: glossary (initial prompt) takes priority; recent context fills remaining budget
     {
       let finalPrompt = '';

@@ -144,7 +144,9 @@ describe('TwinMemoryPanel — forget + undo', () => {
     await waitFor(() => expect(twinMemoryRestore).toHaveBeenCalledWith('fact-1'));
     expect(await screen.findByText('Prefers async updates over meetings')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Learned facts' })).toHaveFocus();
+    // Focus moves after the restore's async refresh settles; under full-suite load
+    // that lands a tick after the text appears, so wait for it rather than sample once.
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Learned facts' })).toHaveFocus());
   });
 
   it('auto-dismisses the undo snackbar after ~5s and returns focus to the list heading', async () => {

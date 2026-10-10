@@ -335,6 +335,9 @@ async function generateDrafts(
         // EMPTY text at the 512 cap because hidden thinking consumed it before --reasoning
         // off shipped; 1024 gives real proposal JSON headroom on top of that fix.
         maxTokens: provider.maxTokens ?? 1024,
+        // gpt-5-mini otherwise spends the whole 1024 cap on hidden reasoning and
+        // returns no text (zero successful triage runs in the 2026-09 logs).
+        minimalReasoning: true,
       });
       text = result.text ?? '';
     } catch (err) {

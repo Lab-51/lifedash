@@ -183,6 +183,11 @@ describe('transcriptionService — two-channel capture', () => {
     transcriptionService.addChunk(split(MIC_WINDOW, SYSTEM_WINDOW));
 
     await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(2));
+    // 'auto' must reach whisper explicitly: an omitted language keeps whisper's
+    // default 'en', so detection never runs and the tally is always { en }.
+    for (const call of whisperCtx.transcribeData.mock.calls) {
+      expect(call[1]).toMatchObject({ language: 'auto' });
+    }
     await vi.waitFor(() => expect(transcriptionService.getCoverageTally().languages).toEqual({ cs: 2 }));
 
     await transcriptionService.stop();

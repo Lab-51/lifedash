@@ -72,10 +72,9 @@ export function registerVoiceInputHandlers(): void {
           bestOf: 5,
           temperature: 0,
           temperatureInc: 0.2,
+          // 'auto' is passed explicitly: an omitted language keeps whisper's default 'en'.
+          language,
         };
-        if (language !== 'auto') {
-          whisperOpts.language = language;
-        }
 
         const { promise } = ctx.transcribeData(arrayBuffer, whisperOpts);
         const result = await promise;

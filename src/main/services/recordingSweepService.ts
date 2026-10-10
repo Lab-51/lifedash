@@ -69,6 +69,13 @@ const log = createLogger('RecordingSweep');
 export const SWEEP_FLAG_KEY = 'maintenance:recording-orphan-sweep:v1';
 
 /**
+ * Only files the app itself could have written (`<meetingId>.wav`, a uuid) are
+ * ever candidates. `recordings:savePath` can point at any folder the user picks,
+ * so any other file in it is the user's and must never be deleted.
+ */
+const RECORDING_FILE_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.wav$/i;
+
+/**
  * Derives the recordings directory exactly the way audioProcessor.ts does
  * (getRecordingsDir there): the user-configurable `recordings:savePath`
  * setting when present, else `<userData>/recordings`. Duplicated rather than
@@ -157,6 +164,7 @@ export async function sweepOrphanedRecordings(): Promise<number> {
     // subdirectories (never recurse) and skips symlinks (never follow a link),
     // in the same check.
     if (!entry.isFile()) continue;
+    if (!RECORDING_FILE_NAME.test(entry.name)) continue; // not a file this app wrote — never touch it
 
     const fullPath = path.join(recordingsDir, entry.name);
     if (referenced.has(normalizePath(fullPath))) continue; // referenced or claimed by a meeting row — never delete

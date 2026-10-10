@@ -18,6 +18,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vites
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -77,6 +78,11 @@ function writeFile(name: string, content = 'fake wav data'): string {
   return filePath;
 }
 
+/** An unreferenced file named the way audioProcessor names recordings (`<uuid>.wav`). */
+function orphanName(): string {
+  return `${randomUUID()}.wav`;
+}
+
 function fileExists(filePath: string): boolean {
   return fs.existsSync(filePath);
 }
@@ -109,7 +115,7 @@ afterAll(() => {
 
 describe('sweepOrphanedRecordings — deletion', () => {
   it('deletes an orphan WAV that no meeting references', async () => {
-    const orphanPath = writeFile('orphan.wav');
+    const orphanPath = writeFile(orphanName());
 
     const deleted = await sweepOrphanedRecordings();
 
@@ -117,11 +123,26 @@ describe('sweepOrphanedRecordings — deletion', () => {
     expect(fileExists(orphanPath)).toBe(false);
   });
 
+  it('never deletes a file the app did not write, since the folder can be any user-chosen folder', async () => {
+    const userWav = writeFile('holiday.wav');
+    const userDoc = writeFile('notes.txt');
+    const uuidNotWav = writeFile(`${randomUUID()}.txt`);
+    const orphanPath = writeFile(orphanName());
+
+    const deleted = await sweepOrphanedRecordings();
+
+    expect(deleted).toBe(1); // only the app-named orphan
+    expect(fileExists(orphanPath)).toBe(false);
+    expect(fileExists(userWav)).toBe(true);
+    expect(fileExists(userDoc)).toBe(true);
+    expect(fileExists(uuidNotWav)).toBe(true);
+  });
+
   // === Verification case 2: a WAV referenced by a meeting is kept ==================
   it('keeps a WAV referenced by a meeting audioPath, while still deleting a genuine orphan in the same run', async () => {
     const referencedPath = writeFile('referenced.wav');
     await seedMeeting('completed', referencedPath);
-    const orphanPath = writeFile('orphan.wav');
+    const orphanPath = writeFile(orphanName());
 
     const deleted = await sweepOrphanedRecordings();
 
@@ -137,7 +158,7 @@ describe('sweepOrphanedRecordings — deletion', () => {
     // see the RECON FINDING in recordingSweepService.ts.
     const meetingId = await seedMeeting('recording', null);
     const activePath = writeFile(`${meetingId}.wav`);
-    const orphanPath = writeFile('orphan.wav');
+    const orphanPath = writeFile(orphanName());
 
     const deleted = await sweepOrphanedRecordings();
 
@@ -160,7 +181,7 @@ describe('sweepOrphanedRecordings — flag', () => {
   });
 
   it('writes the flag after reclaiming a real orphan', async () => {
-    writeFile('orphan.wav');
+    writeFile(orphanName());
 
     await sweepOrphanedRecordings();
 
@@ -172,8 +193,8 @@ describe('sweepOrphanedRecordings — flag', () => {
 
 describe('sweepOrphanedRecordings — per-file failure', () => {
   it('leaves the flag unset when one delete fails, still deletes the other orphan, and retries cleanly next launch', async () => {
-    const okPath = writeFile('orphan-ok.wav');
-    const failPath = writeFile('orphan-will-fail.wav');
+    const okPath = writeFile(orphanName());
+    const failPath = writeFile(orphanName());
     unlinkFailure.paths.add(failPath);
 
     const deleted = await sweepOrphanedRecordings();
@@ -198,7 +219,7 @@ describe('sweepOrphanedRecordings — per-file failure', () => {
 
 describe('sweepOrphanedRecordings — one-shot gating', () => {
   it('no-ops on a second run: an orphan added AFTER the flag is set survives', async () => {
-    const firstOrphan = writeFile('orphan-1.wav');
+    const firstOrphan = writeFile(orphanName());
 
     const firstRun = await sweepOrphanedRecordings();
     expect(firstRun).toBe(1);
@@ -206,7 +227,7 @@ describe('sweepOrphanedRecordings — one-shot gating', () => {
     expect(await getFlagValue()).toBe('true');
 
     // Seeded AFTER the flag was set — a real (non-gated) second run would delete it.
-    const secondOrphan = writeFile('orphan-2.wav');
+    const secondOrphan = writeFile(orphanName());
 
     const secondRun = await sweepOrphanedRecordings();
 

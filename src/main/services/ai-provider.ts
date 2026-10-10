@@ -27,6 +27,7 @@ import { decryptString } from './secure-storage';
 import { createLogger } from './logger';
 import { acquireInFlight, ensureRunning, touch as touchBuiltinRuntime, type LlamaRole } from './llamaRuntimeService';
 import { recordGeneration, type GenerationTiming } from './runtimeTelemetry';
+import { minimalReasoningOptions } from './minimalReasoning';
 import type { AIProviderName, AITaskType, TaskModelConfig } from '../../shared/types';
 
 const log = createLogger('AI');
@@ -449,6 +450,8 @@ export async function generate(options: {
   system?: string;
   temperature?: number;
   maxTokens?: number;
+  /** Small-cap tasks: turn hidden reasoning down where the model supports it. */
+  minimalReasoning?: boolean;
 }) {
   const factory = getProvider(options.providerId, options.providerName, options.apiKeyEncrypted, options.baseUrl);
 
@@ -462,6 +465,9 @@ export async function generate(options: {
       system: options.system,
       temperature: sanitizeTemperature(options.providerName, options.temperature),
       maxOutputTokens: sanitizeMaxTokens(options.providerName, options.maxTokens),
+      providerOptions: options.minimalReasoning
+        ? minimalReasoningOptions(options.providerName, options.model)
+        : undefined,
     });
     elapsedMs = Date.now() - startedAt; // before any post-processing, so only the model call counts
   } catch (err: unknown) {
