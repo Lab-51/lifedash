@@ -62,6 +62,39 @@ function sliceJsonSpan(text: string): string | null {
 }
 
 /**
+ * Every top-level `{...}` span in `text`, in order, unparsed — for replies that
+ * carry MORE than one JSON object (e.g. two unfenced blocks), where the single
+ * outermost slice above would join them into invalid JSON. A balanced-brace scan
+ * that ignores braces inside JSON strings, so nested objects stay whole (a lazy
+ * `\{[\s\S]*?\}` regex cuts at the first inner `}` and can never parse them).
+ * An unclosed `{` yields no span; the caller still owns JSON.parse and the shape.
+ */
+export function extractJsonObjectSpans(text: string): string[] {
+  const spans: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') {
+      inString = depth > 0; // quotes in surrounding prose are not JSON strings
+    } else if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === '}' && depth > 0) {
+      depth--;
+      if (depth === 0) spans.push(text.slice(start, i + 1));
+    }
+  }
+  return spans;
+}
+
+/**
  * Parse the JSON value out of a model reply. Tolerates code fences, a leading
  * sentence and trailing commentary; returns `unknown` because validating the
  * shape is the caller's job (zod at every current call site).

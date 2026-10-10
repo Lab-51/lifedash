@@ -4,7 +4,7 @@
 // must NOT be rescued (no JSON at all, broken JSON).
 
 import { describe, it, expect } from 'vitest';
-import { parseModelJson, ModelJsonError } from '../llm-json';
+import { parseModelJson, ModelJsonError, extractJsonObjectSpans } from '../llm-json';
 
 describe('parseModelJson', () => {
   it('parses a bare object', () => {
@@ -76,5 +76,32 @@ describe('parseModelJson', () => {
       expect(modelErr.snippet.startsWith('no json here')).toBe(true);
       expect(modelErr.message).toContain('no json here');
     }
+  });
+});
+
+describe('extractJsonObjectSpans', () => {
+  const parseAll = (text: string) => extractJsonObjectSpans(text).map((s) => JSON.parse(s) as unknown);
+
+  it('keeps nested objects whole across two unfenced blocks (the intel scoring reply shape)', () => {
+    const reply = '{"categories": {"https://a.example/x": "Open Source"}}\n{"relevance": {"https://a.example/x": 7}}';
+    expect(parseAll(reply)).toEqual([
+      { categories: { 'https://a.example/x': 'Open Source' } },
+      { relevance: { 'https://a.example/x': 7 } },
+    ]);
+  });
+
+  it('reads objects inside code fences and ignores the prose around them', () => {
+    const reply = 'Here you go:\n```json\n{"a": {"b": 1}}\n```\nand\n```\n{"c": 2}\n```\nDone.';
+    expect(parseAll(reply)).toEqual([{ a: { b: 1 } }, { c: 2 }]);
+  });
+
+  it('ignores braces and escaped quotes inside JSON strings', () => {
+    const reply = '{"title": "a } tricky \\" {string", "n": {"m": 1}}';
+    expect(parseAll(reply)).toEqual([{ title: 'a } tricky " {string', n: { m: 1 } }]);
+  });
+
+  it('returns nothing for text without a closed object', () => {
+    expect(extractJsonObjectSpans('no json at all')).toEqual([]);
+    expect(extractJsonObjectSpans('{"open": {"never": 1}')).toEqual([]);
   });
 });

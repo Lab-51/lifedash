@@ -16,6 +16,7 @@ import { intelBriefs, intelItems, intelSources, intelFeeds, intelFeedSources, pr
 import { generate, resolveTaskModel } from './ai-provider';
 import { decodeHtmlEntities } from './intelShared';
 import { createLogger } from './logger';
+import { extractJsonObjectSpans } from '../../shared/utils/llm-json';
 import type { IntelBrief, IntelBriefType, IntelItem } from '../../shared/types';
 
 const log = createLogger('IntelBriefService');
@@ -329,12 +330,7 @@ export async function generateBrief(type: IntelBriefType, feedId?: string | null
     if (lastBraceIndex > result.text.length * 0.3) {
       briefContent = result.text.slice(0, lastBraceIndex).trim();
       // Try to parse the remaining text as JSON blocks
-      const remaining = result.text.slice(lastBraceIndex);
-      const rawJsonRegex = /(\{[\s\S]*?\})\s*/g;
-      let rawMatch: RegExpExecArray | null;
-      while ((rawMatch = rawJsonRegex.exec(remaining)) !== null) {
-        jsonBlocks.push(rawMatch[1].trim());
-      }
+      jsonBlocks.push(...extractJsonObjectSpans(result.text.slice(lastBraceIndex)));
     } else {
       briefContent = result.text.trim();
     }
@@ -504,13 +500,9 @@ export async function scoreArticles(items: IntelItem[]): Promise<void> {
       }
     }
 
-    // Fallback: if no fenced blocks found, try to parse raw JSON objects
+    // Fallback: if no fenced blocks found, take every top-level raw JSON object
     if (jsonBlocks.length === 0) {
-      const rawJsonRegex = /(\{[\s\S]*?\})\s*/g;
-      let rawMatch: RegExpExecArray | null;
-      while ((rawMatch = rawJsonRegex.exec(result.text)) !== null) {
-        jsonBlocks.push(rawMatch[1].trim());
-      }
+      jsonBlocks.push(...extractJsonObjectSpans(result.text));
     }
 
     let categories: Record<string, string> = {};
@@ -528,6 +520,12 @@ export async function scoreArticles(items: IntelItem[]): Promise<void> {
       } catch {
         // Skip malformed blocks
       }
+    }
+
+    if (Object.keys(categories).length === 0 && Object.keys(relevanceScores).length === 0) {
+      // Reply text is news titles/URLs (no meeting data) — enough to see what the model sent.
+      log.warn(`scoreArticles: no categories or relevance parsed from reply: ${result.text.slice(0, 200)}`);
+      return;
     }
 
     const db = getDb();
