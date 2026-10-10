@@ -44,6 +44,7 @@ import { emitRuntimeStatus } from './services/runtimeTelemetry';
 import { sweepHallucinatedTranscripts } from './services/transcriptCleanupService';
 import { sweepOrphanedRecordings } from './services/recordingSweepService';
 import { sweepEntityNameFolds } from './services/entityNameFoldSweep';
+import { rescoreRecentUnscored } from './services/intelBriefService';
 import { recoverStaleRecordings } from './services/staleRecordingRecovery';
 import { sweepFailedBriefEmbeddings } from './services/embeddingService';
 
@@ -342,6 +343,12 @@ const createWindow = async () => {
     // Must run AFTER migrations too (the entities/entity_facts/entity_links tables
     // + settings flag row it gates on). Fire-and-forget for the same reason.
     sweepEntityNameFoldsOnStartup();
+
+    // After migrations (reads intel_items). Fire-and-forget: a model call that must
+    // never delay startup, and a failure simply retries on the next launch.
+    rescoreRecentUnscored().catch((err) => {
+      log.warn('Intel re-score skipped (will retry next launch):', err);
+    });
 
     const integrity = await checkDatabaseIntegrity();
     if (!integrity.healthy) {

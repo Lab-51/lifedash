@@ -561,6 +561,30 @@ export async function scoreArticles(items: IntelItem[]): Promise<void> {
   }
 }
 
+/** Startup re-score bounds: one launch is at most one scoring call over recent items. */
+const RESCORE_WINDOW_DAYS = 7;
+const RESCORE_MAX_ITEMS = 25;
+
+/**
+ * Re-sends recently fetched, still-unscored items to scoreArticles. Run once per
+ * launch: fetch-time scoring only ever sees NEWLY inserted items, so an item whose
+ * scoring pass failed (empty or unparseable reply) would otherwise stay unscored
+ * forever. Old items are left alone; a launch never makes more than one call.
+ */
+export async function rescoreRecentUnscored(): Promise<void> {
+  const since = new Date(Date.now() - RESCORE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const rows = await getDb()
+    .select()
+    .from(intelItems)
+    .where(and(isNull(intelItems.relevanceScore), gte(intelItems.fetchedAt, since)))
+    .orderBy(desc(intelItems.fetchedAt))
+    .limit(RESCORE_MAX_ITEMS);
+  if (rows.length === 0) return;
+  log.info(`Re-scoring ${rows.length} unscored article(s) from the last ${RESCORE_WINDOW_DAYS} days`);
+  // scoreArticles reads only title/description/url/relevanceScore, so the source name is not needed.
+  await scoreArticles(rows.map((row) => toIntelItem(row, '')));
+}
+
 /**
  * Generate a 1-2 sentence AI summary for a single intel item.
  * Returns the item as-is if it already has a summary.
