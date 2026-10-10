@@ -1,60 +1,37 @@
 // === FILE PURPOSE ===
 // Database backup and restore using Drizzle ORM queries.
-// Serializes all tables to JSON, restores by deleting and re-inserting.
+// Serializes every schema table (bar the derived search index) to JSON; restore
+// replaces the tables a backup holds and keeps everything else (see backupRestore.ts).
 // Manages backup files in app.getPath('userData')/backups/.
 //
 // === DEPENDENCIES ===
 // - Database connection (getDb from connection.ts)
-// - Drizzle ORM + schema tables
+// - backupSchema (table list + FK order), backupRestore (the restore engine)
 //
 // === LIMITATIONS ===
 // - Audio files are NOT backed up (stored outside DB)
-// - API keys (aiProviders.apiKeyEncrypted) excluded from backups
+// - API keys (aiProviders.apiKeyEncrypted) excluded from backups, except the pre-restore
+//   safety backup; restore keeps the current ones
+// - Settings are merged on restore, and machine-state keys (sweep flags, sign-in) are never touched
+// - The search index (embeddings) is not backed up; restore keeps it for surviving rows
 
 import { app, BrowserWindow } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { sql } from 'drizzle-orm';
-import { PgTable } from 'drizzle-orm/pg-core';
 import { getDb } from '../db/connection';
-import * as schema from '../db/schema';
 import { settings } from '../db/schema';
+import { getBackupTables } from './backupSchema';
+import { restoreTables, type BackupRows } from './backupRestore';
 import { createLogger } from './logger';
 import type { BackupInfo, BackupProgress, AutoBackupSettings, AutoBackupFrequency } from '../../shared/types';
 
 const log = createLogger('Backup');
 
-// --- Table maps in FK-safe order ---
+/** v1 = the hand-listed 21 tables; v2 = every schema table except the search index. */
+const BACKUP_VERSION = 2;
 
-// INSERT order: parents first, children last
-const BACKUP_TABLES_INSERT_ORDER: [string, PgTable][] = [
-  ['projects', schema.projects],
-  ['settings', schema.settings],
-  ['aiProviders', schema.aiProviders],
-  ['boards', schema.boards],
-  ['labels', schema.labels],
-  ['columns', schema.columns],
-  ['meetings', schema.meetings],
-  ['ideas', schema.ideas],
-  ['brainstormSessions', schema.brainstormSessions],
-  ['cards', schema.cards],
-  ['aiUsage', schema.aiUsage],
-  ['transcripts', schema.transcripts],
-  ['meetingBriefs', schema.meetingBriefs],
-  ['actionItems', schema.actionItems],
-  ['cardLabels', schema.cardLabels],
-  ['cardComments', schema.cardComments],
-  ['cardRelationships', schema.cardRelationships],
-  ['cardActivities', schema.cardActivities],
-  ['cardAttachments', schema.cardAttachments],
-  ['ideaTags', schema.ideaTags],
-  ['brainstormMessages', schema.brainstormMessages],
-];
-
-// DELETE order: children first, parents last (reverse of insert)
-const BACKUP_TABLES_DELETE_ORDER: [string, PgTable][] = [...BACKUP_TABLES_INSERT_ORDER].reverse();
-
-// Columns to strip from backups (sensitive data)
+// Columns never written to a backup (machine-bound secrets)
 const SENSITIVE_COLUMNS: Record<string, string[]> = {
   aiProviders: ['apiKeyEncrypted'],
 };
@@ -65,49 +42,33 @@ interface BackupData {
   version: number;
   createdAt: string;
   tableCount: number;
-  tables: Record<string, Record<string, unknown>[]>;
+  tables: BackupRows;
 }
 
-// ISO 8601 date pattern
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/;
-
-// Text/varchar columns that may contain date-like strings as data values.
-// These must NOT be converted to Date objects.
-const TEXT_COLUMNS = new Set([
-  'value',
-  'content',
-  'body',
-  'description',
-  'summary',
-  'text',
-  'transcript',
-  'title',
-  'name',
-  'brief',
-  'notes',
-  'message',
-  'apiKeyEncrypted',
-  'metadata',
-  'checklist',
-  'tags',
-  'label',
-]);
-
-/**
- * JSON.parse deserializes dates as plain strings. Drizzle ORM expects Date
- * objects for timestamp columns and calls .toISOString() on them during INSERT.
- * Converts ISO-date strings back to Dates, except for known text columns.
- */
-function rehydrateDates(row: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(row)) {
-    if (!TEXT_COLUMNS.has(key) && typeof value === 'string' && ISO_DATE_RE.test(value)) {
-      result[key] = new Date(value);
-    } else {
-      result[key] = value;
-    }
+/** Rejects a file this version cannot restore faithfully, BEFORE anything is touched. */
+export function validateBackupData(data: unknown): BackupData {
+  const candidate = data as Partial<BackupData> | null;
+  if (!candidate || typeof candidate.tables !== 'object' || candidate.tables === null) {
+    throw new Error('Invalid backup file: missing version or tables field');
   }
-  return result;
+  if (candidate.version !== 1 && candidate.version !== 2) {
+    throw new Error(`Unsupported backup version ${String(candidate.version)} — update LifeDash to restore it`);
+  }
+  // Only tables a backup is allowed to hold: unknown ones, and the search index (never
+  // backed up, so a file carrying it was not written by LifeDash), are refused.
+  const known = new Set(
+    getBackupTables()
+      .filter((t) => t.includedInBackup)
+      .map((t) => t.key),
+  );
+  const unknown = Object.keys(candidate.tables).filter((key) => !known.has(key));
+  if (unknown.length > 0) {
+    throw new Error(`Backup contains tables this version cannot restore (${unknown.join(', ')})`);
+  }
+  for (const [key, rows] of Object.entries(candidate.tables)) {
+    if (!Array.isArray(rows)) throw new Error(`Invalid backup file: table ${key} is not a list of rows`);
+  }
+  return candidate as BackupData;
 }
 
 // --- Utility functions ---
@@ -124,7 +85,42 @@ function emitProgress(mainWindow: BrowserWindow | undefined | null, progress: Ba
 
 // --- Core backup/restore functions ---
 
-export async function createBackup(mainWindow?: BrowserWindow | null): Promise<BackupInfo> {
+/** Backup file names: `backup-YYYY-MM-DD-HH-MM-SS[-pre-restore].(json|sql)`. */
+const BACKUP_FILE_RE = /^backup-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}(-pre-restore)?\.(sql|json)$/;
+
+/**
+ * Writes a backup under a name no existing file has: never overwrites (flag 'wx'), and on
+ * a same-second collision moves to the next free second, so names stay sortable and valid.
+ */
+async function writeNewBackupFile(
+  at: Date,
+  suffix: string,
+  json: string,
+): Promise<{ fileName: string; filePath: string }> {
+  const MAX_SECONDS_AHEAD = 60;
+  for (let offset = 0; offset < MAX_SECONDS_AHEAD; offset++) {
+    const ts = new Date(at.getTime() + offset * 1000).toISOString().replace(/[T:]/g, '-').slice(0, 19);
+    const fileName = `backup-${ts}${suffix}.json`;
+    const filePath = path.join(getBackupDir(), fileName);
+    try {
+      await fs.promises.writeFile(filePath, json, { encoding: 'utf-8', flag: 'wx' });
+      return { fileName, filePath };
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+    }
+  }
+  throw new Error('Could not find a free backup file name');
+}
+
+/**
+ * `preRestore` marks the safety backup taken before a restore: it gets its own
+ * `-pre-restore` name (so it can never overwrite the file being restored) and keeps the
+ * machine-bound, safeStorage-encrypted API keys, so undoing a restore keeps every key.
+ */
+export async function createBackup(
+  mainWindow?: BrowserWindow | null,
+  options: { preRestore?: boolean } = {},
+): Promise<BackupInfo> {
   try {
     emitProgress(mainWindow, {
       phase: 'starting',
@@ -133,41 +129,33 @@ export async function createBackup(mainWindow?: BrowserWindow | null): Promise<B
 
     const db = getDb();
 
-    // Generate filename: backup-YYYY-MM-DD-HHmmss.json
     const now = new Date();
-    const ts = now.toISOString().replace(/[T:]/g, '-').slice(0, 19);
-    const fileName = `backup-${ts}.json`;
 
     emitProgress(mainWindow, {
       phase: 'dumping',
       message: 'Reading database tables...',
     });
 
-    // Query all tables in FK-safe insert order
-    const tables: Record<string, Record<string, unknown>[]> = {};
-
-    for (const [name, table] of BACKUP_TABLES_INSERT_ORDER) {
-      const rows = await db.select().from(table);
-
-      // Strip sensitive columns
-      const sensitiveKeys = SENSITIVE_COLUMNS[name];
-      if (sensitiveKeys) {
-        tables[name] = rows.map((row: Record<string, unknown>) => {
+    // Every backed-up table, read inside one transaction so the file is one
+    // consistent snapshot (a row and its parent can never come from different moments).
+    const included = getBackupTables().filter((t) => t.includedInBackup);
+    const tables: BackupRows = {};
+    await db.transaction(async (tx) => {
+      for (const t of included) {
+        const rows = (await tx.select().from(t.table)) as Record<string, unknown>[];
+        const sensitiveKeys = options.preRestore ? [] : (SENSITIVE_COLUMNS[t.key] ?? []);
+        tables[t.key] = rows.map((row) => {
           const cleaned = { ...row };
-          for (const key of sensitiveKeys) {
-            delete cleaned[key];
-          }
+          for (const key of sensitiveKeys) delete cleaned[key];
           return cleaned;
         });
-      } else {
-        tables[name] = rows;
       }
-    }
+    });
 
     const backupData: BackupData = {
-      version: 1,
+      version: BACKUP_VERSION,
       createdAt: now.toISOString(),
-      tableCount: BACKUP_TABLES_INSERT_ORDER.length,
+      tableCount: included.length,
       tables,
     };
 
@@ -176,9 +164,8 @@ export async function createBackup(mainWindow?: BrowserWindow | null): Promise<B
       message: 'Saving backup file...',
     });
 
-    const filePath = path.join(getBackupDir(), fileName);
     const json = JSON.stringify(backupData, null, 2);
-    await fs.promises.writeFile(filePath, json, 'utf-8');
+    const { fileName, filePath } = await writeNewBackupFile(now, options.preRestore ? '-pre-restore' : '', json);
     const stat = await fs.promises.stat(filePath);
 
     emitProgress(mainWindow, { phase: 'complete', message: 'Backup complete' });
@@ -204,7 +191,7 @@ export async function listBackups(): Promise<BackupInfo[]> {
   const dir = getBackupDir();
   try {
     const files = await fs.promises.readdir(dir);
-    const backupFiles = files.filter((f) => /^backup-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.(sql|json)$/.test(f));
+    const backupFiles = files.filter((f) => BACKUP_FILE_RE.test(f));
 
     const results: BackupInfo[] = [];
     for (const fileName of backupFiles) {
@@ -236,23 +223,19 @@ export async function restoreBackup(filePath: string, mainWindow?: BrowserWindow
     });
 
     const content = await fs.promises.readFile(filePath, 'utf-8');
-    const backupData: BackupData = JSON.parse(content);
-
-    // Validate backup format
-    if (!backupData.version || typeof backupData.tables !== 'object') {
-      throw new Error('Invalid backup file: missing version or tables field');
-    }
+    const backupData = validateBackupData(JSON.parse(content));
 
     emitProgress(mainWindow, {
       phase: 'starting',
       message: 'Creating safety backup...',
     });
 
-    // Safety backup (non-blocking -- log errors but don't prevent restore)
+    // The safety backup is what makes a restore undoable — without it, do not restore.
     try {
-      await createBackup(mainWindow);
+      await createBackup(mainWindow, { preRestore: true });
     } catch (err) {
-      log.error('Safety backup failed (continuing restore):', err);
+      log.error('Safety backup failed — restore aborted, nothing changed:', err);
+      throw new Error('Could not create a safety backup first, so nothing was restored', { cause: err });
     }
 
     emitProgress(mainWindow, {
@@ -263,44 +246,12 @@ export async function restoreBackup(filePath: string, mainWindow?: BrowserWindow
     const db = getDb();
 
     try {
-      await db.transaction(async (tx) => {
-        // Delete all data in reverse FK order (children first)
-        for (const [, t] of BACKUP_TABLES_DELETE_ORDER) {
-          await tx.delete(t);
-        }
+      const stats = await db.transaction((tx) => restoreTables(tx, backupData.tables));
 
-        // Insert data in forward FK order (parents first)
-        for (const [name, table] of BACKUP_TABLES_INSERT_ORDER) {
-          const rows = backupData.tables[name];
-          if (!rows || rows.length === 0) continue;
-          const hydrated = rows.map(rehydrateDates);
-
-          if (name === 'settings') {
-            // Settings uses `key` as PK and may be re-populated by services
-            // running concurrently — use upsert to handle conflicts.
-            for (const row of hydrated) {
-              await tx
-                .insert(settings)
-                .values(row as { key: string; value: string; updatedAt: Date })
-                .onConflictDoUpdate({
-                  target: settings.key,
-                  set: {
-                    value: (row as Record<string, unknown>).value as string,
-                    updatedAt: (row as Record<string, unknown>).updatedAt as Date,
-                  },
-                });
-            }
-          } else {
-            // All other tables: plain insert in batches
-            const BATCH = 50;
-            for (let i = 0; i < hydrated.length; i += BATCH) {
-              await tx.insert(table).values(hydrated.slice(i, i + BATCH));
-            }
-          }
-        }
-      });
-
-      log.info('Restore transaction committed successfully');
+      log.info(
+        `Restore committed (backup v${backupData.version}): ${stats.inserted} rows restored, ` +
+          `${stats.dropped} dropped and ${stats.nulled} unlinked because their parent was not in the backup`,
+      );
       emitProgress(mainWindow, {
         phase: 'complete',
         message: 'Restore complete',
@@ -327,18 +278,25 @@ export async function restoreBackup(filePath: string, mainWindow?: BrowserWindow
 
 export async function deleteBackup(fileName: string): Promise<void> {
   // Validate filename to prevent path traversal
-  if (!/^backup-[\d-]+\.(sql|json)$/.test(fileName)) {
+  if (!BACKUP_FILE_RE.test(fileName)) {
     throw new Error('Invalid backup file name');
   }
   const filePath = path.join(getBackupDir(), fileName);
   await fs.promises.unlink(filePath);
 }
 
+/**
+ * Retention counts regular backups only, so a restore never pushes a real backup out of
+ * the window. Pre-restore safety files are kept to the newest one: enough to undo the
+ * last restore, without piling up files that carry API keys.
+ */
 export async function cleanOldBackups(retention: number): Promise<void> {
   const backups = await listBackups(); // sorted newest first
-  if (backups.length <= retention) return;
-
-  const toDelete = backups.slice(retention);
+  const isPreRestore = (fileName: string) => fileName.includes('-pre-restore.');
+  const toDelete = [
+    ...backups.filter((b) => !isPreRestore(b.fileName)).slice(retention),
+    ...backups.filter((b) => isPreRestore(b.fileName)).slice(1),
+  ];
   for (const backup of toDelete) {
     try {
       await fs.promises.unlink(backup.filePath);
