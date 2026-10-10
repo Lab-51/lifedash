@@ -544,6 +544,7 @@ export async function analyzeStaleCardsConsolidated(projectList: ProjectRef[]): 
           'You are a project management assistant analyzing stale cards across multiple projects. Provide a brief analysis of why these cards might be stuck, and suggest 1-2 actionable next steps. Be concise (2-3 sentences max).',
         prompt: contextString,
         maxTokens: 300,
+        minimalReasoning: true, // a 300 cap is easily spent entirely on hidden reasoning
       });
 
       summary = result.text || 'Analysis could not be generated.';

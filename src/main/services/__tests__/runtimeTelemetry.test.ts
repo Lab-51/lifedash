@@ -462,3 +462,32 @@ describe('ai:runtime-status push channel', () => {
     await expect(emitRuntimeStatus()).resolves.toBeUndefined();
   });
 });
+
+// ===========================================================================
+// The one generate() harness: proves the minimalReasoning flag the small-cap
+// callers set (triage, intel scoring, meeting prep, background agent) actually
+// reaches the AI SDK, and stays off when not asked for.
+describe('generate() — minimalReasoning passthrough', () => {
+  const OPENAI = { ...SEAM, providerName: 'openai' as const, baseUrl: null, model: 'gpt-5-mini' };
+
+  beforeEach(() => {
+    h.generateText.mockResolvedValue({
+      text: 'ok',
+      reasoning: [],
+      finishReason: 'stop',
+      usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+    });
+  });
+
+  it('sends reasoningEffort minimal to gpt-5-mini when asked', async () => {
+    await generate({ ...OPENAI, prompt: 'hi', minimalReasoning: true });
+    expect(h.generateText).toHaveBeenLastCalledWith(
+      expect.objectContaining({ providerOptions: { openai: { reasoningEffort: 'minimal' } } }),
+    );
+  });
+
+  it('sends no provider options when not asked', async () => {
+    await generate({ ...OPENAI, prompt: 'hi' });
+    expect(h.generateText.mock.lastCall?.[0].providerOptions).toBeUndefined();
+  });
+});

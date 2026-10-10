@@ -185,6 +185,7 @@ Be concise and actionable. Use markdown bullet points.`;
       prompt,
       temperature: 0.7,
       maxTokens: 600,
+      minimalReasoning: true, // a 600 cap is easily spent entirely on hidden reasoning
     });
 
     if (!result.text) {

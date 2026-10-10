@@ -483,6 +483,9 @@ export async function scoreArticles(items: IntelItem[]): Promise<void> {
       system: systemPrompt,
       temperature: 0.2,
       maxTokens: 2000,
+      // gpt-5-mini otherwise spends the cap on hidden reasoning and returns no text
+      // (seen in the 2026-10-10 log: finishReason length, empty response).
+      minimalReasoning: true,
     });
 
     if (!result.text || result.text.trim().length === 0) {
