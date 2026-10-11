@@ -4,7 +4,8 @@
 //     upserts the singleton row, returns the full profile)
 //   - serializeProfileContext determinism (same input -> byte-identical output)
 //   - budget trimming order (drops WHOLE lowest-priority sections first, never
-//     mid-block) and task-aware section priority
+//     mid-block) and task-aware section priority; the budget measures the header
+//     and blocks, the closing background note is appended outside it
 //   - buildProfileContext is a no-op ('') when no profile exists
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -48,7 +49,13 @@ vi.mock('../twinMemoryService', () => ({
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { getProfile, updateProfileSection, serializeProfileContext, buildProfileContext } from '../twinProfileService';
+import {
+  getProfile,
+  updateProfileSection,
+  serializeProfileContext,
+  buildProfileContext,
+  BACKGROUND_NOTE,
+} from '../twinProfileService';
 import { getDb } from '../../db/connection';
 import type { TwinProfileSections } from '../../../shared/types/twin';
 
@@ -95,6 +102,12 @@ function sampleProfile(): TwinProfileSections {
     goals: ['Ship v3 by Q3', 'Cut onboarding time in half'],
     preferences: { tone: 'concise', language: 'en', cardTitleStyle: 'imperative' },
   };
+}
+
+/** The part of a serialized context the char budget measures: everything before the
+ *  closing background note (which is appended outside the budget). */
+function budgeted(out: string): string {
+  return out.endsWith(BACKGROUND_NOTE) ? out.slice(0, -(BACKGROUND_NOTE.length + 2)) : out;
 }
 
 const EMPTY_PROFILE: TwinProfileSections = {
@@ -254,7 +267,35 @@ describe('serializeProfileContext priority & trimming', () => {
     expect(out).not.toContain('Projects:');
     expect(out).not.toContain('People:');
     expect(out).not.toContain('Identity:');
-    expect(out.length).toBeLessThanOrEqual(budget);
+    expect(budgeted(out).length).toBeLessThanOrEqual(budget);
+  });
+
+  it('a section too long to fit is skipped and the shorter sections AFTER it still ride along', () => {
+    // triage priority: vocabulary (2nd) comes before people and identity.
+    const withoutVocab = { ...sampleProfile(), vocabulary: [] };
+    const roomForRest = budgeted(serializeProfileContext(withoutVocab, 'live_triage', 100000)).length;
+    const profile = {
+      ...sampleProfile(),
+      vocabulary: [{ term: 'SPRAWL', meaning: 'x'.repeat(400) }], // one entry far too long for the room left
+    };
+
+    const out = serializeProfileContext(profile, 'live_triage', roomForRest + 40);
+
+    expect(out).not.toContain('SPRAWL'); // the long section is skipped...
+    expect(out).toContain('People:'); // ...and does NOT take every lower-priority block with it
+    expect(out).toContain('Identity: Jane Doe');
+  });
+
+  it('a list that only partly fits keeps a prefix of WHOLE entries, never a cut entry', () => {
+    const vocabulary = [1, 2, 3, 4, 5, 6].map((n) => ({ term: `term${n}`, meaning: `meaning number ${n}` }));
+    const profile = { ...EMPTY_PROFILE, vocabulary };
+    const twoEntries = serializeProfileContext({ ...EMPTY_PROFILE, vocabulary: vocabulary.slice(0, 2) }, 'live_triage');
+
+    const out = serializeProfileContext(profile, 'live_triage', budgeted(twoEntries).length + 3); // third entry does not fit
+
+    expect(out).toBe(twoEntries);
+    const entryLines = out.split('\n').filter((l) => l.startsWith('- '));
+    expect(entryLines).toEqual(['- term1: meaning number 1', '- term2: meaning number 2']);
   });
 
   it('never emits a partial block (trims strictly at section boundaries)', () => {
@@ -263,7 +304,7 @@ describe('serializeProfileContext priority & trimming', () => {
     const out = serializeProfileContext(profile, 'live_triage', 120);
     // Whatever survived, the output is a clean join of complete blocks: the last
     // block is fully present (its label line is intact) and length is within budget.
-    expect(out.length).toBeLessThanOrEqual(120);
+    expect(budgeted(out).length).toBeLessThanOrEqual(120);
     expect(out.startsWith('User profile (the professional you assist):')).toBe(true);
     // No dangling partial "- " line without content.
     expect(out.endsWith('- ')).toBe(false);
@@ -277,7 +318,7 @@ describe('serializeProfileContext priority & trimming', () => {
     // assistant default is the largest (1500) — with the sample profile everything fits.
     const out = serializeProfileContext(sampleProfile(), 'live_assistant');
     expect(out).toContain('Preferences:'); // lowest-priority assistant section still present
-    expect(out.length).toBeLessThanOrEqual(1500);
+    expect(budgeted(out).length).toBeLessThanOrEqual(1500);
   });
 });
 

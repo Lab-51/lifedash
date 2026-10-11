@@ -206,15 +206,15 @@ describe('injectTwinProfileContext', () => {
     const result = await injectTwinProfileContext('BASE SYSTEM PROMPT');
 
     expect(result).toBe('BASE SYSTEM PROMPT');
-    expect(buildProfileContext).toHaveBeenCalledWith('summarization');
+    expect(buildProfileContext).toHaveBeenCalledWith('summarization', undefined, undefined);
   });
 
-  it('prepends the profile block, separated by a blank line, when a profile exists', async () => {
+  it('puts the base prompt first and the profile block after it, separated by a blank line', async () => {
     vi.mocked(buildProfileContext).mockResolvedValue(PROFILE_BLOCK);
 
     const result = await injectTwinProfileContext('BASE SYSTEM PROMPT');
 
-    expect(result).toBe(`${PROFILE_BLOCK}\n\nBASE SYSTEM PROMPT`);
+    expect(result).toBe(`BASE SYSTEM PROMPT\n\n${PROFILE_BLOCK}`);
   });
 
   it('falls back to the system prompt byte-identical when buildProfileContext throws (never blocks generation)', async () => {
@@ -241,10 +241,14 @@ describe('generateBrief — twin profile injection (V3.3 Task 2)', () => {
 
     const callArg = vi.mocked(generate).mock.calls[0][0];
     expect(callArg.system).not.toContain('User profile');
-    expect(buildProfileContext).toHaveBeenCalledWith('summarization');
+    expect(buildProfileContext).toHaveBeenCalledWith(
+      'summarization',
+      undefined,
+      expect.stringContaining('discuss the roadmap'),
+    );
   });
 
-  it('prepends the profile block ahead of the exact same base system prompt when a profile exists', async () => {
+  it('places the profile block AFTER the exact same base system prompt when a profile exists', async () => {
     vi.mocked(getMeeting).mockResolvedValue(makeMeeting() as never);
     vi.mocked(generate).mockResolvedValue({ text: 'Generated brief content' } as never);
 
@@ -260,7 +264,7 @@ describe('generateBrief — twin profile injection (V3.3 Task 2)', () => {
     await generateBrief(MEETING_ID);
     const withProfileSystem = vi.mocked(generate).mock.calls[1][0].system;
 
-    expect(withProfileSystem).toBe(`${PROFILE_BLOCK}\n\n${baselineSystem}`);
+    expect(withProfileSystem).toBe(`${baselineSystem}\n\n${PROFILE_BLOCK}`);
   });
 
   it('does not block brief generation when buildProfileContext throws', async () => {
@@ -301,10 +305,14 @@ describe('generateActionItems — twin profile injection (V3.3 Task 2)', () => {
 
     const callArg = vi.mocked(generate).mock.calls[0][0];
     expect(callArg.system).not.toContain('User profile');
-    expect(buildProfileContext).toHaveBeenCalledWith('summarization');
+    expect(buildProfileContext).toHaveBeenCalledWith(
+      'summarization',
+      undefined,
+      expect.stringContaining('Test Meeting'),
+    );
   });
 
-  it('prepends the profile block ahead of the exact same base system prompt when a profile exists', async () => {
+  it('places the profile block AFTER the exact same base system prompt when a profile exists', async () => {
     vi.mocked(getMeeting).mockResolvedValue(makeMeeting() as never);
     vi.mocked(generate).mockResolvedValue({ text: '- Follow up' } as never);
 
@@ -336,7 +344,7 @@ describe('generateActionItems — twin profile injection (V3.3 Task 2)', () => {
     await generateActionItems(MEETING_ID);
     const withProfileSystem = vi.mocked(generate).mock.calls[1][0].system;
 
-    expect(withProfileSystem).toBe(`${PROFILE_BLOCK}\n\n${baselineSystem}`);
+    expect(withProfileSystem).toBe(`${baselineSystem}\n\n${PROFILE_BLOCK}`);
   });
 
   it('does not block action item extraction when buildProfileContext throws', async () => {

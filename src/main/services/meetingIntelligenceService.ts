@@ -30,6 +30,7 @@ import { autoPushActionItems, formatOwnerDueLines, readAutoPushSetting } from '.
 import { ensureUnassignedProject } from './unassignedProjectService';
 import { detectProjectFromTranscript } from './projectDetectionService';
 import { buildProfileContext, getProfile } from './twinProfileService';
+import { meetingRelevanceText } from './twinRelevance';
 import { dispatchPostSession } from './postSessionDispatcher';
 import {
   applySpeakerNames,
@@ -564,18 +565,20 @@ async function injectConfirmedLiveContext(meetingId: string, userPrompt: string)
 // ---------------------------------------------------------------------------
 
 /**
- * Prepend the digital-twin profile context block (see twinProfileService) to a
+ * Append the digital-twin profile context block (see twinProfileService) after a
  * brief/action-item system prompt (`summarization` task type, ~1200 char brief
  * budget). Read fresh from the DB on every call — no caching — so profile edits
  * apply on the very next generation without a restart. Never blocks generation
  * on failure — mirrors injectConfirmedLiveContext above: a lookup failure just
  * skips the block (bonus context, not core generation), returning
- * `systemPrompt` unchanged — byte-identical to today.
+ * `systemPrompt` unchanged — byte-identical to today. `relevanceText` (the
+ * meeting's title + transcript) orders the learned facts so the ones about THIS
+ * meeting are the ones that fit.
  */
-export async function injectTwinProfileContext(systemPrompt: string): Promise<string> {
+export async function injectTwinProfileContext(systemPrompt: string, relevanceText?: string): Promise<string> {
   try {
-    const profileBlock = await buildProfileContext('summarization');
-    return profileBlock ? `${profileBlock}\n\n${systemPrompt}` : systemPrompt;
+    const profileBlock = await buildProfileContext('summarization', undefined, relevanceText);
+    return profileBlock ? `${systemPrompt}\n\n${profileBlock}` : systemPrompt;
   } catch (err) {
     log.error('Twin profile context lookup failed:', err);
     return systemPrompt;
@@ -883,7 +886,7 @@ async function readKnownTerms(projectId: string | null): Promise<string[]> {
  * The WRITER system prompt: the writer role, the template hint, then the roster +
  * brief-language block (participantRosterService owns that wording, so there is
  * exactly one place either sentence lives), and finally the V3.3 digital-twin
- * profile block prepended. Built BEFORE the user prompt so its length can be
+ * profile block appended. Built BEFORE the user prompt so its length can be
  * charged against the context budget (AI-CTX.1).
  *
  * With no roster, no template hint and English (`langName` null) this returns
@@ -891,14 +894,14 @@ async function readKnownTerms(projectId: string | null): Promise<string[]> {
  * baseline ("no profile => the system prompt IS the base prompt") checkable.
  */
 async function buildBriefSystemPrompt(
-  meeting: { template: MeetingTemplateType },
+  meeting: { template: MeetingTemplateType; title?: string; segments?: { content: string }[] },
   roster: RosterEntry[],
   langName: string | null,
 ): Promise<string> {
   const systemPrompt = [BRIEF_WRITER_PROMPT, templateHintBlock(meeting.template), formatRosterBlock(roster, langName)]
     .filter((block) => block.length > 0)
     .join('\n\n');
-  return injectTwinProfileContext(systemPrompt);
+  return injectTwinProfileContext(systemPrompt, meetingRelevanceText(meeting));
 }
 
 /**
@@ -1187,6 +1190,8 @@ export async function generateBrief(meetingId: string): Promise<MeetingBrief | n
  */
 async function buildActionSystemPrompt(meeting: {
   id: string;
+  title?: string;
+  segments?: { content: string }[];
   template: MeetingTemplateType;
   transcriptionLanguage: string | null;
   transcriptionCoverage?: { detectedLanguage?: string | null } | null;
@@ -1210,9 +1215,9 @@ async function buildActionSystemPrompt(meeting: {
   // chunk on the chunked path without threatening the window.
   actionSystemPrompt += buildSuppressionInstruction(await readAcceptedLiveActionTitles(meeting.id));
 
-  // Digital-twin profile context (V3.3 Task 2) — who the user is, prepended to
+  // Digital-twin profile context (V3.3 Task 2) — who the user is, appended to
   // the system prompt so extracted action items read like they know the professional.
-  return injectTwinProfileContext(actionSystemPrompt);
+  return injectTwinProfileContext(actionSystemPrompt, meetingRelevanceText(meeting));
 }
 
 /**

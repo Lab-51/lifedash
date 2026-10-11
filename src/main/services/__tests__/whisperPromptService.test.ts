@@ -13,7 +13,7 @@ import { vector } from '@electric-sql/pglite/vector';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import * as schema from '../../db/schema';
-import { calendarEvents, entities, entityLinks, meetings, projects, settings } from '../../db/schema';
+import { calendarEvents, entities, entityLinks, meetings, projects, settings, twinProfile } from '../../db/schema';
 import { DEFAULT_MIXED_PROMPTS } from '../../../shared/types/transcription';
 import type { CalendarEventAttendee } from '../../../shared/types/calendar';
 
@@ -90,6 +90,7 @@ async function clearTables(): Promise<void> {
   await holder.db.delete(calendarEvents);
   await holder.db.delete(projects);
   await holder.db.delete(settings);
+  await holder.db.delete(twinProfile);
 }
 
 beforeAll(async () => {
@@ -245,5 +246,86 @@ describe('buildInitialPrompt — GLOSSARY_BUDGET_CHARS cap', () => {
     const meetingId = await seedMeeting({});
 
     expect(await buildInitialPrompt(meetingId, 'en')).toBe('A short glossary');
+  });
+});
+
+// === the twin's people and vocabulary (TWIN-LOOP Task 4) ============================
+
+async function setTwin(
+  people: { name: string; role?: string; org?: string }[],
+  vocabulary: { term: string; meaning: string }[],
+): Promise<void> {
+  await holder.db.insert(twinProfile).values({ people, vocabulary });
+}
+
+describe('buildInitialPrompt — twin people and vocabulary', () => {
+  it('appends twin people, then vocabulary, AFTER roster, project, topics and the preset glossary', async () => {
+    const projectId = await seedProject('Acme');
+    const otherMeeting = await seedMeeting({ projectId, startedAt: new Date('2026-01-01T00:00:00Z') });
+    await linkEntity(await seedTopic('Widget'), otherMeeting);
+    await setGlossary('en', 'GlossaryText');
+    await setTwin([{ name: 'Quillon Farrow' }], [{ term: 'Zetaflux', meaning: 'invented' }]);
+
+    const meetingId = await seedMeeting({ participants: ['Alice'], projectId });
+
+    expect(await buildInitialPrompt(meetingId, 'en')).toBe(
+      'Alice, Acme, Widget, GlossaryText, Quillon Farrow, Zetaflux',
+    );
+  });
+
+  it('drops twin terms first under the budget — whole items, ranked below the user glossary', async () => {
+    // 'Alice, ' (7) + glossary (290) = 297; + ', Quillon Farrow' = 313 fits; + ', Brindle Vexor' = 328 does not.
+    await setGlossary('en', 'G'.repeat(290));
+    await setTwin([{ name: 'Quillon Farrow' }, { name: 'Brindle Vexor' }], []);
+    const meetingId = await seedMeeting({ participants: ['Alice'] });
+
+    const result = await buildInitialPrompt(meetingId, 'en');
+
+    expect(result).toBe(`Alice, ${'G'.repeat(290)}, Quillon Farrow`);
+    expect(result.length).toBeLessThanOrEqual(GLOSSARY_BUDGET_CHARS);
+  });
+
+  it('dedupes case-insensitively against the roster and the preset glossary, keeping the earlier spelling', async () => {
+    await setGlossary('en', 'Kestrel, Other');
+    await setTwin(
+      [{ name: 'ALICE' }, { name: 'Newcomer Person' }, { name: 'newcomer person' }],
+      [
+        { term: 'kestrel', meaning: 'dup of a glossary term' },
+        { term: 'Zetaflux', meaning: 'x' },
+      ],
+    );
+    const meetingId = await seedMeeting({ participants: ['Alice'] });
+
+    expect(await buildInitialPrompt(meetingId, 'en')).toBe('Alice, Kestrel, Other, Newcomer Person, Zetaflux');
+  });
+
+  it('carries names and terms only — never a role, org or meaning', async () => {
+    await setTwin(
+      [{ name: 'Quillon Farrow', role: 'Chief Wizard', org: 'Invented Holdings' }],
+      [{ term: 'Zetaflux', meaning: 'a made-up meaning' }],
+    );
+    const meetingId = await seedMeeting({});
+
+    const result = await buildInitialPrompt(meetingId, 'en');
+
+    expect(result).toBe('Quillon Farrow, Zetaflux');
+    expect(result).not.toMatch(/Wizard|Holdings|made-up/);
+  });
+
+  it('is byte-identical with no profile, with an empty profile, and when the profile lookup fails', async () => {
+    const projectId = await seedProject('Acme');
+    await setGlossary('en', 'GlossaryText');
+    const meetingId = await seedMeeting({ participants: ['Alice'], projectId });
+    const expected = 'Alice, Acme, GlossaryText';
+
+    expect(await buildInitialPrompt(meetingId, 'en')).toBe(expected); // no twin_profile row
+
+    await setTwin([], []);
+    expect(await buildInitialPrompt(meetingId, 'en')).toBe(expected); // empty profile
+
+    await holder.db.delete(twinProfile);
+    // A malformed row makes the reader throw on `.map` — must degrade, not reject.
+    await holder.db.insert(twinProfile).values({ people: 'not-an-array' as never });
+    expect(await buildInitialPrompt(meetingId, 'en')).toBe(expected);
   });
 });

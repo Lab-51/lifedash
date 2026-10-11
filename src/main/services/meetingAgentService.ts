@@ -154,22 +154,23 @@ export async function getMeetingAgentMode(meetingId: string): Promise<MeetingAge
 // ---------------------------------------------------------------------------
 
 /**
- * Prepend the digital-twin profile context block (see twinProfileService) to
- * the Live Assistant's system prompt. Read fresh from the DB on every call —
+ * Append the digital-twin profile context block (see twinProfileService) AFTER
+ * the Live Assistant's system prompt (the task comes first, the background after). Read fresh from the DB on every call —
  * no caching — so profile edits apply on the very next message without a
  * restart. Profile injection is an enhancement, never a failure source: if
  * buildProfileContext throws for any reason, `basePrompt` is returned
  * unchanged — byte-identical to today, exactly as when no profile has been
- * authored yet.
+ * authored yet. `relevanceText` (what the user just asked) orders the learned
+ * facts so the ones about the question are the ones that fit.
  */
-export async function buildLiveAssistantSystemPrompt(basePrompt: string): Promise<string> {
+export async function buildLiveAssistantSystemPrompt(basePrompt: string, relevanceText?: string): Promise<string> {
   let profileBlock = '';
   try {
-    profileBlock = await buildProfileContext('live_assistant');
+    profileBlock = await buildProfileContext('live_assistant', undefined, relevanceText);
   } catch {
     // profile injection is an enhancement, never a failure source — fall through with ''
   }
-  return profileBlock ? `${profileBlock}\n\n${basePrompt}` : basePrompt;
+  return profileBlock ? `${basePrompt}\n\n${profileBlock}` : basePrompt;
 }
 
 // ---------------------------------------------------------------------------

@@ -512,16 +512,26 @@ describe('buildLiveAssistantSystemPrompt', () => {
     const result = await buildLiveAssistantSystemPrompt(BASE_PROMPT);
 
     expect(result).toBe(BASE_PROMPT);
-    expect(buildProfileContext).toHaveBeenCalledWith('live_assistant');
+    expect(buildProfileContext).toHaveBeenCalledWith('live_assistant', undefined, undefined);
   });
 
-  it('prepends the profile block, separated by a blank line, when a profile exists', async () => {
+  it('forwards what the user asked so learned facts are chosen for the question', async () => {
+    vi.mocked(buildProfileContext).mockResolvedValue('');
+    await buildLiveAssistantSystemPrompt(BASE_PROMPT, 'what did we decide about the audit?');
+    expect(buildProfileContext).toHaveBeenCalledWith(
+      'live_assistant',
+      undefined,
+      'what did we decide about the audit?',
+    );
+  });
+
+  it('puts the base prompt first and the profile block after it, separated by a blank line', async () => {
     const block = 'User profile (the professional you assist):\n\nIdentity: Dana, Staff Engineer';
     vi.mocked(buildProfileContext).mockResolvedValue(block);
 
     const result = await buildLiveAssistantSystemPrompt(BASE_PROMPT);
 
-    expect(result).toBe(`${block}\n\n${BASE_PROMPT}`);
+    expect(result).toBe(`${BASE_PROMPT}\n\n${block}`);
   });
 
   it('falls back to the base prompt byte-identical when buildProfileContext throws (never a failure source)', async () => {

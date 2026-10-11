@@ -129,7 +129,7 @@ function makeDb(cfg: DbConfig) {
     return q;
   };
 
-  return {
+  const db = {
     // Params are intentionally omitted — drizzle passes field projections / table
     // markers that this mock ignores (JS still allows the extra call args).
     select: () => ({
@@ -177,7 +177,14 @@ function makeDb(cfg: DbConfig) {
         },
       }),
     }),
+    // TWIN-LOOP Task 2: extractFacts replaces a meeting's facts via delete+insert inside
+    // a transaction. This table-routed double only needs them to exist and pass through
+    // (the real delete/rollback semantics are pinned in twinMemoryService.replace.test.ts
+    // against a real PGlite database).
+    delete: () => ({ where: () => Promise.resolve() }),
+    transaction: <T>(fn: (tx: unknown) => Promise<T>) => fn(db),
   };
+  return db;
 }
 
 function setDb(cfg: DbConfig) {
@@ -423,6 +430,83 @@ describe('buildExtractionContext — BRIEF-QUAL.2 full notes', () => {
 
     expect(context).not.toContain('Full notes');
     expect(context).not.toContain('[full notes truncated]');
+  });
+});
+
+describe('buildExtractionContext — TWIN-LOOP Task 3 meeting outranks memory', () => {
+  const briefSummary = 'Acme is migrating billing to Stripe.';
+  const NOTES_HEADER = 'Full notes (the complete record behind the brief):';
+  // Synthetic memory: many facts about unrelated gardening topics, plus one about THIS meeting listed LAST
+  // (so a plain "first N that fit" cut would drop it).
+  const manyFacts = (n: number) => [
+    ...Array.from({ length: n }, (_, i) => `Gardening club ${i} stores seed trays in shed ${i}`),
+    'Stripe billing migration needs invoice export',
+  ];
+  const notes = Array.from({ length: 60 }, (_, i) => `- Topic ${i}: detail line for the record`).join('\n');
+
+  it('keeps the full notes when ~300 known facts would otherwise eat the budget', () => {
+    const context = buildExtractionContext(briefSummary, [], manyFacts(300), notes);
+
+    expect(context).toContain(NOTES_HEADER);
+    expect(context).toContain(notes); // whole, not truncated
+    expect(context).not.toContain('[full notes truncated]');
+    expect(context.indexOf(NOTES_HEADER)).toBeLessThan(context.indexOf('Already known'));
+  });
+
+  it('shows the known fact relevant to this meeting and leaves an unrelated one out', () => {
+    const context = buildExtractionContext(briefSummary, [], manyFacts(300), notes);
+
+    expect(context).toContain('- Stripe billing migration needs invoice export');
+    expect(context).not.toContain('Gardening club 299 stores'); // unrelated, past the room
+  });
+
+  it('never exceeds the context cap, whatever the memory, brief, notes or confirmed items', () => {
+    const accepted = Array.from({ length: 20 }, (_, i) => ({
+      type: 'decision',
+      title: `Decision ${i}`,
+      description: null,
+    }));
+    const bigNotes = Array.from({ length: 500 }, (_, i) => `- Topic ${i}: detail line for the record`).join('\n');
+    for (const brief of [briefSummary, 'y'.repeat(3000)]) {
+      const context = buildExtractionContext(brief, accepted, manyFacts(300), bigNotes);
+      expect(context.length).toBeLessThanOrEqual(6000);
+    }
+  });
+
+  it('is byte-identical to the previous layout when the facts and notes are small', () => {
+    const smallNotes = '### Topics\n- Pricing tiers';
+    const facts = ['Sarah leads billing', 'Acme uses Stripe', 'Unrelated gardening note'];
+    const accepted = [{ type: 'decision', title: 'Adopt Stripe', description: null }];
+
+    expect(buildExtractionContext(briefSummary, accepted, facts, smallNotes)).toBe(
+      [
+        `Meeting brief:\n${briefSummary}`,
+        `${NOTES_HEADER}\n${smallNotes}`,
+        'Confirmed live during the meeting:\n- [decision] Adopt Stripe',
+        'Already known (do NOT repeat these):\n- Sarah leads billing\n- Acme uses Stripe\n- Unrelated gardening note',
+      ].join('\n\n'),
+    );
+  });
+});
+
+describe('extractFacts — the dedupe is not narrowed by what the prompt shows', () => {
+  it('still drops a candidate matching an active fact the prompt left out for lack of room', async () => {
+    const others = Array.from({ length: 300 }, (_, i) => ({
+      fact: `Gardening club ${i} stores seed trays in shed ${i}`,
+      status: 'active',
+      sourceMeetingId: 'other-meeting',
+    }));
+    happyDb({ twinFacts: others });
+    vi.mocked(generateValidated).mockResolvedValue([
+      { fact: 'Gardening club 299 stores seed trays in shed 299', category: 'domain' },
+      { fact: 'A genuinely new fact', category: 'domain' },
+    ]);
+
+    await extractFacts(MEETING_ID);
+
+    const { context } = vi.mocked(generateValidated).mock.calls[0][0];
+    expect(context).not.toContain('Gardening club 299 stores'); // not shown to the model...
+    expect(inserted.map((r) => r.fact)).toEqual(['A genuinely new fact']); // ...yet still deduped
   });
 });
 

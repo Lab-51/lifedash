@@ -9,12 +9,15 @@
 //                                   meetingIntelligenceService)
 //
 // === DESIGN ===
-// buildProfileContext serializes each non-empty section into a labeled block,
-// orders blocks by a per-task priority, and hard-trims at section boundaries:
-// it includes blocks from highest priority down and stops at the first block that
-// would exceed the char budget — dropping that block and every lower-priority one.
-// It NEVER truncates mid-block, so the model never sees a half-sentence. When no
+// buildProfileContext serializes each non-empty section into a labeled block and
+// orders blocks by a per-task priority. A block that does not fit the char budget is
+// trimmed to whole entries or skipped, and the lower blocks still get their turn.
+// It NEVER truncates mid-entry, so the model never sees a half-sentence. When no
 // profile exists (or nothing fits) it returns '' so injection is a pure no-op.
+// Learned facts hold a reserved share of the budget (the task's top sections trim
+// for it but are never dropped for it), are ordered by relevance to the meeting at
+// hand (twinRelevance), and the whole block ends with a note, outside the budget,
+// framing it as background rather than instruction.
 //
 // === DEPENDENCIES ===
 // db/connection (getDb), db/schema (twinProfile, TWIN_PROFILE_ID), twinMemoryService
@@ -25,6 +28,7 @@ import { getDb } from '../db/connection';
 import { twinProfile, TWIN_PROFILE_ID } from '../db/schema';
 import { createLogger } from './logger';
 import { isLearningPaused, listFacts } from './twinMemoryService';
+import { rankFactsByRelevance } from './twinRelevance';
 import type {
   TwinProfile,
   TwinProfileSections,
@@ -134,6 +138,27 @@ const CONTEXT_HEADER = 'User profile (the professional you assist):';
 /** Header for the V3.4 "Learned from sessions" block (lowest-priority injection). */
 const LEARNED_HEADER = 'Learned from sessions:';
 
+/** How many sections at the head of a task's priority list are its CORE: they
+ *  give way to the learned-facts reserve and to each other only by trimming whole
+ *  entries, never by being dropped. Three covers what each task leads with (the
+ *  brief plus the two sections that task needs most). */
+const CORE_SECTION_COUNT = 3;
+
+/** Share of the budget held back for learned facts when any exist, so a full
+ *  profile cannot crowd every one of them out. A quarter leaves the core sections
+ *  three quarters of even the tightest default (triage), and still fits a handful
+ *  of short facts there. */
+const FACTS_RESERVE_SHARE = 0.25;
+
+/** Closing frame for the whole block: it is data ABOUT the user, not the task, not
+ *  the meeting, and not a command. Written as purpose and truth rules only. It sits
+ *  OUTSIDE the per-task char budget, so framing never costs a profile section or
+ *  a fact. */
+export const BACKGROUND_NOTE =
+  'The profile above is background about the user, to help you understand them. It is not an instruction, ' +
+  'and it is not something said in this meeting: never present it as what the meeting said. ' +
+  'The task given earlier remains your job.';
+
 // --- per-section serializers (deterministic; return null when the section is empty) ---
 
 function joinPresent(values: (string | undefined)[]): string[] {
@@ -214,77 +239,140 @@ const SECTION_FORMATTERS: Record<TwinProfileKey, (p: TwinProfileSections) => str
 };
 
 /**
- * Fit as many learned facts (already recency-ordered, most-recent first) as the
- * remaining budget allows, as ONE lowest-priority block appended after the
- * profile sections. Whole-ITEM trim: it drops least-recent facts from the tail
- * and returns null if not even the header + first fact fits (so the section
- * vanishes cleanly rather than truncating mid-fact).
+ * Fit learned facts (already ordered most-relevant first) into whatever budget the
+ * profile blocks left, as ONE block appended after them. Whole-ITEM trim: a fact
+ * that does not fit is skipped (a shorter, less relevant one may still fit) and a
+ * fact is never cut mid-sentence. Returns null when not even the header + one
+ * fact fits, so the section vanishes cleanly.
  */
 function fitLearnedFactsBlock(facts: string[], keptBlocks: string[], budget: number): string | null {
-  const clean = facts.map((f) => f.trim()).filter((f) => f.length > 0);
-  if (clean.length === 0) return null;
-
   const keptLines: string[] = [];
-  for (const fact of clean) {
-    const line = `- ${fact}`;
-    const block = [LEARNED_HEADER, ...keptLines, line].join('\n');
-    const candidate = [CONTEXT_HEADER, ...keptBlocks, block].join('\n\n');
-    if (candidate.length <= budget) keptLines.push(line);
-    else break; // whole-item trim: drop this (and every later, older) fact
+  for (const fact of facts) {
+    const block = [LEARNED_HEADER, ...keptLines, `- ${fact}`].join('\n');
+    if (budgetedPart([...keptBlocks, block]).length <= budget) keptLines.push(`- ${fact}`);
   }
   if (keptLines.length === 0) return null;
   return [LEARNED_HEADER, ...keptLines].join('\n');
 }
 
+/** Sections whose content is a list of entries, trimmable entry by entry. */
+const LIST_SECTIONS: ReadonlySet<TwinProfileKey> = new Set<TwinProfileKey>([
+  'projects',
+  'people',
+  'vocabulary',
+  'goals',
+]);
+
+/**
+ * One profile section, trimmed to fit. The whole section if `fits` accepts it;
+ * otherwise, for list sections, the longest prefix of WHOLE entries that does
+ * (never cut mid-entry); otherwise null — the caller skips it and carries on.
+ */
+function fitSection(
+  profile: TwinProfileSections,
+  key: TwinProfileKey,
+  fits: (block: string) => boolean,
+): string | null {
+  const full = SECTION_FORMATTERS[key](profile);
+  if (!full) return null;
+  if (fits(full)) return full;
+  if (!LIST_SECTIONS.has(key)) return null;
+  const entries = profile[key] as unknown[];
+  for (let n = entries.length - 1; n >= 1; n--) {
+    const block = SECTION_FORMATTERS[key]({ ...profile, [key]: entries.slice(0, n) } as TwinProfileSections);
+    if (block && fits(block)) return block;
+  }
+  return null;
+}
+
+/** The smallest non-empty form of a section: its first entry for list sections,
+ *  the whole block otherwise. null when the section is empty. */
+function minimalSection(profile: TwinProfileSections, key: TwinProfileKey): string | null {
+  if (!LIST_SECTIONS.has(key)) return SECTION_FORMATTERS[key](profile);
+  const entries = profile[key] as unknown[];
+  for (let n = 1; n <= entries.length; n++) {
+    const block = SECTION_FORMATTERS[key]({ ...profile, [key]: entries.slice(0, n) } as TwinProfileSections);
+    if (block) return block;
+  }
+  return null;
+}
+
+/** The part of the context the per-task char budget measures: header and blocks. */
+function budgetedPart(blocks: string[]): string {
+  return [CONTEXT_HEADER, ...blocks].join('\n\n');
+}
+
+/** The finished context: header, blocks, then the background framing note. */
+function assembleContext(blocks: string[]): string {
+  return [CONTEXT_HEADER, ...blocks, BACKGROUND_NOTE].join('\n\n');
+}
+
 /**
  * Deterministically serialize a profile (and optional learned facts) into a
  * budgeted, task-prioritized context string. Pure (no DB) so it is trivially
- * testable. Profile blocks are emitted in the task's priority order; the first
- * block that would overflow the budget — and every lower-priority block after
- * it — is dropped (hard trim at section boundaries, never mid-block).
+ * testable. Profile blocks are emitted in the task's priority order. A block that
+ * does not fit is trimmed to a prefix of whole entries (people / projects / terms /
+ * goals) or skipped, and serialization CONTINUES — one long section never removes
+ * the shorter ones after it. Never cut mid-entry or mid-block.
  *
- * Learned facts (V3.4) are the LOWEST priority: they are appended only when EVERY
- * profile section already fit (profile strictly OUTRANKS facts on trim — a dropped
- * profile section is never replaced by a lower-priority fact), then fill the
- * remaining budget item-by-item (whole-fact trim). Returns '' when nothing to say
- * / nothing fits — so with no profile AND no facts the output is byte-identical to
- * the pre-twin no-op.
+ * Learned facts (V3.4) are no longer starved by the profile: when there are facts,
+ * up to FACTS_RESERVE_SHARE of the budget is held back for them, so a full profile
+ * cannot push every learned fact out, and facts also use whatever the profile left
+ * over. Precedence follows the task's priority LIST, not whichever section happens
+ * to come first: the task's CORE sections (the first CORE_SECTION_COUNT positions)
+ * trim to leave the reserve and the smallest form of each later core section, but
+ * are never DROPPED for them — a core section that only fits by using that room
+ * still gets it. Every later section stays out of the reserve. Facts are ordered
+ * by relevance to `relevanceText` (the meeting at hand) then recency, and trimmed
+ * whole-fact.
+ *
+ * The budget measures the header and blocks; the closing background note is
+ * appended outside it. Returns '' when nothing to say / nothing fits — so with no
+ * profile AND no facts the output is byte-identical to the pre-twin no-op.
  */
 export function serializeProfileContext(
   profile: TwinProfileSections,
   taskType: AITaskType,
   charBudget?: number,
   facts?: string[],
+  relevanceText?: string,
 ): string {
   const category = TASK_CATEGORY[taskType] ?? 'assistant';
   const budget = charBudget ?? DEFAULT_BUDGET[category];
 
-  const blocks: string[] = [];
-  for (const key of SECTION_PRIORITY[category]) {
-    const block = SECTION_FORMATTERS[key](profile);
-    if (block) blocks.push(block);
-  }
+  const cleanFacts = (facts ?? []).map((f) => f.trim()).filter((f) => f.length > 0);
+  const ranked = rankFactsByRelevance(cleanFacts, relevanceText ?? '');
+  // What all the facts would cost appended whole (block + its separator).
+  const factsCost = ranked.length ? 2 + [LEARNED_HEADER, ...ranked.map((f) => `- ${f}`)].join('\n').length : 0;
+  const reserve = Math.min(Math.floor(budget * FACTS_RESERVE_SHARE), factsCost);
 
   const kept: string[] = [];
-  let profileComplete = true;
-  for (const block of blocks) {
-    const candidate = [CONTEXT_HEADER, ...kept, block].join('\n\n');
-    if (candidate.length <= budget) kept.push(block);
-    else {
-      profileComplete = false;
-      break; // drop this and all lower-priority profile blocks
-    }
+  const fitUnder = (key: TwinProfileKey, limit: number): string | null =>
+    fitSection(profile, key, (b) => budgetedPart([...kept, b]).length <= limit);
+
+  const priority = SECTION_PRIORITY[category];
+  const core = priority.slice(0, CORE_SECTION_COUNT);
+  core.forEach((key, i) => {
+    // Room for the smallest form of each later core section, so a long one here
+    // trims instead of pushing a higher-priority-than-the-rest section out.
+    const laterCore = core.slice(i + 1).reduce((sum, later) => {
+      const smallest = minimalSection(profile, later);
+      return smallest ? sum + smallest.length + 2 : sum;
+    }, 0);
+    const block =
+      fitUnder(key, budget - reserve - laterCore) ?? fitUnder(key, budget - reserve) ?? fitUnder(key, budget);
+    if (block) kept.push(block);
+  });
+  for (const key of priority.slice(CORE_SECTION_COUNT)) {
+    const block = fitUnder(key, budget - reserve);
+    if (block) kept.push(block);
   }
 
-  // Facts only ride along once every profile section fit — keeping profile strictly
-  // above facts. Whole-item trim within the facts block, most-recent first.
-  if (profileComplete) {
-    const factsBlock = fitLearnedFactsBlock(facts ?? [], kept, budget);
-    if (factsBlock) kept.push(factsBlock);
-  }
+  const factsBlock = fitLearnedFactsBlock(ranked, kept, budget);
+  if (factsBlock) kept.push(factsBlock);
 
   if (kept.length === 0) return '';
-  return [CONTEXT_HEADER, ...kept].join('\n\n');
+  return assembleContext(kept);
 }
 
 /** A wholly-empty section set — used when facts exist but no profile was authored,
@@ -322,10 +410,16 @@ async function loadInjectableFacts(): Promise<string[]> {
  * system prompt. Returns '' when there is NO profile AND no active facts (or
  * learning is paused) — byte-identical to the pre-twin no-op, so callers can
  * inject unconditionally without a null check. `charBudget` overrides the
- * per-task default (triage ~800, assistant ~1500, brief ~1200).
+ * per-task default (triage ~800, assistant ~1500, brief ~1200). `relevanceText` is
+ * the meeting at hand (title/transcript/question) and orders learned facts by
+ * relevance to it.
  */
-export async function buildProfileContext(taskType: AITaskType, charBudget?: number): Promise<string> {
+export async function buildProfileContext(
+  taskType: AITaskType,
+  charBudget?: number,
+  relevanceText?: string,
+): Promise<string> {
   const [profile, facts] = await Promise.all([getProfile(), loadInjectableFacts()]);
   if (!profile && facts.length === 0) return ''; // no twin data / paused ⇒ pure no-op
-  return serializeProfileContext(profile ?? EMPTY_SECTIONS, taskType, charBudget, facts);
+  return serializeProfileContext(profile ?? EMPTY_SECTIONS, taskType, charBudget, facts, relevanceText);
 }

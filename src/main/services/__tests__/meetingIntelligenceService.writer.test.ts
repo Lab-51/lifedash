@@ -638,14 +638,14 @@ describe('generateBrief — twin profile baseline (SPEC 255)', () => {
     expect(generateCalls()[0].system).toBe(BRIEF_WRITER_PROMPT);
   });
 
-  it('with a profile, the system prompt is the block, a blank line, then that same baseline', async () => {
+  it('with a profile, the system prompt is that same baseline, a blank line, then the block', async () => {
     const profile = 'User profile (the professional you assist): Dana, product lead.';
     vi.mocked(buildProfileContext).mockResolvedValue(profile);
     buildDb();
 
     await generateBrief(MEETING_ID);
 
-    expect(generateCalls()[0].system).toBe(`${profile}\n\n${BRIEF_WRITER_PROMPT}`);
+    expect(generateCalls()[0].system).toBe(`${BRIEF_WRITER_PROMPT}\n\n${profile}`);
   });
 });
 

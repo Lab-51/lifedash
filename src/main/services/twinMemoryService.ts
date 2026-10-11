@@ -19,14 +19,30 @@
 // throw into the dispatcher (defensive + error-isolated), so a learning failure
 // never harms brief generation.
 //
+// === REGENERATE REPLACES (TWIN-LOOP Task 2) ===
+// A meeting's active facts always come from its latest SUCCESSFUL extraction: a
+// pass in which the model returned >=1 candidate deletes that meeting's earlier
+// ACTIVE facts and inserts the new set in one transaction — even when every
+// candidate dedupes away (then the new set is empty and the old facts simply go:
+// the extraction succeeded and found nothing new to keep for this meeting). The
+// old set is kept ONLY when the pass was skipped (paused, no model, no material,
+// the latest brief is a failure card), failed, or the model returned zero
+// candidates ([]). Forgotten facts, other meetings' facts, interview facts and kept
+// facts of deleted meetings are never touched. Passes for the same meeting run one
+// at a time, in call order; each reads the latest brief when it RUNS, which is why
+// a failure-card brief (a later Regenerate that failed) is a skip, never material.
+// The forgotten list is re-read INSIDE the replace transaction, so a fact the user
+// Forgets while a pass's model call is in flight is never re-learned as active.
+// Accepted (L1): a fact the user restored via undo is an ordinary active fact of
+// its meeting, so the next successful Regenerate of that meeting replaces it too.
+//
 // === LIVE-REFRESH TRIGGER (TWIN-GRAPH.2 Task 4) ===
-// A successful extraction (>=1 fact actually inserted) broadcasts
-// data:changed({scope:'twin-memory'}) so a renderer sitting on Twin -> Memory
-// picks the new fact up without leaving and returning to the tab (see
-// renderer/services/twinMemoryLiveSync.ts, the twin-side sibling to
-// brainLiveSync — that file is NOT touched by this scope). A skip (paused, no
-// model, no material, or everything deduped away) fires nothing: no write, no
-// point refetching.
+// A successful extraction that actually changed rows (>=1 fact inserted, or the
+// meeting's old facts removed) broadcasts data:changed({scope:'twin-memory'}) so a
+// renderer sitting on Twin -> Memory picks the change up without leaving and
+// returning to the tab (see renderer/services/twinMemoryLiveSync.ts, the twin-side
+// sibling to brainLiveSync — that file is NOT touched by this scope). A skip
+// (paused, no model, no material) or a pass that changed nothing fires nothing.
 //
 // === DEPENDENCIES ===
 // drizzle-orm, db/connection (getDb), db/schema (settings/twinFacts/
@@ -37,7 +53,8 @@
 // db/errors (isForeignKeyViolation — MEET-DEL.1 FK-violation classification),
 // briefRecordService (loadLatestBriefRecord/fitNotesWithinBudget — BRIEF-QUAL.2
 // Task 3, the shared "brief + full notes" read path), shared briefRecordText
-// (structureToText — renders the record's structure into the notes block).
+// (structureToText — renders the record's structure into the notes block), shared
+// briefSentinel (isFailedBriefText — a failure-card brief is never material).
 //
 // === MEET-DEL.1: deleted-meeting race absorption ===
 // extractFacts's own insert is guarded twice: a fresh getMeeting() check right
@@ -61,6 +78,8 @@ import { getMeeting } from './meetingService';
 import { isForeignKeyViolation } from '../db/errors';
 import { loadLatestBriefRecord, fitNotesWithinBudget } from './briefRecordService';
 import { structureToText } from '../../shared/utils/briefRecordText';
+import { isFailedBriefText } from '../../shared/briefSentinel';
+import { rankFactsByRelevance } from './twinRelevance';
 import { TWIN_LEARNING_PAUSED_SETTING_KEY } from '../../shared/types/twin';
 import type {
   TwinFact,
@@ -88,6 +107,9 @@ const LABEL_MAX_CHARS = 60;
  *  user-triggered pass stays fast and never blocks the caller; naturally
  *  resumable (each call re-queries "still unlabelled", no cursor to track). */
 const BACKFILL_CHUNK_SIZE = 20;
+
+/** Per-meeting tail of the extraction chain (see extractFacts). */
+const extractionTails = new Map<string, Promise<void>>();
 
 const FACT_CATEGORIES = ['person', 'project', 'preference', 'domain', 'commitment'] as const;
 
@@ -239,11 +261,20 @@ async function loadAcceptedSuggestions(db: Db, meetingId: string): Promise<Accep
   return rows.map((r) => ({ type: r.type, title: r.title, description: r.description }));
 }
 
-/** Every currently-ACTIVE fact's text — feeds BOTH the prompt exclusion list and
- *  the post-parse dedupe. */
-async function loadActiveFactStrings(db: Db): Promise<string[]> {
-  const rows = await db.select({ fact: twinFacts.fact }).from(twinFacts).where(eq(twinFacts.status, 'active'));
-  return rows.map((r) => r.fact);
+/** Every currently-ACTIVE fact's text EXCEPT this meeting's own (TWIN-LOOP Task 2)
+ *  — feeds BOTH the prompt exclusion list and the post-parse dedupe. This meeting's
+ *  earlier active facts are about to be replaced, so they must be neither disclosed
+ *  as "Already known" nor allowed to suppress a rewording. Filtered in JS, not SQL:
+ *  `source_meeting_id <> $1` is NULL (not true) for interview and kept facts, which
+ *  would silently drop exactly the rows that must stay in the list. Newest first, so
+ *  when the context budget forces a choice among equally (ir)relevant facts, recency wins. */
+async function loadActiveFactStrings(db: Db, excludeMeetingId: string): Promise<string[]> {
+  const rows = await db
+    .select({ fact: twinFacts.fact, sourceMeetingId: twinFacts.sourceMeetingId })
+    .from(twinFacts)
+    .where(eq(twinFacts.status, 'active'))
+    .orderBy(desc(twinFacts.createdAt));
+  return rows.filter((r) => r.sourceMeetingId !== excludeMeetingId).map((r) => r.fact);
 }
 
 /** Every FORGOTTEN fact's text — feeds the post-parse dedupe ONLY (never the
@@ -258,6 +289,37 @@ async function loadForgottenFactStrings(db: Db): Promise<string[]> {
  *  carries the meaning, so EXTRACTION_SYSTEM above needs no wording change. */
 const FULL_NOTES_BLOCK_HEADER = 'Full notes (the complete record behind the brief):\n';
 const BLOCK_SEPARATOR = '\n\n';
+const KNOWN_FACTS_HEADER = 'Already known (do NOT repeat these):';
+/** Most of the budget the "Already known" block may CLAIM AHEAD of the full notes
+ *  (TWIN-LOOP Task 3). Below this the block is sized exactly as before; above it the
+ *  notes win the room and the block shrinks to the facts relevant to this meeting. */
+const KNOWN_FACTS_RESERVE_CHARS = 1000;
+
+function knownFactsBlock(facts: string[]): string {
+  return `${KNOWN_FACTS_HEADER}\n${facts.map((f) => `- ${f}`).join('\n')}`;
+}
+
+/**
+ * The "Already known" facts that fit in `room` characters (TWIN-LOOP Task 3). When
+ * the whole list fits it is returned untouched (byte-identical to before). Otherwise
+ * the facts are ranked by relevance to THIS meeting (twinRelevance.rankFactsByRelevance
+ * - the one shared ranker), packed whole-item (never a cut-off fact) into the room, and
+ * returned in their original order. This only shapes what the MODEL is shown; the
+ * post-parse dedupe still sees every fact.
+ */
+function fitKnownFacts(facts: string[], relevanceText: string, room: number): string[] {
+  if (facts.length === 0 || knownFactsBlock(facts).length <= room) return facts;
+  const unique = [...new Set(facts)];
+  const chosen = new Set<string>();
+  let used = KNOWN_FACTS_HEADER.length;
+  for (const fact of rankFactsByRelevance(unique, relevanceText)) {
+    const cost = '\n- '.length + fact.length;
+    if (used + cost > room) continue;
+    used += cost;
+    chosen.add(fact);
+  }
+  return unique.filter((f) => chosen.has(f));
+}
 
 /**
  * Assemble the bounded extraction context from the distilled inputs + the
@@ -281,27 +343,87 @@ export function buildExtractionContext(
   knownFacts: string[],
   notes = '',
 ): string {
-  const blocks: string[] = [];
   const brief = briefSummary.trim();
-  if (brief) blocks.push(`Meeting brief:\n${brief}`);
+  const head: string[] = brief ? [`Meeting brief:\n${brief}`] : [];
+  const tail: string[] = [];
   if (accepted.length > 0) {
     const lines = accepted.map((a) =>
       a.description ? `- [${a.type}] ${a.title}: ${a.description}` : `- [${a.type}] ${a.title}`,
     );
-    blocks.push(`Confirmed live during the meeting:\n${lines.join('\n')}`);
+    tail.push(`Confirmed live during the meeting:\n${lines.join('\n')}`);
   }
-  if (knownFacts.length > 0) {
-    blocks.push(`Already known (do NOT repeat these):\n${knownFacts.map((f) => `- ${f}`).join('\n')}`);
-  }
+  const joinedLength = (blocks: string[]) => blocks.join(BLOCK_SEPARATOR).length;
 
+  // TWIN-LOOP Task 3: the meeting outranks the memory. Priority is brief, then the
+  // full notes, then confirmed-live items, then known facts - the growing fact list
+  // may claim at most KNOWN_FACTS_RESERVE_CHARS ahead of the notes, so after a few
+  // dozen meetings the memory can no longer crowd the notes out.
+  const reservedKnown = Math.min(knownFactsBlock(knownFacts).length, KNOWN_FACTS_RESERVE_CHARS);
+  let notesBlock: string[] = [];
   if (notes) {
-    const todayLength = blocks.join(BLOCK_SEPARATOR).length;
+    const todayLength =
+      joinedLength([...head, ...tail]) + (knownFacts.length > 0 ? reservedKnown + BLOCK_SEPARATOR.length : 0);
     const reserved = FULL_NOTES_BLOCK_HEADER.length + 2 * BLOCK_SEPARATOR.length;
     const fitted = fitNotesWithinBudget(notes, MAX_EXTRACTION_CONTEXT_CHARS - todayLength - reserved);
-    if (fitted) blocks.splice(brief ? 1 : 0, 0, `${FULL_NOTES_BLOCK_HEADER}${fitted}`);
+    if (fitted) notesBlock = [`${FULL_NOTES_BLOCK_HEADER}${fitted}`];
   }
 
+  const blocks = [...head, ...notesBlock, ...tail];
+  if (knownFacts.length > 0) {
+    const room = MAX_EXTRACTION_CONTEXT_CHARS - joinedLength(blocks) - (blocks.length > 0 ? BLOCK_SEPARATOR.length : 0);
+    const shown = fitKnownFacts(knownFacts, `${brief}\n${notes}`, room);
+    if (shown.length > 0) blocks.push(knownFactsBlock(shown));
+  }
   return blocks.join(BLOCK_SEPARATOR);
+}
+
+/**
+ * TWIN-LOOP Task 2: REPLACE this meeting's active facts with `facts`, in ONE
+ * transaction — a failed insert (FK race included) rolls the delete back, so the
+ * old set is never lost without a replacement. Only status='active' rows of THIS
+ * meeting go: forgotten facts (the user's decision), other meetings' facts,
+ * interview facts and kept facts (sourceMeetingId null) are never matched.
+ *
+ * The forgotten texts are re-read HERE, inside the transaction: the list read before
+ * the model call is stale by the time the reply lands, and a fact the user Forgot
+ * meanwhile (this meeting's own, so absent from the pre-call dedupe set) would
+ * otherwise come back as a new active row. `removed` is the delete's row count
+ * (0 when the driver reports none).
+ */
+async function replaceMeetingFacts(
+  db: Db,
+  meetingId: string,
+  facts: DedupedFact[],
+): Promise<{ inserted: (typeof twinFacts.$inferSelect)[]; removed: number }> {
+  return db.transaction(async (tx) => {
+    const forgottenNow = await tx
+      .select({ fact: twinFacts.fact })
+      .from(twinFacts)
+      .where(eq(twinFacts.status, 'forgotten'));
+    const forgottenKeys = new Set(forgottenNow.map((r) => normalizeFact(r.fact)));
+    const fresh = facts.filter((c) => !forgottenKeys.has(normalizeFact(c.fact)));
+    // Never delete without a replacement: nothing new survived, so the old set stays.
+    if (fresh.length === 0) return { inserted: [], removed: 0 };
+
+    const deleted = await tx
+      .delete(twinFacts)
+      .where(and(eq(twinFacts.sourceMeetingId, meetingId), eq(twinFacts.status, 'active')));
+    const removed = deleted?.affectedRows ?? 0;
+
+    const inserted = await tx
+      .insert(twinFacts)
+      .values(
+        fresh.map((c) => ({
+          fact: c.fact,
+          label: c.label, // sanitized by dedupeFacts — null when the model omitted/botched it
+          category: c.category,
+          sourceMeetingId: meetingId, // provenance on EVERY learned fact
+          status: 'active' as const,
+        })),
+      )
+      .returning();
+    return { inserted, removed };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -316,7 +438,23 @@ export function buildExtractionContext(
  * isLearningPaused(); defensive — NEVER throws (so it can never harm the brief),
  * returning `skipped` on any absence/failure. No fabricated facts.
  */
-export async function extractFacts(meetingId: string): Promise<ExtractFactsResult> {
+export function extractFacts(meetingId: string): Promise<ExtractFactsResult> {
+  // TWIN-LOOP Task 2: one pass per meeting at a time, in call order — so the LATEST
+  // call's result is the one that stands (never an older, slower pass finishing last).
+  // extractFactsUnserialized never rejects, so the chain can't be poisoned.
+  const run = (extractionTails.get(meetingId) ?? Promise.resolve()).then(() => extractFactsUnserialized(meetingId));
+  const tail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  extractionTails.set(meetingId, tail);
+  void tail.then(() => {
+    if (extractionTails.get(meetingId) === tail) extractionTails.delete(meetingId);
+  });
+  return run;
+}
+
+async function extractFactsUnserialized(meetingId: string): Promise<ExtractFactsResult> {
   try {
     if (await isLearningPaused()) {
       log.debug('extractFacts — learning paused; no-op (no extraction)');
@@ -337,11 +475,23 @@ export async function extractFacts(meetingId: string): Promise<ExtractFactsResul
       // still covers the "no material at all" case.
       return { status: 'skipped', reason: 'failed', facts: [] };
     }
+    if (isFailedBriefText(briefRecord.summary)) {
+      // A queued pass reads the latest brief when it RUNS; if a later Regenerate
+      // failed meanwhile, that row is the failure card — never learn from it, and
+      // keep the facts the last good brief produced.
+      log.info(`Latest brief of meeting ${meetingId} is a failure card — facts kept, nothing learned`);
+      return { status: 'skipped', reason: 'failed', facts: [] };
+    }
 
-    // Active facts feed BOTH the model's "Already known" exclusion list AND the
-    // dedupe. Forgotten facts feed the dedupe ONLY — so a Forgotten fact is neither
-    // re-learned nor re-disclosed to the model.
-    const [existingActive, forgotten] = await Promise.all([loadActiveFactStrings(db), loadForgottenFactStrings(db)]);
+    // Active facts of OTHER meetings (and interview/kept facts) feed BOTH the model's
+    // "Already known" exclusion list AND the dedupe; this meeting's own are excluded
+    // because a successful pass replaces them. Forgotten facts (any meeting, this one
+    // included) feed the dedupe ONLY — so a Forgotten fact is neither re-learned nor
+    // re-disclosed to the model, and the replace below never touches it.
+    const [existingActive, forgotten] = await Promise.all([
+      loadActiveFactStrings(db, meetingId),
+      loadForgottenFactStrings(db),
+    ]);
     // BRIEF-QUAL.2: the record's rendered structure, brief-first — see
     // buildExtractionContext's own doc comment for the budget/placement rules.
     const notes = briefRecord.structure ? structureToText(briefRecord.structure) : '';
@@ -360,7 +510,11 @@ export async function extractFacts(meetingId: string): Promise<ExtractFactsResul
     });
     if (parsed == null) return { status: 'skipped', reason: 'failed', facts: [] };
 
-    const deduped = dedupeFacts(parsed as ExtractedFact[], [...existingActive, ...forgotten]);
+    // The old set is replaced only when at least one NEW fact survives dedupe: a reply of
+    // nothing, or only of facts already known elsewhere / forgotten, keeps it. A weak
+    // model echoing the "Already known" list must never hard-delete a meeting's memory.
+    const candidates = (parsed as ExtractedFact[]).filter((c) => c.fact.trim());
+    const deduped = dedupeFacts(candidates, [...existingActive, ...forgotten]);
     if (deduped.length === 0) return { status: 'ok', facts: [] };
 
     // MEET-DEL.1: re-check existence immediately before the write — the extraction
@@ -372,23 +526,12 @@ export async function extractFacts(meetingId: string): Promise<ExtractFactsResul
       return { status: 'skipped', reason: 'meeting-deleted', facts: [] };
     }
 
-    const inserted = await db
-      .insert(twinFacts)
-      .values(
-        deduped.map((c) => ({
-          fact: c.fact,
-          label: c.label, // sanitized by dedupeFacts — null when the model omitted/botched it
-          category: c.category,
-          sourceMeetingId: meetingId, // provenance on EVERY learned fact
-          status: 'active' as const,
-        })),
-      )
-      .returning();
+    const { inserted, removed } = await replaceMeetingFacts(db, meetingId, deduped);
 
-    log.info(`Learned ${inserted.length} fact(s) from meeting ${meetingId}`);
-    // Live-growth trigger: only on an actual write — a renderer sitting on the
-    // Memory tab has something new to bloom in.
-    notifyDataChanged({ scope: 'twin-memory' });
+    log.info(`Learned ${inserted.length} fact(s) from meeting ${meetingId} (replaced ${removed})`);
+    // Live-refresh trigger: only on an actual change — a renderer sitting on the
+    // Memory tab has something new to bloom in (or old facts to drop).
+    if (inserted.length > 0 || removed > 0) notifyDataChanged({ scope: 'twin-memory' });
     return { status: 'ok', facts: inserted.map(rowToFact) };
   } catch (err) {
     if (isForeignKeyViolation(err)) {

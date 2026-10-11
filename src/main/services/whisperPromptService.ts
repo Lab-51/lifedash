@@ -14,6 +14,8 @@
 //      <presetCode>`), falling back to the built-in trilingual default ONLY for
 //      the three mixed presets — plain presets have no built-in default and stay
 //      empty when unset.
+//   4. the twin profile's people names and vocabulary terms (TWIN-LOOP Task 4) —
+//      one item each, deduped against everything above, LOWEST priority.
 // Each of those is one "item". The joined string is capped to a token-safe
 // character budget by dropping WHOLE items from the end (lowest priority
 // first) — never by slicing a name in half.
@@ -43,6 +45,7 @@ import { entities, entityLinks, meetings, projects, settings } from '../db/schem
 import { buildRoster } from './participantRosterService';
 import { normalizeEntityName } from './entityService';
 import { resolveLanguagePreset, DEFAULT_MIXED_PROMPTS } from '../../shared/types/transcription';
+import { loadTwinGlossaryTerms } from './twinGlossaryTerms';
 import { createLogger } from './logger';
 
 const log = createLogger('WhisperPrompt');
@@ -140,6 +143,16 @@ export async function buildInitialPrompt(meetingId: string, presetCode: string):
   // 3. The user's glossary for this preset (or the mixed default when unset).
   const glossaryText = await loadPresetGlossary(db, presetCode);
   if (glossaryText) items.push(glossaryText);
+
+  // 4. The twin's people and vocabulary — lowest priority, so the whole-item budget
+  //    below drops them first. Skipped when already present (case-insensitively) in
+  //    anything above, including the individual terms of the preset glossary.
+  const present = new Set(items.flatMap((item) => item.split(',')).map((t) => t.trim().toLowerCase()));
+  for (const term of await loadTwinGlossaryTerms()) {
+    if (present.has(term.toLowerCase())) continue;
+    present.add(term.toLowerCase());
+    items.push(term);
+  }
 
   // Drop whole items from the end (lowest priority first) until the joined
   // string fits the budget — never slice mid-item.

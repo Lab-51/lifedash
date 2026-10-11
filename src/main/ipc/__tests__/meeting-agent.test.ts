@@ -283,7 +283,7 @@ describe('meeting-agent:send — twin profile injection wiring', () => {
     const handler = registeredHandlers.get('meeting-agent:send')!;
     await handler(makeFakeEvent(), VALID_MEETING_ID, 'hello');
 
-    expect(meetingAgentService.buildLiveAssistantSystemPrompt).toHaveBeenCalledWith(SYSTEM_PROMPT);
+    expect(meetingAgentService.buildLiveAssistantSystemPrompt).toHaveBeenCalledWith(SYSTEM_PROMPT, 'hello');
     const streamArg = vi.mocked(streamText).mock.calls[0][0] as { system: string };
     // Default mock is an identity passthrough — proves streamText's `system` is
     // byte-identical to the base SYSTEM_PROMPT when no profile is injected.
@@ -322,7 +322,7 @@ describe('meeting-agent:send — post-meeting Q&A branch', () => {
 
     const streamArg = vi.mocked(streamText).mock.calls[0][0] as { system: string; tools: unknown };
     expect(streamArg.tools).toEqual({ live: true });
-    expect(meetingAgentService.buildLiveAssistantSystemPrompt).toHaveBeenCalledWith(SYSTEM_PROMPT);
+    expect(meetingAgentService.buildLiveAssistantSystemPrompt).toHaveBeenCalledWith(SYSTEM_PROMPT, expect.any(String));
     expect(streamArg.system).toBe(SYSTEM_PROMPT);
   });
 
@@ -341,6 +341,7 @@ describe('meeting-agent:send — post-meeting Q&A branch', () => {
     expect(streamArg.tools).toEqual({ qa: true });
     expect(meetingAgentService.buildLiveAssistantSystemPrompt).toHaveBeenCalledWith(
       meetingAgentService.QA_SYSTEM_PROMPT,
+      expect.any(String),
     );
     expect(streamArg.system).toBe(meetingAgentService.QA_SYSTEM_PROMPT);
   });

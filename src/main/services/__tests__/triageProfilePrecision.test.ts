@@ -229,12 +229,13 @@ describe('triage profile precision harness (prompt plumbing, NOT real-model accu
     }
   });
 
-  it("profile ON prepends the exact header and the fixture's vocabulary term for every fixture", async () => {
+  it("profile ON appends the exact header and the fixture's vocabulary term for every fixture", async () => {
     for (const fixture of fixtures) {
       const { on } = await buildPrompts(fixture);
-      expect(on.startsWith(PROFILE_HEADER)).toBe(true);
+      expect(on).toContain(PROFILE_HEADER);
+      expect(on.indexOf('You extract concrete')).toBeLessThan(on.indexOf(PROFILE_HEADER));
       expect(on).toContain(fixture.expectedTerm);
-      expect(on).toContain('You extract concrete'); // base instructions still present after the block
+      expect(on).toContain('You extract concrete'); // base instructions still present, ahead of the block
     }
   });
 

@@ -511,16 +511,22 @@ describe('buildTriageSystemPrompt', () => {
 
     expect(await buildTriageSystemPrompt(false)).toBe(buildSystemPrompt(false));
     expect(await buildTriageSystemPrompt(true)).toBe(buildSystemPrompt(true));
-    expect(buildProfileContext).toHaveBeenCalledWith('live_triage');
+    expect(buildProfileContext).toHaveBeenCalledWith('live_triage', undefined, undefined);
   });
 
-  it('prepends the profile block, separated by a blank line, when a profile exists', async () => {
+  it('forwards the relevance text so learned facts are chosen for THIS discussion', async () => {
+    vi.mocked(buildProfileContext).mockResolvedValue('');
+    await buildTriageSystemPrompt(false, 'the excerpt');
+    expect(buildProfileContext).toHaveBeenCalledWith('live_triage', undefined, 'the excerpt');
+  });
+
+  it('puts the base instructions first and the profile block after them, separated by a blank line', async () => {
     const block = 'User profile (the professional you assist):\n\nVocabulary:\n- ARR: annual recurring revenue';
     vi.mocked(buildProfileContext).mockResolvedValue(block);
 
     const result = await buildTriageSystemPrompt(false);
 
-    expect(result).toBe(`${block}\n\n${buildSystemPrompt(false)}`);
+    expect(result).toBe(`${buildSystemPrompt(false)}\n\n${block}`);
   });
 
   it('falls back to buildSystemPrompt byte-identical when buildProfileContext throws (never a failure source)', async () => {
@@ -533,7 +539,7 @@ describe('buildTriageSystemPrompt', () => {
 });
 
 describe('twin profile injection — full triage pipeline (V3.3 Task 2)', () => {
-  it('reaches the model system prompt with the profile block prepended when a profile exists', async () => {
+  it('reaches the model system prompt with the profile block AFTER the base instructions when a profile exists', async () => {
     const block = 'User profile (the professional you assist):\n\nIdentity: Dana, PM';
     vi.mocked(buildProfileContext).mockResolvedValue(block);
 
@@ -543,7 +549,8 @@ describe('twin profile injection — full triage pipeline (V3.3 Task 2)', () => 
 
     expect(generate).toHaveBeenCalledTimes(1);
     const systemArg = vi.mocked(generate).mock.calls[0][0].system as string;
-    expect(systemArg.startsWith(block)).toBe(true);
+    expect(systemArg.endsWith(block)).toBe(true);
+    expect(systemArg.indexOf('You extract concrete')).toBeLessThan(systemArg.indexOf(block));
     expect(systemArg).toContain('You extract concrete'); // base instructions still present
   });
 

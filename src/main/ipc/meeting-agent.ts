@@ -220,7 +220,7 @@ export function registerMeetingAgentHandlers(): void {
     // back to the base prompt unchanged when no profile exists or the lookup fails.
     // The base is the mode's prompt: Q&A for a finished meeting, SYSTEM_PROMPT live.
     const basePrompt = mode === 'qa' ? meetingAgentService.QA_SYSTEM_PROMPT : SYSTEM_PROMPT;
-    let system = await meetingAgentService.buildLiveAssistantSystemPrompt(basePrompt);
+    let system = await meetingAgentService.buildLiveAssistantSystemPrompt(basePrompt, validContent);
 
     // 5c. Q&A grounding (MEET-GROUND.1): append THIS meeting's title/project/own
     // brief LAST, so the most specific material is also the most recent thing in

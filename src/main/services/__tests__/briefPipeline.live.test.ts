@@ -70,6 +70,22 @@
 // for Task 5), override the resolved bar for a single run — this affects only
 // pass/fail, never whether the suite RUNS (only BRIEF_EVAL=1 controls that):
 //   BRIEF_EVAL_BAR=0 BRIEF_EVAL=1 BRIEF_EVAL_TIER=builtin ... npx vitest run briefPipeline.live
+//
+// TWIN-LOOP Task 5 adds a second test, the TWIN ON/OFF ARM: the same transcript
+// (LONG_FIXTURE plus three informational lines naming two non-roster people and an
+// unusual-spelled term, fixtures/briefEvalTwin.ts) is extracted and written twice —
+// OFF = empty twin tables (today's path), ON = a synthetic profile + ten synthetic
+// learned facts (6 about this meeting, 4 unrelated, unrelated ones newest) read
+// through the REAL getProfile / buildProfileContext / known-terms path with only the
+// two twin table reads stubbed. It prints both arms side by side and writes
+// .eval/live-twin-<tier>-<model>-<ts>.json. MEASUREMENT ONLY — no recall bar is asserted
+// (set one from a run, never from a guess). The default command above runs BOTH tests;
+// to run one, add vitest's -t filter: `-t "twin on/off"` for the twin arm only, or
+// `-t "extracts the long fixture"` for the original test only. Same env vars, e.g.:
+//     Git Bash:    BRIEF_EVAL=1 BRIEF_EVAL_TIER=lmstudio BRIEF_EVAL_BASE_URL=http://localhost:1234/v1 \
+//                  npx vitest run briefPipeline.live -t "twin on/off"
+//     PowerShell:  $env:BRIEF_EVAL='1'; $env:BRIEF_EVAL_TIER='lmstudio'; $env:BRIEF_EVAL_BASE_URL='http://localhost:1234/v1';
+//                  npx vitest run briefPipeline.live -t "twin on/off"
 
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import type { Mock } from 'vitest';
@@ -88,14 +104,32 @@ vi.mock('../../db/schema', () => ({
   settings: { __table: 'settings', key: 'key' },
   aiProviders: { __table: 'aiProviders', id: 'id', enabled: 'enabled' },
   aiUsage: { __table: 'aiUsage' },
+  // TWIN-LOOP Task 5: the two tables the twin arm reads (profile + learned facts).
+  twinProfile: { __table: 'twinProfile', id: 'id' },
+  twinFacts: { __table: 'twinFacts', status: 'status', category: 'category', createdAt: 'createdAt' },
+  TWIN_PROFILE_ID: 'singleton',
 }));
-vi.mock('drizzle-orm', () => ({ eq: vi.fn(() => ({})) }));
+vi.mock('drizzle-orm', () => ({
+  eq: vi.fn(() => ({})),
+  and: vi.fn(() => ({})),
+  asc: vi.fn(() => ({})),
+  desc: vi.fn(() => ({})),
+  isNull: vi.fn(() => ({})),
+}));
 
 import { generate, type ResolvedProvider } from '../ai-provider';
 import { extractMeetingStructure } from '../briefExtractionService';
 import { getDb } from '../../db/connection';
 import { stop } from '../llamaRuntimeService';
 import { LONG_FIXTURE, scoreStructure, proseRecall } from './fixtures/briefEvalFixtures';
+import {
+  SYNTHETIC_TWIN_FACTS,
+  SYNTHETIC_TWIN_PROFILE,
+  countInjectedFacts,
+  countSpellingHits,
+  twinSpellings,
+  withTwinArmLines,
+} from './fixtures/briefEvalTwin';
 
 const LIVE = process.env.BRIEF_EVAL === '1';
 const PROVIDER_ID = 'brief-eval-provider';
@@ -188,11 +222,34 @@ function buildProvider(tier: Tier): ResolvedProvider {
   }
 }
 
+/** The twin arm's DB rows. `null` (the default, and the whole of the original
+ *  eval) leaves both twin tables EMPTY, which is exactly today's path: getProfile
+ *  finds no row and listFacts finds none. */
+type TwinRows = { profile: Record<string, unknown>[]; facts: Record<string, unknown>[] };
+
+function twinRowsOn(): TwinRows {
+  const now = new Date('2026-10-11T00:00:00Z');
+  return {
+    profile: [{ brief: {}, goals: [], preferences: {}, projects: [], ...SYNTHETIC_TWIN_PROFILE, updatedAt: now }],
+    facts: SYNTHETIC_TWIN_FACTS.map((f, i) => ({
+      id: `synthetic-fact-${i}`,
+      fact: f.fact,
+      label: null,
+      category: f.category,
+      sourceMeetingId: null,
+      sourceMeetingLabel: null,
+      status: 'active',
+      createdAt: now,
+    })),
+  };
+}
+
 /** DB stub: `generate()` logs usage through `getDb()` regardless of provider,
  *  and the built-in runtime's idle-stop read also goes through it — this seeds
  *  a plausible `aiProviders` row and the `ai.taskModels` setting from env, the
- *  same shape as `ai-provider.builtin.live.test.ts`'s `liveDb()`. */
-function liveDb(provider: ResolvedProvider) {
+ *  same shape as `ai-provider.builtin.live.test.ts`'s `liveDb()`. The twin arm
+ *  stubs ONLY the two twin table reads; the services that consume them are real. */
+function liveDb(provider: ResolvedProvider, twin: TwinRows | null = null) {
   return {
     select: () => ({
       from: (table: { __table: string }) => {
@@ -214,12 +271,115 @@ function liveDb(provider: ResolvedProvider) {
                     enabled: true,
                   },
                 ]
-              : [];
-        return { where: () => Promise.resolve(rows), limit: () => Promise.resolve(rows) };
+              : table.__table === 'twinProfile'
+                ? (twin?.profile ?? [])
+                : table.__table === 'twinFacts'
+                  ? (twin?.facts ?? [])
+                  : [];
+        return {
+          where: () => Object.assign(Promise.resolve(rows), { orderBy: () => Promise.resolve(rows) }),
+          limit: () => Promise.resolve(rows),
+        };
       },
     }),
     insert: () => ({ values: () => Promise.resolve() }),
   };
+}
+
+type Segments = { startTime: number; content: string }[];
+
+/** One arm of the twin comparison: extract, then ONE real writer call, with the DB
+ *  stubbed to either an empty twin (OFF — today's path) or the synthetic one (ON).
+ *  The writer system prompt goes through the production `injectTwinProfileContext`,
+ *  so the ON arm gets exactly the block the product would inject; OFF gets none. */
+async function runTwinArm(provider: ResolvedProvider, segments: Segments, twin: TwinRows | null) {
+  (getDb as Mock).mockReturnValue(liveDb(provider, twin));
+  const { BRIEF_WRITER_PROMPT, injectTwinProfileContext } = await import('../meetingIntelligenceService');
+  const { meetingRelevanceText } = await import('../twinRelevance');
+  const { loadTwinGlossaryTerms } = await import('../twinGlossaryTerms');
+
+  const extractStart = Date.now();
+  const extraction = await extractMeetingStructure({
+    provider,
+    meeting: { id: 'live-eval-twin', title: MEETING_TITLE, template: 'none', segments },
+    roster: LONG_FIXTURE.truth.roster,
+    langName: null,
+  });
+  const extractWallMs = Date.now() - extractStart;
+  if (!('structure' in extraction)) throw new Error(`Extraction failed: ${extraction.failureReason}`);
+  const { structure } = extraction;
+
+  const system = await injectTwinProfileContext(
+    BRIEF_WRITER_PROMPT,
+    meetingRelevanceText({ title: MEETING_TITLE, segments }),
+  );
+  const injectedContext = system.slice(BRIEF_WRITER_PROMPT.length);
+  const notes = {
+    topics: structure.topics,
+    decisions: structure.decisions,
+    commitments: structure.commitments,
+    openQuestions: structure.openQuestions,
+    terms: structure.terms,
+  };
+  const writerStart = Date.now();
+  const writerResult = await generate({
+    providerId: provider.providerId,
+    providerName: provider.providerName,
+    apiKeyEncrypted: provider.apiKeyEncrypted,
+    baseUrl: provider.baseUrl,
+    model: provider.model,
+    taskType: 'summarization',
+    prompt: `Meeting: ${MEETING_TITLE}\n\nStructured notes (authoritative — the complete record of the meeting):\n${JSON.stringify(notes)}`,
+    system,
+    temperature: provider.temperature,
+    maxTokens: provider.maxTokens,
+  });
+  const writerWallMs = Date.now() - writerStart;
+
+  const score = scoreStructure(structure, LONG_FIXTURE.truth);
+  const spellings = twinSpellings();
+  return {
+    score,
+    structure,
+    systemUnchanged: system === BRIEF_WRITER_PROMPT,
+    injectedContextChars: injectedContext.length,
+    twinTermsOffered: await loadTwinGlossaryTerms(),
+    writerRecall: {
+      topics: proseRecall(writerResult.text, LONG_FIXTURE.truth.topics),
+      decisions: proseRecall(writerResult.text, LONG_FIXTURE.truth.decisions),
+      commitments: proseRecall(writerResult.text, LONG_FIXTURE.truth.commitments),
+    },
+    spellingInBrief: countSpellingHits(writerResult.text, spellings),
+    spellingInStructure: countSpellingHits(JSON.stringify(structure), spellings),
+    facts: countInjectedFacts(injectedContext, SYNTHETIC_TWIN_FACTS),
+    extractWallMs,
+    writerWallMs,
+  };
+}
+
+type TwinArmResult = Awaited<ReturnType<typeof runTwinArm>>;
+
+function armLine(label: string, r: TwinArmResult, heard: number): string {
+  const rc = r.score;
+  return [
+    `twinArm=${label}`,
+    `extractRecall(topics/decisions/commitments)=${rc.topicsRecall.toFixed(2)}/${rc.decisionsRecall.toFixed(2)}/${rc.commitmentsRecall.toFixed(2)}`,
+    `writerRecall(topics/decisions/commitments)=${r.writerRecall.topics.toFixed(2)}/${r.writerRecall.decisions.toFixed(2)}/${r.writerRecall.commitments.toFixed(2)}`,
+    `inventedOwners=${rc.inventedOwners}`,
+    `wrongOwners=${rc.wrongOwners}`,
+    `quotedRate=${rc.quotedRate.toFixed(2)}`,
+    `anchoredRate=${rc.anchoredRate.toFixed(2)}`,
+    `unsupportedCount=${rc.unsupportedCount}`,
+    `anchoredCorrectly=${rc.anchoredCorrectly.toFixed(2)}`,
+    `spellingExactInBrief=${r.spellingInBrief.exact.length}/${heard}`,
+    `spellingNearMissInBrief=${r.spellingInBrief.nearMiss.length}`,
+    `spellingExactInStructure=${r.spellingInStructure.exact.length}/${heard}`,
+    `spellingNearMissInStructure=${r.spellingInStructure.nearMiss.length}`,
+    `factsInjected(relevant/unrelated)=${r.facts.relevantInjected}/${r.facts.relevantTotal} | ${r.facts.unrelatedInjected}/${r.facts.unrelatedTotal}`,
+    `injectedContextChars=${r.injectedContextChars}`,
+    `extractWallMs=${r.extractWallMs}`,
+    `writerWallMs=${r.writerWallMs}`,
+  ].join(' | ');
 }
 
 afterAll(async () => {
@@ -364,5 +524,67 @@ describe.runIf(LIVE)('brief pipeline — LIVE eval against a real model', () => 
       expect(score.wrongOwners).toBe(0);
     },
     30 * 60_000,
+  );
+
+  // TWIN-LOOP Task 5 — measurement only: NO bar is asserted on quality, per the
+  // project practice of setting a bar FROM a run, never from a guess. The only
+  // expectations are plumbing invariants (OFF injects nothing, ON injects something).
+  it(
+    'twin on/off arm: the same transcript extracted and written with the twin OFF, then ON',
+    async () => {
+      const tier = resolveTier();
+      if (!tier) {
+        throw new Error(
+          'BRIEF_EVAL=1 requires BRIEF_EVAL_TIER=builtin|lmstudio|openai|anthropic|google — see the file header.',
+        );
+      }
+      const provider = buildProvider(tier);
+      const segments = withTwinArmLines(LONG_FIXTURE.segments);
+      const transcript = segments.map((s) => s.content).join('\n');
+      // Spellings a model could possibly reproduce: the ones the transcript mentions at all.
+      const heard = twinSpellings().filter((t) => countSpellingHits(transcript, [t]).absent.length === 0).length;
+
+      const off = await runTwinArm(provider, segments, null);
+      const on = await runTwinArm(provider, segments, twinRowsOn());
+
+      console.log(
+        [`tier=${tier}`, `model=${provider.model}`, armLine('OFF', off, heard), armLine('ON', on, heard)].join('\n'),
+      );
+
+      mkdirSync('.eval', { recursive: true });
+      const arm = (r: TwinArmResult) => ({
+        extractRecall: {
+          topics: r.score.topicsRecall,
+          decisions: r.score.decisionsRecall,
+          commitments: r.score.commitmentsRecall,
+        },
+        writerRecall: r.writerRecall,
+        inventedOwners: r.score.inventedOwners,
+        wrongOwners: r.score.wrongOwners,
+        evidence: {
+          quotedRate: r.score.quotedRate,
+          anchoredRate: r.score.anchoredRate,
+          unsupportedCount: r.score.unsupportedCount,
+          anchoredCorrectly: r.score.anchoredCorrectly,
+        },
+        spelling: { heardInTranscript: heard, inBrief: r.spellingInBrief, inStructure: r.spellingInStructure },
+        injectedFacts: r.facts,
+        injectedContextChars: r.injectedContextChars,
+        twinTermsOffered: r.twinTermsOffered,
+        extractWallMs: r.extractWallMs,
+        writerWallMs: r.writerWallMs,
+        missed: r.score.missed,
+      });
+      writeFileSync(
+        `.eval/live-twin-${tier}-${provider.model}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
+        JSON.stringify({ tier, model: provider.model, off: arm(off), on: arm(on) }, null, 2),
+      );
+
+      expect(off.systemUnchanged, 'twin OFF must leave the writer prompt untouched').toBe(true);
+      expect(off.twinTermsOffered).toEqual([]);
+      expect(on.systemUnchanged, 'twin ON must inject a profile/facts block').toBe(false);
+      expect(on.twinTermsOffered.length).toBeGreaterThan(0);
+    },
+    60 * 60_000,
   );
 });

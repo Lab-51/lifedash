@@ -36,6 +36,7 @@ import { mergeDrafts } from './briefStructureMerge';
 import { anchorEvidence } from './evidenceAnchorService';
 import { getDb } from '../db/connection';
 import { loadPresetGlossary } from './whisperPromptService';
+import { loadTwinGlossaryTerms } from './twinGlossaryTerms';
 import {
   capped,
   collectErrorText,
@@ -187,14 +188,16 @@ function mergeKnownTerms(base: string[], extra: string[]): string[] {
   return merged;
 }
 
-/** `knownTerms`, augmented with the whisper glossary when a preset is given. */
+/** `knownTerms`, augmented with the whisper glossary (when a preset is given) and the twin's terms. */
 async function buildKnownTerms(
   existing: string[] | undefined,
   presetCode: string | null | undefined,
 ): Promise<string[]> {
-  const glossaryTerms = await readGlossaryTerms(presetCode);
-  if (glossaryTerms.length === 0) return existing ?? [];
-  return mergeKnownTerms(existing ?? [], glossaryTerms);
+  // Sources in priority order: caller's terms, preset glossary, then the twin's
+  // people/vocabulary (TWIN-LOOP Task 4) — first spelling seen wins.
+  const extra = [...(await readGlossaryTerms(presetCode)), ...(await loadTwinGlossaryTerms())];
+  if (extra.length === 0) return existing ?? [];
+  return mergeKnownTerms(existing ?? [], extra);
 }
 
 /**
