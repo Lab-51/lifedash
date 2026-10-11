@@ -3,6 +3,10 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.17.0 — 2026-10-11
+- release: prep v2.17.0
+- feat(twin): the twin's memory is private, controllable and erasable (TWIN-LOOP.2)
+
 ## v2.16.0 — 2026-10-11
 - release: prep v2.16.0
 - feat(twin): the twin uses what it learns, learns only from the brief you kept, and helps spell names (TWIN-LOOP.1)
