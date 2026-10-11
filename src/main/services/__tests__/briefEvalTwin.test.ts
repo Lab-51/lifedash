@@ -13,6 +13,7 @@ vi.mock('../logger', () => ({
 }));
 vi.mock('../twinMemoryService', () => ({
   isLearningPaused: vi.fn().mockResolvedValue(false),
+  areLearnedFactsInUse: vi.fn().mockResolvedValue(true),
   listFacts: vi.fn().mockResolvedValue([]),
 }));
 

@@ -29,12 +29,14 @@ vi.mock('../TwinWebResearchSection', () => ({
 
 const twinResearchHistoryInfo = vi.fn();
 const twinResearchHistory = vi.fn();
-vi.stubGlobal('electronAPI', { twinResearchHistoryInfo, twinResearchHistory });
+const twinResearchCancel = vi.fn();
+vi.stubGlobal('electronAPI', { twinResearchHistoryInfo, twinResearchHistory, twinResearchCancel });
 
 const { default: TwinResearchPanel } = await import('../TwinResearchPanel');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  twinResearchCancel.mockResolvedValue(true);
 });
 
 describe('TwinResearchPanel — consent gating', () => {
@@ -157,5 +159,43 @@ describe('TwinResearchPanel — web-draft merge', () => {
     const combined = onDraft.mock.calls[0][0] as Partial<TwinProfileSections>;
     expect(combined.domain).toEqual({ industry: 'SaaS', company: 'WebCo' }); // object fields merged
     expect(combined.people).toEqual([{ name: 'Sarah' }, { name: 'Ada' }]); // arrays concatenated
+  });
+});
+
+describe('TwinResearchPanel - leaving while mining (TWIN-LOOP.2)', () => {
+  const LOCAL_INFO = {
+    excerptCount: 1,
+    briefCount: 0,
+    projectCount: 0,
+    cardCount: 0,
+    providerLabel: 'lmstudio',
+    isLocal: true,
+  };
+
+  it('unmounting while mining is in flight cancels the main-side run, once', async () => {
+    twinResearchHistoryInfo.mockResolvedValue(LOCAL_INFO);
+    twinResearchHistory.mockReturnValue(new Promise(() => {})); // never finishes
+    const { unmount } = render(<TwinResearchPanel brief="" onBack={vi.fn()} onDraft={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /mine my history/i }));
+    await vi.waitFor(() => expect(twinResearchHistory).toHaveBeenCalledTimes(1));
+    expect(twinResearchCancel).not.toHaveBeenCalled(); // still open: nothing cancelled
+
+    unmount();
+    expect(twinResearchCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('unmounting when nothing is mining (idle, or after a finished run) cancels nothing', async () => {
+    const idle = render(<TwinResearchPanel brief="" onBack={vi.fn()} onDraft={vi.fn()} />);
+    idle.unmount();
+
+    twinResearchHistoryInfo.mockResolvedValue(LOCAL_INFO);
+    twinResearchHistory.mockResolvedValue({ status: 'ok', draft: { goals: ['Ship'] }, sources: [] });
+    const done = render(<TwinResearchPanel brief="" onBack={vi.fn()} onDraft={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /mine my history/i }));
+    await screen.findByRole('button', { name: /continue to review/i });
+    done.unmount();
+
+    expect(twinResearchCancel).not.toHaveBeenCalled();
   });
 });

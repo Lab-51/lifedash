@@ -415,9 +415,28 @@ export interface TwinMemoryListFilter {
  */
 export interface BackfillFactLabelsResult {
   status: 'ok' | 'skipped';
-  reason?: 'paused' | 'no-model';
+  /** `no-learning-model` (TWIN-LOOP.2): no explicit `twin_learning` model and the
+   *  inherited one is not local — learning refuses the silent cloud fallback. */
+  reason?: 'paused' | 'no-model' | 'no-learning-model';
   labeled: number;
   remaining: number;
+}
+
+/**
+ * Which model the twin's fact learning will run on (`twin:get-learning-model`,
+ * TWIN-LOOP.2). Learning reads every meeting's notes, so it runs only on an
+ * explicitly chosen `twin_learning` model or on a LOCAL model inherited from the
+ * live assistant — never the first-enabled-provider fallback. `willLearn: false`
+ * means nothing will be learned until the user picks a local model or sets one.
+ * The labels are null when there is no usable model.
+ */
+export interface TwinLearningModelInfo {
+  providerLabel: string | null;
+  modelLabel: string | null;
+  isLocal: boolean;
+  /** True when the user set `twin_learning` explicitly (as opposed to inheriting). */
+  explicit: boolean;
+  willLearn: boolean;
 }
 
 /**
@@ -425,9 +444,31 @@ export interface BackfillFactLabelsResult {
  * surface — no dedicated channel). Value is the string `'true'` when paused,
  * anything else (incl. absent) means learning is active. The renderer toggles it
  * via the existing settings:set IPC; main-side reads it via
- * twinMemoryService.isLearningPaused(). Tasks 2/3 both depend on this key.
+ * twinMemoryService.isLearningPaused(). It gates LEARNING only (extraction, label
+ * backfill, entity extraction); whether learned facts are USED is the separate
+ * TWIN_FACTS_IN_USE_SETTING_KEY below.
  */
 export const TWIN_LEARNING_PAUSED_SETTING_KEY = 'twin.learningPaused';
+
+/**
+ * The "Use learned facts" switch (TWIN-LOOP.2 Task 2): `'true'` / `'false'` when the
+ * user has chosen, absent when they never have. Gates INJECTION of learned facts
+ * into prompts only; the profile is injected either way.
+ */
+export const TWIN_FACTS_IN_USE_SETTING_KEY = 'twin.factsInUse';
+
+/**
+ * Whether learned facts are in use, from the stored switch value and the pause flag.
+ * Legacy-preserving default: with no stored choice, facts are in use UNLESS learning
+ * is paused — before this switch existed pausing also stopped using facts, so a user
+ * who paused keeps that behaviour until they turn "Use learned facts" on. Shared by
+ * the main-side injection gate and the renderer so the two can never disagree.
+ */
+export function resolveFactsInUse(stored: string | undefined, learningPaused: boolean): boolean {
+  if (stored === 'true') return true;
+  if (stored === 'false') return false;
+  return !learningPaused;
+}
 
 // ---------------------------------------------------------------------------
 // Twin memory GRAPH (TWIN-GRAPH.2 Task 1) — twin:build-memory-graph

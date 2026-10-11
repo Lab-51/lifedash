@@ -9,7 +9,7 @@
 // - No pagination on list queries yet.
 // - No recording/transcription logic (that's Plans 4.2-4.3).
 
-import { eq, desc, asc, count, inArray, ilike, and, ne } from 'drizzle-orm';
+import { eq, desc, asc, count, inArray, ilike, and, ne, isNull } from 'drizzle-orm';
 import fsp from 'node:fs/promises';
 import { getDb } from '../db/connection';
 import { meetings, transcripts, meetingBriefs, actionItems, twinFacts } from '../db/schema';
@@ -394,6 +394,31 @@ export async function updateMeeting(id: string, data: UpdateMeetingInput): Promi
 }
 
 /**
+ * The twin facts a meeting's deletion acts on: active AND forgotten, never purged.
+ * A purged fact is a text-less tombstone (TWIN-LOOP.2) that must outlive its meeting.
+ */
+const unpurgedFactsOf = (meetingId: string) =>
+  and(eq(twinFacts.sourceMeetingId, meetingId), isNull(twinFacts.purgedAt));
+
+type Tx = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
+
+/**
+ * Provenance snapshot (MEET-DEL.1 keep path): copies a human-readable meeting label
+ * onto the meeting's learned facts so they stay explainable once the schema's
+ * `onDelete: 'set null'` removes their source link. Purged tombstones are skipped.
+ * Call it inside the SAME transaction as the meeting delete — deleteMeeting's keep
+ * path and sync's delete reconciliation both do, so no path strips a fact of its source.
+ */
+export async function stampMeetingFactProvenance(
+  tx: Tx,
+  meetingId: string,
+  title: string | null | undefined,
+): Promise<void> {
+  const label = `${title ?? 'Untitled meeting'} — deleted ${new Date().toISOString().slice(0, 10)}`;
+  await tx.update(twinFacts).set({ sourceMeetingLabel: label }).where(unpurgedFactsOf(meetingId));
+}
+
+/**
  * Read-only preview of what deleting a meeting would affect (MEET-DEL.1) — no
  * side effects. Used by the confirm UI before the user picks the default
  * (forget) or keep path.
@@ -404,12 +429,9 @@ export async function getMeetingDeleteImpact(id: string): Promise<MeetingDeleteI
   const [meetingRow] = await db.select({ audioPath: meetings.audioPath }).from(meetings).where(eq(meetings.id, id));
 
   // No status filter: a delete expunges BOTH active and forgotten facts, so the
-  // impact preview counts both. Ordered so "first 8" is deterministic.
-  const facts = await db
-    .select()
-    .from(twinFacts)
-    .where(eq(twinFacts.sourceMeetingId, id))
-    .orderBy(asc(twinFacts.createdAt));
+  // impact preview counts both. Purged facts (text-less tombstones, TWIN-LOOP.2)
+  // are neither counted nor deleted. Ordered so "first 8" is deterministic.
+  const facts = await db.select().from(twinFacts).where(unpurgedFactsOf(id)).orderBy(asc(twinFacts.createdAt));
 
   const [briefRow] = await db
     .select({ id: meetingBriefs.id })
@@ -451,7 +473,10 @@ export async function getMeetingDeleteImpact(id: string): Promise<MeetingDeleteI
  * provenance onto each fact and leaves the rows alive with their FK nulled by
  * the schema's own `onDelete: 'set null'` when the meeting row goes. Briefs /
  * transcripts / action items already cascade via their own FK — not
- * re-implemented here. Audio cleanup happens AFTER commit and never throws: a
+ * re-implemented here. A PURGED fact (TWIN-LOOP.2 "Delete permanently" — no text,
+ * only a fingerprint) is left alone on both paths: it outlives its meeting with the
+ * FK nulled, so the fact the user erased can still never be re-learned from another
+ * meeting. Audio cleanup happens AFTER commit and never throws: a
  * successful DB deletion must never be reported as a failure because of a
  * file-system hiccup.
  */
@@ -472,10 +497,9 @@ export async function deleteMeeting(id: string, opts?: DeleteMeetingOptions): Pr
 
   await db.transaction(async (tx) => {
     if (opts?.keepLearnedFacts) {
-      const snapshotLabel = `${row?.title ?? 'Untitled meeting'} — deleted ${new Date().toISOString().slice(0, 10)}`;
-      await tx.update(twinFacts).set({ sourceMeetingLabel: snapshotLabel }).where(eq(twinFacts.sourceMeetingId, id));
+      await stampMeetingFactProvenance(tx, id, row?.title);
     } else {
-      await tx.delete(twinFacts).where(eq(twinFacts.sourceMeetingId, id));
+      await tx.delete(twinFacts).where(unpurgedFactsOf(id));
     }
 
     // Cascades briefs/transcripts/action items (onDelete: 'cascade'), and sets

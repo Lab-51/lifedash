@@ -10,6 +10,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../ai-provider', () => ({ resolveTaskModel: vi.fn(), generate: vi.fn() }));
+// Shorten the per-call timeout so the timeout tests do not wait the real 180 s.
+vi.mock('../twinModelCall', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../twinModelCall')>();
+  return {
+    ...actual,
+    runTwinModelCall: <T>(call: (signal: AbortSignal) => Promise<T>, caller?: AbortSignal) =>
+      actual.runTwinModelCall(call, caller, 50),
+  };
+});
 vi.mock('../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
@@ -122,5 +131,23 @@ describe('draftSection — validate/retry/skip discipline', () => {
     const result = await draftSection('identity', 'about me');
     expect(generate).toHaveBeenCalledTimes(1); // generation failure is not a JSON problem — no re-prompt
     expect(result).toEqual({ status: 'skipped', reason: 'failed' });
+  });
+});
+
+describe('draftSection — per-call timeout (TWIN-LOOP.2)', () => {
+  it('a model call that never answers is stopped and degrades to skipped/failed, with no retry', async () => {
+    vi.mocked(generate).mockImplementation(() => new Promise(() => {}));
+    const result = await draftSection('identity', 'anything');
+    expect(result).toEqual({ status: 'skipped', reason: 'failed' });
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(generate).mock.calls[0][0].abortSignal?.aborted).toBe(true);
+  });
+
+  it('passes a live abort signal to generate on a normal call', async () => {
+    vi.mocked(generate).mockResolvedValue({ text: '{}' } as never);
+    await draftSection('identity', 'anything');
+    const signal = vi.mocked(generate).mock.calls[0][0].abortSignal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal?.aborted).toBe(false);
   });
 });

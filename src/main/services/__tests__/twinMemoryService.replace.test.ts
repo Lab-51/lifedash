@@ -3,9 +3,12 @@
 // facts instead of adding to them. extractFacts DELETES user data (a meeting's
 // active facts), so every rule is pinned against a real migrated PGlite database
 // (a mocked delete would not cascade, roll back, or honour NULL semantics). Only
-// the model call (generateValidated), resolveTaskModel, getMeeting and the data
+// the model call (generateValidated), resolveTwinLearningModel, getMeeting and the data
 // notifier are mocked; the queries, the transaction and the FK rules are real.
 // All fixture text is neutral and synthetic — no real meeting content.
+// Also home to the TWIN-LOOP.2 Task 2 switch tests (areLearnedFactsInUse), which need
+// a real settings table: the table-routed double in twinMemoryService.test.ts cannot
+// tell the pause key from the facts-in-use key.
 
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import path from 'node:path';
@@ -15,21 +18,22 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { eq } from 'drizzle-orm';
 import * as schema from '../../db/schema';
-import { meetings, meetingBriefs, twinFacts } from '../../db/schema';
+import { meetings, meetingBriefs, settings, twinFacts } from '../../db/schema';
 
 vi.mock('../logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 const holder = vi.hoisted(() => ({ db: null as unknown as ReturnType<typeof drizzle> }));
 vi.mock('../../db/connection', () => ({ getDb: () => holder.db }));
-vi.mock('../ai-provider', () => ({ resolveTaskModel: vi.fn() }));
+vi.mock('../ai-provider', () => ({ resolveTwinLearningModel: vi.fn() }));
 vi.mock('../twinResearchService', () => ({ generateValidated: vi.fn() }));
 vi.mock('../dataChangeNotifier', () => ({ notifyDataChanged: vi.fn() }));
 vi.mock('../meetingService', () => ({ getMeeting: vi.fn() }));
 
-import { extractFacts, forgetFact } from '../twinMemoryService';
+import { areLearnedFactsInUse, extractFacts, forgetFact } from '../twinMemoryService';
+import { TWIN_FACTS_IN_USE_SETTING_KEY, TWIN_LEARNING_PAUSED_SETTING_KEY } from '../../../shared/types/twin';
 import { BRIEF_FAILURE_SENTINEL } from '../../../shared/briefSentinel';
-import { resolveTaskModel } from '../ai-provider';
+import { resolveTwinLearningModel } from '../ai-provider';
 import { generateValidated } from '../twinResearchService';
 import { notifyDataChanged } from '../dataChangeNotifier';
 import { getMeeting } from '../meetingService';
@@ -78,10 +82,11 @@ const model = (...facts: string[]) => facts.map((fact) => ({ fact, category: 'do
 beforeEach(async () => {
   vi.clearAllMocks();
   await holder.db.delete(twinFacts);
+  await holder.db.delete(settings);
   await holder.db.delete(meetings); // cascades to briefs
   meetingA = await seedMeeting('Meeting A');
   meetingB = await seedMeeting('Meeting B');
-  vi.mocked(resolveTaskModel).mockResolvedValue(PROVIDER as never);
+  vi.mocked(resolveTwinLearningModel).mockResolvedValue(PROVIDER as never);
   vi.mocked(getMeeting).mockResolvedValue({ id: meetingA } as never);
   vi.mocked(generateValidated).mockResolvedValue(model('Replacement fact one.'));
 });
@@ -116,7 +121,7 @@ describe("extractFacts — regenerate replaces the meeting's facts (real PGlite)
   });
 
   it.each([
-    ['no model is configured', () => vi.mocked(resolveTaskModel).mockResolvedValue(null as never)],
+    ['no model is configured', () => vi.mocked(resolveTwinLearningModel).mockResolvedValue(null as never)],
     [
       'the extraction returns nothing usable (null)',
       () => vi.mocked(generateValidated).mockResolvedValue(null as never),
@@ -312,5 +317,54 @@ describe("extractFacts — regenerate replaces the meeting's facts (real PGlite)
     expect(res.facts).toEqual([]);
     expect(await factTexts({ status: 'active' })).toEqual(['Old fact alpha.']); // set-null keep path, never wiped
     expect(notifyDataChanged).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TWIN-LOOP.2 Task 2 — "Pause learning" and "Use learned facts" are independent
+// ---------------------------------------------------------------------------
+describe('areLearnedFactsInUse / pause — two independent switches (real PGlite)', () => {
+  const put = (key: string, value: string) => holder.db.insert(settings).values({ key, value });
+
+  it('defaults to in use when nothing was ever chosen', async () => {
+    expect(await areLearnedFactsInUse()).toBe(true);
+  });
+
+  it('legacy: a user who paused before this switch existed (no facts key) has facts NOT in use', async () => {
+    await put(TWIN_LEARNING_PAUSED_SETTING_KEY, 'true');
+    expect(await areLearnedFactsInUse()).toBe(false);
+  });
+
+  it('paused learning + facts in use: no extraction, facts still in use', async () => {
+    await put(TWIN_LEARNING_PAUSED_SETTING_KEY, 'true');
+    await put(TWIN_FACTS_IN_USE_SETTING_KEY, 'true');
+    await seedFact('Kept fact.', { meetingId: meetingA });
+
+    const res = await extractFacts(meetingA);
+
+    expect(res).toEqual({ status: 'skipped', reason: 'paused', facts: [] });
+    expect(generateValidated).not.toHaveBeenCalled();
+    expect(await areLearnedFactsInUse()).toBe(true);
+    expect(await factTexts({ meetingId: meetingA })).toEqual(['Kept fact.']);
+  });
+
+  it('facts off + learning on: extraction still runs and stores facts, but they are not in use', async () => {
+    await put(TWIN_FACTS_IN_USE_SETTING_KEY, 'false');
+    vi.mocked(generateValidated).mockResolvedValue(model('Learned while off.'));
+
+    const res = await extractFacts(meetingA);
+
+    expect(res.status).toBe('ok');
+    expect(await factTexts({ meetingId: meetingA })).toEqual(['Learned while off.']);
+    expect(await areLearnedFactsInUse()).toBe(false);
+  });
+
+  it('an explicit choice beats the legacy default in both directions', async () => {
+    await put(TWIN_LEARNING_PAUSED_SETTING_KEY, 'true');
+    await put(TWIN_FACTS_IN_USE_SETTING_KEY, 'true');
+    expect(await areLearnedFactsInUse()).toBe(true);
+    await holder.db.update(settings).set({ value: 'false' }).where(eq(settings.key, TWIN_FACTS_IN_USE_SETTING_KEY));
+    await holder.db.delete(settings).where(eq(settings.key, TWIN_LEARNING_PAUSED_SETTING_KEY));
+    expect(await areLearnedFactsInUse()).toBe(false);
   });
 });

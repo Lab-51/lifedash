@@ -25,6 +25,7 @@ vi.mock('electron', () => ({
 vi.mock('../../services/twinProfileService', () => ({
   getProfile: vi.fn(),
   updateProfileSection: vi.fn(),
+  saveProfile: vi.fn(),
 }));
 vi.mock('../../services/twinInterviewService', () => ({ draftSection: vi.fn() }));
 vi.mock('../../services/twinDeepInterviewService', () => ({
@@ -34,9 +35,15 @@ vi.mock('../../services/twinDeepInterviewService', () => ({
 vi.mock('../../services/twinResearchService', () => ({
   getResearchHistoryInfo: vi.fn(),
   researchHistory: vi.fn(),
+  cancelResearchHistory: vi.fn(),
 }));
 vi.mock('../../services/twinWebResearchService', () => ({ researchWeb: vi.fn() }));
-vi.mock('../../services/ai-provider', () => ({ resolveTaskModel: vi.fn() }));
+vi.mock('../../services/ai-provider', () => ({ resolveTaskModel: vi.fn(), getTwinLearningModelInfo: vi.fn() }));
+vi.mock('../../services/twinMemoryService', () => ({
+  listFacts: vi.fn(),
+  purgeFact: vi.fn(),
+  purgeAllForgotten: vi.fn(),
+}));
 
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
@@ -47,7 +54,8 @@ import * as twinProfileService from '../../services/twinProfileService';
 import * as twinDeepInterviewService from '../../services/twinDeepInterviewService';
 import * as twinResearchService from '../../services/twinResearchService';
 import * as twinWebResearchService from '../../services/twinWebResearchService';
-import { resolveTaskModel } from '../../services/ai-provider';
+import { resolveTaskModel, getTwinLearningModelInfo } from '../../services/ai-provider';
+import * as twinMemoryService from '../../services/twinMemoryService';
 
 function makeEvent() {
   return {};
@@ -197,6 +205,22 @@ describe('twin:get-creation-model', () => {
     });
   });
 
+  it('marks the built-in model as local and not frontier', async () => {
+    vi.mocked(resolveTaskModel).mockResolvedValue({
+      providerId: 'p3',
+      providerName: 'builtin',
+      apiKeyEncrypted: null,
+      baseUrl: null,
+      model: 'qwen3',
+    });
+    expect(await handler('twin:get-creation-model')(makeEvent())).toEqual({
+      providerLabel: 'builtin',
+      modelLabel: 'qwen3',
+      isLocal: true,
+      isFrontier: false,
+    });
+  });
+
   it('reports no configured model when none resolves', async () => {
     vi.mocked(resolveTaskModel).mockResolvedValue(null);
     expect(await handler('twin:get-creation-model')(makeEvent())).toEqual({
@@ -205,5 +229,162 @@ describe('twin:get-creation-model', () => {
       isLocal: false,
       isFrontier: false,
     });
+  });
+});
+
+describe('twin:get-learning-model', () => {
+  it('returns the learning-model state from ai-provider unchanged', async () => {
+    const info = { providerLabel: null, modelLabel: null, isLocal: false, explicit: false, willLearn: false };
+    vi.mocked(getTwinLearningModelInfo).mockResolvedValue(info);
+    expect(await handler('twin:get-learning-model')(makeEvent())).toEqual(info);
+  });
+});
+
+describe('Delete permanently channels (TWIN-LOOP.2 Task 3)', () => {
+  const FACT_ID = '11111111-1111-4111-8111-111111111111';
+
+  it('twin:memory-list-forgotten lists forgotten facts only', async () => {
+    vi.mocked(twinMemoryService.listFacts).mockResolvedValue([]);
+    expect(await handler('twin:memory-list-forgotten')(makeEvent())).toEqual([]);
+    expect(twinMemoryService.listFacts).toHaveBeenCalledWith({ status: 'forgotten' });
+  });
+
+  it('twin:memory-purge passes a uuid through and returns the result', async () => {
+    vi.mocked(twinMemoryService.purgeFact).mockResolvedValue(true);
+    expect(await handler('twin:memory-purge')(makeEvent(), FACT_ID)).toBe(true);
+    expect(twinMemoryService.purgeFact).toHaveBeenCalledWith(FACT_ID);
+  });
+
+  it.each([['not-a-uuid'], [''], [42], [undefined]])('twin:memory-purge rejects %j before the service', async (bad) => {
+    await expect(Promise.resolve().then(() => handler('twin:memory-purge')(makeEvent(), bad))).rejects.toThrow();
+    expect(twinMemoryService.purgeFact).not.toHaveBeenCalled();
+  });
+
+  it('twin:memory-purge-all-forgotten returns the purged count', async () => {
+    vi.mocked(twinMemoryService.purgeAllForgotten).mockResolvedValue(3);
+    expect(await handler('twin:memory-purge-all-forgotten')(makeEvent())).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Profile input limits (TWIN-LOOP.2 Task 5) - short 200, free text 4000, lists 500
+// ---------------------------------------------------------------------------
+
+const SHORT = 200;
+const TEXT = 4000;
+const LIST = 500;
+
+// One row per profile field: [section, how to build a value with that field set to `s`].
+const FIELD_CASES: [string, string, number, (s: string) => unknown][] = [
+  ['brief', 'statement', TEXT, (s) => ({ statement: s })],
+  ['identity', 'name', SHORT, (s) => ({ name: s })],
+  ['identity', 'role', SHORT, (s) => ({ role: s })],
+  ['identity', 'seniority', SHORT, (s) => ({ seniority: s })],
+  ['domain', 'industry', SHORT, (s) => ({ industry: s })],
+  ['domain', 'company', SHORT, (s) => ({ company: s })],
+  ['domain', 'focus', TEXT, (s) => ({ focus: s })],
+  ['projects', 'name', SHORT, (s) => [{ name: s }]],
+  ['projects', 'description', TEXT, (s) => [{ name: 'p', description: s }]],
+  ['projects', 'projectId', SHORT, (s) => [{ name: 'p', projectId: s }]],
+  ['people', 'name', SHORT, (s) => [{ name: s }]],
+  ['people', 'role', SHORT, (s) => [{ name: 'p', role: s }]],
+  ['people', 'org', SHORT, (s) => [{ name: 'p', org: s }]],
+  ['vocabulary', 'term', SHORT, (s) => [{ term: s, meaning: 'm' }]],
+  ['vocabulary', 'meaning', TEXT, (s) => [{ term: 't', meaning: s }]],
+  ['goals', 'goal', TEXT, (s) => [s]],
+  ['preferences', 'tone', TEXT, (s) => ({ tone: s })],
+  ['preferences', 'language', SHORT, (s) => ({ language: s })],
+  ['preferences', 'cardTitleStyle', TEXT, (s) => ({ cardTitleStyle: s })],
+];
+
+const EMPTY_PROFILE = {
+  brief: {},
+  identity: {},
+  domain: {},
+  projects: [],
+  people: [],
+  vocabulary: [],
+  goals: [],
+  preferences: {},
+};
+
+describe('twin profile input limits', () => {
+  it.each(FIELD_CASES)(
+    '%s.%s accepts exactly its limit and rejects one over (patch)',
+    async (section, _f, max, build) => {
+      vi.mocked(twinProfileService.updateProfileSection).mockResolvedValue({} as never);
+      await handler('twin:update-profile-section')(makeEvent(), section, build('x'.repeat(max)));
+      expect(twinProfileService.updateProfileSection).toHaveBeenCalledTimes(1);
+
+      vi.mocked(twinProfileService.updateProfileSection).mockClear();
+      await expect(
+        handler('twin:update-profile-section')(makeEvent(), section, build('x'.repeat(max + 1))),
+      ).rejects.toThrow('Validation failed');
+      expect(twinProfileService.updateProfileSection).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(FIELD_CASES)('%s.%s is bounded the same way in twin:save-profile', async (section, _f, max, build) => {
+    vi.mocked(twinProfileService.saveProfile).mockResolvedValue({} as never);
+    await handler('twin:save-profile')(makeEvent(), { ...EMPTY_PROFILE, [section]: build('x'.repeat(max)) });
+    expect(twinProfileService.saveProfile).toHaveBeenCalledTimes(1);
+
+    vi.mocked(twinProfileService.saveProfile).mockClear();
+    await expect(
+      handler('twin:save-profile')(makeEvent(), { ...EMPTY_PROFILE, [section]: build('x'.repeat(max + 1)) }),
+    ).rejects.toThrow('Validation failed');
+    expect(twinProfileService.saveProfile).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['projects', (i: number) => ({ name: `p${i}` })],
+    ['people', (i: number) => ({ name: `p${i}` })],
+    ['vocabulary', (i: number) => ({ term: `t${i}`, meaning: 'm' })],
+    ['goals', (i: number) => `g${i}`],
+  ])('%s holds at most 500 entries', async (section, make) => {
+    vi.mocked(twinProfileService.updateProfileSection).mockResolvedValue({} as never);
+    const list = (n: number) => Array.from({ length: n }, (_, i) => make(i));
+    await handler('twin:update-profile-section')(makeEvent(), section, list(LIST));
+    await expect(handler('twin:update-profile-section')(makeEvent(), section, list(LIST + 1))).rejects.toThrow(
+      'Validation failed',
+    );
+    await expect(
+      handler('twin:save-profile')(makeEvent(), { ...EMPTY_PROFILE, [section]: list(LIST + 1) }),
+    ).rejects.toThrow('Validation failed');
+  });
+});
+
+describe('twin:save-profile', () => {
+  it('validates the whole profile and hands it to saveProfile in one call', async () => {
+    vi.mocked(twinProfileService.saveProfile).mockResolvedValue({ updatedAt: 'now' } as never);
+    const profile = { ...EMPTY_PROFILE, identity: { name: 'Ada' }, goals: ['Ship'] };
+    expect(await handler('twin:save-profile')(makeEvent(), profile)).toEqual({ updatedAt: 'now' });
+    expect(twinProfileService.saveProfile).toHaveBeenCalledTimes(1);
+    expect(twinProfileService.saveProfile).toHaveBeenCalledWith(profile);
+  });
+
+  it.each(['brief', 'identity', 'domain', 'projects', 'people', 'vocabulary', 'goals', 'preferences'])(
+    'rejects a payload missing the %s section, writing nothing',
+    async (missing) => {
+      const partial: Record<string, unknown> = { ...EMPTY_PROFILE };
+      delete partial[missing];
+      await expect(handler('twin:save-profile')(makeEvent(), partial)).rejects.toThrow('Validation failed');
+      expect(twinProfileService.saveProfile).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects one over-limit field among otherwise valid sections without calling the service', async () => {
+    const bad = { ...EMPTY_PROFILE, identity: { name: 'Ada' }, people: [{ name: 'n'.repeat(SHORT + 1) }] };
+    await expect(handler('twin:save-profile')(makeEvent(), bad)).rejects.toThrow('Validation failed');
+    expect(twinProfileService.saveProfile).not.toHaveBeenCalled();
+  });
+});
+
+describe('twin:research-cancel', () => {
+  it('cancels the in-flight history-mining run and reports whether one was running', async () => {
+    vi.mocked(twinResearchService.cancelResearchHistory).mockReturnValueOnce(true).mockReturnValueOnce(false);
+    expect(await handler('twin:research-cancel')(makeEvent())).toBe(true);
+    expect(await handler('twin:research-cancel')(makeEvent())).toBe(false);
+    expect(twinResearchService.cancelResearchHistory).toHaveBeenCalledTimes(2);
   });
 });

@@ -3,6 +3,8 @@
 //   - getProfile()                — read the profile (null when never authored)
 //   - updateProfileSection()      — patch ONE section (the interview UI saves one
 //                                   section at a time), upserting the singleton row
+//   - saveProfile()               — write ALL eight sections in one transaction (the
+//                                   creation wizard's save: whole profile or nothing)
 //   - buildProfileContext()       — deterministic, budgeted, task-aware context
 //                                   string for prompt injection (Task 2 wires this
 //                                   into meetingAgentService / liveTriageService /
@@ -21,13 +23,13 @@
 //
 // === DEPENDENCIES ===
 // db/connection (getDb), db/schema (twinProfile, TWIN_PROFILE_ID), twinMemoryService
-// (isLearningPaused + listFacts — the V3.4 "Learned from sessions" injection).
+// (areLearnedFactsInUse + listFacts — the V3.4 "Learned from sessions" injection).
 
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { twinProfile, TWIN_PROFILE_ID } from '../db/schema';
 import { createLogger } from './logger';
-import { isLearningPaused, listFacts } from './twinMemoryService';
+import { areLearnedFactsInUse, listFacts } from './twinMemoryService';
 import { rankFactsByRelevance } from './twinRelevance';
 import type {
   TwinProfile,
@@ -80,17 +82,54 @@ export async function updateProfileSection<K extends TwinProfileKey>(
   section: K,
   value: TwinProfileSections[K],
 ): Promise<TwinProfile> {
-  const db = getDb();
-  const now = new Date();
   const patch = { [section]: value } as Pick<TwinProfileSections, K>;
+  return rowToProfile(await upsertSections(getDb(), patch, new Date()));
+}
 
+/** Anything that can run an insert — the database itself or a transaction on it. */
+type InsertExecutor = Pick<ReturnType<typeof getDb>, 'insert'>;
+
+/** Upsert the singleton row with the given section(s) + updatedAt; returns the row. */
+async function upsertSections(
+  db: InsertExecutor,
+  patch: Partial<TwinProfileSections>,
+  now: Date,
+): Promise<typeof twinProfile.$inferSelect> {
   const [row] = await db
     .insert(twinProfile)
     .values({ id: TWIN_PROFILE_ID, ...patch, updatedAt: now })
     .onConflictDoUpdate({ target: twinProfile.id, set: { ...patch, updatedAt: now } })
     .returning();
+  return row;
+}
 
-  return rowToProfile(row);
+/** Every section, in the order the wizard has always written them. */
+const PROFILE_SECTION_ORDER: TwinProfileKey[] = [
+  'brief',
+  'identity',
+  'domain',
+  'projects',
+  'people',
+  'vocabulary',
+  'goals',
+  'preferences',
+];
+
+/**
+ * Write all eight sections in ONE transaction (the creation wizard's save): either
+ * the whole profile lands or the previous one is left exactly as it was. Sections
+ * are written one at a time inside the transaction so a failure part-way through
+ * rolls the earlier ones back too. Returns the full saved profile.
+ */
+export async function saveProfile(profile: TwinProfileSections): Promise<TwinProfile> {
+  const now = new Date();
+  return getDb().transaction(async (tx) => {
+    let row: typeof twinProfile.$inferSelect | undefined;
+    for (const key of PROFILE_SECTION_ORDER) {
+      row = await upsertSections(tx, { [key]: profile[key] }, now);
+    }
+    return rowToProfile(row!);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -389,14 +428,14 @@ const EMPTY_SECTIONS: TwinProfileSections = {
 };
 
 /**
- * Load the ACTIVE learned facts to inject, most-recent first. Gated by the
- * learning-pause kill-switch (paused ⇒ inject nothing, mirroring extraction).
- * Defensive: any lookup failure yields [] so injection degrades to profile-only
- * and never breaks a prompt build.
+ * Load the ACTIVE learned facts to inject, most-recent first. Gated by the "Use
+ * learned facts" switch (off ⇒ inject nothing) — NOT by the learning pause, which
+ * only stops new learning. Defensive: any lookup failure yields [] so injection
+ * degrades to profile-only and never breaks a prompt build.
  */
 async function loadInjectableFacts(): Promise<string[]> {
   try {
-    if (await isLearningPaused()) return [];
+    if (!(await areLearnedFactsInUse())) return [];
     const facts = await listFacts({ status: 'active' }); // active only, newest first
     return facts.map((f) => f.fact);
   } catch (err) {
@@ -408,7 +447,7 @@ async function loadInjectableFacts(): Promise<string[]> {
 /**
  * Build the twin profile context string for a given task, ready to append to a
  * system prompt. Returns '' when there is NO profile AND no active facts (or
- * learning is paused) — byte-identical to the pre-twin no-op, so callers can
+ * learned facts are switched off) — byte-identical to the pre-twin no-op, so callers can
  * inject unconditionally without a null check. `charBudget` overrides the
  * per-task default (triage ~800, assistant ~1500, brief ~1200). `relevanceText` is
  * the meeting at hand (title/transcript/question) and orders learned facts by
@@ -420,6 +459,6 @@ export async function buildProfileContext(
   relevanceText?: string,
 ): Promise<string> {
   const [profile, facts] = await Promise.all([getProfile(), loadInjectableFacts()]);
-  if (!profile && facts.length === 0) return ''; // no twin data / paused ⇒ pure no-op
+  if (!profile && facts.length === 0) return ''; // no twin data / facts off ⇒ pure no-op
   return serializeProfileContext(profile ?? EMPTY_SECTIONS, taskType, charBudget, facts, relevanceText);
 }

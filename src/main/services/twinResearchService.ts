@@ -35,6 +35,7 @@
 import { z } from 'zod';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { resolveTaskModel, generate, type ResolvedProvider } from './ai-provider';
+import { runTwinModelCall } from './twinModelCall';
 import { createLogger } from './logger';
 import { getDb } from '../db/connection';
 import { meetings, transcripts, meetingBriefs, projects, cards } from '../db/schema';
@@ -44,7 +45,7 @@ import type {
   TwinResearchResult,
   TwinSourceHint,
 } from '../../shared/types/twin';
-import type { AITaskType } from '../../shared/types/ai';
+import { isLocalProvider, type AITaskType } from '../../shared/types/ai';
 
 const log = createLogger('TwinResearch');
 
@@ -229,8 +230,7 @@ function isCorpusEmpty(c: Corpus): boolean {
 /** Provider label + local flag, following the app's local/cloud convention. */
 function describeProvider(provider: ResolvedProvider | null): { providerLabel: string; isLocal: boolean } {
   if (!provider) return { providerLabel: 'No model configured', isLocal: false };
-  const isLocal = provider.providerName === 'ollama' || provider.providerName === 'lmstudio';
-  return { providerLabel: provider.providerName, isLocal };
+  return { providerLabel: provider.providerName, isLocal: isLocalProvider(provider.providerName) };
 }
 
 /**
@@ -384,6 +384,12 @@ export interface GenerateValidatedOptions {
   temperature?: number;
   /** Override max output tokens (defaults to the provider's, then MAX_OUTPUT_TOKENS). */
   maxTokens?: number;
+  /**
+   * Wizard callers only (history mining): every model call is bounded by the per-call
+   * timeout AND stops when this signal aborts. Omitted (the background learning passes),
+   * the call is unbounded exactly as before.
+   */
+  cancelSignal?: AbortSignal;
 }
 
 /**
@@ -402,18 +408,21 @@ export async function generateValidated(opts: GenerateValidatedOptions): Promise
   for (let attempt = 0; attempt < 2; attempt++) {
     let text: string;
     try {
-      const result = await generate({
-        providerId: provider.providerId,
-        providerName: provider.providerName,
-        apiKeyEncrypted: provider.apiKeyEncrypted,
-        baseUrl: provider.baseUrl,
-        model: provider.model,
-        taskType,
-        prompt,
-        system,
-        temperature: opts.temperature ?? provider.temperature ?? 0,
-        maxTokens: opts.maxTokens ?? provider.maxTokens ?? MAX_OUTPUT_TOKENS,
-      });
+      const callGenerate = (abortSignal?: AbortSignal) =>
+        generate({
+          providerId: provider.providerId,
+          providerName: provider.providerName,
+          apiKeyEncrypted: provider.apiKeyEncrypted,
+          baseUrl: provider.baseUrl,
+          model: provider.model,
+          taskType,
+          prompt,
+          system,
+          temperature: opts.temperature ?? provider.temperature ?? 0,
+          maxTokens: opts.maxTokens ?? provider.maxTokens ?? MAX_OUTPUT_TOKENS,
+          ...(abortSignal ? { abortSignal } : {}),
+        });
+      const result = opts.cancelSignal ? await runTwinModelCall(callGenerate, opts.cancelSignal) : await callGenerate();
       text = result.text ?? '';
     } catch (err) {
       log.debug(`${label} generation failed:`, err instanceof Error ? err.message : err);
@@ -440,7 +449,12 @@ export async function generateValidated(opts: GenerateValidatedOptions): Promise
  * Mine ONE section with the shared validate-retry-skip discipline (see
  * {@link generateValidated}): retry once on malformed output, then skip.
  */
-async function mineSection(provider: ResolvedProvider, key: MineKey, context: string): Promise<unknown | null> {
+async function mineSection(
+  provider: ResolvedProvider,
+  key: MineKey,
+  context: string,
+  cancelSignal?: AbortSignal,
+): Promise<unknown | null> {
   const miner = MINERS[key];
   return generateValidated({
     provider,
@@ -449,6 +463,7 @@ async function mineSection(provider: ResolvedProvider, key: MineKey, context: st
     context,
     schema: miner.schema,
     label: `History mining "${key}"`,
+    cancelSignal,
   });
 }
 
@@ -472,24 +487,32 @@ function buildSources(c: Corpus): TwinSourceHint[] {
  * omitted; the run succeeds as long as ANY section produced usable data (partial
  * success is success). Returns `skipped/failed` only when nothing at all could be
  * extracted (including an empty corpus, which short-circuits every model call).
+ * When `cancelSignal` aborts, no further section call is made and the run returns
+ * skipped/failed even if some sections were already mined (a cancelled run yields
+ * nothing; mining only ever RETURNS a draft - it writes no row anywhere).
  */
-export async function mineProfile(corpus: Corpus, provider: ResolvedProvider): Promise<TwinResearchResult> {
+export async function mineProfile(
+  corpus: Corpus,
+  provider: ResolvedProvider,
+  cancelSignal?: AbortSignal,
+): Promise<TwinResearchResult> {
   if (isCorpusEmpty(corpus)) return { status: 'skipped', reason: 'failed' };
 
   const draft: Partial<Record<MineKey, unknown>> = {};
   let minedAny = false;
 
   for (const key of MINE_KEYS) {
+    if (cancelSignal?.aborted) break;
     const context = clip(MINERS[key].buildContext(corpus), MAX_CONTEXT_CHARS);
     if (!context.trim()) continue; // no source material for this section
-    const value = await mineSection(provider, key, context);
+    const value = await mineSection(provider, key, context, cancelSignal);
     if (value != null && !MINERS[key].isEmpty(value)) {
       draft[key] = value;
       minedAny = true;
     }
   }
 
-  if (!minedAny) return { status: 'skipped', reason: 'failed' };
+  if (cancelSignal?.aborted || !minedAny) return { status: 'skipped', reason: 'failed' };
   // Cast at the boundary: each key/value pair was validated by its section schema.
   return { status: 'ok', draft: draft as Partial<TwinProfileSections>, sources: buildSources(corpus) };
 }
@@ -499,10 +522,33 @@ export async function mineProfile(corpus: Corpus, provider: ResolvedProvider): P
  * assembles the corpus, and runs per-section extraction. Never throws for AI
  * reasons: no model -> `skipped/no-model`; nothing extractable -> `skipped/failed`.
  * The IPC layer trusts the renderer's consent gate before calling this.
+ *
+ * Each run holds an AbortController ({@link cancelResearchHistory} aborts it) and every
+ * section call is bounded by the per-call timeout. A second run that starts while one is
+ * in flight CANCELS the earlier one first: whoever started it is gone or replaced (the
+ * panel disables its button while mining), and two concurrent runs would only fight over
+ * the same model. The cancelled run resolves skipped/failed.
  */
+let activeMining: AbortController | null = null;
+
 export async function researchHistory(): Promise<TwinResearchResult> {
-  const provider = await resolveTaskModel('twin_interview');
-  if (!provider) return { status: 'skipped', reason: 'no-model' };
-  const corpus = await assembleCorpus();
-  return mineProfile(corpus, provider);
+  activeMining?.abort();
+  const run = new AbortController();
+  activeMining = run;
+  try {
+    const provider = await resolveTaskModel('twin_interview');
+    if (!provider) return { status: 'skipped', reason: 'no-model' };
+    const corpus = await assembleCorpus();
+    return await mineProfile(corpus, provider, run.signal);
+  } finally {
+    if (activeMining === run) activeMining = null;
+  }
+}
+
+/** Stop the in-flight history-mining run, if any. Returns whether one was running. */
+export function cancelResearchHistory(): boolean {
+  if (!activeMining) return false;
+  activeMining.abort();
+  activeMining = null;
+  return true;
 }

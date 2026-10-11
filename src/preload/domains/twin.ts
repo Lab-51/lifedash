@@ -25,6 +25,7 @@ import type {
   TwinMemoryListFilter,
   TwinMemoryGraph,
   BackfillFactLabelsResult,
+  TwinLearningModelInfo,
 } from '../../shared/types';
 
 export const twinBridge = {
@@ -33,6 +34,9 @@ export const twinBridge = {
     section: K,
     value: TwinProfileSections[K],
   ): Promise<TwinProfile> => ipcRenderer.invoke('twin:update-profile-section', section, value),
+  // Wizard save: all eight sections in one transaction (whole profile or nothing).
+  twinSaveProfile: (profile: TwinProfileSections): Promise<TwinProfile> =>
+    ipcRenderer.invoke('twin:save-profile', profile),
   twinDraftSection: <K extends TwinProfileSectionKey>(section: K, answer: string): Promise<TwinInterviewDraft<K>> =>
     ipcRenderer.invoke('twin:draft-section', section, answer),
 
@@ -43,6 +47,8 @@ export const twinBridge = {
     ipcRenderer.invoke('twin:interview-synthesize', payload),
   twinResearchHistoryInfo: (): Promise<TwinResearchHistoryInfo> => ipcRenderer.invoke('twin:research-history-info'),
   twinResearchHistory: (): Promise<TwinResearchResult> => ipcRenderer.invoke('twin:research-history'),
+  // Cancel the in-flight history-mining run; resolves true when one was running.
+  twinResearchCancel: (): Promise<boolean> => ipcRenderer.invoke('twin:research-cancel'),
   twinResearchWeb: (payload: TwinWebResearchPayload): Promise<TwinWebResearchResult> =>
     ipcRenderer.invoke('twin:research-web', payload),
   twinResearchRole: (payload: TwinRoleResearchPayload): Promise<TwinRoleResearchResult> =>
@@ -54,9 +60,16 @@ export const twinBridge = {
     ipcRenderer.invoke('twin:memory-list', filter),
   twinMemoryForget: (factId: string): Promise<TwinFact | null> => ipcRenderer.invoke('twin:memory-forget', factId),
   twinMemoryRestore: (factId: string): Promise<TwinFact | null> => ipcRenderer.invoke('twin:memory-restore', factId),
+  // Delete permanently (TWIN-LOOP.2 Task 3) — forgotten facts only; true / the count
+  // when something was erased, false / 0 when nothing matched.
+  twinMemoryListForgotten: (): Promise<TwinFact[]> => ipcRenderer.invoke('twin:memory-list-forgotten'),
+  twinMemoryPurge: (factId: string): Promise<boolean> => ipcRenderer.invoke('twin:memory-purge', factId),
+  twinMemoryPurgeAllForgotten: (): Promise<number> => ipcRenderer.invoke('twin:memory-purge-all-forgotten'),
   // User-triggered label backfill (TWIN-READ.1 Task 1) — labels existing facts
   // with no stored label yet, one bounded chunk per call.
   twinMemoryBackfillLabels: (): Promise<BackfillFactLabelsResult> => ipcRenderer.invoke('twin:memory-backfill-labels'),
+  // Which model fact learning will run on (TWIN-LOOP.2) — local or explicit only.
+  twinGetLearningModel: (): Promise<TwinLearningModelInfo> => ipcRenderer.invoke('twin:get-learning-model'),
 
   // Twin memory graph (TWIN-GRAPH.2 Task 1) — the twin's own tiered graph.
   twinBuildMemoryGraph: (): Promise<TwinMemoryGraph> => ipcRenderer.invoke('twin:build-memory-graph'),

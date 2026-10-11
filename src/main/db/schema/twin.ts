@@ -92,6 +92,14 @@ export const twinFacts = pgTable(
     sourceMeetingLabel: text('source_meeting_label'),
     status: twinFactStatusEnum('status').default('active').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    // "Delete permanently" (TWIN-LOOP.2 Task 3): a purged fact keeps ONLY this
+    // sha256 hex of normalizeFact(original text), so a later extraction cannot
+    // re-learn it; fact is '' and label/sourceMeetingLabel are null. Null on every
+    // unpurged row.
+    fingerprint: text('fingerprint'),
+    // When the fact was purged. Non-null marks the row as a tombstone: every reader
+    // excludes it, and it can never be restored or purged again.
+    purgedAt: timestamp('purged_at', { withTimezone: true }),
   },
   (table) => [
     index('twin_facts_status_idx').on(table.status),

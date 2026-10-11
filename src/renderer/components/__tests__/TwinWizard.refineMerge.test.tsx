@@ -16,9 +16,9 @@ import '@testing-library/jest-dom';
 import type { TwinProfileSections, TwinProfile } from '../../../shared/types/twin';
 
 const twinGetProfile = vi.fn();
-const twinUpdateProfileSection = vi.fn();
+const twinSaveProfile = vi.fn();
 
-vi.stubGlobal('electronAPI', { twinGetProfile, twinUpdateProfileSection });
+vi.stubGlobal('electronAPI', { twinGetProfile, twinSaveProfile });
 
 // Mode choice → a button that picks the (mocked) deep path.
 vi.mock('../twin/TwinModeChoice', () => ({
@@ -63,7 +63,7 @@ function existingProfile(): TwinProfile {
 beforeEach(() => {
   vi.clearAllMocks();
   twinGetProfile.mockResolvedValue(existingProfile());
-  twinUpdateProfileSection.mockResolvedValue(existingProfile());
+  twinSaveProfile.mockResolvedValue(existingProfile());
 });
 
 describe('TwinWizard — refine + partial panel draft preserves unsupplied sections', () => {
@@ -76,18 +76,17 @@ describe('TwinWizard — refine + partial panel draft preserves unsupplied secti
 
     // Lands on the seeded review — nothing saved yet.
     expect(await screen.findByText(/here is what your twin will know/i)).toBeInTheDocument();
-    expect(twinUpdateProfileSection).not.toHaveBeenCalled();
+    expect(twinSaveProfile).not.toHaveBeenCalled();
 
     // Save from the review (refine → "Save changes").
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
     // The supplied section is overridden…
-    await vi.waitFor(() => expect(twinUpdateProfileSection).toHaveBeenCalledWith('projects', [{ name: 'Beta' }]));
+    await vi.waitFor(() => expect(twinSaveProfile).toHaveBeenCalledTimes(1));
+    const saved = twinSaveProfile.mock.calls[0][0] as TwinProfileSections;
+    expect(saved.projects).toEqual([{ name: 'Beta' }]);
     // …and the UNSUPPLIED sections are PRESERVED from the existing profile — NOT {}.
-    expect(twinUpdateProfileSection).toHaveBeenCalledWith('identity', { name: 'Jane', role: 'PM' });
-    expect(twinUpdateProfileSection).toHaveBeenCalledWith('preferences', { tone: 'concise' });
-    // Regression assertion: identity/preferences must never be written as empty.
-    expect(twinUpdateProfileSection).not.toHaveBeenCalledWith('identity', {});
-    expect(twinUpdateProfileSection).not.toHaveBeenCalledWith('preferences', {});
+    expect(saved.identity).toEqual({ name: 'Jane', role: 'PM' });
+    expect(saved.preferences).toEqual({ tone: 'concise' });
   });
 });

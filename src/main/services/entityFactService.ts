@@ -41,7 +41,7 @@
 //
 // === DEPENDENCIES ===
 // drizzle-orm, zod, db/connection (getDb), db/schema (entities/entityLinks/
-// entityFacts/meetings/transcripts), ai-provider (resolveTaskModel),
+// entityFacts/meetings/transcripts), ai-provider (resolveTwinLearningModel),
 // twinResearchService (generateValidated), twinMemoryService (isLearningPaused),
 // entityService (listMeetingEntities/normalizeEntityName), postSessionDispatcher,
 // shared twin types (EntityFact, AnalyzeEntityHistoryResult), meetingService
@@ -64,7 +64,7 @@ import { z } from 'zod';
 import { getDb } from '../db/connection';
 import { entities, entityFacts, entityLinks, meetings, transcripts } from '../db/schema';
 import { createLogger } from './logger';
-import { resolveTaskModel, type ResolvedProvider } from './ai-provider';
+import { resolveTwinLearningModel, type ResolvedProvider } from './ai-provider';
 import { generateValidated } from './twinResearchService';
 import { isLearningPaused } from './twinMemoryService';
 import { listMeetingEntities, normalizeEntityName, type LinkedEntity } from './entityService';
@@ -453,7 +453,7 @@ export async function forgetFact(factId: string): Promise<void> {
  * learning, while this runs only because the user explicitly asked for it.
  */
 export async function analyzeHistory(entityId: string): Promise<AnalyzeEntityHistoryResult> {
-  const provider = await resolveTaskModel('twin_learning');
+  const provider = await resolveTwinLearningModel();
   if (!provider) throw new Error(NO_MODEL_ERROR_MESSAGE);
 
   const db = getDb();
@@ -567,7 +567,7 @@ export async function mineFactsForSession(meetingId: string): Promise<MineFactsR
       return { status: 'skipped', reason: 'no-entities', newFacts: 0 };
     }
 
-    const provider = await resolveTaskModel('twin_learning');
+    const provider = await resolveTwinLearningModel();
     if (!provider) {
       // The automatic path logs and skips (only the user-initiated analyze-history
       // path raises a user-facing error).

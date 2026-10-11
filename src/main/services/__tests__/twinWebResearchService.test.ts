@@ -19,6 +19,15 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('../ai-provider', () => ({ resolveTaskModel: vi.fn() }));
+// Shorten the per-call timeout so the timeout tests do not wait the real 180 s.
+vi.mock('../twinModelCall', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../twinModelCall')>();
+  return {
+    ...actual,
+    runTwinModelCall: <T>(call: (signal: AbortSignal) => Promise<T>, caller?: AbortSignal) =>
+      actual.runTwinModelCall(call, caller, 50),
+  };
+});
 vi.mock('../secure-storage', () => ({ decryptString: vi.fn((s: string) => `dec:${s}`) }));
 vi.mock('../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
@@ -397,5 +406,30 @@ describe('researchRole — validate/retry/skip discipline', () => {
     const res = await researchRole(ROLE_PAYLOAD);
     expect(generateText).toHaveBeenCalledTimes(1);
     expect(res).toEqual({ status: 'skipped', reason: 'failed' });
+  });
+});
+
+describe('web research - per-call timeout (TWIN-LOOP.2)', () => {
+  it('researchWeb: a search call that never answers degrades to skipped/failed, with no retry', async () => {
+    vi.mocked(generateText).mockImplementation(() => new Promise(() => {}) as never);
+    const res = await researchWeb(PAYLOAD);
+    expect(res).toEqual({ status: 'skipped', reason: 'failed' });
+    expect(generateText).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(generateText).mock.calls[0][0].abortSignal?.aborted).toBe(true);
+  });
+
+  it('researchRole: a search call that never answers degrades to skipped/failed', async () => {
+    vi.mocked(generateText).mockImplementation(() => new Promise(() => {}) as never);
+    const res = await researchRole(ROLE_PAYLOAD);
+    expect(res).toEqual({ status: 'skipped', reason: 'failed' });
+    expect(generateText).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes a live abort signal to generateText on a normal call', async () => {
+    vi.mocked(generateText).mockResolvedValue(genResult('{}') as never);
+    await researchWeb(PAYLOAD);
+    const signal = vi.mocked(generateText).mock.calls[0][0].abortSignal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal?.aborted).toBe(false);
   });
 });

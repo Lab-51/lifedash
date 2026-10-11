@@ -6,8 +6,9 @@
 //     fact), most-recent first, with whole-ITEM trim (never mid-fact).
 //   - the byte-identical guarantee: with NO profile AND no active facts (or paused
 //     with none applied), the builder returns '' — byte-identical to pre-twin.
-//   - injection is gated by the learning kill-switch: paused ⇒ inject NO facts;
-//     otherwise only ACTIVE facts (listFacts({ status: 'active' })) are injected.
+//   - injection is gated by the "Use learned facts" switch (areLearnedFactsInUse),
+//     NOT by the learning pause: off ⇒ inject NO facts; on ⇒ only ACTIVE facts
+//     (listFacts({ status: 'active' })) are injected, even while learning is paused.
 // serializeProfileContext is pure (tested directly); buildProfileContext's DB +
 // twinMemoryService dependencies are mocked.
 
@@ -23,12 +24,13 @@ vi.mock('../logger', () => ({
 }));
 vi.mock('../twinMemoryService', () => ({
   isLearningPaused: vi.fn().mockResolvedValue(false),
+  areLearnedFactsInUse: vi.fn().mockResolvedValue(true),
   listFacts: vi.fn().mockResolvedValue([]),
 }));
 
 import { serializeProfileContext, buildProfileContext, BACKGROUND_NOTE } from '../twinProfileService';
 import { getDb } from '../../db/connection';
-import { isLearningPaused, listFacts } from '../twinMemoryService';
+import { isLearningPaused, areLearnedFactsInUse, listFacts } from '../twinMemoryService';
 import type { TwinProfileSections, TwinFact } from '../../../shared/types/twin';
 
 const HEADER = 'User profile (the professional you assist):';
@@ -147,6 +149,7 @@ function smallestBlock(profile: TwinProfileSections, key: keyof TwinProfileSecti
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(isLearningPaused).mockResolvedValue(false);
+  vi.mocked(areLearnedFactsInUse).mockResolvedValue(true);
   vi.mocked(listFacts).mockResolvedValue([]);
 });
 
@@ -380,16 +383,30 @@ describe('buildProfileContext — learned-fact injection', () => {
     expect(out).toBe(`${HEADER}\n\n${LEARNED_HEADER}\n- Acme adopted Stripe\n\n${BACKGROUND_NOTE}`);
   });
 
-  it('paused ⇒ NO facts injected and listFacts is never queried', async () => {
+  it('facts off ⇒ NO facts injected and listFacts is never queried', async () => {
     mockProfileRows([]);
-    vi.mocked(isLearningPaused).mockResolvedValue(true);
-    // Even if facts existed, paused short-circuits before the query.
+    vi.mocked(isLearningPaused).mockResolvedValue(true); // both off: byte-identical to the old paused output
+    vi.mocked(areLearnedFactsInUse).mockResolvedValue(false);
+    // Even if facts existed, the switch short-circuits before the query.
     const out = await buildProfileContext('summarization');
     expect(out).toBe('');
     expect(vi.mocked(listFacts)).not.toHaveBeenCalled();
   });
 
-  it('paused with a profile ⇒ profile injected, learned facts suppressed', async () => {
+  it('paused learning, facts still in use ⇒ the learned facts are still injected', async () => {
+    mockProfileRows([]);
+    vi.mocked(isLearningPaused).mockResolvedValue(true);
+    vi.mocked(areLearnedFactsInUse).mockResolvedValue(true);
+    vi.mocked(listFacts).mockResolvedValue([fact({ fact: 'Acme adopted Stripe' })]);
+
+    const out = await buildProfileContext('live_assistant');
+
+    expect(out).toContain(`${LEARNED_HEADER}
+- Acme adopted Stripe`);
+    expect(vi.mocked(listFacts)).toHaveBeenCalledWith({ status: 'active' });
+  });
+
+  it('facts off with a profile ⇒ profile injected, learned facts suppressed (learning still running)', async () => {
     mockProfileRows([
       {
         id: 'singleton',
@@ -404,7 +421,8 @@ describe('buildProfileContext — learned-fact injection', () => {
         updatedAt: new Date('2026-07-08T00:00:00Z'),
       },
     ]);
-    vi.mocked(isLearningPaused).mockResolvedValue(true);
+    vi.mocked(isLearningPaused).mockResolvedValue(false);
+    vi.mocked(areLearnedFactsInUse).mockResolvedValue(false);
 
     const out = await buildProfileContext('live_assistant');
 

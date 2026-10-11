@@ -25,8 +25,11 @@
 // (keeping citations for attribution), so the single "Continue to review" forwards
 // the combined Partial<TwinProfileSections>. Task 3 owns the panel body and the
 // merge; Task 4 owns TwinWebResearchSection's body (do NOT edit it here).
+//
+// Closing the wizard (or leaving this panel) while mining is in flight unmounts the
+// panel, whose cleanup calls twinResearchCancel so the main-side run stops.
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { History, ChevronLeft, Sparkles, FileText, FolderKanban, StickyNote, Users, ExternalLink } from 'lucide-react';
 import TwinWebResearchSection from './TwinWebResearchSection';
 import TwinResearchConsentDialog from './TwinResearchConsentDialog';
@@ -139,6 +142,16 @@ export default function TwinResearchPanel({ brief, onBack, onUseForm, onDraft }:
   const [error, setError] = useState<string | null>(null);
   // The mining trigger — focus returns here when the consent dialog closes (#6.5).
   const mineButtonRef = useRef<HTMLButtonElement>(null);
+  // True only while twinResearchHistory() is awaiting - the unmount cleanup below
+  // cancels the main-side run just then, never when nothing is in flight.
+  const miningInFlight = useRef(false);
+
+  useEffect(
+    () => () => {
+      if (miningInFlight.current) void window.electronAPI.twinResearchCancel();
+    },
+    [],
+  );
 
   const busy = phase !== 'idle';
   const hasDraft = historyDraft !== null || webDraft !== null;
@@ -148,6 +161,7 @@ export default function TwinResearchPanel({ brief, onBack, onUseForm, onDraft }:
     setNotice(null);
     setError(null);
     setPhase('running');
+    miningInFlight.current = true;
     try {
       const result = await window.electronAPI.twinResearchHistory();
       if (result.status === 'ok') {
@@ -159,6 +173,7 @@ export default function TwinResearchPanel({ brief, onBack, onUseForm, onDraft }:
     } catch {
       setError('Mining your history failed. You can still use the Quick form.');
     } finally {
+      miningInFlight.current = false;
       setPhase('idle');
     }
   };

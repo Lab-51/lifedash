@@ -26,6 +26,21 @@ export type FrontierProvider = (typeof FRONTIER_PROVIDERS)[number];
 export function isFrontierProvider(name: string): boolean {
   return (FRONTIER_PROVIDERS as readonly string[]).includes(name);
 }
+
+/**
+ * Providers that run on this machine (the built-in llama.cpp sidecar, LM Studio,
+ * Ollama): content sent to them never leaves the device. Lives here (not in
+ * ai-provider.ts) so renderer-facing and lightly-mocked main modules can classify a
+ * provider without pulling the AI SDK chain; ai-provider re-exports it. Keep in step
+ * with LOCAL_OUTPUT_PROVIDERS / LOCAL_TEMPERATURE_PROVIDERS there.
+ */
+export const LOCAL_PROVIDERS = ['builtin', 'lmstudio', 'ollama'] as const;
+
+/** True when the given provider name runs locally. See {@link LOCAL_PROVIDERS}. */
+export function isLocalProvider(name: string): boolean {
+  return (LOCAL_PROVIDERS as readonly string[]).includes(name);
+}
+
 export type AITaskType =
   | 'summarization'
   | 'brainstorming'

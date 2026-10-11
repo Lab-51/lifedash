@@ -28,7 +28,7 @@ const { logMock } = vi.hoisted(() => ({
   logMock: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 vi.mock('../logger', () => ({ createLogger: () => logMock }));
-vi.mock('../ai-provider', () => ({ resolveTaskModel: vi.fn() }));
+vi.mock('../ai-provider', () => ({ resolveTwinLearningModel: vi.fn() }));
 vi.mock('../twinResearchService', () => ({ generateValidated: vi.fn() }));
 vi.mock('../meetingService', () => ({ getMeeting: vi.fn() }));
 vi.mock('../../db/connection', () => ({ getDb: vi.fn() }));
@@ -68,6 +68,9 @@ vi.mock('drizzle-orm', () => ({
   asc: (x: unknown) => ({ asc: x }),
   desc: (x: unknown) => ({ desc: x }),
   eq: (...a: unknown[]) => ({ eq: a }),
+  // twinMemoryService's forgotten-or-purged loader (TWIN-LOOP.2 Task 3).
+  or: (...a: unknown[]) => ({ or: a }),
+  isNotNull: (col: unknown) => ({ isNotNull: col }),
 }));
 
 import {
@@ -82,7 +85,7 @@ import {
   NO_MODEL_ERROR_MESSAGE,
 } from '../entityFactService';
 import { getDb } from '../../db/connection';
-import { resolveTaskModel } from '../ai-provider';
+import { resolveTwinLearningModel } from '../ai-provider';
 import { generateValidated } from '../twinResearchService';
 import { getMeeting } from '../meetingService';
 import { dispatchPostSession } from '../postSessionDispatcher';
@@ -225,7 +228,7 @@ beforeEach(() => {
     linksByMeeting: { [MEETING_ID]: [DANA] },
   };
   vi.mocked(getDb).mockReturnValue(makeDb() as never);
-  vi.mocked(resolveTaskModel).mockResolvedValue(PROVIDER as never);
+  vi.mocked(resolveTwinLearningModel).mockResolvedValue(PROVIDER as never);
   vi.mocked(generateValidated).mockResolvedValue([]);
   // Default: the meeting still exists at the MEET-DEL.1 pre-write recheck — most
   // tests are not exercising the deleted-meeting race and need mining to proceed
@@ -394,8 +397,8 @@ describe('post-session hook wiring', () => {
     expect(insertedFacts).toHaveLength(0);
   });
 
-  it('logs and skips (never throws) when no model is configured — unlike the user-initiated path', async () => {
-    vi.mocked(resolveTaskModel).mockResolvedValue(null);
+  it('logs and skips (never throws) when no explicit or local learning model resolves (e.g. inherited cloud) — zero writes', async () => {
+    vi.mocked(resolveTwinLearningModel).mockResolvedValue(null);
 
     await expect(mineFactsForSession(MEETING_ID)).resolves.toEqual({
       status: 'skipped',
@@ -403,6 +406,7 @@ describe('post-session hook wiring', () => {
       newFacts: 0,
     });
     expect(vi.mocked(generateValidated)).not.toHaveBeenCalled();
+    expect(insertedFacts).toHaveLength(0);
   });
 
   it('is defensive — the hook swallows a DB failure and never throws into the dispatcher', async () => {
@@ -493,7 +497,7 @@ describe('mineFactsForMeeting', () => {
 
     const opts = vi.mocked(generateValidated).mock.calls[0][0];
     expect(opts.taskType).toBe('twin_learning');
-    expect(vi.mocked(resolveTaskModel)).not.toHaveBeenCalled(); // caller resolves once
+    expect(vi.mocked(resolveTwinLearningModel)).not.toHaveBeenCalled(); // caller resolves once
     // The schema handed to the shared validate-retry-skip pipeline is what rejects
     // malformed output (one retry inside generateValidated, then skip).
     expect(opts.schema.safeParse([{ entity: 'Dana Lee', fact: 'Owns pricing' }]).success).toBe(true);
@@ -713,8 +717,8 @@ describe('analyzeHistory', () => {
     };
   }
 
-  it('fails honestly with a user-facing error when no model is configured (no writes)', async () => {
-    vi.mocked(resolveTaskModel).mockResolvedValue(null);
+  it('fails honestly with the same user-facing error when no explicit or local learning model resolves (no writes)', async () => {
+    vi.mocked(resolveTwinLearningModel).mockResolvedValue(null);
     historyFixture();
 
     await expect(analyzeHistory(ENTITY_ID)).rejects.toThrow(NO_MODEL_ERROR_MESSAGE);

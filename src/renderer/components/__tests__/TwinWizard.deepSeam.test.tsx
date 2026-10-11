@@ -13,9 +13,9 @@ import '@testing-library/jest-dom';
 import type { TwinProfileSections, TwinProfile } from '../../../shared/types/twin';
 
 const twinGetProfile = vi.fn();
-const twinUpdateProfileSection = vi.fn();
+const twinSaveProfile = vi.fn();
 
-vi.stubGlobal('electronAPI', { twinGetProfile, twinUpdateProfileSection });
+vi.stubGlobal('electronAPI', { twinGetProfile, twinSaveProfile });
 
 // Mode choice → a button that picks the deep path.
 vi.mock('../twin/TwinModeChoice', () => ({
@@ -58,7 +58,7 @@ function returnedProfile(): TwinProfile {
 beforeEach(() => {
   vi.clearAllMocks();
   twinGetProfile.mockResolvedValue(null);
-  twinUpdateProfileSection.mockResolvedValue(returnedProfile());
+  twinSaveProfile.mockResolvedValue(returnedProfile());
 });
 
 describe('TwinWizard — deep-creation draft → shared editable review → save', () => {
@@ -74,13 +74,14 @@ describe('TwinWizard — deep-creation draft → shared editable review → save
     expect(await screen.findByText(/here is what your twin will know/i)).toBeInTheDocument();
     expect(screen.getByText('Ada')).toBeInTheDocument();
     expect(screen.getByText('Deep Project')).toBeInTheDocument();
-    expect(twinUpdateProfileSection).not.toHaveBeenCalled();
+    expect(twinSaveProfile).not.toHaveBeenCalled();
 
     // The user saves from the review — now the drafted sections are written.
     fireEvent.click(screen.getByRole('button', { name: /save & finish/i }));
     await vi.waitFor(() => expect(onComplete).toHaveBeenCalledWith(returnedProfile()));
-    expect(twinUpdateProfileSection).toHaveBeenCalledWith('identity', { name: 'Ada' });
-    expect(twinUpdateProfileSection).toHaveBeenCalledWith('projects', [{ name: 'Deep Project' }]);
+    expect(twinSaveProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: { name: 'Ada' }, projects: [{ name: 'Deep Project' }] }),
+    );
   });
 
   it('the seeded draft is EDITABLE before saving — Back reaches the identity step pre-filled', async () => {

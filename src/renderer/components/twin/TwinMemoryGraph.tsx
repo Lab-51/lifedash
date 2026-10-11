@@ -15,9 +15,15 @@
 //      that forgot NOTHING, so it is treated as a FAILURE and rolls the
 //      optimistic removal back, exactly like a thrown IPC error. Undo reuses
 //      TwinMemoryUndoSnackbar (which focuses itself on mount and expires in ~5s).
-//   3. PAUSE LEARNING — a native button in this header, always visible, never
-//      behind the canvas. It only REFLECTS and FLIPS twin.learningPaused; the
-//      gate itself stays main-side (twinMemoryService) and is not re-implemented.
+//   3. PAUSE LEARNING — a native switch in this header, always visible, never
+//      behind the canvas (TwinLearningSwitches, with its sibling "Use learned
+//      facts" switch). It only REFLECTS and FLIPS settings; the gates themselves
+//      stay main-side (twinMemoryService) and are not re-implemented.
+//
+// FORGOTTEN (TWIN-LOOP.2 Task 3): a "Forgotten (N)" header button opens
+// TwinForgottenList, where a forgotten fact is restored or deleted permanently. The
+// list reloads after every forget, undo, restore and delete; N is never shown before
+// the first load lands.
 //
 // Counting: `onCountChange` reports the live ACTIVE-fact count (fact nodes only —
 // hubs and the core are structure) so TwinPage's Memory tab badge keeps working
@@ -41,16 +47,18 @@
 // === DEPENDENCIES ===
 // react, react-router-dom, lucide-react, twinMemoryGraphStore, settingsStore,
 // LoadingSpinner, TwinMemoryRiverCanvas, TwinMemoryInspector,
-// TwinMemoryUndoSnackbar, TwinMemoryBackfillButton
+// TwinMemoryUndoSnackbar, TwinMemoryBackfillButton, TwinLearningModelNotice,
+// TwinLearningSwitches, TwinForgottenList
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Brain, Pause, Play } from 'lucide-react';
+import { Brain } from 'lucide-react';
 import LoadingSpinner from '../LoadingSpinner';
-import { useSettingsStore } from '../../stores/settingsStore';
 import { factCountOf, useTwinMemoryGraphStore } from '../../stores/twinMemoryGraphStore';
-import { TWIN_LEARNING_PAUSED_SETTING_KEY } from '../../../shared/types/twin';
 import type { TwinGraphNode } from '../../../shared/types';
+import TwinForgottenList, { useForgottenFacts } from './TwinForgottenList';
+import TwinLearningModelNotice from './TwinLearningModelNotice';
+import TwinLearningSwitches, { learningStatusLine, useLearningSwitchState } from './TwinLearningSwitches';
 import TwinMemoryBackfillButton from './TwinMemoryBackfillButton';
 import TwinMemoryRiverCanvas from './TwinMemoryRiverCanvas';
 import TwinMemoryInspector from './TwinMemoryInspector';
@@ -86,9 +94,8 @@ export interface TwinMemoryGraphProps {
 
 export default function TwinMemoryGraph({ onCountChange, active = true }: TwinMemoryGraphProps) {
   const navigate = useNavigate();
-  const settings = useSettingsStore((s) => s.settings);
-  const setSetting = useSettingsStore((s) => s.setSetting);
-  const paused = settings[TWIN_LEARNING_PAUSED_SETTING_KEY] === 'true';
+  const { paused, factsInUse } = useLearningSwitchState();
+  const statusLine = learningStatusLine(paused, factsInUse);
 
   const graph = useTwinMemoryGraphStore((s) => s.graph);
   const entering = useTwinMemoryGraphStore((s) => s.entering);
@@ -101,6 +108,8 @@ export default function TwinMemoryGraph({ onCountChange, active = true }: TwinMe
   const [error, setError] = useState<string | null>(null);
   const [pinned, setPinned] = useState<PinnedState | null>(null);
   const [forgotten, setForgotten] = useState<ForgottenState | null>(null);
+  const [showForgotten, setShowForgotten] = useState(false);
+  const { facts: forgottenFacts, loadError: forgottenLoadError, reload: reloadForgotten } = useForgottenFacts(active);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const wasActiveRef = useRef(active);
 
@@ -120,10 +129,6 @@ export default function TwinMemoryGraph({ onCountChange, active = true }: TwinMe
   useEffect(() => {
     if (graph) onCountChange?.(factCountOf(graph));
   }, [graph, onCountChange]);
-
-  const togglePause = (): void => {
-    void setSetting(TWIN_LEARNING_PAUSED_SETTING_KEY, paused ? 'false' : 'true');
-  };
 
   const handleInspect = useCallback((node: TwinGraphNode, viaKeyboard: boolean) => {
     setPinned({ node, viaKeyboard });
@@ -148,7 +153,8 @@ export default function TwinMemoryGraph({ onCountChange, active = true }: TwinMe
     if (!ok) return; // the store already rolled the node back; the message is set
     setError(null);
     setForgotten({ id: node.recordId, text: node.label });
-  }, [pinned, forgetNode]);
+    void reloadForgotten();
+  }, [pinned, forgetNode, reloadForgotten]);
 
   // Shared close path for undo and auto-expiry alike — focus always lands on a
   // stable anchor, because the node that triggered this may no longer exist.
@@ -165,13 +171,24 @@ export default function TwinMemoryGraph({ onCountChange, active = true }: TwinMe
       else {
         setError(null);
         await refresh(); // the fact comes back with its real hub + degree
+        void reloadForgotten();
       }
     } catch {
       setError(RESTORE_FAILED_ERROR);
     } finally {
       closeSnackbar();
     }
-  }, [forgotten, refresh, closeSnackbar]);
+  }, [forgotten, refresh, closeSnackbar, reloadForgotten]);
+
+  // A restore from the Forgotten list puts the fact back on the canvas; a delete
+  // only shrinks the list (forgotten facts were never on the canvas).
+  const handleForgottenChanged = useCallback(
+    async (restored: boolean) => {
+      await reloadForgotten();
+      if (restored) await refresh();
+    },
+    [reloadForgotten, refresh],
+  );
 
   return (
     <div className="flex flex-col min-h-0 flex-1 gap-4">
@@ -185,32 +202,31 @@ export default function TwinMemoryGraph({ onCountChange, active = true }: TwinMe
         </h2>
         {/* The kill-switch stays FIRST in this row: a secondary action must never
             push a safety control further along the tab sequence. */}
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-wrap items-start justify-end gap-3 min-w-0">
+          <TwinLearningSwitches />
+          <TwinMemoryBackfillButton />
           <button
             type="button"
-            onClick={togglePause}
-            aria-pressed={paused}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-              paused
-                ? 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
-                : 'border-[var(--color-accent-dim)] bg-[var(--color-accent-subtle)] text-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]'
-            }`}
+            aria-expanded={showForgotten}
+            aria-controls="twin-forgotten-list"
+            onClick={() => setShowForgotten((open) => !open)}
+            className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:border-[var(--color-border-accent)] transition-colors"
           >
-            {paused ? <Play size={13} /> : <Pause size={13} />}
-            {paused ? 'Resume learning' : 'Pause learning'}
+            {forgottenFacts ? `Forgotten (${forgottenFacts.length})` : 'Forgotten'}
           </button>
-          <TwinMemoryBackfillButton />
         </div>
       </div>
 
-      {paused && (
+      {statusLine && (
         <div
           role="status"
           className="shrink-0 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-300"
         >
-          Learning is paused — no new facts are being learned or applied.
+          {statusLine}
         </div>
       )}
+
+      <TwinLearningModelNotice active={active} />
 
       {error && (
         <p role="alert" className="shrink-0 text-sm text-red-400 break-words">
@@ -227,6 +243,10 @@ export default function TwinMemoryGraph({ onCountChange, active = true }: TwinMe
             onExpire={closeSnackbar}
           />
         </div>
+      )}
+
+      {showForgotten && (
+        <TwinForgottenList facts={forgottenFacts} loadError={forgottenLoadError} onChanged={handleForgottenChanged} />
       )}
 
       <MemoryBody

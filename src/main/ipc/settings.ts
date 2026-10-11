@@ -13,10 +13,10 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/connection';
-import * as schema from '../db/schema';
 import { settings } from '../db/schema';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import { settingKeySchema, settingValueSchema } from '../../shared/validation/schemas';
+import { factoryResetAllTables } from '../services/factoryReset';
 import { getProxyConfig, applyGlobalProxy } from '../services/proxyService';
 import { createLogger, getLogDirectory } from '../services/logger';
 
@@ -92,57 +92,10 @@ export function registerSettingsHandlers(mainWindow: BrowserWindow): void {
     return await shell.openPath(dir);
   });
 
-  // Factory reset: delete all data from all tables in FK-safe order
+  // Factory reset: clear every schema table in one transaction (see factoryReset.ts)
   ipcMain.handle('settings:factory-reset', async () => {
     try {
-      const db = getDb();
-
-      // Delete order: children first, parents last (reverse FK dependency)
-      const tablesToDelete = [
-        // Junction / leaf tables
-        schema.cardLabels,
-        schema.cardComments,
-        schema.cardRelationships,
-        schema.cardActivities,
-        schema.cardAttachments,
-        schema.cardChecklistItems,
-        schema.cardTemplates,
-        schema.ideaTags,
-        schema.brainstormMessages,
-        schema.transcripts,
-        schema.meetingBriefs,
-        schema.actionItems,
-        schema.aiUsage,
-        schema.xpEvents,
-        schema.focusAchievements,
-        schema.focusSessions,
-        schema.agentInsights,
-        schema.cardAgentMessages,
-        schema.cardAgentThreads,
-        schema.projectAgentMessages,
-        schema.projectAgentThreads,
-        schema.intelBriefs,
-        schema.intelItems,
-        schema.intelSources,
-        schema.syncTracking,
-        // Mid-level tables
-        schema.cards,
-        schema.columns,
-        schema.brainstormSessions,
-        schema.meetings,
-        schema.ideas,
-        schema.boards,
-        schema.labels,
-        // Root tables
-        schema.aiProviders,
-        schema.settings,
-        schema.projects,
-      ];
-
-      for (const table of tablesToDelete) {
-        await db.delete(table);
-      }
-
+      await factoryResetAllTables();
       log.info('Factory reset completed — all tables cleared');
       return { success: true };
     } catch (error) {

@@ -284,7 +284,7 @@ describe('TwinPage — Memory tab (the tiered memory graph)', () => {
       screen.getByRole('button', { name: 'Learned fact: Prefers async updates over meetings' }),
     ).toBeInTheDocument();
     // ...the kill-switch rides above it...
-    expect(screen.getByRole('button', { name: /pause learning/i })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: /pause learning/i })).toBeInTheDocument();
     // ...and the badge still counts ACTIVE facts only (not the core or the hub).
     expect(memoryTab).toHaveTextContent('1');
   });

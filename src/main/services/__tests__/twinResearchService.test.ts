@@ -15,6 +15,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../ai-provider', () => ({ resolveTaskModel: vi.fn(), generate: vi.fn() }));
+// Shorten the per-call timeout so the timeout tests do not wait the real 180 s.
+vi.mock('../twinModelCall', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../twinModelCall')>();
+  return {
+    ...actual,
+    runTwinModelCall: <T>(call: (signal: AbortSignal) => Promise<T>, caller?: AbortSignal) =>
+      actual.runTwinModelCall(call, caller, 50),
+  };
+});
 vi.mock('../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
@@ -34,9 +43,12 @@ vi.mock('drizzle-orm', () => ({
   inArray: (...a: unknown[]) => a,
 }));
 
+import { z } from 'zod';
 import {
   getResearchHistoryInfo,
   researchHistory,
+  cancelResearchHistory,
+  generateValidated,
   assembleCorpus,
   mineProfile,
   type Corpus,
@@ -140,6 +152,16 @@ describe('getResearchHistoryInfo — consent descriptor', () => {
     expect(info.isLocal).toBe(true);
     expect(info.providerLabel).toBe('lmstudio');
     expect(generate).not.toHaveBeenCalled();
+  });
+
+  it('reports the built-in model as local (it never leaves the device)', async () => {
+    vi.mocked(getDb).mockReturnValue(makeDb({ meetings: [], projects: [], cards: [] }) as never);
+    vi.mocked(resolveTaskModel).mockResolvedValue({ ...LOCAL, providerName: 'builtin' } as never);
+
+    const info = await getResearchHistoryInfo();
+
+    expect(info.isLocal).toBe(true);
+    expect(info.providerLabel).toBe('builtin');
   });
 
   it('reports "No model configured" (isLocal false) when nothing resolves — still no model call', async () => {
@@ -378,5 +400,112 @@ describe('researchHistory', () => {
       expect(result.draft.projects).toEqual([{ name: 'Replatform' }]);
       expect(result.sources.find((s) => s.kind === 'meeting')?.label).toContain('Sync');
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TWIN-LOOP.2 Task 6 - per-call timeout, cancel, and one run at a time
+// ---------------------------------------------------------------------------
+
+const seedHistoryDb = () =>
+  vi.mocked(getDb).mockReturnValue(
+    makeDb({
+      meetings: [{ id: 'm1', title: 'Sync', startedAt: new Date('2026-07-01') }],
+      transcripts: [{ meetingId: 'm1', content: 'billing and MRR', speaker: 'Sarah', startTime: 0 }],
+      projects: [{ id: 'pr1', name: 'Replatform', description: 'Stripe' }],
+      cards: [{ id: 'c1', title: 'Ship invoices' }],
+    }) as never,
+  );
+
+describe('history mining - per-call timeout', () => {
+  it('every section call gets a live abort signal; a call that never answers is skipped, not hung', async () => {
+    vi.mocked(generate).mockImplementation(() => new Promise(() => {}));
+    const result = await mineProfile(richCorpus(), LOCAL as never, new AbortController().signal);
+    expect(result).toEqual({ status: 'skipped', reason: 'failed' });
+    const calls = vi.mocked(generate).mock.calls;
+    expect(calls.length).toBeGreaterThan(1); // each section timed out on its own, no retry
+    for (const [opts] of calls) expect(opts.abortSignal?.aborted).toBe(true);
+  });
+
+  it('without a cancel signal (the background learning passes) generate gets NO abort signal', async () => {
+    vi.mocked(generate).mockResolvedValue({ text: '[]' } as never);
+    await generateValidated({
+      provider: LOCAL as never,
+      taskType: 'twin_learning',
+      system: 's',
+      context: 'c',
+      schema: z.array(z.string()),
+      label: 'test',
+    });
+    expect(vi.mocked(generate).mock.calls[0][0]).not.toHaveProperty('abortSignal');
+  });
+});
+
+describe('history mining - cancel', () => {
+  it('cancelResearchHistory reports false when nothing is running', () => {
+    expect(cancelResearchHistory()).toBe(false);
+  });
+
+  it('cancelling mid-run stops further section calls and returns nothing', async () => {
+    seedHistoryDb();
+    vi.mocked(resolveTaskModel).mockResolvedValue(LOCAL as never);
+    // The model never answers on its own; only the cancel ends the call.
+    vi.mocked(generate).mockImplementation(
+      (opts) =>
+        new Promise((_, reject) => {
+          opts.abortSignal?.addEventListener('abort', () => reject(opts.abortSignal?.reason));
+        }),
+    );
+
+    const run = researchHistory();
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1));
+    expect(cancelResearchHistory()).toBe(true);
+
+    expect(await run).toEqual({ status: 'skipped', reason: 'failed' });
+    expect(generate).toHaveBeenCalledTimes(1); // no second section, no retry
+    expect(cancelResearchHistory()).toBe(false); // the run is over
+  });
+
+  it('a run cancelled after some sections were mined still returns nothing', async () => {
+    seedHistoryDb();
+    vi.mocked(resolveTaskModel).mockResolvedValue(LOCAL as never);
+    let calls = 0;
+    vi.mocked(generate).mockImplementation((async () => {
+      calls += 1;
+      if (calls === 1) return { text: '{"industry":"SaaS"}' }; // the 1st section (domain) IS mined
+      if (calls === 2) cancelResearchHistory(); // cancelled while the 2nd section is answering
+      return { text: '[{"name":"Replatform"}]' };
+    }) as never);
+
+    const result = await researchHistory();
+
+    expect(result).toEqual({ status: 'skipped', reason: 'failed' });
+    expect(calls).toBe(2); // the 3rd+ sections never started; the mined domain is NOT returned
+  });
+
+  it('a second run cancels the one already in flight (one run at a time)', async () => {
+    seedHistoryDb();
+    vi.mocked(resolveTaskModel).mockResolvedValue(LOCAL as never);
+    const seen: AbortSignal[] = [];
+    vi.mocked(generate).mockImplementation(((opts: { abortSignal?: AbortSignal; system?: string }) => {
+      if (opts.abortSignal) seen.push(opts.abortSignal);
+      // First call (first run) hangs until cancelled; later calls answer normally.
+      if (seen.length === 1) {
+        return new Promise((_, reject) =>
+          opts.abortSignal!.addEventListener('abort', () => reject(opts.abortSignal!.reason)),
+        );
+      }
+      return Promise.resolve({ text: '[{"name":"Replatform"}]' });
+    }) as never);
+
+    const first = researchHistory();
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1));
+    const second = researchHistory();
+
+    expect(await first).toEqual({ status: 'skipped', reason: 'failed' });
+    expect(seen[0].aborted).toBe(true);
+    const secondResult = await second;
+    expect(secondResult.status).toBe('ok');
+    expect(seen[1].aborted).toBe(false);
   });
 });

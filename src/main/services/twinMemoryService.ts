@@ -4,6 +4,8 @@
 //   - listFacts()     — read facts for the memory-management UI
 //   - forgetFact()    — mark a fact 'forgotten' (excluded from injection, restorable)
 //   - restoreFact()   — bring a forgotten fact back to 'active'
+//   - purgeFact() / purgeAllForgotten() — "Delete permanently": erase a forgotten
+//                       fact's text for good, keeping only a fingerprint
 //   - isLearningPaused() — the main-side read of the learning-pause gate
 //
 // === HOW EXTRACTION WORKS (V3.4 Task 2) ===
@@ -46,7 +48,7 @@
 //
 // === DEPENDENCIES ===
 // drizzle-orm, db/connection (getDb), db/schema (settings/twinFacts/
-// liveSuggestions), ai-provider (resolveTaskModel), twinResearchService
+// liveSuggestions), ai-provider (resolveTwinLearningModel), twinResearchService
 // (generateValidated — the shared extraction helper), dataChangeNotifier
 // (notifyDataChanged), postSessionDispatcher (registerPostSessionHook), shared
 // twin types, meetingService (getMeeting — MEET-DEL.1 existence recheck),
@@ -65,12 +67,13 @@
 // function already used for every other skip: {status:'skipped', reason:
 // 'meeting-deleted', facts:[]}, logged once at info — never a raw FK error.
 
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
+import { and, asc, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db/connection';
 import { settings, twinFacts, liveSuggestions } from '../db/schema';
 import { createLogger } from './logger';
-import { resolveTaskModel, type ResolvedProvider } from './ai-provider';
+import { resolveTwinLearningModel, type ResolvedProvider } from './ai-provider';
 import { generateValidated } from './twinResearchService';
 import { notifyDataChanged } from './dataChangeNotifier';
 import { registerPostSessionHook, type PostSessionHook } from './postSessionDispatcher';
@@ -80,7 +83,11 @@ import { loadLatestBriefRecord, fitNotesWithinBudget } from './briefRecordServic
 import { structureToText } from '../../shared/utils/briefRecordText';
 import { isFailedBriefText } from '../../shared/briefSentinel';
 import { rankFactsByRelevance } from './twinRelevance';
-import { TWIN_LEARNING_PAUSED_SETTING_KEY } from '../../shared/types/twin';
+import {
+  TWIN_FACTS_IN_USE_SETTING_KEY,
+  TWIN_LEARNING_PAUSED_SETTING_KEY,
+  resolveFactsInUse,
+} from '../../shared/types/twin';
 import type {
   TwinFact,
   TwinFactCategory,
@@ -120,7 +127,7 @@ export interface ExtractFactsResult {
   /** Why nothing was learned (only present on `skipped`). `meeting-deleted`
    *  (MEET-DEL.1) is the deleted-meeting race — closed either by a fresh
    *  existence recheck or by catching the insert's FK violation. */
-  reason?: 'no-model' | 'failed' | 'paused' | 'meeting-deleted';
+  reason?: 'no-model' | 'no-learning-model' | 'failed' | 'paused' | 'meeting-deleted';
   facts: TwinFact[];
 }
 
@@ -223,16 +230,27 @@ function normalizeFact(fact: string): string {
     .trim();
 }
 
+/** The fingerprint a purged fact keeps (TWIN-LOOP.2 Task 3): sha256 hex of the
+ *  normalized text. Forgotten (not yet purged) facts are compared through the same
+ *  hash, so "forgotten" and "purged" block re-learning by ONE rule. */
+function fingerprintOf(fact: string): string {
+  return createHash('sha256').update(normalizeFact(fact), 'utf8').digest('hex');
+}
+
 /**
- * Drop candidates that duplicate an existing KNOWN fact (ACTIVE **or FORGOTTEN**)
- * or an earlier candidate in this same batch (normalized-equality — same Set
- * discipline as triage), then cap at ~5/session. Forgotten facts are included so a
- * fact the user explicitly Forgot is never silently re-learned as a new active row;
- * they are used as a post-generation FILTER only — never disclosed to the model
- * (they are NOT added to the prompt's "Already known" list). Preserves the model's
- * ordering for the survivors.
+ * Drop candidates that duplicate an existing ACTIVE fact or an earlier candidate in
+ * this same batch (normalized-equality — same Set discipline as triage), or whose
+ * fingerprint is BLOCKED (a fact the user Forgot or permanently deleted), then cap
+ * at ~5/session. Blocked facts are a post-generation FILTER only — never disclosed
+ * to the model (they are NOT in the prompt's "Already known" list), so a fact the
+ * user explicitly Forgot or deleted is never silently re-learned as a new active
+ * row. Preserves the model's ordering for the survivors.
  */
-function dedupeFacts(candidates: ExtractedFact[], existingKnown: string[]): DedupedFact[] {
+function dedupeFacts(
+  candidates: ExtractedFact[],
+  existingKnown: string[],
+  blocked: ReadonlySet<string>,
+): DedupedFact[] {
   const seen = new Set(existingKnown.map(normalizeFact));
   const out: DedupedFact[] = [];
   for (const c of candidates) {
@@ -240,6 +258,7 @@ function dedupeFacts(candidates: ExtractedFact[], existingKnown: string[]): Dedu
     if (!fact) continue;
     const key = normalizeFact(fact);
     if (!key || seen.has(key)) continue; // dedupe vs existing active + within batch
+    if (blocked.has(fingerprintOf(fact))) continue; // forgotten or purged
     seen.add(key);
     out.push({ fact, category: c.category, label: sanitizeLabel(c.label) });
     if (out.length >= TWIN_FACT_CAP) break; // ~5-cap per session
@@ -277,12 +296,20 @@ async function loadActiveFactStrings(db: Db, excludeMeetingId: string): Promise<
   return rows.filter((r) => r.sourceMeetingId !== excludeMeetingId).map((r) => r.fact);
 }
 
-/** Every FORGOTTEN fact's text — feeds the post-parse dedupe ONLY (never the
- *  prompt), so a fact the user explicitly Forgot is not silently re-learned and
- *  its content is never re-surfaced to the model. */
-async function loadForgottenFactStrings(db: Db): Promise<string[]> {
-  const rows = await db.select({ fact: twinFacts.fact }).from(twinFacts).where(eq(twinFacts.status, 'forgotten'));
-  return rows.map((r) => r.fact);
+/**
+ * Fingerprints of every fact that must never be re-learned: each FORGOTTEN fact
+ * (hashed from its text) and each PURGED fact (its stored fingerprint — the text is
+ * gone). Feeds the post-parse dedupe ONLY (never the prompt), so a forgotten fact's
+ * content is never re-surfaced to the model. A row carrying a fingerprint blocks
+ * whatever its status, so a tombstone can never stop blocking. Takes a `select`-
+ * capable handle so the replace transaction re-reads through the same rule.
+ */
+async function loadBlockedFingerprints(db: Pick<Db, 'select'>): Promise<Set<string>> {
+  const rows = await db
+    .select({ fact: twinFacts.fact, fingerprint: twinFacts.fingerprint })
+    .from(twinFacts)
+    .where(or(eq(twinFacts.status, 'forgotten'), isNotNull(twinFacts.fingerprint)));
+  return new Set(rows.map((r) => r.fingerprint ?? fingerprintOf(r.fact)));
 }
 
 /** Header for the record's rendered structure (BRIEF-QUAL.2) — the block label
@@ -384,11 +411,11 @@ export function buildExtractionContext(
  * meeting go: forgotten facts (the user's decision), other meetings' facts,
  * interview facts and kept facts (sourceMeetingId null) are never matched.
  *
- * The forgotten texts are re-read HERE, inside the transaction: the list read before
- * the model call is stale by the time the reply lands, and a fact the user Forgot
- * meanwhile (this meeting's own, so absent from the pre-call dedupe set) would
- * otherwise come back as a new active row. `removed` is the delete's row count
- * (0 when the driver reports none).
+ * The blocked fingerprints (forgotten + purged) are re-read HERE, inside the
+ * transaction: the list read before the model call is stale by the time the reply
+ * lands, and a fact the user Forgot or deleted permanently meanwhile (this meeting's
+ * own, so absent from the pre-call dedupe set) would otherwise come back as a new
+ * active row. `removed` is the delete's row count (0 when the driver reports none).
  */
 async function replaceMeetingFacts(
   db: Db,
@@ -396,12 +423,8 @@ async function replaceMeetingFacts(
   facts: DedupedFact[],
 ): Promise<{ inserted: (typeof twinFacts.$inferSelect)[]; removed: number }> {
   return db.transaction(async (tx) => {
-    const forgottenNow = await tx
-      .select({ fact: twinFacts.fact })
-      .from(twinFacts)
-      .where(eq(twinFacts.status, 'forgotten'));
-    const forgottenKeys = new Set(forgottenNow.map((r) => normalizeFact(r.fact)));
-    const fresh = facts.filter((c) => !forgottenKeys.has(normalizeFact(c.fact)));
+    const blockedNow = await loadBlockedFingerprints(tx);
+    const fresh = facts.filter((c) => !blockedNow.has(fingerprintOf(c.fact)));
     // Never delete without a replacement: nothing new survived, so the old set stays.
     if (fresh.length === 0) return { inserted: [], removed: 0 };
 
@@ -461,8 +484,12 @@ async function extractFactsUnserialized(meetingId: string): Promise<ExtractFacts
       return { status: 'skipped', reason: 'paused', facts: [] };
     }
 
-    const provider = await resolveTaskModel('twin_learning');
-    if (!provider) return { status: 'skipped', reason: 'no-model', facts: [] };
+    const provider = await resolveTwinLearningModel();
+    if (!provider) {
+      // Count-only log: no meeting id, no content. Touches no facts.
+      log.info('extractFacts — no explicit or local learning model; skipped (no facts touched)');
+      return { status: 'skipped', reason: 'no-learning-model', facts: [] };
+    }
 
     const db = getDb();
     const [briefRecord, accepted] = await Promise.all([
@@ -485,12 +512,13 @@ async function extractFactsUnserialized(meetingId: string): Promise<ExtractFacts
 
     // Active facts of OTHER meetings (and interview/kept facts) feed BOTH the model's
     // "Already known" exclusion list AND the dedupe; this meeting's own are excluded
-    // because a successful pass replaces them. Forgotten facts (any meeting, this one
-    // included) feed the dedupe ONLY — so a Forgotten fact is neither re-learned nor
-    // re-disclosed to the model, and the replace below never touches it.
-    const [existingActive, forgotten] = await Promise.all([
+    // because a successful pass replaces them. Forgotten and purged facts (any meeting,
+    // this one included) feed the dedupe ONLY, as fingerprints — so such a fact is
+    // neither re-learned nor re-disclosed to the model, and the replace below never
+    // touches it.
+    const [existingActive, blocked] = await Promise.all([
       loadActiveFactStrings(db, meetingId),
-      loadForgottenFactStrings(db),
+      loadBlockedFingerprints(db),
     ]);
     // BRIEF-QUAL.2: the record's rendered structure, brief-first — see
     // buildExtractionContext's own doc comment for the budget/placement rules.
@@ -514,7 +542,7 @@ async function extractFactsUnserialized(meetingId: string): Promise<ExtractFacts
     // nothing, or only of facts already known elsewhere / forgotten, keeps it. A weak
     // model echoing the "Already known" list must never hard-delete a meeting's memory.
     const candidates = (parsed as ExtractedFact[]).filter((c) => c.fact.trim());
-    const deduped = dedupeFacts(candidates, [...existingActive, ...forgotten]);
+    const deduped = dedupeFacts(candidates, existingActive, blocked);
     if (deduped.length === 0) return { status: 'ok', facts: [] };
 
     // MEET-DEL.1: re-check existence immediately before the write — the extraction
@@ -551,26 +579,33 @@ async function extractFactsUnserialized(meetingId: string): Promise<ExtractFacts
 /**
  * List learned facts for the memory-management UI (twin:memory-list), newest
  * first. No filter ⇒ all facts (active + forgotten) so the UI can restore
- * forgotten ones; `status`/`category` narrow the result.
+ * forgotten ones; `status`/`category` narrow the result. A purged fact (a
+ * tombstone with no text) is never listed, whatever the filter.
  */
 export async function listFacts(filter?: TwinMemoryListFilter): Promise<TwinFact[]> {
   const db = getDb();
-  const conditions = [];
+  const conditions = [isNull(twinFacts.purgedAt)];
   if (filter?.status) conditions.push(eq(twinFacts.status, filter.status));
   if (filter?.category) conditions.push(eq(twinFacts.category, filter.category));
 
   const rows = await db
     .select()
     .from(twinFacts)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(desc(twinFacts.createdAt));
   return rows.map(rowToFact);
 }
 
-/** Set a fact's lifecycle status and return the updated fact (null if not found). */
+/** Set a fact's lifecycle status and return the updated fact (null if not found).
+ *  A purged fact is not found: it can never be restored (its text is gone) or
+ *  forgotten again. */
 async function setFactStatus(factId: string, status: TwinFactStatus): Promise<TwinFact | null> {
   const db = getDb();
-  const [row] = await db.update(twinFacts).set({ status }).where(eq(twinFacts.id, factId)).returning();
+  const [row] = await db
+    .update(twinFacts)
+    .set({ status })
+    .where(and(eq(twinFacts.id, factId), isNull(twinFacts.purgedAt)))
+    .returning();
   return row ? rowToFact(row) : null;
 }
 
@@ -590,12 +625,97 @@ export async function restoreFact(factId: string): Promise<TwinFact | null> {
   return setFactStatus(factId, 'active');
 }
 
+// ---------------------------------------------------------------------------
+// Delete permanently (TWIN-LOOP.2 Task 3) — the user's explicit, final erase
+// ---------------------------------------------------------------------------
+
+/** The ONLY rows a purge may touch: forgotten and not yet purged. An active fact
+ *  is never purgeable (the user must Forget it first), and a purged row is never
+ *  re-purged, so a repeated call is a no-op. */
+function purgeable() {
+  return and(eq(twinFacts.status, 'forgotten'), isNull(twinFacts.purgedAt));
+}
+
+/**
+ * Erase the text of every purgeable fact matching `factId` (or all of them when
+ * omitted), in ONE transaction: the row keeps only its category, its source
+ * meeting id, a fingerprint (sha256 of the normalized text — so the fact is never
+ * re-learned) and purged_at. Returns how many rows were purged.
+ */
+async function purgeRows(db: Db, factId?: string): Promise<number> {
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .select({ id: twinFacts.id, fact: twinFacts.fact })
+      .from(twinFacts)
+      .where(factId ? and(eq(twinFacts.id, factId), purgeable()) : purgeable());
+    const purgedAt = new Date();
+    for (const row of rows) {
+      await tx
+        .update(twinFacts)
+        .set({ fingerprint: fingerprintOf(row.fact), fact: '', label: null, sourceMeetingLabel: null, purgedAt })
+        .where(and(eq(twinFacts.id, row.id), purgeable()));
+    }
+    return rows.length;
+  });
+}
+
+/**
+ * Best-effort space reclaim after a purge. Clearing a column leaves the old row
+ * version in the table file until VACUUM removes it, so this is attempted — but
+ * the purge is already committed, so a failure here is logged and never fails it.
+ * Returns whether VACUUM ran (logged either way; never assumed).
+ */
+async function vacuumAfterPurge(db: Db): Promise<boolean> {
+  try {
+    await db.execute(sql`VACUUM twin_facts`);
+    log.info('Purge — VACUUM twin_facts ran');
+    return true;
+  } catch (err) {
+    log.warn(`Purge — VACUUM twin_facts did not run (purge already committed): ${errorMessage(err)}`);
+    return false;
+  }
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Delete ONE forgotten fact permanently (twin:memory-purge). Returns true when it
+ * was purged; false when there is no such fact, it is active, or it is already
+ * purged — in each case nothing changes. Logs counts only, never fact text.
+ */
+export async function purgeFact(factId: string): Promise<boolean> {
+  const db = getDb();
+  const purged = (await purgeRows(db, factId)) > 0;
+  if (purged) {
+    log.info('Purged 1 forgotten fact');
+    await vacuumAfterPurge(db);
+  }
+  return purged;
+}
+
+/**
+ * Delete EVERY forgotten fact permanently (twin:memory-purge-all-forgotten).
+ * Active facts are never touched. Returns the number purged (0 = nothing to do).
+ */
+export async function purgeAllForgotten(): Promise<number> {
+  const db = getDb();
+  const purged = await purgeRows(db);
+  if (purged > 0) {
+    log.info(`Purged ${purged} forgotten fact(s)`);
+    await vacuumAfterPurge(db);
+  }
+  return purged;
+}
+
 /**
  * Whether per-session learning is paused. Reads the generic settings surface (no
  * dedicated channel) — the renderer toggles TWIN_LEARNING_PAUSED_SETTING_KEY via
- * settings:set. This is a REAL implementation (not a stub): it gates BOTH
- * extraction (here) and injection (twinProfileService). Defensive — any read
- * error means "not paused".
+ * settings:set. This is a REAL implementation (not a stub): it gates LEARNING
+ * only — extraction, label backfill and entity extraction. Whether learned facts
+ * are USED in prompts is areLearnedFactsInUse() below. Defensive — any read error
+ * means "not paused".
  */
 export async function isLearningPaused(): Promise<boolean> {
   try {
@@ -605,6 +725,26 @@ export async function isLearningPaused(): Promise<boolean> {
   } catch (err) {
     log.error('Failed to read learning-pause setting — treating as not paused:', err);
     return false;
+  }
+}
+
+/**
+ * Whether learned facts are injected into prompts (the "Use learned facts" switch).
+ * Gates INJECTION only (twinProfileService.loadInjectableFacts) — independent of
+ * isLearningPaused, so the user can stop learning without losing what was learned,
+ * and vice versa. With no stored choice the legacy rule applies (see
+ * resolveFactsInUse): facts are in use unless learning is paused. Defensive — a
+ * read error falls back to the pre-switch behaviour of the pause flag alone.
+ */
+export async function areLearnedFactsInUse(): Promise<boolean> {
+  const paused = await isLearningPaused();
+  try {
+    const db = getDb();
+    const [row] = await db.select().from(settings).where(eq(settings.key, TWIN_FACTS_IN_USE_SETTING_KEY));
+    return resolveFactsInUse(row?.value, paused);
+  } catch (err) {
+    log.error('Failed to read facts-in-use setting — falling back to the pause flag:', err);
+    return resolveFactsInUse(undefined, paused);
   }
 }
 
@@ -619,21 +759,27 @@ const BACKFILL_LABEL_OUTPUT_SPEC = 'a JSON object { "label": string } — a shor
 
 const backfillLabelSchema = z.object({ label: z.string().min(1) });
 
+/** A fact that still needs a label: none stored yet, and not purged (a purged
+ *  row has no text to label and must never get one back). */
+function needsLabel() {
+  return and(isNull(twinFacts.label), isNull(twinFacts.purgedAt));
+}
+
 /** Every fact with no stored label yet (any status — a restored fact should
  *  already have one waiting for it), oldest first, capped at the chunk size —
- *  the unit backfillFactLabels processes per call. */
+ *  the unit backfillFactLabels processes per call. Purged facts are excluded. */
 async function loadUnlabelledFacts(db: Db, limit: number): Promise<{ id: string; fact: string }[]> {
   return db
     .select({ id: twinFacts.id, fact: twinFacts.fact })
     .from(twinFacts)
-    .where(isNull(twinFacts.label))
+    .where(needsLabel())
     .orderBy(asc(twinFacts.createdAt))
     .limit(limit);
 }
 
 /** Honest count of facts still unlabelled — drives `remaining`, never estimated. */
 async function countUnlabelledFacts(db: Db): Promise<number> {
-  const rows = await db.select({ id: twinFacts.id }).from(twinFacts).where(isNull(twinFacts.label));
+  const rows = await db.select({ id: twinFacts.id }).from(twinFacts).where(needsLabel());
   return rows.length;
 }
 
@@ -680,8 +826,11 @@ export async function backfillFactLabels(): Promise<BackfillFactLabelsResult> {
     return { status: 'skipped', reason: 'paused', labeled: 0, remaining: 0 };
   }
 
-  const provider = await resolveTaskModel('twin_learning');
-  if (!provider) return { status: 'skipped', reason: 'no-model', labeled: 0, remaining: 0 };
+  const provider = await resolveTwinLearningModel();
+  if (!provider) {
+    log.info('backfillFactLabels — no explicit or local learning model; skipped (no facts touched)');
+    return { status: 'skipped', reason: 'no-learning-model', labeled: 0, remaining: 0 };
+  }
 
   const db = getDb();
   const chunk = await loadUnlabelledFacts(db, BACKFILL_CHUNK_SIZE);
@@ -691,8 +840,14 @@ export async function backfillFactLabels(): Promise<BackfillFactLabelsResult> {
   for (const row of chunk) {
     const label = await labelOneFact(provider, row.fact);
     if (!label) continue; // failed/garbage output — skip THIS pass, fallback covers it
-    await db.update(twinFacts).set({ label }).where(eq(twinFacts.id, row.id));
-    labeled++;
+    // Guarded: a fact purged while its label call was in flight must not get a label
+    // (derived from the erased text) written back onto its tombstone.
+    const written = await db
+      .update(twinFacts)
+      .set({ label })
+      .where(and(eq(twinFacts.id, row.id), isNull(twinFacts.purgedAt)))
+      .returning({ id: twinFacts.id });
+    if (written.length > 0) labeled++;
   }
 
   const remaining = await countUnlabelledFacts(db);

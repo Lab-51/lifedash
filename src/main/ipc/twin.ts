@@ -1,8 +1,9 @@
 // === FILE PURPOSE ===
 // IPC handler for the Digital Twin profile (V3.3 + V3.3.5 "Deep Creation").
 // Exposes:
-//   - Profile CRUD from twinProfileService — read the whole profile and a
-//     section-level patch (now including the `brief` section).
+//   - Profile CRUD from twinProfileService — read the whole profile, a
+//     section-level patch (now including the `brief` section), and the wizard's
+//     all-or-nothing save of every section (twin:save-profile, one transaction).
 //   - The Quick-form "Interview me" per-section extraction (twin:draft-section →
 //     twinInterviewService — the 7 structured sections only; brief is authored
 //     directly).
@@ -13,6 +14,9 @@
 // Every AI-touching handler delegates to a service that returns a discriminated
 // result ({ ok … } | { skipped, reason } | …) and NEVER throws for AI reasons, so
 // the wizard degrades gracefully. IPC stays thin — modeled on brain.ts.
+//   - twin:memory-list-forgotten / twin:memory-purge / twin:memory-purge-all-
+//     forgotten (TWIN-LOOP.2 Task 3) — the Forgotten list and "Delete
+//     permanently" (erases a forgotten fact's text, keeps a fingerprint).
 //   - twin:build-memory-graph (TWIN-GRAPH.2 Task 1) — the twin's own tiered
 //     memory graph (core -> category hub -> fact), a structural DB read via
 //     twinGraphService (no AI, no input). See that file's header for why it is
@@ -27,8 +31,8 @@ import { draftSection } from '../services/twinInterviewService';
 import * as twinDeepInterviewService from '../services/twinDeepInterviewService';
 import * as twinResearchService from '../services/twinResearchService';
 import * as twinWebResearchService from '../services/twinWebResearchService';
-import { resolveTaskModel } from '../services/ai-provider';
-import { isFrontierProvider } from '../../shared/types/ai';
+import { resolveTaskModel, getTwinLearningModelInfo } from '../services/ai-provider';
+import { isFrontierProvider, isLocalProvider } from '../../shared/types/ai';
 import { validateInput } from '../../shared/validation/ipc-validator';
 import type {
   TwinProfileKey,
@@ -41,44 +45,74 @@ import type {
 } from '../../shared/types/twin';
 
 // --- per-section value schemas (mirror shared/types/twin.ts shapes) ---
+//
+// Every string and list is bounded (TWIN-LOOP.2): these values reach the DB and then
+// every prompt budget, so an oversized paste is refused here, before anything is
+// written. The limits are deliberately generous - far above any real profile.
+//   short  200   - one-line fields: names, roles, org/company/industry, a term
+//   text  4000   - free text: the brief, descriptions, meanings, goals, tone/style
+//   list   500   - entries per list section
+const SHORT_MAX = 200;
+const TEXT_MAX = 4000;
+const LIST_MAX = 500;
+const shortStr = z.string().max(SHORT_MAX);
+const textStr = z.string().max(TEXT_MAX);
 
 const briefSchema = z.object({
-  statement: z.string().optional(),
+  statement: textStr.optional(),
 });
 
 const identitySchema = z.object({
-  name: z.string().optional(),
-  role: z.string().optional(),
-  seniority: z.string().optional(),
+  name: shortStr.optional(),
+  role: shortStr.optional(),
+  seniority: shortStr.optional(),
 });
 
 const domainSchema = z.object({
-  industry: z.string().optional(),
-  company: z.string().optional(),
-  focus: z.string().optional(),
+  industry: shortStr.optional(),
+  company: shortStr.optional(),
+  focus: textStr.optional(),
 });
 
 const projectSchema = z.object({
-  name: z.string(),
-  description: z.string().optional(),
-  projectId: z.string().optional(),
+  name: shortStr,
+  description: textStr.optional(),
+  projectId: shortStr.optional(),
 });
 
 const personSchema = z.object({
-  name: z.string(),
-  role: z.string().optional(),
-  org: z.string().optional(),
+  name: shortStr,
+  role: shortStr.optional(),
+  org: shortStr.optional(),
 });
 
 const vocabularyTermSchema = z.object({
-  term: z.string(),
-  meaning: z.string(),
+  term: shortStr,
+  meaning: textStr,
 });
 
 const preferencesSchema = z.object({
-  tone: z.string().optional(),
-  language: z.string().optional(),
-  cardTitleStyle: z.string().optional(),
+  tone: textStr.optional(),
+  language: shortStr.optional(),
+  cardTitleStyle: textStr.optional(),
+});
+
+const projectsSchema = z.array(projectSchema).max(LIST_MAX);
+const peopleSchema = z.array(personSchema).max(LIST_MAX);
+const vocabularySchema = z.array(vocabularyTermSchema).max(LIST_MAX);
+const goalsSchema = z.array(textStr).max(LIST_MAX);
+
+// The whole profile (twin:save-profile) - the same pieces as the per-section patch,
+// all eight required: the wizard always sends the full set.
+const fullProfileSchema = z.object({
+  brief: briefSchema,
+  identity: identitySchema,
+  domain: domainSchema,
+  projects: projectsSchema,
+  people: peopleSchema,
+  vocabulary: vocabularySchema,
+  goals: goalsSchema,
+  preferences: preferencesSchema,
 });
 
 // The full patch surface accepts `brief`; the per-section draft ("Interview me")
@@ -180,19 +214,23 @@ export function registerTwinHandlers(): void {
       case 'domain':
         return twinProfileService.updateProfileSection('domain', validateInput(domainSchema, value));
       case 'projects':
-        return twinProfileService.updateProfileSection('projects', validateInput(z.array(projectSchema), value));
+        return twinProfileService.updateProfileSection('projects', validateInput(projectsSchema, value));
       case 'people':
-        return twinProfileService.updateProfileSection('people', validateInput(z.array(personSchema), value));
+        return twinProfileService.updateProfileSection('people', validateInput(peopleSchema, value));
       case 'vocabulary':
-        return twinProfileService.updateProfileSection(
-          'vocabulary',
-          validateInput(z.array(vocabularyTermSchema), value),
-        );
+        return twinProfileService.updateProfileSection('vocabulary', validateInput(vocabularySchema, value));
       case 'goals':
-        return twinProfileService.updateProfileSection('goals', validateInput(z.array(z.string()), value));
+        return twinProfileService.updateProfileSection('goals', validateInput(goalsSchema, value));
       case 'preferences':
         return twinProfileService.updateProfileSection('preferences', validateInput(preferencesSchema, value));
     }
+  });
+
+  // Wizard save (TWIN-LOOP.2): all eight sections in ONE transaction, so a failed
+  // save leaves the previous profile untouched. A payload over the limits is refused
+  // by validateInput before anything is written.
+  ipcMain.handle('twin:save-profile', async (_event, profile: unknown) => {
+    return twinProfileService.saveProfile(validateInput(fullProfileSchema, profile));
   });
 
   // Quick-form "Interview me" (V3.3) — draft one structured section's fields from
@@ -228,6 +266,12 @@ export function registerTwinHandlers(): void {
     return twinResearchService.researchHistory();
   });
 
+  // Stop the in-flight history-mining run (the wizard was closed). Returns whether a
+  // run was in flight. Argument-free, like the run itself: there is one run at a time.
+  ipcMain.handle('twin:research-cancel', async () => {
+    return twinResearchService.cancelResearchHistory();
+  });
+
   // Web research from a company/industry into a cited draft.
   ipcMain.handle('twin:research-web', async (_event, payload: unknown) => {
     const p = validateInput(webResearchSchema, payload) as TwinWebResearchPayload;
@@ -259,6 +303,22 @@ export function registerTwinHandlers(): void {
     return twinMemoryService.restoreFact(id);
   });
 
+  // Delete permanently (TWIN-LOOP.2 Task 3). The Forgotten list never includes a
+  // purged fact; a purge acts only on a forgotten, not-yet-purged fact (the service
+  // enforces that, so a stale or crafted id can never erase an active fact).
+  ipcMain.handle('twin:memory-list-forgotten', async () => {
+    return twinMemoryService.listFacts({ status: 'forgotten' });
+  });
+
+  ipcMain.handle('twin:memory-purge', async (_event, factId: unknown) => {
+    const id = validateInput(factIdSchema, factId);
+    return twinMemoryService.purgeFact(id);
+  });
+
+  ipcMain.handle('twin:memory-purge-all-forgotten', async () => {
+    return twinMemoryService.purgeAllForgotten();
+  });
+
   // Label backfill (TWIN-READ.1 Task 1) — user-triggered pass that labels
   // existing facts with no stored label yet. No input, unlike entity:analyze-
   // history: this is the twin's whole ledger, never a single entity. Unlike
@@ -285,12 +345,17 @@ export function registerTwinHandlers(): void {
     if (!resolved) {
       return { providerLabel: 'No model configured', modelLabel: '', isLocal: false, isFrontier: false };
     }
-    const isLocal = resolved.providerName === 'ollama' || resolved.providerName === 'lmstudio';
     return {
       providerLabel: resolved.providerName,
       modelLabel: resolved.model,
-      isLocal,
+      isLocal: isLocalProvider(resolved.providerName),
       isFrontier: isFrontierProvider(resolved.providerName),
     };
+  });
+
+  // Which model the twin's fact learning will run on (TWIN-LOOP.2) — drives the
+  // Memory tab's "Learning is off" line. Read-only, no input.
+  ipcMain.handle('twin:get-learning-model', async () => {
+    return getTwinLearningModelInfo();
   });
 }

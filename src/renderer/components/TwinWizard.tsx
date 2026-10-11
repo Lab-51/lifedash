@@ -9,8 +9,9 @@
 //
 // Re-runnable: on mount it loads any existing profile and pre-fills every step
 // (refine, not restart). The final review step shows exactly what will be saved
-// and writes each section through the same twinUpdateProfileSection patch API
-// the cards use, returning the updated profile to onComplete.
+// and writes all eight sections in ONE call (twinSaveProfile — a single main-side
+// transaction, so the whole profile saves or none of it), returning the saved
+// profile to onComplete.
 //
 // === DEPENDENCIES ===
 // react, lucide-react, twin/twinSteps + twin/twinFields (config/data),
@@ -184,19 +185,6 @@ function buildSectionValues(
   };
 }
 
-/** Persist every section via the section-patch API; the last call returns the full profile. */
-async function writeAllSections(values: TwinProfileSections): Promise<TwinProfile> {
-  const api = window.electronAPI;
-  await api.twinUpdateProfileSection('brief', values.brief);
-  await api.twinUpdateProfileSection('identity', values.identity);
-  await api.twinUpdateProfileSection('domain', values.domain);
-  await api.twinUpdateProfileSection('projects', values.projects);
-  await api.twinUpdateProfileSection('people', values.people);
-  await api.twinUpdateProfileSection('vocabulary', values.vocabulary);
-  await api.twinUpdateProfileSection('goals', values.goals);
-  return api.twinUpdateProfileSection('preferences', values.preferences);
-}
-
 // ---------------------------------------------------------------------------
 // Step body (one interview step's form + optional AI assist)
 // ---------------------------------------------------------------------------
@@ -285,7 +273,7 @@ function QuickForm({
     setSaving(true);
     setSaveError(null);
     try {
-      onComplete(await writeAllSections(values));
+      onComplete(await window.electronAPI.twinSaveProfile(values));
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Failed to save your profile. Try again.');
     } finally {

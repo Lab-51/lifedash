@@ -16,7 +16,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../ai-provider', () => ({ resolveTaskModel: vi.fn() }));
+vi.mock('../ai-provider', () => ({ resolveTwinLearningModel: vi.fn() }));
 vi.mock('../twinResearchService', () => ({ generateValidated: vi.fn() }));
 vi.mock('../logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
@@ -41,10 +41,13 @@ vi.mock('drizzle-orm', () => ({
   and: (...a: unknown[]) => ({ and: a }),
   desc: (x: unknown) => x,
   eq: (...a: unknown[]) => ({ eq: a }),
+  // twinMemoryService's forgotten-or-purged loader (TWIN-LOOP.2 Task 3).
+  or: (...a: unknown[]) => ({ or: a }),
+  isNotNull: (col: unknown) => ({ isNotNull: col }),
 }));
 
 import { extractEntities, entityPostSessionHook, normalizeEntityName } from '../entityService';
-import { resolveTaskModel } from '../ai-provider';
+import { resolveTwinLearningModel } from '../ai-provider';
 import { generateValidated } from '../twinResearchService';
 import { getDb } from '../../db/connection';
 import { dispatchPostSession } from '../postSessionDispatcher';
@@ -163,7 +166,7 @@ beforeEach(() => {
   insertedEntities.length = 0;
   insertedLinks.length = 0;
   entitySeq = 0;
-  vi.mocked(resolveTaskModel).mockResolvedValue(PROVIDER as never);
+  vi.mocked(resolveTwinLearningModel).mockResolvedValue(PROVIDER as never);
   vi.mocked(generateValidated).mockResolvedValue([]);
   happyDb();
 });
@@ -215,7 +218,7 @@ describe('extractEntities — pause gate', () => {
     const result = await extractEntities(MEETING_ID);
 
     expect(result).toEqual({ status: 'skipped', reason: 'paused', entities: [] });
-    expect(vi.mocked(resolveTaskModel)).not.toHaveBeenCalled();
+    expect(vi.mocked(resolveTwinLearningModel)).not.toHaveBeenCalled();
     expect(vi.mocked(generateValidated)).not.toHaveBeenCalled();
     expect(insertedEntities).toHaveLength(0);
     expect(insertedLinks).toHaveLength(0);
@@ -223,11 +226,13 @@ describe('extractEntities — pause gate', () => {
 });
 
 describe('extractEntities — skip paths', () => {
-  it('skips with no-model when no provider resolves', async () => {
-    vi.mocked(resolveTaskModel).mockResolvedValue(null);
+  it('skips with no-model when no explicit or local learning model resolves (e.g. inherited cloud) — zero writes', async () => {
+    vi.mocked(resolveTwinLearningModel).mockResolvedValue(null);
     const result = await extractEntities(MEETING_ID);
     expect(result).toEqual({ status: 'skipped', reason: 'no-model', entities: [] });
     expect(vi.mocked(generateValidated)).not.toHaveBeenCalled();
+    expect(insertedEntities).toHaveLength(0);
+    expect(insertedLinks).toHaveLength(0);
   });
 
   it('skips with failed when there is no brief (no material)', async () => {
@@ -263,7 +268,7 @@ describe('extractEntities — routing + inputs', () => {
 
     await extractEntities(MEETING_ID);
 
-    expect(vi.mocked(resolveTaskModel)).toHaveBeenCalledWith('twin_learning');
+    expect(vi.mocked(resolveTwinLearningModel)).toHaveBeenCalled();
     const opts = vi.mocked(generateValidated).mock.calls[0][0];
     expect(opts.taskType).toBe('twin_learning');
     expect(opts.context).toContain('Q3 billing migration with Dana Lee.');

@@ -16,7 +16,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../ai-provider', () => ({ resolveTaskModel: vi.fn() }));
+vi.mock('../ai-provider', () => ({ resolveTwinLearningModel: vi.fn() }));
 vi.mock('../twinResearchService', () => ({ generateValidated: vi.fn() }));
 vi.mock('../dataChangeNotifier', () => ({ notifyDataChanged: vi.fn() }));
 vi.mock('../meetingService', () => ({ getMeeting: vi.fn() }));
@@ -37,6 +37,8 @@ vi.mock('../../db/schema', () => ({
     label: 'label',
     category: 'category',
     status: 'status',
+    fingerprint: 'fingerprint',
+    purgedAt: 'purgedAt',
     createdAt: 'createdAt',
   },
   meetingBriefs: { __table: 'meetingBriefs', meetingId: 'meetingId', summary: 'summary', createdAt: 'createdAt' },
@@ -55,6 +57,9 @@ vi.mock('drizzle-orm', () => ({
   desc: (x: unknown) => x,
   eq: (...a: unknown[]) => ({ eq: a }),
   isNull: (col: unknown) => ({ isNull: col }),
+  isNotNull: (col: unknown) => ({ isNotNull: col }),
+  or: (...a: unknown[]) => ({ or: a }),
+  sql: () => ({}),
 }));
 
 import {
@@ -66,7 +71,7 @@ import {
   learningPostSessionHook,
   buildExtractionContext,
 } from '../twinMemoryService';
-import { resolveTaskModel } from '../ai-provider';
+import { resolveTwinLearningModel } from '../ai-provider';
 import { generateValidated } from '../twinResearchService';
 import { notifyDataChanged } from '../dataChangeNotifier';
 import { getMeeting } from '../meetingService';
@@ -82,6 +87,40 @@ import type { MeetingBrief } from '../../../shared/types';
 // ---------------------------------------------------------------------------
 
 type Rows = Record<string, unknown>[];
+interface Cond {
+  eq?: unknown[];
+  isNull?: string;
+  isNotNull?: string;
+  and?: Cond[];
+  or?: Cond[];
+}
+
+/** isNull is honoured at the top level AND inside and() (TWIN-LOOP.2 Task 3 wraps the
+ *  label/purge guards in and()); eq(status) only at the top level or inside or(), as
+ *  before — and() keeps ignoring its eq parts, which the legacy tests rely on. */
+function isNullOk(cond: Cond, r: Record<string, unknown>): boolean {
+  if (typeof cond.isNull === 'string') return r[cond.isNull] == null;
+  if (cond.and) return cond.and.every((c) => isNullOk(c, r));
+  return true;
+}
+
+/** or(eq(status, X), isNotNull(field)) — the forgotten-or-purged loader. */
+function orOk(cond: Cond, r: Record<string, unknown>): boolean {
+  if (!cond.or) return true;
+  return cond.or.some((c) => {
+    if (Array.isArray(c.eq) && c.eq[0] === 'status') return ((r.status as string | undefined) ?? 'active') === c.eq[1];
+    if (typeof c.isNotNull === 'string') return r[c.isNotNull] != null;
+    return false;
+  });
+}
+
+/** The row id an update targets: eq(id, X) at the top level or inside and(). */
+function targetId(cond: Cond | undefined): unknown {
+  if (Array.isArray(cond?.eq) && cond.eq[0] === 'id') return cond.eq[1];
+  for (const c of cond?.and ?? []) if (Array.isArray(c.eq) && c.eq[0] === 'id') return c.eq[1];
+  return undefined;
+}
+
 interface DbConfig {
   settings?: Rows;
   twinFacts?: Rows;
@@ -102,7 +141,7 @@ function makeDb(cfg: DbConfig) {
   const build = (rows: Rows) => {
     let out = rows;
     const q: Record<string, unknown> = {
-      where: (cond?: { eq?: unknown[]; isNull?: string }) => {
+      where: (cond?: Cond) => {
         // Honor a direct eq(status, X) filter so the 'active' vs 'forgotten' fact
         // loaders return DISTINCT rows (rows with no status default to 'active').
         // Composite (and(...)) conditions carry no top-level `.eq` and are ignored.
@@ -111,12 +150,9 @@ function makeDb(cfg: DbConfig) {
           const want = pair[1];
           out = out.filter((r) => ((r.status as string | undefined) ?? 'active') === want);
         }
-        // Honor a direct isNull(twinFacts.label) filter (backfillFactLabels' "still
-        // unlabelled" query) — a row with no `label` key at all counts as null too.
-        if (cond && typeof cond.isNull === 'string') {
-          const field = cond.isNull;
-          out = out.filter((r) => (r as Record<string, unknown>)[field] == null);
-        }
+        // Honor isNull filters (backfillFactLabels' "still unlabelled" query) — a row
+        // with no `label` key at all counts as null too — and the or() loader.
+        if (cond) out = out.filter((r) => isNullOk(cond, r) && orOk(cond, r));
         return q;
       },
       orderBy: () => q,
@@ -160,12 +196,12 @@ function makeDb(cfg: DbConfig) {
     // tests, which never populate cfg.twinFacts) when no id match is found.
     update: (table: { __table: keyof DbConfig }) => ({
       set: (s: Record<string, unknown>) => ({
-        where: (cond?: { eq?: unknown[] }) => {
-          const pair = cond?.eq;
+        where: (cond?: Cond) => {
+          const id = targetId(cond);
           const rows = (cfg[table.__table] as Rows) ?? [];
           let matched: Record<string, unknown> | undefined;
-          if (Array.isArray(pair) && pair[0] === 'id') {
-            matched = rows.find((r) => r.id === pair[1]);
+          if (id !== undefined) {
+            matched = rows.find((r) => r.id === id);
             if (matched) Object.assign(matched, s);
           }
           const result = matched ?? (cfg.updateRow ? { ...cfg.updateRow, ...s } : undefined);
@@ -217,7 +253,7 @@ function happyDb(extra: Partial<DbConfig> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   inserted.length = 0;
-  vi.mocked(resolveTaskModel).mockResolvedValue(PROVIDER as never);
+  vi.mocked(resolveTwinLearningModel).mockResolvedValue(PROVIDER as never);
   vi.mocked(generateValidated).mockResolvedValue([]);
   // Default: the meeting still exists at the MEET-DEL.1 pre-write recheck — most
   // tests are not exercising the deleted-meeting race and need extraction to
@@ -240,7 +276,7 @@ describe('post-session hook wiring', () => {
     dispatchPostSession({ meetingId: MEETING_ID, brief: BRIEF });
     await flush();
 
-    expect(vi.mocked(resolveTaskModel)).toHaveBeenCalledWith('twin_learning');
+    expect(vi.mocked(resolveTwinLearningModel)).toHaveBeenCalled();
     expect(vi.mocked(generateValidated)).toHaveBeenCalled();
   });
 
@@ -282,18 +318,19 @@ describe('extractFacts — pause gate', () => {
     const result = await extractFacts(MEETING_ID);
 
     expect(result).toEqual({ status: 'skipped', reason: 'paused', facts: [] });
-    expect(vi.mocked(resolveTaskModel)).not.toHaveBeenCalled();
+    expect(vi.mocked(resolveTwinLearningModel)).not.toHaveBeenCalled();
     expect(vi.mocked(generateValidated)).not.toHaveBeenCalled();
     expect(inserted).toHaveLength(0);
   });
 });
 
 describe('extractFacts — skip paths', () => {
-  it('skips with no-model when no provider resolves', async () => {
-    vi.mocked(resolveTaskModel).mockResolvedValue(null);
+  it('skips with no-learning-model when no explicit or local learning model resolves (no DB writes)', async () => {
+    vi.mocked(resolveTwinLearningModel).mockResolvedValue(null);
     const result = await extractFacts(MEETING_ID);
-    expect(result).toEqual({ status: 'skipped', reason: 'no-model', facts: [] });
+    expect(result).toEqual({ status: 'skipped', reason: 'no-learning-model', facts: [] });
     expect(vi.mocked(generateValidated)).not.toHaveBeenCalled();
+    expect(inserted).toHaveLength(0);
   });
 
   it('skips with failed when there is no brief and nothing accepted (no material)', async () => {
@@ -335,7 +372,7 @@ describe('extractFacts — extraction routing + inputs', () => {
 
     await extractFacts(MEETING_ID);
 
-    expect(vi.mocked(resolveTaskModel)).toHaveBeenCalledWith('twin_learning');
+    expect(vi.mocked(resolveTwinLearningModel)).toHaveBeenCalled();
     const opts = vi.mocked(generateValidated).mock.calls[0][0];
     expect(opts.taskType).toBe('twin_learning');
     expect(opts.context).toContain('Q3 billing migration brief.'); // the brief
@@ -910,20 +947,20 @@ describe('backfillFactLabels', () => {
     const result = await backfillFactLabels();
 
     expect(result).toEqual({ status: 'skipped', reason: 'paused', labeled: 0, remaining: 0 });
-    expect(vi.mocked(resolveTaskModel)).not.toHaveBeenCalled();
+    expect(vi.mocked(resolveTwinLearningModel)).not.toHaveBeenCalled();
     expect(vi.mocked(generateValidated)).not.toHaveBeenCalled();
   });
 
-  it('degrades to a typed no-op when no model is configured (never throws)', async () => {
+  it('degrades to a typed no-op when no learning model is allowed (never throws, no DB writes)', async () => {
     setDb({
       settings: [],
       twinFacts: [{ id: 'f1', fact: 'Prefers async standups', category: 'preference', status: 'active' }],
     });
-    vi.mocked(resolveTaskModel).mockResolvedValue(null);
+    vi.mocked(resolveTwinLearningModel).mockResolvedValue(null);
 
     const result = await backfillFactLabels();
 
-    expect(result).toEqual({ status: 'skipped', reason: 'no-model', labeled: 0, remaining: 0 });
+    expect(result).toEqual({ status: 'skipped', reason: 'no-learning-model', labeled: 0, remaining: 0 });
     expect(vi.mocked(generateValidated)).not.toHaveBeenCalled();
   });
 

@@ -30,7 +30,7 @@
 //
 // === DEPENDENCIES ===
 // drizzle-orm, db/connection (getDb), db/schema (entities/entityLinks/meetingBriefs),
-// ai-provider (resolveTaskModel), twinResearchService (generateValidated),
+// ai-provider (resolveTwinLearningModel), twinResearchService (generateValidated),
 // twinMemoryService (isLearningPaused — also fixes hook order), postSessionDispatcher.
 
 import { desc, eq } from 'drizzle-orm';
@@ -38,7 +38,7 @@ import { z } from 'zod';
 import { getDb } from '../db/connection';
 import { entities, entityLinks, meetingBriefs } from '../db/schema';
 import { createLogger } from './logger';
-import { resolveTaskModel } from './ai-provider';
+import { resolveTwinLearningModel } from './ai-provider';
 import { generateValidated } from './twinResearchService';
 import { isLearningPaused } from './twinMemoryService';
 import { registerPostSessionHook, type PostSessionHook } from './postSessionDispatcher';
@@ -221,7 +221,7 @@ export async function extractEntities(meetingId: string): Promise<ExtractEntitie
       return { status: 'skipped', reason: 'paused', entities: [] };
     }
 
-    const provider = await resolveTaskModel('twin_learning');
+    const provider = await resolveTwinLearningModel();
     if (!provider) return { status: 'skipped', reason: 'no-model', entities: [] };
 
     const db = getDb();

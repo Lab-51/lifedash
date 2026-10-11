@@ -37,11 +37,12 @@ vi.mock('../logger', () => ({
 }));
 
 // Mock twinMemoryService so buildProfileContext's learned-fact injection is a
-// no-op here (isLearningPaused=false, no active facts) — and so importing the
+// no-op here (areLearnedFactsInUse=true, no active facts) — and so importing the
 // profile service does NOT pull twinMemoryService's heavy ai-provider chain. The
 // injection behavior itself is covered in twinProfileService.injection.test.ts.
 vi.mock('../twinMemoryService', () => ({
   isLearningPaused: vi.fn().mockResolvedValue(false),
+  areLearnedFactsInUse: vi.fn().mockResolvedValue(true),
   listFacts: vi.fn().mockResolvedValue([]),
 }));
 

@@ -25,7 +25,7 @@
 // === DEPENDENCIES ===
 // ai (generateText, stepCountIs), @ai-sdk/{anthropic,openai,google}, zod,
 // ai-provider (resolveTaskModel — READ ONLY, resolution reused, not edited),
-// secure-storage (decryptString), logger. Shared frozen contracts in shared/types/twin.
+// twinModelCall (per-call timeout), secure-storage (decryptString), logger. Shared frozen contracts in shared/types/twin.
 
 import { generateText, stepCountIs, type LanguageModel, type ToolSet } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
@@ -33,6 +33,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 import { resolveTaskModel, type ResolvedProvider } from './ai-provider';
+import { runTwinModelCall } from './twinModelCall';
 import { decryptString } from './secure-storage';
 import { createLogger } from './logger';
 import type { AIProviderName } from '../../shared/types';
@@ -237,22 +238,26 @@ async function runWebSearchLoop<T>(
     let text: string;
     let citations: TwinCitation[];
     try {
-      const result = await generateText({
-        model,
-        tools,
-        stopWhen: stepCountIs(MAX_SEARCH_STEPS),
-        system,
-        prompt,
-        temperature: 0,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
-      });
+      const result = await runTwinModelCall((abortSignal) =>
+        generateText({
+          model,
+          tools,
+          stopWhen: stepCountIs(MAX_SEARCH_STEPS),
+          system,
+          prompt,
+          temperature: 0,
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+          abortSignal,
+        }),
+      );
       text = result.text ?? '';
       // Sources accrue per step; the answer step often has none, so aggregate across
       // steps and fall back to the top-level (last-step) sources.
       const stepSources = (result.steps ?? []).flatMap((s) => s.sources ?? []);
       citations = collectCitations(stepSources.length > 0 ? stepSources : (result.sources ?? []));
     } catch (err) {
-      // Generation/network failure — not a JSON problem; skip (don't burn the retry).
+      // Generation/network failure or a timeout (TwinModelTimeoutError) — not a JSON
+      // problem; skip (don't burn the retry).
       log.debug('Web research generation call failed:', err instanceof Error ? err.message : err);
       return null;
     }

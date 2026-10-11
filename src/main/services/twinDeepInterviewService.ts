@@ -27,10 +27,11 @@
 // the wizard seeds its editable review from the draft and the user saves there.
 //
 // === DEPENDENCIES ===
-// zod, ai-provider (resolveTaskModel/generate), logger, shared/types/twin.
+// zod, ai-provider (resolveTaskModel/generate), twinModelCall (per-call timeout), logger, shared/types/twin.
 
 import { z } from 'zod';
 import { resolveTaskModel, generate, type ResolvedProvider } from './ai-provider';
+import { runTwinModelCall } from './twinModelCall';
 import { createLogger } from './logger';
 import type {
   TwinInterviewNextPayload,
@@ -86,21 +87,25 @@ async function generateValidated<T>(
   for (let attempt = 0; attempt < 2; attempt++) {
     let text: string;
     try {
-      const result = await generate({
-        providerId: provider.providerId,
-        providerName: provider.providerName,
-        apiKeyEncrypted: provider.apiKeyEncrypted,
-        baseUrl: provider.baseUrl,
-        model: provider.model,
-        taskType: 'twin_interview',
-        prompt,
-        system,
-        temperature: provider.temperature ?? 0,
-        maxTokens: provider.maxTokens ?? maxTokens,
-      });
+      const result = await runTwinModelCall((abortSignal) =>
+        generate({
+          providerId: provider.providerId,
+          providerName: provider.providerName,
+          apiKeyEncrypted: provider.apiKeyEncrypted,
+          baseUrl: provider.baseUrl,
+          model: provider.model,
+          taskType: 'twin_interview',
+          prompt,
+          system,
+          temperature: provider.temperature ?? 0,
+          maxTokens: provider.maxTokens ?? maxTokens,
+          abortSignal,
+        }),
+      );
       text = result.text ?? '';
     } catch (err) {
-      // Generation/network failure — not a JSON problem; skip (don't burn the retry).
+      // Generation/network failure or a timeout (TwinModelTimeoutError) — not a JSON
+      // problem; skip (don't burn the retry).
       log.debug('Twin deep interview generation call failed:', err instanceof Error ? err.message : err);
       return null;
     }

@@ -4,7 +4,8 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/connection';
-import { syncTracking } from '../../db/schema';
+import { meetings, syncTracking } from '../../db/schema';
+import { stampMeetingFactProvenance } from '../meetingService';
 import { createLogger } from '../logger';
 import { BATCH_SIZE, PULL_BATCH_LIMIT, PULL_TRACKING_PREFIX, SYNC_TABLES, transformRowFromRemote } from './syncConfig';
 import type { SyncTableConfig } from './syncConfig';
@@ -270,12 +271,33 @@ async function hasCompletedPush(tableName: string): Promise<boolean> {
 }
 
 /**
+ * Delete one batch of orphan rows. For meetings (deleted on the web), first stamp the provenance
+ * label onto each meeting's twin facts (the same snapshot deleteMeeting's keep path takes) in the
+ * SAME transaction as the delete. Sync never deletes facts — without this they would end with a
+ * null source and no label. Every other table is deleted by id exactly as before.
+ */
+async function deleteOrphanBatch(config: SyncTableConfig, ids: string[]): Promise<void> {
+  if (config.name !== 'meetings') {
+    await getDb().delete(config.drizzleTable).where(inArray(config.drizzleTable.id, ids));
+    return;
+  }
+  await getDb().transaction(async (tx) => {
+    const rows = await tx
+      .select({ id: meetings.id, title: meetings.title })
+      .from(meetings)
+      .where(inArray(meetings.id, ids));
+    for (const row of rows) await stampMeetingFactProvenance(tx, row.id, row.title);
+    await tx.delete(meetings).where(inArray(meetings.id, ids));
+  });
+}
+
+/**
  * Reconcile deletes: find local rows that no longer exist in Supabase
  * (hard-deleted on web) and remove them from PGlite.
  * Only checks non-junction tables with an 'id' primary key.
  * Junction tables are already handled by full-replace in pullJunctionTable.
  */
-async function reconcileDeletes(supabase: SupabaseClient, userId: string): Promise<number> {
+export async function reconcileDeletes(supabase: SupabaseClient, userId: string): Promise<number> {
   const db = getDb();
   let totalDeleted = 0;
 
@@ -352,7 +374,7 @@ async function reconcileDeletes(supabase: SupabaseClient, userId: string): Promi
       // Delete orphaned rows in batches
       for (let i = 0; i < orphanIds.length; i += BATCH_SIZE) {
         const batch = orphanIds.slice(i, i + BATCH_SIZE);
-        await db.delete(config.drizzleTable).where(inArray(config.drizzleTable.id, batch));
+        await deleteOrphanBatch(config, batch);
       }
 
       totalDeleted += orphanIds.length;

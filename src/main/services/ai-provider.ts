@@ -28,9 +28,12 @@ import { createLogger } from './logger';
 import { acquireInFlight, ensureRunning, touch as touchBuiltinRuntime, type LlamaRole } from './llamaRuntimeService';
 import { recordGeneration, type GenerationTiming } from './runtimeTelemetry';
 import { minimalReasoningOptions } from './minimalReasoning';
-import type { AIProviderName, AITaskType, TaskModelConfig } from '../../shared/types';
+import type { AIProviderName, AITaskType, TaskModelConfig, TwinLearningModelInfo } from '../../shared/types';
+import { isLocalProvider } from '../../shared/types/ai';
 
 const log = createLogger('AI');
+
+export { isLocalProvider };
 
 // Default models for connection testing (cheapest per provider)
 const TEST_MODELS: Record<AIProviderName, string> = {
@@ -435,6 +438,12 @@ export async function testConnection(
   }
 }
 
+/** An abort is the caller's decision (cancel / timeout), not a model failure: pass it
+ *  through untouched so it can never be mistaken for a context-overflow error. */
+function rethrowIfAborted(signal: AbortSignal | undefined, err: unknown): void {
+  if (signal?.aborted) throw err;
+}
+
 /**
  * Generate text using a configured provider + model.
  * Automatically logs token usage to the ai_usage table.
@@ -452,6 +461,12 @@ export async function generate(options: {
   maxTokens?: number;
   /** Small-cap tasks: turn hidden reasoning down where the model supports it. */
   minimalReasoning?: boolean;
+  /**
+   * Cancels the request when it aborts (caller cancel or timeout). Forwarded to the AI SDK
+   * exactly like streamGenerate does. An abort REJECTS - it is never turned into an empty
+   * success, never mapped to the local-context hint, and never retried. Omitted: unchanged.
+   */
+  abortSignal?: AbortSignal;
 }) {
   const factory = getProvider(options.providerId, options.providerName, options.apiKeyEncrypted, options.baseUrl);
 
@@ -468,9 +483,11 @@ export async function generate(options: {
       providerOptions: options.minimalReasoning
         ? minimalReasoningOptions(options.providerName, options.model)
         : undefined,
+      abortSignal: options.abortSignal,
     });
     elapsedMs = Date.now() - startedAt; // before any post-processing, so only the model call counts
   } catch (err: unknown) {
+    rethrowIfAborted(options.abortSignal, err);
     // Re-throw with user-friendly message for local model context overflow
     const contextHint = LOCAL_CONTEXT_HINTS[options.providerName];
     if (contextHint) {
@@ -822,6 +839,62 @@ export async function resolveTaskModel(taskType: string): Promise<ResolvedProvid
     model: DEFAULT_MODELS[fallbackProvider.name as AIProviderName] ?? 'gpt-5-mini',
     temperature: withTemperature(fallbackProvider.name as AIProviderName, undefined),
     maxTokens: withFloor(fallbackProvider.name as AIProviderName, undefined),
+  };
+}
+
+/** The persisted `ai.taskModels` map, or `{}` when absent/malformed. */
+async function readTaskModels(): Promise<Record<string, TaskModelConfig>> {
+  const [row] = await getDb().select().from(settings).where(eq(settings.key, 'ai.taskModels'));
+  if (!row) return {};
+  try {
+    return JSON.parse(row.value) as Record<string, TaskModelConfig>;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Resolve the model the twin's fact learning (extraction + label backfill) may use
+ * (TWIN-LOOP.2). Learning reads every meeting's notes, so unlike resolveTaskModel it
+ * NEVER uses the first-enabled-provider fallback. It returns the resolved provider
+ * only when
+ *   - the user set `ai.taskModels.twin_learning` explicitly (any provider — a cloud
+ *     model chosen on purpose is the user's decision), OR
+ *   - `twin_learning` is unset and the config it inherits from `live_assistant`
+ *     resolves to a LOCAL provider (builtin / lmstudio / ollama);
+ * and null otherwise (nothing configured, an inherited cloud model, or a config
+ * whose provider is gone/disabled). Callers treat null as a typed skip.
+ */
+export async function resolveTwinLearningModel(): Promise<ResolvedProvider | null> {
+  return (await inspectTwinLearningRoute()).provider;
+}
+
+async function inspectTwinLearningRoute(): Promise<{ provider: ResolvedProvider | null; explicit: boolean }> {
+  const resolved = await resolveTaskModel('twin_learning');
+  if (!resolved) return { provider: null, explicit: false };
+
+  const taskModels = await readTaskModels();
+  const own = taskModels.twin_learning;
+  const inherited = own ? undefined : taskModels.live_assistant;
+  // resolveTaskModel returns a config-backed result only with the config's own
+  // providerId + model; the first-enabled fallback carries a DEFAULT_MODELS model, so
+  // a mismatch here means the result is the silent fallback and must be refused.
+  const fromConfig = (c?: TaskModelConfig) => !!c && c.providerId === resolved.providerId && c.model === resolved.model;
+
+  if (fromConfig(own)) return { provider: resolved, explicit: true };
+  if (fromConfig(inherited) && isLocalProvider(resolved.providerName)) return { provider: resolved, explicit: false };
+  return { provider: null, explicit: false };
+}
+
+/** What the twin's learning will run on, for the Twin page (`twin:get-learning-model`). */
+export async function getTwinLearningModelInfo(): Promise<TwinLearningModelInfo> {
+  const { provider, explicit } = await inspectTwinLearningRoute();
+  return {
+    providerLabel: provider ? provider.providerName : null,
+    modelLabel: provider ? provider.model : null,
+    isLocal: provider ? isLocalProvider(provider.providerName) : false,
+    explicit,
+    willLearn: provider !== null,
   };
 }
 

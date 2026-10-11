@@ -130,6 +130,7 @@ import type {
   TwinMemoryListFilter,
   TwinMemoryGraph,
   BackfillFactLabelsResult,
+  TwinLearningModelInfo,
   EntityFact,
   AnalyzeEntityHistoryResult,
   EntityMergeCandidate,
@@ -703,6 +704,8 @@ export interface ElectronAPI {
     section: K,
     value: TwinProfileSections[K],
   ) => Promise<TwinProfile>;
+  // Wizard save: all eight sections in ONE transaction (whole profile or nothing).
+  twinSaveProfile: (profile: TwinProfileSections) => Promise<TwinProfile>;
   twinDraftSection: <K extends TwinProfileSectionKey>(section: K, answer: string) => Promise<TwinInterviewDraft<K>>;
 
   // Digital Twin deep creation (V3.3.5) — multi-turn interview, history mining,
@@ -711,6 +714,8 @@ export interface ElectronAPI {
   twinInterviewSynthesize: (payload: TwinInterviewSynthesizePayload) => Promise<TwinInterviewSynthesizeResult>;
   twinResearchHistoryInfo: () => Promise<TwinResearchHistoryInfo>;
   twinResearchHistory: () => Promise<TwinResearchResult>;
+  // Cancel the in-flight history-mining run; resolves true when one was running.
+  twinResearchCancel: () => Promise<boolean>;
   twinResearchWeb: (payload: TwinWebResearchPayload) => Promise<TwinWebResearchResult>;
   twinResearchRole: (payload: TwinRoleResearchPayload) => Promise<TwinRoleResearchResult>;
   twinGetCreationModel: () => Promise<TwinCreationModel>;
@@ -719,9 +724,19 @@ export interface ElectronAPI {
   twinMemoryList: (filter?: TwinMemoryListFilter) => Promise<TwinFact[]>;
   twinMemoryForget: (factId: string) => Promise<TwinFact | null>;
   twinMemoryRestore: (factId: string) => Promise<TwinFact | null>;
+  /** Forgotten (not purged) facts, newest first (TWIN-LOOP.2 Task 3). */
+  twinMemoryListForgotten: () => Promise<TwinFact[]>;
+  /** Delete ONE forgotten fact permanently: its text is erased, only a fingerprint
+   *  stays so it is never re-learned. False when nothing matched (active, missing or
+   *  already purged). */
+  twinMemoryPurge: (factId: string) => Promise<boolean>;
+  /** Delete every forgotten fact permanently; resolves to how many were purged. */
+  twinMemoryPurgeAllForgotten: () => Promise<number>;
   // User-triggered label backfill (TWIN-READ.1 Task 1) — labels existing facts
   // with no stored label yet, one bounded chunk per call.
   twinMemoryBackfillLabels: () => Promise<BackfillFactLabelsResult>;
+  // Which model fact learning will run on (TWIN-LOOP.2) — local or explicit only.
+  twinGetLearningModel: () => Promise<TwinLearningModelInfo>;
 
   // Twin memory GRAPH (TWIN-GRAPH.2 Task 1) — the twin's own tiered graph
   // (core -> category hub -> fact). Distinct from buildBrainGraph above,

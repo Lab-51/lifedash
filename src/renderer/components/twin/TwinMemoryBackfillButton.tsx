@@ -45,6 +45,9 @@ export function backfillMessageFor(result: BackfillFactLabelsResult): string {
   if (result.status === 'skipped') {
     if (result.reason === 'paused') return 'Learning is paused — resume it to improve labels.';
     if (result.reason === 'no-model') return 'No AI model is configured, so labels are unchanged.';
+    if (result.reason === 'no-learning-model') {
+      return 'Learning is off — choose a local model, or set a Twin learning model in Settings.';
+    }
     return 'Nothing was changed.';
   }
   if (result.remaining > 0) {

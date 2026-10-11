@@ -25,7 +25,7 @@ import type { AIProvider } from '../../../shared/types/ai';
 import type { TwinCreationModel } from '../../../shared/types/twin';
 
 const twinGetProfile = vi.fn();
-const twinUpdateProfileSection = vi.fn();
+const twinSaveProfile = vi.fn();
 const twinDraftSection = vi.fn();
 const twinGetCreationModel = vi.fn();
 const getAIProviders = vi.fn();
@@ -34,7 +34,7 @@ const setSetting = vi.fn();
 
 vi.stubGlobal('electronAPI', {
   twinGetProfile,
-  twinUpdateProfileSection,
+  twinSaveProfile,
   twinDraftSection,
   twinGetCreationModel,
   getAIProviders,
@@ -380,11 +380,11 @@ describe('TwinWizard — Quick form optional AI assist', () => {
   });
 });
 
-describe('TwinWizard — review writes via the section-patch API', () => {
+describe('TwinWizard — review saves the whole profile in one call', () => {
   it('prunes and writes every section (incl. the brief), then completes with the returned profile', async () => {
     twinGetProfile.mockResolvedValue(null);
     const returned = fullProfile({ identity: { name: 'Ada' } });
-    twinUpdateProfileSection.mockResolvedValue(returned);
+    twinSaveProfile.mockResolvedValue(returned);
     const onComplete = vi.fn();
 
     renderWizard(<TwinWizard onClose={vi.fn()} onComplete={onComplete} />);
@@ -399,18 +399,23 @@ describe('TwinWizard — review writes via the section-patch API', () => {
     // Waits for the async writes + onComplete.
     await vi.waitFor(() => expect(onComplete).toHaveBeenCalledWith(returned));
 
-    // Every section written; adding brief makes it 8 (empty object/array sections prune to {} / []).
-    expect(twinUpdateProfileSection).toHaveBeenCalledTimes(8);
-    expect(twinUpdateProfileSection).toHaveBeenCalledWith('brief', {});
-    expect(twinUpdateProfileSection).toHaveBeenCalledWith('identity', { name: 'Ada' });
-    expect(twinUpdateProfileSection).toHaveBeenCalledWith('domain', {});
-    expect(twinUpdateProfileSection).toHaveBeenCalledWith('projects', []);
-    expect(twinUpdateProfileSection).toHaveBeenCalledWith('goals', []);
+    // Exactly ONE IPC call carries all eight sections (empty object/array sections prune to {} / []).
+    expect(twinSaveProfile).toHaveBeenCalledTimes(1);
+    expect(twinSaveProfile).toHaveBeenCalledWith({
+      brief: {},
+      identity: { name: 'Ada' },
+      domain: {},
+      projects: [],
+      people: [],
+      vocabulary: [],
+      goals: [],
+      preferences: {},
+    });
   });
 
   it('writes the brief seeded on the mode screen through review', async () => {
     twinGetProfile.mockResolvedValue(null);
-    twinUpdateProfileSection.mockResolvedValue(fullProfile());
+    twinSaveProfile.mockResolvedValue(fullProfile());
 
     renderWizard(<TwinWizard onClose={vi.fn()} onComplete={vi.fn()} />);
     await screen.findByRole('heading', { name: /set up your twin/i });
@@ -425,7 +430,9 @@ describe('TwinWizard — review writes via the section-patch API', () => {
     fireEvent.click(screen.getByRole('button', { name: /save & finish/i }));
 
     await vi.waitFor(() =>
-      expect(twinUpdateProfileSection).toHaveBeenCalledWith('brief', { statement: 'A senior PM in fintech' }),
+      expect(twinSaveProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ brief: { statement: 'A senior PM in fintech' } }),
+      ),
     );
   });
 
@@ -446,6 +453,6 @@ describe('TwinWizard — review writes via the section-patch API', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/project name is required/i);
     expect(onComplete).not.toHaveBeenCalled();
-    expect(twinUpdateProfileSection).not.toHaveBeenCalled();
+    expect(twinSaveProfile).not.toHaveBeenCalled();
   });
 });

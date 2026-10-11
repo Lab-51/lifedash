@@ -41,7 +41,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
 import type { TwinFact, TwinGraphEdge, TwinGraphNode, TwinMemoryGraph } from '../../../../shared/types';
-import { TWIN_LEARNING_PAUSED_SETTING_KEY } from '../../../../shared/types/twin';
+import { TWIN_FACTS_IN_USE_SETTING_KEY, TWIN_LEARNING_PAUSED_SETTING_KEY } from '../../../../shared/types/twin';
 import { FACT_RADIUS, TITLE_OFFSET_X } from '../riverLayout';
 import { estimatedTitleWidth } from '../riverCanvasModel';
 
@@ -75,12 +75,20 @@ const twinBuildMemoryGraph = vi.fn();
 const twinMemoryForget = vi.fn();
 const twinMemoryRestore = vi.fn();
 const twinMemoryBackfillLabels = vi.fn();
+const twinGetLearningModel = vi.fn();
+const twinMemoryListForgotten = vi.fn();
+const twinMemoryPurge = vi.fn();
+const twinMemoryPurgeAllForgotten = vi.fn();
 const setSetting = vi.fn().mockResolvedValue(undefined);
 vi.stubGlobal('electronAPI', {
   twinBuildMemoryGraph,
   twinMemoryForget,
   twinMemoryRestore,
   twinMemoryBackfillLabels,
+  twinGetLearningModel,
+  twinMemoryListForgotten,
+  twinMemoryPurge,
+  twinMemoryPurgeAllForgotten,
   setSetting,
 });
 
@@ -384,6 +392,14 @@ beforeEach(() => {
   documentVisibility = 'visible';
   twinBuildMemoryGraph.mockResolvedValue(graphFixture());
   twinMemoryBackfillLabels.mockResolvedValue({ status: 'ok', labeled: 0, remaining: 0 });
+  twinMemoryListForgotten.mockResolvedValue([]);
+  twinGetLearningModel.mockResolvedValue({
+    providerLabel: 'builtin',
+    modelLabel: 'qwen3',
+    isLocal: true,
+    explicit: false,
+    willLearn: true,
+  });
   useTwinMemoryGraphStore.setState({
     graph: null,
     entering: NO_ENTERING_NODES,
@@ -1788,30 +1804,87 @@ describe('TwinMemoryGraph — forget + undo', () => {
 // SAFETY TRIAD 3/3 — the kill-switch. Reflected and flipped, never re-implemented.
 // ---------------------------------------------------------------------------
 describe('TwinMemoryGraph — pause learning kill-switch', () => {
-  it('flips the twin.learningPaused setting and nothing else', async () => {
+  const pauseSwitch = () => screen.getByRole('switch', { name: /pause learning/i });
+  const factsSwitch = () => screen.getByRole('switch', { name: /use learned facts/i });
+  // act, not waitFor: an earlier test in this file can leave fake timers installed.
+  const click = async (el: HTMLElement) => {
+    await act(async () => {
+      fireEvent.click(el);
+    });
+  };
+
+  it('renders both switches with a plain line each: pause off, facts in use by default', () => {
     seed();
     renderGraph();
 
-    fireEvent.click(screen.getByRole('button', { name: /pause learning/i }));
-
-    await waitFor(() => expect(setSetting).toHaveBeenCalledWith(TWIN_LEARNING_PAUSED_SETTING_KEY, 'true'));
-    // The gate lives main-side; this surface owns no other write.
-    expect(setSetting).toHaveBeenCalledTimes(1);
+    expect(pauseSwitch()).not.toBeChecked();
+    expect(factsSwitch()).toBeChecked();
+    expect(pauseSwitch()).toHaveAccessibleDescription(/stop learning new facts/i);
+    expect(factsSwitch()).toHaveAccessibleDescription(/draw on learned facts/i);
   });
 
-  it('reflects the paused setting with a pressed toggle and an explicit banner', () => {
+  it('pausing from the default pins "use learned facts" ON first, so pausing never costs the learned facts', async () => {
+    seed();
+    renderGraph();
+
+    await click(pauseSwitch());
+
+    expect(setSetting.mock.calls).toEqual([
+      [TWIN_FACTS_IN_USE_SETTING_KEY, 'true'],
+      [TWIN_LEARNING_PAUSED_SETTING_KEY, 'true'],
+    ]);
+    expect(pauseSwitch()).toBeChecked();
+    expect(factsSwitch()).toBeChecked(); // paused, yet facts remain in use
+    expect(screen.getByRole('status')).toHaveTextContent(/existing facts are still applied/i);
+  });
+
+  it('flips the facts switch on its own and writes nothing else', async () => {
+    seed();
+    renderGraph();
+
+    await click(factsSwitch());
+
+    expect(setSetting.mock.calls).toEqual([[TWIN_FACTS_IN_USE_SETTING_KEY, 'false']]);
+    expect(factsSwitch()).not.toBeChecked();
+    expect(pauseSwitch()).not.toBeChecked();
+    expect(screen.getByRole('status')).toHaveTextContent(/learned facts are switched off/i);
+  });
+
+  it('resuming writes only the pause flag, and the choice survives a remount', async () => {
+    useSettingsStore.setState({
+      settings: { [TWIN_LEARNING_PAUSED_SETTING_KEY]: 'true', [TWIN_FACTS_IN_USE_SETTING_KEY]: 'true' },
+    } as never);
+    seed();
+    const view = renderGraph();
+
+    await click(pauseSwitch());
+    expect(setSetting.mock.calls).toEqual([[TWIN_LEARNING_PAUSED_SETTING_KEY, 'false']]);
+
+    view.unmount();
+    renderGraph();
+    expect(pauseSwitch()).not.toBeChecked();
+    expect(factsSwitch()).toBeChecked();
+  });
+
+  it('a legacy paused user (no facts key) sees facts OFF until they turn the switch on', async () => {
     useSettingsStore.setState({ settings: { [TWIN_LEARNING_PAUSED_SETTING_KEY]: 'true' } } as never);
     seed();
     renderGraph();
 
-    expect(screen.getByText(/learning is paused/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /resume learning/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(pauseSwitch()).toBeChecked();
+    expect(factsSwitch()).not.toBeChecked();
+    expect(screen.getByText(/no new facts are being learned or applied/i)).toBeInTheDocument();
+
+    await click(factsSwitch());
+    expect(setSetting.mock.calls).toEqual([[TWIN_FACTS_IN_USE_SETTING_KEY, 'true']]);
+    expect(factsSwitch()).toBeChecked();
   });
 
-  it('shows no banner while learning is active', () => {
+  it('shows no banner while both switches are at rest', () => {
     seed();
     renderGraph();
     expect(screen.queryByText(/learning is paused/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });
 
@@ -1821,14 +1894,87 @@ describe('TwinMemoryGraph — pause learning kill-switch', () => {
 // it. A fact behind a collapsed lane that only a mouse can open would put the
 // forget action further out of reach, which is exactly what the phase forbids.
 // ---------------------------------------------------------------------------
+describe('TwinMemoryGraph — learning-model notice (TWIN-LOOP.2)', () => {
+  it('says learning is off, and why, when no explicit or local learning model is available', async () => {
+    twinGetLearningModel.mockResolvedValue({
+      providerLabel: null,
+      modelLabel: null,
+      isLocal: false,
+      explicit: false,
+      willLearn: false,
+    });
+    seed();
+    renderGraph();
+
+    expect(await screen.findByText(/learning is off: choose a local model/i)).toBeInTheDocument();
+  });
+
+  it('shows nothing when learning will run', async () => {
+    seed();
+    renderGraph();
+
+    // Flush the lookup under act(): an earlier test in this file can leave fake timers
+    // installed, which would starve waitFor's polling when nothing mutates the DOM.
+    await act(async () => {});
+    expect(twinGetLearningModel).toHaveBeenCalled();
+    expect(screen.queryByText(/learning is off/i)).not.toBeInTheDocument();
+  });
+});
+
+// TWIN-LOOP.2 Task 3 — the header's way into the Forgotten list. The list itself
+// (confirm, purge, focus) is tested in TwinForgottenList.test.tsx; this pins the
+// host's wiring. act(), not waitFor: earlier tests here can leave fake timers on.
+describe('TwinMemoryGraph — Forgotten (N)', () => {
+  const forgottenButton = () => screen.getByRole('button', { name: /^Forgotten/ });
+
+  it('counts the forgotten facts, opens the list, and a restore puts the fact back on the canvas', async () => {
+    const parked = twinFact({ id: 'f9', fact: 'Prefers tea in the afternoon', status: 'forgotten' });
+    twinMemoryListForgotten.mockResolvedValueOnce([parked]).mockResolvedValue([]);
+    twinMemoryRestore.mockResolvedValue(twinFact({ id: 'f9', fact: parked.fact }));
+    seed();
+    renderGraph();
+    await act(async () => {});
+
+    expect(forgottenButton()).toHaveTextContent('Forgotten (1)');
+    expect(forgottenButton()).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(forgottenButton());
+    expect(forgottenButton()).toHaveAttribute('aria-expanded', 'true');
+    const list = screen.getByRole('list', { name: 'Forgotten facts' });
+    expect(within(list).getByText('Prefers tea in the afternoon')).toBeInTheDocument();
+
+    const graphLoads = twinBuildMemoryGraph.mock.calls.length;
+    await act(async () => {
+      fireEvent.click(within(list).getByRole('button', { name: /^Restore:/ }));
+    });
+    expect(twinMemoryRestore).toHaveBeenCalledWith('f9');
+    expect(twinBuildMemoryGraph.mock.calls.length).toBeGreaterThan(graphLoads); // the graph refetched
+    expect(forgottenButton()).toHaveTextContent('Forgotten (0)');
+  });
+
+  it('reloads the count after a forget', async () => {
+    twinMemoryForget.mockResolvedValue(twinFact({ status: 'forgotten' }));
+    twinMemoryListForgotten.mockResolvedValueOnce([]).mockResolvedValue([twinFact({ status: 'forgotten' })]);
+    seedOpen();
+    renderGraph();
+    await act(async () => {});
+    expect(forgottenButton()).toHaveTextContent('Forgotten (0)');
+
+    fireEvent.click(nodeEl('fact:f1'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^Forget:/ }));
+    });
+    expect(forgottenButton()).toHaveTextContent('Forgotten (1)');
+  });
+});
+
 describe('TwinMemoryGraph — keyboard reachability of the safety triad', () => {
-  it('reaches and operates the pause kill-switch by Tab + Enter alone', async () => {
+  it('reaches and operates the pause kill-switch by Tab + Space alone', async () => {
     const user = userEvent.setup();
     seed();
     renderGraph();
 
-    await tabTo(user, screen.getByRole('button', { name: /pause learning/i }));
-    await user.keyboard('{Enter}');
+    await tabTo(user, screen.getByRole('switch', { name: /pause learning/i }));
+    await user.keyboard(' ');
 
     await waitFor(() => expect(setSetting).toHaveBeenCalledWith(TWIN_LEARNING_PAUSED_SETTING_KEY, 'true'));
   });
@@ -2015,6 +2161,21 @@ describe('TwinMemoryGraph — label backfill trigger', () => {
     fireEvent.click(screen.getByRole('button', { name: /improve labels/i }));
 
     expect(await screen.findByText(/no ai model is configured/i)).toBeInTheDocument();
+  });
+
+  it('says learning is off when no explicit or local learning model is allowed', async () => {
+    twinMemoryBackfillLabels.mockResolvedValue({
+      status: 'skipped',
+      reason: 'no-learning-model',
+      labeled: 0,
+      remaining: 4,
+    });
+    seed();
+    renderGraph();
+
+    fireEvent.click(screen.getByRole('button', { name: /improve labels/i }));
+
+    expect(await screen.findByText(/learning is off — choose a local model/i)).toBeInTheDocument();
   });
 
   it('invites another run while facts remain, because one call is one bounded chunk', async () => {
@@ -2271,9 +2432,9 @@ describe('TwinMemoryGraph — live growth under disclosure (TWIN-READ.1 Task 5)'
     renderGraph();
 
     // Land on a real triad control first — the pause-learning kill-switch.
-    const pauseButton = screen.getByRole('button', { name: 'Pause learning' });
-    pauseButton.focus();
-    expect(document.activeElement).toBe(pauseButton);
+    const pauseSwitch = screen.getByRole('switch', { name: 'Pause learning' });
+    pauseSwitch.focus();
+    expect(document.activeElement).toBe(pauseSwitch);
 
     twinBuildMemoryGraph.mockResolvedValue(grownFixture());
     await act(async () => {
@@ -2281,7 +2442,7 @@ describe('TwinMemoryGraph — live growth under disclosure (TWIN-READ.1 Task 5)'
     });
 
     expect(document.querySelectorAll('[data-pulse-for]')).toHaveLength(1); // it did pulse
-    expect(document.activeElement).toBe(pauseButton); // ...without moving focus
+    expect(document.activeElement).toBe(pauseSwitch); // ...without moving focus
   });
 });
 

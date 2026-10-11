@@ -214,6 +214,32 @@ describe('deleteMeeting — keep path (keepLearnedFacts: true)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// deleteMeeting — a purged fact's fingerprint outlives its meeting (TWIN-LOOP.2)
+// ---------------------------------------------------------------------------
+
+describe('deleteMeeting — purged facts', () => {
+  it.each([
+    ['default', undefined],
+    ['keep', { keepLearnedFacts: true }],
+  ])('%s path keeps the tombstone (FK nulled, no label stamped) so it is still never re-learned', async (_p, opts) => {
+    const db: Db = holder.db;
+    const meeting = await insertMeeting({ title: 'Meeting being deleted' });
+    const fingerprint = 'a'.repeat(64);
+    const tombstone = await insertFact(meeting.id, {
+      fact: '',
+      status: 'forgotten',
+      fingerprint,
+      purgedAt: new Date(),
+    });
+
+    await deleteMeeting(meeting.id, opts);
+
+    const [row] = await db.select().from(twinFacts).where(eq(twinFacts.id, tombstone.id));
+    expect(row).toMatchObject({ fact: '', fingerprint, sourceMeetingId: null, sourceMeetingLabel: null });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // deleteMeeting — active-recording guard
 // ---------------------------------------------------------------------------
 
@@ -297,6 +323,17 @@ describe('getMeetingDeleteImpact', () => {
       hasBrief: false,
       transcriptSegmentCount: 0,
     });
+  });
+
+  it('does not count a purged fact (TWIN-LOOP.2 tombstone)', async () => {
+    const meeting = await insertMeeting({ title: 'Meeting with a purged fact' });
+    await insertFact(meeting.id, { fact: 'Ships Friday.' });
+    await insertFact(meeting.id, { fact: '', status: 'forgotten', fingerprint: 'f'.repeat(64), purgedAt: new Date() });
+
+    const impact = await getMeetingDeleteImpact(meeting.id);
+
+    expect(impact.factCount).toBe(1);
+    expect(impact.factLabels).toHaveLength(1);
   });
 
   it('reports audioBytes: 0 when audioPath points at a file missing on disk', async () => {
