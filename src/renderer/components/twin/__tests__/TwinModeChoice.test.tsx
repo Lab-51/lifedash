@@ -14,6 +14,7 @@ import '@testing-library/jest-dom';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import type { AIProvider } from '../../../../shared/types/ai';
 import type { TwinCreationModel } from '../../../../shared/types/twin';
+import { TEXT_MAX } from '../../../../shared/twinLimits';
 
 const twinGetCreationModel = vi.fn();
 const getAIProviders = vi.fn();
@@ -58,6 +59,28 @@ beforeEach(() => {
   twinGetCreationModel.mockResolvedValue(LOCAL_MODEL); // gated (non-frontier)
   getAllSettings.mockResolvedValue({});
   setSetting.mockResolvedValue(undefined);
+});
+
+describe('TwinModeChoice — brief limit (TWIN-LOOP.3)', () => {
+  it('limits the brief textarea and flags an older over-limit brief by name', async () => {
+    getAIProviders.mockResolvedValue([]);
+    const { rerender } = render(
+      <MemoryRouter>
+        <TwinModeChoice brief="" onBriefChange={vi.fn()} onChoose={vi.fn()} />
+      </MemoryRouter>,
+    );
+    const box = screen.getByRole('textbox');
+    expect(box).toHaveAttribute('maxlength', String(TEXT_MAX));
+    expect(screen.queryByText(/shorten/i)).toBeNull();
+
+    rerender(
+      <MemoryRouter>
+        <TwinModeChoice brief={'b'.repeat(TEXT_MAX + 1)} onBriefChange={vi.fn()} onChoose={vi.fn()} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Shorten the brief to 4,000 characters to save.')).toBeInTheDocument();
+    await screen.findAllByText(/state-of-the-art model/i); // let the async model/provider load settle
+  });
 });
 
 describe('TwinModeChoice — Gemini one-tap (finding #6.2)', () => {

@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search, ChevronRight } from 'lucide-react';
 import { InfoNote } from './DeepInterviewParts';
+import { SHORT_MAX } from '../../../shared/twinLimits';
 
 const INPUT_CLASS =
   'w-full text-sm bg-white dark:bg-surface-900 border border-[var(--color-border)] rounded px-2.5 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)]';
@@ -62,6 +63,7 @@ function Field({
       <input
         type="text"
         value={value}
+        maxLength={SHORT_MAX}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className={INPUT_CLASS}

@@ -24,6 +24,8 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { isFrontierProvider } from '../../../shared/types/ai';
 import type { AIProviderName, AITaskType, TaskModelConfig } from '../../../shared/types/ai';
 import type { TwinCreationModel } from '../../../shared/types/twin';
+import { TEXT_MAX } from '../../../shared/twinLimits';
+import { limitMessage } from './TwinFieldEditors';
 
 /** Which way the user chose to build their twin. */
 export type TwinCreationMode = 'quick' | 'deep' | 'history';
@@ -225,10 +227,18 @@ export default function TwinModeChoice({ brief, onBriefChange, onChoose }: TwinM
             value={brief}
             onChange={(e) => onBriefChange(e.target.value)}
             rows={3}
+            maxLength={TEXT_MAX}
+            aria-invalid={brief.trim().length > TEXT_MAX || undefined}
+            aria-describedby={brief.trim().length > TEXT_MAX ? 'twin-brief-limit' : undefined}
             placeholder="e.g. A senior product manager at a fintech startup, focused on payments, who values concise, direct communication."
             className="w-full text-sm bg-white dark:bg-surface-900 border border-[var(--color-border)] rounded px-3 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] resize-y"
           />
         </label>
+        {brief.trim().length > TEXT_MAX && (
+          <p id="twin-brief-limit" className="mt-1 text-xs text-red-500 break-words min-w-0">
+            {limitMessage('the brief', TEXT_MAX)}
+          </p>
+        )}
         <p className="mt-2 text-xs font-data text-[var(--color-text-muted)] break-words">
           Creation model: <span className="text-[var(--color-text-secondary)]">{modelLine}</span>
         </p>

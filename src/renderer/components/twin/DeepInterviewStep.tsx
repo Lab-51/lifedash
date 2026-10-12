@@ -13,6 +13,7 @@
 
 import { useEffect, useId, useRef } from 'react';
 import { ChevronRight, Check } from 'lucide-react';
+import { TEXT_MAX } from '../../../shared/twinLimits';
 
 export interface DeepInterviewStepProps {
   question: string;
@@ -65,6 +66,7 @@ export default function DeepInterviewStep({
           value={answer}
           onChange={(e) => onAnswerChange(e.target.value)}
           rows={4}
+          maxLength={TEXT_MAX}
           aria-label="Your answer"
           aria-describedby={questionId}
           placeholder="Answer in your own words…"

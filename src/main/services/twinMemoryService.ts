@@ -56,7 +56,9 @@
 // briefRecordService (loadLatestBriefRecord/fitNotesWithinBudget — BRIEF-QUAL.2
 // Task 3, the shared "brief + full notes" read path), shared briefRecordText
 // (structureToText — renders the record's structure into the notes block), shared
-// briefSentinel (isFailedBriefText — a failure-card brief is never material).
+// briefSentinel (isFailedBriefText — a failure-card brief is never material),
+// twinFingerprintKey (getFingerprintKey — the keychain-held HMAC key for the keyed
+// `h1:` tombstone fingerprints, TWIN-LOOP.3).
 //
 // === MEET-DEL.1: deleted-meeting race absorption ===
 // extractFacts's own insert is guarded twice: a fresh getMeeting() check right
@@ -67,7 +69,7 @@
 // function already used for every other skip: {status:'skipped', reason:
 // 'meeting-deleted', facts:[]}, logged once at info — never a raw FK error.
 
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { and, asc, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db/connection';
@@ -83,6 +85,7 @@ import { loadLatestBriefRecord, fitNotesWithinBudget } from './briefRecordServic
 import { structureToText } from '../../shared/utils/briefRecordText';
 import { isFailedBriefText } from '../../shared/briefSentinel';
 import { rankFactsByRelevance } from './twinRelevance';
+import { getFingerprintKey } from './twinFingerprintKey';
 import {
   TWIN_FACTS_IN_USE_SETTING_KEY,
   TWIN_LEARNING_PAUSED_SETTING_KEY,
@@ -230,27 +233,38 @@ function normalizeFact(fact: string): string {
     .trim();
 }
 
-/** The fingerprint a purged fact keeps (TWIN-LOOP.2 Task 3): sha256 hex of the
- *  normalized text. Forgotten (not yet purged) facts are compared through the same
- *  hash, so "forgotten" and "purged" block re-learning by ONE rule. */
-function fingerprintOf(fact: string): string {
+/** Prefix of a keyed fingerprint (TWIN-LOOP.3 Task 1); legacy ones carry none. */
+const KEYED_FINGERPRINT_PREFIX = 'h1:';
+
+/** The legacy (TWIN-LOOP.2) fingerprint: unkeyed sha256 hex of the normalized text. */
+function legacyFingerprintOf(fact: string): string {
   return createHash('sha256').update(normalizeFact(fact), 'utf8').digest('hex');
 }
 
+/** The keyed fingerprint: `h1:` + HMAC-SHA256(key, normalized text) hex. */
+function keyedFingerprintOf(fact: string, key: Buffer): string {
+  return KEYED_FINGERPRINT_PREFIX + createHmac('sha256', key).update(normalizeFact(fact), 'utf8').digest('hex');
+}
+
+/** The fingerprint a purge stores: keyed when the key is available, else the legacy
+ *  sha256 — a purge never fails or is skipped because the key is unavailable. */
+function fingerprintOf(fact: string, key: Buffer | null): string {
+  return key ? keyedFingerprintOf(fact, key) : legacyFingerprintOf(fact);
+}
+
+/** Whether a candidate fact text is blocked from being (re-)learned. */
+type BlockRule = (fact: string) => boolean;
+
 /**
  * Drop candidates that duplicate an existing ACTIVE fact or an earlier candidate in
- * this same batch (normalized-equality — same Set discipline as triage), or whose
- * fingerprint is BLOCKED (a fact the user Forgot or permanently deleted), then cap
+ * this same batch (normalized-equality — same Set discipline as triage), or that the
+ * block rule rejects (a fact the user Forgot or permanently deleted), then cap
  * at ~5/session. Blocked facts are a post-generation FILTER only — never disclosed
  * to the model (they are NOT in the prompt's "Already known" list), so a fact the
  * user explicitly Forgot or deleted is never silently re-learned as a new active
  * row. Preserves the model's ordering for the survivors.
  */
-function dedupeFacts(
-  candidates: ExtractedFact[],
-  existingKnown: string[],
-  blocked: ReadonlySet<string>,
-): DedupedFact[] {
+function dedupeFacts(candidates: ExtractedFact[], existingKnown: string[], isBlocked: BlockRule): DedupedFact[] {
   const seen = new Set(existingKnown.map(normalizeFact));
   const out: DedupedFact[] = [];
   for (const c of candidates) {
@@ -258,7 +272,7 @@ function dedupeFacts(
     if (!fact) continue;
     const key = normalizeFact(fact);
     if (!key || seen.has(key)) continue; // dedupe vs existing active + within batch
-    if (blocked.has(fingerprintOf(fact))) continue; // forgotten or purged
+    if (isBlocked(fact)) continue; // forgotten or purged
     seen.add(key);
     out.push({ fact, category: c.category, label: sanitizeLabel(c.label) });
     if (out.length >= TWIN_FACT_CAP) break; // ~5-cap per session
@@ -297,19 +311,39 @@ async function loadActiveFactStrings(db: Db, excludeMeetingId: string): Promise<
 }
 
 /**
- * Fingerprints of every fact that must never be re-learned: each FORGOTTEN fact
- * (hashed from its text) and each PURGED fact (its stored fingerprint — the text is
- * gone). Feeds the post-parse dedupe ONLY (never the prompt), so a forgotten fact's
- * content is never re-surfaced to the model. A row carrying a fingerprint blocks
- * whatever its status, so a tombstone can never stop blocking. Takes a `select`-
- * capable handle so the replace transaction re-reads through the same rule.
+ * The ONE rule for facts that must never be re-learned (TWIN-LOOP.3 Task 1): each
+ * FORGOTTEN fact contributes both fingerprint forms computed from its text, and each
+ * PURGED fact its stored fingerprint (the text is gone) — legacy unprefixed sha256 or
+ * keyed `h1:` HMAC. A candidate is blocked when its legacy sha256 OR (key available)
+ * its `h1:` HMAC is in that set. Feeds the post-parse dedupe ONLY (never the prompt),
+ * so a forgotten fact's content is never re-surfaced to the model. A row carrying a
+ * fingerprint blocks whatever its status, so a tombstone can never stop blocking.
+ * Takes a `select`-capable handle so the replace transaction re-reads through the
+ * same rule; `key` is resolved by the caller BEFORE any transaction.
+ * Known, accepted limit: without the key (a backup restored on another machine)
+ * `h1:` tombstones cannot block — legacy ones and forgotten facts still do.
  */
-async function loadBlockedFingerprints(db: Pick<Db, 'select'>): Promise<Set<string>> {
+async function loadBlockRule(db: Pick<Db, 'select'>, key: Buffer | null): Promise<BlockRule> {
   const rows = await db
     .select({ fact: twinFacts.fact, fingerprint: twinFacts.fingerprint })
     .from(twinFacts)
     .where(or(eq(twinFacts.status, 'forgotten'), isNotNull(twinFacts.fingerprint)));
-  return new Set(rows.map((r) => r.fingerprint ?? fingerprintOf(r.fact)));
+  const blocked = new Set<string>();
+  let keyedTombstones = 0;
+  for (const r of rows) {
+    if (r.fingerprint != null) {
+      blocked.add(r.fingerprint);
+      if (r.fingerprint.startsWith(KEYED_FINGERPRINT_PREFIX)) keyedTombstones++;
+    } else {
+      blocked.add(legacyFingerprintOf(r.fact));
+      if (key) blocked.add(keyedFingerprintOf(r.fact, key));
+    }
+  }
+  if (!key && keyedTombstones > 0) {
+    log.warn(`${keyedTombstones} keyed tombstone(s) cannot block re-learning: fingerprint key unavailable`);
+  }
+  return (fact) =>
+    blocked.has(legacyFingerprintOf(fact)) || (key !== null && blocked.has(keyedFingerprintOf(fact, key)));
 }
 
 /** Header for the record's rendered structure (BRIEF-QUAL.2) — the block label
@@ -411,20 +445,22 @@ export function buildExtractionContext(
  * meeting go: forgotten facts (the user's decision), other meetings' facts,
  * interview facts and kept facts (sourceMeetingId null) are never matched.
  *
- * The blocked fingerprints (forgotten + purged) are re-read HERE, inside the
- * transaction: the list read before the model call is stale by the time the reply
+ * The block rule (forgotten + purged, both fingerprint forms) is re-read HERE, inside
+ * the transaction: the list read before the model call is stale by the time the reply
  * lands, and a fact the user Forgot or deleted permanently meanwhile (this meeting's
  * own, so absent from the pre-call dedupe set) would otherwise come back as a new
- * active row. `removed` is the delete's row count (0 when the driver reports none).
+ * active row. `key` was resolved before the transaction (never read inside it).
+ * `removed` is the delete's row count (0 when the driver reports none).
  */
 async function replaceMeetingFacts(
   db: Db,
   meetingId: string,
   facts: DedupedFact[],
+  key: Buffer | null,
 ): Promise<{ inserted: (typeof twinFacts.$inferSelect)[]; removed: number }> {
   return db.transaction(async (tx) => {
-    const blockedNow = await loadBlockedFingerprints(tx);
-    const fresh = facts.filter((c) => !blockedNow.has(fingerprintOf(c.fact)));
+    const isBlockedNow = await loadBlockRule(tx, key);
+    const fresh = facts.filter((c) => !isBlockedNow(c.fact));
     // Never delete without a replacement: nothing new survived, so the old set stays.
     if (fresh.length === 0) return { inserted: [], removed: 0 };
 
@@ -515,10 +551,11 @@ async function extractFactsUnserialized(meetingId: string): Promise<ExtractFacts
     // because a successful pass replaces them. Forgotten and purged facts (any meeting,
     // this one included) feed the dedupe ONLY, as fingerprints — so such a fact is
     // neither re-learned nor re-disclosed to the model, and the replace below never
-    // touches it.
-    const [existingActive, blocked] = await Promise.all([
+    // touches it. The fingerprint key is resolved once, here, outside any transaction.
+    const fingerprintKey = await getFingerprintKey();
+    const [existingActive, isBlocked] = await Promise.all([
       loadActiveFactStrings(db, meetingId),
-      loadBlockedFingerprints(db),
+      loadBlockRule(db, fingerprintKey),
     ]);
     // BRIEF-QUAL.2: the record's rendered structure, brief-first — see
     // buildExtractionContext's own doc comment for the budget/placement rules.
@@ -542,7 +579,7 @@ async function extractFactsUnserialized(meetingId: string): Promise<ExtractFacts
     // nothing, or only of facts already known elsewhere / forgotten, keeps it. A weak
     // model echoing the "Already known" list must never hard-delete a meeting's memory.
     const candidates = (parsed as ExtractedFact[]).filter((c) => c.fact.trim());
-    const deduped = dedupeFacts(candidates, existingActive, blocked);
+    const deduped = dedupeFacts(candidates, existingActive, isBlocked);
     if (deduped.length === 0) return { status: 'ok', facts: [] };
 
     // MEET-DEL.1: re-check existence immediately before the write — the extraction
@@ -554,7 +591,7 @@ async function extractFactsUnserialized(meetingId: string): Promise<ExtractFacts
       return { status: 'skipped', reason: 'meeting-deleted', facts: [] };
     }
 
-    const { inserted, removed } = await replaceMeetingFacts(db, meetingId, deduped);
+    const { inserted, removed } = await replaceMeetingFacts(db, meetingId, deduped, fingerprintKey);
 
     log.info(`Learned ${inserted.length} fact(s) from meeting ${meetingId} (replaced ${removed})`);
     // Live-refresh trigger: only on an actual change — a renderer sitting on the
@@ -639,10 +676,13 @@ function purgeable() {
 /**
  * Erase the text of every purgeable fact matching `factId` (or all of them when
  * omitted), in ONE transaction: the row keeps only its category, its source
- * meeting id, a fingerprint (sha256 of the normalized text — so the fact is never
- * re-learned) and purged_at. Returns how many rows were purged.
+ * meeting id, a fingerprint (`h1:` + HMAC-SHA256 of the normalized text under the
+ * keychain-held key, or the legacy sha256 when that key is unavailable — so the fact
+ * is never re-learned) and purged_at. Returns how many rows were purged. The key is
+ * resolved BEFORE the transaction, and its absence never fails or skips a purge.
  */
 async function purgeRows(db: Db, factId?: string): Promise<number> {
+  const key = await getFingerprintKey();
   return db.transaction(async (tx) => {
     const rows = await tx
       .select({ id: twinFacts.id, fact: twinFacts.fact })
@@ -652,7 +692,7 @@ async function purgeRows(db: Db, factId?: string): Promise<number> {
     for (const row of rows) {
       await tx
         .update(twinFacts)
-        .set({ fingerprint: fingerprintOf(row.fact), fact: '', label: null, sourceMeetingLabel: null, purgedAt })
+        .set({ fingerprint: fingerprintOf(row.fact, key), fact: '', label: null, sourceMeetingLabel: null, purgedAt })
         .where(and(eq(twinFacts.id, row.id), purgeable()));
     }
     return rows.length;

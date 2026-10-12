@@ -93,9 +93,11 @@ export const twinFacts = pgTable(
     status: twinFactStatusEnum('status').default('active').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     // "Delete permanently" (TWIN-LOOP.2 Task 3): a purged fact keeps ONLY this
-    // sha256 hex of normalizeFact(original text), so a later extraction cannot
+    // fingerprint of normalizeFact(original text), so a later extraction cannot
     // re-learn it; fact is '' and label/sourceMeetingLabel are null. Null on every
-    // unpurged row.
+    // unpurged row. Since TWIN-LOOP.3 it is `h1:` + HMAC-SHA256 under a key held in
+    // the OS keychain (twinFingerprintKey.ts); older rows, and purges made while that
+    // key is unavailable, hold the legacy unprefixed sha256 hex. Both forms block.
     fingerprint: text('fingerprint'),
     // When the fact was purged. Non-null marks the row as a tombstone: every reader
     // excludes it, and it can never be restored or purged again.

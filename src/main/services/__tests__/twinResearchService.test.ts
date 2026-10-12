@@ -418,13 +418,34 @@ const seedHistoryDb = () =>
   );
 
 describe('history mining - per-call timeout', () => {
-  it('every section call gets a live abort signal; a call that never answers is skipped, not hung', async () => {
+  it('a call that never answers times out on its abort signal and ends the run after ONE call', async () => {
     vi.mocked(generate).mockImplementation(() => new Promise(() => {}));
     const result = await mineProfile(richCorpus(), LOCAL as never, new AbortController().signal);
     expect(result).toEqual({ status: 'skipped', reason: 'failed' });
     const calls = vi.mocked(generate).mock.calls;
-    expect(calls.length).toBeGreaterThan(1); // each section timed out on its own, no retry
-    for (const [opts] of calls) expect(opts.abortSignal?.aborted).toBe(true);
+    expect(calls.length).toBe(1); // no retry, and the other four sections are not attempted
+    expect(calls[0][0].abortSignal?.aborted).toBe(true);
+  });
+
+  it('a timeout on section 2 stops the run but keeps the section already mined', async () => {
+    let n = 0;
+    vi.mocked(generate).mockImplementation((() => {
+      n++;
+      return n === 1 ? Promise.resolve({ text: '{"industry":"SaaS"}' }) : new Promise(() => {});
+    }) as never);
+    const result = await mineProfile(richCorpus(), LOCAL as never, new AbortController().signal);
+    expect(vi.mocked(generate).mock.calls.length).toBe(2);
+    expect(result.status).toBe('ok');
+    if (result.status === 'ok') expect(result.draft).toEqual({ domain: { industry: 'SaaS' } });
+  });
+
+  it('malformed output is not a timeout: the section retries once, then the run moves on', async () => {
+    routeGenerate({ '"industry"': 'garbage', 'active projects': '[{"name":"Replatform"}]' });
+    const result = await mineProfile(richCorpus(), LOCAL as never, new AbortController().signal);
+    // domain x2 (reply + one retry), then projects, people, vocabulary, goals x1 each.
+    expect(vi.mocked(generate).mock.calls.length).toBe(6);
+    expect(result.status).toBe('ok');
+    if (result.status === 'ok') expect(result.draft).toEqual({ projects: [{ name: 'Replatform' }] });
   });
 
   it('without a cancel signal (the background learning passes) generate gets NO abort signal', async () => {

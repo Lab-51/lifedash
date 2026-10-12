@@ -208,7 +208,7 @@ export default function TwinMemoryGraph({ onCountChange, active = true }: TwinMe
           <button
             type="button"
             aria-expanded={showForgotten}
-            aria-controls="twin-forgotten-list"
+            aria-controls={showForgotten ? 'twin-forgotten-list' : undefined}
             onClick={() => setShowForgotten((open) => !open)}
             className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:border-[var(--color-border-accent)] transition-colors"
           >

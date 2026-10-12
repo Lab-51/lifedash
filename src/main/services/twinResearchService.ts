@@ -35,7 +35,7 @@
 import { z } from 'zod';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { resolveTaskModel, generate, type ResolvedProvider } from './ai-provider';
-import { runTwinModelCall } from './twinModelCall';
+import { runTwinModelCall, TwinModelTimeoutError } from './twinModelCall';
 import { createLogger } from './logger';
 import { getDb } from '../db/connection';
 import { meetings, transcripts, meetingBriefs, projects, cards } from '../db/schema';
@@ -396,7 +396,11 @@ export interface GenerateValidatedOptions {
  * The twin domain's shared validate-retry-skip pass: generate → parse+validate
  * against `schema`, retry ONCE with the rejection reason appended, then skip
  * (return null). A generation/network throw skips immediately (it is not a JSON
- * problem, so it does not burn the retry). NEVER throws for AI reasons.
+ * problem, so it does not burn the retry). Never throws for AI reasons, with ONE
+ * exception: a {@link TwinModelTimeoutError} is rethrown so the wizard's history miner
+ * can stop instead of waiting out the same hung model on every section. A timeout only
+ * exists when `cancelSignal` is set, which only the miner does; every other caller
+ * (background learning passes) is unbounded and never sees it.
  *
  * Extracted from the history miner so V3.4 fact extraction reuses the exact same
  * discipline instead of standing up a second pipeline (see twinMemoryService).
@@ -425,6 +429,7 @@ export async function generateValidated(opts: GenerateValidatedOptions): Promise
       const result = opts.cancelSignal ? await runTwinModelCall(callGenerate, opts.cancelSignal) : await callGenerate();
       text = result.text ?? '';
     } catch (err) {
+      if (err instanceof TwinModelTimeoutError) throw err;
       log.debug(`${label} generation failed:`, err instanceof Error ? err.message : err);
       return null;
     }
@@ -487,6 +492,9 @@ function buildSources(c: Corpus): TwinSourceHint[] {
  * omitted; the run succeeds as long as ANY section produced usable data (partial
  * success is success). Returns `skipped/failed` only when nothing at all could be
  * extracted (including an empty corpus, which short-circuits every model call).
+ * A model TIMEOUT ends the loop at once (a model that hung once will hang on the
+ * next four sections too): the sections already mined are returned as usual, or
+ * skipped/failed when none were. A malformed reply is unaffected (retry, then skip).
  * When `cancelSignal` aborts, no further section call is made and the run returns
  * skipped/failed even if some sections were already mined (a cancelled run yields
  * nothing; mining only ever RETURNS a draft - it writes no row anywhere).
@@ -505,7 +513,15 @@ export async function mineProfile(
     if (cancelSignal?.aborted) break;
     const context = clip(MINERS[key].buildContext(corpus), MAX_CONTEXT_CHARS);
     if (!context.trim()) continue; // no source material for this section
-    const value = await mineSection(provider, key, context, cancelSignal);
+    let value: unknown | null;
+    const startedAt = Date.now();
+    try {
+      value = await mineSection(provider, key, context, cancelSignal);
+    } catch (err) {
+      if (!(err instanceof TwinModelTimeoutError)) throw err;
+      log.warn(`History mining "${key}" timed out after ${Date.now() - startedAt} ms - stopping the run`);
+      break;
+    }
     if (value != null && !MINERS[key].isEmpty(value)) {
       draft[key] = value;
       minedAny = true;

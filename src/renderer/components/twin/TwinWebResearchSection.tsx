@@ -23,6 +23,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Globe, Loader2, ExternalLink, Check, Info } from 'lucide-react';
+import { SHORT_MAX } from '../../../shared/twinLimits';
 import type {
   TwinProfileSections,
   TwinCitation,
@@ -251,6 +252,7 @@ function QueryInput({
       <input
         type="text"
         value={value}
+        maxLength={SHORT_MAX}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={placeholder}

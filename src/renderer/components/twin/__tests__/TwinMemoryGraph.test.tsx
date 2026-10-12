@@ -1951,6 +1951,22 @@ describe('TwinMemoryGraph — Forgotten (N)', () => {
     expect(forgottenButton()).toHaveTextContent('Forgotten (0)');
   });
 
+  it('points aria-controls at the list only while it is mounted', async () => {
+    twinMemoryListForgotten.mockResolvedValue([twinFact({ id: 'f9', status: 'forgotten' })]);
+    seed();
+    renderGraph();
+    await act(async () => {});
+
+    expect(forgottenButton()).not.toHaveAttribute('aria-controls');
+    fireEvent.click(forgottenButton());
+    const target = forgottenButton().getAttribute('aria-controls');
+    expect(target).toBe('twin-forgotten-list');
+    expect(document.getElementById(target as string)).not.toBeNull();
+    fireEvent.click(forgottenButton());
+    expect(forgottenButton()).not.toHaveAttribute('aria-controls');
+    expect(document.getElementById('twin-forgotten-list')).toBeNull();
+  });
+
   it('reloads the count after a forget', async () => {
     twinMemoryForget.mockResolvedValue(twinFact({ status: 'forgotten' }));
     twinMemoryListForgotten.mockResolvedValueOnce([]).mockResolvedValue([twinFact({ status: 'forgotten' })]);

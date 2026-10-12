@@ -46,6 +46,8 @@ import {
   fieldsToDraft,
   pruneObject,
   pruneRows,
+  overLimitError,
+  type FieldDef,
   ObjectFieldsView,
   ObjectFieldsEditor,
   ListFieldsView,
@@ -63,6 +65,7 @@ import {
 } from './twin/twinFields';
 import type {
   TwinProfile,
+  TwinProfileSections,
   TwinBrief,
   TwinIdentity,
   TwinDomain,
@@ -73,6 +76,19 @@ import type {
 } from '../../shared/types/twin';
 
 type TwinTab = 'profile' | 'memory';
+
+/** Save one object section; a value over its limit is refused with the field-specific
+ *  message (the editor shows the same note inline) instead of the generic validation error. */
+function saveObjectSection<K extends 'brief' | 'identity' | 'domain' | 'preferences'>(
+  section: K,
+  fields: FieldDef[],
+  draft: Record<string, string>,
+  toValue: (pruned: Record<string, string>) => TwinProfileSections[K],
+): Promise<TwinProfile> {
+  const error = overLimitError(fields, draft);
+  if (error) return Promise.reject(new Error(error));
+  return window.electronAPI.twinUpdateProfileSection(section, toValue(pruneObject(fields, draft)));
+}
 
 /** Two-tab strip (Profile | Memory) — minimal local tablist, same aria pattern
  *  as LiveCanvasTabs/BrainTabPanel elsewhere in the app. `memoryCount` (once
@@ -161,9 +177,7 @@ function TwinProfileGrid({ profile, onSaved }: { profile: TwinProfile; onSaved: 
         renderEditor={(draft, setDraft) => (
           <ObjectFieldsEditor fields={BRIEF_FIELDS} value={draft} onChange={setDraft} />
         )}
-        onSave={(draft) =>
-          window.electronAPI.twinUpdateProfileSection('brief', pruneObject(BRIEF_FIELDS, draft) as TwinBrief)
-        }
+        onSave={(draft) => saveObjectSection('brief', BRIEF_FIELDS, draft, (v) => v as TwinBrief)}
         onSaved={onSaved}
       />
 
@@ -175,9 +189,7 @@ function TwinProfileGrid({ profile, onSaved }: { profile: TwinProfile; onSaved: 
         renderEditor={(draft, setDraft) => (
           <ObjectFieldsEditor fields={IDENTITY_FIELDS} value={draft} onChange={setDraft} />
         )}
-        onSave={(draft) =>
-          window.electronAPI.twinUpdateProfileSection('identity', pruneObject(IDENTITY_FIELDS, draft) as TwinIdentity)
-        }
+        onSave={(draft) => saveObjectSection('identity', IDENTITY_FIELDS, draft, (v) => v as TwinIdentity)}
         onSaved={onSaved}
       />
 
@@ -189,9 +201,7 @@ function TwinProfileGrid({ profile, onSaved }: { profile: TwinProfile; onSaved: 
         renderEditor={(draft, setDraft) => (
           <ObjectFieldsEditor fields={DOMAIN_FIELDS} value={draft} onChange={setDraft} />
         )}
-        onSave={(draft) =>
-          window.electronAPI.twinUpdateProfileSection('domain', pruneObject(DOMAIN_FIELDS, draft) as TwinDomain)
-        }
+        onSave={(draft) => saveObjectSection('domain', DOMAIN_FIELDS, draft, (v) => v as TwinDomain)}
         onSaved={onSaved}
       />
 
@@ -276,12 +286,7 @@ function TwinProfileGrid({ profile, onSaved }: { profile: TwinProfile; onSaved: 
         renderEditor={(draft, setDraft) => (
           <ObjectFieldsEditor fields={PREFERENCES_FIELDS} value={draft} onChange={setDraft} />
         )}
-        onSave={(draft) =>
-          window.electronAPI.twinUpdateProfileSection(
-            'preferences',
-            pruneObject(PREFERENCES_FIELDS, draft) as TwinPreferences,
-          )
-        }
+        onSave={(draft) => saveObjectSection('preferences', PREFERENCES_FIELDS, draft, (v) => v as TwinPreferences)}
         onSaved={onSaved}
       />
     </div>

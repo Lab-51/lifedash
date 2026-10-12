@@ -20,6 +20,7 @@ import { sql } from 'drizzle-orm';
 import type { getDb } from '../db/connection';
 import { aiProviders, settings } from '../db/schema';
 import { getBackupTables, type BackupFk, type BackupTable } from './backupSchema';
+import { TWIN_FINGERPRINT_KEY_SETTING } from './twinFingerprintKey';
 
 type Db = ReturnType<typeof getDb>;
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -83,6 +84,9 @@ function applyFkRules(rows: Row[], fk: BackupFk, available: Set<unknown>, stats:
  * - transcription:localOnly, transcription_provider, diagnostics.sendCrashReports  privacy
  *                  consent: an old backup must never silently send audio or crash data off
  *                  the device again, so the user's current choice always stands
+ * - twin.fingerprintKey  the safeStorage-encrypted tombstone HMAC key (TWIN-LOOP.3); another
+ *                  machine's ciphertext would replace a working key for good (it is never
+ *                  overwritten once present), so this machine's h1: tombstones stop blocking
  */
 const MACHINE_STATE_PREFIXES = ['maintenance:', 'autoBackup.', 'sync.'];
 const MACHINE_STATE_KEYS = new Set([
@@ -96,6 +100,7 @@ const MACHINE_STATE_KEYS = new Set([
   'transcription:localOnly',
   'transcription_provider',
   'diagnostics.sendCrashReports',
+  TWIN_FINGERPRINT_KEY_SETTING,
 ]);
 
 export function isMachineStateSetting(key: string): boolean {

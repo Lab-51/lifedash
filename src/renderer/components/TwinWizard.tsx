@@ -26,7 +26,15 @@ import TwinWizardReview from './twin/TwinWizardReview';
 import TwinModeChoice, { type TwinCreationMode } from './twin/TwinModeChoice';
 import DeepInterviewPanel from './twin/DeepInterviewPanel';
 import TwinResearchPanel from './twin/TwinResearchPanel';
-import { fieldsToDraft, pruneObject, pruneRows, ObjectFieldsEditor, ListFieldsEditor } from './twin/TwinFieldEditors';
+import {
+  fieldsToDraft,
+  pruneObject,
+  pruneRows,
+  overLimitError,
+  limitMessage,
+  ObjectFieldsEditor,
+  ListFieldsEditor,
+} from './twin/TwinFieldEditors';
 import { WIZARD_STEPS, type WizardStep, type WizardDrafts } from './twin/twinSteps';
 import {
   IDENTITY_FIELDS,
@@ -37,6 +45,7 @@ import {
   VOCAB_FIELDS,
   GOAL_FIELDS,
 } from './twin/twinFields';
+import { TEXT_MAX, LIST_MAX } from '../../shared/twinLimits';
 import type {
   TwinProfile,
   TwinProfileSections,
@@ -90,19 +99,27 @@ function seedDrafts(profile: TwinProfile | null): WizardDrafts {
  * to empty — otherwise the section-level jsonb REPLACE on save would wipe stored data.
  * `brief` is handled separately by the caller. Backward-compatible with create (where
  * `prev` is the empty seed, so omitted sections simply stay empty).
+ *
+ * The draft comes from a model (web research, history mining, the deep interview), so
+ * every field is CLAMPED to its save limit and every list to LIST_MAX as it fills the
+ * form - a drafted value can never arrive already too long to save.
  */
 function seedSuppliedSections(prev: WizardDrafts, sections: Partial<TwinProfileSections>): WizardDrafts {
   const rows = (items: unknown[], fields: typeof PROJECT_FIELDS) =>
-    items.map((it) => fieldsToDraft(fields, asRecord(it)));
+    items.slice(0, LIST_MAX).map((it) => fieldsToDraft(fields, asRecord(it), true));
   const next: WizardDrafts = { ...prev };
-  if ('identity' in sections) next.identity = fieldsToDraft(IDENTITY_FIELDS, asRecord(sections.identity ?? {}));
-  if ('domain' in sections) next.domain = fieldsToDraft(DOMAIN_FIELDS, asRecord(sections.domain ?? {}));
+  if ('identity' in sections) next.identity = fieldsToDraft(IDENTITY_FIELDS, asRecord(sections.identity ?? {}), true);
+  if ('domain' in sections) next.domain = fieldsToDraft(DOMAIN_FIELDS, asRecord(sections.domain ?? {}), true);
   if ('preferences' in sections)
-    next.preferences = fieldsToDraft(PREFERENCES_FIELDS, asRecord(sections.preferences ?? {}));
+    next.preferences = fieldsToDraft(PREFERENCES_FIELDS, asRecord(sections.preferences ?? {}), true);
   if ('projects' in sections) next.projects = rows(sections.projects ?? [], PROJECT_FIELDS);
   if ('people' in sections) next.people = rows(sections.people ?? [], PERSON_FIELDS);
   if ('vocabulary' in sections) next.vocabulary = rows(sections.vocabulary ?? [], VOCAB_FIELDS);
-  if ('goals' in sections) next.goals = (sections.goals ?? []).map((g) => ({ value: g }));
+  if ('goals' in sections)
+    next.goals = rows(
+      (sections.goals ?? []).map((g) => ({ value: g })),
+      GOAL_FIELDS,
+    );
   return next;
 }
 
@@ -114,19 +131,20 @@ function mergeObjectFields(
 ): Record<string, string> {
   const out = { ...current };
   for (const f of fields) {
-    if (!out[f.key]?.trim() && ai[f.key]?.trim()) out[f.key] = ai[f.key]!.trim();
+    if (!out[f.key]?.trim() && ai[f.key]?.trim()) out[f.key] = ai[f.key]!.trim().slice(0, f.max);
   }
   return out;
 }
 
-/** Keep the user's non-empty rows, append the AI-drafted rows after them. */
+/** Keep the user's non-empty rows, append the AI-drafted rows (clamped, up to LIST_MAX in all) after them. */
 function appendListRows(
   fields: typeof PROJECT_FIELDS,
   current: Record<string, string>[],
   aiItems: Record<string, string | undefined>[],
 ): Record<string, string>[] {
   const kept = current.filter((r) => Object.values(r).some((v) => v?.trim()));
-  return [...kept, ...aiItems.map((item) => fieldsToDraft(fields, item))];
+  const room = Math.max(0, LIST_MAX - kept.length);
+  return [...kept, ...aiItems.slice(0, room).map((item) => fieldsToDraft(fields, item, true))];
 }
 
 /** Merge an AI-assist draft for one step into the working drafts (immutably). */
@@ -170,6 +188,14 @@ function buildSectionValues(
   if (goals.error) return { values: null, error: goals.error };
 
   const statement = brief.trim();
+  // A stored value already over its limit gets the plain field-specific message, not
+  // the save's generic validation failure.
+  const tooLong =
+    (statement.length > TEXT_MAX ? limitMessage('the brief', TEXT_MAX) : null) ??
+    overLimitError(IDENTITY_FIELDS, drafts.identity) ??
+    overLimitError(DOMAIN_FIELDS, drafts.domain) ??
+    overLimitError(PREFERENCES_FIELDS, drafts.preferences);
+  if (tooLong) return { values: null, error: tooLong };
   return {
     values: {
       brief: statement ? { statement } : {},
@@ -407,7 +433,7 @@ export default function TwinWizard({
     // MERGE the supplied sections over the current drafts (the loaded profile on
     // refine) so sections the draft omits survive to save — see seedSuppliedSections.
     setDrafts((prev) => seedSuppliedSections(prev ?? seedDrafts(null), draft));
-    if (draft.brief?.statement) setBrief(draft.brief.statement);
+    if (draft.brief?.statement) setBrief(draft.brief.statement.slice(0, TEXT_MAX));
     setQuickStart(WIZARD_STEPS.length); // the review step
     setMode('quick');
   };

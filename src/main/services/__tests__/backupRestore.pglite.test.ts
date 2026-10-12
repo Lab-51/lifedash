@@ -356,6 +356,20 @@ describe('review round 2 findings', () => {
     expect(await value('calendar:google:client')).toBe('NEW-CLIENT');
   });
 
+  it("keeps this machine's twin fingerprint key over another machine's key in the file", async () => {
+    await holder.db.insert(settings).values({ key: 'twin.fingerprintKey', value: 'OTHER-MACHINE-CIPHERTEXT' });
+    const backup = await createBackup();
+    await holder.db
+      .update(settings)
+      .set({ value: 'THIS-MACHINE-CIPHERTEXT' })
+      .where(eq(settings.key, 'twin.fingerprintKey'));
+
+    await restoreBackup(backup.filePath);
+
+    const [row] = await holder.db.select().from(settings).where(eq(settings.key, 'twin.fingerprintKey'));
+    expect(row?.value).toBe('THIS-MACHINE-CIPHERTEXT');
+  });
+
   it("keeps this machine's working API key over a key carried in the file", async () => {
     const [provider] = await holder.db
       .insert(aiProviders)

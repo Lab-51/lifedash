@@ -34,6 +34,7 @@ import * as twinWebResearchService from '../services/twinWebResearchService';
 import { resolveTaskModel, getTwinLearningModelInfo } from '../services/ai-provider';
 import { isFrontierProvider, isLocalProvider } from '../../shared/types/ai';
 import { validateInput } from '../../shared/validation/ipc-validator';
+import { SHORT_MAX, TEXT_MAX, LIST_MAX } from '../../shared/twinLimits';
 import type {
   TwinProfileKey,
   TwinProfileSectionKey,
@@ -49,12 +50,8 @@ import type {
 // Every string and list is bounded (TWIN-LOOP.2): these values reach the DB and then
 // every prompt budget, so an oversized paste is refused here, before anything is
 // written. The limits are deliberately generous - far above any real profile.
-//   short  200   - one-line fields: names, roles, org/company/industry, a term
-//   text  4000   - free text: the brief, descriptions, meanings, goals, tone/style
-//   list   500   - entries per list section
-const SHORT_MAX = 200;
-const TEXT_MAX = 4000;
-const LIST_MAX = 500;
+// The limit values live in shared/twinLimits.ts so the wizard inputs enforce the same
+// numbers while the user types.
 const shortStr = z.string().max(SHORT_MAX);
 const textStr = z.string().max(TEXT_MAX);
 
@@ -139,13 +136,13 @@ const draftSectionKeySchema = z.enum([
 
 // The free-form interview answer — bounded so a runaway paste can't blow the
 // local model's context. min(1) because an empty answer has nothing to extract.
-const interviewAnswerSchema = z.string().trim().min(1).max(4000);
+const interviewAnswerSchema = z.string().trim().min(1).max(TEXT_MAX);
 
 // --- deep-creation payload schemas ---
 
 // The brief seed is optional/empty-allowed (unlike a per-section answer) but
 // bounded. Q&A turns are bounded in count so a runaway history can't blow context.
-const briefSeedSchema = z.string().max(4000);
+const briefSeedSchema = z.string().max(TEXT_MAX);
 const qaTurnSchema = z.object({ question: z.string(), answer: z.string() });
 const qaListSchema = z.array(qaTurnSchema).max(100);
 
@@ -171,16 +168,16 @@ const interviewSynthesizeSchema = z.object({
 });
 
 const webResearchSchema = z.object({
-  company: z.string().max(200),
-  industry: z.string().max(200),
+  company: z.string().max(SHORT_MAX),
+  industry: z.string().max(SHORT_MAX),
 });
 
 // Role-dossier research payload (orchestrated deep creation). Role/company/industry are
 // user-entered (bounded); the brief seed is empty-allowed.
 const roleResearchSchema = z.object({
-  role: z.string().max(200),
-  company: z.string().max(200),
-  industry: z.string().max(200),
+  role: z.string().max(SHORT_MAX),
+  company: z.string().max(SHORT_MAX),
+  industry: z.string().max(SHORT_MAX),
   brief: briefSeedSchema,
 });
 

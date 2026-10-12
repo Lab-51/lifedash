@@ -13,6 +13,7 @@
 
 import { useState } from 'react';
 import { Wand2, Loader2, ChevronDown } from 'lucide-react';
+import { TEXT_MAX } from '../../../shared/twinLimits';
 import type { TwinProfileSectionKey, TwinInterviewDraft, TwinProfileSections } from '../../../shared/types/twin';
 
 interface TwinInterviewAssistProps<K extends TwinProfileSectionKey> {
@@ -105,6 +106,7 @@ export default function TwinInterviewAssist<K extends TwinProfileSectionKey>({
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           rows={3}
+          maxLength={TEXT_MAX}
           placeholder="Answer in your own words — the assistant drafts the fields for you to edit."
           className="w-full text-sm bg-white dark:bg-surface-900 border border-[var(--color-border)] rounded px-2.5 py-1.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent-dim)] resize-y"
         />
