@@ -15,18 +15,50 @@
 //
 // === VERIFICATION STATUS ===
 // - ipcMain.handle for request/response (recording:start, recording:stop)
-// - ipcMain.on for fire-and-forget (audio:chunk)
+// - ipcMain.on for fire-and-forget (audio:chunk, audio:capture-event)
 
 import { ipcMain, BrowserWindow } from 'electron';
 import * as audioProcessor from '../services/audioProcessor';
 import * as meetingService from '../services/meetingService';
 import * as retranscriptionService from '../services/retranscriptionService';
 import { validateInput } from '../../shared/validation/ipc-validator';
-import { idParamSchema, retranscribeSpanSchema } from '../../shared/validation/schemas';
-import type { AudioChunkBuffers } from '../../shared/types';
+import { audioCaptureEventSchema, idParamSchema, retranscribeSpanSchema } from '../../shared/validation/schemas';
+import type { AudioCaptureEvent, AudioCaptureEventKind, AudioChunkBuffers } from '../../shared/types';
 import { createLogger } from '../services/logger';
 
 const log = createLogger('Recording');
+// Renderer-side capture diagnostics (AUDIO-DEVICE.1) get their own tag so a
+// device dropout can be read from the day's log with one grep.
+const captureLog = createLogger('AudioCapture');
+
+/** Event kinds that mean capture lost something or degraded — logged at warn. */
+const AUDIO_EVENT_WARN_KINDS: ReadonlySet<AudioCaptureEventKind> = new Set([
+  'track-ended',
+  'reacquire-failed',
+  'sink-fallback',
+]);
+
+/**
+ * Validate and log one `audio:capture-event`. Fire-and-forget: an invalid
+ * payload is dropped with a single warn and never thrown (a throw inside an
+ * ipcMain.on listener has no caller to catch it). Only the validated kind,
+ * channel and bounded detail are logged — never the raw payload.
+ */
+function logAudioCaptureEvent(raw: unknown): void {
+  let event: AudioCaptureEvent;
+  try {
+    event = validateInput(audioCaptureEventSchema, raw);
+  } catch (error) {
+    // The zod message can quote the rejected value, so bound it.
+    captureLog.warn(`Dropping invalid audio:capture-event: ${String((error as Error).message).slice(0, 200)}`);
+    return;
+  }
+  // Collapse whitespace (including newlines) so a detail cannot forge a log line.
+  const detail = event.detail ? ` ${event.detail.replace(/\s+/g, ' ')}` : '';
+  const line = `${event.kind} channel=${event.channel ?? 'none'}${detail}`;
+  if (AUDIO_EVENT_WARN_KINDS.has(event.kind)) captureLog.warn(line);
+  else captureLog.info(line);
+}
 
 /** Reuse the incoming bytes without a copy; only wrap when it is not already a Buffer. */
 function asBuffer(view: ArrayBufferView): Buffer {
@@ -113,4 +145,7 @@ export function registerRecordingHandlers(mainWindow: BrowserWindow): void {
     }
     audioProcessor.addChunk(payload);
   });
+
+  // audio:capture-event: low-rate renderer device diagnostics, validated with zod
+  ipcMain.on('audio:capture-event', (_event, raw: unknown) => logAudioCaptureEvent(raw));
 }

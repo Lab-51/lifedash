@@ -142,14 +142,17 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       // Step 4: Start audio capture in renderer (with optional mic mixing)
       await audioCaptureService.startCapture(get().includeMic, micDeviceId);
 
-      // Step 5: Register interruption callback to surface audio issues via toast
+      // Step 5: Register interruption callback to surface audio issues via toast.
+      // A lost track is re-acquired by the capture service once its device is back.
       audioCaptureService.onAudioInterrupted((type, recovered) => {
         if (type === 'mic' && recovered === true) {
           toast('Microphone reconnected', 'success', undefined, 3000);
         } else if (type === 'mic' && recovered === false) {
           toast('Microphone disconnected — recording continues with system audio only', 'error', undefined, 5000);
+        } else if (type === 'system' && recovered === true) {
+          toast('System audio reconnected', 'success', undefined, 3000);
         } else if (type === 'system' && recovered === false) {
-          toast('System audio lost — restart recording to resume capture', 'error', undefined, 8000);
+          toast('System audio lost — it will reconnect automatically', 'error', undefined, 8000);
         }
       });
 

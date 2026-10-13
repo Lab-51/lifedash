@@ -233,6 +233,42 @@ export interface AudioChunkBuffers {
   system: Buffer;
 }
 
+/**
+ * Every kind of capture-device event the renderer reports to the main log
+ * (AUDIO-DEVICE.1). A runtime array so the IPC schema and the type share one
+ * list. Not every kind is emitted yet — the reconnect work adds the rest.
+ */
+export const AUDIO_CAPTURE_EVENT_KINDS = [
+  'capture-started',
+  'track-ended',
+  'track-muted',
+  'track-unmuted',
+  'device-change',
+  'default-changed',
+  'reacquire-attempt',
+  'reacquire-ok',
+  'reacquire-failed',
+  'sink-fallback',
+  'capture-stopped',
+] as const;
+
+export type AudioCaptureEventKind = (typeof AUDIO_CAPTURE_EVENT_KINDS)[number];
+
+/** Which capture track an event is about; null for whole-capture events. */
+export type AudioCaptureChannel = 'mic' | 'system';
+
+/**
+ * One renderer-side capture diagnostic, sent over the one-way
+ * `audio:capture-event` channel. Diagnostic only: `detail` carries device
+ * labels and error names (≤ 200 chars) — never audio, transcript or meeting
+ * content.
+ */
+export interface AudioCaptureEvent {
+  kind: AudioCaptureEventKind;
+  channel: AudioCaptureChannel | null;
+  detail?: string;
+}
+
 /** Recording state pushed from main to renderer via events */
 export interface RecordingState {
   isRecording: boolean;

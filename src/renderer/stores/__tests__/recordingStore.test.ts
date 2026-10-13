@@ -50,6 +50,8 @@ import {
   stopInactivityDetector,
   keepRecording as keepRecordingDetector,
 } from '../../services/inactivityDetectorService';
+import { onAudioInterrupted } from '../../services/audioCaptureService';
+import { toast } from '../../hooks/useToast';
 
 const { useRecordingStore } = await import('../recordingStore');
 
@@ -152,5 +154,29 @@ describe('recordingStore — completedMeetingId is set by stop and by nothing el
     useRecordingStore.setState({ completedMeetingId: 'meeting-1' });
     useRecordingStore.getState().clearCompletedMeetingId();
     expect(useRecordingStore.getState().completedMeetingId).toBeNull();
+  });
+});
+
+// AUDIO-DEVICE.1 Task 3: the capture service re-acquires lost system audio by
+// itself, so the lost toast no longer asks for a restart and recovery is announced.
+describe('recordingStore — audio interruption toasts', () => {
+  beforeEach(() => {
+    settings = {};
+    vi.clearAllMocks();
+  });
+
+  it('says lost system audio reconnects by itself, and confirms when it is back', async () => {
+    await useRecordingStore.getState().startRecording('Test');
+    const onInterrupted = vi.mocked(onAudioInterrupted).mock.calls[0][0]!;
+
+    onInterrupted('system', false);
+    expect(toast).toHaveBeenLastCalledWith(
+      'System audio lost — it will reconnect automatically',
+      'error',
+      undefined,
+      8000,
+    );
+    onInterrupted('system', true);
+    expect(toast).toHaveBeenLastCalledWith('System audio reconnected', 'success', undefined, 3000);
   });
 });

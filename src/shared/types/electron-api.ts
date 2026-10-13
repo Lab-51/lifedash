@@ -46,6 +46,7 @@ import type {
   UpdateAIProviderInput,
 } from './ai';
 import type {
+  AudioCaptureEvent,
   AudioChunkPayload,
   Meeting,
   TranscriptSegment,
@@ -344,6 +345,8 @@ export interface ElectronAPI {
   startRecording: (meetingId: string) => Promise<void>;
   stopRecording: () => Promise<string>;
   sendAudioChunk: (payload: AudioChunkPayload) => void;
+  /** One-way capture diagnostic (AUDIO-DEVICE.1) — logged by main, never answered. */
+  logAudioEvent: (event: AudioCaptureEvent) => void;
   enableLoopbackAudio: () => Promise<void>;
   disableLoopbackAudio: () => Promise<void>;
   onRecordingState: (callback: (state: RecordingState) => void) => () => void;

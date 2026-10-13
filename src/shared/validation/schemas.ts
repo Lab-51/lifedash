@@ -10,6 +10,7 @@
 // Schemas verified against types.ts interfaces — all input types covered.
 
 import { z } from 'zod';
+import { AUDIO_CAPTURE_EVENT_KINDS, type AudioCaptureEvent } from '../types/meetings';
 
 // ============================================================================
 // Reusable primitives
@@ -413,6 +414,18 @@ export const retranscribeSpanSchema = z
     message: 'endMs must be greater than startMs',
     path: ['endMs'],
   });
+
+/** For audio:capture-event (AUDIO-DEVICE.1) — one renderer capture diagnostic.
+ *  Strict on purpose: a stray field (anything beyond kind/channel/detail) is
+ *  rejected rather than written to the log, and `detail` is bounded so a
+ *  misbehaving renderer cannot flood it. */
+export const audioCaptureEventSchema: z.ZodType<AudioCaptureEvent> = z
+  .object({
+    kind: z.enum(AUDIO_CAPTURE_EVENT_KINDS),
+    channel: z.enum(['mic', 'system']).nullable(),
+    detail: z.string().max(200).optional(),
+  })
+  .strict();
 
 // ============================================================================
 // Card Checklist Items

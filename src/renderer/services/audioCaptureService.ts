@@ -15,10 +15,26 @@
 //   merger keeps them apart; a host that downmixed the merger's output would
 //   make both channels identical (see the note on onaudioprocess below)
 // - Single recording at a time
-// - getDisplayMedia shows system picker dialog (user must select screen)
+// - System audio comes from electron-audio-loopback's patched getDisplayMedia,
+//   which the main process answers itself: no picker is shown
+// - The processor is connected to `destination` only to keep it firing; the
+//   context is created with a 'none' sink where supported (audioContextNoSink.ts)
+//   so no output device is opened
 // - Mic failure is non-fatal (falls back to system-only)
+// - A lost mic or system track is re-acquired by audioDeviceWatcher once its device
+//   is back; a CHOSEN mic is waited for, never replaced by another device
 
-import type { AudioChunkPayload } from '../../shared/types';
+import type { AudioCaptureChannel, AudioChunkPayload } from '../../shared/types';
+import { emitAudioEvent, trackLabel } from './audioCaptureEvents';
+import { createCaptureContext } from './audioContextNoSink';
+import {
+  openSystemAudio,
+  releaseStream,
+  startDeviceWatcher,
+  streamState,
+  type DeviceWatcher,
+  type ReacquireOutcome,
+} from './audioDeviceWatcher';
 
 /** Minimal info about an audio device for UI display. */
 export interface AudioDeviceInfo {
@@ -58,6 +74,14 @@ let audioLevelCallback: ((level: number) => void) | null = null;
 // Track health monitoring
 let audioInterruptedCallback: ((type: 'mic' | 'system', recovered: boolean) => void) | null = null;
 let currentMicDeviceId: string | undefined = undefined;
+let micEnabled = false; // the mic was requested for this capture
+let deviceWatcher: DeviceWatcher | null = null;
+// Bumped by cleanup: a re-acquisition that sees another value after an await
+// belongs to a stopped capture and must not touch the graph.
+let captureSession = 0;
+// Name of the error behind the last failed mic acquisition, for the main log.
+// Only the error NAME is kept (e.g. NotFoundError) — never a message.
+let lastMicErrorName = 'none';
 
 /**
  * Calculate RMS (root-mean-square) level of Float32 audio samples.
@@ -84,30 +108,42 @@ function float32ToInt16(float32: Float32Array): Int16Array {
   return int16;
 }
 
+type AudioMediaDeviceInfo = MediaDeviceInfo & { kind: 'audioinput' | 'audiooutput' };
+
+function isAudioDevice(d: MediaDeviceInfo): d is AudioMediaDeviceInfo {
+  return d.kind === 'audioinput' || d.kind === 'audiooutput';
+}
+
+/** True when audio devices exist but none carries a label (mic permission not granted yet). */
+function needsLabelPermission(devices: MediaDeviceInfo[]): boolean {
+  const audio = devices.filter(isAudioDevice);
+  return audio.length > 0 && audio.every((d) => !d.label);
+}
+
 /**
  * Enumerate available audio devices (inputs and outputs).
- * Requests mic permission first so device labels are populated (browsers hide
- * labels until permission is granted).
+ * Labels are hidden by the browser until mic permission is granted, so a
+ * temporary mic stream is opened to get them -- but only when no label is
+ * visible yet; once permission exists the list is read without touching the mic.
  */
 export async function enumerateAudioDevices(): Promise<AudioDeviceInfo[]> {
-  // Request mic permission so labels are available
-  try {
-    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    tempStream.getTracks().forEach((t) => t.stop());
-  } catch {
-    // Permission denied — labels may be empty but deviceIds still work
+  let devices = await navigator.mediaDevices.enumerateDevices();
+  if (needsLabelPermission(devices)) {
+    // Labels are hidden until mic permission exists. Open the temporary stream
+    // only then: every open/close can make a Bluetooth headset switch profile.
+    try {
+      const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      tempStream.getTracks().forEach((t) => t.stop());
+    } catch {
+      // Permission denied — labels may be empty but deviceIds still work
+    }
+    devices = await navigator.mediaDevices.enumerateDevices();
   }
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  return devices
-    .filter(
-      (d): d is MediaDeviceInfo & { kind: 'audioinput' | 'audiooutput' } =>
-        d.kind === 'audioinput' || d.kind === 'audiooutput',
-    )
-    .map((d) => ({
-      deviceId: d.deviceId,
-      label: d.label || `${d.kind === 'audioinput' ? 'Microphone' : 'Speaker'} (${d.deviceId.slice(0, 8)})`,
-      kind: d.kind,
-    }));
+  return devices.filter(isAudioDevice).map((d) => ({
+    deviceId: d.deviceId,
+    label: d.label || `${d.kind === 'audioinput' ? 'Microphone' : 'Speaker'} (${d.deviceId.slice(0, 8)})`,
+    kind: d.kind,
+  }));
 }
 
 /**
@@ -117,6 +153,7 @@ export async function enumerateAudioDevices(): Promise<AudioDeviceInfo[]> {
  * @param deviceId Optional specific microphone device ID to use
  */
 async function acquireMicStream(deviceId?: string): Promise<MediaStream | null> {
+  lastMicErrorName = 'none';
   try {
     return await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -126,11 +163,121 @@ async function acquireMicStream(deviceId?: string): Promise<MediaStream | null> 
         autoGainControl: true,
       },
     });
-  } catch {
+  } catch (error) {
     // Permission denied or no mic hardware — fall back to system-only
+    lastMicErrorName = error instanceof Error ? error.name : 'UnknownError';
     console.warn('Microphone not available, recording system audio only.');
     return null;
   }
+}
+
+/** Report a track's mute/unmute to the main log; used for the system track and every mic track. */
+function watchMuteState(track: MediaStreamTrack, channel: AudioCaptureChannel): void {
+  track.onmute = () => {
+    if (audioContext) emitAudioEvent('track-muted', channel, `label="${trackLabel(track)}"`);
+  };
+  track.onunmute = () => {
+    if (audioContext) emitAudioEvent('track-unmuted', channel, `label="${trackLabel(track)}"`);
+  };
+}
+
+/** The mic half of the `capture-started` detail: its label, or why there is none. */
+function describeMic(includeMic: boolean): string {
+  if (!includeMic) return 'off';
+  const track = micStream?.getAudioTracks()[0];
+  return track ? `"${trackLabel(track)}"` : `unavailable error=${lastMicErrorName}`;
+}
+
+/** Report a system track's end; the device watcher re-acquires it on its next check. */
+function watchSystemTrack(track: MediaStreamTrack): void {
+  track.onended = () => {
+    if (!audioContext) return; // recording already stopped
+    console.warn('[audioCaptureService] System audio track ended; it is re-acquired when a device is available.');
+    emitAudioEvent('track-ended', 'system', `label="${trackLabel(track)}"`);
+    audioInterruptedCallback?.('system', false);
+  };
+  watchMuteState(track, 'system');
+}
+
+/**
+ * Report a mic track's end and silence the channel at once (mic chunks are null
+ * from the next callback). The device watcher re-acquires it on a later check;
+ * the ended stream is kept until its replacement is connected.
+ */
+function watchMicTrack(track: MediaStreamTrack): void {
+  track.onended = () => {
+    if (!audioContext) return; // recording already stopped
+    console.warn('[audioCaptureService] Mic track ended; it is re-acquired when the device is back.');
+    emitAudioEvent('track-ended', 'mic', `label="${trackLabel(track)}"`);
+    micSourceNode?.disconnect();
+    micSourceNode = null;
+    micGainNode?.disconnect();
+    micGainNode = null;
+    audioInterruptedCallback?.('mic', false);
+  };
+  watchMuteState(track, 'mic');
+}
+
+/** Put `stream` on the mic channel (merger input 0), then release the stream it replaces. */
+function connectMic(stream: MediaStream): void {
+  const replaced = { source: micSourceNode, stream: micStream };
+  micSourceNode = audioContext!.createMediaStreamSource(stream);
+  if (!micGainNode) {
+    micGainNode = audioContext!.createGain();
+    micGainNode.gain.value = 1.0;
+    micGainNode.connect(mergerNode!, 0, MIC_CHANNEL);
+  }
+  micSourceNode.connect(micGainNode);
+  micStream = stream;
+  const track = stream.getAudioTracks()[0];
+  if (track) watchMicTrack(track);
+  replaced.source?.disconnect();
+  if (replaced.stream) releaseStream(replaced.stream);
+}
+
+/** Put `stream` on the system channel (into systemGainNode), then release the stream it replaces. */
+function connectSystem(stream: MediaStream): void {
+  const replaced = { source: sourceNode, stream: mediaStream };
+  sourceNode = audioContext!.createMediaStreamSource(stream);
+  sourceNode.connect(systemGainNode!);
+  mediaStream = stream;
+  watchSystemTrack(stream.getAudioTracks()[0]);
+  replaced.source?.disconnect();
+  if (replaced.stream) releaseStream(replaced.stream);
+}
+
+/**
+ * One re-acquisition for the device watcher; the processor is never touched.
+ * Resolves null when capture `session` stopped, or the watcher abandoned the attempt
+ * (`signal`), during an await -- a stream opened after that is released, never connected.
+ */
+async function reacquire(
+  channel: AudioCaptureChannel,
+  session: number,
+  signal: AbortSignal,
+): Promise<ReacquireOutcome | null> {
+  const isCurrent = () => session === captureSession && !signal.aborted;
+  const discard = (stream: MediaStream | null) => {
+    if (stream) releaseStream(stream);
+    return null;
+  };
+  if (channel === 'mic') {
+    // A chosen id is opened with `exact`, so no other mic can stand in for it.
+    const stream = await acquireMicStream(currentMicDeviceId);
+    if (!isCurrent()) return discard(stream);
+    if (!stream) return { ok: false, detail: `error=${lastMicErrorName}` };
+    connectMic(stream);
+    return { ok: true, detail: `label="${trackLabel(stream.getAudioTracks()[0])}"` };
+  }
+  const stream = await openSystemAudio(isCurrent, signal); // rejects on an error, a timeout or a stop
+  if (!isCurrent()) return discard(stream);
+  const track = stream?.getAudioTracks()[0];
+  if (!stream || !track) {
+    discard(stream);
+    return { ok: false, detail: 'error=NoAudioTrack' };
+  }
+  connectSystem(stream);
+  return { ok: true, detail: `label="${trackLabel(track)}"` };
 }
 
 /**
@@ -148,61 +295,33 @@ async function acquireMicStream(deviceId?: string): Promise<MediaStream | null> 
  *
  * @param includeMic Whether to also capture the user's microphone (default: true)
  * @param micDeviceId Optional specific microphone device ID to use
- * @throws If user cancels the picker dialog or system audio capture fails
+ * @throws If system audio capture is denied or fails
  */
 export async function startCapture(includeMic: boolean = true, micDeviceId?: string): Promise<void> {
   if (audioContext) {
     throw new Error('Already capturing. Call stopCapture() first.');
   }
 
-  // Step 1: Enable loopback (patches getDisplayMedia to include system audio)
-  await window.electronAPI.enableLoopbackAudio();
-
-  try {
-    // Step 2: Get system audio via patched getDisplayMedia
-    // IMPORTANT: video: true is REQUIRED by the API even though we don't want video
-    mediaStream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      audio: true,
-    });
-  } catch (error) {
-    // User cancelled the picker dialog or permission denied
-    await window.electronAPI.disableLoopbackAudio();
-    throw error;
-  }
-
-  // Step 3: Remove video tracks (we only need audio)
-  mediaStream.getVideoTracks().forEach((track) => {
-    track.stop();
-    mediaStream!.removeTrack(track);
-  });
-
-  // Step 4: Disable loopback (restores normal getDisplayMedia behavior)
-  await window.electronAPI.disableLoopbackAudio();
+  // Steps 1-4: enable loopback (patches getDisplayMedia to include system audio),
+  // get system audio, drop the video track, disable loopback again -- also when
+  // getDisplayMedia fails, whose error is rethrown here.
+  const systemStream = await openSystemAudio();
 
   // Verify we have audio tracks
-  const audioTracks = mediaStream.getAudioTracks();
-  if (audioTracks.length === 0) {
+  const systemTrack = systemStream?.getAudioTracks()[0];
+  if (!systemStream || !systemTrack) {
+    if (systemStream) releaseStream(systemStream);
     cleanup();
     throw new Error('No audio tracks in captured stream.');
   }
 
-  // Watch for system audio track ending unexpectedly (e.g., screen share stopped)
-  // Recovery is NOT attempted — getDisplayMedia requires user interaction via picker dialog
-  const systemTrack = audioTracks[0];
-  systemTrack.onended = () => {
-    // Bail if recording already stopped
-    if (!audioContext) return;
-
-    console.error('[audioCaptureService] System audio track ended unexpectedly — cannot auto-recover.');
-    if (audioInterruptedCallback) audioInterruptedCallback('system', false);
-  };
-
-  // Step 5: Create AudioContext at 16kHz -- browser handles resampling from 48kHz
-  audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+  // Step 5: Create AudioContext at 16kHz -- browser handles resampling from 48kHz.
+  // With a 'none' sink where supported, so no output stream opens on the headset.
+  const { ctx, sink, fallbackReason } = createCaptureContext(SAMPLE_RATE);
+  audioContext = ctx;
+  if (sink === 'default') emitAudioEvent('sink-fallback', null, fallbackReason);
 
   // Step 6: Build audio pipeline with GainNodes for mixing
-  sourceNode = audioContext.createMediaStreamSource(mediaStream);
   systemGainNode = audioContext.createGain();
   systemGainNode.gain.value = 1.0;
 
@@ -210,62 +329,16 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
   processorNode = audioContext.createScriptProcessor(BUFFER_SIZE, INPUT_CHANNELS, OUTPUT_CHANNELS);
 
   // Connect system audio: source → gain → merger input 1 (mic takes input 0)
-  sourceNode.connect(systemGainNode);
   systemGainNode.connect(mergerNode, 0, SYSTEM_CHANNEL);
   mergerNode.connect(processorNode);
+  connectSystem(systemStream);
 
-  // Step 7: Optionally add microphone input
+  // Step 7: Optionally add microphone input: source → gain → merger input 0 (its own channel)
   currentMicDeviceId = micDeviceId;
+  micEnabled = includeMic;
   if (includeMic) {
-    micStream = await acquireMicStream(currentMicDeviceId);
-    if (micStream) {
-      micSourceNode = audioContext.createMediaStreamSource(micStream);
-      micGainNode = audioContext.createGain();
-      micGainNode.gain.value = 1.0;
-      // Connect mic: source → gain → merger input 0 (its own channel)
-      micSourceNode.connect(micGainNode);
-      micGainNode.connect(mergerNode, 0, MIC_CHANNEL);
-
-      // Watch for mic track ending unexpectedly (e.g., device disconnected)
-      const micTrack = micStream.getAudioTracks()[0];
-      if (micTrack) {
-        micTrack.onended = async () => {
-          // Bail if recording already stopped
-          if (!audioContext) return;
-
-          console.warn('[audioCaptureService] Mic track ended unexpectedly — attempting recovery...');
-
-          // Disconnect old mic nodes before re-wiring
-          if (micSourceNode) {
-            micSourceNode.disconnect();
-            micSourceNode = null;
-          }
-          if (micGainNode) {
-            micGainNode.disconnect();
-            micGainNode = null;
-          }
-          if (micStream) {
-            micStream.getTracks().forEach((t) => t.stop());
-            micStream = null;
-          }
-
-          const recoveredStream = await acquireMicStream(currentMicDeviceId);
-          if (recoveredStream && audioContext && micGainNode === null) {
-            micStream = recoveredStream;
-            micSourceNode = audioContext.createMediaStreamSource(micStream);
-            micGainNode = audioContext.createGain();
-            micGainNode.gain.value = 1.0;
-            micSourceNode.connect(micGainNode);
-            micGainNode.connect(mergerNode!, 0, MIC_CHANNEL);
-            console.info('[audioCaptureService] Mic recovered successfully.');
-            if (audioInterruptedCallback) audioInterruptedCallback('mic', true);
-          } else {
-            console.warn('[audioCaptureService] Mic recovery failed — continuing with system audio only.');
-            if (audioInterruptedCallback) audioInterruptedCallback('mic', false);
-          }
-        };
-      }
-    }
+    const stream = await acquireMicStream(currentMicDeviceId);
+    if (stream) connectMic(stream);
   }
 
   // Step 8: Extract per-channel PCM, calculate level, and send to main.
@@ -291,9 +364,9 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
     if (audioLevelCallback) audioLevelCallback(currentAudioLevel);
 
     // Send raw Int16 PCM bytes to main process (one-way, fire-and-forget).
-    // `micGainNode` is the live "mic is connected" flag: the track-ended handler
-    // above clears it and only restores it on a successful recovery, so a null
-    // `mic` here means the device genuinely produced nothing for this window.
+    // `micGainNode` is the live "mic is connected" flag: watchMicTrack's end
+    // handler clears it and only connectMic restores it, so a null `mic` here
+    // means the device genuinely produced nothing for this window.
     // Casts are safe: Int16Array created via `new Int16Array(n)` always uses ArrayBuffer.
     const payload: AudioChunkPayload = {
       mixed: float32ToInt16(mixedSamples).buffer as ArrayBuffer,
@@ -306,6 +379,21 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
   // Connect to destination to keep the processor running
   // (ScriptProcessorNode requires being connected to output)
   processorNode.connect(audioContext.destination);
+
+  emitAudioEvent(
+    'capture-started',
+    null,
+    `mic=${describeMic(includeMic)} system="${trackLabel(systemTrack)}" sink=${sink}`,
+  );
+
+  // Step 9: Re-acquire a lost (or default-switched) channel when its device is back.
+  const session = captureSession;
+  deviceWatcher = startDeviceWatcher({
+    chosenMicId: micDeviceId,
+    channelStates: () => ({ mic: micEnabled ? streamState(micStream) : 'off', system: streamState(mediaStream) }),
+    reacquire: (channel, signal) => reacquire(channel, session, signal),
+    onRecovered: (channel) => audioInterruptedCallback?.(channel, true),
+  });
 }
 
 /**
@@ -340,9 +428,10 @@ export function onAudioLevel(callback: ((level: number) => void) | null): void {
 
 /**
  * Set a callback to receive track interruption notifications during capture.
- * Fired when a mic or system audio track ends unexpectedly.
+ * Fired when a mic or system audio track ends unexpectedly, and again when the
+ * device watcher has re-acquired it.
  * - type: 'mic' | 'system' — which track was lost
- * - recovered: true if mic was successfully re-acquired; always false for system audio
+ * - recovered: false when it was lost; true once a lost track was re-acquired
  * Pass null to remove.
  */
 export function onAudioInterrupted(callback: ((type: 'mic' | 'system', recovered: boolean) => void) | null): void {
@@ -353,6 +442,10 @@ export function onAudioInterrupted(callback: ((type: 'mic' | 'system', recovered
  * Internal cleanup -- disconnect nodes, stop tracks, close context.
  */
 function cleanup(): void {
+  deviceWatcher?.stop();
+  deviceWatcher = null;
+  captureSession++; // an in-flight re-acquisition now sees a stopped capture
+  micEnabled = false;
   currentAudioLevel = 0;
   audioLevelCallback = null;
   audioInterruptedCallback = null;
@@ -373,10 +466,7 @@ function cleanup(): void {
     micSourceNode = null;
   }
   if (micStream) {
-    micStream.getTracks().forEach((track) => {
-      track.onended = null;
-      track.stop();
-    });
+    releaseStream(micStream);
     micStream = null;
   }
   if (mergerNode) {
@@ -393,10 +483,7 @@ function cleanup(): void {
     sourceNode = null;
   }
   if (mediaStream) {
-    mediaStream.getTracks().forEach((track) => {
-      track.onended = null;
-      track.stop();
-    });
+    releaseStream(mediaStream);
     mediaStream = null;
   }
   if (audioContext) {

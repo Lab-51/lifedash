@@ -5,6 +5,7 @@
 // the accumulated Int16 buffer to main for transcription.
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createCaptureContext } from '../services/audioContextNoSink';
 
 interface UseVoiceInputOptions {
   onTranscript: (text: string) => void;
@@ -106,8 +107,9 @@ export function useVoiceInput({ onTranscript }: UseVoiceInputOptions) {
       chunksRef.current = [];
 
       // 16kHz AudioContext — Chromium resamples the mic stream automatically
-      // (same approach as audioCaptureService.ts for meeting recording)
-      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      // (same approach as audioCaptureService.ts for meeting recording), with no
+      // output device opened where the runtime supports a 'none' sink
+      const { ctx: audioCtx } = createCaptureContext(16000);
       audioCtxRef.current = audioCtx;
 
       const source = audioCtx.createMediaStreamSource(stream);

@@ -1,6 +1,7 @@
 // === Preload bridge: Meetings, recording, whisper, intelligence, diarization, analytics ===
 import { ipcRenderer } from 'electron';
 import type {
+  AudioCaptureEvent,
   AudioChunkPayload,
   CreateMeetingInput,
   UpdateMeetingInput,
@@ -40,6 +41,8 @@ export const meetingsBridge = {
       mic: payload.mic ? Buffer.from(payload.mic) : null,
       system: Buffer.from(payload.system),
     }),
+  // AUDIO-DEVICE.1: one-way capture diagnostic; main validates and logs it.
+  logAudioEvent: (event: AudioCaptureEvent) => ipcRenderer.send('audio:capture-event', event),
   enableLoopbackAudio: () => ipcRenderer.invoke('enable-loopback-audio'),
   disableLoopbackAudio: () => ipcRenderer.invoke('disable-loopback-audio'),
   onRecordingState: (callback: (state: RecordingState) => void) => {
