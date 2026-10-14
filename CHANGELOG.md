@@ -3,6 +3,11 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.18.0 — 2026-10-13
+- release: prep v2.18.0
+- feat(recording): a recording survives a Bluetooth headset dropout (AUDIO-DEVICE.1)
+- feat(twin): purged facts are keyed, mining stops on a timeout, and the wizard shows its limits (TWIN-LOOP.3)
+
 ## v2.17.0 — 2026-10-11
 - release: prep v2.17.0
 - feat(twin): the twin's memory is private, controllable and erasable (TWIN-LOOP.2)
