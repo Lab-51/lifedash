@@ -23,6 +23,7 @@ import type { RecordingState, MeetingTemplateType, TranscriptionProgress, Transc
 import {
   SETTING_AUTO_STOP_ENABLED,
   SETTING_AUTO_STOP_MINUTES,
+  SETTING_MIC_PROCESSING,
   INACTIVITY_COUNTDOWN_SECONDS,
   clampAutoStopMinutes,
 } from '../../shared/types/recording';
@@ -130,17 +131,19 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       // Step 2: Tell main process to start recording
       await window.electronAPI.startRecording(meeting.id);
 
-      // Step 3: Load selected mic device from settings (if configured)
+      // Step 3: Load selected mic device and its voice processing from settings (if configured)
       let micDeviceId: string | undefined;
+      let micProcessing = true;
       try {
         const savedMicId = await window.electronAPI.getSetting('audio:inputDeviceId');
         if (savedMicId) micDeviceId = savedMicId;
+        micProcessing = (await window.electronAPI.getSetting(SETTING_MIC_PROCESSING)) !== 'off';
       } catch {
-        // Settings unavailable — use default device
+        // Settings unavailable — use default device, processing on
       }
 
       // Step 4: Start audio capture in renderer (with optional mic mixing)
-      await audioCaptureService.startCapture(get().includeMic, micDeviceId);
+      await audioCaptureService.startCapture(get().includeMic, micDeviceId, micProcessing);
 
       // Step 5: Register interruption callback to surface audio issues via toast.
       // A lost track is re-acquired by the capture service once its device is back.

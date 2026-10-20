@@ -127,6 +127,18 @@ export function decideReacquire({
   return channels;
 }
 
+type AudioMediaDeviceInfo = MediaDeviceInfo & { kind: 'audioinput' | 'audiooutput' };
+
+export function isAudioDevice(d: MediaDeviceInfo): d is AudioMediaDeviceInfo {
+  return d.kind === 'audioinput' || d.kind === 'audiooutput';
+}
+
+/** True when audio devices exist but none carries a label (mic permission not granted yet). */
+export function needsLabelPermission(devices: MediaDeviceInfo[]): boolean {
+  const audio = devices.filter(isAudioDevice);
+  return audio.length > 0 && audio.every((d) => !d.label);
+}
+
 /** Stop a stream's tracks after detaching their handlers. */
 export function releaseStream(stream: MediaStream): void {
   stream.getTracks().forEach((track) => {

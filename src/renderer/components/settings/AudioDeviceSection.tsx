@@ -7,9 +7,10 @@
 // === DEPENDENCIES ===
 // React, lucide-react icons, audioCaptureService (enumerateAudioDevices)
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useId } from 'react';
 import { Headphones, Loader2, RefreshCw, Mic } from 'lucide-react';
 import { enumerateAudioDevices, type AudioDeviceInfo } from '../../services/audioCaptureService';
+import { SETTING_MIC_PROCESSING } from '../../../shared/types/recording';
 import HudSelect from '../HudSelect';
 
 /** Settings keys used for audio device configuration */
@@ -18,6 +19,9 @@ const SETTINGS_KEY_MIC = 'audio:inputDeviceId';
 export default function AudioDeviceSection() {
   const [devices, setDevices] = useState<AudioDeviceInfo[]>([]);
   const [selectedMicId, setSelectedMicId] = useState<string>('');
+  // Voice processing on the recording mic; unset means on.
+  const [micProcessing, setMicProcessing] = useState(true);
+  const processingId = useId();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -34,6 +38,7 @@ export default function AudioDeviceSection() {
     try {
       const savedMic = await window.electronAPI.getSetting(SETTINGS_KEY_MIC);
       if (savedMic) setSelectedMicId(savedMic);
+      setMicProcessing((await window.electronAPI.getSetting(SETTING_MIC_PROCESSING)) !== 'off');
     } catch (err) {
       console.error('Failed to load saved audio device:', err);
     }
@@ -68,6 +73,15 @@ export default function AudioDeviceSection() {
       }
     } catch (err) {
       console.error('Failed to save audio device setting:', err);
+    }
+  };
+
+  const handleProcessingChange = async (on: boolean) => {
+    setMicProcessing(on);
+    try {
+      await window.electronAPI.setSetting(SETTING_MIC_PROCESSING, on ? 'on' : 'off');
+    } catch (err) {
+      console.error('Failed to save voice processing setting:', err);
     }
   };
 
@@ -128,6 +142,27 @@ export default function AudioDeviceSection() {
             {inputDevices.length === 0
               ? 'No microphones detected. Check your audio connections.'
               : `${inputDevices.length} microphone${inputDevices.length !== 1 ? 's' : ''} available. Choose "System Default" to use the OS default device.`}
+          </p>
+        </div>
+
+        {/* Voice processing on the recording mic */}
+        <div className="pt-3 border-t border-[var(--color-border)]">
+          <div className="flex items-center justify-between">
+            <label htmlFor={processingId} className="text-sm font-medium text-[var(--color-text-primary)]">
+              Voice processing
+            </label>
+            <input
+              id={processingId}
+              type="checkbox"
+              checked={micProcessing}
+              onChange={(e) => void handleProcessingChange(e.target.checked)}
+              aria-describedby={`${processingId}-help`}
+              className="w-4 h-4 rounded border-surface-600 bg-surface-700 text-primary-600 focus:ring-primary-500 focus:ring-offset-0"
+            />
+          </div>
+          <p id={`${processingId}-help`} className="text-xs text-surface-500 mt-2">
+            Echo cancellation, noise suppression and automatic gain on your microphone. Turn off if a Bluetooth headset
+            drops during recordings. Applies from the next recording.
           </p>
         </div>
 

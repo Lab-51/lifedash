@@ -28,6 +28,8 @@ import type { AudioCaptureChannel, AudioChunkPayload } from '../../shared/types'
 import { emitAudioEvent, trackLabel } from './audioCaptureEvents';
 import { createCaptureContext } from './audioContextNoSink';
 import {
+  isAudioDevice,
+  needsLabelPermission,
   openSystemAudio,
   releaseStream,
   startDeviceWatcher,
@@ -74,6 +76,9 @@ let audioLevelCallback: ((level: number) => void) | null = null;
 // Track health monitoring
 let audioInterruptedCallback: ((type: 'mic' | 'system', recovered: boolean) => void) | null = null;
 let currentMicDeviceId: string | undefined = undefined;
+// Chromium voice processing (echo cancellation, noise suppression, auto gain) on
+// every mic open of this capture, the initial one and each re-acquisition alike.
+let micProcessing = true;
 let micEnabled = false; // the mic was requested for this capture
 let deviceWatcher: DeviceWatcher | null = null;
 // Bumped by cleanup: a re-acquisition that sees another value after an await
@@ -106,18 +111,6 @@ function float32ToInt16(float32: Float32Array): Int16Array {
     int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
   }
   return int16;
-}
-
-type AudioMediaDeviceInfo = MediaDeviceInfo & { kind: 'audioinput' | 'audiooutput' };
-
-function isAudioDevice(d: MediaDeviceInfo): d is AudioMediaDeviceInfo {
-  return d.kind === 'audioinput' || d.kind === 'audiooutput';
-}
-
-/** True when audio devices exist but none carries a label (mic permission not granted yet). */
-function needsLabelPermission(devices: MediaDeviceInfo[]): boolean {
-  const audio = devices.filter(isAudioDevice);
-  return audio.length > 0 && audio.every((d) => !d.label);
 }
 
 /**
@@ -158,9 +151,9 @@ async function acquireMicStream(deviceId?: string): Promise<MediaStream | null> 
     return await navigator.mediaDevices.getUserMedia({
       audio: {
         ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
+        echoCancellation: micProcessing,
+        noiseSuppression: micProcessing,
+        autoGainControl: micProcessing,
       },
     });
   } catch (error) {
@@ -295,9 +288,14 @@ async function reacquire(
  *
  * @param includeMic Whether to also capture the user's microphone (default: true)
  * @param micDeviceId Optional specific microphone device ID to use
+ * @param micProcessingOn Chromium voice processing on the mic (default: true); false opens it raw
  * @throws If system audio capture is denied or fails
  */
-export async function startCapture(includeMic: boolean = true, micDeviceId?: string): Promise<void> {
+export async function startCapture(
+  includeMic: boolean = true,
+  micDeviceId?: string,
+  micProcessingOn: boolean = true,
+): Promise<void> {
   if (audioContext) {
     throw new Error('Already capturing. Call stopCapture() first.');
   }
@@ -335,6 +333,7 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
 
   // Step 7: Optionally add microphone input: source → gain → merger input 0 (its own channel)
   currentMicDeviceId = micDeviceId;
+  micProcessing = micProcessingOn;
   micEnabled = includeMic;
   if (includeMic) {
     const stream = await acquireMicStream(currentMicDeviceId);
@@ -383,7 +382,7 @@ export async function startCapture(includeMic: boolean = true, micDeviceId?: str
   emitAudioEvent(
     'capture-started',
     null,
-    `mic=${describeMic(includeMic)} system="${trackLabel(systemTrack)}" sink=${sink}`,
+    `mic=${describeMic(includeMic)} processing=${micProcessing ? 'on' : 'off'} system="${trackLabel(systemTrack)}" sink=${sink}`,
   );
 
   // Step 9: Re-acquire a lost (or default-switched) channel when its device is back.
@@ -450,6 +449,7 @@ function cleanup(): void {
   audioLevelCallback = null;
   audioInterruptedCallback = null;
   currentMicDeviceId = undefined;
+  micProcessing = true;
 
   if (processorNode) {
     processorNode.disconnect();

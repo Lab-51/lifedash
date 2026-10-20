@@ -50,7 +50,7 @@ import {
   stopInactivityDetector,
   keepRecording as keepRecordingDetector,
 } from '../../services/inactivityDetectorService';
-import { onAudioInterrupted } from '../../services/audioCaptureService';
+import { onAudioInterrupted, startCapture } from '../../services/audioCaptureService';
 import { toast } from '../../hooks/useToast';
 
 const { useRecordingStore } = await import('../recordingStore');
@@ -154,6 +154,38 @@ describe('recordingStore — completedMeetingId is set by stop and by nothing el
     useRecordingStore.setState({ completedMeetingId: 'meeting-1' });
     useRecordingStore.getState().clearCompletedMeetingId();
     expect(useRecordingStore.getState().completedMeetingId).toBeNull();
+  });
+});
+
+// AUDIO-DEVICE.1: audio:micProcessing reaches the capture start; unset or unreadable means on.
+describe('recordingStore — mic voice processing setting', () => {
+  beforeEach(() => {
+    settings = {};
+    vi.clearAllMocks();
+  });
+
+  it('passes processing off with the chosen mic when the setting is "off", and on when it is unset', async () => {
+    settings = { 'audio:inputDeviceId': 'headset-mic', 'audio:micProcessing': 'off' };
+    await useRecordingStore.getState().startRecording('Test');
+    expect(startCapture).toHaveBeenLastCalledWith(true, 'headset-mic', false);
+
+    settings = {};
+    await useRecordingStore.getState().startRecording('Test');
+    expect(startCapture).toHaveBeenLastCalledWith(true, undefined, true);
+  });
+
+  it('keeps processing on when the setting cannot be read', async () => {
+    vi.mocked(window.electronAPI.getSetting).mockImplementation((key: string) =>
+      key === 'audio:micProcessing' ? Promise.reject(new Error('db down')) : Promise.resolve(settings[key] ?? null),
+    );
+    try {
+      await useRecordingStore.getState().startRecording('Test');
+      expect(startCapture).toHaveBeenLastCalledWith(true, undefined, true);
+    } finally {
+      vi.mocked(window.electronAPI.getSetting).mockImplementation((key: string) =>
+        Promise.resolve(settings[key] ?? null),
+      );
+    }
   });
 });
 

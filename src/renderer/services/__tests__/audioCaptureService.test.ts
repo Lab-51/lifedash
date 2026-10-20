@@ -270,9 +270,26 @@ describe('audioCaptureService — capture events (AUDIO-DEVICE.1)', () => {
       {
         kind: 'capture-started',
         channel: null,
-        detail: 'mic="Headset Microphone" system="System Audio" sink=none',
+        detail: 'mic="Headset Microphone" processing=on system="System Audio" sink=none',
       },
     ]);
+  });
+
+  it('opens the mic with voice processing on when no choice is passed', async () => {
+    await audioCaptureService.startCapture(true);
+
+    const { audio } = vi.mocked(navigator.mediaDevices.getUserMedia).mock.calls[0][0] as {
+      audio: MediaTrackConstraints;
+    };
+    expect([audio.echoCancellation, audio.noiseSuppression, audio.autoGainControl]).toEqual([true, true, true]);
+  });
+
+  it('logs processing=off when the mic is opened without voice processing', async () => {
+    await audioCaptureService.startCapture(true, undefined, false);
+
+    expect(events('capture-started')[0].detail).toBe(
+      'mic="Headset Microphone" processing=off system="System Audio" sink=none',
+    );
   });
 
   it('says why there is no mic when the microphone cannot be opened', async () => {
@@ -780,6 +797,25 @@ describe('audioCaptureService — device reconnect (AUDIO-DEVICE.1)', () => {
     expect(onInterrupted).toHaveBeenLastCalledWith('mic', false);
     fireCallback([-0.25], [-0.5]);
     expect(lastChunk('mic')).toBeNull();
+  });
+
+  it('opens the mic without voice processing on the initial open AND on a re-acquisition when it is off', async () => {
+    await audioCaptureService.startCapture(true, undefined, false);
+    await vi.advanceTimersByTimeAsync(0);
+    mediaDevices.getUserMedia.mockResolvedValueOnce(makeStream([makeTrack('Headset Microphone')]));
+
+    endTrack(micStream.getAudioTracks()[0]);
+    await vi.advanceTimersByTimeAsync(BACKSTOP_INTERVAL_MS);
+
+    const flags = mediaDevices.getUserMedia.mock.calls.map(([{ audio }]) => [
+      audio.echoCancellation,
+      audio.noiseSuppression,
+      audio.autoGainControl,
+    ]);
+    expect(flags).toEqual([
+      [false, false, false], // the capture start
+      [false, false, false], // the watcher's re-acquisition
+    ]);
   });
 
   it('logs each attempt, and a failed one with the error name only', async () => {

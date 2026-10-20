@@ -21,6 +21,13 @@ export const SETTING_AUTO_STOP_ENABLED = 'recording:autoStopEnabled';
  */
 export const SETTING_AUTO_STOP_MINUTES = 'recording:autoStopMinutes';
 
+/**
+ * Settings key: Chromium voice processing (echo cancellation, noise suppression,
+ * auto gain) on the recording mic. Values 'on' | 'off'; unset (or anything other
+ * than 'off') means on. Read at recording start, so a change applies from the next one.
+ */
+export const SETTING_MIC_PROCESSING = 'audio:micProcessing';
+
 /** Default silence threshold in minutes when the setting is unset or invalid. */
 export const DEFAULT_AUTO_STOP_MINUTES = 10;
 
