@@ -238,10 +238,10 @@ describe('LiveModeOverlay', () => {
     expect(feed).toHaveTextContent('01:05');
   });
 
-  it('reserves the Task 5 proposals mount point above the chat', () => {
+  it('does not mount the archived proposals feed (LIVE_PROPOSALS_ENABLED off)', () => {
     useRecordingStore.setState({ isRecording: true });
     renderOverlay();
-    expect(screen.getByTestId('live-proposals-mount')).toBeInTheDocument();
+    expect(screen.queryByTestId('live-proposals-mount')).not.toBeInTheDocument();
   });
 
   it('minimizes (collapses to the pill) without stopping the recording', () => {

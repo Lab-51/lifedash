@@ -59,6 +59,20 @@ import LiveAssistantChat from './LiveAssistantChat';
 import AudioLevelMeter from './AudioLevelMeter';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { BrainNodeType, Project } from '../../shared/types';
+import { LIVE_PROPOSALS_ENABLED } from '../../shared/features';
+
+/** Proposals feed mount; renders nothing while live proposals are archived. */
+function ProposalsMount() {
+  if (!LIVE_PROPOSALS_ENABLED) return null;
+  return (
+    <div data-testid="live-proposals-mount" className="shrink-0">
+      <LiveProposalsFeed />
+    </div>
+  );
+}
+
+/** The divider above the activity feed only separates it from the proposals feed. */
+const ACTIVITY_FEED_CLASS = LIVE_PROPOSALS_ENABLED ? 'shrink-0 border-t border-[var(--color-border)]' : 'shrink-0';
 
 function formatElapsed(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60)
@@ -418,14 +432,12 @@ export default function LiveModeOverlay() {
           {/* Ambient proposals feed (LIVE.2 Task 5) — above the chat. Chips are
               ambient (never modal); the feed and RecordingIndicator's pending badge
               both read liveSuggestionsStore, which stays live even while minimized. */}
-          <div data-testid="live-proposals-mount" className="shrink-0">
-            <LiveProposalsFeed />
-          </div>
+          <ProposalsMount />
 
           {/* Activity feed (Task 5) — labeled log of what the assistant/triage has
               done this recording; off-canvas entries pulse the tab badge above.
               Collapsible so a long log never crowds the chat below it. */}
-          <div data-testid="activity-feed-mount" className="shrink-0 border-t border-[var(--color-border)]">
+          <div data-testid="activity-feed-mount" className={ACTIVITY_FEED_CLASS}>
             <ActivityFeed entries={activityEntries} onSelectTab={handleSelectTab} collapsible />
           </div>
 

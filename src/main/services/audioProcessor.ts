@@ -32,6 +32,7 @@ import { createLogger } from './logger';
 import { createWavHeader } from './wavUtils';
 import { setActiveMeetingId } from './recordingState';
 import { pinChatModelForRecording, releaseChatModelPin } from './recordingModelPin';
+import { LIVE_PROPOSALS_ENABLED } from '../../shared/features';
 
 const log = createLogger('Audio');
 
@@ -133,7 +134,8 @@ export async function startRecording(meetingId: string, language?: string): Prom
 
   // Start the proactive triage loop for this recording session. Symmetric with
   // stopTriage in stopRecording so its watermark/state is always cleared.
-  liveTriageService.startTriage(meetingId);
+  // Archived (src/shared/features.ts): without startTriage, onSegment is a no-op.
+  if (LIVE_PROPOSALS_ENABLED) liveTriageService.startTriage(meetingId);
 
   // Hold the built-in chat role on this session's model for the whole recording
   // (AI-RESIL.2): triage and the live assistant fire on cadence, and BETWEEN two calls

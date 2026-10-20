@@ -139,8 +139,8 @@ describe('BrainInspector — per-type reuse', () => {
     expect(screen.getByTestId('mock-brief')).toBeInTheDocument();
     expect(screen.getByTestId('mock-actions')).toBeInTheDocument();
     expect(screen.getByTestId('mock-transcript')).toBeInTheDocument();
-    // Completed meeting -> proposals + assistant render too.
-    expect(screen.getByTestId('mock-proposals')).toBeInTheDocument();
+    // Completed meeting -> assistant renders too; proposals are archived (LIVE_PROPOSALS_ENABLED off).
+    expect(screen.queryByTestId('mock-proposals')).toBeNull();
     expect(screen.getByTestId('mock-assistant')).toBeInTheDocument();
   });
 

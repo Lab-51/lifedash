@@ -63,6 +63,10 @@ import {
   formatMeetingAsMarkdown,
   slugify,
 } from './meeting-detail';
+import { LIVE_PROPOSALS_ENABLED } from '../../shared/features';
+
+/** Post-meeting proposals section; renders nothing while live proposals are archived. */
+const RailProposalsSection: typeof LiveProposalsSection = LIVE_PROPOSALS_ENABLED ? LiveProposalsSection : () => null;
 
 // ---------------------------------------------------------------------------
 // Board tab — mounts the interactive EmbeddedBoard for the session's linked
@@ -712,7 +716,7 @@ export default function SessionWorkspace() {
               into the Summary tab, so this self-gating placement renders nothing. */}
           <SessionIntelligence meeting={meeting} autoGenerate={autoGenerate} onConvert={setConvertingAction} />
           {meeting.status === 'completed' && (
-            <LiveProposalsSection meetingId={meeting.id} projectName={linkedProjectName ?? 'Unassigned'} />
+            <RailProposalsSection meetingId={meeting.id} projectName={linkedProjectName ?? 'Unassigned'} />
           )}
           {meeting.status === 'completed' && <SessionActivityFeed meetingId={meeting.id} onSelectTab={setActiveTab} />}
           <DeleteMeetingButton onDelete={handleDelete} />

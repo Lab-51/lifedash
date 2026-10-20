@@ -29,6 +29,7 @@ import TranscriptSection from '../meeting-detail/TranscriptSection';
 import LiveProposalsSection from '../meeting-detail/LiveProposalsSection';
 import LiveAssistantSection from '../meeting-detail/LiveAssistantSection';
 import type { ActionItem, MeetingWithTranscript } from '../../../shared/types';
+import { LIVE_PROPOSALS_ENABLED } from '../../../shared/features';
 
 type LoadState = 'loading' | 'ready' | 'missing' | 'error';
 
@@ -151,7 +152,9 @@ export default function SessionInspector({ meetingId }: { meetingId: string }) {
         meetingTimezone={meeting.timezone}
       />
 
-      {isCompleted && <LiveProposalsSection meetingId={meeting.id} projectName={projectName ?? 'Unassigned'} />}
+      {LIVE_PROPOSALS_ENABLED && isCompleted && (
+        <LiveProposalsSection meetingId={meeting.id} projectName={projectName ?? 'Unassigned'} />
+      )}
       {isCompleted && <LiveAssistantSection meetingId={meeting.id} />}
 
       <div className="max-h-[40vh] overflow-y-auto rounded-lg border border-[var(--color-border)]">
