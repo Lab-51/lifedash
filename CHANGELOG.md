@@ -3,6 +3,11 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.19.0 — 2026-11-19
+- release: prep v2.19.0
+- feat(transcription): slower-than-realtime guard for live local whisper
+- chore(release): scripts/smoke-copy.mjs builds a signed-out smoke copy of the user data
+
 ## v2.18.2 — 2026-11-19
 - release: prep v2.18.2
 - fix(transcription): drop live whisper windows that echo the previous window
