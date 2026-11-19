@@ -299,3 +299,109 @@ describe('transcriptionService — two-channel capture', () => {
     expect(persisted()).toEqual([{ text: 'cloud speech', speaker: null }]);
   });
 });
+
+describe('transcriptionService — slower-than-realtime guard', () => {
+  // Real-use complaint (2026-11-19): 10 s windows took ~18 s each, two at a
+  // time, for the whole call, and the meeting app stuttered.
+  let clock = 0;
+
+  /** Every whisper call "takes" `ms` on the mocked clock and returns unique text. */
+  function whisperTakes(ms: () => number) {
+    let n = 0;
+    whisperCtx.transcribeData.mockImplementation(() => {
+      const text = `window ${n++}`;
+      return {
+        promise: Promise.resolve().then(() => {
+          clock += ms();
+          return { result: text, segments: [{ text, t0: 0, t1: 1000 }], isAborted: false, language: 'en' };
+        }),
+        stop: vi.fn(),
+      };
+    });
+  }
+
+  /** Feed `count` full mixed windows one at a time, letting each settle. */
+  async function feedWindows(count: number, expectWhisperCalls: (fed: number) => number) {
+    for (let i = 1; i <= count; i++) {
+      transcriptionService.addChunk(mixedOnly(MIXED_WINDOW));
+      await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(expectWhisperCalls(i)));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  function fallbackToasts(): string[] {
+    return win.webContents.send.mock.calls
+      .filter((c) => c[0] === 'transcription:status-changed' && c[1]?.status === 'fallback')
+      .map((c) => String(c[1].reason));
+  }
+
+  beforeEach(() => {
+    clock = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
+  });
+
+  afterEach(() => {
+    vi.mocked(Date.now).mockRestore();
+  });
+
+  it('stays in normal mode while windows finish well inside real time', async () => {
+    whisperTakes(() => 2000);
+    await transcriptionService.start('meeting-fast', 'en');
+    await feedWindows(5, (fed) => fed);
+
+    expect(fallbackToasts()).toEqual([]);
+    expect(whisperCtx.transcribeData.mock.calls[4][1]).toMatchObject({ beamSize: 3, bestOf: 3 });
+  });
+
+  it('does not step down on slow windows that are not consecutive', async () => {
+    const durations = [9000, 9000, 2000, 9000, 9000, 2000];
+    let i = 0;
+    whisperTakes(() => durations[i++ % durations.length]);
+    await transcriptionService.start('meeting-spiky', 'en');
+    await feedWindows(6, (fed) => fed);
+
+    expect(fallbackToasts()).toEqual([]);
+  });
+
+  it('switches to the fast preset after three consecutive slow windows', async () => {
+    whisperTakes(() => 9000);
+    await transcriptionService.start('meeting-slow', 'en');
+    await feedWindows(4, (fed) => fed);
+
+    expect(whisperCtx.transcribeData.mock.calls[2][1]).toMatchObject({ beamSize: 3, bestOf: 3 });
+    expect(whisperCtx.transcribeData.mock.calls[3][1]).toMatchObject({ beamSize: 1, bestOf: 1 });
+    expect(fallbackToasts()).toHaveLength(1);
+  });
+
+  it('parks speech windows after six slow windows and transcribes them at stop, in order', async () => {
+    whisperTakes(() => 9000);
+    await transcriptionService.start('meeting-deferred', 'en');
+    // Windows 1-6 reach whisper; 7 and 8 are parked.
+    await feedWindows(8, (fed) => Math.min(fed, 6));
+
+    expect(fallbackToasts()).toHaveLength(2);
+    expect(persisted()).toHaveLength(6);
+
+    await transcriptionService.stop();
+
+    // 8 full windows plus the short flush of the 1 s overlap remainder.
+    expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(9);
+    expect(persisted().map((p) => p.text)).toEqual(Array.from({ length: 9 }, (_, n) => `window ${n}`));
+    // Parked windows keep the offsets they were recorded at.
+    const starts = vi.mocked(meetingService.addTranscriptSegment).mock.calls.map((c) => c[2]);
+    expect(starts.slice(0, 8)).toEqual([0, 10000, 20000, 30000, 40000, 50000, 60000, 70000]);
+  });
+
+  it('starts the next recording back in normal mode', async () => {
+    whisperTakes(() => 9000);
+    await transcriptionService.start('meeting-a', 'en');
+    await feedWindows(4, (fed) => fed);
+    await transcriptionService.stop();
+
+    whisperCtx.transcribeData.mockClear();
+    whisperTakes(() => 2000);
+    await transcriptionService.start('meeting-b', 'en');
+    await feedWindows(1, (fed) => fed);
+    expect(whisperCtx.transcribeData.mock.calls[0][1]).toMatchObject({ beamSize: 3, bestOf: 3 });
+  });
+});

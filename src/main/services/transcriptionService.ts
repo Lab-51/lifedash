@@ -137,6 +137,52 @@ let lastTranscriptText = '';
 let pendingSegments: PendingSegment[] = [];
 let activeTranscriptions = 0;
 const MAX_CONCURRENT = 2;
+
+// --- Slower-than-realtime guard (local whisper only) ---
+// A 10 s window that takes close to 10 s to transcribe means whisper holds the
+// GPU/CPU for the whole call, and the user's meeting app stutters (measured
+// 2026-11-19: median 17.8 s per window on an integrated GPU, two at a time).
+// Three consecutive slow windows step the session down one level; a session
+// never steps back up, so the load stays predictable.
+//   0 normal   — MAX_CONCURRENT windows, the user's speed preset
+//   1 light    — one window at a time, `fast` preset
+//   2 deferred — speech windows are parked and transcribed after Stop
+const SLOW_WINDOW_MS = 8000;
+const SLOW_STREAK_TO_STEP_DOWN = 3;
+type LoadLevel = 0 | 1 | 2;
+let loadLevel: LoadLevel = 0;
+let slowStreak = 0;
+interface DeferredWindow {
+  channel: AudioChannel;
+  segment: Buffer;
+  startTimeMs: number;
+  segmentNumber: number;
+}
+/** Windows parked at level 2, in arrival order; drained by stop(). */
+let deferredWindows: DeferredWindow[] = [];
+/** True once stop() started draining: nothing is parked or measured any more. */
+let draining = false;
+
+function maxConcurrent(): number {
+  return loadLevel === 0 ? MAX_CONCURRENT : 1;
+}
+
+/** Feed one full live window's whisper duration to the guard. */
+function noteWindowDuration(durationMs: number): void {
+  if (draining || loadLevel === 2) return;
+  slowStreak = durationMs > SLOW_WINDOW_MS ? slowStreak + 1 : 0;
+  if (slowStreak < SLOW_STREAK_TO_STEP_DOWN) return;
+  slowStreak = 0;
+  loadLevel = (loadLevel + 1) as LoadLevel;
+  const reason =
+    loadLevel === 1
+      ? 'Transcription is slower than real time on this computer — switched to a lighter mode to keep your call smooth'
+      : 'Transcription is still too slow during the call — the rest of the transcript will be finished after you stop recording';
+  log.warn(`Slow-transcription guard: level ${loadLevel} (last window ${durationMs} ms, backend ${whisperBackend})`);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('transcription:status-changed', { status: 'fallback', reason });
+  }
+}
 let activeProvider: TranscriptionProviderType = 'local';
 let activeLanguage: string = 'en';
 let activePreset: WhisperPreset = 'balanced';
@@ -309,6 +355,10 @@ export async function start(meetingId: string, language?: string): Promise<void>
   lastTranscriptText = '';
   pendingSegments = [];
   activeTranscriptions = 0;
+  loadLevel = 0;
+  slowStreak = 0;
+  deferredWindows = [];
+  draining = false;
   totalSegmentsQueued = 0;
   segmentsCompleted = 0;
   whisperBackend = 'cpu';
@@ -464,10 +514,17 @@ async function stopInternal(): Promise<void> {
       state.accumulator = Buffer.alloc(0);
       flushedAny = true;
     }
-    if (flushedAny) {
+    // From here on nothing is parked: windows deferred by the slow-transcription
+    // guard are transcribed now, before the newer pending ones.
+    draining = true;
+    if (flushedAny || deferredWindows.length > 0) {
       emitProgress('finalizing');
       dispatchNext();
     }
+  } else {
+    // No meeting to save into: parked windows could never be persisted, and
+    // leaving them would keep waitForPending() from resolving.
+    deferredWindows = [];
   }
 
   // Wait for pending transcriptions to finish
@@ -489,6 +546,7 @@ async function stopInternal(): Promise<void> {
   currentMeetingId = null;
   activeProvider = 'local';
   activeInitialPrompt = '';
+  draining = false;
   log.info('Stopped');
 }
 
@@ -591,7 +649,19 @@ async function isWindowSilentByVad(segment: Buffer): Promise<boolean> {
 
 /** Dispatch the next pending segment to Whisper or cloud API */
 function dispatchNext(): void {
-  if (activeTranscriptions >= MAX_CONCURRENT || pendingSegments.length === 0) return;
+  if (activeTranscriptions >= maxConcurrent()) return;
+
+  // Windows the slow-transcription guard parked go first once stop() drains:
+  // they are older than anything still pending.
+  if (draining && deferredWindows.length > 0 && whisperContext) {
+    const parked = deferredWindows.shift()!;
+    activeTranscriptions++;
+    void dispatchToWhisper(parked.channel, parked.segment, parked.startTimeMs, parked.segmentNumber);
+    dispatchNext();
+    return;
+  }
+
+  if (pendingSegments.length === 0) return;
 
   // For local mode, need whisper context to be available
   if (activeProvider === 'local' && !whisperContext) return;
@@ -649,6 +719,15 @@ async function gateAndDispatch(
   }
 
   if (activeProvider === 'local') {
+    // Guard level 2: park the speech window until stop() instead of loading
+    // the machine during the call. Silent windows were already skipped above,
+    // so only speech is held in memory.
+    if (loadLevel === 2 && !draining) {
+      deferredWindows.push({ channel, segment, startTimeMs, segmentNumber });
+      activeTranscriptions--;
+      dispatchNext();
+      return;
+    }
     // Local Whisper: transcribe directly (non-blocking via native async worker)
     await dispatchToWhisper(channel, segment, startTimeMs, segmentNumber);
   } else {
@@ -677,7 +756,7 @@ async function dispatchToWhisper(
 
     // transcribeData returns { promise, stop }. The promise resolves when
     // the native Napi::AsyncWorker finishes on its background thread.
-    const presetOpts = WHISPER_PRESETS[activePreset];
+    const presetOpts = WHISPER_PRESETS[loadLevel === 0 ? activePreset : 'fast'];
     const whisperOpts: Record<string, unknown> = {
       beamSize: presetOpts.beamSize,
       bestOf: presetOpts.bestOf,
@@ -708,7 +787,11 @@ async function dispatchToWhisper(
     // When activeLanguage is 'auto', omit language so Whisper auto-detects per segment
     const { promise } = whisperContext!.transcribeData(arrayBuffer, whisperOpts);
 
+    const whisperStartedAt = Date.now();
     const result = await trackTiming(`Whisper: segment #${segmentNumber}`, () => promise);
+    // Only full windows are comparable to the real-time budget; the short
+    // flush window at stop() is not.
+    if (segment.byteLength >= BYTES_PER_SEGMENT) noteWindowDuration(Date.now() - whisperStartedAt);
 
     activeTranscriptions--;
     segmentsCompleted++;
@@ -909,7 +992,7 @@ async function dispatchToApi(
 function waitForPending(): Promise<void> {
   return new Promise((resolve) => {
     const check = () => {
-      if (activeTranscriptions === 0 && pendingSegments.length === 0) {
+      if (activeTranscriptions === 0 && pendingSegments.length === 0 && deferredWindows.length === 0) {
         resolve();
       } else {
         setTimeout(check, 200);
