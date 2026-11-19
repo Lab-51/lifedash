@@ -4,7 +4,7 @@
 // real meeting content anywhere in this file.
 
 import { describe, it, expect } from 'vitest';
-import { detectSuspectSpans, type SuspectSegmentInput } from '../suspectDetector';
+import { detectSuspectSpans, isEchoOfPrevious, type SuspectSegmentInput } from '../suspectDetector';
 
 function seg(id: string, startTime: number, endTime: number, content: string): SuspectSegmentInput {
   return { id, startTime, endTime, content, speaker: null };
@@ -128,5 +128,35 @@ describe('detectSuspectSpans', () => {
         { startMs: 3000, endMs: 4000, segmentIds: ['s4'], reasons: ['hallucination'] },
       ]);
     });
+  });
+});
+
+describe('isEchoOfPrevious', () => {
+  const previous = 'Takhle začaly, že jo, tak aspoň trošku, aby jsem to vysvětlil, proč vlastně.';
+
+  it('flags a verbatim repeat of the previous window, ignoring case, punctuation and diacritics', () => {
+    expect(isEchoOfPrevious('takhle zacaly ze jo tak aspon trosku aby jsem to vysvetlil proc vlastne', previous)).toBe(
+      true,
+    );
+  });
+
+  it('flags a long tail of the previous text repeated alone', () => {
+    expect(isEchoOfPrevious('tak aspoň trošku, aby jsem to vysvětlil', previous)).toBe(true);
+  });
+
+  it('keeps a segment that extends the previous text with new speech', () => {
+    expect(isEchoOfPrevious(`${previous} A začalo to jenom proto.`, previous)).toBe(false);
+  });
+
+  it('keeps short repeats that the 1 s window overlap or real speech produce', () => {
+    expect(isEchoOfPrevious('proč vlastně', previous)).toBe(false);
+  });
+
+  it('matches on whole tokens only', () => {
+    expect(isEchoOfPrevious('akhle začaly že jo tak aspoň', previous)).toBe(false);
+  });
+
+  it('never flags against empty previous text', () => {
+    expect(isEchoOfPrevious(previous, '')).toBe(false);
   });
 });

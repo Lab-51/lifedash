@@ -40,6 +40,7 @@ import type { AudioChunkBuffers, TranscriptionProviderType, TranscriptionProgres
 import { resolveLanguagePreset } from '../../shared/types/transcription';
 import { findMatchedHallucinationPhrase } from '../../shared/transcription/hallucinationFilter';
 import { WINDOW_STAMP_MS } from '../../shared/transcription/timeCoordinates';
+import { isEchoOfPrevious } from '../../shared/transcription/suspectDetector';
 import { emptyCoverageTally } from '../../shared/types/transcriptionCoverage';
 import type { ChannelCoverage, CoverageGap, CoverageTally } from '../../shared/types/transcriptionCoverage';
 
@@ -88,6 +89,9 @@ interface ChannelState {
   segmentIndex: number;
   /** Previous segment text for this channel's whisper context carryover. */
   lastSegmentPrompt: string;
+  /** Full surviving text of this channel's last window that saved anything —
+   *  what a prompt-echo window is compared against (see isEchoOfPrevious). */
+  lastWindowText: string;
 }
 
 interface PendingSegment {
@@ -97,9 +101,9 @@ interface PendingSegment {
 
 function makeChannelStates(): Record<AudioChannel, ChannelState> {
   return {
-    mic: { accumulator: Buffer.alloc(0), segmentIndex: 0, lastSegmentPrompt: '' },
-    system: { accumulator: Buffer.alloc(0), segmentIndex: 0, lastSegmentPrompt: '' },
-    mixed: { accumulator: Buffer.alloc(0), segmentIndex: 0, lastSegmentPrompt: '' },
+    mic: { accumulator: Buffer.alloc(0), segmentIndex: 0, lastSegmentPrompt: '', lastWindowText: '' },
+    system: { accumulator: Buffer.alloc(0), segmentIndex: 0, lastSegmentPrompt: '', lastWindowText: '' },
+    mixed: { accumulator: Buffer.alloc(0), segmentIndex: 0, lastSegmentPrompt: '', lastWindowText: '' },
   };
 }
 
@@ -719,6 +723,7 @@ async function dispatchToWhisper(
       const survivingTexts: string[] = [];
       let savedAny = false;
       let droppedHallucinated = false;
+      let droppedEcho = false;
 
       for (const seg of result.segments) {
         const segText = seg.text.trim();
@@ -728,6 +733,17 @@ async function dispatchToWhisper(
         if (matchedPhrase) {
           log.debug(`Dropping hallucinated ${channel} segment #${segmentNumber} (matched: "${matchedPhrase}")`);
           droppedHallucinated = true;
+          continue;
+        }
+
+        // Prompt echo: whisper repeats the rolling prompt (the previous window's
+        // text) verbatim on quiet/unclear audio, so the same sentence lands
+        // twice 10 s apart. Compared against the previous window plus what
+        // this window already saved.
+        if (isEchoOfPrevious(segText, `${state.lastWindowText} ${survivingTexts.join(' ')}`)) {
+          log.debug(`Dropping ${channel} segment #${segmentNumber}: echo of the previous window`);
+          droppedHallucinated = true;
+          droppedEcho = true;
           continue;
         }
 
@@ -773,7 +789,13 @@ async function dispatchToWhisper(
       // segment. If everything in this window was filtered, leave the prior
       // prompt in place rather than feeding a hallucination forward.
       if (survivingTexts.length > 0) {
-        state.lastSegmentPrompt = survivingTexts.join(' ').slice(-200);
+        state.lastWindowText = survivingTexts.join(' ');
+        state.lastSegmentPrompt = state.lastWindowText.slice(-200);
+      } else if (droppedEcho) {
+        // The whole window was the prompt copied back: feeding the same
+        // prompt again invites the same echo, so the next window starts
+        // without rolling context (the glossary still applies).
+        state.lastSegmentPrompt = '';
       }
     }
   } catch (err) {

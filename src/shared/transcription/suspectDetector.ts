@@ -132,6 +132,22 @@ function isDuplicatePair(tokensA: string[], tokensB: string[]): boolean {
   return textA === textB || textA.includes(textB) || textB.includes(textA);
 }
 
+/**
+ * True iff `text` is an echo of `previous`: its whole token sequence appears
+ * inside `previous` (token-boundary match), and it is at least
+ * DUPLICATE_MIN_TOKENS long. Used by the live whisper loop to drop a window
+ * that repeats the rolling prompt it was seeded with — whisper copies its
+ * prompt back verbatim on quiet or unclear audio. One-directional on purpose:
+ * a segment that EXTENDS the previous text carries new speech and is kept.
+ */
+export function isEchoOfPrevious(text: string, previous: string): boolean {
+  const tokens = tokenize(text);
+  if (tokens.length < DUPLICATE_MIN_TOKENS) return false;
+  const previousTokens = tokenize(previous);
+  if (previousTokens.length < tokens.length) return false;
+  return ` ${previousTokens.join(' ')} `.includes(` ${tokens.join(' ')} `);
+}
+
 // ---------------------------------------------------------------------------
 // Rule: garbled
 // ---------------------------------------------------------------------------

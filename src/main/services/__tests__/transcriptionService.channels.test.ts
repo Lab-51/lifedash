@@ -238,6 +238,40 @@ describe('transcriptionService — two-channel capture', () => {
     expect(whisperCtx.transcribeData.mock.calls.filter((c) => c[1]?.prompt !== undefined).length).toBeGreaterThan(0);
   });
 
+  it('drops a window that echoes the previous window verbatim and clears the rolling prompt', async () => {
+    // Real-use bug (2026-11-19): whisper copies its rolling prompt back on
+    // quiet audio, so each sentence landed twice, 10 s apart.
+    const sentence = 'takze tedka zapojujeme celou firmu do tohohle a snazime se';
+    const texts = [sentence, sentence, 'a tohle je uplne nova veta ktera navazuje dal'];
+    let call = 0;
+    whisperCtx.transcribeData.mockImplementation(() => {
+      const text = texts[Math.min(call++, texts.length - 1)];
+      return {
+        promise: Promise.resolve({
+          result: text,
+          segments: [{ text, t0: 0, t1: 1000 }],
+          isAborted: false,
+          language: 'cs',
+        }),
+        stop: vi.fn(),
+      };
+    });
+
+    await transcriptionService.start('meeting-echo', 'cs');
+    for (let i = 0; i < 3; i++) {
+      transcriptionService.addChunk(mixedOnly(MIXED_WINDOW));
+      await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(i + 1));
+      await vi.waitFor(() => expect(transcriptionService.getProgress().currentSegment).toBe(i + 1));
+      // Let the window's persist loop and prompt bookkeeping finish first.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    expect(persisted().map((p) => p.text)).toEqual([sentence, texts[2]]);
+    // The window after the echo got no rolling prompt, breaking the loop.
+    expect(whisperCtx.transcribeData.mock.calls[1][1]?.prompt).toBe(sentence);
+    expect(whisperCtx.transcribeData.mock.calls[2][1]?.prompt).toBeUndefined();
+  });
+
   it('transcribes the mixed sum alone, unlabelled, when the mic is off', async () => {
     await transcriptionService.start('meeting-mic-off', 'en');
     transcriptionService.addChunk(mixedOnly(MIXED_WINDOW));
