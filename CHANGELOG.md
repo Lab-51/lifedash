@@ -3,6 +3,10 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.18.2 — 2026-11-19
+- release: prep v2.18.2
+- fix(transcription): drop live whisper windows that echo the previous window
+
 ## v2.18.1 — 2026-10-20
 - release: prep v2.18.1
 - feat(recording): a Voice processing switch for the microphone (AUDIO-DEVICE.1 follow-up)
