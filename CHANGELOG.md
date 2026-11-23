@@ -3,6 +3,10 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.19.1 — 2026-11-23
+- release: prep v2.19.1
+- fix(transcription): Stop no longer waits for a whole call's transcript
+
 ## v2.19.0 — 2026-11-19
 - release: prep v2.19.0
 - feat(transcription): slower-than-realtime guard for live local whisper
