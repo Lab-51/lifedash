@@ -202,6 +202,11 @@ let stopInFlight: Promise<string> | null = null;
  * database: a stop started from the UI can still be writing transcript rows (measured
  * up to ~7 s) when the quit proceeds.
  */
+/** True while a stop is still finishing the transcript (parked windows, flush). */
+export function isStopInFlight(): boolean {
+  return stopInFlight !== null;
+}
+
 export async function waitForStopToFinish(): Promise<void> {
   await stopInFlight?.catch(() => undefined);
 }

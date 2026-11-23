@@ -28,6 +28,7 @@ import { createQuitHandler, createShutdown } from './shutdown';
 import {
   blockNewRecordings,
   isRecording as isAudioRecording,
+  isStopInFlight,
   stopRecording,
   waitForStopToFinish,
 } from './services/audioProcessor';
@@ -91,7 +92,9 @@ let memoryMonitorId: ReturnType<typeof setInterval> | null = null;
 
 // When a second instance is attempted, focus the existing window.
 app.on('second-instance', () => {
-  if (mainWindow) {
+  // A relaunch while the first instance is still shutting down (window already
+  // destroyed, quit waiting on the transcript) threw "Object has been destroyed".
+  if (mainWindow && !mainWindow.isDestroyed()) {
     if (!mainWindow.isVisible()) {
       mainWindow.show();
     }
@@ -410,6 +413,14 @@ const createWindow = async () => {
     if (getIsRecording()) {
       event.preventDefault();
       if (await confirmStopRecording()) mainWindow?.close();
+    } else if (isStopInFlight() && !closeWhileFinishingConfirmed) {
+      // Shutdown waits only 15 s for a stop, so closing now drops the part of the
+      // transcript not yet written (2026-11-23: a 40-min backlog lost this way).
+      event.preventDefault();
+      if (await confirmCloseWhileFinishing()) {
+        closeWhileFinishingConfirmed = true;
+        mainWindow?.close();
+      }
     } else if (process.platform === 'darwin' && !(app as unknown as { isQuitting: boolean }).isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
@@ -462,6 +473,24 @@ async function confirmStopRecording(): Promise<boolean> {
   await new Promise((resolve) => setTimeout(resolve, 2000));
   setIsRecording(false);
   return true;
+}
+
+let closeWhileFinishingConfirmed = false;
+
+/** Asked when the window closes while Stop is still finishing the transcript. */
+async function confirmCloseWhileFinishing(): Promise<boolean> {
+  if (!mainWindow || mainWindow.isDestroyed()) return true;
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['Wait', 'Close Anyway'],
+    defaultId: 0,
+    cancelId: 0,
+    title: 'Transcript Still Finishing',
+    message: 'LifeDash is still finishing the transcript of your last recording.',
+    detail:
+      'Closing now keeps the audio but loses the part of the transcript not finished yet. You can re-transcribe the recording later.',
+  });
+  return response === 1;
 }
 
 // Every quit path (and the update installer) awaits this: the recording is saved,

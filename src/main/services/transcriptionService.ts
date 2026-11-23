@@ -142,13 +142,19 @@ const MAX_CONCURRENT = 2;
 // A 10 s window that takes close to 10 s to transcribe means whisper holds the
 // GPU/CPU for the whole call, and the user's meeting app stutters (measured
 // 2026-11-19: median 17.8 s per window on an integrated GPU, two at a time).
-// Three consecutive slow windows step the session down one level; a session
-// never steps back up, so the load stays predictable.
+// A session never steps back up, so the load stays predictable.
 //   0 normal   — MAX_CONCURRENT windows, the user's speed preset
-//   1 light    — one window at a time, `fast` preset
-//   2 deferred — speech windows are parked and transcribed after Stop
+//   1 light    — one window at a time, `fast` preset (three consecutive slow windows)
+//   2 deferred — speech windows are parked and transcribed after Stop, only once
+//                level 1 has fallen DEFER_BACKLOG_WINDOWS behind the live audio
+// Level 2 used to follow three more slow windows, so a machine at ~9.5 s per 9 s
+// step (2026-11-23: nearly real time, call smooth) parked a whole 40-min call and
+// Stop then needed ~40 min. Every parked window is Stop-time wait, so parking is
+// kept for machines that truly cannot keep up.
 const SLOW_WINDOW_MS = 8000;
 const SLOW_STREAK_TO_STEP_DOWN = 3;
+/** Windows queued behind the live audio (~3 min at the 9 s step) before level 2. */
+const DEFER_BACKLOG_WINDOWS = 20;
 type LoadLevel = 0 | 1 | 2;
 let loadLevel: LoadLevel = 0;
 let slowStreak = 0;
@@ -169,16 +175,27 @@ function maxConcurrent(): number {
 
 /** Feed one full live window's whisper duration to the guard. */
 function noteWindowDuration(durationMs: number): void {
-  if (draining || loadLevel === 2) return;
+  if (draining || loadLevel !== 0) return;
   slowStreak = durationMs > SLOW_WINDOW_MS ? slowStreak + 1 : 0;
   if (slowStreak < SLOW_STREAK_TO_STEP_DOWN) return;
   slowStreak = 0;
+  stepDown(`last window ${durationMs} ms`);
+}
+
+/** Feed the live queue length to the guard: level 1 steps to 2 only once far behind. */
+function noteBacklog(): void {
+  if (draining || loadLevel !== 1 || activeProvider !== 'local') return;
+  if (pendingSegments.length < DEFER_BACKLOG_WINDOWS) return;
+  stepDown(`${pendingSegments.length} windows behind`);
+}
+
+function stepDown(detail: string): void {
   loadLevel = (loadLevel + 1) as LoadLevel;
   const reason =
     loadLevel === 1
       ? 'Transcription is slower than real time on this computer — switched to a lighter mode to keep your call smooth'
-      : 'Transcription is still too slow during the call — the rest of the transcript will be finished after you stop recording';
-  log.warn(`Slow-transcription guard: level ${loadLevel} (last window ${durationMs} ms, backend ${whisperBackend})`);
+      : 'Transcription has fallen behind the call — the rest of the transcript will be finished after you stop recording';
+  log.warn(`Slow-transcription guard: level ${loadLevel} (${detail}, backend ${whisperBackend})`);
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('transcription:status-changed', { status: 'fallback', reason });
   }
@@ -479,6 +496,7 @@ function feedChannel(channel: AudioChannel, chunk: Buffer): void {
     const advance = BYTES_PER_SEGMENT - OVERLAP_BYTES;
     state.accumulator = state.accumulator.subarray(advance);
     dispatchNext();
+    noteBacklog();
   }
 }
 

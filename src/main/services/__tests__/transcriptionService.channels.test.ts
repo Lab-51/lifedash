@@ -373,23 +373,56 @@ describe('transcriptionService — slower-than-realtime guard', () => {
     expect(fallbackToasts()).toHaveLength(1);
   });
 
-  it('parks speech windows after six slow windows and transcribes them at stop, in order', async () => {
+  it('keeps transcribing live in light mode while slow windows still keep up', async () => {
+    // Real use (2026-11-23): ~9.5 s per window one at a time is nearly real
+    // time; parking it made Stop wait as long as the whole call.
+    whisperTakes(() => 9500);
+    await transcriptionService.start('meeting-near-realtime', 'en');
+    await feedWindows(8, (fed) => fed);
+
+    expect(fallbackToasts()).toHaveLength(1);
+    expect(persisted()).toHaveLength(8);
+  });
+
+  it('parks speech windows once light mode falls 20 windows behind and transcribes them at stop, in order', async () => {
     whisperTakes(() => 9000);
     await transcriptionService.start('meeting-deferred', 'en');
-    // Windows 1-6 reach whisper; 7 and 8 are parked.
-    await feedWindows(8, (fed) => Math.min(fed, 6));
+    await feedWindows(3, (fed) => fed); // three slow windows: light mode
+    expect(fallbackToasts()).toHaveLength(1);
 
-    expect(fallbackToasts()).toHaveLength(2);
-    expect(persisted()).toHaveLength(6);
+    // Window 4 hangs in whisper, so the next ones queue up behind it.
+    let release!: () => void;
+    const hung = new Promise<void>((resolve) => (release = resolve));
+    const normal = whisperCtx.transcribeData.getMockImplementation()!;
+    whisperCtx.transcribeData.mockImplementationOnce((...args: unknown[]) => {
+      const call = normal(...(args as Parameters<typeof normal>));
+      return { ...call, promise: hung.then(() => call.promise) };
+    });
+    transcriptionService.addChunk(mixedOnly(MIXED_WINDOW));
+    await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(4));
+
+    // Each chunk queues one window, plus one more every 9 chunks from the 1 s
+    // overlap, so 15 chunks stay under 20 queued and 25 go past it.
+    for (let i = 0; i < 15; i++) transcriptionService.addChunk(mixedOnly(MIXED_WINDOW));
+    expect(fallbackToasts()).toHaveLength(1); // under 20 behind: still live
+    for (let i = 0; i < 10; i++) transcriptionService.addChunk(mixedOnly(MIXED_WINDOW));
+    expect(fallbackToasts()).toHaveLength(2); // 20+ behind: deferred
+
+    release();
+    await vi.waitFor(() => expect(persisted()).toHaveLength(4));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // The backlog is parked, not transcribed during the call.
+    expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(4);
 
     await transcriptionService.stop();
 
-    // 8 full windows plus the short flush of the 1 s overlap remainder.
-    expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(9);
-    expect(persisted().map((p) => p.text)).toEqual(Array.from({ length: 9 }, (_, n) => `window ${n}`));
+    // Every queued window plus the stop flush, transcribed in recording order.
+    const calls = whisperCtx.transcribeData.mock.calls.length;
+    expect(calls).toBeGreaterThan(29);
+    expect(persisted().map((p) => p.text)).toEqual(Array.from({ length: calls }, (_, n) => `window ${n}`));
     // Parked windows keep the offsets they were recorded at.
     const starts = vi.mocked(meetingService.addTranscriptSegment).mock.calls.map((c) => c[2]);
-    expect(starts.slice(0, 8)).toEqual([0, 10000, 20000, 30000, 40000, 50000, 60000, 70000]);
+    expect(starts.slice(0, calls - 1)).toEqual(Array.from({ length: calls - 1 }, (_, n) => n * 10000));
   });
 
   it('starts the next recording back in normal mode', async () => {
